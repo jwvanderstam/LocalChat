@@ -52,32 +52,37 @@ DB_POOL_MAX_CONN: int = 10
 OLLAMA_BASE_URL: str = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 
 # ============================================================================
-# RAG CONFIGURATION - OPTIMIZED FOR BETTER PERFORMANCE
+# RAG CONFIGURATION - OPTIMIZED FOR LARGE DOCUMENTS WITH TABLES
 # ============================================================================
 
-# Chunking - Optimal for most use cases
-CHUNK_SIZE: int = 768              # Characters per chunk (increased for better context)
-CHUNK_OVERLAP: int = 128           # Overlap between chunks (16.7% overlap)
+# Chunking - Optimized for documents with tables
+CHUNK_SIZE: int = 1024             # Increased from 768 to handle tables better
+CHUNK_OVERLAP: int = 150           # 14.6% overlap (increased for better context continuity)
 CHUNK_SEPARATORS: list = ['\n\n\n', '\n\n', '\n', '. ', '! ', '? ', '; ', ', ', ' ', '']  # Hierarchical splitting
 
-# Retrieval Configuration - More aggressive retrieval with filtering
-TOP_K_RESULTS: int = 15            # Retrieve top 15 chunks (increased from 10)
-MIN_SIMILARITY_THRESHOLD: float = 0.25  # Filter out low-quality matches (lowered from 0.3)
+# Table-specific settings
+TABLE_CHUNK_SIZE: int = 2048       # Larger chunks for tables to keep them intact
+KEEP_TABLES_INTACT: bool = True    # Try to keep tables as single chunks
+
+# Retrieval Configuration - Aggressive retrieval with better filtering
+TOP_K_RESULTS: int = 20            # Increased from 15 for better coverage
+MIN_SIMILARITY_THRESHOLD: float = 0.22  # Lowered from 0.25 for more recall
 RERANK_RESULTS: bool = True        # Re-rank results by relevance
-RERANK_TOP_K: int = 10             # After re-ranking, return top 10
+RERANK_TOP_K: int = 12             # Return top 12 after re-ranking
 
 # Advanced RAG features
 USE_CONTEXTUAL_CHUNKS: bool = True   # Include adjacent chunks for context
 CONTEXT_WINDOW_SIZE: int = 1         # Include 1 chunk before/after each result
 
-# Re-ranking weights
-SIMILARITY_WEIGHT: float = 0.5       # Vector similarity weight
-KEYWORD_WEIGHT: float = 0.2          # Exact keyword match weight  
-BM25_WEIGHT: float = 0.2             # BM25 relevance score weight
-POSITION_WEIGHT: float = 0.1         # Early chunk position weight
+# Re-ranking weights - Optimized for table content
+SIMILARITY_WEIGHT: float = 0.45      # Slightly reduced (was 0.5)
+KEYWORD_WEIGHT: float = 0.25         # Increased for exact matches (was 0.2)
+BM25_WEIGHT: float = 0.20            # Traditional IR scoring
+POSITION_WEIGHT: float = 0.10        # Early chunk position weight
 
 # Processing Configuration
-MAX_WORKERS: int = 4               # Parallel workers for document processing
+MAX_WORKERS: int = 8               # Doubled from 4 for faster parallel processing
+BATCH_SIZE: int = 50              # Embeddings batch size for Ollama
 
 # ============================================================================
 # LLM CONFIGURATION
