@@ -286,7 +286,8 @@ class DocumentProcessor:
         """
         Chunk text using recursive character splitting for better semantic preservation.
         
-        ENHANCED: Keeps tables together as single chunks when possible.
+        ENHANCED: Keeps tables together as single chunks when possible, using larger
+        TABLE_CHUNK_SIZE for tables to maximize context retention.
         
         Tries to split at natural boundaries in this order:
         1. Table boundaries ([Table X] markers)
@@ -306,6 +307,8 @@ class DocumentProcessor:
         """
         chunk_size = chunk_size or config.CHUNK_SIZE
         overlap = overlap or config.CHUNK_OVERLAP
+        table_chunk_size = getattr(config, 'TABLE_CHUNK_SIZE', chunk_size * 2)
+        keep_tables_intact = getattr(config, 'KEEP_TABLES_INTACT', True)
         
         # Clean text
         text = text.strip()
@@ -340,23 +343,28 @@ class DocumentProcessor:
                         before_chunks = self._chunk_text_standard(before_text, chunk_size, overlap)
                         chunks.extend(before_chunks)
                 
-                # Handle the TABLE itself
-                if len(table_text) <= chunk_size:
-                    # Table fits in one chunk - keep it intact!
+                # Handle the TABLE itself with larger chunk size
+                if keep_tables_intact and len(table_text) <= table_chunk_size:
+                    # Table fits in larger chunk - keep it intact!
+                    chunks.append(table_text)
+                    logger.debug(f"Table kept intact ({len(table_text)} chars, using TABLE_CHUNK_SIZE={table_chunk_size})")
+                elif not keep_tables_intact and len(table_text) <= chunk_size:
+                    # Standard chunking for tables
                     chunks.append(table_text)
                     logger.debug(f"Table kept intact ({len(table_text)} chars)")
                 else:
-                    # Table is too large - split carefully by rows
+                    # Table is too large even for TABLE_CHUNK_SIZE - split carefully by rows
                     table_lines = table_text.split('\n')
                     table_header = table_lines[0] if table_lines else ""  # [Table X on page Y]
                     
                     current_table_chunk = [table_header]
                     current_table_size = len(table_header)
+                    max_table_chunk = table_chunk_size if keep_tables_intact else chunk_size
                     
                     for line in table_lines[1:]:
                         line_size = len(line) + 1  # +1 for newline
                         
-                        if current_table_size + line_size > chunk_size and current_table_chunk:
+                        if current_table_size + line_size > max_table_chunk and current_table_chunk:
                             # Save current chunk
                             chunks.append('\n'.join(current_table_chunk))
                             # Start new chunk with header
@@ -369,7 +377,7 @@ class DocumentProcessor:
                     if current_table_chunk:
                         chunks.append('\n'.join(current_table_chunk))
                     
-                    logger.debug(f"Large table split into {len([c for c in chunks if table_header in c])} chunks")
+                    logger.debug(f"Large table split into {len([c for c in chunks if table_header in c])} chunks (max size={max_table_chunk})")
                 
                 current_pos = table_end
             
@@ -391,7 +399,7 @@ class DocumentProcessor:
             if len(chunk) >= 10:
                 valid_chunks.append(chunk)
         
-        logger.debug(f"Chunked text into {len(valid_chunks)} valid chunks")
+        logger.info(f"Chunked text into {len(valid_chunks)} valid chunks (standard_size={chunk_size}, table_size={table_chunk_size})")
         return valid_chunks
     
     def _chunk_text_standard(self, text: str, chunk_size: int, overlap: int) -> List[str]:
@@ -505,20 +513,42 @@ class DocumentProcessor:
         # Perform recursive splitting
         return split_text_recursive(text, separators, chunk_size, overlap)
     
-    def generate_embeddings_batch(self, texts: List[str], model: Optional[str] = None) -> List[Optional[List[float]]]:
-        """Generate embeddings for a batch of texts."""
+    def generate_embeddings_batch(self, texts: List[str], model: Optional[str] = None, batch_size: Optional[int] = None) -> List[Optional[List[float]]]:
+        """
+        Generate embeddings for a batch of texts with configurable batch size.
+        
+        Args:
+            texts: List of text strings to embed
+            model: Embedding model name (default: from config)
+            batch_size: Number of texts to process at once (default: from config)
+        
+        Returns:
+            List of embeddings (or None for failed items)
+        """
         if model is None:
             model = self.embedding_model or ollama_client.get_embedding_model()
         
-        embeddings = []
-        for text in texts:
-            success, embedding = ollama_client.generate_embedding(model, text)
-            if success:
-                embeddings.append(embedding)
-            else:
-                embeddings.append(None)
+        batch_size = batch_size or getattr(config, 'BATCH_SIZE', 50)
         
-        logger.info(f"Generated embeddings for {len(texts)} texts using model {model}")
+        embeddings = []
+        total = len(texts)
+        
+        # Process in batches for better performance
+        for i in range(0, total, batch_size):
+            batch = texts[i:i+batch_size]
+            batch_end = min(i+batch_size, total)
+            
+            logger.debug(f"Processing embedding batch {i//batch_size + 1}: texts {i+1}-{batch_end} of {total}")
+            
+            for text in batch:
+                success, embedding = ollama_client.generate_embedding(model, text)
+                if success:
+                    embeddings.append(embedding)
+                else:
+                    embeddings.append(None)
+                    logger.warning(f"Failed to generate embedding for text at index {len(embeddings)-1}")
+        
+        logger.info(f"Generated embeddings for {len(texts)} texts using model {model} ({sum(1 for e in embeddings if e is not None)} successful)")
         return embeddings
     
     def process_document_chunk(
@@ -731,6 +761,54 @@ class DocumentProcessor:
         logger.info("Batch ingestion completed")
         return results
     
+    def _preprocess_query(self, query: str) -> str:
+        """
+        Preprocess and clean query for better retrieval.
+        
+        Args:
+            query: Raw user query
+        
+        Returns:
+            Cleaned query string
+        """
+        # Remove extra whitespace
+        query = ' '.join(query.split())
+        
+        # Expand common contractions for better matching
+        contractions = {
+            "what's": "what is",
+            "what're": "what are",
+            "don't": "do not",
+            "doesn't": "does not",
+            "didn't": "did not",
+            "can't": "cannot",
+            "couldn't": "could not",
+            "won't": "will not",
+            "wouldn't": "would not",
+            "shouldn't": "should not",
+            "isn't": "is not",
+            "aren't": "are not",
+            "wasn't": "was not",
+            "weren't": "were not",
+            "haven't": "have not",
+            "hasn't": "has not",
+            "hadn't": "had not",
+            "i'm": "i am",
+            "you're": "you are",
+            "he's": "he is",
+            "she's": "she is",
+            "it's": "it is",
+            "we're": "we are",
+            "they're": "they are",
+        }
+        
+        query_lower = query.lower()
+        for contraction, expansion in contractions.items():
+            query_lower = query_lower.replace(contraction, expansion)
+        
+        # Return with original casing but expanded contractions
+        return query_lower
+    
     def retrieve_context(self, query: str, top_k: Optional[int] = None, min_similarity: Optional[float] = None, file_type_filter: Optional[str] = None) -> List[Tuple[str, str, int, float]]:
         """
         Retrieve relevant context for a query with enhanced filtering and re-ranking.
@@ -753,7 +831,7 @@ class DocumentProcessor:
             logger.debug(f"file_type_filter: {file_type_filter}")
         
         # Preprocess query
-        query_clean = ' '.join(query.split())  # Remove extra whitespace
+        query_clean = self._preprocess_query(query)
         logger.debug(f"Preprocessed query: {query_clean[:50]}...")
         
         # Get embedding model
