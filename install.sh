@@ -1,0 +1,386 @@
+#!/bin/bash
+# LocalChat Installation Script for Linux/Mac
+# ============================================
+# Automated installation script for LocalChat RAG application
+# 
+# Usage:
+#   ./install.sh                    # Interactive installation
+#   ./install.sh --auto             # Automatic installation
+#   ./install.sh --check            # Check prerequisites only
+#
+# Author: LocalChat Team
+# Date: 2024-12-28
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Functions
+print_header() {
+    echo ""
+    echo -e "${MAGENTA}======================================================================${NC}"
+    echo -e "${MAGENTA}$1${NC}"
+    echo -e "${MAGENTA}======================================================================${NC}"
+    echo ""
+}
+
+print_success() {
+    echo -e "${GREEN}? $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}? $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}? $1${NC}"
+}
+
+print_info() {
+    echo -e "${CYAN}? $1${NC}"
+}
+
+check_python() {
+    print_info "Checking Python version..."
+    
+    if command -v python3 &> /dev/null; then
+        version=$(python3 --version 2>&1 | awk '{print $2}')
+        major=$(echo $version | cut -d. -f1)
+        minor=$(echo $version | cut -d. -f2)
+        
+        if [ "$major" -ge 3 ] && [ "$minor" -ge 10 ]; then
+            print_success "Python $version detected"
+            return 0
+        else
+            print_error "Python 3.10+ required, found $version"
+            return 1
+        fi
+    else
+        print_error "Python not found"
+        print_info "Install from: https://www.python.org/downloads/"
+        return 1
+    fi
+}
+
+check_postgresql() {
+    print_info "Checking PostgreSQL..."
+    
+    if command -v psql &> /dev/null; then
+        print_success "PostgreSQL is installed"
+        
+        if pg_isready &> /dev/null; then
+            print_success "PostgreSQL server is running"
+            return 0
+        else
+            print_warning "PostgreSQL is installed but server is not running"
+            print_info "Start PostgreSQL server and run install again"
+            return 1
+        fi
+    else
+        print_error "PostgreSQL is not installed"
+        print_info "Install from: https://www.postgresql.org/download/"
+        return 1
+    fi
+}
+
+check_ollama() {
+    print_info "Checking Ollama..."
+    
+    if command -v ollama &> /dev/null; then
+        print_success "Ollama is installed"
+        
+        if curl -s http://localhost:11434/api/tags &> /dev/null; then
+            print_success "Ollama server is running"
+            return 0
+        else
+            print_warning "Ollama is installed but server is not running"
+            print_info "Run 'ollama serve' in another terminal"
+            return 1
+        fi
+    else
+        print_error "Ollama is not installed"
+        print_info "Install from: https://ollama.ai"
+        return 1
+    fi
+}
+
+install_dependencies() {
+    print_info "Installing Python dependencies..."
+    
+    if [ ! -f "requirements.txt" ]; then
+        print_error "requirements.txt not found"
+        return 1
+    fi
+    
+    if python3 -m pip install -r requirements.txt; then
+        print_success "Python dependencies installed"
+        return 0
+    else
+        print_error "Failed to install Python dependencies"
+        return 1
+    fi
+}
+
+setup_database() {
+    print_info "Setting up database..."
+    
+    read -p "Enter database name (default: rag_db): " db_name
+    db_name=${db_name:-rag_db}
+    
+    # Check if database exists
+    if psql -lqt | cut -d \| -f 1 | grep -qw "$db_name"; then
+        print_warning "Database '$db_name' already exists"
+        read -p "Do you want to use existing database? (y/n): " response
+        if [ "$response" != "y" ]; then
+            return 1
+        fi
+    else
+        # Create database
+        print_info "Creating database '$db_name'..."
+        if createdb "$db_name"; then
+            print_success "Database '$db_name' created"
+        else
+            print_error "Failed to create database '$db_name'"
+            return 1
+        fi
+    fi
+    
+    # Enable pgvector extension
+    print_info "Enabling pgvector extension..."
+    if psql "$db_name" -c "CREATE EXTENSION IF NOT EXISTS vector;" &> /dev/null; then
+        print_success "pgvector extension enabled"
+    else
+        print_error "Failed to enable pgvector extension"
+        print_info "You may need to install pgvector first:"
+        print_info "https://github.com/pgvector/pgvector"
+        return 1
+    fi
+    
+    # Create .env file
+    create_env_file "$db_name"
+    
+    return 0
+}
+
+create_env_file() {
+    local db_name=$1
+    print_info "Creating .env configuration file..."
+    
+    cat > .env << EOF
+# LocalChat Environment Configuration
+# Generated by install.sh
+
+# Database Configuration
+PG_HOST=localhost
+PG_PORT=5432
+PG_USER=postgres
+PG_PASSWORD=postgres
+PG_DB=$db_name
+
+# Ollama Configuration
+OLLAMA_BASE_URL=http://localhost:11434
+
+# Flask Configuration
+SERVER_HOST=localhost
+SERVER_PORT=5000
+SECRET_KEY=change-this-in-production
+
+# Application Settings
+DEBUG=False
+EOF
+    
+    print_success ".env file created"
+    print_warning "? Edit .env file to set your PostgreSQL password"
+}
+
+pull_ollama_models() {
+    print_info "Pulling Ollama models..."
+    
+    declare -A models=(
+        ["nomic-embed-text"]="Embedding model"
+        ["llama3.2"]="Chat model"
+    )
+    
+    for model in "${!models[@]}"; do
+        print_info "Pulling $model (${models[$model]})..."
+        if ollama pull "$model"; then
+            print_success "$model pulled successfully"
+        else
+            print_warning "Failed to pull $model"
+            print_info "You can pull it later with: ollama pull $model"
+        fi
+    done
+}
+
+create_directories() {
+    print_info "Creating directories..."
+    
+    for dir in logs uploads; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            print_success "Created $dir/ directory"
+        else
+            print_info "$dir/ directory already exists"
+        fi
+    done
+}
+
+run_tests() {
+    print_info "Running tests to verify installation..."
+    
+    if python3 -m pytest tests/ -v --tb=short; then
+        print_success "All tests passed"
+        return 0
+    else
+        print_warning "Some tests failed (this may be normal)"
+        return 0
+    fi
+}
+
+check_prerequisites() {
+    print_header "Checking Prerequisites"
+    
+    all_passed=true
+    
+    if ! check_python; then
+        all_passed=false
+    fi
+    
+    if ! check_postgresql; then
+        all_passed=false
+    fi
+    
+    if ! check_ollama; then
+        all_passed=false
+    fi
+    
+    echo ""
+    echo "======================================================================"
+    if [ "$all_passed" = true ]; then
+        print_success "All prerequisites met!"
+    else
+        print_error "Some prerequisites are missing"
+        print_info "Install missing components and run again"
+    fi
+    echo "======================================================================"
+    
+    if [ "$all_passed" = true ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+main() {
+    print_header "LocalChat Installation"
+    echo "Welcome to LocalChat RAG Application installer"
+    echo "This script will install and configure LocalChat"
+    echo ""
+    
+    # Parse arguments
+    auto_mode=false
+    check_only=false
+    
+    for arg in "$@"; do
+        case $arg in
+            --auto)
+                auto_mode=true
+                ;;
+            --check)
+                check_only=true
+                ;;
+        esac
+    done
+    
+    # Check prerequisites
+    if ! check_prerequisites; then
+        print_error "\nInstallation cannot continue due to missing prerequisites"
+        exit 1
+    fi
+    
+    if [ "$check_only" = true ]; then
+        exit 0
+    fi
+    
+    # Confirm installation
+    if [ "$auto_mode" = false ]; then
+        read -p $'\nProceed with installation? (y/n): ' response
+        if [ "$response" != "y" ]; then
+            echo "Installation cancelled"
+            exit 0
+        fi
+    fi
+    
+    # Install Python dependencies
+    print_header "Installing Python Dependencies"
+    if ! install_dependencies; then
+        print_error "Installation failed"
+        exit 1
+    fi
+    
+    # Set up database
+    print_header "Setting Up Database"
+    if [ "$auto_mode" = false ]; then
+        if ! setup_database; then
+            print_error "Database setup failed"
+            exit 1
+        fi
+    else
+        print_info "Skipping database setup in auto mode"
+        print_info "Run './install.sh' interactively to set up database"
+    fi
+    
+    # Create directories
+    print_header "Creating Directories"
+    create_directories
+    
+    # Pull Ollama models
+    print_header "Pulling Ollama Models"
+    if [ "$auto_mode" = false ]; then
+        read -p "Do you want to pull Ollama models now? (y/n): " response
+        if [ "$response" = "y" ]; then
+            pull_ollama_models
+        fi
+    else
+        print_info "Skipping Ollama models in auto mode"
+        print_info "Run 'ollama pull nomic-embed-text' and 'ollama pull llama3.2' manually"
+    fi
+    
+    # Run tests
+    if [ "$auto_mode" = false ]; then
+        print_header "Running Tests"
+        read -p "Do you want to run tests to verify installation? (y/n): " response
+        if [ "$response" = "y" ]; then
+            run_tests
+        fi
+    fi
+    
+    # Installation complete
+    print_header "Installation Complete!"
+    print_success "LocalChat has been successfully installed!"
+    
+    echo ""
+    echo "======================================================================"
+    echo "Next steps:"
+    echo "  1. Edit .env file to configure your database password"
+    echo "  2. Start Ollama: ollama serve"
+    echo "  3. Start LocalChat: python3 app.py"
+    echo "  4. Open browser: http://localhost:5000"
+    echo "======================================================================"
+    
+    echo ""
+    echo "For more information, see:"
+    echo "  - QUICK_START.md"
+    echo "  - docs/SETUP_GUIDE.md"
+    echo "  - README_MAIN.md"
+}
+
+# Run main function
+main "$@"
