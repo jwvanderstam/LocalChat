@@ -1,0 +1,3 @@
+@echo off
+echo Starting LocalChat...
+python app.py

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">Document Management</h1>
+</div>
+
+<div class="row">
+    <!-- Upload Section -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-upload me-2"></i>Upload Documents
+            </div>
+            <div class="card-body">
+                <form id="upload-form">
+                    <div class="mb-3">
+                        <label for="file-input" class="form-label">Select Documents</label>
+                        <input class="form-control" type="file" id="file-input" multiple 
+                               accept=".pdf,.txt,.docx,.md">
+                        <div class="form-text">
+                            Supported formats: PDF, TXT, DOCX, MD
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="upload-btn">
+                        <i class="bi bi-upload me-2"></i>Upload & Process
+                    </button>
+                </form>
+                
+                <!-- Progress Section -->
+                <div id="upload-progress" class="mt-3" style="display: none;">
+                    <div class="progress mb-2">
+                        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%">
+                        </div>
+                    </div>
+                    <div id="progress-message" class="text-muted small"></div>
+                </div>
+                
+                <!-- Results Section -->
+                <div id="upload-results" class="mt-3"></div>
+            </div>
+        </div>
+        
+        <!-- RAG Test Section -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-search me-2"></i>Test RAG Retrieval
+            </div>
+            <div class="card-body">
+                <form id="test-form">
+                    <div class="mb-3">
+                        <label for="test-query" class="form-label">Test Query</label>
+                        <input type="text" class="form-control" id="test-query" 
+                               placeholder="What is this about?" value="What is this about?">
+                    </div>
+                    <button type="submit" class="btn btn-success" id="test-btn">
+                        <i class="bi bi-search me-2"></i>Test Retrieval
+                    </button>
+                </form>
+                
+                <!-- Test Results -->
+                <div id="test-results" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Document List Section -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="bi bi-list me-2"></i>Documents in Database
+                </span>
+                <button class="btn btn-sm btn-light" id="refresh-btn" onclick="loadDocuments()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="documents-list">
+                    <div class="text-center text-muted">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Loading documents...
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Statistics -->
+        <div class="card mt-3">
+            <div class="card-header bg-secondary text-white">
+                <i class="bi bi-bar-chart me-2"></i>Statistics
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <h3 id="stat-docs">0</h3>
+                        <p class="text-muted mb-0">Documents</p>
+                    </div>
+                    <div class="col-6">
+                        <h3 id="stat-chunks">0</h3>
+                        <p class="text-muted mb-0">Chunks</p>
+                    </div>
+                </div>
+                <div class="d-grid">
+                    <button class="btn btn-danger" id="clear-db-btn" onclick="clearDatabase()">
+                        <i class="bi bi-trash me-2"></i>Clear Database
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/ingestion.js') }}"></script>
+{% endblock %}

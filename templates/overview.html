@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">System Overview</h1>
+</div>
+
+<div class="row">
+    <!-- System Status -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-info-circle me-2"></i>System Status
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span><i class="bi bi-cpu me-2"></i>Ollama Service</span>
+                        <span class="badge bg-secondary" id="overview-ollama-status">Checking...</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span><i class="bi bi-database me-2"></i>PostgreSQL + pgvector</span>
+                        <span class="badge bg-secondary" id="overview-db-status">Checking...</span>
+                    </div>
+                </div>
+                <hr>
+                <div class="mb-2">
+                    <strong>Active Model:</strong><br>
+                    <code id="overview-model">Loading...</code>
+                </div>
+                <div>
+                    <strong>Documents Indexed:</strong><br>
+                    <span class="fs-4" id="overview-doc-count">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance Metrics -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-speedometer2 me-2"></i>Performance Metrics
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="text-muted small">Total Chunks</label>
+                    <h3 id="metric-chunks">0</h3>
+                </div>
+                <div class="mb-3">
+                    <label class="text-muted small">Database Connection Pool</label>
+                    <p class="mb-0">
+                        <span class="badge bg-info">Min: 2</span>
+                        <span class="badge bg-info">Max: 10</span>
+                    </p>
+                </div>
+                <div class="mb-3">
+                    <label class="text-muted small">Parallel Workers</label>
+                    <p class="mb-0">
+                        <span class="badge bg-info">4 threads</span>
+                    </p>
+                </div>
+                <div>
+                    <label class="text-muted small">Chunk Size</label>
+                    <p class="mb-0">
+                        <span class="badge bg-info">500 tokens</span>
+                        <span class="badge bg-info">50 overlap</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Configuration -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-gear me-2"></i>Configuration
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <strong>Ollama URL:</strong><br>
+                    <code>http://localhost:11434</code>
+                </div>
+                <div class="mb-2">
+                    <strong>Database:</strong><br>
+                    <code>localhost:5432/rag_db</code>
+                </div>
+                <div class="mb-2">
+                    <strong>Top-K Results:</strong><br>
+                    <code>5 chunks</code>
+                </div>
+                <div>
+                    <strong>Supported Formats:</strong><br>
+                    <span class="badge bg-secondary">PDF</span>
+                    <span class="badge bg-secondary">TXT</span>
+                    <span class="badge bg-secondary">DOCX</span>
+                    <span class="badge bg-secondary">MD</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Architecture Diagram -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-diagram-3 me-2"></i>System Architecture
+            </div>
+            <div class="card-body">
+                <div class="text-center p-4">
+                    <svg viewBox="0 0 800 500" style="max-width: 100%; height: auto;">
+                        <!-- User -->
+                        <g>
+                            <rect x="10" y="200" width="120" height="80" fill="#007bff" rx="5"/>
+                            <text x="70" y="235" text-anchor="middle" fill="white" font-size="14">User</text>
+                            <text x="70" y="255" text-anchor="middle" fill="white" font-size="12">Web Browser</text>
+                        </g>
+                        
+                        <!-- Arrow -->
+                        <line x1="130" y1="240" x2="190" y2="240" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                        
+                        <!-- Flask App -->
+                        <g>
+                            <rect x="190" y="180" width="140" height="120" fill="#28a745" rx="5"/>
+                            <text x="260" y="210" text-anchor="middle" fill="white" font-size="14" font-weight="bold">Flask App</text>
+                            <text x="260" y="230" text-anchor="middle" fill="white" font-size="11">Routes &amp; API</text>
+                            <text x="260" y="245" text-anchor="middle" fill="white" font-size="11">RAG Logic</text>
+                            <text x="260" y="260" text-anchor="middle" fill="white" font-size="11">Streaming</text>
+                            <text x="260" y="275" text-anchor="middle" fill="white" font-size="11">Connection Pool</text>
+                        </g>
+                        
+                        <!-- Arrow to Ollama -->
+                        <line x1="330" y1="200" x2="430" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                        
+                        <!-- Ollama -->
+                        <g>
+                            <rect x="430" y="50" width="140" height="100" fill="#dc3545" rx="5"/>
+                            <text x="500" y="80" text-anchor="middle" fill="white" font-size="14" font-weight="bold">Ollama</text>
+                            <text x="500" y="100" text-anchor="middle" fill="white" font-size="11">LLM Chat</text>
+                            <text x="500" y="115" text-anchor="middle" fill="white" font-size="11">Embeddings</text>
+                            <text x="500" y="130" text-anchor="middle" fill="white" font-size="11">Model Mgmt</text>
+                        </g>
+                        
+                        <!-- Arrow to Database -->
+                        <line x1="330" y1="280" x2="430" y2="360" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+                        
+                        <!-- PostgreSQL + pgvector -->
+                        <g>
+                            <rect x="430" y="320" width="140" height="120" fill="#6c757d" rx="5"/>
+                            <text x="500" y="350" text-anchor="middle" fill="white" font-size="14" font-weight="bold">PostgreSQL</text>
+                            <text x="500" y="370" text-anchor="middle" fill="white" font-size="11">+ pgvector</text>
+                            <text x="500" y="390" text-anchor="middle" fill="white" font-size="11">Documents</text>
+                            <text x="500" y="405" text-anchor="middle" fill="white" font-size="11">Chunks</text>
+                            <text x="500" y="420" text-anchor="middle" fill="white" font-size="11">Embeddings</text>
+                        </g>
+                        
+                        <!-- Data Flow Labels -->
+                        <text x="160" y="225" text-anchor="middle" fill="#666" font-size="10">HTTP</text>
+                        <text x="370" y="150" text-anchor="middle" fill="#666" font-size="10">API</text>
+                        <text x="370" y="320" text-anchor="middle" fill="#666" font-size="10">SQL</text>
+                        
+                        <!-- RAG Flow -->
+                        <g>
+                            <rect x="620" y="180" width="170" height="140" fill="#17a2b8" fill-opacity="0.1" stroke="#17a2b8" stroke-width="2" rx="5"/>
+                            <text x="705" y="205" text-anchor="middle" fill="#17a2b8" font-size="13" font-weight="bold">RAG Pipeline</text>
+                            <text x="705" y="230" text-anchor="middle" fill="#333" font-size="10">1. Ingest Documents</text>
+                            <text x="705" y="245" text-anchor="middle" fill="#333" font-size="10">2. Chunk Text (500 tokens)</text>
+                            <text x="705" y="260" text-anchor="middle" fill="#333" font-size="10">3. Generate Embeddings</text>
+                            <text x="705" y="275" text-anchor="middle" fill="#333" font-size="10">4. Store in pgvector</text>
+                            <text x="705" y="295" text-anchor="middle" fill="#333" font-size="10">5. Query Embedding</text>
+                            <text x="705" y="310" text-anchor="middle" fill="#333" font-size="10">6. Similarity Search</text>
+                        </g>
+                        
+                        <!-- Arrow marker definition -->
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                                <polygon points="0 0, 10 3, 0 6" fill="#333"/>
+                            </marker>
+                        </defs>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Links -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <i class="bi bi-link-45deg me-2"></i>Quick Actions
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <a href="/chat" class="btn btn-outline-primary w-100 mb-2">
+                            <i class="bi bi-chat-left-text d-block fs-3 mb-2"></i>
+                            Start Chatting
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/documents" class="btn btn-outline-success w-100 mb-2">
+                            <i class="bi bi-upload d-block fs-3 mb-2"></i>
+                            Upload Documents
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/models" class="btn btn-outline-info w-100 mb-2">
+                            <i class="bi bi-cpu d-block fs-3 mb-2"></i>
+                            Manage Models
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <button onclick="refreshStatus()" class="btn btn-outline-secondary w-100 mb-2">
+                            <i class="bi bi-arrow-clockwise d-block fs-3 mb-2"></i>
+                            Refresh Status
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    async function loadOverviewData() {
+        try {
+            // System status
+            const statusResponse = await fetch('/api/status');
+            const statusData = await statusResponse.json();
+            
+            // Ollama status
+            const ollamaStatus = document.getElementById('overview-ollama-status');
+            if (statusData.ollama) {
+                ollamaStatus.className = 'badge bg-success';
+                ollamaStatus.textContent = 'Running';
+            } else {
+                ollamaStatus.className = 'badge bg-danger';
+                ollamaStatus.textContent = 'Offline';
+            }
+            
+            // Database status
+            const dbStatus = document.getElementById('overview-db-status');
+            if (statusData.database) {
+                dbStatus.className = 'badge bg-success';
+                dbStatus.textContent = 'Connected';
+            } else {
+                dbStatus.className = 'badge bg-danger';
+                dbStatus.textContent = 'Disconnected';
+            }
+            
+            // Active model
+            document.getElementById('overview-model').textContent = statusData.active_model || 'None';
+            
+            // Document count
+            document.getElementById('overview-doc-count').textContent = statusData.document_count || 0;
+            
+            // Document stats
+            const statsResponse = await fetch('/api/documents/stats');
+            const statsData = await statsResponse.json();
+            
+            if (statsData.success) {
+                document.getElementById('metric-chunks').textContent = statsData.chunk_count || 0;
+            }
+        } catch (error) {
+            console.error('Error loading overview data:', error);
+        }
+    }
+    
+    function refreshStatus() {
+        loadOverviewData();
+        alert('Status refreshed!');
+    }
+    
+    // Load on page load
+    loadOverviewData();
+    
+    // Refresh every 10 seconds
+    setInterval(loadOverviewData, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">Model Management</h1>
+    <button class="btn btn-sm btn-primary" id="test-connection-btn">
+        <i class="bi bi-heartbeat me-1"></i>Test Connection
+    </button>
+</div>
+
+<div class="row">
+    <!-- Available Models -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="bi bi-cpu me-2"></i>Available Models
+                </span>
+                <button class="btn btn-sm btn-light" onclick="loadModels()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="models-list">
+                    <div class="text-center text-muted">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Loading models...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actions Panel -->
+    <div class="col-md-4">
+        <!-- Pull Model -->
+        <div class="card mb-3">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-download me-2"></i>Pull New Model
+            </div>
+            <div class="card-body">
+                <form id="pull-form">
+                    <div class="mb-3">
+                        <label for="model-select" class="form-label">Select Model</label>
+                        <select class="form-select" id="model-select">
+                            <option value="">Choose a model...</option>
+                            <optgroup label="Popular Chat Models">
+                                <option value="llama3.2">llama3.2 (3B) - Fast & Efficient</option>
+                                <option value="llama3.2:1b">llama3.2:1b (1B) - Lightweight</option>
+                                <option value="llama3.1">llama3.1 (8B) - Balanced</option>
+                                <option value="llama2">llama2 (7B) - Classic</option>
+                                <option value="mistral">mistral (7B) - High Quality</option>
+                                <option value="phi3">phi3 (3.8B) - Microsoft</option>
+                                <option value="gemma2:2b">gemma2:2b (2B) - Google Small</option>
+                                <option value="qwen2.5:3b">qwen2.5:3b (3B) - Multilingual</option>
+                            </optgroup>
+                            <optgroup label="Specialized Models">
+                                <option value="codellama">codellama (7B) - Code Generation</option>
+                                <option value="deepseek-coder">deepseek-coder (6.7B) - Code</option>
+                                <option value="llama3.1:70b">llama3.1:70b (70B) - Advanced</option>
+                                <option value="mixtral">mixtral (47B) - Mixture of Experts</option>
+                            </optgroup>
+                            <optgroup label="Embedding Models">
+                                <option value="nomic-embed-text">nomic-embed-text - Best for RAG</option>
+                                <option value="mxbai-embed-large">mxbai-embed-large - Large Context</option>
+                                <option value="all-minilm">all-minilm - Fast & Small</option>
+                            </optgroup>
+                            <optgroup label="Custom">
+                                <option value="custom">Other (enter manually)...</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    
+                    <!-- Custom model name input (hidden by default) -->
+                    <div class="mb-3" id="custom-model-group" style="display: none;">
+                        <label for="custom-model-name" class="form-label">Custom Model Name</label>
+                        <input type="text" class="form-control" id="custom-model-name" 
+                               placeholder="e.g., llama2:13b, custom-model">
+                        <div class="form-text">
+                            Enter the exact model name with tag (e.g., model:version)
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success w-100" id="pull-btn">
+                        <i class="bi bi-download me-2"></i>Pull Model
+                    </button>
+                </form>
+                
+                <!-- Pull Progress -->
+                <div id="pull-progress" class="mt-3" style="display: none;">
+                    <div class="progress mb-2">
+                        <div id="pull-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%">
+                        </div>
+                    </div>
+                    <div id="pull-status" class="text-muted small"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Connection Status -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-info-circle me-2"></i>Connection Info
+            </div>
+            <div class="card-body">
+                <div id="connection-info">
+                    <p class="mb-2">
+                        <strong>Ollama URL:</strong><br>
+                        <code>http://localhost:11434</code>
+                    </p>
+                    <p class="mb-0">
+                        <strong>Status:</strong><br>
+                        <span id="connection-status" class="badge bg-secondary">Unknown</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Model Card Template -->
+<template id="model-card-template">
+    <div class="card mb-2 model-card">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h5 class="card-title mb-1">
+                        <span class="model-name"></span>
+                        <span class="badge bg-success active-badge ms-2" style="display: none;">Active</span>
+                    </h5>
+                    <p class="card-text text-muted small mb-2">
+                        <span class="model-size"></span> - 
+                        <span class="model-modified"></span>
+                    </p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-primary activate-btn" title="Set as active">
+                        <i class="bi bi-check-circle"></i>
+                    </button>
+                    <button class="btn btn-sm btn-info test-btn" title="Test model">
+                        <i class="bi bi-play-circle"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger delete-btn" title="Delete model">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentActiveModel = null;
+
+    // Show/hide custom model input based on selection
+    document.getElementById('model-select').addEventListener('change', function() {
+        const customGroup = document.getElementById('custom-model-group');
+        if (this.value === 'custom') {
+            customGroup.style.display = 'block';
+        } else {
+            customGroup.style.display = 'none';
+        }
+    });
+
+    // Load models
+    async function loadModels() {
+        const modelsList = document.getElementById('models-list');
+        modelsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+        
+        try {
+            const response = await fetch('/api/models');
+            const data = await response.json();
+            
+            if (data.success && data.models.length > 0) {
+                modelsList.innerHTML = '';
+                
+                // Get active model
+                const activeResponse = await fetch('/api/models/active');
+                const activeData = await activeResponse.json();
+                currentActiveModel = activeData.model;
+                
+                // Render each model
+                data.models.forEach(model => {
+                    const template = document.getElementById('model-card-template');
+                    const card = template.content.cloneNode(true);
+                    
+                    card.querySelector('.model-name').textContent = model.name;
+                    card.querySelector('.model-size').textContent = formatBytes(model.size);
+                    card.querySelector('.model-modified').textContent = formatDate(model.modified_at);
+                    
+                    const cardElement = card.querySelector('.model-card');
+                    
+                    // Show active badge
+                    if (model.name === currentActiveModel) {
+                        card.querySelector('.active-badge').style.display = 'inline';
+                        cardElement.classList.add('border-success');
+                    }
+                    
+                    // Activate button
+                    card.querySelector('.activate-btn').onclick = () => activateModel(model.name);
+                    
+                    // Test button
+                    card.querySelector('.test-btn').onclick = () => testModel(model.name);
+                    
+                    // Delete button
+                    card.querySelector('.delete-btn').onclick = () => deleteModel(model.name);
+                    
+                    modelsList.appendChild(card);
+                });
+            } else {
+                modelsList.innerHTML = '<div class="alert alert-warning">No models found. Pull a model to get started.</div>';
+            }
+        } catch (error) {
+            modelsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        }
+    }
+
+    // Activate model
+    async function activateModel(modelName) {
+        try {
+            const response = await fetch('/api/models/active', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model: modelName})
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Success', `${modelName} is now active`, 'success');
+                loadModels();
+            } else {
+                showToast('Error', data.message, 'danger');
+            }
+        } catch (error) {
+            showToast('Error', error.message, 'danger');
+        }
+    }
+
+    // Test model
+    async function testModel(modelName) {
+        showToast('Testing', `Testing ${modelName}...`, 'info');
+        
+        try {
+            const response = await fetch('/api/models/test', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model: modelName})
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Success', `${modelName} is working! Response: ${data.result}`, 'success');
+            } else {
+                showToast('Error', `Test failed: ${data.result}`, 'danger');
+            }
+        } catch (error) {
+            showToast('Error', error.message, 'danger');
+        }
+    }
+
+    // Delete model
+    async function deleteModel(modelName) {
+        if (!confirm(`Are you sure you want to delete ${modelName}?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/models/delete', {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model: modelName})
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Success', `${modelName} deleted`, 'success');
+                loadModels();
+            } else {
+                showToast('Error', data.message, 'danger');
+            }
+        } catch (error) {
+            showToast('Error', error.message, 'danger');
+        }
+    }
+
+    // Pull model
+    document.getElementById('pull-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const modelSelect = document.getElementById('model-select');
+        let modelName = modelSelect.value;
+        
+        // Check if custom model is selected
+        if (modelName === 'custom') {
+            modelName = document.getElementById('custom-model-name').value.trim();
+        }
+        
+        if (!modelName || modelName === 'custom') {
+            alert('Please select or enter a model name');
+            return;
+        }
+        
+        const pullBtn = document.getElementById('pull-btn');
+        const pullProgress = document.getElementById('pull-progress');
+        const pullStatus = document.getElementById('pull-status');
+        const progressBar = document.getElementById('pull-progress-bar');
+        
+        pullBtn.disabled = true;
+        pullProgress.style.display = 'block';
+        pullStatus.textContent = 'Starting pull...';
+        progressBar.style.width = '10%';
+        
+        try {
+            const response = await fetch('/api/models/pull', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model: modelName})
+            });
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                
+                const text = decoder.decode(value);
+                const lines = text.split('\n').filter(line => line.startsWith('data: '));
+                
+                for (const line of lines) {
+                    const data = JSON.parse(line.substring(6));
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    if (data.status) {
+                        pullStatus.textContent = data.status;
+                        if (data.completed && data.total) {
+                            const percent = (data.completed / data.total) * 100;
+                            progressBar.style.width = percent + '%';
+                        }
+                    }
+                }
+            }
+            
+            pullStatus.textContent = 'Pull completed!';
+            progressBar.style.width = '100%';
+            showToast('Success', `${modelName} pulled successfully`, 'success');
+            
+            setTimeout(() => {
+                pullProgress.style.display = 'none';
+                modelSelect.value = '';
+                document.getElementById('custom-model-group').style.display = 'none';
+                document.getElementById('custom-model-name').value = '';
+                loadModels();
+            }, 2000);
+        } catch (error) {
+            pullStatus.textContent = 'Error: ' + error.message;
+            showToast('Error', error.message, 'danger');
+        } finally {
+            pullBtn.disabled = false;
+        }
+    });
+
+    // Test connection
+    document.getElementById('test-connection-btn').addEventListener('click', async () => {
+        const statusSpan = document.getElementById('connection-status');
+        statusSpan.className = 'badge bg-secondary';
+        statusSpan.textContent = 'Testing...';
+        
+        try {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            
+            if (data.ollama) {
+                statusSpan.className = 'badge bg-success';
+                statusSpan.textContent = 'Connected';
+                showToast('Success', 'Ollama is running', 'success');
+            } else {
+                statusSpan.className = 'badge bg-danger';
+                statusSpan.textContent = 'Disconnected';
+                showToast('Error', 'Cannot connect to Ollama', 'danger');
+            }
+        } catch (error) {
+            statusSpan.className = 'badge bg-danger';
+            statusSpan.textContent = 'Error';
+            showToast('Error', error.message, 'danger');
+        }
+    });
+
+    // Helper functions
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    function formatDate(dateString) {
+        if (!dateString) return 'Unknown';
+        const date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    }
+
+    function showToast(title, message, type) {
+        // Simple alert for now
+        alert(`${title}: ${message}`);
+    }
+
+    // Load on page load
+    loadModels();
+</script>
+{% endblock %}

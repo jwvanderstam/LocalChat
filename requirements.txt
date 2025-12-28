@@ -1,0 +1,42 @@
+# Flask and Web Framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Database - PostgreSQL and pgvector
+# Using latest psycopg3 with binary support for Python 3.14
+psycopg[binary]>=3.2.0
+psycopg-pool>=3.2.0
+
+# Validation - Month 2 (Now with Python 3.14 support!)
+pydantic==2.12.5
+email-validator==2.3.0
+
+# Document Processing
+PyPDF2==3.0.1
+pdfplumber==0.11.0  # Enhanced PDF extraction with table support
+python-docx==1.1.0
+
+# HTTP Requests
+requests==2.31.0
+
+# Numerical processing for vector operations
+# Note: numpy 1.26.4 is the last version supporting Python 3.14 currently
+numpy>=1.26.0
+
+# Optional: For better document handling
+python-multipart==0.0.6
+
+# Optional: For markdown support
+markdown==3.5.1
+
+# Development Tools (optional)
+python-dotenv==1.0.0
+
+# Testing Dependencies - Month 3
+pytest==7.4.3
+pytest-cov==7.0.0
+pytest-mock==3.15.1
+faker==39.0.0
+responses==0.25.8
+freezegun==1.5.5
+coverage==7.13.0
