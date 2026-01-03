@@ -342,6 +342,22 @@ else:
 # WEB ROUTES
 # ============================================================================
 
+@app.route('/favicon.ico')
+def favicon() -> Response:
+    """
+    Serve favicon or return 204 No Content if not found.
+    
+    Prevents 404 errors in browser console.
+    
+    Returns:
+        Favicon file or 204 status code
+    """
+    favicon_path = Path(ROOT_DIR) / 'static' / 'favicon.ico'
+    if favicon_path.exists():
+        return app.send_static_file('favicon.ico')
+    return '', 204
+
+
 @app.route('/')
 def index() -> str:
     """

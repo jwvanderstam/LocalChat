@@ -39,6 +39,7 @@
     <Compile Include="pdf_diagnostic.py" />
     <Compile Include="rag.py" />
     <Compile Include="restructure_project.py" />
+    <Compile Include="scripts\diagnose_rag.py" />
     <Compile Include="tests\conftest.py" />
     <Compile Include="tests\integration\test_integration.py" />
     <Compile Include="tests\integration\__init__.py" />
@@ -79,6 +80,8 @@
     <Content Include="COMPLETE_SETUP_SUMMARY.md" />
     <Content Include="COMPREHENSIVE_VALIDATION_REPORT.md" />
     <Content Include="COPY_CHAT_FEATURE.md" />
+    <Content Include="docs\fixes\RAG_RETRIEVAL_FIX.md" />
+    <Content Include="docs\PROJECT_REORGANIZATION_COMPLETE.md" />
     <Content Include="DUPLICATE_PREVENTION_GUIDE.md" />
     <Content Include="DUPLICATE_PREVENTION_REPORT.md" />
     <Content Include="EXECUTIVE_VALIDATION_SUMMARY.md" />
@@ -149,6 +152,7 @@
     <Content Include="WEEK1_STATUS_REPORT.md" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="docs\" />
     <Folder Include="static\" />
     <Folder Include="static\css\" />
     <Folder Include="static\js\" />
