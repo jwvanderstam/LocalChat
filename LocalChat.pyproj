@@ -123,6 +123,7 @@
     <Content Include="RAG_HALLUCINATION_FIXED.md" />
     <Content Include="RAG_IMPROVEMENTS_IMPLEMENTED.md" />
     <Content Include="RAG_OPTIMIZATION_GUIDE.md" />
+    <Content Include="RAG_PERFORMANCE_OPTIMIZATION_COMPLETE.md" />
     <Content Include="RAG_QUALITY_IMPROVEMENTS.md" />
     <Content Include="README.md" />
     <Content Include="README_MAIN.md" />

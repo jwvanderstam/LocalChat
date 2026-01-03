@@ -1,5 +1,5 @@
 {
-  "active_model": "llama3.1:latest",
+  "active_model": "llama3.2:latest",
   "document_count": 1,
-  "last_updated": "2025-12-28T22:45:07.146804"
+  "last_updated": "2025-12-30T10:49:32.968583"
 }
