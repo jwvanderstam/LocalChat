@@ -183,8 +183,33 @@ async function sendMessage() {
             })
         });
         
+        // Handle validation errors (400) and other errors
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            removeLoadingIndicator();
+            
+            // Try to get the error message from the response
+            try {
+                const errorData = await response.json();
+                
+                // Show user-friendly error message
+                let errorMessage = errorData.message || 'An error occurred';
+                
+                // Add helpful tip if available
+                if (errorData.details && errorData.details.help) {
+                    errorMessage += '\n\n?? ' + errorData.details.help;
+                }
+                
+                addAssistantMessage(
+                    `? Error: ${errorMessage}`,
+                    new Date(),
+                    false // Don't save error messages to history
+                );
+                
+                return;
+            } catch (parseError) {
+                // If we can't parse the error, show generic message
+                throw new Error(`Server error: ${response.status} ${response.statusText}`);
+            }
         }
         
         // Remove loading indicator
@@ -239,7 +264,7 @@ async function sendMessage() {
         
     } catch (error) {
         removeLoadingIndicator();
-        addAssistantMessage('Error: ' + error.message);
+        addAssistantMessage('? Unexpected error: ' + error.message, new Date(), false);
     } finally {
         isStreaming = false;
         sendBtn.disabled = false;
