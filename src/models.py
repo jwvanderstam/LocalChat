@@ -405,12 +405,12 @@ class ErrorResponse(BaseModel):
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")
     details: Optional[Dict[str, Any]] = Field(
-        default=None,
+        default_factory=dict,
         description="Additional error details"
     )
-    timestamp: datetime = Field(
-        default_factory=datetime.now,
-        description="Error timestamp"
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now().isoformat(),
+        description="Error timestamp in ISO format"
     )
     
     model_config = {
@@ -421,7 +421,7 @@ class ErrorResponse(BaseModel):
                     "error": "ValidationError",
                     "message": "Message cannot be empty",
                     "details": {"field": "message"},
-                    "timestamp": "2024-12-27T10:30:00Z"
+                    "timestamp": "2024-12-27T10:30:00.000Z"
                 }
             ]
         }
