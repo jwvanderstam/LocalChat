@@ -80,6 +80,9 @@
     <Content Include="COMPLETE_SETUP_SUMMARY.md" />
     <Content Include="COMPREHENSIVE_VALIDATION_REPORT.md" />
     <Content Include="COPY_CHAT_FEATURE.md" />
+    <Content Include="docs\features\USER_FRIENDLY_ERRORS.md" />
+    <Content Include="docs\fixes\FIXES_COMPLETE_SUMMARY.md" />
+    <Content Include="docs\fixes\RAG_RETRIEVAL_COMPLETE_FIX.md" />
     <Content Include="docs\fixes\RAG_RETRIEVAL_FIX.md" />
     <Content Include="docs\PROJECT_REORGANIZATION_COMPLETE.md" />
     <Content Include="DUPLICATE_PREVENTION_GUIDE.md" />
