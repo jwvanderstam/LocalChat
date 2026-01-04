@@ -1,5 +1,5 @@
 {
-  "active_model": "llama3.2:latest",
+  "active_model": "valid-model",
   "document_count": 6,
-  "last_updated": "2026-01-03T10:03:55.283412"
+  "last_updated": "2026-01-04T14:32:22.315747"
 }
