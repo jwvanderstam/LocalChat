@@ -19,17 +19,54 @@ Example:
     >>> print(f"Chunk size: {CHUNK_SIZE}")
 
 Author: LocalChat Team
-Last Updated: 2024-12-27
+Last Updated: 2026-01-03 (Week 1 - Security Improvements)
 """
 
 import os
 import json
+import secrets
 from typing import Dict, Any, Optional
 from datetime import datetime
+from dotenv import load_dotenv
 from .utils.logging_config import get_logger
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Setup logger
 logger = get_logger(__name__)
+
+# ============================================================================
+# SECURITY CONFIGURATION - WEEK 1
+# ============================================================================
+
+# Secret keys - MUST be set in production!
+SECRET_KEY: str = os.environ.get('SECRET_KEY')
+if not SECRET_KEY or SECRET_KEY == 'change-this-to-a-random-secret-key-in-production':
+    if os.environ.get('APP_ENV') == 'production':
+        raise ValueError("SECRET_KEY must be set in production!")
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning("Using generated SECRET_KEY - set SECRET_KEY in .env for production")
+
+JWT_SECRET_KEY: str = os.environ.get('JWT_SECRET_KEY')
+if not JWT_SECRET_KEY or JWT_SECRET_KEY == 'change-this-to-a-random-jwt-secret-in-production':
+    if os.environ.get('APP_ENV') == 'production':
+        raise ValueError("JWT_SECRET_KEY must be set in production!")
+    JWT_SECRET_KEY = secrets.token_hex(32)
+    logger.warning("Using generated JWT_SECRET_KEY - set JWT_SECRET_KEY in .env for production")
+
+JWT_ACCESS_TOKEN_EXPIRES: int = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', '3600'))
+
+# Rate limiting settings
+RATELIMIT_ENABLED: bool = os.environ.get('RATELIMIT_ENABLED', 'True').lower() == 'true'
+RATELIMIT_CHAT: str = os.environ.get('RATELIMIT_CHAT', '10 per minute')
+RATELIMIT_UPLOAD: str = os.environ.get('RATELIMIT_UPLOAD', '5 per hour')
+RATELIMIT_MODELS: str = os.environ.get('RATELIMIT_MODELS', '20 per minute')
+RATELIMIT_GENERAL: str = os.environ.get('RATELIMIT_GENERAL', '60 per minute')
+
+# CORS settings
+CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
+CORS_ORIGINS: list = os.environ.get('CORS_ORIGINS', '*').split(',')
 
 # ============================================================================
 # DATABASE CONFIGURATION
@@ -38,12 +75,14 @@ logger = get_logger(__name__)
 PG_HOST: str = os.environ.get('PG_HOST', 'localhost')
 PG_PORT: int = int(os.environ.get('PG_PORT', '5432'))
 PG_USER: str = os.environ.get('PG_USER', 'postgres')
-PG_PASSWORD: str = os.environ.get('PG_PASSWORD', 'Mutsmuts10')
+PG_PASSWORD: str = os.environ.get('PG_PASSWORD')
+if not PG_PASSWORD:
+    raise ValueError("PG_PASSWORD must be set in .env file!")
 PG_DB: str = os.environ.get('PG_DB', 'rag_db')
 
 # Connection Pool Settings
-DB_POOL_MIN_CONN: int = 2
-DB_POOL_MAX_CONN: int = 10
+DB_POOL_MIN_CONN: int = int(os.environ.get('DB_POOL_MIN_CONN', '2'))
+DB_POOL_MAX_CONN: int = int(os.environ.get('DB_POOL_MAX_CONN', '10'))
 
 # ============================================================================
 # OLLAMA CONFIGURATION
@@ -99,7 +138,6 @@ MAX_CONTEXT_LENGTH: int = 4096     # Maximum context window for LLM
 SUPPORTED_EXTENSIONS: list = ['.pdf', '.txt', '.docx', '.md']
 
 # Flask settings
-SECRET_KEY: str = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 UPLOAD_FOLDER: str = 'uploads'
 MAX_CONTENT_LENGTH: int = 16 * 1024 * 1024  # 16MB max upload size
 
