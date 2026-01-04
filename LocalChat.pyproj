@@ -40,15 +40,19 @@
     <Compile Include="rag.py" />
     <Compile Include="restructure_project.py" />
     <Compile Include="scripts\diagnose_rag.py" />
+    <Compile Include="scripts\test_validation_error.py" />
+    <Compile Include="src\security.py" />
     <Compile Include="tests\conftest.py" />
     <Compile Include="tests\integration\test_integration.py" />
     <Compile Include="tests\integration\__init__.py" />
     <Compile Include="tests\test_config.py" />
     <Compile Include="tests\test_db.py" />
+    <Compile Include="tests\test_db_comprehensive.py" />
     <Compile Include="tests\test_exceptions.py" />
     <Compile Include="tests\test_logging.py" />
     <Compile Include="tests\test_models.py" />
     <Compile Include="tests\test_ollama_client.py" />
+    <Compile Include="tests\test_ollama_comprehensive.py" />
     <Compile Include="tests\test_pdf_tables.py" />
     <Compile Include="tests\test_rag.py" />
     <Compile Include="tests\test_sanitization.py" />
@@ -80,11 +84,24 @@
     <Content Include="COMPLETE_SETUP_SUMMARY.md" />
     <Content Include="COMPREHENSIVE_VALIDATION_REPORT.md" />
     <Content Include="COPY_CHAT_FEATURE.md" />
+    <Content Include="docs\CODE_QUALITY_IMPROVEMENT_PLAN.md" />
+    <Content Include="docs\CURRENT_STATUS.md" />
     <Content Include="docs\features\USER_FRIENDLY_ERRORS.md" />
+    <Content Include="docs\fixes\CLIENT_ERROR_HANDLING_FIX.md" />
+    <Content Include="docs\fixes\ERROR_MESSAGES_RESTART_REQUIRED.md" />
     <Content Include="docs\fixes\FIXES_COMPLETE_SUMMARY.md" />
     <Content Include="docs\fixes\RAG_RETRIEVAL_COMPLETE_FIX.md" />
     <Content Include="docs\fixes\RAG_RETRIEVAL_FIX.md" />
     <Content Include="docs\PROJECT_REORGANIZATION_COMPLETE.md" />
+    <Content Include="docs\SECURITY_GUIDE.md" />
+    <Content Include="docs\WEEK2_DAY1_COMPLETE.md" />
+    <Content Include="docs\WEEK2_DAY1_REPORT.md" />
+    <Content Include="docs\WEEK2_DAY1_STATUS.md" />
+    <Content Include="docs\WEEK2_DAY1_SUMMARY.md" />
+    <Content Include="docs\WEEK2_DAY3_REPORT.md" />
+    <Content Include="docs\WEEK2_DAY3_STATUS.md" />
+    <Content Include="docs\WEEK2_IMPLEMENTATION_PLAN.md" />
+    <Content Include="docs\WEEK2_QUICKSTART.md" />
     <Content Include="DUPLICATE_PREVENTION_GUIDE.md" />
     <Content Include="DUPLICATE_PREVENTION_REPORT.md" />
     <Content Include="EXECUTIVE_VALIDATION_SUMMARY.md" />
@@ -156,6 +173,9 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="docs\" />
+    <Folder Include="docs\features\" />
+    <Folder Include="docs\fixes\" />
+    <Folder Include="scripts\" />
     <Folder Include="static\" />
     <Folder Include="static\css\" />
     <Folder Include="static\js\" />
