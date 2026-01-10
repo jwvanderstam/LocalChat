@@ -22,6 +22,9 @@ Author: LocalChat Team
 Last Updated: 2024-12-27
 """
 
+# Python 3.14 compatibility: Use string annotations to avoid __annotate__ issues
+from __future__ import annotations
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime

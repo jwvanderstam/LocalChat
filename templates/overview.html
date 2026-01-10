@@ -288,6 +288,312 @@
     </div>
 </div>
 
+<!-- File Structure Section - NEW -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-purple text-white" style="background-color: #6f42c1 !important;">
+                <i class="bi bi-folder-fill me-2"></i>Application File Structure
+                <button class="btn btn-sm btn-light float-end" data-bs-toggle="modal" data-bs-target="#fileStructureModal">
+                    <i class="bi bi-file-text me-1"></i>View Full Documentation
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <h2 class="text-primary">100+</h2>
+                                <p class="mb-0 small text-muted">Total Files</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <h2 class="text-success">~19K</h2>
+                                <p class="mb-0 small text-muted">Lines of Code</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-info">
+                            <div class="card-body text-center">
+                                <h2 class="text-info">12</h2>
+                                <p class="mb-0 small text-muted">Core Modules</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-warning">
+                            <div class="card-body text-center">
+                                <h2 class="text-warning">50+</h2>
+                                <p class="mb-0 small text-muted">Documentation</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="accordion" id="fileStructureAccordion">
+                    <!-- Core Application Files -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#coreFiles">
+                                <i class="bi bi-code-square me-2 text-primary"></i><strong>src/ - Core Application Files</strong>
+                                <span class="badge bg-primary ms-2">12 modules</span>
+                            </button>
+                        </h2>
+                        <div id="coreFiles" class="accordion-collapse collapse show" data-bs-parent="#fileStructureAccordion">
+                            <div class="accordion-body">
+                                <div class="list-group">
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><code>src/app.py</code></h6>
+                                            <small class="text-muted">~800 lines</small>
+                                        </div>
+                                        <p class="mb-1">Flask web application with routes and API endpoints</p>
+                                        <small class="text-muted">
+                                            Web routes, REST API, SSE streaming, error handling, input validation
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><code>src/config.py</code></h6>
+                                            <small class="text-muted">~200 lines</small>
+                                        </div>
+                                        <p class="mb-1">Configuration management and application state</p>
+                                        <small class="text-muted">
+                                            Environment variables, RAG settings, LLM config, security settings
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><code>src/db.py</code></h6>
+                                            <small class="text-muted">~600 lines</small>
+                                        </div>
+                                        <p class="mb-1">PostgreSQL database operations with pgvector support</p>
+                                        <small class="text-muted">
+                                            Connection pooling, CRUD operations, vector similarity search, HNSW indexing
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><code>src/rag.py</code></h6>
+                                            <small class="text-muted">~800 lines</small>
+                                        </div>
+                                        <p class="mb-1">Document processing and RAG engine</p>
+                                        <small class="text-muted">
+                                            Multi-format loading, hierarchical chunking, embedding generation, hybrid search
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><code>src/ollama_client.py</code></h6>
+                                            <small class="text-muted">~400 lines</small>
+                                        </div>
+                                        <p class="mb-1">Ollama API client for LLM operations</p>
+                                        <small class="text-muted">
+                                            Chat completions, embedding generation, model management, streaming
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><code>src/exceptions.py</code></h6>
+                                            <small class="text-muted">~150 lines</small>
+                                        </div>
+                                        <p class="mb-1">Custom exception classes (11 types)</p>
+                                        <small class="text-muted">
+                                            Structured error information, HTTP status mapping, error hierarchy
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><code>src/models.py</code></h6>
+                                            <small class="text-muted">~400 lines</small>
+                                        </div>
+                                        <p class="mb-1">Pydantic validation models (8 models)</p>
+                                        <small class="text-muted">
+                                            Request validation, response formatting, data integrity
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1"><code>src/security.py</code></h6>
+                                            <small class="text-muted">~300 lines</small>
+                                        </div>
+                                        <p class="mb-1">Security middleware (JWT, rate limiting, CORS)</p>
+                                        <small class="text-muted">
+                                            Authentication, rate limits, security headers, health checks
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Templates -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#templateFiles">
+                                <i class="bi bi-file-earmark-code me-2 text-success"></i><strong>templates/ - HTML Templates</strong>
+                                <span class="badge bg-success ms-2">5 pages</span>
+                            </button>
+                        </h2>
+                        <div id="templateFiles" class="accordion-collapse collapse" data-bs-parent="#fileStructureAccordion">
+                            <div class="accordion-body">
+                                <div class="list-group">
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>templates/base.html</code></h6>
+                                        <p class="mb-1">Master template with common layout</p>
+                                        <small class="text-muted">Bootstrap 5, navigation, common includes</small>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>templates/chat.html</code></h6>
+                                        <p class="mb-1">Interactive chat interface with RAG toggle</p>
+                                        <small class="text-muted">Message I/O, history, streaming display</small>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>templates/documents.html</code></h6>
+                                        <p class="mb-1">Document management and upload</p>
+                                        <small class="text-muted">Multi-file upload, list view, test retrieval</small>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>templates/models.html</code></h6>
+                                        <p class="mb-1">Ollama model management</p>
+                                        <small class="text-muted">List, pull, delete, set active model</small>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>templates/overview.html</code></h6>
+                                        <p class="mb-1">System overview and architecture (this page)</p>
+                                        <small class="text-muted">Status, metrics, features, architecture</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tests -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#testFiles">
+                                <i class="bi bi-check2-square me-2 text-info"></i><strong>tests/ - Test Suite</strong>
+                                <span class="badge bg-info ms-2">231 tests</span>
+                            </button>
+                        </h2>
+                        <div id="testFiles" class="accordion-collapse collapse" data-bs-parent="#fileStructureAccordion">
+                            <div class="accordion-body">
+                                <div class="list-group">
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>tests/conftest.py</code></h6>
+                                        <p class="mb-1">Shared pytest fixtures</p>
+                                        <small class="text-muted">Mock objects, sample data, test helpers</small>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>tests/test_exceptions_comprehensive.py</code></h6>
+                                        <p class="mb-1">Exception testing (18 tests, 100% coverage)</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>tests/test_validation_comprehensive.py</code></h6>
+                                        <p class="mb-1">Validation testing (27 tests, 95% coverage)</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>tests/unit/*.py</code></h6>
+                                        <p class="mb-1">Unit tests for core modules</p>
+                                        <small class="text-muted">Config, sanitization, RAG, database, Ollama</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Documentation -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#docFiles">
+                                <i class="bi bi-book me-2 text-warning"></i><strong>docs/ - Documentation</strong>
+                                <span class="badge bg-warning ms-2">50+ files</span>
+                            </button>
+                        </h2>
+                        <div id="docFiles" class="accordion-collapse collapse" data-bs-parent="#fileStructureAccordion">
+                            <div class="accordion-body">
+                                <div class="list-group">
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>docs/INSTALLATION.md</code></h6>
+                                        <p class="mb-1">Complete installation guide</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>docs/API.md</code></h6>
+                                        <p class="mb-1">API endpoint documentation</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>docs/ARCHITECTURE.md</code></h6>
+                                        <p class="mb-1">System design and components</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>docs/features/*.md</code></h6>
+                                        <p class="mb-1">Feature documentation (RAG, tables, optimization)</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>docs/testing/*.md</code></h6>
+                                        <p class="mb-1">Testing guides and reports</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>docs/fixes/*.md</code></h6>
+                                        <p class="mb-1">Error resolution and fix documentation</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>docs/FILE_STRUCTURE_OVERVIEW.md</code></h6>
+                                        <p class="mb-1">Complete file structure documentation</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scripts -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#scriptFiles">
+                                <i class="bi bi-terminal me-2 text-danger"></i><strong>scripts/ - Utility Scripts</strong>
+                                <span class="badge bg-danger ms-2">10+ scripts</span>
+                            </button>
+                        </h2>
+                        <div id="scriptFiles" class="accordion-collapse collapse" data-bs-parent="#fileStructureAccordion">
+                            <div class="accordion-body">
+                                <div class="list-group">
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>scripts/setup_db.py</code></h6>
+                                        <p class="mb-1">Database initialization</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>scripts/test_*.py</code></h6>
+                                        <p class="mb-1">Testing scripts (Ollama, pgvector, RAG, validation)</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>scripts/suppress_warnings.py</code></h6>
+                                        <p class="mb-1">Apply warning suppressions</p>
+                                    </div>
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1"><code>scripts/verify_no_errors.py</code></h6>
+                                        <p class="mb-1">Error verification and health checks</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Architecture Diagram -->
 <div class="row mt-4">
     <div class="col-12">
@@ -470,6 +776,228 @@
                 </ul>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Structure Documentation Modal - NEW -->
+<div class="modal fade" id="fileStructureModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #6f42c1; color: white;">
+                <h5 class="modal-title"><i class="bi bi-folder-fill me-2"></i>Complete File Structure Documentation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Complete Documentation:</strong> This modal shows a summary. 
+                    The full documentation is available in <code>docs/FILE_STRUCTURE_OVERVIEW.md</code> 
+                    in your project directory or on 
+                    <a href="https://github.com/jwvanderstam/LocalChat/blob/main/docs/FILE_STRUCTURE_OVERVIEW.md" 
+                       target="_blank" class="alert-link">GitHub</a>.
+                </div>
+                
+                <h5 class="text-primary mb-3">?? Project Statistics</h5>
+                <table class="table table-bordered mb-4">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Count</th>
+                            <th>Lines</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Source Code</strong></td>
+                            <td>12 files</td>
+                            <td>~4,000</td>
+                            <td>Core application modules</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Templates</strong></td>
+                            <td>5 files</td>
+                            <td>~1,500</td>
+                            <td>Web interface HTML</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tests</strong></td>
+                            <td>15+ files</td>
+                            <td>~2,500</td>
+                            <td>Pytest test suite</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Scripts</strong></td>
+                            <td>10+ files</td>
+                            <td>~1,000</td>
+                            <td>Setup and maintenance</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Documentation</strong></td>
+                            <td>50+ files</td>
+                            <td>~10,000</td>
+                            <td>Comprehensive docs</td>
+                        </tr>
+                        <tr class="table-primary">
+                            <td><strong>Total</strong></td>
+                            <td><strong>100+</strong></td>
+                            <td><strong>~19,000</strong></td>
+                            <td><strong>Complete application</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h5 class="text-primary mb-3">?? Key Directories</h5>
+                
+                <div class="accordion" id="modalFileAccordion">
+                    <!-- src/ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#modalSrc">
+                                <strong>src/ - Core Application (12 modules, ~4,000 lines)</strong>
+                            </button>
+                        </h2>
+                        <div id="modalSrc" class="accordion-collapse collapse show" data-bs-parent="#modalFileAccordion">
+                            <div class="accordion-body">
+                                <ul class="list-unstyled">
+                                    <li><code>app.py</code> (~800) - Flask web app with routes & API</li>
+                                    <li><code>config.py</code> (~200) - Configuration & state management</li>
+                                    <li><code>db.py</code> (~600) - PostgreSQL + pgvector operations</li>
+                                    <li><code>rag.py</code> (~800) - Document processing & RAG engine</li>
+                                    <li><code>ollama_client.py</code> (~400) - LLM API client</li>
+                                    <li><code>exceptions.py</code> (~150) - 11 custom exception classes</li>
+                                    <li><code>models.py</code> (~400) - 8 Pydantic validation models</li>
+                                    <li><code>security.py</code> (~300) - JWT, rate limiting, CORS</li>
+                                    <li><code>utils/logging_config.py</code> (~150) - Logging system</li>
+                                    <li><code>utils/sanitization.py</code> (~200) - Input sanitization</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- templates/ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#modalTemplates">
+                                <strong>templates/ - HTML Templates (5 pages)</strong>
+                            </button>
+                        </h2>
+                        <div id="modalTemplates" class="accordion-collapse collapse" data-bs-parent="#modalFileAccordion">
+                            <div class="accordion-body">
+                                <ul class="list-unstyled">
+                                    <li><code>base.html</code> - Master template with layout</li>
+                                    <li><code>chat.html</code> - Interactive chat interface</li>
+                                    <li><code>documents.html</code> - Document management</li>
+                                    <li><code>models.html</code> - Model management</li>
+                                    <li><code>overview.html</code> - System overview (this page)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- tests/ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#modalTests">
+                                <strong>tests/ - Test Suite (231 tests, 59% coverage)</strong>
+                            </button>
+                        </h2>
+                        <div id="modalTests" class="accordion-collapse collapse" data-bs-parent="#modalFileAccordion">
+                            <div class="accordion-body">
+                                <ul class="list-unstyled">
+                                    <li><code>conftest.py</code> - Shared pytest fixtures</li>
+                                    <li><code>test_exceptions_comprehensive.py</code> - 18 tests (100% coverage)</li>
+                                    <li><code>test_validation_comprehensive.py</code> - 27 tests (95% coverage)</li>
+                                    <li><code>unit/*.py</code> - Unit tests for core modules</li>
+                                    <li><code>integration/*.py</code> - Integration tests</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- docs/ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#modalDocs">
+                                <strong>docs/ - Documentation (50+ files)</strong>
+                            </button>
+                        </h2>
+                        <div id="modalDocs" class="accordion-collapse collapse" data-bs-parent="#modalFileAccordion">
+                            <div class="accordion-body">
+                                <ul class="list-unstyled">
+                                    <li><code>INSTALLATION.md</code> - Complete installation guide</li>
+                                    <li><code>API.md</code> - API endpoint documentation</li>
+                                    <li><code>ARCHITECTURE.md</code> - System design</li>
+                                    <li><code>FILE_STRUCTURE_OVERVIEW.md</code> - This documentation</li>
+                                    <li><code>features/</code> - Feature documentation</li>
+                                    <li><code>testing/</code> - Testing guides</li>
+                                    <li><code>fixes/</code> - Error resolution docs</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="text-primary mt-4 mb-3">?? Quick Task Reference</h5>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Task</th>
+                            <th>File to Edit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Add new API endpoint</td>
+                            <td><code>src/app.py</code></td>
+                        </tr>
+                        <tr>
+                            <td>Change RAG settings</td>
+                            <td><code>src/config.py</code></td>
+                        </tr>
+                        <tr>
+                            <td>Modify chunking logic</td>
+                            <td><code>src/rag.py</code></td>
+                        </tr>
+                        <tr>
+                            <td>Update database schema</td>
+                            <td><code>src/db.py</code></td>
+                        </tr>
+                        <tr>
+                            <td>Add validation rule</td>
+                            <td><code>src/models.py</code></td>
+                        </tr>
+                        <tr>
+                            <td>Handle new error type</td>
+                            <td><code>src/exceptions.py</code></td>
+                        </tr>
+                        <tr>
+                            <td>Change UI layout</td>
+                            <td><code>templates/base.html</code></td>
+                        </tr>
+                        <tr>
+                            <td>Add JavaScript feature</td>
+                            <td><code>static/js/*.js</code></td>
+                        </tr>
+                        <tr>
+                            <td>Write new test</td>
+                            <td><code>tests/unit/*.py</code></td>
+                        </tr>
+                        <tr>
+                            <td>Update documentation</td>
+                            <td><code>docs/*.md</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <a href="https://github.com/jwvanderstam/LocalChat/blob/main/docs/FILE_STRUCTURE_OVERVIEW.md" 
+                   target="_blank" class="btn btn-primary">
+                    <i class="bi bi-github me-2"></i>View on GitHub
+                </a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
