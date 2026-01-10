@@ -19,13 +19,13 @@ Example:
     >>> print(f"Chunk size: {CHUNK_SIZE}")
 
 Author: LocalChat Team
-Last Updated: 2026-01-03 (Week 1 - Security Improvements)
+Last Updated: 2026-01-04 (Fixed type safety)
 """
 
 import os
 import json
 import secrets
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from dotenv import load_dotenv
 from .utils.logging_config import get_logger
@@ -41,44 +41,51 @@ logger = get_logger(__name__)
 # ============================================================================
 
 # Secret keys - MUST be set in production!
-SECRET_KEY: str = os.environ.get('SECRET_KEY')
-if not SECRET_KEY or SECRET_KEY == 'change-this-to-a-random-secret-key-in-production':
+_SECRET_KEY_RAW: Optional[str] = os.environ.get('SECRET_KEY')
+if not _SECRET_KEY_RAW or _SECRET_KEY_RAW == 'change-this-to-a-random-secret-key-in-production':
     if os.environ.get('APP_ENV') == 'production':
         raise ValueError("SECRET_KEY must be set in production!")
-    SECRET_KEY = secrets.token_hex(32)
+    SECRET_KEY: str = secrets.token_hex(32)
     logger.warning("Using generated SECRET_KEY - set SECRET_KEY in .env for production")
+else:
+    SECRET_KEY: str = _SECRET_KEY_RAW
 
-JWT_SECRET_KEY: str = os.environ.get('JWT_SECRET_KEY')
-if not JWT_SECRET_KEY or JWT_SECRET_KEY == 'change-this-to-a-random-jwt-secret-in-production':
+_JWT_SECRET_KEY_RAW: Optional[str] = os.environ.get('JWT_SECRET_KEY')
+if not _JWT_SECRET_KEY_RAW or _JWT_SECRET_KEY_RAW == 'change-this-to-a-random-jwt-secret-in-production':
     if os.environ.get('APP_ENV') == 'production':
         raise ValueError("JWT_SECRET_KEY must be set in production!")
-    JWT_SECRET_KEY = secrets.token_hex(32)
+    JWT_SECRET_KEY: str = secrets.token_hex(32)
     logger.warning("Using generated JWT_SECRET_KEY - set JWT_SECRET_KEY in .env for production")
+else:
+    JWT_SECRET_KEY: str = _JWT_SECRET_KEY_RAW
 
 JWT_ACCESS_TOKEN_EXPIRES: int = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', '3600'))
 
 # Rate limiting settings
 RATELIMIT_ENABLED: bool = os.environ.get('RATELIMIT_ENABLED', 'True').lower() == 'true'
-RATELIMIT_CHAT: str = os.environ.get('RATELIMIT_CHAT', '10 per minute')
-RATELIMIT_UPLOAD: str = os.environ.get('RATELIMIT_UPLOAD', '5 per hour')
-RATELIMIT_MODELS: str = os.environ.get('RATELIMIT_MODELS', '20 per minute')
-RATELIMIT_GENERAL: str = os.environ.get('RATELIMIT_GENERAL', '60 per minute')
+RATELIMIT_CHAT: str = str(os.environ.get('RATELIMIT_CHAT', '10 per minute'))
+RATELIMIT_UPLOAD: str = str(os.environ.get('RATELIMIT_UPLOAD', '5 per hour'))
+RATELIMIT_MODELS: str = str(os.environ.get('RATELIMIT_MODELS', '20 per minute'))
+RATELIMIT_GENERAL: str = str(os.environ.get('RATELIMIT_GENERAL', '60 per minute'))
 
 # CORS settings
 CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
-CORS_ORIGINS: list = os.environ.get('CORS_ORIGINS', '*').split(',')
+CORS_ORIGINS: List[str] = os.environ.get('CORS_ORIGINS', '*').split(',')
 
 # ============================================================================
 # DATABASE CONFIGURATION
 # ============================================================================
 
-PG_HOST: str = os.environ.get('PG_HOST', 'localhost')
+PG_HOST: str = str(os.environ.get('PG_HOST', 'localhost'))
 PG_PORT: int = int(os.environ.get('PG_PORT', '5432'))
-PG_USER: str = os.environ.get('PG_USER', 'postgres')
-PG_PASSWORD: str = os.environ.get('PG_PASSWORD')
-if not PG_PASSWORD:
+PG_USER: str = str(os.environ.get('PG_USER', 'postgres'))
+
+_PG_PASSWORD_RAW: Optional[str] = os.environ.get('PG_PASSWORD')
+if not _PG_PASSWORD_RAW:
     raise ValueError("PG_PASSWORD must be set in .env file!")
-PG_DB: str = os.environ.get('PG_DB', 'rag_db')
+PG_PASSWORD: str = _PG_PASSWORD_RAW
+
+PG_DB: str = str(os.environ.get('PG_DB', 'rag_db'))
 
 # Connection Pool Settings
 DB_POOL_MIN_CONN: int = int(os.environ.get('DB_POOL_MIN_CONN', '2'))
@@ -88,54 +95,95 @@ DB_POOL_MAX_CONN: int = int(os.environ.get('DB_POOL_MAX_CONN', '10'))
 # OLLAMA CONFIGURATION
 # ============================================================================
 
-OLLAMA_BASE_URL: str = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+OLLAMA_BASE_URL: str = str(os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434'))
 
 # ============================================================================
-# RAG CONFIGURATION - OPTIMIZED FOR LARGE DOCUMENTS WITH TABLES
+# RAG CONFIGURATION - OPTIMIZED FOR HIGH QUALITY RESPONSES
 # ============================================================================
 
-# Chunking - Optimized for documents with tables
-CHUNK_SIZE: int = 1024             # Increased from 768 to handle tables better
-CHUNK_OVERLAP: int = 150           # 14.6% overlap (increased for better context continuity)
-CHUNK_SEPARATORS: list = ['\n\n\n', '\n\n', '\n', '. ', '! ', '? ', '; ', ', ', ' ', '']  # Hierarchical splitting
+# Chunking - INCREASED for better context preservation
+CHUNK_SIZE: int = 1024             # Doubled from 512 - more context per chunk
+CHUNK_OVERLAP: int = 200           # 20% overlap for better continuity
+CHUNK_SEPARATORS: List[str] = [
+    '\n\n\n',      # Major section breaks
+    '\n\n',        # Paragraph breaks (primary)
+    '\n',          # Line breaks
+    '. ',          # Sentences
+    '! ',          # Sentences
+    '? ',          # Sentences  
+    '; ',          # Clauses
+    ': ',          # Lists/definitions
+    ', ',          # Phrases
+    ' ',           # Words
+    ''             # Character-level (last resort)
+]
 
-# Table-specific settings
-TABLE_CHUNK_SIZE: int = 2048       # Larger chunks for tables to keep them intact
-KEEP_TABLES_INTACT: bool = True    # Try to keep tables as single chunks
+# Table-specific settings - Keep tables intact
+TABLE_CHUNK_SIZE: int = 3000       # Even larger to keep more tables intact
+KEEP_TABLES_INTACT: bool = True    # Always try to keep tables together
+MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 
-# Retrieval Configuration - Aggressive retrieval with better filtering
-TOP_K_RESULTS: int = 20            # Increased from 15 for better coverage
-MIN_SIMILARITY_THRESHOLD: float = 0.22  # Lowered from 0.25 for more recall
-RERANK_RESULTS: bool = True        # Re-rank results by relevance
-RERANK_TOP_K: int = 12             # Return top 12 after re-ranking
+# Retrieval Configuration - OPTIMIZED FOR COMPREHENSIVE ANSWERS
+TOP_K_RESULTS: int = 40                      # More initial candidates (was 30)
+MIN_SIMILARITY_THRESHOLD: float = 0.28       # Lower for better recall (was 0.35)
+RERANK_RESULTS: bool = True                  # Always re-rank for precision
+RERANK_TOP_K: int = 12                       # INCREASED from 5 - MORE context for richer answers!
+
+# Hybrid Search Configuration
+HYBRID_SEARCH_ENABLED: bool = True           # Enable semantic + BM25 hybrid search
+SEMANTIC_WEIGHT: float = 0.70                # Semantic similarity weight in hybrid
+BM25_ENABLED: bool = True                    # Enable BM25 keyword matching
+
+# Query Enhancement
+QUERY_EXPANSION_ENABLED: bool = True         # Expand queries with synonyms
+MAX_QUERY_EXPANSIONS: int = 2                # Add up to 2 related terms
+QUERY_MIN_LENGTH: int = 10                   # Minimum chars for meaningful query
 
 # Advanced RAG features
-USE_CONTEXTUAL_CHUNKS: bool = True   # Include adjacent chunks for context
-CONTEXT_WINDOW_SIZE: int = 1         # Include 1 chunk before/after each result
+USE_CONTEXTUAL_CHUNKS: bool = True           # Include adjacent chunks
+CONTEXT_WINDOW_SIZE: int = 1                 # 1 chunk before/after
+USE_RECIPROCAL_RANK_FUSION: bool = True      # Combine multiple ranking signals
 
-# Re-ranking weights - Optimized for table content
-SIMILARITY_WEIGHT: float = 0.45      # Slightly reduced (was 0.5)
-KEYWORD_WEIGHT: float = 0.25         # Increased for exact matches (was 0.2)
-BM25_WEIGHT: float = 0.20            # Traditional IR scoring
-POSITION_WEIGHT: float = 0.10        # Early chunk position weight
+# Re-ranking weights - BALANCED FOR QUALITY
+SIMILARITY_WEIGHT: float = 0.50              # Semantic similarity
+KEYWORD_WEIGHT: float = 0.20                 # Exact term matches (increased)
+BM25_WEIGHT: float = 0.20                    # BM25 score
+POSITION_WEIGHT: float = 0.05                # Early chunks bonus
+LENGTH_WEIGHT: float = 0.05                  # Chunk length preference
+
+# Diversity filtering
+ENABLE_DIVERSITY_FILTER: bool = True         # Remove near-duplicate chunks
+DIVERSITY_THRESHOLD: float = 0.85            # Jaccard similarity threshold
+
+# Context quality enhancement
+EMPHASIZE_HIGH_SIMILARITY: bool = True       # Mark highest similarity chunks
+INCLUDE_CONFIDENCE_SCORES: bool = True       # Show confidence in context
+
+# Embedding Cache Configuration
+EMBEDDING_CACHE_SIZE: int = 500              # Max cached embeddings
+EMBEDDING_CACHE_ENABLED: bool = True         # Enable query embedding caching
 
 # Processing Configuration
-MAX_WORKERS: int = 8               # Doubled from 4 for faster parallel processing
-BATCH_SIZE: int = 50              # Embeddings batch size for Ollama
+MAX_WORKERS: int = 8                         # Parallel processing threads
+BATCH_SIZE: int = 32                         # Embeddings batch size
+
+# Database Performance
+DB_SEARCH_EF: int = 100                      # HNSW ef_search parameter
+DB_INDEX_TYPE: str = 'hnsw'                  # Use HNSW index
 
 # ============================================================================
 # LLM CONFIGURATION
 # ============================================================================
 
 DEFAULT_TEMPERATURE: float = 0.0   # ZERO temperature for maximum factuality (no creativity/hallucinations)
-MAX_CONTEXT_LENGTH: int = 4096     # Maximum context window for LLM
+MAX_CONTEXT_LENGTH: int = 20000    # INCREASED from 4096 - allow much more context for comprehensive answers
 
 # ============================================================================
 # APPLICATION SETTINGS
 # ============================================================================
 
 # Supported file types
-SUPPORTED_EXTENSIONS: list = ['.pdf', '.txt', '.docx', '.md']
+SUPPORTED_EXTENSIONS: List[str] = ['.pdf', '.txt', '.docx', '.md']
 
 # Flask settings
 UPLOAD_FOLDER: str = 'uploads'

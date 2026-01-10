@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 Flask Application Module
 ========================
@@ -14,7 +16,7 @@ Example:
     # Starts web server on http://localhost:5000
 
 Author: LocalChat Team
-Last Updated: 2024-12-27 (Month 2 - Error Handling & Validation)
+Last Updated: 2026-01-04 (Week 1 - Security Middleware Integration)
 """
 
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
@@ -33,6 +35,17 @@ from .db import db
 from .ollama_client import ollama_client
 from .rag import doc_processor
 from .utils.logging_config import setup_logging, get_logger
+
+# Week 1 Security - NEW IMPORTS
+try:
+    from . import security
+    SECURITY_ENABLED = True
+    logger_temp = get_logger(__name__)
+    logger_temp.info("✅ Security middleware available")
+except ImportError as e:
+    SECURITY_ENABLED = False
+    logger_temp = get_logger(__name__)
+    logger_temp.warning(f"⚠️  Security middleware not available: {e}")
 
 # Month 2 additions - Error handling and validation (optional for Python 3.14 compatibility)
 MONTH2_ENABLED = False
@@ -66,10 +79,14 @@ setup_logging(log_level="INFO", log_file="logs/app.log")
 logger = get_logger(__name__)
 
 logger.info("=" * 50)
-if MONTH2_ENABLED:
+if SECURITY_ENABLED and MONTH2_ENABLED:
+    logger.info("LocalChat Application Starting (Full Stack - Security + Validation)")
+elif SECURITY_ENABLED:
+    logger.info("LocalChat Application Starting (Security Enabled)")
+elif MONTH2_ENABLED:
     logger.info("LocalChat Application Starting (Month 2 - Validated)")
 else:
-    logger.info("LocalChat Application Starting (Month 1 - Basic Validation)")
+    logger.info("LocalChat Application Starting (Month 1 - Basic)")
 logger.info("=" * 50)
 
 # ============================================================================
@@ -85,6 +102,29 @@ app = Flask(__name__,
 app.config['SECRET_KEY'] = config.SECRET_KEY
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
 app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER
+
+# ============================================================================
+# SECURITY MIDDLEWARE INITIALIZATION - WEEK 1
+# ============================================================================
+
+if SECURITY_ENABLED:
+    logger.info("Initializing security middleware...")
+    
+    # Initialize security features (JWT, rate limiting, CORS, etc.)
+    security.init_security(app)
+    
+    # Setup authentication routes
+    security.setup_auth_routes(app)
+    
+    # Setup health check endpoint
+    security.setup_health_check(app)
+    
+    # Setup rate limit error handler
+    security.setup_rate_limit_handler(app)
+    
+    logger.info("✅ Security middleware initialized successfully")
+else:
+    logger.warning("⚠️  Running WITHOUT security middleware")
 
 # Ensure upload folder exists
 os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
@@ -107,6 +147,8 @@ def startup_checks() -> None:
     
     Verifies that required services (Ollama, PostgreSQL) are available
     and initializes the application state.
+    
+    ENHANCED: Exits immediately with clear error if database is unavailable.
     """
     logger.info("=" * 50)
     logger.info("Starting LocalChat Application")
@@ -142,6 +184,14 @@ def startup_checks() -> None:
         logger.info(f"✓ Documents in database: {doc_count}")
     else:
         logger.error(f"✗ {db_message}")
+        logger.error("=" * 50)
+        logger.error("❌ CRITICAL: PostgreSQL database is not available!")
+        logger.error("=" * 50)
+        logger.error("\n" + db_message + "\n")
+        logger.error("Application cannot start without database connectivity.")
+        logger.error("=" * 50)
+        # Exit immediately with clear error code
+        sys.exit(1)
     
     # Overall status
     startup_status['ready'] = startup_status['ollama'] and startup_status['database']
@@ -190,21 +240,13 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 # ============================================================================
-# ERROR HANDLERS - Month 2 (Optional)
+# ERROR HANDLERS - MONTH 2 (OPTIONAL)
 # ============================================================================
 
 if MONTH2_ENABLED:
     @app.errorhandler(400)
-    def bad_request_handler(error) -> Response:
-        """
-        Handle 400 Bad Request errors.
-        
-        Args:
-            error: Error details
-        
-        Returns:
-            JSON error response
-        """
+    def bad_request_handler(error):
+        """Handle 400 Bad Request errors."""
         logger.warning(f"Bad request: {error}")
         error_response = ErrorResponse(
             error="BadRequest",
@@ -215,16 +257,8 @@ if MONTH2_ENABLED:
 
 
     @app.errorhandler(404)
-    def not_found_handler(error) -> Response:
-        """
-        Handle 404 Not Found errors.
-        
-        Args:
-            error: Error details
-        
-        Returns:
-            JSON error response
-        """
+    def not_found_handler(error):
+        """Handle 404 Not Found errors."""
         logger.warning(f"Resource not found: {error}")
         error_response = ErrorResponse(
             error="NotFound",
@@ -235,16 +269,8 @@ if MONTH2_ENABLED:
 
 
     @app.errorhandler(405)
-    def method_not_allowed_handler(error) -> Response:
-        """
-        Handle 405 Method Not Allowed errors.
-        
-        Args:
-            error: Error details
-        
-        Returns:
-            JSON error response
-        """
+    def method_not_allowed_handler(error):
+        """Handle 405 Method Not Allowed errors."""
         logger.warning(f"Method not allowed: {request.method} {request.path}")
         error_response = ErrorResponse(
             error="MethodNotAllowed",
@@ -255,16 +281,8 @@ if MONTH2_ENABLED:
 
 
     @app.errorhandler(413)
-    def request_entity_too_large_handler(error) -> Response:
-        """
-        Handle 413 Request Entity Too Large errors.
-        
-        Args:
-            error: Error details
-        
-        Returns:
-            JSON error response
-        """
+    def request_entity_too_large_handler(error):
+        """Handle 413 Request Entity Too Large errors."""
         logger.warning(f"File too large: {error}")
         error_response = ErrorResponse(
             error="FileTooLarge",
@@ -275,16 +293,8 @@ if MONTH2_ENABLED:
 
 
     @app.errorhandler(500)
-    def internal_server_error_handler(error) -> Response:
-        """
-        Handle 500 Internal Server Error.
-        
-        Args:
-            error: Error details
-        
-        Returns:
-            JSON error response
-        """
+    def internal_server_error_handler(error):
+        """Handle 500 Internal Server Error."""
         logger.error(f"Internal server error: {error}", exc_info=True)
         error_response = ErrorResponse(
             error="InternalServerError",
@@ -295,16 +305,8 @@ if MONTH2_ENABLED:
 
 
     @app.errorhandler(PydanticValidationError)
-    def validation_error_handler(error: PydanticValidationError) -> Response:
-        """
-        Handle Pydantic validation errors with user-friendly messages.
-        
-        Args:
-            error: Pydantic validation error
-        
-        Returns:
-            JSON error response with user-friendly validation details
-        """
+    def validation_error_handler(error: PydanticValidationError):
+        """Handle Pydantic validation errors with user-friendly messages."""
         # Extract error details
         errors = error.errors()
         
@@ -356,16 +358,8 @@ if MONTH2_ENABLED:
 
 
     @app.errorhandler(exceptions.LocalChatException)
-    def localchat_exception_handler(error: exceptions.LocalChatException) -> Response:
-        """
-        Handle custom LocalChat exceptions.
-        
-        Args:
-            error: LocalChat custom exception
-        
-        Returns:
-            JSON error response
-        """
+    def localchat_exception_handler(error: exceptions.LocalChatException):
+        """Handle custom LocalChat exceptions."""
         status_code = exceptions.get_status_code(error)
         logger.error(f"{error.__class__.__name__}: {error.message}", extra=error.details)
         
@@ -384,7 +378,7 @@ else:
 # ============================================================================
 
 @app.route('/favicon.ico')
-def favicon() -> Response:
+def favicon():
     """
     Serve favicon or return 204 No Content if not found.
     
@@ -459,7 +453,7 @@ def overview() -> str:
 # ============================================================================
 
 @app.route('/api/status')
-def api_status() -> Response:
+def api_status():
     """
     Get system status.
     
@@ -489,7 +483,7 @@ def api_status() -> Response:
 
 
 @app.route('/api/models')
-def api_list_models() -> Response:
+def api_list_models():
     """
     List all available Ollama models.
     
@@ -514,7 +508,7 @@ def api_list_models() -> Response:
 
 
 @app.route('/api/models/active', methods=['GET', 'POST'])
-def api_active_model() -> Response:
+def api_active_model():
     """
     Get or set the active model.
     
@@ -578,7 +572,7 @@ def api_active_model() -> Response:
 
 
 @app.route('/api/models/pull', methods=['POST'])
-def api_pull_model() -> Response:
+def api_pull_model():
     """
     Pull a new model.
     
@@ -610,7 +604,11 @@ def api_pull_model() -> Response:
                 error_msg = json.dumps({'error': str(e)})
                 yield f"data: {error_msg}\n\n"
         
-        return Response(stream_with_context(generate()), mimetype='text/event-stream')
+        # Use Response directly without stream_with_context to avoid context errors
+        response = Response(generate(), mimetype='text/event-stream')
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['X-Accel-Buffering'] = 'no'
+        return response
         
     except Exception as e:
         if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
@@ -621,7 +619,7 @@ def api_pull_model() -> Response:
 
 
 @app.route('/api/models/delete', methods=['DELETE'])
-def api_delete_model() -> Response:
+def api_delete_model():
     """
     Delete a model.
     
@@ -665,7 +663,7 @@ def api_delete_model() -> Response:
 
 
 @app.route('/api/models/test', methods=['POST'])
-def api_test_model() -> Response:
+def api_test_model():
     """
     Test a model.
     
@@ -700,22 +698,57 @@ def api_test_model() -> Response:
             return jsonify({'success': False, 'message': 'Failed to test model'}), 500
 
 
-# RAG System Prompt - Forces model to use ONLY provided context
-RAG_SYSTEM_PROMPT = """You are a precise AI assistant that answers questions based STRICTLY on the provided document context.
+# RAG System Prompt - ULTRA-STRICT for maximum accuracy AND DETAIL
+RAG_SYSTEM_PROMPT = """You are an ULTRA-PRECISE document analysis AI that provides COMPREHENSIVE and DETAILED answers using ONLY the provided context.
 
-MANDATORY RULES:
-1. ONLY use information explicitly stated in the provided context
-2. If the answer is NOT in the context, respond EXACTLY: "I don't have that information in the provided documents."
-3. NEVER use external knowledge, assumptions, or inferences
-4. ALWAYS cite the source document when answering: [Source: filename]
-5. Be concise and factual - quote directly from context when appropriate
-6. If the context is unclear or ambiguous, say so
-7. Do NOT elaborate beyond what the context states
+ABSOLUTE RULES - NO EXCEPTIONS:
+1. ⚠️ ONLY use information EXPLICITLY stated in the provided context
+2. ⚠️ If the answer is NOT in the context, respond EXACTLY: "I don't have that information in the provided documents."
+3. ⚠️ NEVER use external knowledge, prior training, assumptions, or inferences
+4. ⚠️ ALWAYS cite the source: [Source: filename]
+5. ⚠️ For numbers/data: Quote EXACT values from context
+6. ⚠️ If context is ambiguous: Say "The documents are unclear about..."
+7. ⚠️ Do NOT fill gaps with reasoning - admit missing information
 
-You are a document search assistant, not a general knowledge AI. Your credibility depends on accuracy, not helpfulness."""
+RESPONSE QUALITY REQUIREMENTS:
+8. ✅ Be COMPREHENSIVE - include ALL relevant information from the context
+9. ✅ Be DETAILED - provide full explanations, not summaries
+10. ✅ Use PROPER FORMATTING:
+   - Structured paragraphs for readability
+   - Bullet points for lists
+   - Tables when data is tabular
+   - Headers for different sections
+11. ✅ COMBINE information from multiple sources when they all relate to the question
+12. ✅ When multiple documents discuss the same topic, synthesize the information clearly
+13. ✅ Provide CONTEXT around facts - don't just list data points
+
+QUALITY INDICATORS IN CONTEXT:
+- *** HIGH CONFIDENCE = Most reliable source (START HERE)
+- [+] GOOD MATCH = Strong relevance (use this too)
+- - RELEVANT = Supporting information (include if relevant)
+
+TABLE FORMATTING:
+14. When context contains tables (with | separators), format as proper markdown:
+   | Column 1 | Column 2 | Column 3 |
+   |----------|----------|----------|
+   | Value 1  | Value 2  | Value 3  |
+15. Preserve all table data exactly as shown
+16. If table is too wide, present as structured list with labels
+
+RESPONSE GUIDELINES:
+- Start with the MOST RELEVANT source (*** marked)
+- Use direct quotes for critical facts
+- Combine info from multiple sources if all are clear
+- Provide DETAILED explanations, not brief summaries
+- Include relevant supporting details
+- When uncertain, express uncertainty clearly
+- Structure your response for maximum readability
+
+REMEMBER: Your value is in providing COMPLETE, ACCURATE, and DETAILED information from the documents. 
+Don't be brief - be thorough. The user wants COMPREHENSIVE answers, not summaries."""
 
 @app.route('/api/chat', methods=['POST'])
-def api_chat() -> Response:
+def api_chat():
     """
     Chat endpoint with RAG or direct LLM.
     
@@ -785,19 +818,15 @@ def api_chat() -> Response:
             logger.debug("[RAG] Retrieving context from documents...")
             try:
                 results = doc_processor.retrieve_context(message)
-                logger.info(f"[RAG] Database search returned {len(results)} chunks")
+                logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
                 
                 if results:
-                    # Build structured context with clear source attribution
-                    context_parts = []
-                    for idx, (chunk_text, filename, chunk_index, similarity) in enumerate(results, 1):
-                        logger.debug(f"[RAG]   ✓ {filename} chunk {chunk_index}: similarity {similarity:.3f}")
-                        context_parts.append(
-                            f"Document {idx}: {filename} (chunk {chunk_index}, relevance: {similarity:.2f})\n"
-                            f"Content: {chunk_text}\n"
-                        )
+                    # Use the new structured formatting method for better table rendering
+                    formatted_context = doc_processor.format_context_for_llm(results, max_length=6000)
                     
-                    full_context = "\n---\n\n".join(context_parts)
+                    # Log the results for debugging
+                    for idx, (_, filename, chunk_index, similarity) in enumerate(results, 1):
+                        logger.debug(f"[RAG]   ✓ Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}")
                     
                     # Add RAG system prompt as first message
                     if not messages or messages[0].get('role') != 'system':
@@ -807,10 +836,8 @@ def api_chat() -> Response:
                         })
                         logger.debug("[RAG] Added strict RAG system prompt")
                     
-                    # Format user message with context and clear instructions
-                    user_prompt = f"""Here is the context from your documents:
-
-{full_context}
+                    # Format user message with structured context
+                    user_prompt = f"""{formatted_context}
 
 ---
 
@@ -819,7 +846,7 @@ Question: {original_message}
 Remember: Answer ONLY based on the context above. If the information is not in the context, say "I don't have that information in the provided documents." Do not use external knowledge."""
                     
                     message = user_prompt
-                    logger.info(f"[CHAT API] Context added - {len(results)} chunks, {len(message)} chars total")
+                    logger.info(f"[CHAT API] Context formatted - {len(results)} chunks, {len(message)} chars total")
                 else:
                     logger.warning("[RAG] No chunks retrieved - check if documents are indexed")
                     # Add system message indicating no context available
@@ -842,7 +869,7 @@ Remember: Answer ONLY based on the context above. If the information is not in t
         messages.append({'role': 'user', 'content': message})
         logger.debug(f"[CHAT API] Total messages in conversation: {len(messages)}")
         
-        # Stream response
+        # Stream response - FIX: Copy app context before streaming
         def generate() -> Generator[str, None, None]:
             try:
                 logger.debug("[CHAT API] Starting response stream...")
@@ -858,7 +885,11 @@ Remember: Answer ONLY based on the context above. If the information is not in t
                 })
                 yield f"data: {error_msg}\n\n"
         
-        return Response(stream_with_context(generate()), mimetype='text/event-stream')
+        # Use Response directly without stream_with_context to avoid context errors
+        response = Response(generate(), mimetype='text/event-stream')
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['X-Accel-Buffering'] = 'no'
+        return response
         
     except Exception as e:
         if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
@@ -872,7 +903,7 @@ Remember: Answer ONLY based on the context above. If the information is not in t
 
 
 @app.route('/api/documents/upload', methods=['POST'])
-def api_upload_documents() -> Response:
+def api_upload_documents():
     """Upload and ingest documents."""
     if 'files' not in request.files:
         return jsonify({'success': False, 'message': 'No files provided'}), 400
@@ -931,11 +962,15 @@ def api_upload_documents() -> Response:
         
         yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
     
-    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+    # Use Response directly without stream_with_context to avoid context errors
+    response = Response(generate(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
+    return response
 
 
 @app.route('/api/documents/list')
-def api_list_documents() -> Response:
+def api_list_documents():
     """
     List all documents.
     
@@ -967,9 +1002,9 @@ def api_list_documents() -> Response:
 
 
 @app.route('/api/documents/test', methods=['POST'])
-def api_test_retrieval() -> Response:
+def api_test_retrieval():
     """
-    Test RAG retrieval.
+    Test RAG retrieval with detailed diagnostic information.
     
     Month 2: Uses RetrievalRequest validation
     Month 1: Uses basic validation
@@ -979,9 +1014,10 @@ def api_test_retrieval() -> Response:
         - top_k (int, optional): Number of results
         - min_similarity (float, optional): Min similarity threshold
         - file_type_filter (str, optional): File type filter
+        - use_hybrid_search (bool, optional): Enable/disable BM25 (default: true)
     
     Returns:
-        JSON response with retrieval results
+        JSON response with retrieval results and diagnostic info
     """
     try:
         data = request.get_json()
@@ -990,9 +1026,11 @@ def api_test_retrieval() -> Response:
         if MONTH2_ENABLED:
             request_data = RetrievalRequest(**data)
             query = sanitize_query(request_data.query)
+            use_hybrid = data.get('use_hybrid_search', True)
         # Month 1: Basic validation
         else:
             query = data.get('query', 'What is this about?').strip()
+            use_hybrid = data.get('use_hybrid_search', True)
             
             # Basic validation
             if not query:
@@ -1002,14 +1040,29 @@ def api_test_retrieval() -> Response:
                 logger.warning("Query too long in test retrieval request")
                 return jsonify({'success': False, 'message': 'Query too long (max 1000 chars)'}), 400
         
-        logger.info(f"Testing retrieval: {query[:50]}...")
+        logger.info(f"Testing retrieval: {query[:50]}... (hybrid_search={use_hybrid})")
         
-        success, results = doc_processor.test_retrieval(query)
+        # Test both modes
+        results_hybrid = doc_processor.retrieve_context(query, use_hybrid_search=True)
+        results_semantic = doc_processor.retrieve_context(query, use_hybrid_search=False)
         
-        return jsonify({
-            'success': success,
-            'results': results
-        })
+        # Format response
+        response = {
+            'success': True,
+            'query': query,
+            'hybrid_search': use_hybrid,
+            'results': {
+                'hybrid': format_test_results(results_hybrid, 'Hybrid (Semantic + BM25)'),
+                'semantic_only': format_test_results(results_semantic, 'Semantic Only')
+            },
+            'diagnostic': {
+                'hybrid_count': len(results_hybrid),
+                'semantic_count': len(results_semantic),
+                'recommendation': get_search_recommendation(results_hybrid, results_semantic)
+            }
+        }
+        
+        return jsonify(response)
         
     except Exception as e:
         if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
@@ -1022,30 +1075,67 @@ def api_test_retrieval() -> Response:
             }), 500
 
 
+def format_test_results(results, mode_name):
+    """Format results for test API response."""
+    if not results:
+        return {'mode': mode_name, 'count': 0, 'chunks': []}
+    
+    formatted = []
+    for chunk_text, filename, chunk_index, similarity in results:
+        formatted.append({
+            'filename': filename,
+            'chunk_index': chunk_index,
+            'similarity': round(similarity, 4),
+            'preview': chunk_text[:200] + '...' if len(chunk_text) > 200 else chunk_text,
+            'length': len(chunk_text)
+        })
+    
+    return {
+        'mode': mode_name,
+        'count': len(formatted),
+        'chunks': formatted
+    }
+
+
+def get_search_recommendation(hybrid_results, semantic_results):
+    """Provide recommendation based on test results."""
+    if len(hybrid_results) == 0 and len(semantic_results) == 0:
+        return "No results found. Try: 1) Lower MIN_SIMILARITY_THRESHOLD, 2) Upload more relevant documents, 3) Rephrase query"
+    elif len(hybrid_results) < len(semantic_results):
+        return "Semantic-only search found more results. Your query may have no keyword matches - this is normal for conceptual questions."
+    elif len(hybrid_results) > len(semantic_results):
+        return "Hybrid search found more results. BM25 keyword matching is helping improve retrieval."
+    else:
+        return "Both modes returned same number of results. Query works well with either mode."
+
+
 @app.route('/api/documents/stats')
-def api_document_stats() -> Response:
+def api_document_stats():
     """
-    Get document statistics.
+    Get document statistics including chunk analysis.
     
     Returns:
-        JSON response with document and chunk counts
+        JSON response with document and chunk counts plus diagnostic info
     
     Example:
         >>> GET /api/documents/stats
         {
             "success": true,
             "document_count": 10,
-            "chunk_count": 25
+            "chunk_count": 25,
+            "chunk_stats": {...}
         }
     """
     try:
         doc_count = db.get_document_count()
         chunk_count = db.get_chunk_count()
+        chunk_stats = db.get_chunk_statistics()
         
         return jsonify({
             'success': True,
             'document_count': doc_count,
-            'chunk_count': chunk_count
+            'chunk_count': chunk_count,
+            'chunk_statistics': chunk_stats
         })
     except Exception as e:
         logger.error(f"Error getting document stats: {e}", exc_info=True)
@@ -1055,8 +1145,57 @@ def api_document_stats() -> Response:
         }), 500
 
 
+@app.route('/api/documents/search-text', methods=['POST'])
+def api_search_text():
+    """
+    Search chunks by text content (for debugging).
+    
+    Request Body:
+        - search_text (str): Text to search for
+        - limit (int, optional): Max results (default: 10)
+    
+    Returns:
+        JSON response with matching chunks
+    
+    Example:
+        >>> POST /api/documents/search-text
+        >>> {"search_text": "security", "limit": 5}
+        {
+            "success": true,
+            "results": [...]
+        }
+    """
+    try:
+        data = request.get_json()
+        search_text = data.get('search_text', '').strip()
+        limit = data.get('limit', 10)
+        
+        if not search_text:
+            return jsonify({
+                'success': False,
+                'message': 'search_text required'
+            }), 400
+        
+        logger.info(f"Searching chunks for text: {search_text}")
+        results = db.search_chunks_by_text(search_text, limit)
+        
+        return jsonify({
+            'success': True,
+            'search_text': search_text,
+            'count': len(results),
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error searching text: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
 @app.route('/api/documents/clear', methods=['DELETE'])
-def api_clear_documents() -> Response:
+def api_clear_documents():
     """
     Clear all documents and chunks from the database.
     

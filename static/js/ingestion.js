@@ -166,27 +166,67 @@ async function testRetrieval() {
         
         const data = await response.json();
         
-        if (data.success && data.results.length > 0) {
-            let html = '<div class="mt-3"><h6>Retrieved Chunks:</h6>';
+        if (data.success) {
+            // Check both hybrid and semantic_only results
+            const hybridResults = data.results?.hybrid?.chunks || [];
+            const semanticResults = data.results?.semantic_only?.chunks || [];
             
-            data.results.forEach((result, idx) => {
-                html += `
-                    <div class="card mb-2">
-                        <div class="card-body">
-                            <h6 class="card-subtitle mb-2 text-muted">
-                                ${result.filename} - Chunk ${result.chunk_index}
-                                <span class="badge bg-info float-end">Similarity: ${(result.similarity * 100).toFixed(1)}%</span>
-                            </h6>
-                            <p class="card-text small">${result.text}</p>
+            if (hybridResults.length > 0 || semanticResults.length > 0) {
+                let html = '<div class="mt-3">';
+                
+                // Display Hybrid Results
+                if (hybridResults.length > 0) {
+                    html += '<h6>Hybrid Search Results (Semantic + BM25):</h6>';
+                    hybridResults.forEach((result, idx) => {
+                        html += `
+                            <div class="card mb-2">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">
+                                        ${result.filename} - Chunk ${result.chunk_index}
+                                        <span class="badge bg-info float-end">Similarity: ${(result.similarity * 100).toFixed(1)}%</span>
+                                    </h6>
+                                    <p class="card-text small">${result.preview}</p>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                // Display Semantic Only Results
+                if (semanticResults.length > 0) {
+                    html += '<h6 class="mt-3">Semantic Only Results:</h6>';
+                    semanticResults.forEach((result, idx) => {
+                        html += `
+                            <div class="card mb-2">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">
+                                        ${result.filename} - Chunk ${result.chunk_index}
+                                        <span class="badge bg-secondary float-end">Similarity: ${(result.similarity * 100).toFixed(1)}%</span>
+                                    </h6>
+                                    <p class="card-text small">${result.preview}</p>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                // Add diagnostic info
+                if (data.diagnostic) {
+                    html += `
+                        <div class="alert alert-info mt-3">
+                            <strong>Diagnostic Info:</strong><br>
+                            ${data.diagnostic.recommendation}
                         </div>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            testResults.innerHTML = html;
+                    `;
+                }
+                
+                html += '</div>';
+                testResults.innerHTML = html;
+            } else {
+                testResults.innerHTML = '<div class="alert alert-warning mt-3">No results found. Make sure documents are ingested.</div>';
+            }
         } else {
-            testResults.innerHTML = '<div class="alert alert-warning mt-3">No results found. Make sure documents are ingested.</div>';
+            testResults.innerHTML = `<div class="alert alert-danger mt-3">Error: ${data.message || 'Unknown error'}</div>`;
         }
     } catch (error) {
         testResults.innerHTML = `<div class="alert alert-danger mt-3">Error: ${error.message}</div>`;
