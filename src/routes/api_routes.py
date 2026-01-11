@@ -22,18 +22,29 @@ def api_status() -> Dict[str, Any]:
     """
     Get system status.
     
-    Returns:
-        JSON response with service status information
-    
-    Example:
-        >>> GET /api/status
-        {
-            "ollama": true,
-            "database": true,
-            "ready": true,
-            "active_model": "llama3.2",
-            "document_count": 5
-        }
+    Provides health check and status information for all services.
+    ---
+    tags:
+      - System
+    summary: Get system status
+    description: |
+      Returns the current status of all system components:
+      - Ollama LLM service
+      - PostgreSQL database with pgvector
+      - Overall system readiness
+      - Active model and document count
+    responses:
+      200:
+        description: System status retrieved successfully
+        schema:
+          $ref: '#/definitions/StatusResponse'
+        examples:
+          application/json:
+            ollama: true
+            database: true
+            ready: true
+            active_model: "llama3.2"
+            document_count: 42
     """
     from .. import config
     
@@ -58,16 +69,62 @@ def api_chat():
     """
     Chat endpoint with RAG or direct LLM.
     
-    Handles chat requests with optional RAG context retrieval.
-    Supports streaming responses via Server-Sent Events.
-    
-    Request Body:
-        - message (str): User's message
-        - use_rag (bool): Whether to use RAG mode (default: true)
-        - history (list): Chat history
-    
-    Returns:
-        Server-Sent Events stream with chat response
+    Send a chat message and receive AI response with optional RAG context retrieval.
+    ---
+    tags:
+      - Chat
+    summary: Send chat message
+    description: |
+      Chat with the AI assistant. Supports two modes:
+      
+      **RAG Mode (use_rag=true)**:
+      - Retrieves relevant context from uploaded documents
+      - Provides accurate, document-based answers
+      - Cites sources in responses
+      
+      **Direct LLM Mode (use_rag=false)**:
+      - Direct conversation with the AI model
+      - No document context
+      - General knowledge responses
+      
+      Responses are streamed using Server-Sent Events (SSE).
+    consumes:
+      - application/json
+    produces:
+      - text/event-stream
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/ChatRequest'
+    responses:
+      200:
+        description: Chat response stream (Server-Sent Events)
+        schema:
+          type: object
+          properties:
+            content:
+              type: string
+              description: Response chunk content
+            done:
+              type: boolean
+              description: Stream completion flag
+        examples:
+          text/event-stream: |
+            data: {"content": "Based on the documents..."}
+            
+            data: {"content": " the answer is..."}
+            
+            data: {"done": true}
+      400:
+        description: Bad request (invalid message, too long, etc.)
+        schema:
+          $ref: '#/definitions/Error'
+      500:
+        description: Server error during chat processing
+        schema:
+          $ref: '#/definitions/Error'
     """
     from flask import request, Response
     from typing import Generator
