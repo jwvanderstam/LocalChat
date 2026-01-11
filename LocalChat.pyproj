@@ -138,6 +138,7 @@
     <Content Include="docs\fixes\RAG_RETRIEVAL_COMPLETE_FIX.md" />
     <Content Include="docs\fixes\RAG_RETRIEVAL_FIX.md" />
     <Content Include="docs\MIDDLEWARE_HERCONFIGURATIE_NL.md" />
+    <Content Include="docs\progress\INTEGRATION_COMPLETE.md" />
     <Content Include="docs\progress\QUICK_REFERENCE.md" />
     <Content Include="docs\progress\SESSION_01_PROGRESS.md" />
     <Content Include="docs\progress\SESSION_02_COMPLETE.md" />
