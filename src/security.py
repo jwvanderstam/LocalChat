@@ -265,36 +265,16 @@ def setup_health_check(app: Flask) -> None:
     """
     Setup health check endpoint.
     
+    NOTE: Health check is now provided by the monitoring module at /api/health
+    This function is kept for backwards compatibility but does nothing.
+    
     Args:
         app: Flask application instance
     """
-    
-    @app.route('/health')
-    @app.route('/api/health')
-    def health_check() -> Response:
-        """
-        Health check endpoint.
-        
-        Returns:
-            JSON with service health status
-        
-        Example:
-            >>> GET /health
-            {
-                "status": "healthy",
-                "version": "1.0.0",
-                "timestamp": "2026-01-03T10:30:00Z"
-            }
-        """
-        from datetime import datetime
-        
-        return jsonify({
-            'status': 'healthy',
-            'version': '1.0.0',
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
-        }), 200
-    
-    logger.info("? Health check endpoint registered")
+    # Health check is now handled by monitoring module
+    # Monitoring provides a more comprehensive health check with component status
+    logger.info("??  Health check is provided by monitoring module at /api/health")
+    pass
 
 
 # ============================================================================
