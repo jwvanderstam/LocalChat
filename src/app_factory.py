@@ -156,6 +156,9 @@ def _init_services(app: Flask, testing: bool) -> None:
     app.ollama_client = ollama_client
     app.doc_processor = doc_processor
     
+    # Initialize caching
+    _init_caching(app, testing)
+    
     # Initialize global startup status
     app.startup_status = {
         'ollama': False,
@@ -205,6 +208,63 @@ def _init_services(app: Flask, testing: bool) -> None:
         )
     
     logger.debug("Services initialized")
+
+
+def _init_caching(app: Flask, testing: bool) -> None:
+    """
+    Initialize caching layer.
+    
+    Args:
+        app: Flask application instance
+        testing: Testing mode flag
+    """
+    try:
+        from .cache import create_cache_backend
+        from .cache.managers import init_caches
+        import os
+        
+        # Determine cache backend from config
+        cache_backend_type = os.environ.get('CACHE_BACKEND', 'redis')
+        redis_host = os.environ.get('REDIS_HOST', 'localhost')
+        redis_port = int(os.environ.get('REDIS_PORT', 6379))
+        
+        # Create backends (will fallback to memory if Redis unavailable)
+        embedding_backend = create_cache_backend(
+            cache_backend_type,
+            namespace='embeddings',
+            host=redis_host,
+            port=redis_port,
+            max_size=5000
+        )
+        
+        query_backend = create_cache_backend(
+            cache_backend_type,
+            namespace='queries',
+            host=redis_host,
+            port=redis_port,
+            max_size=1000
+        )
+        
+        # Initialize cache managers
+        embedding_cache, query_cache = init_caches(
+            embedding_backend=embedding_backend,
+            query_backend=query_backend,
+            embedding_ttl=3600 * 24 * 7,  # 7 days
+            query_ttl=3600  # 1 hour
+        )
+        
+        # Attach to app
+        app.embedding_cache = embedding_cache
+        app.query_cache = query_cache
+        
+        backend_name = type(embedding_backend).__name__
+        logger.info(f"? Caching initialized ({backend_name})")
+        
+    except Exception as e:
+        logger.warning(f"??  Caching initialization failed: {e}")
+        logger.warning("??  Running without cache (will impact performance)")
+        app.embedding_cache = None
+        app.query_cache = None
 
 
 def _register_blueprints(app: Flask) -> None:

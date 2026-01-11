@@ -33,6 +33,7 @@ def api_status() -> Dict[str, Any]:
       - PostgreSQL database with pgvector
       - Overall system readiness
       - Active model and document count
+      - Cache statistics (if enabled)
     responses:
       200:
         description: System status retrieved successfully
@@ -45,6 +46,15 @@ def api_status() -> Dict[str, Any]:
             ready: true
             active_model: "llama3.2"
             document_count: 42
+            cache:
+              embedding:
+                hits: 150
+                misses: 50
+                hit_rate: "75.00%"
+              query:
+                hits: 80
+                misses: 20
+                hit_rate: "80.00%"
     """
     from .. import config
     
@@ -55,13 +65,26 @@ def api_status() -> Dict[str, Any]:
         else 0
     )
     
-    return jsonify({
+    # Get cache stats if available
+    cache_stats = {}
+    if hasattr(current_app, 'embedding_cache') and current_app.embedding_cache:
+        cache_stats['embedding'] = current_app.embedding_cache.get_stats().to_dict()
+    
+    if hasattr(current_app, 'query_cache') and current_app.query_cache:
+        cache_stats['query'] = current_app.query_cache.get_stats().to_dict()
+    
+    response = {
         'ollama': current_app.startup_status['ollama'],
         'database': current_app.startup_status['database'],
         'ready': current_app.startup_status['ready'],
         'active_model': active_model,
         'document_count': doc_count
-    })
+    }
+    
+    if cache_stats:
+        response['cache'] = cache_stats
+    
+    return jsonify(response)
 
 
 @bp.route('/chat', methods=['POST'])
