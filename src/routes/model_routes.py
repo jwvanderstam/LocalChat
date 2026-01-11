@@ -26,15 +26,42 @@ def api_list_models():
     """
     List all available Ollama models.
     
-    Returns:
-        JSON response with model list
-    
-    Example:
-        >>> GET /api/models
-        {
-            "success": true,
-            "models": [...]
-        }
+    Retrieve all LLM models available in the Ollama instance.
+    ---
+    tags:
+      - Models
+    summary: List available models
+    description: |
+      Returns all models installed in Ollama with metadata:
+      - Model name and size
+      - Last modified timestamp
+      - Model family and version
+    responses:
+      200:
+        description: Model list retrieved successfully
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            models:
+              type: array
+              items:
+                $ref: '#/definitions/Model'
+        examples:
+          application/json:
+            success: true
+            models:
+              - name: "llama3.2"
+                size: 4500000000
+                modified_at: "2025-01-10T15:30:00Z"
+              - name: "nomic-embed-text"
+                size: 274000000
+                modified_at: "2025-01-12T09:15:00Z"
+      503:
+        description: Ollama service unavailable
+        schema:
+          $ref: '#/definitions/Error'
     """
     success, models = current_app.ollama_client.list_models()
     return jsonify({
@@ -48,14 +75,56 @@ def api_active_model():
     """
     Get or set the active model.
     
-    GET: Returns currently active model
-    POST: Sets active model
-    
-    Request Body (POST):
-        - model (str): Model name to activate
-    
-    Returns:
-        JSON response with active model info
+    Retrieve or change the currently active LLM model for chat.
+    ---
+    tags:
+      - Models
+    summary: Get/Set active model
+    description: |
+      **GET**: Returns the currently active model name
+      
+      **POST**: Sets a new active model (must be installed first)
+    parameters:
+      - name: body
+        in: body
+        required: false
+        description: Model name to activate (POST only)
+        schema:
+          type: object
+          required:
+            - model
+          properties:
+            model:
+              type: string
+              description: Model name to activate
+              example: "llama3.2"
+    responses:
+      200:
+        description: Active model retrieved or set successfully
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            model:
+              type: string
+              description: Active model name
+        examples:
+          application/json:
+            success: true
+            model: "llama3.2"
+      400:
+        description: Bad request (model name missing)
+        schema:
+          $ref: '#/definitions/Error'
+      404:
+        description: Model not found
+        schema:
+          $ref: '#/definitions/Error'
+      503:
+        description: Ollama service unavailable
+        schema:
+          $ref: '#/definitions/Error'
     """
     from .. import config
     

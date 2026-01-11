@@ -83,6 +83,10 @@ def create_app(
     # Initialize extensions and services
     _init_services(app, testing)
     
+    # Initialize API documentation (Swagger/OpenAPI)
+    if not testing:
+        _init_api_docs(app)
+    
     # Register blueprints
     _register_blueprints(app)
     
@@ -299,6 +303,27 @@ def _setup_cleanup_handlers(app: Flask) -> None:
     
     logger.debug("Cleanup handlers registered")
 
+
+def _init_api_docs(app: Flask) -> None:
+    """
+    Initialize API documentation (Swagger/OpenAPI).
+    
+    Args:
+        app: Flask application instance
+    """
+    try:
+        from .api_docs import init_swagger
+        
+        swagger = init_swagger(app)
+        app.swagger = swagger
+        
+        logger.info("? API documentation initialized at /api/docs/")
+        
+    except ImportError as e:
+        logger.warning(f"??  API documentation not available: {e}")
+    except Exception as e:
+        logger.error(f"Error initializing API docs: {e}", exc_info=True)
+        
 
 # Export for backward compatibility
 __all__ = ['create_app']

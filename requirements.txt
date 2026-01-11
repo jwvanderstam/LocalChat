@@ -1,6 +1,7 @@
 # Flask and Web Framework
 Flask==3.0.0
 Werkzeug==3.0.1
+flasgger==0.9.7.1  # OpenAPI/Swagger documentation
 
 # Security - Week 1 Improvements
 Flask-JWT-Extended==4.6.0  # Authentication

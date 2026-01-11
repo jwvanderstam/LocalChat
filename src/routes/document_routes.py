@@ -28,11 +28,77 @@ def api_upload_documents():
     """
     Upload and ingest documents.
     
-    Accepts file uploads and processes them through the RAG pipeline.
-    Returns progress updates via Server-Sent Events.
-    
-    Returns:
-        Server-Sent Events stream with upload progress
+    Upload one or more documents for RAG processing and indexing.
+    ---
+    tags:
+      - Documents
+    summary: Upload documents
+    description: |
+      Upload documents for RAG processing. Supported formats:
+      - PDF (with table extraction)
+      - DOCX (Microsoft Word)
+      - TXT (plain text)
+      - MD (Markdown)
+      
+      **Maximum file size**: 16 MB
+      
+      **Processing steps**:
+      1. File validation and storage
+      2. Text extraction (with table detection for PDFs)
+      3. Intelligent chunking
+      4. Embedding generation
+      5. Vector database storage
+      
+      Returns progress via Server-Sent Events (SSE).
+    consumes:
+      - multipart/form-data
+    produces:
+      - text/event-stream
+    parameters:
+      - name: files
+        in: formData
+        type: file
+        required: true
+        description: One or more document files to upload
+    responses:
+      200:
+        description: Upload progress stream
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Progress message
+            result:
+              type: object
+              properties:
+                filename:
+                  type: string
+                success:
+                  type: boolean
+                message:
+                  type: string
+            done:
+              type: boolean
+              description: Upload completion flag
+            total_documents:
+              type: integer
+              description: Total documents in system after upload
+        examples:
+          text/event-stream: |
+            data: {"message": "Processing document.pdf..."}
+            
+            data: {"result": {"filename": "document.pdf", "success": true, "message": "Ingested successfully"}}
+            
+            data: {"done": true, "total_documents": 42}
+      400:
+        description: Bad request (no files, invalid format)
+        schema:
+          $ref: '#/definitions/Error'
+      413:
+        description: File too large (exceeds 16 MB limit)
+        schema:
+          $ref: '#/definitions/Error'
     """
     from .. import config
     
@@ -99,15 +165,57 @@ def api_list_documents():
     """
     List all documents.
     
-    Returns:
-        JSON response with document list
-    
-    Example:
-        >>> GET /api/documents/list
-        {
-            "success": true,
-            "documents": [...]
-        }
+    Retrieve a list of all documents in the system with metadata.
+    ---
+    tags:
+      - Documents
+    summary: List all documents
+    description: |
+      Returns all documents with metadata including:
+      - Document ID
+      - Filename
+      - File type
+      - Upload timestamp
+      - Chunk count
+      - Processing status
+    responses:
+      200:
+        description: Document list retrieved successfully
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            documents:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Document UUID
+                  filename:
+                    type: string
+                  file_type:
+                    type: string
+                  uploaded_at:
+                    type: string
+                    format: date-time
+                  chunk_count:
+                    type: integer
+        examples:
+          application/json:
+            success: true
+            documents:
+              - id: "abc-123-def"
+                filename: "report.pdf"
+                file_type: "pdf"
+                uploaded_at: "2025-01-15T10:30:00Z"
+                chunk_count: 25
+      500:
+        description: Server error retrieving documents
+        schema:
+          $ref: '#/definitions/Error'
     """
     try:
         documents = current_app.db.get_all_documents()
@@ -194,8 +302,37 @@ def api_document_stats():
     """
     Get document statistics including chunk analysis.
     
-    Returns:
-        JSON response with document and chunk counts
+    Retrieve comprehensive statistics about documents and chunks.
+    ---
+    tags:
+      - Documents
+    summary: Get document statistics
+    description: |
+      Returns detailed statistics including:
+      - Total document count
+      - Total chunk count
+      - Average chunks per document
+      - Chunk size distribution
+      - Processing statistics
+    responses:
+      200:
+        description: Statistics retrieved successfully
+        schema:
+          $ref: '#/definitions/DocumentStats'
+        examples:
+          application/json:
+            success: true
+            document_count: 42
+            chunk_count: 1250
+            chunk_statistics:
+              avg_chunks_per_doc: 29.8
+              min_chunk_size: 156
+              max_chunk_size: 1024
+              avg_chunk_size: 768
+      500:
+        description: Server error retrieving statistics
+        schema:
+          $ref: '#/definitions/Error'
     """
     try:
         doc_count = current_app.db.get_document_count()
