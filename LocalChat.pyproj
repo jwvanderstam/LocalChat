@@ -54,6 +54,17 @@
     <Compile Include="scripts\test_validation_error.py" />
     <Compile Include="scripts\test_vector_comparison.py" />
     <Compile Include="scripts\verify_no_errors.py" />
+    <Compile Include="src\api_docs.py" />
+    <Compile Include="src\app_factory.py" />
+    <Compile Include="src\cache\managers.py" />
+    <Compile Include="src\cache\__init__.py" />
+    <Compile Include="src\monitoring.py" />
+    <Compile Include="src\routes\api_routes.py" />
+    <Compile Include="src\routes\document_routes.py" />
+    <Compile Include="src\routes\error_handlers.py" />
+    <Compile Include="src\routes\model_routes.py" />
+    <Compile Include="src\routes\web_routes.py" />
+    <Compile Include="src\routes\__init__.py" />
     <Compile Include="src\security.py" />
     <Compile Include="tests\conftest.py" />
     <Compile Include="tests\integration\test_integration.py" />
@@ -107,6 +118,7 @@
     <Content Include="COMPREHENSIVE_VALIDATION_REPORT.md" />
     <Content Include="COPY_CHAT_FEATURE.md" />
     <Content Include="DATABASE_CHECK_IMPLEMENTATION.md" />
+    <Content Include="docs\analysis\BASELINE_METRICS.md" />
     <Content Include="docs\CODE_QUALITY_IMPROVEMENT_PLAN.md" />
     <Content Include="docs\CURRENT_STATUS.md" />
     <Content Include="docs\features\CONTEXT_FORMATTING_ENHANCEMENT.md" />
@@ -126,6 +138,10 @@
     <Content Include="docs\fixes\RAG_RETRIEVAL_COMPLETE_FIX.md" />
     <Content Include="docs\fixes\RAG_RETRIEVAL_FIX.md" />
     <Content Include="docs\MIDDLEWARE_HERCONFIGURATIE_NL.md" />
+    <Content Include="docs\progress\QUICK_REFERENCE.md" />
+    <Content Include="docs\progress\SESSION_01_PROGRESS.md" />
+    <Content Include="docs\progress\SESSION_02_COMPLETE.md" />
+    <Content Include="docs\progress\SESSION_FINAL_SUMMARY.md" />
     <Content Include="docs\PROJECT_REORGANIZATION_COMPLETE.md" />
     <Content Include="docs\PROJECT_RESTRUCTURE.md" />
     <Content Include="docs\RAG_DEBUGGING_GUIDE.md" />
@@ -216,11 +232,15 @@
   <ItemGroup>
     <Folder Include=".vscode\" />
     <Folder Include="docs\" />
+    <Folder Include="docs\analysis\" />
     <Folder Include="docs\features\" />
     <Folder Include="docs\fixes\" />
+    <Folder Include="docs\progress\" />
     <Folder Include="documentation\" />
     <Folder Include="scripts\" />
     <Folder Include="src\" />
+    <Folder Include="src\cache\" />
+    <Folder Include="src\routes\" />
     <Folder Include="static\" />
     <Folder Include="static\css\" />
     <Folder Include="static\js\" />
