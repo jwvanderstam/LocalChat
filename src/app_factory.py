@@ -87,6 +87,10 @@ def create_app(
     if not testing:
         _init_api_docs(app)
     
+    # Initialize monitoring and metrics
+    if not testing:
+        _init_monitoring(app)
+    
     # Register blueprints
     _register_blueprints(app)
     
@@ -383,7 +387,25 @@ def _init_api_docs(app: Flask) -> None:
         logger.warning(f"??  API documentation not available: {e}")
     except Exception as e:
         logger.error(f"Error initializing API docs: {e}", exc_info=True)
+
+
+def _init_monitoring(app: Flask) -> None:
+    """
+    Initialize monitoring and metrics.
+    
+    Args:
+        app: Flask application instance
+    """
+    try:
+        from .monitoring import init_monitoring
         
+        init_monitoring(app)
+        
+        logger.info("? Monitoring initialized at /api/metrics and /api/health")
+        
+    except Exception as e:
+        logger.error(f"Error initializing monitoring: {e}", exc_info=True)
+
 
 # Export for backward compatibility
 __all__ = ['create_app']
