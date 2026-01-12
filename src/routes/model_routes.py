@@ -219,9 +219,12 @@ def api_pull_model():
         
         logger.info(f"Pulling model: {model_name}")
         
+        # Capture app object before entering generator
+        app = current_app._get_current_object()
+        
         def generate() -> Generator[str, None, None]:
             try:
-                for progress in current_app.ollama_client.pull_model(model_name):
+                for progress in app.ollama_client.pull_model(model_name):
                     yield f"data: {json.dumps(progress)}\n\n"
             except Exception as e:
                 logger.error(f"Error pulling model: {e}", exc_info=True)

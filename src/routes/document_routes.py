@@ -11,7 +11,7 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from flask import Blueprint, jsonify, request, Response, current_app
+from flask import Blueprint, jsonify, request, Response, current_app, copy_current_request_context
 from typing import Generator, Dict, Any
 from pathlib import Path
 import os
@@ -123,13 +123,16 @@ def api_upload_documents():
     if not file_paths:
         return jsonify({'success': False, 'message': 'No supported files found'}), 400
     
+    # Get references to app objects before entering generator
+    app = current_app._get_current_object()
+    
     # Stream ingestion progress
     def generate() -> Generator[str, None, None]:
         results = []
         for file_path in file_paths:
             yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
             
-            success, message, doc_id = current_app.doc_processor.ingest_document(
+            success, message, doc_id = app.doc_processor.ingest_document(
                 file_path,
                 lambda m: None
             )
@@ -149,7 +152,7 @@ def api_upload_documents():
                 pass
         
         # Update document count
-        doc_count = current_app.db.get_document_count()
+        doc_count = app.db.get_document_count()
         config.app_state.set_document_count(doc_count)
         
         yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"

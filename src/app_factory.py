@@ -227,26 +227,38 @@ def _init_caching(app: Flask, testing: bool) -> None:
         from .cache.managers import init_caches
         import os
         
-        # Determine cache backend from config
-        cache_backend_type = os.environ.get('CACHE_BACKEND', 'redis')
-        redis_host = os.environ.get('REDIS_HOST', 'localhost')
-        redis_port = int(os.environ.get('REDIS_PORT', 6379))
+        # Check if Redis is enabled
+        redis_enabled = os.environ.get('REDIS_ENABLED', 'False').lower() == 'true'
         
-        # Create backends (will fallback to memory if Redis unavailable)
+        # Prepare backend configuration
+        if redis_enabled:
+            cache_backend_type = 'redis'
+            backend_config = {
+                'host': os.environ.get('REDIS_HOST', 'localhost'),
+                'port': int(os.environ.get('REDIS_PORT', 6379)),
+                'password': os.environ.get('REDIS_PASSWORD') or None
+            }
+        else:
+            cache_backend_type = 'memory'
+            backend_config = {
+                'max_size': 5000  # Only for memory cache
+            }
+        
+        # Create embedding backend
         embedding_backend = create_cache_backend(
             cache_backend_type,
             namespace='embeddings',
-            host=redis_host,
-            port=redis_port,
-            max_size=5000
+            **backend_config
         )
+        
+        # Create query backend (different max_size for memory)
+        if cache_backend_type == 'memory':
+            backend_config['max_size'] = 1000
         
         query_backend = create_cache_backend(
             cache_backend_type,
             namespace='queries',
-            host=redis_host,
-            port=redis_port,
-            max_size=1000
+            **backend_config
         )
         
         # Initialize cache managers
