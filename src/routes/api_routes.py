@@ -221,7 +221,7 @@ def api_chat():
 ABSOLUTE RULES - NO EXCEPTIONS:
 1. ?? ONLY use information EXPLICITLY stated in the provided context
 2. ?? If the answer is NOT in the context, respond EXACTLY: "I don't have that information in the provided documents."
-3. ?? NEVER use external knowledge, prior training, assumptions, or inferences
+3. ? NEVER use external knowledge, prior training, assumptions, or inferences
 4. ?? ALWAYS cite the source: [Source: filename]
 5. ?? For numbers/data: Quote EXACT values from context
 
@@ -287,11 +287,14 @@ Remember: Answer ONLY based on the context above."""
         
         messages.append({'role': 'user', 'content': message})
         
+        # Capture app object before entering generator
+        app = current_app._get_current_object()
+        
         # Stream response
         def generate() -> Generator[str, None, None]:
             try:
                 logger.debug("[CHAT API] Starting response stream...")
-                for chunk in current_app.ollama_client.generate_chat_response(
+                for chunk in app.ollama_client.generate_chat_response(
                     active_model, messages, stream=True
                 ):
                     yield f"data: {json.dumps({'content': chunk})}\n\n"

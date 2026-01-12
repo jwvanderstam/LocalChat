@@ -11,8 +11,8 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from flasgger import Swagger
 from flask import Flask
+from typing import Optional
 
 # OpenAPI configuration
 SWAGGER_CONFIG = {
@@ -255,7 +255,7 @@ Maximum file size: 16 MB
 }
 
 
-def init_swagger(app: Flask) -> Swagger:
+def init_swagger(app: Flask) -> Optional[object]:
     """
     Initialize Swagger/OpenAPI documentation.
     
@@ -266,7 +266,7 @@ def init_swagger(app: Flask) -> Swagger:
         app: Flask application instance
     
     Returns:
-        Configured Swagger instance
+        Configured Swagger instance or None if flasgger is not available
     
     Example:
         >>> from src.app_factory import create_app
@@ -276,13 +276,19 @@ def init_swagger(app: Flask) -> Swagger:
         >>> swagger = init_swagger(app)
         >>> # Visit http://localhost:5000/api/docs/
     """
-    swagger = Swagger(
-        app,
-        config=SWAGGER_CONFIG,
-        template=SWAGGER_TEMPLATE,
-    )
-    
-    return swagger
+    try:
+        from flasgger import Swagger
+        
+        swagger = Swagger(
+            app,
+            config=SWAGGER_CONFIG,
+            template=SWAGGER_TEMPLATE,
+        )
+        
+        return swagger
+    except ImportError as e:
+        # Flasgger not installed - fail gracefully
+        raise ImportError(f"flasgger package not installed: {e}")
 
 
 # Example endpoint documentation (for reference)

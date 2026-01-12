@@ -30,6 +30,7 @@
   <ItemGroup>
     <Compile Include="app.py" />
     <Compile Include="check_data.py" />
+    <Compile Include="check_dependencies.py" />
     <Compile Include="config.py" />
     <Compile Include="db.py" />
     <Compile Include="exceptions.py" />
@@ -56,9 +57,12 @@
     <Compile Include="scripts\verify_no_errors.py" />
     <Compile Include="src\api_docs.py" />
     <Compile Include="src\app_factory.py" />
+    <Compile Include="src\cache\backends\database_cache.py" />
+    <Compile Include="src\cache\backends\__init__.py" />
     <Compile Include="src\cache\managers.py" />
     <Compile Include="src\cache\__init__.py" />
     <Compile Include="src\monitoring.py" />
+    <Compile Include="src\performance\batch_processor.py" />
     <Compile Include="src\routes\api_routes.py" />
     <Compile Include="src\routes\document_routes.py" />
     <Compile Include="src\routes\error_handlers.py" />
@@ -101,6 +105,7 @@
     <Compile Include="utils\logging_config.py" />
     <Compile Include="utils\sanitization.py" />
     <Compile Include="utils\__init__.py" />
+    <Compile Include="verify_fixes.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include=".coveragerc" />
@@ -118,15 +123,21 @@
     <Content Include="COMPREHENSIVE_VALIDATION_REPORT.md" />
     <Content Include="COPY_CHAT_FEATURE.md" />
     <Content Include="DATABASE_CHECK_IMPLEMENTATION.md" />
+    <Content Include="docs\ALL_STREAMING_ENDPOINTS_FIXED.md" />
     <Content Include="docs\analysis\BASELINE_METRICS.md" />
+    <Content Include="docs\ARCHITECTURE.md" />
+    <Content Include="docs\CLEANUP_SUMMARY.md" />
     <Content Include="docs\CODE_QUALITY_IMPROVEMENT_PLAN.md" />
+    <Content Include="docs\COMPLETE_FIX_SUMMARY.md" />
     <Content Include="docs\CURRENT_STATUS.md" />
+    <Content Include="docs\DOCUMENTATION_UPDATE_SUMMARY.md" />
     <Content Include="docs\features\CONTEXT_FORMATTING_ENHANCEMENT.md" />
     <Content Include="docs\features\RAG_IMPROVEMENTS_SUMMARY.md" />
     <Content Include="docs\features\RAG_QUALITY_IMPROVEMENTS_AGGRESSIVE.md" />
     <Content Include="docs\features\RAG_QUICK_REFERENCE.md" />
     <Content Include="docs\features\USER_FRIENDLY_ERRORS.md" />
     <Content Include="docs\FILE_STRUCTURE_OVERVIEW.md" />
+    <Content Include="docs\FINAL_ERROR_RESOLUTION.md" />
     <Content Include="docs\fixes\BROKEN_DOCUMENTATION_LINK_FIXED.md" />
     <Content Include="docs\fixes\CLIENT_ERROR_HANDLING_FIX.md" />
     <Content Include="docs\fixes\ERROR_MESSAGES_RESTART_REQUIRED.md" />
@@ -134,10 +145,14 @@
     <Content Include="docs\fixes\ERROR_SUPPRESSION_GUIDE.md" />
     <Content Include="docs\fixes\FILE_STRUCTURE_DOCUMENTATION_COMPLETE.md" />
     <Content Include="docs\fixes\FIXES_COMPLETE_SUMMARY.md" />
+    <Content Include="docs\fixes\FLASK_CONTEXT_COMPLETE.md" />
+    <Content Include="docs\fixes\FLASK_CONTEXT_FIX.md" />
     <Content Include="docs\fixes\RAG_QUALITY_FIX_COMPREHENSIVE.md" />
     <Content Include="docs\fixes\RAG_RETRIEVAL_COMPLETE_FIX.md" />
     <Content Include="docs\fixes\RAG_RETRIEVAL_FIX.md" />
+    <Content Include="docs\fixes\REDIS_AUTHENTICATION_FIX.md" />
     <Content Include="docs\MIDDLEWARE_HERCONFIGURATIE_NL.md" />
+    <Content Include="docs\PHASE4_WEEKS1-2_SUMMARY.md" />
     <Content Include="docs\progress\INTEGRATION_COMPLETE.md" />
     <Content Include="docs\progress\QUICK_REFERENCE.md" />
     <Content Include="docs\progress\SESSION_01_PROGRESS.md" />
@@ -166,6 +181,7 @@
     <Content Include="FINAL_SUMMARY.md" />
     <Content Include="FINAL_VALIDATION_REPORT.md" />
     <Content Include="GITHUB_PUSH_SUCCESS.md" />
+    <Content Include="GIT_COMMIT_READY.md" />
     <Content Include="GIT_INITIALIZATION.md" />
     <Content Include="GRACEFUL_SHUTDOWN_FIX.md" />
     <Content Include="IMPLEMENTATION_COMPLETE_SUMMARY.md" />
@@ -194,6 +210,8 @@
     <Content Include="PDF_TABLE_INGESTION_SUMMARY.md" />
     <Content Include="PDF_TABLE_SUCCESS_GUIDE.md" />
     <Content Include="PDF_TABLE_TROUBLESHOOTING.md" />
+    <Content Include="PERFORMANCE_FIX_INGESTION.md" />
+    <Content Include="PHASE4_QUICK_REFERENCE.md" />
     <Content Include="PROJECT_STRUCTURE.md" />
     <Content Include="PUSH_TO_GITHUB.md" />
     <Content Include="PYDANTIC_INSTALLATION_SUCCESS.md" />
@@ -214,6 +232,7 @@
     <Content Include="RESTRUCTURING_GUIDE.md" />
     <Content Include="RESTRUCTURING_PLAN.md" />
     <Content Include="RESTRUCTURING_SUMMARY.md" />
+    <Content Include="SERVER_RESTART_REQUIRED.md" />
     <Content Include="setup_db.sql" />
     <Content Include="static\css\style.css" />
     <Content Include="static\js\chat.js" />
