@@ -1,0 +1,4 @@
+# file: C:\Users\Gebruiker\Desktop\source\repos\LocalChat\src\ollama_client.py
+# hypothesis_version: 6.150.1
+
+[120, 200, 300, 'Fetching model list', 'No models available', 'all-minilm', 'content', 'digest', 'done', 'embedding', 'error', 'llama2', 'message', 'messages', 'mistral', 'model', 'models', 'modified_at', 'mxbai-embed-large', 'name', 'nomic-embed-text', 'prompt', 'role', 'size', 'stream', 'user']

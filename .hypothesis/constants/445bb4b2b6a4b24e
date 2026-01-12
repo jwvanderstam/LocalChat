@@ -1,0 +1,4 @@
+# file: C:\Users\Gebruiker\Desktop\source\repos\LocalChat\src\db.py
+# hypothesis_version: 6.150.1
+
+[0.0, 1.0, 2.0, 3.0, 100, 200, ',', '...', 'CREATE DATABASE {}', 'Chunk index ensured', 'Getting chunk count', '[', ']', 'avg_chunk_length', 'chunk_count', 'chunk_index', 'created_at', 'database', 'does not exist', 'filename', 'full_text', 'has_embedding', 'id', 'length', 'preview', 'sample_chunks', 'tolist', 'total_chunks', 'utf-8']

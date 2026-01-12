@@ -1,0 +1,4 @@
+# file: C:\Users\Gebruiker\Desktop\source\repos\LocalChat\src\utils\logging_config.py
+# hypothesis_version: 6.150.1
+
+[10485760, '\x1b[0m', '\x1b[31m', '\x1b[32m', '\x1b[33m', '\x1b[35m', '\x1b[36m', '%Y-%m-%d %H:%M:%S', 'CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'RESET', 'WARNING', 'logs/app.log', 'utf-8']
