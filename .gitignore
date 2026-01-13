@@ -49,6 +49,22 @@ logs/
 *.sqlite
 *.sqlite3
 
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Build artifacts
+obj/
+bin/
+*.pyproj.user
+app_state.json
+
 # Uploads
 uploads/*
 !uploads/.gitkeep
