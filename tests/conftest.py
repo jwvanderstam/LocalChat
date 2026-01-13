@@ -138,6 +138,32 @@ def mock_ollama_client():
 # ============================================================================
 
 @pytest.fixture
+def app():
+    """
+    Provide Flask application for testing.
+    
+    Returns:
+        Flask: Test Flask application instance
+    """
+    from src.app_factory import create_app
+    return create_app(testing=True)
+
+
+@pytest.fixture
+def client(app):
+    """
+    Provide Flask test client.
+    
+    Args:
+        app: Flask application fixture
+    
+    Returns:
+        FlaskClient: Test client for making requests
+    """
+    return app.test_client()
+
+
+@pytest.fixture
 def sample_text() -> str:
     """
     Provide sample text for testing.

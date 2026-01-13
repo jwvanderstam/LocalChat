@@ -310,16 +310,3 @@ class TestMonitoringEdgeCases:
         # Should handle zeros
         assert True
 
-
-# Fixtures
-@pytest.fixture
-def app():
-    """Create app for testing."""
-    from src.app_factory import create_app
-    return create_app(testing=True)
-
-
-@pytest.fixture
-def client(app):
-    """Create test client."""
-    return app.test_client()

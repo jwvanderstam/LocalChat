@@ -59,6 +59,60 @@ def generate_mock_search_results(count: int = 5) -> List[tuple]:
     results = []
     for i in range(count):
         results.append((
+            fake.text(max_nb_chars=200),
+            f"document_{i}.pdf",
+            i,
+            random.uniform(0.7, 0.99)
+        ))
+    return results
+
+
+def assert_json_response(response, expected_status: int = 200):
+    """
+    Assert response is JSON with expected status.
+    
+    Args:
+        response: Flask response object
+        expected_status: Expected HTTP status code
+    
+    Raises:
+        AssertionError: If response doesn't match expectations
+    """
+    assert response.status_code == expected_status, f"Expected {expected_status}, got {response.status_code}"
+    assert response.content_type == 'application/json', f"Expected JSON, got {response.content_type}"
+    assert response.get_json() is not None, "Response has no JSON body"
+
+
+def assert_error_response(response, error_type: str = None):
+    """
+    Assert response is a valid error response.
+    
+    Args:
+        response: Flask response object
+        error_type: Expected error type (optional)
+    """
+    assert response.status_code >= 400, f"Expected error status, got {response.status_code}"
+    data = response.get_json()
+    assert data is not None, "Error response has no JSON body"
+    assert 'error' in data or 'message' in data, "Error response missing error/message field"
+    
+    if error_type:
+        assert data.get('error') == error_type, f"Expected error type {error_type}, got {data.get('error')}"
+
+
+def generate_mock_search_results(count: int = 5) -> List[tuple]:
+    """
+    Generate mock search results.
+    
+    Args:
+        count: Number of results
+    
+    Returns:
+        List of (chunk_text, filename, chunk_index, similarity) tuples
+    """
+    results = []
+    for i in range(count):
+        results.append((
             fake.paragraph(),
             f"document_{i}.pdf",
             i,
