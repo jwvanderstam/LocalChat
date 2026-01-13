@@ -42,9 +42,7 @@ class TestConfigValidation:
         # Port should be valid
         assert isinstance(config.PG_PORT, int)
         assert 1 <= config.PG_PORT <= 65535
-        
-        assert isinstance(config.OLLAMA_PORT, int)
-        assert 1 <= config.OLLAMA_PORT <= 65535
+    
     
     def test_config_validates_pool_sizes(self):
         """Test database pool size validation."""
@@ -63,7 +61,6 @@ class TestConfigValidation:
         
         # Hostnames should be non-empty
         assert len(config.PG_HOST) > 0
-        assert len(config.OLLAMA_HOST) > 0
         
         # Database name should be valid
         assert len(config.PG_DB) > 0
@@ -122,13 +119,10 @@ class TestConfigDefaults:
         assert config.PG_PORT in [5432, 5433]
         assert config.PG_USER is not None
         
-        # Ollama defaults
-        assert config.OLLAMA_HOST in ['localhost', '127.0.0.1']
-        assert config.OLLAMA_PORT == 11434
-        
         # Application defaults
         if hasattr(config, 'MAX_UPLOAD_SIZE'):
             assert config.MAX_UPLOAD_SIZE > 0
+    
     
     def test_config_chunk_settings(self):
         """Test RAG chunking configuration."""
