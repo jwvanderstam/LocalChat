@@ -138,6 +138,41 @@ class TestMetricsCollector:
         
         # Should handle concurrent access
         assert True
+    
+    def test_metrics_reset(self):
+        """Test resetting metrics."""
+        from src.monitoring import MetricsCollector
+        
+        collector = MetricsCollector()
+        collector.increment('test', 10)
+        collector.record('latency', 1.5)
+        
+        collector.reset()
+        
+        # After reset, should be empty
+        metrics = collector.get_metrics()
+        assert metrics is not None
+
+
+class TestGlobalMetrics:
+    """Test global metrics functions."""
+    
+    def test_get_metrics_returns_collector(self):
+        """Test get_metrics returns a collector."""
+        from src.monitoring import get_metrics
+        
+        collector = get_metrics()
+        
+        assert collector is not None
+    
+    def test_get_metrics_returns_singleton(self):
+        """Test get_metrics returns same instance."""
+        from src.monitoring import get_metrics
+        
+        collector1 = get_metrics()
+        collector2 = get_metrics()
+        
+        assert collector1 is collector2
 
 
 class TestRequestTiming:
