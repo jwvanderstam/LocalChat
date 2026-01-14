@@ -201,10 +201,19 @@ def _init_services(app: Flask, testing: bool) -> None:
         else:
             logger.error(f"? {db_message}")
             logger.error("=" * 50)
-            logger.error("? CRITICAL: PostgreSQL database is not available!")
+            logger.error("? WARNING: PostgreSQL database is not available!")
+            logger.error("? App will run in DEGRADED MODE (no document storage)")
             logger.error("=" * 50)
-            import sys
-            sys.exit(1)
+            
+            # Check if we're in strict production mode (require DB)
+            strict_mode = os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true'
+            
+            if strict_mode:
+                logger.critical("? REQUIRE_DATABASE=true - cannot start without database")
+                import sys
+                sys.exit(1)
+            else:
+                logger.warning("? Continuing without database (development mode)")
         
         # Set overall ready status
         app.startup_status['ready'] = (

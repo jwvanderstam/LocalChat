@@ -146,7 +146,17 @@ def app():
         Flask: Test Flask application instance
     """
     from src.app_factory import create_app
-    return create_app(testing=True)
+    import os
+    
+    # Force testing mode via environment variable as backup
+    os.environ['TESTING'] = '1'
+    
+    test_app = create_app(testing=True)
+    
+    # Double-check testing mode is enabled
+    assert test_app.config.get('TESTING') is True, "App not in testing mode!"
+    
+    return test_app
 
 
 @pytest.fixture
