@@ -1,5 +1,5 @@
 {
-  "active_model": "llama3.1:latest",
+  "active_model": "qwen2.5:3b",
   "document_count": 1,
-  "last_updated": "2026-01-11T15:19:07.466086"
+  "last_updated": "2026-01-14T00:24:21.195020"
 }

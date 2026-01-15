@@ -1,0 +1,4 @@
+# file: C:\Users\Gebruiker\Desktop\source\repos\LocalChat\src\monitoring.py
+# hypothesis_version: 6.150.1
+
+[1.0, 100.0, -1000, 200, 503, 1000, ',', '/api/health', '/api/metrics', 'X-Request-Duration', 'X-Request-ID', 'avg', 'cache', 'checks', 'count', 'counters', 'database', 'degraded', 'down', 'embedding_cache', 'endpoint', 'gauges', 'healthy', 'histograms', 'http_requests_total', 'max', 'message', 'method', 'min', 'ollama', 'p50', 'p95', 'p99', 'start_time', 'startup_status', 'stats', 'status', 'sum', 'timestamp', 'unhealthy', 'unknown', 'up', 'uptime_seconds']

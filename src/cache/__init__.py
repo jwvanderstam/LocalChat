@@ -452,7 +452,7 @@ def create_cache_backend(
     if backend == "redis":
         try:
             # Remove max_size from kwargs for Redis (it doesn't use it)
-            redis_kwargs = {k: v for k, v in kwargs.items() if k != 'max_size'}
+            redis_kwargs = {k: v for k, v in kwargs.items() if k != 'max_size' and v is not None}
             return RedisCache(namespace=namespace, **redis_kwargs)
         except Exception as e:
             logger.warning(f"Redis unavailable, falling back to memory cache: {e}")

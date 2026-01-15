@@ -49,6 +49,22 @@ logs/
 *.sqlite
 *.sqlite3
 
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Build artifacts
+obj/
+bin/
+*.pyproj.user
+app_state.json
+
 # Uploads
 uploads/*
 !uploads/.gitkeep
@@ -59,6 +75,7 @@ uploads/*
 htmlcov/
 .tox/
 .nox/
+coverage.xml
 
 # Documentation builds
 docs/_build/
@@ -101,7 +118,21 @@ test_*.py
 *_test.py
 scratch.py
 temp.py
+
+# Visual Studio
 .vs/
 *.suo
 *.user
-*.slnx
+*.slnx.user
+obj/
+bin/
+Debug/
+Release/
+Any CPU/
+deployment/
+
+# Project state
+app_state.json
+
+# Build artifacts
+*.pyproj.user
