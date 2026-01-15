@@ -263,8 +263,7 @@ class TestChatGeneration:
         with patch('requests.post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
-                messages=[{"role": "user", "content": "Hi"}],
-                context=""
+                messages=[{"role": "user", "content": "Hi"}]
             )
             
             responses = list(response_gen)
@@ -286,8 +285,7 @@ class TestChatGeneration:
         with patch('requests.post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
-                messages=[],
-                context=""
+                messages=[]
             )
             
             chunks = list(response_gen)
@@ -303,8 +301,7 @@ class TestChatGeneration:
         with patch('requests.post', side_effect=Exception("API Error")):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
-                messages=[],
-                context=""
+                messages=[]
             )
             
             # Should not crash, may return empty or error message
@@ -328,8 +325,7 @@ class TestChatGeneration:
         with patch('requests.post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
-                messages=[{"role": "user", "content": "Question?"}],
-                context="This is context from documents."
+                messages=[{"role": "user", "content": "Question?"}]
             )
             
             responses = list(response_gen)
