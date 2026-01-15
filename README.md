@@ -2,8 +2,9 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-334%20passing-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-26.35%25-orange)](htmlcov/)
+[![Tests](https://img.shields.io/badge/tests-664%20passing-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-67--72%25-green)](htmlcov/)
+[![Code Quality](https://img.shields.io/badge/code%20quality-refactored-blue)](docs/)
 
 A production-ready Retrieval-Augmented Generation (RAG) application built with Flask, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers.
 
