@@ -87,20 +87,16 @@ logger.info("=" * 50)
 # FLASK APPLICATION SETUP
 # ============================================================================
 
-# Create app using initialization module
 from .initialization import create_app, register_lifecycle_handlers, startup_status
 
 app = create_app()
-
-# Make the WSGI interface available at the top level so wfastcgi can get it.
 wsgi_app = app.wsgi_app
-
-# Register lifecycle handlers (startup, cleanup, signals)
 register_lifecycle_handlers()
 
+# Lifecycle functions are in src/initialization/lifecycle.py
 
-# Lifecycle functions are now in src/initialization/lifecycle.py
-# They are automatically registered via register_lifecycle_handlers() above
+
+# Lifecycle functions moved to src/initialization/lifecycle.py
 
 # ============================================================================
 # ERROR HANDLERS
@@ -889,18 +885,15 @@ def api_clear_documents():
 
 
 if __name__ == '__main__':
-    # Perform startup checks
+    from .initialization import startup_checks
     startup_checks()
     
-    # Start server
-    HOST = os.environ.get('SERVER_HOST', 'localhost')
+    HOST = os.environ.get("SERVER_HOST", "localhost")
     try:
-        PORT = int(os.environ.get('SERVER_PORT', '5000'))
+        PORT = int(os.environ.get("SERVER_PORT", "5000"))
     except ValueError:
         PORT = 5000
     
     logger.info(f"Starting Flask server on {HOST}:{PORT}")
-    
-    # Run the app - cleanup handlers will take care of shutdown
-    app.run(HOST, PORT, debug=True, use_reloader=False)  # Disable reloader to avoid double cleanup
+    app.run(HOST, PORT, debug=True, use_reloader=False)
 
