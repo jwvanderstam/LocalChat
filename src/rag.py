@@ -1360,20 +1360,20 @@ class DocumentProcessor:
             filtered_results = self._rerank_with_signals(query_clean, filtered_results)
             logger.debug("[RAG] Applied multi-signal re-ranking")
         
-        # Step 10: Context window expansion (if enabled)
-        if expand_context and config.USE_CONTEXTUAL_CHUNKS:
-            filtered_results = self._expand_context_windows(filtered_results)
-            logger.debug("[RAG] Expanded context windows")
-        
-        # Sort by combined score and take top results
+        # Sort by combined score AND document position to maintain reading order
         sorted_results = sorted(
             filtered_results.values(),
-            key=lambda x: x['combined_score'],
+            key=lambda x: (x['combined_score'], -(x['chunk_index'])),  # Score first, then reverse position
             reverse=True
         )
         
-        final_top_k = getattr(config, 'RERANK_TOP_K', min(top_k, 5))
+        
+        # Get more results (10 instead of 5) and maintain document order
+        final_top_k = getattr(config, 'RERANK_TOP_K', 10)
         final_results = sorted_results[:final_top_k]
+        
+        # Sort final results by filename and chunk_index to maintain reading order
+        final_results = sorted(final_results, key=lambda x: (x['filename'], x['chunk_index']))
         
         # Convert to output format
         output = [
@@ -1714,25 +1714,25 @@ class DocumentProcessor:
         chunks_included = 0
         
         for idx, (chunk_text, filename, chunk_index, similarity) in enumerate(results, 1):
-            # Determine quality tier with richer descriptions
+            # Determine quality tier
             if similarity >= 0.80:
                 quality = "High Confidence"
-                priority = "[?? MOST RELEVANT] " if idx == 1 else "[? HIGHLY RELEVANT] "
+                priority = "[*** MOST RELEVANT] " if idx == 1 else "[** HIGHLY RELEVANT] "
                 marker = "***"
             elif similarity >= 0.65:
                 quality = "Good Match"
-                priority = "[? RELEVANT] "
+                priority = "[+ RELEVANT] "
                 marker = "[+]"
             else:
                 quality = "Supporting"
-                priority = "[?? BACKGROUND] "
+                priority = "[- BACKGROUND] "
                 marker = " - "
             
-            # Format header with RICH attribution
-            header = f"\n{'?' * 70}\n"
+            # Format header with clear attribution
+            header = f"\n{'=' * 70}\n"
             header += f"{marker} {priority}SOURCE {idx}: {filename}\n"
-            header += f"?? Chunk: {chunk_index} | ?? Relevance: {quality} ({int(similarity * 100)}%)\n"
-            header += f"{'?' * 70}\n\n"
+            header += f"Chunk: {chunk_index} | Relevance: {quality} ({int(similarity * 100)}%)\n"
+            header += f"{'=' * 70}\n\n"
             
             # Clean and format chunk text with ENHANCED structure
             cleaned_text = self._format_chunk_text_rich(chunk_text)
@@ -1759,7 +1759,7 @@ class DocumentProcessor:
         # Add summary header
         summary_header = f"""
 {'=' * 70}
-?? DOCUMENT CONTEXT SUMMARY
+DOCUMENT CONTEXT SUMMARY
 {'=' * 70}
 Total Sources: {chunks_included} documents
 Average Relevance: {sum(r[3] for r in results[:chunks_included]) / chunks_included * 100:.1f}%
