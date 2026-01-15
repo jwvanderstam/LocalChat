@@ -83,7 +83,6 @@ class TestChatTokenLimits:
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[{"role": "user", "content": "Tell me a story"}],
-                context="",
                 max_tokens=50  # Explicit token limit
             )
             
@@ -106,8 +105,7 @@ class TestChatTokenLimits:
         with patch('requests.post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
-                messages=[{"role": "user", "content": "Long question"}],
-                context=""
+                messages=[{"role": "user", "content": "Long question"}]
             )
             
             responses = list(response_gen)
@@ -180,8 +178,7 @@ class TestStreamingEdgeCases:
         with patch('requests.post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
-                messages=[],
-                context=""
+                messages=[]
             )
             
             responses = list(response_gen)
@@ -204,8 +201,7 @@ class TestStreamingEdgeCases:
         with patch('requests.post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
-                messages=[],
-                context=""
+                messages=[]
             )
             
             try:
