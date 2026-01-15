@@ -42,7 +42,7 @@ class TestConnectionManagement:
             success, message = client.check_connection()
             
             assert success is True
-            assert "connected" in message.lower() or "ok" in message.lower()
+            assert "ollama is running" in message.lower()
     
     def test_check_connection_failure(self):
         """Test connection failure."""
