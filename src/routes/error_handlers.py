@@ -13,8 +13,11 @@ Created: 2025-01-15
 
 from flask import Flask, jsonify, request
 from typing import Any
+from pydantic import ValidationError as PydanticValidationError
 
 from ..utils.logging_config import get_logger
+from .. import exceptions
+from ..models import ErrorResponse
 
 logger = get_logger(__name__)
 
@@ -29,10 +32,6 @@ def register_error_handlers(app: Flask) -> None:
     Args:
         app: Flask application instance
     """
-    # Import validation and error models (required)
-    from pydantic import ValidationError as PydanticValidationError
-    from .. import exceptions
-    from ..models import ErrorResponse
     logger.info("? Error handlers initialized with Pydantic validation")
     
     # Register HTTP error handlers
