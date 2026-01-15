@@ -29,16 +29,11 @@ def register_error_handlers(app: Flask) -> None:
     Args:
         app: Flask application instance
     """
-    # Try to import Month 2 features
-    try:
-        from pydantic import ValidationError as PydanticValidationError
-        from .. import exceptions
-        from ..models import ErrorResponse
-        month2_enabled = True
-        logger.info("? Month 2 error handlers enabled")
-    except ImportError:
-        month2_enabled = False
-        logger.info("??  Using basic error handlers (Month 1 mode)")
+    # Import validation and error models (required)
+    from pydantic import ValidationError as PydanticValidationError
+    from .. import exceptions
+    from ..models import ErrorResponse
+    logger.info("? Error handlers initialized with Pydantic validation")
     
     # Register HTTP error handlers
     @app.errorhandler(400)
@@ -46,57 +41,36 @@ def register_error_handlers(app: Flask) -> None:
         """Handle 400 Bad Request errors."""
         logger.warning(f"Bad request: {error}")
         
-        if month2_enabled:
-            error_response = ErrorResponse(
-                error="BadRequest",
-                message="The request was invalid or cannot be served",
-                details={"description": str(error)}
-            )
-            return jsonify(error_response.model_dump()), 400
-        else:
-            return jsonify({
-                'error': 'BadRequest',
-                'message': 'The request was invalid',
-                'details': str(error)
-            }), 400
+        error_response = ErrorResponse(
+            error="BadRequest",
+            message="The request was invalid or cannot be served",
+            details={"description": str(error)}
+        )
+        return jsonify(error_response.model_dump()), 400
     
     @app.errorhandler(404)
     def not_found_handler(error: Any):
         """Handle 404 Not Found errors."""
         logger.warning(f"Resource not found: {error}")
         
-        if month2_enabled:
-            error_response = ErrorResponse(
-                error="NotFound",
-                message="The requested resource was not found",
-                details={"path": request.path}
-            )
-            return jsonify(error_response.model_dump()), 404
-        else:
-            return jsonify({
-                'error': 'NotFound',
-                'message': 'Resource not found',
-                'path': request.path
-            }), 404
+        error_response = ErrorResponse(
+            error="NotFound",
+            message="The requested resource was not found",
+            details={"path": request.path}
+        )
+        return jsonify(error_response.model_dump()), 404
     
     @app.errorhandler(405)
     def method_not_allowed_handler(error: Any):
         """Handle 405 Method Not Allowed errors."""
         logger.warning(f"Method not allowed: {request.method} {request.path}")
         
-        if month2_enabled:
-            error_response = ErrorResponse(
-                error="MethodNotAllowed",
-                message=f"Method {request.method} not allowed for this endpoint",
-                details={"method": request.method, "path": request.path}
-            )
-            return jsonify(error_response.model_dump()), 405
-        else:
-            return jsonify({
-                'error': 'MethodNotAllowed',
-                'message': f"Method {request.method} not allowed",
-                'path': request.path
-            }), 405
+        error_response = ErrorResponse(
+            error="MethodNotAllowed",
+            message=f"Method {request.method} not allowed for this endpoint",
+            details={"method": request.method, "path": request.path}
+        )
+        return jsonify(error_response.model_dump()), 405
     
     @app.errorhandler(413)
     def request_entity_too_large_handler(error: Any):
@@ -106,46 +80,33 @@ def register_error_handlers(app: Flask) -> None:
         max_size = app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024)
         max_size_mb = max_size / (1024 * 1024)
         
-        if month2_enabled:
-            error_response = ErrorResponse(
-                error="FileTooLarge",
-                message="The uploaded file is too large",
-                details={"max_size": f"{max_size_mb:.0f}MB"}
-            )
-            return jsonify(error_response.model_dump()), 413
-        else:
-            return jsonify({
-                'error': 'FileTooLarge',
-                'message': f"File too large (max {max_size_mb:.0f}MB)"
-            }), 413
+        error_response = ErrorResponse(
+            error="FileTooLarge",
+            message="The uploaded file is too large",
+            details={"max_size": f"{max_size_mb:.0f}MB"}
+        )
+        return jsonify(error_response.model_dump()), 413
     
     @app.errorhandler(500)
     def internal_server_error_handler(error: Any):
         """Handle 500 Internal Server Error."""
         logger.error(f"Internal server error: {error}", exc_info=True)
         
-        if month2_enabled:
-            error_response = ErrorResponse(
-                error="InternalServerError",
-                message="An unexpected error occurred on the server",
-                details={"type": type(error).__name__}
-            )
-            return jsonify(error_response.model_dump()), 500
-        else:
-            return jsonify({
-                'error': 'InternalServerError',
-                'message': 'An unexpected error occurred'
-            }), 500
+        error_response = ErrorResponse(
+            error="InternalServerError",
+            message="An unexpected error occurred on the server",
+            details={"type": type(error).__name__}
+        )
+        return jsonify(error_response.model_dump()), 500
     
-    # Register Month 2 specific handlers if available
-    if month2_enabled:
-        @app.errorhandler(PydanticValidationError)
-        def validation_error_handler(error: PydanticValidationError):
-            """Handle Pydantic validation errors with user-friendly messages."""
-            errors = error.errors()
-            
-            # Create user-friendly message
-            if len(errors) == 1:
+    # Register Pydantic validation error handlers
+    @app.errorhandler(PydanticValidationError)
+    def validation_error_handler(error: PydanticValidationError):
+        """Handle Pydantic validation errors with user-friendly messages."""
+        errors = error.errors()
+        
+        # Create user-friendly message
+        if len(errors) == 1:
                 err = errors[0]
                 field = err.get('loc', ['field'])[-1]
                 error_type = err.get('type', 'validation_error')
@@ -188,8 +149,8 @@ def register_error_handlers(app: Flask) -> None:
                 }
             )
             return jsonify(error_response.model_dump()), 400
-        
-        @app.errorhandler(exceptions.LocalChatException)
+    
+    @app.errorhandler(exceptions.LocalChatException)
         def localchat_exception_handler(error: exceptions.LocalChatException):
             """Handle custom LocalChat exceptions."""
             status_code = exceptions.get_status_code(error)
