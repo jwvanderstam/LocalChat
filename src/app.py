@@ -516,17 +516,9 @@ def api_active_model():
         if request.method == 'POST':
             data = request.get_json()
             
-            # Month 2: Pydantic validation + sanitization
-            if MONTH2_ENABLED:
-                request_data = ModelRequest(**data)
-                model_name = sanitize_model_name(request_data.model)
-            # Month 1: Basic validation
-            else:
-                model_name = data.get('model', '').strip()
-                
-                if not model_name:
-                    logger.warning("Model name not provided in request")
-                    return jsonify({'success': False, 'message': 'Model name required'}), 400
+            # Pydantic validation + sanitization
+            request_data = ModelRequest(**data)
+            model_name = sanitize_model_name(request_data.model)
             
             logger.info(f"Setting active model to: {model_name}")
             
@@ -535,19 +527,13 @@ def api_active_model():
             if not success:
                 error_msg = "Failed to list models"
                 logger.error(error_msg)
-                if MONTH2_ENABLED:
-                    raise exceptions.OllamaConnectionError(error_msg)
-                else:
-                    return jsonify({'success': False, 'message': error_msg}), 503
+                raise exceptions.OllamaConnectionError(error_msg)
             
             model_names = [m['name'] for m in models]
             if model_name not in model_names:
                 error_msg = f"Model '{model_name}' not found"
                 logger.warning(error_msg)
-                if MONTH2_ENABLED:
-                    raise exceptions.InvalidModelError(error_msg, details={'requested': model_name, 'available': model_names[:10]})
-                else:
-                    return jsonify({'success': False, 'message': error_msg}), 404
+                raise exceptions.InvalidModelError(error_msg, details={'requested': model_name, 'available': model_names[:10]})
             
             config.app_state.set_active_model(model_name)
             logger.info(f"Active model changed to: {model_name}")
@@ -557,12 +543,11 @@ def api_active_model():
             active_model = config.app_state.get_active_model()
             return jsonify({'model': active_model})
             
+    except (PydanticValidationError, exceptions.LocalChatException):
+        raise  # Let error handlers deal with it
     except Exception as e:
-        if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
-            raise
-        else:
-            logger.error(f"Error in active_model endpoint: {e}", exc_info=True)
-            return jsonify({'success': False, 'message': 'Failed to get/set active model'}), 500
+        logger.error(f"Error in active_model endpoint: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to get/set active model'}), 500
 
 
 @app.route('/api/models/pull', methods=['POST'])
@@ -580,12 +565,6 @@ def api_pull_model():
         if MONTH2_ENABLED:
             request_data = ModelPullRequest(**data)
             model_name = sanitize_model_name(request_data.model)
-        # Month 1: Basic validation
-        else:
-            model_name = data.get('model', '').strip()
-            
-            if not model_name:
-                return jsonify({'success': False, 'message': 'Model name required'}), 400
         
         logger.info(f"Pulling model: {model_name}")
         
@@ -604,12 +583,11 @@ def api_pull_model():
         response.headers['X-Accel-Buffering'] = 'no'
         return response
         
+    except (PydanticValidationError, exceptions.LocalChatException):
+        raise  # Let error handlers deal with it
     except Exception as e:
-        if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
-            raise
-        else:
-            logger.error(f"Error in pull_model endpoint: {e}", exc_info=True)
-            return jsonify({'success': False, 'message': 'Failed to pull model'}), 500
+        logger.error(f"Error in pull_model endpoint: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to pull model'}), 500
 
 
 @app.route('/api/models/delete', methods=['DELETE'])
@@ -623,16 +601,9 @@ def api_delete_model():
     try:
         data = request.get_json()
         
-        # Month 2: Pydantic validation + sanitization
-        if MONTH2_ENABLED:
-            request_data = ModelDeleteRequest(**data)
-            model_name = sanitize_model_name(request_data.model)
-        # Month 1: Basic validation
-        else:
-            model_name = data.get('model', '').strip()
-            
-            if not model_name:
-                return jsonify({'success': False, 'message': 'Model name required'}), 400
+        # Pydantic validation + sanitization
+        request_data = ModelDeleteRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
         
         logger.info(f"Deleting model: {model_name}")
         
@@ -641,19 +612,15 @@ def api_delete_model():
         if not success:
             error_msg = f"Failed to delete model: {message}"
             logger.error(error_msg)
-            if MONTH2_ENABLED:
-                raise exceptions.InvalidModelError(error_msg, details={"model": model_name})
-            else:
-                return jsonify({'success': False, 'message': error_msg}), 500
+            raise exceptions.InvalidModelError(error_msg, details={"model": model_name})
         
         return jsonify({'success': True, 'message': message})
         
+    except (PydanticValidationError, exceptions.LocalChatException):
+        raise  # Let error handlers deal with it
     except Exception as e:
-        if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
-            raise
-        else:
-            logger.error(f"Error deleting model: {e}", exc_info=True)
-            return jsonify({'success': False, 'message': 'Failed to delete model'}), 500
+        logger.error(f"Error deleting model: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to delete model'}), 500
 
 
 @app.route('/api/models/test', methods=['POST'])
@@ -667,16 +634,9 @@ def api_test_model():
     try:
         data = request.get_json()
         
-        # Month 2: Pydantic validation + sanitization
-        if MONTH2_ENABLED:
-            request_data = ModelRequest(**data)
-            model_name = sanitize_model_name(request_data.model)
-        # Month 1: Basic validation
-        else:
-            model_name = data.get('model', '').strip()
-            
-            if not model_name:
-                return jsonify({'success': False, 'message': 'Model name required'}), 400
+        # Pydantic validation + sanitization
+        request_data = ModelRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
         
         logger.info(f"Testing model: {model_name}")
         
