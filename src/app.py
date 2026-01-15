@@ -47,8 +47,7 @@ except ImportError as e:
     logger_temp = get_logger(__name__)
     logger_temp.warning(f"⚠️  Security middleware not available: {e}")
 
-# Month 2 additions - Error handling and validation (optional for Python 3.14 compatibility)
-MONTH2_ENABLED = False
+# Month 2 validation and error handling - now standard
 try:
     from pydantic import ValidationError as PydanticValidationError
     from src import exceptions
@@ -59,16 +58,15 @@ try:
     from src.utils.sanitization import (
         sanitize_filename, sanitize_query, sanitize_model_name
     )
-    MONTH2_ENABLED = True
     logger_temp = get_logger(__name__)
-    logger_temp.info("✅ Month 2 features enabled (Pydantic validation)")
+    logger_temp.info("✅ Pydantic validation enabled")
 except ImportError as e:
-    # Month 2 features not available (likely Python 3.14 with no pydantic wheels)
-    # Application will work with basic validation only
+    # Pydantic not available - this should not happen in production
     logger_temp = get_logger(__name__)
-    logger_temp.warning(f"⚠️  Month 2 features disabled: {e}")
-    logger_temp.warning("⚠️  Application will run with basic validation (Month 1 only)")
-    logger_temp.info("To enable Month 2 features, install: pip install pydantic==2.9.2")
+    logger_temp.error(f"❌ CRITICAL: Pydantic not installed: {e}")
+    logger_temp.error("❌ Application requires pydantic. Install with: pip install pydantic==2.9.2")
+    import sys
+    sys.exit(1)
 
 # ============================================================================
 # LOGGING INITIALIZATION
@@ -79,14 +77,10 @@ setup_logging(log_level="INFO", log_file="logs/app.log")
 logger = get_logger(__name__)
 
 logger.info("=" * 50)
-if SECURITY_ENABLED and MONTH2_ENABLED:
+if SECURITY_ENABLED:
     logger.info("LocalChat Application Starting (Full Stack - Security + Validation)")
-elif SECURITY_ENABLED:
-    logger.info("LocalChat Application Starting (Security Enabled)")
-elif MONTH2_ENABLED:
-    logger.info("LocalChat Application Starting (Month 2 - Validated)")
 else:
-    logger.info("LocalChat Application Starting (Month 1 - Basic)")
+    logger.info("LocalChat Application Starting (Standard Mode)")
 logger.info("=" * 50)
 
 # ============================================================================
