@@ -386,8 +386,8 @@ def api_chat():
                 logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
                 
                 if results:
-                    # Use the new structured formatting method for better table rendering
-                    formatted_context = doc_processor.format_context_for_llm(results, max_length=6000)
+                    # Use large context window for comprehensive answers
+                    formatted_context = doc_processor.format_context_for_llm(results, max_length=30000)
                     
                     # Log the results for debugging
                     for idx, (_, filename, chunk_index, similarity) in enumerate(results, 1):
