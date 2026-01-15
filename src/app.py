@@ -234,139 +234,12 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 # ============================================================================
-# ERROR HANDLERS - MONTH 2 (OPTIONAL)
+# ERROR HANDLERS
 # ============================================================================
-
-if MONTH2_ENABLED:
-    @app.errorhandler(400)
-    def bad_request_handler(error):
-        """Handle 400 Bad Request errors."""
-        logger.warning(f"Bad request: {error}")
-        error_response = ErrorResponse(
-            error="BadRequest",
-            message="The request was invalid or cannot be served",
-            details={"description": str(error)}
-        )
-        return jsonify(error_response.model_dump()), 400
-
-
-    @app.errorhandler(404)
-    def not_found_handler(error):
-        """Handle 404 Not Found errors."""
-        logger.warning(f"Resource not found: {error}")
-        error_response = ErrorResponse(
-            error="NotFound",
-            message="The requested resource was not found",
-            details={"path": request.path}
-        )
-        return jsonify(error_response.model_dump()), 404
-
-
-    @app.errorhandler(405)
-    def method_not_allowed_handler(error):
-        """Handle 405 Method Not Allowed errors."""
-        logger.warning(f"Method not allowed: {request.method} {request.path}")
-        error_response = ErrorResponse(
-            error="MethodNotAllowed",
-            message=f"Method {request.method} not allowed for this endpoint",
-            details={"method": request.method, "path": request.path}
-        )
-        return jsonify(error_response.model_dump()), 405
-
-
-    @app.errorhandler(413)
-    def request_entity_too_large_handler(error):
-        """Handle 413 Request Entity Too Large errors."""
-        logger.warning(f"File too large: {error}")
-        error_response = ErrorResponse(
-            error="FileTooLarge",
-            message="The uploaded file is too large",
-            details={"max_size": f"{config.MAX_CONTENT_LENGTH / (1024*1024):.0f}MB"}
-        )
-        return jsonify(error_response.model_dump()), 413
-
-
-    @app.errorhandler(500)
-    def internal_server_error_handler(error):
-        """Handle 500 Internal Server Error."""
-        logger.error(f"Internal server error: {error}", exc_info=True)
-        error_response = ErrorResponse(
-            error="InternalServerError",
-            message="An unexpected error occurred on the server",
-            details={"type": type(error).__name__}
-        )
-        return jsonify(error_response.model_dump()), 500
-
-
-    @app.errorhandler(PydanticValidationError)
-    def validation_error_handler(error: PydanticValidationError):
-        """Handle Pydantic validation errors with user-friendly messages."""
-        # Extract error details
-        errors = error.errors()
-        
-        # Create user-friendly message
-        if len(errors) == 1:
-            err = errors[0]
-            field = err.get('loc', ['field'])[-1]  # Get last field name
-            error_type = err.get('type', 'validation_error')
-            
-            # Create specific user-friendly messages
-            if error_type == 'string_too_long':
-                max_length = err.get('ctx', {}).get('max_length', 5000)
-                input_length = len(str(err.get('input', '')))
-                user_message = (
-                    f"Your {field} is too long ({input_length:,} characters). "
-                    f"Please shorten it to {max_length:,} characters or less."
-                )
-            elif error_type == 'string_too_short':
-                min_length = err.get('ctx', {}).get('min_length', 1)
-                user_message = f"Your {field} must be at least {min_length} character(s) long."
-            elif error_type == 'value_error':
-                user_message = f"Invalid {field}: {err.get('msg', 'Please check your input')}"
-            elif error_type == 'missing':
-                user_message = f"Required field '{field}' is missing."
-            else:
-                user_message = f"Invalid {field}: {err.get('msg', 'Please check your input')}"
-                
-            logger.warning(f"Validation error: {user_message}")
-        else:
-            # Multiple errors
-            user_message = "Multiple validation errors occurred:\n"
-            for idx, err in enumerate(errors[:3], 1):  # Show max 3 errors
-                field = err.get('loc', ['field'])[-1]
-                user_message += f"{idx}. {field}: {err.get('msg', 'Invalid value')}\n"
-            if len(errors) > 3:
-                user_message += f"... and {len(errors) - 3} more error(s)."
-            logger.warning(f"Multiple validation errors: {len(errors)} total")
-        
-        # Create response with both user-friendly and technical details
-        error_response = ErrorResponse(
-            error="ValidationError",
-            message=user_message,
-            details={
-                "errors": errors,
-                "help": "Please check your input and try again. If you're copying from another source, try shortening your message or breaking it into smaller parts."
-            }
-        )
-        return jsonify(error_response.model_dump()), 400
-
-
-    @app.errorhandler(exceptions.LocalChatException)
-    def localchat_exception_handler(error: exceptions.LocalChatException):
-        """Handle custom LocalChat exceptions."""
-        status_code = exceptions.get_status_code(error)
-        logger.error(f"{error.__class__.__name__}: {error.message}", extra=error.details)
-        
-        error_response = ErrorResponse(
-            error=error.__class__.__name__,
-            message=error.message,
-            details=error.details
-        )
-        return jsonify(error_response.model_dump()), status_code
-    
-    logger.info("✅ Month 2 error handlers registered")
-else:
-    logger.info("ℹ️  Using basic error handlers (Month 1 mode)")
+# Note: Error handlers are registered via src/routes/error_handlers.py
+# This is handled by app_factory.py's _register_error_handlers() function.
+# The duplicate error handlers that were here have been removed to maintain
+# a single source of truth. See src/routes/error_handlers.py for implementation.
 # ============================================================================
 # WEB ROUTES
 # ============================================================================
@@ -561,10 +434,9 @@ def api_pull_model():
     try:
         data = request.get_json()
         
-        # Month 2: Pydantic validation + sanitization
-        if MONTH2_ENABLED:
-            request_data = ModelPullRequest(**data)
-            model_name = sanitize_model_name(request_data.model)
+        # Pydantic validation + sanitization
+        request_data = ModelPullRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
         
         logger.info(f"Pulling model: {model_name}")
         
@@ -642,14 +514,14 @@ def api_test_model():
         
         success, result = ollama_client.test_model(model_name)
         
+        
         return jsonify({'success': success, 'result': result})
         
+    except (PydanticValidationError, exceptions.LocalChatException):
+        raise  # Let error handlers deal with it
     except Exception as e:
-        if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
-            raise
-        else:
-            logger.error(f"Error testing model: {e}", exc_info=True)
-            return jsonify({'success': False, 'message': 'Failed to test model'}), 500
+        logger.error(f"Error testing model: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to test model'}), 500
 
 
 # RAG System Prompt - ULTRA-STRICT for maximum accuracy AND DETAIL
@@ -720,25 +592,11 @@ def api_chat():
     try:
         data = request.get_json()
         
-        # Month 2: Pydantic validation + sanitization
-        if MONTH2_ENABLED:
-            request_data = ChatRequest(**data)
-            message = sanitize_query(request_data.message)
-            use_rag = request_data.use_rag
-            chat_history = request_data.history
-        # Month 1: Basic validation
-        else:
-            message = data.get('message', '').strip()
-            use_rag = data.get('use_rag', True)
-            chat_history = data.get('history', [])
-            
-            # Basic validation
-            if not message:
-                logger.warning("Empty message in chat request")
-                return jsonify({'success': False, 'message': 'Message required'}), 400
-            if len(message) > 5000:
-                logger.warning("Message too long in chat request")
-                return jsonify({'success': False, 'message': 'Message too long (max 5000 chars)'}), 400
+        # Pydantic validation + sanitization
+        request_data = ChatRequest(**data)
+        message = sanitize_query(request_data.message)
+        use_rag = request_data.use_rag
+        chat_history = request_data.history
         
         logger.info(f"[CHAT API] Request - RAG Mode: {use_rag}, Query: {message[:50]}...")
         logger.debug(f"[CHAT API] History length: {len(chat_history)}")
@@ -747,10 +605,7 @@ def api_chat():
         if not active_model:
             error_msg = "No active model set"
             logger.error(error_msg)
-            if MONTH2_ENABLED:
-                raise exceptions.InvalidModelError(error_msg)
-            else:
-                return jsonify({'success': False, 'message': error_msg}), 400
+            raise exceptions.InvalidModelError(error_msg)
         
         logger.debug(f"[CHAT API] Using model: {active_model}")
         
@@ -813,10 +668,7 @@ Remember: Answer ONLY based on the context above. If the information is not in t
             except Exception as e:
                 error_msg = f"Failed to retrieve context: {str(e)}"
                 logger.error(error_msg, exc_info=True)
-                if MONTH2_ENABLED:
-                    raise exceptions.SearchError(error_msg, details={"error": str(e)})
-                # In Month 1 mode, continue without context
-                logger.warning("[RAG] Continuing without context due to error")
+                raise exceptions.SearchError(error_msg, details={"error": str(e)})
         else:
             logger.debug("[CHAT API] Direct LLM mode - no RAG")
         
@@ -845,13 +697,12 @@ Remember: Answer ONLY based on the context above. If the information is not in t
         response.headers['X-Accel-Buffering'] = 'no'
         return response
         
+    except (PydanticValidationError, exceptions.LocalChatException):
+        raise  # Let error handler deal with it
     except Exception as e:
-        if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
-            raise  # Let error handler deal with it
-        else:
-            logger.error(f"[CHAT API] Unexpected error: {e}", exc_info=True)
-            return jsonify({
-                'success': False,
+        logger.error(f"[CHAT API] Unexpected error: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
                 'message': 'An unexpected error occurred during chat'
             }), 500
 
@@ -976,23 +827,10 @@ def api_test_retrieval():
     try:
         data = request.get_json()
         
-        # Month 2: Pydantic validation + sanitization
-        if MONTH2_ENABLED:
-            request_data = RetrievalRequest(**data)
-            query = sanitize_query(request_data.query)
-            use_hybrid = data.get('use_hybrid_search', True)
-        # Month 1: Basic validation
-        else:
-            query = data.get('query', 'What is this about?').strip()
-            use_hybrid = data.get('use_hybrid_search', True)
-            
-            # Basic validation
-            if not query:
-                logger.warning("Empty query in test retrieval request")
-                return jsonify({'success': False, 'message': 'Query required'}), 400
-            if len(query) > 1000:
-                logger.warning("Query too long in test retrieval request")
-                return jsonify({'success': False, 'message': 'Query too long (max 1000 chars)'}), 400
+        # Pydantic validation + sanitization
+        request_data = RetrievalRequest(**data)
+        query = sanitize_query(request_data.query)
+        use_hybrid = data.get('use_hybrid_search', True)
         
         logger.info(f"Testing retrieval: {query[:50]}... (hybrid_search={use_hybrid})")
         
@@ -1018,14 +856,13 @@ def api_test_retrieval():
         
         return jsonify(response)
         
+    except (PydanticValidationError, exceptions.LocalChatException):
+        raise  # Let error handler deal with it
     except Exception as e:
-        if MONTH2_ENABLED and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
-            raise  # Let error handler deal with it
-        else:
-            logger.error(f"Error in test_retrieval: {e}", exc_info=True)
-            return jsonify({
-                'success': False,
-                'message': 'Failed to test retrieval'
+        logger.error(f"Error in test_retrieval: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': 'Failed to test retrieval'
             }), 500
 
 
