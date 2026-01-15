@@ -1360,10 +1360,10 @@ class DocumentProcessor:
             filtered_results = self._rerank_with_signals(query_clean, filtered_results)
             logger.debug("[RAG] Applied multi-signal re-ranking")
         
-        # Step 10: Context window expansion (if enabled) - IMPORTANT for continuity
-        if expand_context and config.USE_CONTEXTUAL_CHUNKS:
-            filtered_results = self._expand_context_windows(filtered_results)
-            logger.debug("[RAG] Expanded context windows")
+        # Step 10: Context window expansion DISABLED - implementation incomplete, causes duplicates
+        # if expand_context and config.USE_CONTEXTUAL_CHUNKS:
+        #     filtered_results = self._expand_context_windows(filtered_results)
+        #     logger.debug("[RAG] Expanded context windows")
         
         # Sort by combined score AND document position to maintain reading order
         sorted_results = sorted(
@@ -1373,17 +1373,29 @@ class DocumentProcessor:
         )
         
         
-        # Get more results (10 instead of 5) and maintain document order
-        final_top_k = getattr(config, 'RERANK_TOP_K', 10)
+        
+        # Get more results (8 max for quality) and remove exact duplicates
+        final_top_k = getattr(config, 'RERANK_TOP_K', 8)
         final_results = sorted_results[:final_top_k]
         
+        # CRITICAL: Remove exact duplicates by (filename, chunk_index)
+        seen = set()
+        deduped_results = []
+        for r in final_results:
+            key = (r['filename'], r['chunk_index'])
+            if key not in seen:
+                seen.add(key)
+                deduped_results.append(r)
+        
+        logger.debug(f"[RAG] Deduplicated: {len(final_results)} → {len(deduped_results)} chunks")
+        
         # Sort final results by filename and chunk_index to maintain reading order
-        final_results = sorted(final_results, key=lambda x: (x['filename'], x['chunk_index']))
+        deduped_results = sorted(deduped_results, key=lambda x: (x['filename'], x['chunk_index']))
         
         # Convert to output format
         output = [
             (r['chunk_text'], r['filename'], r['chunk_index'], r['semantic_score'])
-            for r in final_results
+            for r in deduped_results
         ]
         
         total_time = time.time() - start_time

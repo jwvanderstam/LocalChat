@@ -123,11 +123,11 @@ TABLE_CHUNK_SIZE: int = 3000       # Even larger to keep more tables intact
 KEEP_TABLES_INTACT: bool = True    # Always try to keep tables together
 MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 
-# Retrieval Configuration - MAXIMUM QUALITY (HIGH RESOURCE)
-TOP_K_RESULTS: int = 60                      # Increased from 40 - more candidates
-MIN_SIMILARITY_THRESHOLD: float = 0.20       # Lower threshold - better recall
+# Retrieval Configuration - BALANCED FOR QUALITY AND ACCURACY
+TOP_K_RESULTS: int = 50                      # Retrieve many candidates
+MIN_SIMILARITY_THRESHOLD: float = 0.25       # Balanced threshold
 RERANK_RESULTS: bool = True                  # Always re-rank for precision
-RERANK_TOP_K: int = 15                       # INCREASED from 12 - maximum context!
+RERANK_TOP_K: int = 8                        # Return 8 best chunks (reduced from 15)
 
 # Hybrid Search Configuration
 HYBRID_SEARCH_ENABLED: bool = True           # Enable semantic + BM25 hybrid search
