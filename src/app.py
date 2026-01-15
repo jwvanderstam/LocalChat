@@ -386,8 +386,8 @@ def api_chat():
                 logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
                 
                 if results:
-                    # Use large context window for comprehensive answers
-                    formatted_context = doc_processor.format_context_for_llm(results, max_length=30000)
+                    # Use maximum context window for highest quality (no resource limits)
+                    formatted_context = doc_processor.format_context_for_llm(results, max_length=50000)
                     
                     # Log the results for debugging
                     for idx, (_, filename, chunk_index, similarity) in enumerate(results, 1):
