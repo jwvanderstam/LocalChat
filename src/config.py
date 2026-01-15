@@ -165,11 +165,21 @@ EMBEDDING_CACHE_ENABLED: bool = True         # Enable query embedding caching
 
 # Processing Configuration
 MAX_WORKERS: int = 8                         # Parallel processing threads
-BATCH_SIZE: int = 32                         # Embeddings batch size
+BATCH_SIZE: int = 64                         # Embeddings batch size (increased from 32)
+BATCH_MAX_WORKERS: int = 8                   # Batch processor workers
 
 # Database Performance
 DB_SEARCH_EF: int = 100                      # HNSW ef_search parameter
 DB_INDEX_TYPE: str = 'hnsw'                  # Use HNSW index
+
+# L3 Database Cache Configuration (NEW - Phase 4)
+L3_CACHE_ENABLED: bool = True                # Enable DB cache
+L3_CACHE_TTL: int = 86400                   # 24 hours default
+L3_CACHE_TABLE: str = "query_cache"          # Cache table name
+
+# Performance Monitoring (NEW - Phase 4)
+ENABLE_PERF_METRICS: bool = True             # Enable metrics collection
+SLOW_QUERY_THRESHOLD: float = 1.0            # Log queries > 1s
 
 # ============================================================================
 # LLM CONFIGURATION
