@@ -107,60 +107,60 @@ def register_error_handlers(app: Flask) -> None:
         
         # Create user-friendly message
         if len(errors) == 1:
-                err = errors[0]
-                field = err.get('loc', ['field'])[-1]
-                error_type = err.get('type', 'validation_error')
-                
-                # Create specific messages
-                if error_type == 'string_too_long':
-                    max_length = err.get('ctx', {}).get('max_length', 5000)
-                    input_length = len(str(err.get('input', '')))
-                    user_message = (
-                        f"Your {field} is too long ({input_length:,} characters). "
-                        f"Please shorten it to {max_length:,} characters or less."
-                    )
-                elif error_type == 'string_too_short':
-                    min_length = err.get('ctx', {}).get('min_length', 1)
-                    user_message = f"Your {field} must be at least {min_length} character(s) long."
-                elif error_type == 'value_error':
-                    user_message = f"Invalid {field}: {err.get('msg', 'Please check your input')}"
-                elif error_type == 'missing':
-                    user_message = f"Required field '{field}' is missing."
-                else:
-                    user_message = f"Invalid {field}: {err.get('msg', 'Please check your input')}"
-                    
-                logger.warning(f"Validation error: {user_message}")
-            else:
-                # Multiple errors
-                user_message = "Multiple validation errors occurred:\n"
-                for idx, err in enumerate(errors[:3], 1):
-                    field = err.get('loc', ['field'])[-1]
-                    user_message += f"{idx}. {field}: {err.get('msg', 'Invalid value')}\n"
-                if len(errors) > 3:
-                    user_message += f"... and {len(errors) - 3} more error(s)."
-                logger.warning(f"Multiple validation errors: {len(errors)} total")
+            err = errors[0]
+            field = err.get('loc', ['field'])[-1]
+            error_type = err.get('type', 'validation_error')
             
-            error_response = ErrorResponse(
-                error="ValidationError",
-                message=user_message,
-                details={
-                    "errors": errors,
-                    "help": "Please check your input and try again."
-                }
-            )
-            return jsonify(error_response.model_dump()), 400
+            # Create specific messages
+            if error_type == 'string_too_long':
+                max_length = err.get('ctx', {}).get('max_length', 5000)
+                input_length = len(str(err.get('input', '')))
+                user_message = (
+                    f"Your {field} is too long ({input_length:,} characters). "
+                    f"Please shorten it to {max_length:,} characters or less."
+                )
+            elif error_type == 'string_too_short':
+                min_length = err.get('ctx', {}).get('min_length', 1)
+                user_message = f"Your {field} must be at least {min_length} character(s) long."
+            elif error_type == 'value_error':
+                user_message = f"Invalid {field}: {err.get('msg', 'Please check your input')}"
+            elif error_type == 'missing':
+                user_message = f"Required field '{field}' is missing."
+            else:
+                user_message = f"Invalid {field}: {err.get('msg', 'Please check your input')}"
+                
+            logger.warning(f"Validation error: {user_message}")
+        else:
+            # Multiple errors
+            user_message = "Multiple validation errors occurred:\n"
+            for idx, err in enumerate(errors[:3], 1):
+                field = err.get('loc', ['field'])[-1]
+                user_message += f"{idx}. {field}: {err.get('msg', 'Invalid value')}\n"
+            if len(errors) > 3:
+                user_message += f"... and {len(errors) - 3} more error(s)."
+            logger.warning(f"Multiple validation errors: {len(errors)} total")
+        
+        error_response = ErrorResponse(
+            error="ValidationError",
+            message=user_message,
+            details={
+                "errors": errors,
+                "help": "Please check your input and try again."
+            }
+        )
+        return jsonify(error_response.model_dump()), 400
     
     @app.errorhandler(exceptions.LocalChatException)
-        def localchat_exception_handler(error: exceptions.LocalChatException):
-            """Handle custom LocalChat exceptions."""
-            status_code = exceptions.get_status_code(error)
-            logger.error(f"{error.__class__.__name__}: {error.message}", extra=error.details)
-            
-            error_response = ErrorResponse(
-                error=error.__class__.__name__,
-                message=error.message,
-                details=error.details
-            )
-            return jsonify(error_response.model_dump()), status_code
+    def localchat_exception_handler(error: exceptions.LocalChatException):
+        """Handle custom LocalChat exceptions."""
+        status_code = exceptions.get_status_code(error)
+        logger.error(f"{error.__class__.__name__}: {error.message}", extra=error.details)
+        
+        error_response = ErrorResponse(
+            error=error.__class__.__name__,
+            message=error.message,
+            details=error.details
+        )
+        return jsonify(error_response.model_dump()), status_code
     
     logger.debug("Error handlers registered")
