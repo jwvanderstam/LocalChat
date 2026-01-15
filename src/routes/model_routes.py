@@ -132,24 +132,13 @@ def api_active_model():
         if request.method == 'POST':
             data = request.get_json()
             
-            # Try Month 2 validation
-            try:
-                from ..models import ModelRequest
-                from ..utils.sanitization import sanitize_model_name
-                from .. import exceptions
-                
-                request_data = ModelRequest(**data)
-                model_name = sanitize_model_name(request_data.model)
-                month2_enabled = True
-                
-            except ImportError:
-                # Month 1 validation
-                model_name = data.get('model', '').strip()
-                month2_enabled = False
-                
-                if not model_name:
-                    logger.warning("Model name not provided")
-                    return jsonify({'success': False, 'message': 'Model name required'}), 400
+            # Pydantic validation
+            from ..models import ModelRequest
+            from ..utils.sanitization import sanitize_model_name
+            from .. import exceptions
+            
+            request_data = ModelRequest(**data)
+            model_name = sanitize_model_name(request_data.model)
             
             logger.info(f"Setting active model to: {model_name}")
             
@@ -158,20 +147,16 @@ def api_active_model():
             if not success:
                 error_msg = "Failed to list models"
                 logger.error(error_msg)
-                if month2_enabled:
-                    raise exceptions.OllamaConnectionError(error_msg)
-                return jsonify({'success': False, 'message': error_msg}), 503
+                raise exceptions.OllamaConnectionError(error_msg)
             
             model_names = [m['name'] for m in models]
             if model_name not in model_names:
                 error_msg = f"Model '{model_name}' not found"
                 logger.warning(error_msg)
-                if month2_enabled:
-                    raise exceptions.InvalidModelError(
-                        error_msg, 
-                        details={'requested': model_name, 'available': model_names[:10]}
-                    )
-                return jsonify({'success': False, 'message': error_msg}), 404
+                raise exceptions.InvalidModelError(
+                    error_msg, 
+                    details={'requested': model_name, 'available': model_names[:10]}
+                )
             
             config.app_state.set_active_model(model_name)
             logger.info(f"Active model changed to: {model_name}")
@@ -255,23 +240,13 @@ def api_delete_model():
     try:
         data = request.get_json()
         
-        # Try Month 2 validation
-        try:
-            from ..models import ModelDeleteRequest
-            from ..utils.sanitization import sanitize_model_name
-            from .. import exceptions
-            
-            request_data = ModelDeleteRequest(**data)
-            model_name = sanitize_model_name(request_data.model)
-            month2_enabled = True
-            
-        except ImportError:
-            # Month 1 validation
-            model_name = data.get('model', '').strip()
-            month2_enabled = False
-            
-            if not model_name:
-                return jsonify({'success': False, 'message': 'Model name required'}), 400
+        # Pydantic validation
+        from ..models import ModelDeleteRequest
+        from ..utils.sanitization import sanitize_model_name
+        from .. import exceptions
+        
+        request_data = ModelDeleteRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
         
         logger.info(f"Deleting model: {model_name}")
         
@@ -280,9 +255,7 @@ def api_delete_model():
         if not success:
             error_msg = f"Failed to delete model: {message}"
             logger.error(error_msg)
-            if month2_enabled:
-                raise exceptions.InvalidModelError(error_msg, details={"model": model_name})
-            return jsonify({'success': False, 'message': error_msg}), 500
+            raise exceptions.InvalidModelError(error_msg, details={"model": model_name})
         
         return jsonify({'success': True, 'message': message})
         

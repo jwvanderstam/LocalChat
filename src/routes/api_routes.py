@@ -172,21 +172,10 @@ def api_chat():
             message = sanitize_query(request_data.message)
             use_rag = request_data.use_rag
             chat_history = request_data.history
-            month2_enabled = True
             
-        except ImportError:
-            # Basic validation (Month 1 mode)
-            message = data.get('message', '').strip()
-            use_rag = data.get('use_rag', True)
-            chat_history = data.get('history', [])
-            month2_enabled = False
-            
-            if not message:
-                logger.warning("Empty message in chat request")
-                return jsonify({'success': False, 'message': 'Message required'}), 400
-            if len(message) > 5000:
-                logger.warning("Message too long in chat request")
-                return jsonify({'success': False, 'message': 'Message too long (max 5000 chars)'}), 400
+        except ImportError as e:
+            logger.error(f"Failed to import required modules: {e}")
+            return jsonify({'success': False, 'message': 'Server configuration error'}), 500
         
         logger.info(f"[CHAT API] Request - RAG Mode: {use_rag}, Query: {message[:50]}...")
         logger.debug(f"[CHAT API] History length: {len(chat_history)}")
@@ -195,10 +184,7 @@ def api_chat():
         if not active_model:
             error_msg = "No active model set"
             logger.error(error_msg)
-            if month2_enabled:
-                raise exceptions.InvalidModelError(error_msg)
-            else:
-                return jsonify({'success': False, 'message': error_msg}), 400
+            raise exceptions.InvalidModelError(error_msg)
         
         logger.debug(f"[CHAT API] Using model: {active_model}")
         
@@ -279,9 +265,7 @@ Remember: Answer ONLY based on the context above."""
             except Exception as e:
                 error_msg = f"Failed to retrieve context: {str(e)}"
                 logger.error(error_msg, exc_info=True)
-                if month2_enabled:
-                    raise exceptions.SearchError(error_msg, details={"error": str(e)})
-                logger.warning("[RAG] Continuing without context")
+                raise exceptions.SearchError(error_msg, details={"error": str(e)})
         else:
             logger.debug("[CHAT API] Direct LLM mode - no RAG")
         
@@ -313,13 +297,9 @@ Remember: Answer ONLY based on the context above."""
         response.headers['X-Accel-Buffering'] = 'no'
         return response
         
+    except (PydanticValidationError, exceptions.LocalChatException):
+        raise  # Let error handlers deal with it
     except Exception as e:
-        try:
-            if month2_enabled and isinstance(e, (PydanticValidationError, exceptions.LocalChatException)):
-                raise
-        except:
-            pass
-        
         logger.error(f"[CHAT API] Unexpected error: {e}", exc_info=True)
         return jsonify({
             'success': False,
