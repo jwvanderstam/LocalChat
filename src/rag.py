@@ -1360,10 +1360,15 @@ class DocumentProcessor:
             filtered_results = self._rerank_with_signals(query_clean, filtered_results)
             logger.debug("[RAG] Applied multi-signal re-ranking")
         
+        # Step 10: Context window expansion (if enabled) - IMPORTANT for continuity
+        if expand_context and config.USE_CONTEXTUAL_CHUNKS:
+            filtered_results = self._expand_context_windows(filtered_results)
+            logger.debug("[RAG] Expanded context windows")
+        
         # Sort by combined score AND document position to maintain reading order
         sorted_results = sorted(
             filtered_results.values(),
-            key=lambda x: (x['combined_score'], -(x['chunk_index'])),  # Score first, then reverse position
+            key=lambda x: (x['combined_score'], -(x['chunk_index'])),
             reverse=True
         )
         

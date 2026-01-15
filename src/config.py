@@ -101,9 +101,9 @@ OLLAMA_BASE_URL: str = str(os.environ.get('OLLAMA_BASE_URL', 'http://localhost:1
 # RAG CONFIGURATION - OPTIMIZED FOR HIGH QUALITY RESPONSES
 # ============================================================================
 
-# Chunking - INCREASED for better context preservation
-CHUNK_SIZE: int = 1024             # Doubled from 512 - more context per chunk
-CHUNK_OVERLAP: int = 200           # 20% overlap for better continuity
+# Chunking - MAXIMUM QUALITY (prevents word breaks)
+CHUNK_SIZE: int = 1200             # Increased from 1024 - larger chunks
+CHUNK_OVERLAP: int = 300           # Increased from 200 - 25% overlap prevents broken words
 CHUNK_SEPARATORS: List[str] = [
     '\n\n\n',      # Major section breaks
     '\n\n',        # Paragraph breaks (primary)
@@ -123,11 +123,11 @@ TABLE_CHUNK_SIZE: int = 3000       # Even larger to keep more tables intact
 KEEP_TABLES_INTACT: bool = True    # Always try to keep tables together
 MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 
-# Retrieval Configuration - OPTIMIZED FOR COMPREHENSIVE ANSWERS
-TOP_K_RESULTS: int = 40                      # More initial candidates (was 30)
-MIN_SIMILARITY_THRESHOLD: float = 0.28       # Lower for better recall (was 0.35)
+# Retrieval Configuration - MAXIMUM QUALITY (HIGH RESOURCE)
+TOP_K_RESULTS: int = 60                      # Increased from 40 - more candidates
+MIN_SIMILARITY_THRESHOLD: float = 0.20       # Lower threshold - better recall
 RERANK_RESULTS: bool = True                  # Always re-rank for precision
-RERANK_TOP_K: int = 12                       # INCREASED from 5 - MORE context for richer answers!
+RERANK_TOP_K: int = 15                       # INCREASED from 12 - maximum context!
 
 # Hybrid Search Configuration
 HYBRID_SEARCH_ENABLED: bool = True           # Enable semantic + BM25 hybrid search
@@ -139,9 +139,9 @@ QUERY_EXPANSION_ENABLED: bool = True         # Expand queries with synonyms
 MAX_QUERY_EXPANSIONS: int = 2                # Add up to 2 related terms
 QUERY_MIN_LENGTH: int = 10                   # Minimum chars for meaningful query
 
-# Advanced RAG features
+# Advanced RAG features - MAXIMUM QUALITY
 USE_CONTEXTUAL_CHUNKS: bool = True           # Include adjacent chunks
-CONTEXT_WINDOW_SIZE: int = 1                 # 1 chunk before/after
+CONTEXT_WINDOW_SIZE: int = 2                 # 2 chunks before/after (increased from 1)
 USE_RECIPROCAL_RANK_FUSION: bool = True      # Combine multiple ranking signals
 
 # Re-ranking weights - BALANCED FOR QUALITY
@@ -182,11 +182,11 @@ ENABLE_PERF_METRICS: bool = True             # Enable metrics collection
 SLOW_QUERY_THRESHOLD: float = 1.0            # Log queries > 1s
 
 # ============================================================================
-# LLM CONFIGURATION
+# LLM CONFIGURATION - MAXIMUM QUALITY
 # ============================================================================
 
-DEFAULT_TEMPERATURE: float = 0.0   # ZERO temperature for maximum factuality (no creativity/hallucinations)
-MAX_CONTEXT_LENGTH: int = 20000    # INCREASED from 4096 - allow much more context for comprehensive answers
+DEFAULT_TEMPERATURE: float = 0.0   # ZERO temperature for maximum factuality
+MAX_CONTEXT_LENGTH: int = 50000    # MAXIMUM context for most comprehensive answers
 
 # ============================================================================
 # APPLICATION SETTINGS
