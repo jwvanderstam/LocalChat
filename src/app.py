@@ -5,28 +5,16 @@ Flask Application Module
 ========================
 
 Main application entry point for LocalChat RAG application.
-Provides web interface and REST API for document management, chat, and model operations.
-
-Routes:
-    Web Pages: /, /chat, /documents, /models, /overview
-    API: /api/status, /api/chat, /api/documents/*, /api/models/*
-
-Example:
-    >>> python app.py
-    # Starts web server on http://localhost:5000
+Provides REST API for document management, chat, and model operations.
+Web UI routes are in src/blueprints/web.py.
 
 Author: LocalChat Team
-Last Updated: 2026-01-04 (Week 1 - Security Middleware Integration)
 """
 
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import request, jsonify, Response, stream_with_context
 import os
 import json
-from pathlib import Path
-import atexit
-import signal
-import sys
-from typing import Dict, Any, Generator
+from typing import Generator
 from datetime import datetime
 
 # Core modules
@@ -36,52 +24,26 @@ from .ollama_client import ollama_client
 from .rag import doc_processor
 from .utils.logging_config import setup_logging, get_logger
 
-# Week 1 Security - NEW IMPORTS
-try:
-    from . import security
-    SECURITY_ENABLED = True
-    logger_temp = get_logger(__name__)
-    logger_temp.info("✅ Security middleware available")
-except ImportError as e:
-    SECURITY_ENABLED = False
-    logger_temp = get_logger(__name__)
-    logger_temp.warning(f"⚠️  Security middleware not available: {e}")
+# Pydantic validation
+from pydantic import ValidationError as PydanticValidationError
+from src import exceptions
+from src.models import (
+    ChatRequest, ModelRequest, RetrievalRequest,
+    ModelPullRequest, ModelDeleteRequest
+)
+from src.utils.sanitization import (
+    sanitize_filename, sanitize_query, sanitize_model_name
+)
 
-# Month 2 validation and error handling - now standard
-try:
-    from pydantic import ValidationError as PydanticValidationError
-    from src import exceptions
-    from src.models import (
-        ChatRequest, ModelRequest, RetrievalRequest,
-        ModelPullRequest, ModelDeleteRequest, ErrorResponse
-    )
-    from src.utils.sanitization import (
-        sanitize_filename, sanitize_query, sanitize_model_name
-    )
-    logger_temp = get_logger(__name__)
-    logger_temp.info("✅ Pydantic validation enabled")
-except ImportError as e:
-    # Pydantic not available - this should not happen in production
-    logger_temp = get_logger(__name__)
-    logger_temp.error(f"❌ CRITICAL: Pydantic not installed: {e}")
-    logger_temp.error("❌ Application requires pydantic. Install with: pip install pydantic==2.9.2")
-    import sys
-    sys.exit(1)
+# Initialization
+from .initialization import create_app, register_lifecycle_handlers, startup_status, startup_checks
 
 # ============================================================================
 # LOGGING INITIALIZATION
 # ============================================================================
 
-# Initialize logging system at startup
 setup_logging(log_level="INFO", log_file="logs/app.log")
 logger = get_logger(__name__)
-
-logger.info("=" * 50)
-if SECURITY_ENABLED:
-    logger.info("LocalChat Application Starting (Full Stack - Security + Validation)")
-else:
-    logger.info("LocalChat Application Starting (Standard Mode)")
-logger.info("=" * 50)
 
 # ============================================================================
 # FLASK APPLICATION SETUP
@@ -106,79 +68,8 @@ register_lifecycle_handlers()
 # The duplicate error handlers that were here have been removed to maintain
 # a single source of truth. See src/routes/error_handlers.py for implementation.
 # ============================================================================
-# WEB ROUTES
+# WEB ROUTES - see src/blueprints/web.py
 # ============================================================================
-
-@app.route('/favicon.ico')
-def favicon():
-    """
-    Serve favicon or return 204 No Content if not found.
-    
-    Prevents 404 errors in browser console.
-    
-    Returns:
-        Favicon file or 204 status code
-    """
-    favicon_path = Path(ROOT_DIR) / 'static' / 'favicon.ico'
-    if favicon_path.exists():
-        return app.send_static_file('favicon.ico')
-    return '', 204
-
-
-@app.route('/')
-def index() -> str:
-    """
-    Redirect to chat page.
-    
-    Returns:
-        Rendered chat template
-    """
-    return render_template('chat.html')
-
-
-@app.route('/chat')
-def chat() -> str:
-    """
-    Render chat page.
-    
-    Returns:
-        Rendered chat template
-    """
-    return render_template('chat.html')
-
-
-@app.route('/documents')
-def documents() -> str:
-    """
-    Render document management page.
-    
-    Returns:
-        Rendered documents template
-    """
-    return render_template('documents.html')
-
-
-@app.route('/models')
-def models() -> str:
-    """
-    Render model management page.
-    
-    Returns:
-        Rendered models template
-    """
-    return render_template('models.html')
-
-
-@app.route('/overview')
-def overview() -> str:
-    """
-    Render overview page.
-    
-    Returns:
-        Rendered overview template
-    """
-    return render_template('overview.html')
-
 
 # ============================================================================
 # API ENDPOINTS
