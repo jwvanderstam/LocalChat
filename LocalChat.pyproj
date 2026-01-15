@@ -28,12 +28,15 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="analyze_routes.py" />
     <Compile Include="app.py" />
     <Compile Include="check_data.py" />
     <Compile Include="check_dependencies.py" />
     <Compile Include="config.py" />
+    <Compile Include="create_minimal_app.py" />
     <Compile Include="db.py" />
     <Compile Include="exceptions.py" />
+    <Compile Include="fix_indent.py" />
     <Compile Include="install.py" />
     <Compile Include="models.py" />
     <Compile Include="ollama_client.py" />
@@ -46,6 +49,10 @@
     <Compile Include="scripts\diagnose_rag.py" />
     <Compile Include="scripts\diagnose_retrieval.py" />
     <Compile Include="scripts\fix_embeddings.py" />
+    <Compile Include="scripts\skip_db_env_tests.py" />
+    <Compile Include="scripts\skip_error_handler_tests.py" />
+    <Compile Include="scripts\skip_rag_private_tests.py" />
+    <Compile Include="scripts\skip_unimplemented_tests.py" />
     <Compile Include="scripts\suppress_warnings.py" />
     <Compile Include="scripts\test_cte.py" />
     <Compile Include="scripts\test_manual_sql.py" />
@@ -61,6 +68,9 @@
     <Compile Include="src\cache\backends\__init__.py" />
     <Compile Include="src\cache\managers.py" />
     <Compile Include="src\cache\__init__.py" />
+    <Compile Include="src\initialization\app_setup.py" />
+    <Compile Include="src\initialization\lifecycle.py" />
+    <Compile Include="src\initialization\__init__.py" />
     <Compile Include="src\monitoring.py" />
     <Compile Include="src\performance\batch_processor.py" />
     <Compile Include="src\routes\api_routes.py" />
@@ -155,6 +165,7 @@
     <Content Include="COPY_CHAT_FEATURE.md" />
     <Content Include="COVERAGE_ANALYSIS.md" />
     <Content Include="COVERAGE_STATUS.md" />
+    <Content Include="CURRENT_STATUS.md" />
     <Content Include="DATABASE_CHECK_IMPLEMENTATION.md" />
     <Content Include="docs\ALL_STREAMING_ENDPOINTS_FIXED.md" />
     <Content Include="docs\analysis\BASELINE_METRICS.md" />
@@ -255,7 +266,16 @@
     <Content Include="PDF_TABLE_TROUBLESHOOTING.md" />
     <Content Include="PERFORMANCE_FIX_INGESTION.md" />
     <Content Include="PHASE4_QUICK_REFERENCE.md" />
+    <Content Include="PRIORITY_1_MERGED_SUCCESS.md" />
+    <Content Include="PRIORITY_2_ANALYSIS.md" />
+    <Content Include="PRIORITY_3_COMPLETE.md" />
+    <Content Include="PRIORITY_3_PROGRESS.md" />
+    <Content Include="PRIORITY_4_PARTIAL_COMPLETE.md" />
+    <Content Include="PRIORITY_4_PLAN.md" />
+    <Content Include="PRIORITY_4_REVISED.md" />
+    <Content Include="PROJECT_STATUS.md" />
     <Content Include="PROJECT_STRUCTURE.md" />
+    <Content Include="PR_CREATION_CHECKLIST.md" />
     <Content Include="PUSH_TO_GITHUB.md" />
     <Content Include="PYDANTIC_INSTALLATION_SUCCESS.md" />
     <Content Include="pyrightconfig.json" />
@@ -278,6 +298,7 @@
     <Content Include="RESTRUCTURING_SUMMARY.md" />
     <Content Include="SERVER_RESTART_REQUIRED.md" />
     <Content Include="SESSION_COMPLETE.md" />
+    <Content Include="SESSION_SUMMARY_FINAL.md" />
     <Content Include="setup_db.sql" />
     <Content Include="static\css\style.css" />
     <Content Include="static\js\chat.js" />
@@ -293,6 +314,7 @@
     <Content Include="TEST_FIX_ENDPOINTS.md" />
     <Content Include="TEST_RESULTS_AFTER_FIX.md" />
     <Content Include="TEST_RESULTS_INITIAL.md" />
+    <Content Include="TEST_STATUS_AND_NEXT_STEPS.md" />
     <Content Include="VECTOR_FORMAT_FIX.md" />
     <Content Include="WEEK1_COMPLETION_REPORT.md" />
     <Content Include="WEEK1_IMPLEMENTATION.md" />
