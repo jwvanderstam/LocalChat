@@ -101,9 +101,9 @@ OLLAMA_BASE_URL: str = str(os.environ.get('OLLAMA_BASE_URL', 'http://localhost:1
 # RAG CONFIGURATION - OPTIMIZED FOR HIGH QUALITY RESPONSES
 # ============================================================================
 
-# Chunking - MAXIMUM QUALITY (prevents word breaks)
-CHUNK_SIZE: int = 1200             # Increased from 1024 - larger chunks
-CHUNK_OVERLAP: int = 300           # Increased from 200 - 25% overlap prevents broken words
+# Chunking - OPTIMIZED (prevents repetition)
+CHUNK_SIZE: int = 1200             # Large chunks for context
+CHUNK_OVERLAP: int = 150           # 12.5% overlap - industry standard (was 300/25%)
 CHUNK_SEPARATORS: List[str] = [
     '\n\n\n',      # Major section breaks
     '\n\n',        # Paragraph breaks (primary)
@@ -123,11 +123,11 @@ TABLE_CHUNK_SIZE: int = 3000       # Even larger to keep more tables intact
 KEEP_TABLES_INTACT: bool = True    # Always try to keep tables together
 MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 
-# Retrieval Configuration - BALANCED FOR QUALITY AND ACCURACY
-TOP_K_RESULTS: int = 50                      # Retrieve many candidates
+# Retrieval Configuration - OPTIMIZED FOR QUALITY
+TOP_K_RESULTS: int = 30                      # Retrieve quality candidates (reduced from 50)
 MIN_SIMILARITY_THRESHOLD: float = 0.25       # Balanced threshold
 RERANK_RESULTS: bool = True                  # Always re-rank for precision
-RERANK_TOP_K: int = 8                        # Return 8 best chunks (reduced from 15)
+RERANK_TOP_K: int = 6                        # Return 6 best chunks (reduced from 8)
 
 # Hybrid Search Configuration
 HYBRID_SEARCH_ENABLED: bool = True           # Enable semantic + BM25 hybrid search
@@ -151,9 +151,9 @@ BM25_WEIGHT: float = 0.20                    # BM25 score
 POSITION_WEIGHT: float = 0.05                # Early chunks bonus
 LENGTH_WEIGHT: float = 0.05                  # Chunk length preference
 
-# Diversity filtering
+# Diversity filtering - STRENGTHENED to catch overlapping chunks
 ENABLE_DIVERSITY_FILTER: bool = True         # Remove near-duplicate chunks
-DIVERSITY_THRESHOLD: float = 0.85            # Jaccard similarity threshold
+DIVERSITY_THRESHOLD: float = 0.50            # Jaccard similarity threshold (was 0.85 - too weak)
 
 # Context quality enhancement
 EMPHASIZE_HIGH_SIMILARITY: bool = True       # Mark highest similarity chunks
