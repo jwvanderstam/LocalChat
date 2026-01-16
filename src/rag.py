@@ -1737,33 +1737,27 @@ class DocumentProcessor:
         chunks_included = 0
         
         for idx, (chunk_text, filename, chunk_index, similarity) in enumerate(results, 1):
-            # Determine quality tier
+            # Determine confidence level (concise)
             if similarity >= 0.80:
-                quality = "High Confidence"
-                priority = "[*** MOST RELEVANT] " if idx == 1 else "[** HIGHLY RELEVANT] "
+                confidence = "High"
                 marker = "***"
             elif similarity >= 0.65:
-                quality = "Good Match"
-                priority = "[+ RELEVANT] "
-                marker = "[+]"
+                confidence = "Good"
+                marker = " + "
             else:
-                quality = "Supporting"
-                priority = "[- BACKGROUND] "
+                confidence = "Fair"
                 marker = " - "
             
-            # Format header with clear attribution
-            header = f"\n{'=' * 70}\n"
-            header += f"{marker} {priority}SOURCE {idx}: {filename}\n"
-            header += f"Chunk: {chunk_index} | Relevance: {quality} ({int(similarity * 100)}%)\n"
-            header += f"{'=' * 70}\n\n"
+            # Concise header - no decorative lines
+            header = f"\n{marker} Source {idx}: {filename} (chunk {chunk_index}, {int(similarity * 100)}% match)\n\n"
             
-            # Clean and format chunk text with ENHANCED structure
+            # Clean and format chunk text
             cleaned_text = self._format_chunk_text_rich(chunk_text)
             
             # Build formatted chunk
-            formatted_chunk = header + cleaned_text + "\n\n"
+            formatted_chunk = header + cleaned_text + "\n"
             
-            # Check length constraint - be more permissive
+            # Check length constraint
             if current_length + len(formatted_chunk) > max_length:
                 if chunks_included == 0:
                     # Include at least one chunk even if long
@@ -1779,23 +1773,15 @@ class DocumentProcessor:
         
         context = "".join(formatted_parts)
         
-        # Add summary header
-        summary_header = f"""
-{'=' * 70}
-DOCUMENT CONTEXT SUMMARY
-{'=' * 70}
-Total Sources: {chunks_included} documents
-Average Relevance: {sum(r[3] for r in results[:chunks_included]) / chunks_included * 100:.1f}%
-Content Length: {len(context):,} characters
-
-INSTRUCTIONS: Use ALL the information below to provide a COMPREHENSIVE answer.
-{'=' * 70}
+        
+        # Simple summary header
+        summary_header = f"""Retrieved {chunks_included} relevant passages from your documents:
 
 """
         
         final_context = summary_header + context
         
-        logger.info(f"Formatted context: {len(final_context):,} chars from {chunks_included} chunks (avg: {len(context)//chunks_included if chunks_included > 0 else 0} chars/chunk)")
+        logger.info(f"Formatted context: {len(final_context):,} chars from {chunks_included} chunks")
         
         return final_context
     
