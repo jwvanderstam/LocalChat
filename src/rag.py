@@ -1787,13 +1787,16 @@ class DocumentProcessor:
         
         context = "".join(formatted_parts)
         
-        # Simple summary header with document count
+        # Simple summary header with explicit context markers
         doc_count = len(doc_chunks)
-        summary_header = f"""Context from {doc_count} document{"s" if doc_count > 1 else ""}:
+        summary_header = f"""=== RETRIEVED CONTEXT FROM {doc_count} DOCUMENT{"S" if doc_count > 1 else ""} ===
 
 """
         
-        final_context = summary_header + context
+        # Add context end marker
+        context_footer = "\n=== END OF RETRIEVED CONTEXT ===\n"
+        
+        final_context = summary_header + context + context_footer
         
         logger.info(f"Formatted context: {len(final_context):,} chars from {chunks_included} chunks across {doc_count} documents")
         
