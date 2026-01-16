@@ -220,6 +220,7 @@
     <Content Include="documentation\WEEK3_COMPLETE_FINAL_REPORT.md" />
     <Content Include="documentation\WEEK3_DAYS1-2_SUMMARY.md" />
     <Content Include="documentation\WEEK3_PHASE1_PLAN.md" />
+    <Content Include="DOCUMENT_STRUCTURE_FIX.md" />
     <Content Include="DUPLICATE_PREVENTION_GUIDE.md" />
     <Content Include="DUPLICATE_PREVENTION_REPORT.md" />
     <Content Include="EXECUTIVE_VALIDATION_SUMMARY.md" />
@@ -228,6 +229,7 @@
     <Content Include="FINAL_SESSION_SUMMARY.md" />
     <Content Include="FINAL_SUMMARY.md" />
     <Content Include="FINAL_VALIDATION_REPORT.md" />
+    <Content Include="FORMATTING_IMPROVEMENT.md" />
     <Content Include="GITHUB_PUSH_SUCCESS.md" />
     <Content Include="GIT_COMMIT_PUSH_COMPLETE.md" />
     <Content Include="GIT_COMMIT_READY.md" />
@@ -259,6 +261,7 @@
     <Content Include="OPTION_B_COMPLETE.md" />
     <Content Include="OPTION_C_PLAN.md" />
     <Content Include="OPTION_C_PROGRESS.md" />
+    <Content Include="OVERVIEW.md" />
     <Content Include="PDF_TABLE_EXTRACTION_FIX.md" />
     <Content Include="PDF_TABLE_FIX_QUICKGUIDE.md" />
     <Content Include="PDF_TABLE_INGESTION_SUMMARY.md" />
@@ -275,6 +278,7 @@
     <Content Include="PRIORITY_4_REVISED.md" />
     <Content Include="PROJECT_STATUS.md" />
     <Content Include="PROJECT_STRUCTURE.md" />
+    <Content Include="PROMPT_OPTIMIZATION_HYBRID.md" />
     <Content Include="PR_CREATION_CHECKLIST.md" />
     <Content Include="PUSH_TO_GITHUB.md" />
     <Content Include="PYDANTIC_INSTALLATION_SUCCESS.md" />
@@ -282,13 +286,16 @@
     <Content Include="pytest.ini" />
     <Content Include="QUICK_START.md" />
     <Content Include="QUICK_UPDATE.md" />
+    <Content Include="RAG_BEST_PRACTICES_ANALYSIS.md" />
     <Content Include="RAG_FIX_SUMMARY.md" />
+    <Content Include="RAG_FORMAT_IMPROVEMENTS.md" />
     <Content Include="RAG_HALLUCINATION_FIX.md" />
     <Content Include="RAG_HALLUCINATION_FIXED.md" />
     <Content Include="RAG_IMPROVEMENTS_IMPLEMENTED.md" />
     <Content Include="RAG_OPTIMIZATION_GUIDE.md" />
     <Content Include="RAG_PERFORMANCE_OPTIMIZATION_COMPLETE.md" />
     <Content Include="RAG_QUALITY_IMPROVEMENTS.md" />
+    <Content Include="RAG_SYNTHESIS_FIX.md" />
     <Content Include="README.md" />
     <Content Include="README_MAIN.md" />
     <Content Include="README_NEW.md" />
