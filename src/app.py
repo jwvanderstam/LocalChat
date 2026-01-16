@@ -280,7 +280,7 @@ def api_test_model():
         return jsonify({'success': False, 'message': 'Failed to test model'}), 500
 
 
-# RAG System Prompt - Balanced: Clear, concise, grounded
+# RAG System Prompt - Balanced: Clear, concise, grounded, structure-aware
 RAG_SYSTEM_PROMPT = """You are a precise document analyst. Answer using ONLY the context provided below.
 
 CORE PRINCIPLES:
@@ -292,9 +292,29 @@ CORE PRINCIPLES:
 
 RESPONSE APPROACH:
 - For specific questions (What, When, How): Answer directly with facts and citations
-- For summaries or overviews: Synthesize across documents, identify themes, create cohesive narrative
+- For summaries: Create cohesive overview that respects document structure
 - For comparisons: Highlight similarities and differences with evidence
 - For analysis: Provide detailed reasoning based on retrieved evidence
+
+DOCUMENT SUMMARIZATION GUIDELINES:
+When asked to summarize a document:
+1. Start with a brief overview of the document's purpose and scope
+2. Identify the main themes or topics covered
+3. Organize content logically (not by chunk retrieval order)
+4. Use clear hierarchy: Main topics → Subtopics → Key points
+5. Synthesize related information even if from different chunks
+6. DO NOT list sections by their original numbers unless showing document structure
+7. Create a narrative flow that makes sense to the reader
+8. If original chapter structure is important, reconstruct it logically
+
+Example summary structure:
+"This document covers X. The main topics are:
+[Topic 1]: [synthesized content across chunks]
+[Topic 2]: [synthesized content across chunks]
+..."
+
+NOT:
+"Section 2.1 says..., Section 4 says..., Section 5 says..."
 
 WHEN UNCERTAIN:
 - State what IS known from the context
@@ -304,7 +324,7 @@ WHEN UNCERTAIN:
 Quality markers in context:
 *** = Highly relevant | + = Good match | - = Fair match
 
-Provide clear, well-structured, evidence-based answers."""
+Provide clear, well-structured, evidence-based answers with logical flow."""
 
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
@@ -378,8 +398,30 @@ def api_chat():
                         })
                         logger.debug("[RAG] Added strict RAG system prompt")
                     
-                    # Format user message with structured context
-                    user_prompt = f"""{formatted_context}
+                    # Detect if this is a summary request
+                    is_summary = any(keyword in original_message.lower() for keyword in [
+                        'summarize', 'summary', 'overview', 'what does', 'what is in', 'beschrijf', 'samenvatting'
+                    ])
+                    
+                    # Format user message with context and appropriate instructions
+                    if is_summary:
+                        user_prompt = f"""{formatted_context}
+
+---
+
+Task: {original_message}
+
+Instructions for summarization:
+- Provide a cohesive overview organized by main topics (NOT by section numbers)
+- Synthesize information across all retrieved sections
+- Create a logical narrative flow
+- Start with document purpose/scope
+- Group related concepts together
+- Use clear hierarchy in your response
+
+Answer ONLY based on the context above."""
+                    else:
+                        user_prompt = f"""{formatted_context}
 
 ---
 
