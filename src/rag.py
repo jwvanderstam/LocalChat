@@ -1732,46 +1732,72 @@ class DocumentProcessor:
         
         logger.debug(f"Formatting {len(results)} chunks for LLM (max length: {max_length})")
         
+        # Group chunks by document for better synthesis
+        from collections import defaultdict
+        doc_chunks = defaultdict(list)
+        for chunk_text, filename, chunk_index, similarity in results:
+            doc_chunks[filename].append((chunk_text, chunk_index, similarity))
+        
         formatted_parts = []
         current_length = 0
         chunks_included = 0
+        doc_num = 0
         
-        for idx, (chunk_text, filename, chunk_index, similarity) in enumerate(results, 1):
-            # Determine confidence level (concise)
-            if similarity >= 0.80:
-                confidence = "High"
-                marker = "***"
-            elif similarity >= 0.65:
-                confidence = "Good"
-                marker = " + "
-            else:
-                confidence = "Fair"
-                marker = " - "
+        # Format by document
+        for filename, chunks in doc_chunks.items():
+            doc_num += 1
             
-            # Concise header - no decorative lines
-            header = f"\n{marker} Source {idx}: {filename} (chunk {chunk_index}, {int(similarity * 100)}% match)\n\n"
+            # Document header
+            doc_header = f"\n=== Document {doc_num}: {filename} ===\n\n"
             
-            # Clean and format chunk text
-            cleaned_text = self._format_chunk_text_rich(chunk_text)
-            
-            # Build formatted chunk
-            formatted_chunk = header + cleaned_text + "\n"
-            
-            # Check length constraint
-            if current_length + len(formatted_chunk) > max_length:
-                if chunks_included == 0:
-                    # Include at least one chunk even if long
-                    formatted_parts.append(formatted_chunk[:max_length - current_length])
-                    logger.warning(f"Context truncated: only 1 chunk included (very long)")
-                else:
-                    logger.info(f"Context size limit reached: {chunks_included} of {len(results)} chunks included")
+            if current_length + len(doc_header) > max_length:
                 break
             
-            formatted_parts.append(formatted_chunk)
-            current_length += len(formatted_chunk)
-            chunks_included += 1
+            formatted_parts.append(doc_header)
+            current_length += len(doc_header)
+            
+            # Add chunks from this document
+            for chunk_text, chunk_index, similarity in chunks:
+                # Determine confidence level
+                if similarity >= 0.80:
+                    marker = "***"
+                elif similarity >= 0.65:
+                    marker = " + "
+                else:
+                    marker = " - "
+                
+                # Minimal header within document
+                header = f"{marker} Section (chunk {chunk_index}, {int(similarity * 100)}% relevance):\n"
+                
+                # Clean and format chunk text
+                cleaned_text = self._format_chunk_text_rich(chunk_text)
+                
+                # Build formatted chunk
+                formatted_chunk = header + cleaned_text + "\n\n"
+                
+                # Check length constraint
+                if current_length + len(formatted_chunk) > max_length:
+                    logger.info(f"Context size limit reached: {chunks_included} chunks from {doc_num} documents included")
+                    break
+                
+                
+                formatted_parts.append(formatted_chunk)
+                current_length += len(formatted_chunk)
+                chunks_included += 1
         
         context = "".join(formatted_parts)
+        
+        # Simple summary header with document count
+        doc_count = len(doc_chunks)
+        summary_header = f"""Context from {doc_count} document{"s" if doc_count > 1 else ""}:
+
+"""
+        
+        final_context = summary_header + context
+        
+        logger.info(f"Formatted context: {len(final_context):,} chars from {chunks_included} chunks across {doc_count} documents")
+        
+        return final_context
         
         
         # Simple summary header
