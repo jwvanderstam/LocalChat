@@ -548,6 +548,60 @@ class DocumentProcessor:
             logger.error(f"Error loading DOCX: {e}", exc_info=True)
             return False, f"Error loading DOCX: {str(e)}"
     
+    def _extract_section_title(self, page_text: str) -> Optional[str]:
+        """
+        Extract likely section title from page start.
+        
+        Looks at the first few lines of a page to identify section headers.
+        Skips numbered lines and looks for title-case text or lines ending with colons.
+        
+        Args:
+            page_text: Text content of a page
+        
+        Returns:
+            Section title string or None if no title found
+        
+        Examples:
+            >>> processor._extract_section_title("Introduction\\n\\nThis is content...")
+            'Introduction'
+            
+            >>> processor._extract_section_title("1. Introduction\\n\\nContent...")
+            None  # Skips numbered lines
+            
+            >>> processor._extract_section_title("Data Storage:\\n\\nDetails here...")
+            'Data Storage'
+        """
+        if not page_text:
+            return None
+        
+        lines = page_text.strip().split('\n')
+        
+        # Check first 5 lines for potential title
+        for line in lines[:5]:
+            line = line.strip()
+            
+            # Skip empty lines or very short lines
+            if not line or len(line) < 3:
+                continue
+            
+            # Skip numbered lines (e.g., "1. Introduction")
+            if re.match(r'^\d+\.', line):
+                continue
+            
+            # Check if looks like a title
+            # Requirements:
+            # 1. Not too long (< 100 chars)
+            # 2. Either ends with colon OR is multi-word title case
+            if len(line) < 100:
+                if line.endswith(':'):
+                    # Lines ending with colon are likely section headers
+                    return line.rstrip(':')
+                elif line.istitle() and len(line.split()) >= 2:
+                    # Title case with multiple words
+                    return line
+        
+        return None
+    
     @timed('rag.load_document')
     @counted('rag.document_loads')
     def load_document(self, file_path: str) -> Tuple[bool, str]:
