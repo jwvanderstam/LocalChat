@@ -296,6 +296,26 @@ RESPONSE APPROACH:
 - For comparisons: Highlight similarities and differences with evidence
 - For analysis: Provide detailed reasoning based on retrieved evidence
 
+FORMATTING GUIDELINES:
+- Use consistent markdown formatting
+- For lists: Use bullets (-) or bold headers (**), not mixed numbering
+- For hierarchical info: Use bold headers with sub-bullets
+- For steps/phases: Use bold phase names with clear descriptions
+- Avoid mixing numbered lists (1, 2, 3) with bullet points
+- Use proper indentation (2 spaces for sub-items)
+
+Example of good formatting:
+**Main Topic**
+- Point 1 with context
+- Point 2 with details:
+  - Sub-point A
+  - Sub-point B
+
+NOT:
+1. Topic:
+   - Mixed with bullets
+     - Inconsistent indentation
+
 DOCUMENT SUMMARIZATION GUIDELINES:
 When asked to summarize a document:
 1. Start with a brief overview of the document's purpose and scope
@@ -324,7 +344,7 @@ WHEN UNCERTAIN:
 Quality markers in context:
 *** = Highly relevant | + = Good match | - = Fair match
 
-Provide clear, well-structured, evidence-based answers with logical flow."""
+Provide clear, well-structured, evidence-based answers with logical flow and consistent formatting."""
 
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
