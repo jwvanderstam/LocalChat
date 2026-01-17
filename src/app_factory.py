@@ -357,59 +357,59 @@ def _init_security(app: Flask, testing: bool) -> None:
 
 
 def _setup_cleanup_handlers(app: Flask) -> None:
-"""
-Setup application cleanup handlers.
+    """
+    Setup application cleanup handlers.
     
-Args:
-    app: Flask application instance
-"""
-import atexit
-import signal
+    Args:
+        app: Flask application instance
+    """
+    import atexit
+    import signal
     
-# Flag to prevent duplicate cleanup
-_cleanup_done = {'done': False}
+    # Flag to prevent duplicate cleanup
+    _cleanup_done = {'done': False}
     
-def cleanup() -> None:
-    """Cleanup function to close database connections."""
-    # Prevent duplicate cleanup
-    if _cleanup_done['done']:
-        return
-    _cleanup_done['done'] = True
+    def cleanup() -> None:
+        """Cleanup function to close database connections."""
+        # Prevent duplicate cleanup
+        if _cleanup_done['done']:
+            return
+        _cleanup_done['done'] = True
         
+        try:
+            if hasattr(app, 'db') and app.db and hasattr(app.db, 'is_connected') and app.db.is_connected:
+                logger.info("Closing database connections...")
+                app.db.close()
+                logger.info("Cleanup complete")
+        except Exception as e:
+            # Silently handle cleanup errors during shutdown
+            pass
+    
+    def signal_handler(sig: int, frame: Any) -> None:
+        """Handle interrupt signals gracefully."""
+        try:
+            logger.info("\nReceived interrupt signal, shutting down...")
+            cleanup()
+            logger.info("Goodbye!")
+        except Exception:
+            # Silently handle errors during signal handling
+            pass
+        finally:
+            import sys
+            sys.exit(0)
+    
+    # Register cleanup handlers
+    atexit.register(cleanup)
+    
+    # Only register signal handlers if not in debugger
     try:
-        if hasattr(app, 'db') and app.db and hasattr(app.db, 'is_connected') and app.db.is_connected:
-            logger.info("Closing database connections...")
-            app.db.close()
-            logger.info("Cleanup complete")
-    except Exception as e:
-        # Silently handle cleanup errors during shutdown
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+    except (ValueError, OSError):
+        # Signal registration may fail in some environments (e.g., debugger)
         pass
     
-def signal_handler(sig: int, frame: Any) -> None:
-    """Handle interrupt signals gracefully."""
-    try:
-        logger.info("\nReceived interrupt signal, shutting down...")
-        cleanup()
-        logger.info("Goodbye!")
-    except Exception:
-        # Silently handle errors during signal handling
-        pass
-    finally:
-        import sys
-        sys.exit(0)
-    
-# Register cleanup handlers
-atexit.register(cleanup)
-    
-# Only register signal handlers if not in debugger
-try:
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-except (ValueError, OSError):
-    # Signal registration may fail in some environments (e.g., debugger)
-    pass
-    
-logger.debug("Cleanup handlers registered")
+    logger.debug("Cleanup handlers registered")
 
 
 def _init_api_docs(app: Flask) -> None:
