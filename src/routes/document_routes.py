@@ -437,14 +437,22 @@ def _format_test_results(results, mode_name: str) -> Dict[str, Any]:
         return {'mode': mode_name, 'count': 0, 'chunks': []}
     
     formatted = []
-    for chunk_text, filename, chunk_index, similarity in results:
-        formatted.append({
+    for chunk_text, filename, chunk_index, similarity, metadata in results:
+        chunk_data = {
             'filename': filename,
             'chunk_index': chunk_index,
             'similarity': round(similarity, 4),
             'preview': chunk_text[:200] + '...' if len(chunk_text) > 200 else chunk_text,
             'length': len(chunk_text)
-        })
+        }
+        
+        # Add metadata if available (Phase 1.1 enhancement)
+        if metadata.get('page_number'):
+            chunk_data['page_number'] = metadata['page_number']
+        if metadata.get('section_title'):
+            chunk_data['section_title'] = metadata['section_title']
+        
+        formatted.append(chunk_data)
     
     return {
         'mode': mode_name,

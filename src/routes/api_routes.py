@@ -59,11 +59,19 @@ def api_status() -> Dict[str, Any]:
     from .. import config
     
     active_model = config.app_state.get_active_model()
-    doc_count = (
-        current_app.db.get_document_count() 
-        if current_app.startup_status['database'] 
-        else 0
-    )
+    
+    # Get document count with error handling for closed pool
+    doc_count = 0
+    db_available = current_app.startup_status.get('database', False)
+    
+    if db_available:
+        try:
+            doc_count = current_app.db.get_document_count()
+        except Exception as e:
+            # Handle closed pool during shutdown or other DB issues
+            logger = get_logger(__name__)
+            logger.warning(f"Could not get document count: {e}")
+            db_available = False
     
     # Get cache stats if available
     cache_stats = {}
@@ -75,8 +83,8 @@ def api_status() -> Dict[str, Any]:
     
     response = {
         'ollama': current_app.startup_status['ollama'],
-        'database': current_app.startup_status['database'],
-        'ready': current_app.startup_status['ready'],
+        'database': db_available,  # Use checked availability
+        'ready': current_app.startup_status['ready'] and db_available,  # Ready only if DB is available
         'active_model': active_model,
         'document_count': doc_count
     }
@@ -233,8 +241,14 @@ REMEMBER: Your value is in providing COMPLETE, ACCURATE information from the doc
                     )
                     
                     # Log results
-                    for idx, (_, filename, chunk_index, similarity) in enumerate(results, 1):
-                        logger.debug(f"[RAG]   ? Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}")
+                    for idx, (_, filename, chunk_index, similarity, metadata) in enumerate(results, 1):
+                        # Enhanced logging with metadata (Phase 1.1)
+                        log_parts = [f"[RAG]   ? Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}"]
+                        if metadata.get('page_number'):
+                            log_parts.append(f"page {metadata['page_number']}")
+                        if metadata.get('section_title'):
+                            log_parts.append(f"section: {metadata['section_title'][:30]}")
+                        logger.debug(" ".join(log_parts))
                     
                     # Add RAG system prompt
                     if not messages or messages[0].get('role') != 'system':
