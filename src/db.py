@@ -552,34 +552,60 @@ class Database:
     
     def insert_chunks_batch(
         self,
-        chunks_data: List[Tuple[int, str, int, Union[List[float], np.ndarray]]]
+        chunks_data: List[Union[Tuple[int, str, int, Union[List[float], np.ndarray]], Dict[str, Any]]]
     ) -> None:
         """
         Insert multiple chunks in a batch for better performance.
         
         Args:
             chunks_data: List of tuples (doc_id, chunk_text, chunk_index, embedding)
+                        OR List of dicts with keys: doc_id, chunk_text, chunk_index, embedding, metadata
         
         Example:
+            >>> # Old format (still supported)
             >>> chunks = [
             ...     (1, "First chunk text", 0, [0.1, 0.2, ...]),
             ...     (1, "Second chunk text", 1, [0.3, 0.4, ...])
+            ... ]
+            >>> db.insert_chunks_batch(chunks)
+            
+            >>> # New format with metadata
+            >>> chunks = [
+            ...     {
+            ...         'doc_id': 1,
+            ...         'chunk_text': "First chunk",
+            ...         'chunk_index': 0,
+            ...         'embedding': [0.1, 0.2, ...],
+            ...         'metadata': {'page_number': 1, 'section_title': 'Introduction'}
+            ...     }
             ... ]
             >>> db.insert_chunks_batch(chunks)
         """
         logger.debug(f"Inserting batch of {len(chunks_data)} chunks")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                # Use executemany for batch insert
                 for chunk in chunks_data:
-                    doc_id, chunk_text, chunk_index, embedding = chunk
+                    # Handle both old tuple format and new dict format
+                    if isinstance(chunk, dict):
+                        doc_id = chunk['doc_id']
+                        chunk_text = chunk['chunk_text']
+                        chunk_index = chunk['chunk_index']
+                        embedding = chunk['embedding']
+                        metadata = chunk.get('metadata', {})
+                    else:
+                        # Old tuple format: (doc_id, chunk_text, chunk_index, embedding)
+                        doc_id, chunk_text, chunk_index, embedding = chunk
+                        metadata = {}
+                    
                     # Convert embedding to PostgreSQL array format
                     embedding_str = self._embedding_to_pg_array(embedding)
                     
+                    # Insert with metadata
                     cursor.execute(
-                        """INSERT INTO document_chunks (document_id, chunk_text, chunk_index, embedding) 
-                           VALUES (%s, %s, %s, %s::vector)""",
-                        (doc_id, chunk_text, chunk_index, embedding_str)
+                        """INSERT INTO document_chunks 
+                           (document_id, chunk_text, chunk_index, embedding, metadata) 
+                           VALUES (%s, %s, %s, %s::vector, %s)""",
+                        (doc_id, chunk_text, chunk_index, embedding_str, Jsonb(metadata))
                     )
                 conn.commit()
                 logger.info(f"Successfully inserted {len(chunks_data)} chunks")
@@ -589,7 +615,7 @@ class Database:
         query_embedding: Union[List[float], np.ndarray],
         top_k: int = 5,
         file_type_filter: Optional[str] = None
-    ) -> List[Tuple[str, str, int, float]]:
+    ) -> List[Tuple[str, str, int, float, Dict[str, Any]]]:
         """
         Search for similar chunks using cosine similarity.
         
@@ -603,13 +629,15 @@ class Database:
             file_type_filter: Optional file extension filter (e.g., '.pdf')
         
         Returns:
-            List of tuples: (chunk_text, filename, chunk_index, similarity)
+            List of tuples: (chunk_text, filename, chunk_index, similarity, metadata)
             Similarity scores are in range [0, 1] where 1 is most similar
+            metadata is a dict with page_number, section_title, etc.
         
         Example:
             >>> results = db.search_similar_chunks(embedding, top_k=10)
-            >>> for text, file, idx, score in results:
-            ...     print(f"{file} chunk {idx}: {score:.3f}")
+            >>> for text, file, idx, score, meta in results:
+            ...     page = meta.get('page_number', 'N/A')
+            ...     print(f"{file} chunk {idx} (page {page}): {score:.3f}")
         """
         logger.debug(f"Searching for top {top_k} similar chunks")
         with self.get_connection() as conn:
@@ -631,7 +659,8 @@ class Database:
                             dc.chunk_text,
                             d.filename,
                             dc.chunk_index,
-                            1 - (dc.embedding <=> '{embedding_str}'::vector) as similarity
+                            1 - (dc.embedding <=> '{embedding_str}'::vector) as similarity,
+                            dc.metadata
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
                         WHERE dc.embedding IS NOT NULL
@@ -648,7 +677,8 @@ class Database:
                             dc.chunk_text,
                             d.filename,
                             dc.chunk_index,
-                            1 - (dc.embedding <=> '{embedding_str}'::vector) as similarity
+                            1 - (dc.embedding <=> '{embedding_str}'::vector) as similarity,
+                            dc.metadata
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
                         WHERE dc.embedding IS NOT NULL
@@ -660,7 +690,8 @@ class Database:
                 results = cursor.fetchall()
                 conn.commit()
                 logger.debug(f"Found {len(results)} similar chunks")
-                return results
+                # Convert None metadata to empty dict
+                return [(r[0], r[1], r[2], r[3], r[4] or {}) for r in results]
     
     def search_similar_chunks_with_scores(
         self,
