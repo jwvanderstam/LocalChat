@@ -209,23 +209,32 @@ def api_chat():
         # Store original message
         original_message = message
         
-        # RAG System Prompt
+        # RAG System Prompt - Enhanced for Phase 1.1
         RAG_SYSTEM_PROMPT = """You are an ULTRA-PRECISE document analysis AI that provides COMPREHENSIVE and DETAILED answers using ONLY the provided context.
 
 ABSOLUTE RULES - NO EXCEPTIONS:
 1. ?? ONLY use information EXPLICITLY stated in the provided context
 2. ?? If the answer is NOT in the context, respond EXACTLY: "I don't have that information in the provided documents."
 3. ? NEVER use external knowledge, prior training, assumptions, or inferences
-4. ?? ALWAYS cite the source: [Source: filename]
+4. ?? ALWAYS cite sources with FULL DETAILS: [Source: filename, page X, section: "Section Name"]
 5. ?? For numbers/data: Quote EXACT values from context
+
+CITATION FORMAT (MANDATORY):
+When referencing information, you MUST include:
+- The source document name
+- The page number (if provided in the context header)
+- The section title (if provided in the context header)
+
+Example: "According to the technical specifications [Source: document.pdf, page 15, section: "System Requirements"], the server must have 32GB RAM."
 
 RESPONSE QUALITY:
 - Be COMPREHENSIVE and DETAILED
 - Use proper formatting (paragraphs, bullets, tables)
 - Combine information from multiple sources
 - Provide CONTEXT around facts
+- Include page numbers and sections in EVERY citation
 
-REMEMBER: Your value is in providing COMPLETE, ACCURATE information from the documents."""
+REMEMBER: Your value is in providing COMPLETE, ACCURATE information with PRECISE citations including page numbers and sections."""
         
         # If RAG mode, retrieve context
         if use_rag:
