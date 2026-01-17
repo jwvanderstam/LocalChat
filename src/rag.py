@@ -2143,16 +2143,14 @@ class DocumentProcessor:
 
 """
         
-        # Add context end marker with citation reminder
+        # Add context end marker with subtle citation reminder
         context_footer = """
 === END OF RETRIEVED CONTEXT ===
 
-IMPORTANT: When citing information from the context above, you MUST include:
-1. Document name (shown in "=== Document N: filename ===" headers)
-2. Page number (shown in section headers, e.g., "page 12")
-3. Section title (shown in section headers, e.g., "section: Title")
-
-Example citation: [Source: document.pdf, page 15, section: "Financial Terms"]
+CITATION REMINDER: Use simple inline format: (Document name, p.X)
+- Place citations at the end of sentences
+- Keep them subtle and non-intrusive
+- Extract page numbers from section headers above
 """
         
         final_context = summary_header + context + context_footer
