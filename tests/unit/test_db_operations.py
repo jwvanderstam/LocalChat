@@ -208,8 +208,8 @@ class TestVectorSearch:
         query_embedding = [0.1] * 768
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            ("chunk text 1", "doc1.pdf", 0, 0.95),
-            ("chunk text 2", "doc1.pdf", 1, 0.85),
+            ("chunk text 1", "doc1.pdf", 0, 0.95, {}),  # Added metadata
+            ("chunk text 2", "doc1.pdf", 1, 0.85, {}),
         ]
         
         mock_conn = MagicMock()

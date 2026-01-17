@@ -49,6 +49,7 @@
     <Compile Include="scripts\diagnose_rag.py" />
     <Compile Include="scripts\diagnose_retrieval.py" />
     <Compile Include="scripts\fix_embeddings.py" />
+    <Compile Include="scripts\migrate_add_metadata.py" />
     <Compile Include="scripts\skip_db_env_tests.py" />
     <Compile Include="scripts\skip_error_handler_tests.py" />
     <Compile Include="scripts\skip_rag_private_tests.py" />
@@ -59,8 +60,10 @@
     <Compile Include="scripts\test_order_by.py" />
     <Compile Include="scripts\test_rag_quality.py" />
     <Compile Include="scripts\test_search.py" />
+    <Compile Include="scripts\test_section_extraction.py" />
     <Compile Include="scripts\test_validation_error.py" />
     <Compile Include="scripts\test_vector_comparison.py" />
+    <Compile Include="scripts\verify_migration.py" />
     <Compile Include="scripts\verify_no_errors.py" />
     <Compile Include="src\api_docs.py" />
     <Compile Include="src\app_factory.py" />
@@ -135,6 +138,7 @@
     <Compile Include="test_docx.py" />
     <Compile Include="test_pdf_table_extraction.py" />
     <Compile Include="test_pg_format.py" />
+    <Compile Include="test_phase_1.1.py" />
     <Compile Include="test_rag.py" />
     <Compile Include="test_search.py" />
     <Compile Include="test_vector.py" />
@@ -257,6 +261,7 @@
     <Content Include="MONTH3_TABLES_SUMMARY.md" />
     <Content Include="MONTH3_WEEK1_PROGRESS_REPORT.md" />
     <Content Include="MONTH3_WEEK2_PROGRESS_REPORT.md" />
+    <Content Include="NEXT_STEPS.md" />
     <Content Include="NEXT_STEPS_SUMMARY.md" />
     <Content Include="OPTION_B_COMPLETE.md" />
     <Content Include="OPTION_C_PLAN.md" />
@@ -269,6 +274,12 @@
     <Content Include="PDF_TABLE_TROUBLESHOOTING.md" />
     <Content Include="PERFORMANCE_FIX_INGESTION.md" />
     <Content Include="PHASE4_QUICK_REFERENCE.md" />
+    <Content Include="PHASE_1.1_BUGFIX_TEST_RETRIEVAL.md" />
+    <Content Include="PHASE_1.1_COMPLETE.md" />
+    <Content Include="PHASE_1.1_IMPLEMENTATION.md" />
+    <Content Include="PHASE_1.2_IMPLEMENTATION.md" />
+    <Content Include="PHASE_1.3_IMPLEMENTATION.md" />
+    <Content Include="PHASE_1_COMPLETE_SUITE.md" />
     <Content Include="PRIORITY_1_MERGED_SUCCESS.md" />
     <Content Include="PRIORITY_2_ANALYSIS.md" />
     <Content Include="PRIORITY_3_COMPLETE.md" />
@@ -285,16 +296,19 @@
     <Content Include="pyrightconfig.json" />
     <Content Include="pytest.ini" />
     <Content Include="QUICK_START.md" />
+    <Content Include="QUICK_START_PHASE_1.1.md" />
     <Content Include="QUICK_UPDATE.md" />
     <Content Include="RAG_BEST_PRACTICES_ANALYSIS.md" />
     <Content Include="RAG_FIX_SUMMARY.md" />
     <Content Include="RAG_FORMAT_IMPROVEMENTS.md" />
     <Content Include="RAG_HALLUCINATION_FIX.md" />
     <Content Include="RAG_HALLUCINATION_FIXED.md" />
+    <Content Include="RAG_IMPROVEMENTS.md" />
     <Content Include="RAG_IMPROVEMENTS_IMPLEMENTED.md" />
     <Content Include="RAG_OPTIMIZATION_GUIDE.md" />
     <Content Include="RAG_PERFORMANCE_OPTIMIZATION_COMPLETE.md" />
     <Content Include="RAG_QUALITY_IMPROVEMENTS.md" />
+    <Content Include="RAG_ROADMAP_2025.md" />
     <Content Include="RAG_SYNTHESIS_FIX.md" />
     <Content Include="README.md" />
     <Content Include="README_MAIN.md" />
@@ -340,6 +354,7 @@
     <Folder Include="src\" />
     <Folder Include="src\cache\" />
     <Folder Include="src\cache\backends\" />
+    <Folder Include="src\initialization\" />
     <Folder Include="src\performance\" />
     <Folder Include="src\routes\" />
     <Folder Include="static\" />
