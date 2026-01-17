@@ -13,6 +13,7 @@ Created: 2025-01-15
 
 from flask import Blueprint, jsonify, current_app
 from typing import Dict, Any
+from ..utils.logging_config import get_logger
 
 bp = Blueprint('api', __name__)
 
@@ -58,6 +59,7 @@ def api_status() -> Dict[str, Any]:
     """
     from .. import config
     
+    logger = get_logger(__name__)
     active_model = config.app_state.get_active_model()
     
     # Get document count with error handling for closed pool
@@ -69,7 +71,6 @@ def api_status() -> Dict[str, Any]:
             doc_count = current_app.db.get_document_count()
         except Exception as e:
             # Handle closed pool during shutdown or other DB issues
-            logger = get_logger(__name__)
             logger.warning(f"Could not get document count: {e}")
             db_available = False
     
