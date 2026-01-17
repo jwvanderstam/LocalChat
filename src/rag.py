@@ -473,6 +473,121 @@ class DocumentProcessor:
             logger.error(f"Error loading PDF: {e}", exc_info=True)
             return False, str(e)
     
+    def _load_pdf_with_pages(self, file_path: str) -> Tuple[bool, Union[List[Dict[str, Any]], str]]:
+        """
+        Load PDF with page-by-page tracking for enhanced citations.
+        
+        Returns page data with page numbers and section titles instead of
+        concatenated text. Used for Phase 1.1 enhanced citations feature.
+        
+        Args:
+            file_path: Path to PDF file
+        
+        Returns:
+            Tuple of (success: bool, pages_data_or_error)
+            On success: List of dicts with keys: page_number, text, section_title
+            On failure: Error message string
+        
+        Example:
+            >>> success, pages = processor._load_pdf_with_pages("doc.pdf")
+            >>> if success:
+            ...     for page in pages:
+            ...         print(f"Page {page['page_number']}: {page['section_title']}")
+        """
+        if not PDF_AVAILABLE:
+            logger.error("PyPDF2 not installed")
+            return False, "PyPDF2 not installed"
+        
+        try:
+            logger.info(f"Loading PDF with page tracking: {file_path}")
+            
+            # Try pdfplumber first
+            pdfplumber = None
+            try:
+                import pdfplumber as pdf_lib
+                pdfplumber = pdf_lib
+                logger.info("Using pdfplumber for page-by-page extraction")
+            except ImportError:
+                logger.warning("pdfplumber not available, using PyPDF2")
+            
+            pages_data = []
+            
+            if pdfplumber is not None:
+                # Use pdfplumber
+                with pdfplumber.open(file_path) as pdf:
+                    num_pages = len(pdf.pages)
+                    logger.info(f"PDF has {num_pages} pages")
+                    
+                    for page_num, page in enumerate(pdf.pages, 1):
+                        logger.debug(f"Processing page {page_num}/{num_pages}...")
+                        
+                        # Extract text
+                        page_text = page.extract_text() or ""
+                        
+                        # Extract tables and append to text
+                        try:
+                            tables = page.extract_tables()
+                            if tables:
+                                logger.debug(f"  Page {page_num}: Found {len(tables)} table(s)")
+                                for table_idx, table in enumerate(tables, 1):
+                                    if table:
+                                        page_text += f"\n[Table {table_idx}]\n"
+                                        for row in table:
+                                            if row:
+                                                row_text = " | ".join([str(cell).strip() if cell else "" for cell in row])
+                                                if row_text.strip():
+                                                    page_text += row_text + "\n"
+                                        page_text += "\n"
+                        except Exception as e:
+                            logger.warning(f"  Page {page_num}: Error extracting tables: {e}")
+                        
+                        if page_text and len(page_text.strip()) > 0:
+                            # Extract section title
+                            section_title = self._extract_section_title(page_text)
+                            
+                            pages_data.append({
+                                'page_number': page_num,
+                                'text': page_text,
+                                'section_title': section_title
+                            })
+                            
+                            logger.debug(f"  Page {page_num}: {len(page_text)} chars, section: {section_title or 'None'}")
+                        else:
+                            logger.warning(f"  Page {page_num}: No text extracted")
+            
+            else:
+                # Fallback to PyPDF2
+                with open(file_path, 'rb') as f:
+                    pdf_reader = PyPDF2.PdfReader(f)
+                    num_pages = len(pdf_reader.pages)
+                    logger.info(f"PDF has {num_pages} pages (PyPDF2)")
+                    
+                    for page_num, page in enumerate(pdf_reader.pages, 1):
+                        page_text = page.extract_text() or ""
+                        
+                        if page_text and len(page_text.strip()) > 0:
+                            section_title = self._extract_section_title(page_text)
+                            
+                            pages_data.append({
+                                'page_number': page_num,
+                                'text': page_text,
+                                'section_title': section_title
+                            })
+                            
+                            logger.debug(f"  Page {page_num}: {len(page_text)} chars, section: {section_title or 'None'}")
+            
+            logger.info(f"Extracted {len(pages_data)} pages with metadata")
+            
+            # Validate
+            if not pages_data:
+                return False, "No pages with text extracted from PDF"
+            
+            return True, pages_data
+            
+        except Exception as e:
+            logger.error(f"Error loading PDF with pages: {e}", exc_info=True)
+            return False, str(e)
+    
     def load_docx_file(self, file_path: str) -> Tuple[bool, str]:
         """
         Load a DOCX file with enhanced error handling.
@@ -547,6 +662,63 @@ class DocumentProcessor:
         except Exception as e:
             logger.error(f"Error loading DOCX: {e}", exc_info=True)
             return False, f"Error loading DOCX: {str(e)}"
+    
+    def _extract_section_title(self, page_text: str) -> Optional[str]:
+        """
+        Extract likely section title from page start.
+        
+        Looks at the first few lines of a page to identify section headers.
+        Skips numbered lines and looks for title-case text or lines ending with colons.
+        
+        Args:
+            page_text: Text content of a page
+        
+        Returns:
+            Section title string or None if no title found
+        
+        Examples:
+            >>> processor._extract_section_title("Introduction\\n\\nThis is content...")
+            'Introduction'
+            
+            >>> processor._extract_section_title("1. Introduction\\n\\nContent...")
+            None  # Skips numbered lines
+            
+            >>> processor._extract_section_title("Data Storage:\\n\\nDetails here...")
+            'Data Storage'
+        """
+        if not page_text:
+            return None
+        
+        lines = page_text.strip().split('\n')
+        
+        # Check first 5 lines for potential title
+        for line in lines[:5]:
+            line = line.strip()
+            
+            # Skip empty lines or very short lines
+            if not line or len(line) < 3:
+                continue
+            
+            # Skip numbered lines (e.g., "1. Introduction")
+            if re.match(r'^\d+\.', line):
+                continue
+            
+            # Check if looks like a title
+            # Requirements:
+            # 1. Not too long (< 100 chars)
+            # 2. Either ends with colon OR is multi-word title case
+            if len(line) < 100:
+                if line.endswith(':'):
+                    # Lines ending with colon are likely section headers
+                    return line.rstrip(':')
+                elif line.istitle() and len(line.split()) >= 2:
+                    # Title case with multiple words
+                    return line
+                elif line.isupper() and len(line.split()) >= 2:
+                    # All-caps with multiple words (common in PDFs)
+                    return line
+        
+        return None
     
     @timed('rag.load_document')
     @counted('rag.document_loads')
@@ -808,6 +980,72 @@ class DocumentProcessor:
         # Perform recursive splitting
         return split_text_recursive(text, separators, chunk_size, overlap)
     
+    def chunk_pages_with_metadata(
+        self, 
+        pages_data: List[Dict[str, Any]], 
+        chunk_size: Optional[int] = None, 
+        overlap: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Chunk pages with metadata preservation for enhanced citations.
+        
+        Takes page-by-page data from _load_pdf_with_pages and creates chunks
+        while preserving page numbers and section titles. This enables enhanced
+        citations showing exact page and section for each source.
+        
+        Args:
+            pages_data: List of page dicts with keys: page_number, text, section_title
+            chunk_size: Maximum size of each chunk (in characters)
+            overlap: Overlap between chunks (in characters)
+        
+        Returns:
+            List of chunk dictionaries with keys:
+                - text: Chunk text content
+                - page_number: Page number where chunk originates
+                - section_title: Section title for the chunk (or None)
+                - chunk_index: Sequential index of the chunk
+        
+        Example:
+            >>> pages = [
+            ...     {'page_number': 1, 'text': 'Intro text...', 'section_title': 'Introduction'},
+            ...     {'page_number': 2, 'text': 'More text...', 'section_title': 'Introduction'}
+            ... ]
+            >>> chunks = processor.chunk_pages_with_metadata(pages)
+            >>> for chunk in chunks:
+            ...     print(f"Page {chunk['page_number']}: {chunk['section_title']}")
+        """
+        chunks_with_metadata = []
+        current_section = None
+        chunk_index = 0
+        
+        for page_data in pages_data:
+            page_num = page_data['page_number']
+            page_text = page_data['text']
+            
+            # Update current section if page has a new section title
+            if page_data.get('section_title'):
+                current_section = page_data['section_title']
+            
+            # Use current section if page doesn't have its own
+            section = page_data.get('section_title') or current_section
+            
+            # Chunk the page text
+            page_chunks = self.chunk_text(page_text, chunk_size, overlap)
+            
+            # Add metadata to each chunk
+            for chunk_text in page_chunks:
+                if len(chunk_text.strip()) >= 10:  # Skip very small chunks
+                    chunks_with_metadata.append({
+                        'text': chunk_text,
+                        'page_number': page_num,
+                        'section_title': section,
+                        'chunk_index': chunk_index
+                    })
+                    chunk_index += 1
+        
+        logger.info(f"Created {len(chunks_with_metadata)} chunks with metadata from {len(pages_data)} pages")
+        return chunks_with_metadata
+    
     @timed('rag.generate_embeddings')
     @counted('rag.embedding_batches')
     def generate_embeddings_batch(self, texts: List[str], model: Optional[str] = None, batch_size: Optional[int] = None) -> List[Optional[List[float]]]:
@@ -934,41 +1172,92 @@ class DocumentProcessor:
                 progress_callback(f"Loading {filename}...")
             
             logger.debug("Loading document...")
-            success, content = self.load_document(file_path)
             
-            if not success:
-                error_msg = f"Failed to load {filename}: {content}"
-                logger.error(error_msg)
-                return False, error_msg, None
+            # Determine file type
+            ext = Path(file_path).suffix.lower()
             
-            logger.info(f"Successfully loaded {len(content)} characters")
-            
-            # Check if content is meaningful
-            if not content or len(content.strip()) < 10:
-                error_msg = f"Document {filename} has insufficient content (only {len(content)} characters)"
-                logger.error(error_msg)
-                return False, error_msg, None
-            
-            # Chunk document
-            if progress_callback:
-                progress_callback(f"Chunking {filename}...")
-            
-            logger.debug("Chunking document...")
-            chunks = self.chunk_text(content)
-            
-            if not chunks:
-                error_msg = f"No chunks generated from {filename}"
-                logger.error(error_msg)
-                return False, error_msg, None
-            
-            logger.info(f"Generated {len(chunks)} chunks")
+            # For PDFs, use page-aware loading for enhanced citations
+            if ext == '.pdf':
+                success, pages_or_error = self._load_pdf_with_pages(file_path)
+                
+                if not success:
+                    error_msg = f"Failed to load {filename}: {pages_or_error}"
+                    logger.error(error_msg)
+                    return False, error_msg, None
+                
+                pages_data = pages_or_error
+                logger.info(f"Successfully loaded {len(pages_data)} pages with metadata")
+                
+                # Chunk with metadata preservation
+                if progress_callback:
+                    progress_callback(f"Chunking {filename}...")
+                
+                logger.debug("Chunking document with metadata...")
+                chunks_with_metadata = self.chunk_pages_with_metadata(pages_data)
+                
+                if not chunks_with_metadata:
+                    error_msg = f"No chunks generated from {filename}"
+                    logger.error(error_msg)
+                    return False, error_msg, None
+                
+                logger.info(f"Generated {len(chunks_with_metadata)} chunks with metadata")
+                
+            else:
+                # For non-PDF files, use standard loading
+                success, content = self.load_document(file_path)
+                
+                if not success:
+                    error_msg = f"Failed to load {filename}: {content}"
+                    logger.error(error_msg)
+                    return False, error_msg, None
+                
+                logger.info(f"Successfully loaded {len(content)} characters")
+                
+                # Check if content is meaningful
+                if not content or len(content.strip()) < 10:
+                    error_msg = f"Document {filename} has insufficient content (only {len(content)} characters)"
+                    logger.error(error_msg)
+                    return False, error_msg, None
+                
+                # Chunk document (without metadata)
+                if progress_callback:
+                    progress_callback(f"Chunking {filename}...")
+                
+                logger.debug("Chunking document...")
+                chunk_texts = self.chunk_text(content)
+                
+                if not chunk_texts:
+                    error_msg = f"No chunks generated from {filename}"
+                    logger.error(error_msg)
+                    return False, error_msg, None
+                
+                # Convert to metadata format (without page numbers/sections)
+                chunks_with_metadata = [
+                    {
+                        'text': chunk,
+                        'page_number': None,
+                        'section_title': None,
+                        'chunk_index': idx
+                    }
+                    for idx, chunk in enumerate(chunk_texts)
+                ]
+                
+                logger.info(f"Generated {len(chunks_with_metadata)} chunks")
             
             # Insert document record
             logger.debug("Inserting document record...")
+            
+            # Get content preview for document record
+            if ext == '.pdf':
+                # For PDFs, use first page text as preview
+                content_preview = pages_data[0]['text'][:1000] if pages_data else ""
+            else:
+                content_preview = content[:1000]
+            
             doc_id = db.insert_document(
                 filename=filename,
-                content=content[:1000],  # Store first 1000 chars as preview
-                metadata={'total_chunks': len(chunks), 'file_path': file_path}
+                content=content_preview,
+                metadata={'total_chunks': len(chunks_with_metadata), 'file_path': file_path}
             )
             logger.debug(f"Document ID: {doc_id}")
             
@@ -982,7 +1271,10 @@ class DocumentProcessor:
             logger.info(f"Using embedding model: {embedding_model}")
             
             if progress_callback:
-                progress_callback(f"Generating embeddings for {len(chunks)} chunks...")
+                progress_callback(f"Generating embeddings for {len(chunks_with_metadata)} chunks...")
+            
+            # Extract chunk texts for embedding generation
+            chunk_texts = [chunk_data['text'] for chunk_data in chunks_with_metadata]
             
             # ✅ NEW: Use BatchEmbeddingProcessor for much faster embedding generation
             try:
@@ -999,23 +1291,38 @@ class DocumentProcessor:
                     max_workers=max_workers
                 )
                 
-                embeddings = processor.process_batch(chunks, embedding_model)
+                embeddings = processor.process_batch(chunk_texts, embedding_model)
                 
-                # Build chunks_data from embeddings
+                # Build chunks_data from embeddings with metadata
                 chunks_data = []
                 failed_chunks = 0
                 
-                for idx, (chunk_text, embedding) in enumerate(zip(chunks, embeddings)):
+                for idx, (chunk_meta, embedding) in enumerate(zip(chunks_with_metadata, embeddings)):
                     if embedding is not None:
-                        chunks_data.append((doc_id, chunk_text, idx, embedding))
+                        # Create metadata dict for database
+                        metadata = {}
+                        if chunk_meta.get('page_number'):
+                            metadata['page_number'] = chunk_meta['page_number']
+                        if chunk_meta.get('section_title'):
+                            metadata['section_title'] = chunk_meta['section_title']
+                        
+                        # Use dict format to include metadata
+                        chunks_data.append({
+                            'doc_id': doc_id,
+                            'chunk_text': chunk_meta['text'],
+                            'chunk_index': chunk_meta['chunk_index'],
+                            'embedding': embedding,
+                            'metadata': metadata
+                        })
                     else:
                         failed_chunks += 1
                         logger.warning(f"Failed to generate embedding for chunk {idx}")
                     
                     # Progress callback
                     if progress_callback and (idx + 1) % 10 == 0:
-                        progress = ((idx + 1) / len(chunks)) * 100
-                        progress_callback(f"Processing {filename}: {progress:.1f}% ({idx + 1}/{len(chunks)} chunks)")
+                        progress = ((idx + 1) / len(chunks_with_metadata)) * 100
+                        progress_callback(f"Processing {filename}: {progress:.1f}% ({idx + 1}/{len(chunks_with_metadata)} chunks)")
+                
                 
                 logger.info(f"Batch processing complete: {len(chunks_data)} successful, {failed_chunks} failed")
                 
@@ -1031,22 +1338,36 @@ class DocumentProcessor:
                         executor.submit(
                             self.process_document_chunk,
                             doc_id,
-                            chunk,
-                            idx,
+                            chunk_meta['text'],
+                            chunk_meta['chunk_index'],
                             embedding_model
-                        ): idx for idx, chunk in enumerate(chunks)
+                        ): chunk_meta for chunk_meta in chunks_with_metadata
                     }
                     
                     for future in as_completed(futures):
                         result = future.result()
                         if result:
-                            chunks_data.append(result)
+                            # Convert tuple to dict with metadata
+                            chunk_meta = futures[future]
+                            metadata = {}
+                            if chunk_meta.get('page_number'):
+                                metadata['page_number'] = chunk_meta['page_number']
+                            if chunk_meta.get('section_title'):
+                                metadata['section_title'] = chunk_meta['section_title']
+                            
+                            chunks_data.append({
+                                'doc_id': result[0],
+                                'chunk_text': result[1],
+                                'chunk_index': result[2],
+                                'embedding': result[3],
+                                'metadata': metadata
+                            })
                         else:
                             failed_chunks += 1
                         
                         if progress_callback:
-                            progress = len(chunks_data) / len(chunks) * 100
-                            progress_callback(f"Processing {filename}: {progress:.1f}% ({len(chunks_data)}/{len(chunks)} chunks)")
+                            progress = len(chunks_data) / len(chunks_with_metadata) * 100
+                            progress_callback(f"Processing {filename}: {progress:.1f}% ({len(chunks_data)}/{len(chunks_with_metadata)} chunks)")
             
             logger.info(f"Successfully processed {len(chunks_data)} chunks ({failed_chunks} failed)")
             
@@ -1228,7 +1549,7 @@ class DocumentProcessor:
         file_type_filter: Optional[str] = None,
         use_hybrid_search: bool = True,
         expand_context: bool = True
-    ) -> List[Tuple[str, str, int, float]]:
+    ) -> List[Tuple[str, str, int, float, Dict[str, Any]]]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
         
@@ -1250,12 +1571,14 @@ class DocumentProcessor:
             expand_context: Enable context window expansion
         
         Returns:
-            List of (chunk_text, filename, chunk_index, similarity) tuples, sorted by relevance
+            List of (chunk_text, filename, chunk_index, similarity, metadata) tuples, sorted by relevance
+            metadata dict contains page_number, section_title when available
         
         Example:
             >>> results = doc_processor.retrieve_context("What is the revenue?", top_k=10)
-            >>> for text, file, idx, score in results:
-            ...     print(f"{file} chunk {idx}: {score:.3f}")
+            >>> for text, file, idx, score, meta in results:
+            ...     page = meta.get('page_number', 'N/A')
+            ...     print(f"{file} chunk {idx} page {page}: {score:.3f}")
         """
         import time
         start_time = time.time()
@@ -1306,7 +1629,7 @@ class DocumentProcessor:
         # Step 6: Hybrid search - combine with BM25 (if enabled)
         all_results: Dict[str, Dict[str, Any]] = {}
         
-        for chunk_text, filename, chunk_index, similarity in semantic_results:
+        for chunk_text, filename, chunk_index, similarity, metadata in semantic_results:
             chunk_id = f"{filename}:{chunk_index}"
             all_results[chunk_id] = {
                 'chunk_text': chunk_text,
@@ -1314,7 +1637,8 @@ class DocumentProcessor:
                 'chunk_index': chunk_index,
                 'semantic_score': similarity,
                 'bm25_score': 0.0,
-                'combined_score': similarity
+                'combined_score': similarity,
+                'metadata': metadata or {}  # Store metadata
             }
         
         # BM25 scoring for hybrid search
@@ -1398,9 +1722,9 @@ class DocumentProcessor:
         # Sort final results by filename and chunk_index to maintain reading order
         deduped_results = sorted(deduped_results, key=lambda x: (x['filename'], x['chunk_index']))
         
-        # Convert to output format
+        # Convert to output format with metadata
         output = [
-            (r['chunk_text'], r['filename'], r['chunk_index'], r['semantic_score'])
+            (r['chunk_text'], r['filename'], r['chunk_index'], r['semantic_score'], r.get('metadata', {}))
             for r in deduped_results
         ]
         
@@ -1686,14 +2010,22 @@ class DocumentProcessor:
             
             # Format results for API response
             formatted_results = []
-            for chunk_text, filename, chunk_index, similarity in results:
-                formatted_results.append({
+            for chunk_text, filename, chunk_index, similarity, metadata in results:
+                result_dict = {
                     'filename': filename,
                     'chunk_index': chunk_index,
                     'similarity': round(similarity, 4),
                     'preview': chunk_text[:200] + '...' if len(chunk_text) > 200 else chunk_text,
                     'length': len(chunk_text)
-                })
+                }
+                
+                # Add metadata if available
+                if metadata.get('page_number'):
+                    result_dict['page_number'] = metadata['page_number']
+                if metadata.get('section_title'):
+                    result_dict['section_title'] = metadata['section_title']
+                
+                formatted_results.append(result_dict)
             
             logger.info(f"Retrieved {len(formatted_results)} results")
             return True, formatted_results
@@ -1705,23 +2037,23 @@ class DocumentProcessor:
     
     def format_context_for_llm(
         self,
-        results: List[Tuple[str, str, int, float]],
+        results: List[Tuple[str, str, int, float, Dict[str, Any]]],
         max_length: int = 30000  # DRAMATICALLY INCREASED from 15000 for truly comprehensive answers
     ) -> str:
         """
         Format retrieved context with RICH and PROFESSIONAL presentation for MAXIMUM DETAIL.
         
         Creates a well-structured context string optimized for comprehensive responses:
-        - Clear source attribution with document names
+        - Clear source attribution with document names, page numbers, and sections
         - Relevance indicators (High/Good/Medium confidence)
         - Clean markdown tables
         - Rich formatting for readability
         - Professional structure
         
-        ENHANCED: Increased max_length to 30000 and improved formatting for truly detailed answers
+        ENHANCED: Phase 1.1 - Now includes page numbers and section titles in citations
         
         Args:
-            results: List of (chunk_text, filename, chunk_index, similarity) tuples
+            results: List of (chunk_text, filename, chunk_index, similarity, metadata) tuples
             max_length: Maximum context length in characters (default: 30000)
         
         Returns:
@@ -1735,8 +2067,8 @@ class DocumentProcessor:
         # Group chunks by document for better synthesis
         from collections import defaultdict
         doc_chunks = defaultdict(list)
-        for chunk_text, filename, chunk_index, similarity in results:
-            doc_chunks[filename].append((chunk_text, chunk_index, similarity))
+        for chunk_text, filename, chunk_index, similarity, metadata in results:
+            doc_chunks[filename].append((chunk_text, chunk_index, similarity, metadata))
         
         formatted_parts = []
         current_length = 0
@@ -1757,7 +2089,7 @@ class DocumentProcessor:
             current_length += len(doc_header)
             
             # Add chunks from this document
-            for chunk_text, chunk_index, similarity in chunks:
+            for chunk_text, chunk_index, similarity, metadata in chunks:
                 # Determine confidence level
                 if similarity >= 0.80:
                     marker = "***"
@@ -1766,8 +2098,26 @@ class DocumentProcessor:
                 else:
                     marker = " - "
                 
-                # Minimal header within document
-                header = f"{marker} Section (chunk {chunk_index}, {int(similarity * 100)}% relevance):\n"
+                # Enhanced citation with page number and section title
+                citation_parts = [f"chunk {chunk_index}"]
+                
+                # Add page number if available
+                if metadata.get('page_number'):
+                    citation_parts.append(f"page {metadata['page_number']}")
+                
+                # Add section title if available
+                if metadata.get('section_title'):
+                    section = metadata['section_title']
+                    # Truncate long section titles
+                    if len(section) > 50:
+                        section = section[:47] + "..."
+                    citation_parts.append(f"section: \"{section}\"")
+                
+                # Build citation string
+                citation = ", ".join(citation_parts)
+                
+                # Header with enhanced citation
+                header = f"{marker} Section ({citation}, {int(similarity * 100)}% relevance):\n"
                 
                 # Clean and format chunk text
                 cleaned_text = self._format_chunk_text_rich(chunk_text)
