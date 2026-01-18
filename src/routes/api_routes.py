@@ -13,7 +13,6 @@ Created: 2025-01-15
 
 from flask import Blueprint, jsonify, current_app
 from typing import Dict, Any
-from ..utils.logging_config import get_logger
 
 bp = Blueprint('api', __name__)
 
@@ -59,7 +58,6 @@ def api_status() -> Dict[str, Any]:
     """
     from .. import config
     
-    logger = get_logger(__name__)
     active_model = config.app_state.get_active_model()
     
     # Get document count with error handling for closed pool
@@ -71,6 +69,7 @@ def api_status() -> Dict[str, Any]:
             doc_count = current_app.db.get_document_count()
         except Exception as e:
             # Handle closed pool during shutdown or other DB issues
+            logger = get_logger(__name__)
             logger.warning(f"Could not get document count: {e}")
             db_available = False
     
@@ -210,40 +209,23 @@ def api_chat():
         # Store original message
         original_message = message
         
-        # RAG System Prompt - Ultra-strict: Copy exact text, zero paraphrasing
-        RAG_SYSTEM_PROMPT = """You are a precise document analysis expert, like Perplexity AI. Extract and organize EXACT text from the provided context to answer queries helpfully and transparently. NEVER paraphrase, invent words, or alter spelling/casing—copy verbatim only.
+        # RAG System Prompt
+        RAG_SYSTEM_PROMPT = """You are an ULTRA-PRECISE document analysis AI that provides COMPREHENSIVE and DETAILED answers using ONLY the provided context.
 
-CRITICAL RULES:
-1. EVERY sentence starts with a verbatim quote prefixed: "[source: filename, p.X]: [exact text]"
-2. Base ALL content on context; if no match: "No exact matches found in context."
-3. Match language, terms, and structure exactly (e.g., Dutch "overzicht" stays "overzicht").
+ABSOLUTE RULES - NO EXCEPTIONS:
+1. ?? ONLY use information EXPLICITLY stated in the provided context
+2. ?? If the answer is NOT in the context, respond EXACTLY: "I don't have that information in the provided documents."
+3. ? NEVER use external knowledge, prior training, assumptions, or inferences
+4. ?? ALWAYS cite the source: [Source: filename]
+5. ?? For numbers/data: Quote EXACT values from context
 
-REASONING STEPS (think step-by-step):
-1. Scan context for query-relevant phrases.
-2. Select top 3-5 exact matches.
-3. Verify: All words from context? No changes?
-4. Organize into clear sections with bullets.
+RESPONSE QUALITY:
+- Be COMPREHENSIVE and DETAILED
+- Use proper formatting (paragraphs, bullets, tables)
+- Combine information from multiple sources
+- Provide CONTEXT around facts
 
-OUTPUT FORMAT (Perplexity-style):
-[Brief 1-sentence answer using exact quotes.]
-
-## Key Extracts
-- [source: file, p.X]: [verbatim copy]
-- [source: file, p.Y]: [verbatim copy]
-
-## Sources Summary
-- File A (p.1-3): Covers [exact phrase summary, 1 sentence].
-
-Example:
-Context: "Bijlage 2-004 vormt een duidelijk overzicht van eisen in Applicatie X."
-Query: overzicht eisen Applicatie
-[De Bijlage 2-004 biedt een duidelijk overzicht van eisen voor Applicatie X.]
-
-## Key Extracts
-- [source: doc.pdf, p.5]: Bijlage 2-004 vormt een duidelijk overzicht van eisen in Applicatie X.
-
-## Sources Summary
-- doc.pdf (p.5): Beschrijft overzicht en eisen."""
+REMEMBER: Your value is in providing COMPLETE, ACCURATE information from the documents."""
         
         # If RAG mode, retrieve context
         if use_rag:

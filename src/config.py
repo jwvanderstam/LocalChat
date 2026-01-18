@@ -102,9 +102,8 @@ OLLAMA_BASE_URL: str = str(os.environ.get('OLLAMA_BASE_URL', 'http://localhost:1
 # ============================================================================
 
 # Chunking - OPTIMIZED (prevents repetition)
-# Chunking Configuration - OPTIMIZED FOR FIDELITY (Phase 1.1)
-CHUNK_SIZE: int = 300              # Smaller chunks for precise retrieval (was 1200)
-CHUNK_OVERLAP: int = 60            # 20% overlap for context continuity (was 150)
+CHUNK_SIZE: int = 1200             # Large chunks for context
+CHUNK_OVERLAP: int = 150           # 12.5% overlap - industry standard (was 300/25%)
 CHUNK_SEPARATORS: List[str] = [
     '\n\n\n',      # Major section breaks
     '\n\n',        # Paragraph breaks (primary)
@@ -124,11 +123,11 @@ TABLE_CHUNK_SIZE: int = 3000       # Even larger to keep more tables intact
 KEEP_TABLES_INTACT: bool = True    # Always try to keep tables together
 MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 
-# Retrieval Configuration - OPTIMIZED FOR FIDELITY (Phase 1.1)
-TOP_K_RESULTS: int = 10                      # Retrieve more candidates with smaller chunks (was 20)
-MIN_SIMILARITY_THRESHOLD: float = 0.40       # Higher threshold for quality (was 0.30)
+# Retrieval Configuration - OPTIMIZED FOR SYNTHESIS
+TOP_K_RESULTS: int = 20                      # Retrieve focused candidates (reduced from 30)
+MIN_SIMILARITY_THRESHOLD: float = 0.30       # Slightly higher for quality (was 0.25)
 RERANK_RESULTS: bool = True                  # Always re-rank for precision
-RERANK_TOP_K: int = 6                        # Return 6 best chunks for comprehensive answers (was 4)
+RERANK_TOP_K: int = 4                        # Return 4 best chunks - better for synthesis (was 6)
 
 # Hybrid Search Configuration
 HYBRID_SEARCH_ENABLED: bool = True           # Enable semantic + BM25 hybrid search
