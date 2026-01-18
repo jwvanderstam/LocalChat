@@ -58,8 +58,6 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
-test_failures.txt
-test_output.txt
 
 # Build artifacts
 obj/

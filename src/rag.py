@@ -2143,15 +2143,8 @@ class DocumentProcessor:
 
 """
         
-        # Add context end marker with subtle citation reminder
-        context_footer = """
-=== END OF RETRIEVED CONTEXT ===
-
-CITATION REMINDER: Use simple inline format: (Document name, p.X)
-- Place citations at the end of sentences
-- Keep them subtle and non-intrusive
-- Extract page numbers from section headers above
-"""
+        # Add context end marker
+        context_footer = "\n=== END OF RETRIEVED CONTEXT ===\n"
         
         final_context = summary_header + context + context_footer
         
