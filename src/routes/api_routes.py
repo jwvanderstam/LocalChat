@@ -5,16 +5,22 @@ API Routes Blueprint
 ===================
 
 Core API endpoints for LocalChat application.
-Handles status checks and core API functionality.
+Handles status checks, chat (RAG and direct LLM), and core API functionality.
 
 Author: LocalChat Team
 Created: 2025-01-15
+Last Updated: 2025-01-27
 """
 
-from flask import Blueprint, jsonify, current_app
-from typing import Dict, Any
+from flask import Blueprint, jsonify, request, current_app, Response
+from typing import Dict, Any, Generator
+import json
+
+from .. import config
+from ..utils.logging_config import get_logger
 
 bp = Blueprint('api', __name__)
+logger = get_logger(__name__)
 
 
 @bp.route('/status')
@@ -56,20 +62,16 @@ def api_status() -> Dict[str, Any]:
                 misses: 20
                 hit_rate: "80.00%"
     """
-    from .. import config
-    
     active_model = config.app_state.get_active_model()
-    
+
     # Get document count with error handling for closed pool
     doc_count = 0
     db_available = current_app.startup_status.get('database', False)
-    
+
     if db_available:
         try:
             doc_count = current_app.db.get_document_count()
         except Exception as e:
-            # Handle closed pool during shutdown or other DB issues
-            logger = get_logger(__name__)
             logger.warning(f"Could not get document count: {e}")
             db_available = False
     
@@ -157,14 +159,6 @@ def api_chat():
         schema:
           $ref: '#/definitions/Error'
     """
-    from flask import request, Response
-    from typing import Generator
-    import json
-    from .. import config
-    from ..utils.logging_config import get_logger
-    
-    logger = get_logger(__name__)
-    
     try:
         data = request.get_json()
         

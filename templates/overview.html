@@ -60,14 +60,14 @@
                 <div class="mb-3">
                     <label class="text-muted small">Parallel Workers</label>
                     <p class="mb-0">
-                        <span class="badge bg-info">4 threads</span>
+                        <span class="badge bg-info">8 threads</span>
                     </p>
                 </div>
                 <div>
-                    <label class="text-muted small">Chunk Size</label>
+                    <label class="text-muted small">Chunk Size / Overlap</label>
                     <p class="mb-0">
-                        <span class="badge bg-info">500 tokens</span>
-                        <span class="badge bg-info">50 overlap</span>
+                        <span class="badge bg-info">1,200 chars</span>
+                        <span class="badge bg-info">150 overlap</span>
                     </p>
                 </div>
             </div>
@@ -90,8 +90,8 @@
                     <code>localhost:5432/rag_db</code>
                 </div>
                 <div class="mb-2">
-                    <strong>Top-K Results:</strong><br>
-                    <code>5 chunks</code>
+                    <strong>Top-K Candidates:</strong><br>
+                    <code>20 retrieved → 4 re-ranked</code>
                 </div>
                 <div>
                     <strong>Supported Formats:</strong><br>
@@ -125,7 +125,7 @@
                             <div class="accordion-body">
                                 <ul class="list-unstyled">
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Document Ingestion:</strong> Upload PDF, TXT, DOCX, MD files</li>
-                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Smart Chunking:</strong> 500-token chunks with 50-token overlap</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Smart Chunking:</strong> 1,200-char chunks with 150-char overlap</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Vector Embeddings:</strong> Generate embeddings via Ollama</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Semantic Search:</strong> pgvector cosine similarity search</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Context Retrieval:</strong> Top-K most relevant chunks</li>
@@ -251,8 +251,8 @@
                         <div id="performance" class="accordion-collapse collapse" data-bs-parent="#featuresAccordion">
                             <div class="accordion-body">
                                 <ul class="list-unstyled">
-                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Parallel Processing:</strong> 4 worker threads</li>
-                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Batch Embeddings:</strong> Process 10 chunks at once</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Parallel Processing:</strong> 8 worker threads</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Batch Embeddings:</strong> 64 chunks per batch</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Connection Reuse:</strong> HTTP session pooling</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Streaming Responses:</strong> SSE for real-time output</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Efficient Chunking:</strong> Sentence boundary respect</li>
@@ -348,12 +348,12 @@
                                 <div class="list-group">
                                     <div class="list-group-item">
                                         <div class="d-flex w-100 justify-content-between">
-                                            <h6 class="mb-1"><code>src/app.py</code></h6>
-                                            <small class="text-muted">~800 lines</small>
+                                            <h6 class="mb-1"><code>src/app_factory.py</code></h6>
+                                            <small class="text-muted">~430 lines</small>
                                         </div>
-                                        <p class="mb-1">Flask web application with routes and API endpoints</p>
+                                        <p class="mb-1">Application factory — creates and configures the Flask app</p>
                                         <small class="text-muted">
-                                            Web routes, REST API, SSE streaming, error handling, input validation
+                                            Blueprint registration, service initialisation, security, cleanup handlers
                                         </small>
                                     </div>
                                     
@@ -659,7 +659,7 @@
                             <rect x="620" y="180" width="170" height="140" fill="#17a2b8" fill-opacity="0.1" stroke="#17a2b8" stroke-width="2" rx="5"/>
                             <text x="705" y="205" text-anchor="middle" fill="#17a2b8" font-size="13" font-weight="bold">RAG Pipeline</text>
                             <text x="705" y="230" text-anchor="middle" fill="#333" font-size="10">1. Ingest Documents</text>
-                            <text x="705" y="245" text-anchor="middle" fill="#333" font-size="10">2. Chunk Text (500 tokens)</text>
+                            <text x="705" y="245" text-anchor="middle" fill="#333" font-size="10">2. Chunk Text (1,200 chars)</text>
                             <text x="705" y="260" text-anchor="middle" fill="#333" font-size="10">3. Generate Embeddings</text>
                             <text x="705" y="275" text-anchor="middle" fill="#333" font-size="10">4. Store in pgvector</text>
                             <text x="705" y="295" text-anchor="middle" fill="#333" font-size="10">5. Query Embedding</text>
@@ -734,7 +734,7 @@
                     <div class="col-md-6">
                         <h6 class="mt-3">Core Components:</h6>
                         <ul>
-                            <li><strong>Flask Application:</strong> Web server & API (src/app.py)</li>
+                            <li><strong>Flask Application:</strong> Application factory pattern (src/app_factory.py)</li>
                             <li><strong>RAG Engine:</strong> Document processing (src/rag.py)</li>
                             <li><strong>Database Layer:</strong> PostgreSQL + pgvector (src/db.py)</li>
                             <li><strong>Ollama Client:</strong> LLM integration (src/ollama_client.py)</li>
@@ -748,7 +748,7 @@
                             <li>? 231 comprehensive tests (59% coverage)</li>
                             <li>? Streaming responses (Server-Sent Events)</li>
                             <li>? Connection pooling (2-10 connections)</li>
-                            <li>? Parallel processing (4 workers)</li>
+                            <li>✓ Parallel processing (8 workers)</li>
                             <li>? Input sanitization & validation</li>
                             <li>? Comprehensive error handling</li>
                             <li>? Professional logging system</li>
@@ -759,7 +759,7 @@
                 <h6 class="text-primary mt-4">Data Flow:</h6>
                 <ol>
                     <li><strong>Document Upload:</strong> User uploads file ? Flask receives ? RAG processes</li>
-                    <li><strong>Chunking:</strong> Text split into 500-token chunks with 50-token overlap</li>
+                    <li><strong>Chunking:</strong> Text split into 1,200-char chunks with 150-char overlap</li>
                     <li><strong>Embedding:</strong> Each chunk ? Ollama ? 768-dim vector</li>
                     <li><strong>Storage:</strong> Chunks + embeddings ? PostgreSQL with pgvector</li>
                     <li><strong>Query:</strong> User question ? Ollama ? query embedding</li>
@@ -863,7 +863,8 @@
                         <div id="modalSrc" class="accordion-collapse collapse show" data-bs-parent="#modalFileAccordion">
                             <div class="accordion-body">
                                 <ul class="list-unstyled">
-                                    <li><code>app.py</code> (~800) - Flask web app with routes & API</li>
+                                    <li><code>app_factory.py</code> (~430) - Application factory &amp; service wiring</li>
+                                    <li><code>routes/</code> - Blueprint modules (api, documents, models, web)</li>
                                     <li><code>config.py</code> (~200) - Configuration & state management</li>
                                     <li><code>db.py</code> (~600) - PostgreSQL + pgvector operations</li>
                                     <li><code>rag.py</code> (~800) - Document processing & RAG engine</li>
@@ -952,7 +953,7 @@
                     <tbody>
                         <tr>
                             <td>Add new API endpoint</td>
-                            <td><code>src/app.py</code></td>
+                            <td><code>src/routes/*.py</code></td>
                         </tr>
                         <tr>
                             <td>Change RAG settings</td>

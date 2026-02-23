@@ -26,7 +26,7 @@ from datetime import datetime
 import threading
 
 from flask import Flask, request, g, jsonify
-from src.utils.logging_config import get_logger
+from .utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

@@ -15,7 +15,7 @@ Example:
     ...     doc_id = db.insert_document("test.pdf", "content")
 
 Author: LocalChat Team
-Last Updated: 2024-12-27
+Last Updated: 2025-01-27
 """
 
 import psycopg
@@ -32,6 +32,19 @@ from .utils.logging_config import get_logger
 
 # Setup logger
 logger = get_logger(__name__)
+
+
+# ============================================================================
+# CUSTOM EXCEPTIONS
+# ============================================================================
+
+class DatabaseUnavailableError(Exception):
+    """
+    Exception raised when database operations are attempted without an active connection.
+    
+    This occurs when the application is running in degraded mode (PostgreSQL unavailable).
+    """
+    pass
 
 
 # ============================================================================
@@ -432,8 +445,14 @@ class Database:
                         chunk_text TEXT NOT NULL,
                         chunk_index INTEGER NOT NULL,
                         embedding vector(768),
+                        metadata JSONB,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
+                """)
+                # Add metadata column to existing tables that were created without it
+                cursor.execute("""
+                    ALTER TABLE document_chunks
+                    ADD COLUMN IF NOT EXISTS metadata JSONB
                 """)
                 logger.debug("Document chunks table ensured")
                 
@@ -467,13 +486,16 @@ class Database:
     def get_connection(self) -> Generator[psycopg.Connection, None, None]:
         """
         Get a connection from the pool as a context manager.
-        
+
         Automatically handles connection lifecycle: acquire from pool,
         commit on success, rollback on error, and return to pool.
-        
+
         Yields:
             psycopg.Connection: Database connection from pool
-        
+
+        Raises:
+            DatabaseUnavailableError: If connection pool is not initialized
+
         Example:
             >>> with db.get_connection() as conn:
             ...     with conn.cursor() as cursor:
@@ -481,7 +503,11 @@ class Database:
             ...         results = cursor.fetchall()
         """
         if not self.connection_pool:
-            raise RuntimeError("Connection pool not initialized")
+            raise DatabaseUnavailableError(
+                "Database is not available. PostgreSQL connection was not established. "
+                "Please ensure PostgreSQL is running and accessible. "
+                "Check logs for details or set REQUIRE_DATABASE=true to prevent startup without database."
+            )
         
         connection = self.connection_pool.getconn()
         try:
@@ -521,15 +547,18 @@ class Database:
     ) -> int:
         """
         Insert a new document and return its ID.
-        
+
         Args:
             filename: Name of the document file
             content: Text content of the document
             metadata: Optional metadata dictionary
-        
+
         Returns:
             int: ID of inserted document
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> doc_id = db.insert_document(
             ...     "report.pdf",
@@ -538,6 +567,9 @@ class Database:
             ... )
             >>> print(f"Inserted document ID: {doc_id}")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot insert document: Database is not connected")
+
         logger.debug(f"Inserting document: {filename}")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -556,11 +588,14 @@ class Database:
     ) -> None:
         """
         Insert multiple chunks in a batch for better performance.
-        
+
         Args:
             chunks_data: List of tuples (doc_id, chunk_text, chunk_index, embedding)
                         OR List of dicts with keys: doc_id, chunk_text, chunk_index, embedding, metadata
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> # Old format (still supported)
             >>> chunks = [
@@ -568,7 +603,7 @@ class Database:
             ...     (1, "Second chunk text", 1, [0.3, 0.4, ...])
             ... ]
             >>> db.insert_chunks_batch(chunks)
-            
+
             >>> # New format with metadata
             >>> chunks = [
             ...     {
@@ -581,6 +616,9 @@ class Database:
             ... ]
             >>> db.insert_chunks_batch(chunks)
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot insert chunks: Database is not connected")
+
         logger.debug(f"Inserting batch of {len(chunks_data)} chunks")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -618,27 +656,33 @@ class Database:
     ) -> List[Tuple[str, str, int, float, Dict[str, Any]]]:
         """
         Search for similar chunks using cosine similarity.
-        
+
         Uses pgvector's cosine distance operator (<=>) to find the most
         similar chunks to the query embedding. Optimized with HNSW index
         for fast approximate nearest neighbor search.
-        
+
         Args:
             query_embedding: Query vector (768 dimensions)
             top_k: Number of results to return
             file_type_filter: Optional file extension filter (e.g., '.pdf')
-        
+
         Returns:
             List of tuples: (chunk_text, filename, chunk_index, similarity, metadata)
             Similarity scores are in range [0, 1] where 1 is most similar
             metadata is a dict with page_number, section_title, etc.
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> results = db.search_similar_chunks(embedding, top_k=10)
             >>> for text, file, idx, score, meta in results:
             ...     page = meta.get('page_number', 'N/A')
             ...     print(f"{file} chunk {idx} (page {page}): {score:.3f}")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
+
         logger.debug(f"Searching for top {top_k} similar chunks")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -649,44 +693,44 @@ class Database:
                 # ef_search should be >= top_k for good results
                 # Note: SET command doesn't support parameterized queries
                 ef_search_value = max(top_k * 2, 100)
-                cursor.execute(f"SET hnsw.ef_search = {ef_search_value}")
-                
-                # Optimized query using ORDER BY with LIMIT pushed to database
+                cursor.execute(
+                    sql.SQL("SET hnsw.ef_search = {}").format(sql.Literal(ef_search_value))
+                )
+
                 # This leverages the HNSW index for fast ANN search
                 if file_type_filter:
-                    query_sql = f"""
+                    query_sql = """
                         SELECT 
                             dc.chunk_text,
                             d.filename,
                             dc.chunk_index,
-                            1 - (dc.embedding <=> '{embedding_str}'::vector) as similarity,
+                            1 - (dc.embedding <=> %s::vector) as similarity,
                             dc.metadata
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
                         WHERE dc.embedding IS NOT NULL
                           AND d.filename LIKE %s
-                        ORDER BY dc.embedding <=> '{embedding_str}'::vector
+                        ORDER BY dc.embedding <=> %s::vector
                         LIMIT %s
                     """
                     file_pattern = f'%{file_type_filter}'
-                    cursor.execute(query_sql, (file_pattern, top_k))
+                    cursor.execute(query_sql, (embedding_str, file_pattern, embedding_str, top_k))
                     logger.debug(f"Searching with file type filter: {file_type_filter}")
                 else:
-                    query_sql = f"""
+                    query_sql = """
                         SELECT 
                             dc.chunk_text,
                             d.filename,
                             dc.chunk_index,
-                            1 - (dc.embedding <=> '{embedding_str}'::vector) as similarity,
+                            1 - (dc.embedding <=> %s::vector) as similarity,
                             dc.metadata
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
                         WHERE dc.embedding IS NOT NULL
-                        ORDER BY dc.embedding <=> '{embedding_str}'::vector
+                        ORDER BY dc.embedding <=> %s::vector
                         LIMIT %s
                     """
-                    cursor.execute(query_sql, (top_k,))
-                
+                    cursor.execute(query_sql, (embedding_str, embedding_str, top_k))
                 results = cursor.fetchall()
                 conn.commit()
                 logger.debug(f"Found {len(results)} similar chunks")
@@ -702,68 +746,74 @@ class Database:
     ) -> List[Tuple[str, str, int, float, int]]:
         """
         Search for similar chunks with additional metadata for re-ranking.
-        
+
         Enhanced version that returns document_id for context window expansion
         and applies similarity threshold at database level.
-        
+
         Args:
             query_embedding: Query vector (768 dimensions)
             top_k: Number of results to return
             min_similarity: Minimum similarity threshold (0.0-1.0)
             file_type_filter: Optional file extension filter
-        
+
         Returns:
             List of tuples: (chunk_text, filename, chunk_index, similarity, document_id)
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
+
         logger.debug(f"Searching for top {top_k} similar chunks (min_sim={min_similarity})")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 embedding_str = self._embedding_to_pg_array(query_embedding)
-                
                 # Set HNSW search parameters
-                # Note: SET command doesn't support parameterized queries
                 ef_search_value = max(top_k * 2, 100)
-                cursor.execute(f"SET hnsw.ef_search = {ef_search_value}")
-                
+                cursor.execute(
+                    sql.SQL("SET hnsw.ef_search = {}").format(sql.Literal(ef_search_value))
+                )
+
                 # Calculate distance threshold from similarity threshold
                 # similarity = 1 - distance, so distance = 1 - similarity
                 max_distance = 1.0 - min_similarity
-                
+
                 if file_type_filter:
-                    query_sql = f"""
+                    query_sql = """
                         SELECT 
                             dc.chunk_text,
                             d.filename,
                             dc.chunk_index,
-                            1 - (dc.embedding <=> '{embedding_str}'::vector) as similarity,
+                            1 - (dc.embedding <=> %s::vector) as similarity,
                             dc.document_id
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
                         WHERE dc.embedding IS NOT NULL
                           AND d.filename LIKE %s
-                          AND (dc.embedding <=> '{embedding_str}'::vector) <= %s
-                        ORDER BY dc.embedding <=> '{embedding_str}'::vector
+                          AND (dc.embedding <=> %s::vector) <= %s
+                        ORDER BY dc.embedding <=> %s::vector
                         LIMIT %s
                     """
                     file_pattern = f'%{file_type_filter}'
-                    cursor.execute(query_sql, (file_pattern, max_distance, top_k))
+                    cursor.execute(query_sql, (embedding_str, file_pattern, embedding_str, max_distance, embedding_str, top_k))
                 else:
-                    query_sql = f"""
+                    query_sql = """
                         SELECT 
                             dc.chunk_text,
                             d.filename,
                             dc.chunk_index,
-                            1 - (dc.embedding <=> '{embedding_str}'::vector) as similarity,
+                            1 - (dc.embedding <=> %s::vector) as similarity,
                             dc.document_id
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
                         WHERE dc.embedding IS NOT NULL
-                          AND (dc.embedding <=> '{embedding_str}'::vector) <= %s
-                        ORDER BY dc.embedding <=> '{embedding_str}'::vector
+                          AND (dc.embedding <=> %s::vector) <= %s
+                        ORDER BY dc.embedding <=> %s::vector
                         LIMIT %s
                     """
-                    cursor.execute(query_sql, (max_distance, top_k))
-                
+                    cursor.execute(query_sql, (embedding_str, embedding_str, max_distance, embedding_str, top_k))
+
                 results = cursor.fetchall()
                 conn.commit()
                 logger.debug(f"Found {len(results)} chunks above similarity threshold {min_similarity}")
@@ -777,18 +827,24 @@ class Database:
     ) -> List[Tuple[str, int]]:
         """
         Get adjacent chunks for context window expansion.
-        
+
         Retrieves chunks before and after the specified chunk to provide
         additional context for better understanding.
-        
+
         Args:
             document_id: ID of the document
             chunk_index: Index of the center chunk
             window_size: Number of chunks before and after to retrieve
-        
+
         Returns:
             List of tuples: (chunk_text, chunk_index) ordered by chunk_index
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot get adjacent chunks: Database is not connected")
+
         logger.debug(f"Getting adjacent chunks for doc {document_id}, chunk {chunk_index}, window {window_size}")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -807,14 +863,20 @@ class Database:
     def get_document_count(self) -> int:
         """
         Get total number of documents in database.
-        
+
         Returns:
             int: Count of documents
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> count = db.get_document_count()
             >>> print(f"Total documents: {count}")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot get document count: Database is not connected")
+
         logger.debug("Getting document count")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -822,18 +884,24 @@ class Database:
                 count = cursor.fetchone()[0]
                 logger.debug(f"Document count: {count}")
                 return count
-    
+
     def get_chunk_count(self) -> int:
         """
         Get total number of chunks in database.
-        
+
         Returns:
             int: Count of chunks
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> count = db.get_chunk_count()
             >>> print(f"Total chunks: {count}")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot get chunk count: Database is not connected")
+
         logger.debug("Getting chunk count")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -845,19 +913,25 @@ class Database:
     def get_all_documents(self) -> List[Dict[str, Any]]:
         """
         Get list of all documents with metadata.
-        
+
         Returns:
             List of dictionaries containing document information:
             - id: Document ID
             - filename: Document filename
             - created_at: Creation timestamp
             - chunk_count: Number of chunks for this document
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> docs = db.get_all_documents()
             >>> for doc in docs:
             ...     print(f"{doc['filename']}: {doc['chunk_count']} chunks")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot get documents: Database is not connected")
+
         logger.debug("Getting all documents")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -889,20 +963,26 @@ class Database:
     def document_exists(self, filename: str) -> Tuple[bool, Dict[str, Any]]:
         """
         Check if a document with given filename already exists.
-        
+
         Args:
             filename: Name of the document file
-        
+
         Returns:
             Tuple of (exists: bool, doc_info: Dict)
             - exists: True if document exists
             - doc_info: Dictionary with document details (id, chunk_count, created_at)
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> exists, info = db.document_exists("report.pdf")
             >>> if exists:
             ...     print(f"Document already exists with {info['chunk_count']} chunks")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot check document existence: Database is not connected")
+
         logger.debug(f"Checking if document exists: {filename}")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -933,7 +1013,7 @@ class Database:
     def get_chunk_statistics(self) -> Dict[str, Any]:
         """
         Get statistics about chunks in the database for debugging.
-        
+
         Returns:
             Dictionary with chunk statistics:
             - total_chunks: Total number of chunks
@@ -941,12 +1021,18 @@ class Database:
             - chunks_without_embeddings: Number of chunks without embeddings
             - avg_chunk_length: Average chunk text length
             - sample_chunks: Sample of 3 chunks for inspection
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> stats = db.get_chunk_statistics()
             >>> print(f"Total chunks: {stats['total_chunks']}")
             >>> print(f"Sample: {stats['sample_chunks'][0]['preview']}")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot get chunk statistics: Database is not connected")
+
         logger.debug("Getting chunk statistics")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -961,7 +1047,7 @@ class Database:
                 row = cursor.fetchone()
                 total = row[0]
                 with_embeddings = row[1]
-                avg_length = row[2] if row[2] else 0
+                avg_length = float(row[2]) if row[2] else 0.0
                 
                 # Get sample chunks
                 cursor.execute("""
@@ -1005,22 +1091,28 @@ class Database:
     ) -> List[Dict[str, Any]]:
         """
         Search chunks by text content (for debugging keyword matching).
-        
+
         Performs a simple SQL text search to see what content is in chunks.
         Useful for debugging why BM25 might not find keyword matches.
-        
+
         Args:
             search_text: Text to search for (case-insensitive)
             limit: Maximum number of results
-        
+
         Returns:
             List of dictionaries with chunk information
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> results = db.search_chunks_by_text("security", limit=5)
             >>> for r in results:
             ...     print(f"{r['filename']}: {r['preview']}")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot search chunks by text: Database is not connected")
+
         logger.debug(f"Searching chunks for text: {search_text}")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -1053,13 +1145,19 @@ class Database:
     def delete_all_documents(self) -> None:
         """
         Delete all documents and their chunks from the database.
-        
+
         WARNING: This operation cannot be undone!
-        
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+
         Example:
             >>> db.delete_all_documents()
             >>> print("All documents deleted")
         """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot delete documents: Database is not connected")
+
         logger.warning("Deleting ALL documents and chunks")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -1082,3 +1180,6 @@ class Database:
 db = Database()
 
 logger.info("Database module loaded")
+
+# Export exception for use in error handlers
+__all__ = ['Database', 'db', 'DatabaseUnavailableError']

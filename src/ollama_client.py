@@ -15,7 +15,7 @@ Example:
     ...     embedding = ollama_client.generate_embedding("nomic-embed-text", "Hello")
 
 Author: LocalChat Team
-Last Updated: 2024-12-27
+Last Updated: 2025-01-27
 """
 
 import requests

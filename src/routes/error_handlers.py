@@ -18,6 +18,7 @@ from pydantic import ValidationError as PydanticValidationError
 from ..utils.logging_config import get_logger
 from .. import exceptions
 from ..models import ErrorResponse
+from ..db import DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
@@ -154,12 +155,27 @@ def register_error_handlers(app: Flask) -> None:
         """Handle custom LocalChat exceptions."""
         status_code = exceptions.get_status_code(error)
         logger.error(f"{error.__class__.__name__}: {error.message}", extra=error.details)
-        
+
         error_response = ErrorResponse(
             error=error.__class__.__name__,
             message=error.message,
             details=error.details
         )
         return jsonify(error_response.model_dump()), status_code
-    
+
+    @app.errorhandler(DatabaseUnavailableError)
+    def database_unavailable_handler(error: DatabaseUnavailableError):
+        """Handle database unavailable errors (degraded mode)."""
+        logger.warning(f"Database unavailable: {str(error)}")
+
+        error_response = ErrorResponse(
+            error="DatabaseUnavailable",
+            message="Database is not available",
+            details={
+                "description": str(error),
+                "help": "The application is running in degraded mode. Please ensure PostgreSQL is running and restart the application."
+            }
+        )
+        return jsonify(error_response.model_dump()), 503
+
     logger.debug("Error handlers registered")

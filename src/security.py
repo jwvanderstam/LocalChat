@@ -1,6 +1,6 @@
 """
-Security Module - Week 1 Security Improvements
-==============================================
+Security Module
+==============
 
 Authentication, rate limiting, and security middleware for LocalChat application.
 
@@ -12,7 +12,7 @@ Features:
     - Request logging
 
 Author: LocalChat Team
-Last Updated: 2026-01-03 (Week 1 - Security Improvements)
+Last Updated: 2025-01-27
 """
 
 from flask import Flask, request, jsonify, Response

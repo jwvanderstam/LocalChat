@@ -21,7 +21,7 @@ Example:
     ...     raise OllamaConnectionError("Ollama service is not running")
 
 Author: LocalChat Team
-Last Updated: 2024-12-27
+Last Updated: 2025-01-27
 """
 
 from typing import Optional, Dict, Any

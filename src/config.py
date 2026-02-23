@@ -19,7 +19,7 @@ Example:
     >>> print(f"Chunk size: {CHUNK_SIZE}")
 
 Author: LocalChat Team
-Last Updated: 2026-01-04 (Fixed type safety)
+Last Updated: 2025-01-27 (Fixed type safety)
 """
 
 import os
@@ -37,7 +37,7 @@ load_dotenv()
 logger = get_logger(__name__)
 
 # ============================================================================
-# SECURITY CONFIGURATION - WEEK 1
+# SECURITY CONFIGURATION
 # ============================================================================
 
 # Secret keys - MUST be set in production!

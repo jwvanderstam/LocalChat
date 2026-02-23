@@ -186,25 +186,22 @@ def api_pull_model():
     """
     try:
         data = request.get_json()
-        
-        # Try Month 2 validation
+
         try:
             from ..models import ModelPullRequest
             from ..utils.sanitization import sanitize_model_name
-            
+
             request_data = ModelPullRequest(**data)
             model_name = sanitize_model_name(request_data.model)
-            
+
         except ImportError:
-            # Month 1 validation
             model_name = data.get('model', '').strip()
             
             if not model_name:
                 return jsonify({'success': False, 'message': 'Model name required'}), 400
         
         logger.info(f"Pulling model: {model_name}")
-        
-        # Capture app object before entering generator
+
         app = current_app._get_current_object()
         
         def generate() -> Generator[str, None, None]:
@@ -277,19 +274,17 @@ def api_test_model():
     """
     try:
         data = request.get_json()
-        
-        # Try Month 2 validation
+
         try:
             from ..models import ModelRequest
             from ..utils.sanitization import sanitize_model_name
-            
+
             request_data = ModelRequest(**data)
             model_name = sanitize_model_name(request_data.model)
-            
+
         except ImportError:
-            # Month 1 validation
             model_name = data.get('model', '').strip()
-            
+
             if not model_name:
                 return jsonify({'success': False, 'message': 'Model name required'}), 400
         
