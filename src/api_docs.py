@@ -29,7 +29,7 @@ SWAGGER_CONFIG = {
     "swagger_ui": True,
     "specs_route": "/api/docs/",
     "title": "LocalChat API",
-    "version": "0.3.0",
+    "version": "1.0.0",
     "description": "Professional RAG (Retrieval-Augmented Generation) API",
     "termsOfService": None,
     "hide_top_bar": False,
@@ -55,15 +55,15 @@ Professional Retrieval-Augmented Generation (RAG) application for document-based
 
 ## Authentication
 
-Currently, the API supports both authenticated and unauthenticated modes:
-- **Month 1 Mode**: Basic validation (no auth required)
-- **Month 2 Mode**: Pydantic validation with optional JWT auth
+The API supports optional JWT authentication. Unauthenticated requests are
+accepted for all endpoints by default.
 
 ## Rate Limiting
 
-- Default: 100 requests per minute per IP
-- Chat endpoint: 20 requests per minute
-- Model operations: 10 requests per minute
+- Default: 60 requests per minute per IP
+- Chat endpoint: 10 requests per minute
+- Upload endpoint: 5 requests per hour
+- Model operations: 20 requests per minute
 
 ## Base URL
 
@@ -100,7 +100,7 @@ Error responses:
 
 Maximum file size: 16 MB
         """,
-        "version": "0.3.0",
+        "version": "1.0.0",
         "contact": {
             "name": "LocalChat Team",
             "url": "https://github.com/jwvanderstam/LocalChat",

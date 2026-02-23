@@ -128,34 +128,38 @@ def api_upload_documents():
     
     # Stream ingestion progress
     def generate() -> Generator[str, None, None]:
-        results = []
-        for file_path in file_paths:
-            yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
-            
-            success, message, doc_id = app.doc_processor.ingest_document(
-                file_path,
-                lambda m: None
-            )
-            
-            results.append({
-                'filename': os.path.basename(file_path),
-                'success': success,
-                'message': message
-            })
-            
-            yield f"data: {json.dumps({'result': results[-1]})}\n\n"
-            
-            # Clean up temporary file
-            try:
-                os.remove(file_path)
-            except:
-                pass
-        
-        # Update document count
-        doc_count = app.db.get_document_count()
-        config.app_state.set_document_count(doc_count)
-        
-        yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
+        try:
+            results = []
+            for file_path in file_paths:
+                yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
+
+                success, message, doc_id = app.doc_processor.ingest_document(
+                    file_path,
+                    lambda m: None
+                )
+
+                results.append({
+                    'filename': os.path.basename(file_path),
+                    'success': success,
+                    'message': message
+                })
+
+                yield f"data: {json.dumps({'result': results[-1]})}\n\n"
+
+                # Clean up temporary file
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
+
+            # Update document count
+            doc_count = app.db.get_document_count()
+            config.app_state.set_document_count(doc_count)
+
+            yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
+        except Exception as e:
+            logger.error(f"Upload stream error: {e}", exc_info=True)
+            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
     
     response = Response(generate(), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
@@ -249,17 +253,15 @@ def api_test_retrieval():
     try:
         data = request.get_json()
         
-        # Try Month 2 validation
         try:
             from ..models import RetrievalRequest
             from ..utils.sanitization import sanitize_query
-            
+
             request_data = RetrievalRequest(**data)
             query = sanitize_query(request_data.query)
             use_hybrid = data.get('use_hybrid_search', True)
-            
+
         except ImportError:
-            # Month 1 validation
             query = data.get('query', 'What is this about?').strip()
             use_hybrid = data.get('use_hybrid_search', True)
             
