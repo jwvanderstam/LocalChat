@@ -24,6 +24,7 @@ from psycopg.types.json import Jsonb
 from psycopg.adapt import Loader, Dumper
 from psycopg import sql
 import numpy as np
+import uuid
 from contextlib import contextmanager
 from typing import List, Tuple, Optional, Any, Dict, Union, Generator
 import socket
@@ -182,13 +183,13 @@ class Database:
             ...     print(f"PostgreSQL not available: {msg}")
         """
         logger.debug(f"Checking if PostgreSQL server is available at {host}:{port}")
+        sock = None
         try:
             # Try to establish a socket connection
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(timeout)
             result = sock.connect_ex((host, port))
-            sock.close()
-            
+
             if result == 0:
                 logger.debug(f"? PostgreSQL server is reachable at {host}:{port}")
                 return True, f"PostgreSQL server is reachable at {host}:{port}"
@@ -207,7 +208,7 @@ class Database:
                 )
                 logger.error(error_msg)
                 return False, error_msg
-                
+
         except socket.gaierror as e:
             # DNS/hostname resolution error
             error_msg = (
@@ -217,7 +218,7 @@ class Database:
             )
             logger.error(error_msg)
             return False, error_msg
-            
+
         except socket.timeout:
             error_msg = (
                 f"Connection to PostgreSQL at {host}:{port} timed out\n"
@@ -226,11 +227,17 @@ class Database:
             )
             logger.error(error_msg)
             return False, error_msg
-            
+
         except Exception as e:
             error_msg = f"Unexpected error checking PostgreSQL availability: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return False, error_msg
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
     
     @staticmethod
     def _embedding_to_pg_array(embedding: Union[List[float], np.ndarray]) -> str:
@@ -479,6 +486,37 @@ class Database:
                 """)
                 logger.debug("Chunk index ensured")
                 
+                # Create conversations table for persistent chat memory
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        id UUID PRIMARY KEY,
+                        title VARCHAR(255) NOT NULL DEFAULT 'New Conversation',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                logger.debug("Conversations table ensured")
+
+                # Create conversation_messages table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS conversation_messages (
+                        id SERIAL PRIMARY KEY,
+                        conversation_id UUID NOT NULL
+                            REFERENCES conversations(id) ON DELETE CASCADE,
+                        role VARCHAR(20) NOT NULL,
+                        content TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                logger.debug("Conversation messages table ensured")
+
+                # Index for fast message retrieval per conversation
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS conversation_messages_conv_id_idx
+                    ON conversation_messages (conversation_id, created_at)
+                """)
+                logger.debug("Conversation messages index ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
     
@@ -1142,6 +1180,199 @@ class Database:
                 logger.info(f"Found {len(results)} chunks containing '{search_text}'")
                 return results
     
+    # ========================================================================
+    # CONVERSATION / PERSISTENT MEMORY METHODS
+    # ========================================================================
+
+    def create_conversation(self, title: str = 'New Conversation') -> str:
+        """
+        Create a new conversation and return its UUID.
+
+        Args:
+            title: Conversation title (truncated to 255 chars)
+
+        Returns:
+            str: UUID of the created conversation
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot create conversation: Database is not connected")
+
+        conversation_id = str(uuid.uuid4())
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO conversations (id, title) VALUES (%s, %s)",
+                    (conversation_id, title[:255])
+                )
+                conn.commit()
+        logger.debug(f"Created conversation: {conversation_id}")
+        return conversation_id
+
+    def list_conversations(self) -> List[Dict[str, Any]]:
+        """
+        List all conversations ordered by most recently updated.
+
+        Returns:
+            List of dicts with keys: id, title, created_at, updated_at, message_count
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot list conversations: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT
+                        c.id,
+                        c.title,
+                        c.created_at,
+                        c.updated_at,
+                        COUNT(cm.id) AS message_count
+                    FROM conversations c
+                    LEFT JOIN conversation_messages cm ON c.id = cm.conversation_id
+                    GROUP BY c.id, c.title, c.created_at, c.updated_at
+                    ORDER BY c.updated_at DESC
+                """)
+                rows = cursor.fetchall()
+                return [
+                    {
+                        'id': str(row[0]),
+                        'title': row[1],
+                        'created_at': row[2].isoformat() if row[2] else None,
+                        'updated_at': row[3].isoformat() if row[3] else None,
+                        'message_count': row[4],
+                    }
+                    for row in rows
+                ]
+
+    def get_conversation_messages(self, conversation_id: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Get all messages for a conversation.
+
+        Args:
+            conversation_id: UUID of the conversation
+
+        Returns:
+            List of message dicts (role, content, timestamp), or None if not found
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot get messages: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT id FROM conversations WHERE id = %s", (conversation_id,))
+                if not cursor.fetchone():
+                    return None
+
+                cursor.execute("""
+                    SELECT role, content, created_at
+                    FROM conversation_messages
+                    WHERE conversation_id = %s
+                    ORDER BY created_at ASC, id ASC
+                """, (conversation_id,))
+                rows = cursor.fetchall()
+                return [
+                    {
+                        'role': row[0],
+                        'content': row[1],
+                        'timestamp': row[2].isoformat() if row[2] else None,
+                    }
+                    for row in rows
+                ]
+
+    def save_message(self, conversation_id: str, role: str, content: str) -> int:
+        """
+        Append a message to a conversation and bump its updated_at timestamp.
+
+        Args:
+            conversation_id: UUID of the conversation
+            role: 'user' or 'assistant'
+            content: Message text
+
+        Returns:
+            int: ID of the inserted message row
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot save message: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """INSERT INTO conversation_messages (conversation_id, role, content)
+                       VALUES (%s, %s, %s) RETURNING id""",
+                    (conversation_id, role, content)
+                )
+                message_id = cursor.fetchone()[0]
+                cursor.execute(
+                    "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                    (conversation_id,)
+                )
+                conn.commit()
+        logger.debug(f"Saved {role} message (id={message_id}) to conversation {conversation_id}")
+        return message_id
+
+    def update_conversation_title(self, conversation_id: str, title: str) -> bool:
+        """
+        Update a conversation's title.
+
+        Args:
+            conversation_id: UUID of the conversation
+            title: New title (truncated to 255 chars)
+
+        Returns:
+            bool: True if updated, False if conversation not found
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot update conversation: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                    (title[:255], conversation_id)
+                )
+                updated = cursor.rowcount > 0
+                conn.commit()
+        return updated
+
+    def delete_conversation(self, conversation_id: str) -> bool:
+        """
+        Delete a conversation and all its messages (cascade).
+
+        Args:
+            conversation_id: UUID of the conversation
+
+        Returns:
+            bool: True if deleted, False if not found
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot delete conversation: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
+                deleted = cursor.rowcount > 0
+                conn.commit()
+        logger.debug(f"Deleted conversation: {conversation_id}")
+        return deleted
+
     def delete_all_documents(self) -> None:
         """
         Delete all documents and their chunks from the database.

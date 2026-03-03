@@ -12,9 +12,16 @@ Created: 2025-01-15
 Last Updated: 2025-01-27
 """
 
-from flask import Blueprint, jsonify, request, current_app, Response
-from typing import Dict, Any, Generator
+from flask import Blueprint, jsonify, request, Response
+from flask import current_app as _current_app
+from typing import Dict, Any, Generator, TYPE_CHECKING
 import json
+
+if TYPE_CHECKING:
+    from ..types import LocalChatApp
+    current_app: LocalChatApp
+else:
+    current_app = _current_app
 
 from .. import config
 from ..utils.logging_config import get_logger
@@ -24,10 +31,10 @@ logger = get_logger(__name__)
 
 
 @bp.route('/status')
-def api_status() -> Dict[str, Any]:
+def api_status():
     """
     Get system status.
-    
+
     Provides health check and status information for all services.
     ---
     tags:
@@ -161,19 +168,23 @@ def api_chat():
     """
     try:
         data = request.get_json()
-        
+        if not data or not isinstance(data, dict):
+            return jsonify({'success': False, 'message': 'Request body must be valid JSON'}), 400
+
         # Import validation modules conditionally
         try:
             from pydantic import ValidationError as PydanticValidationError
             from ..models import ChatRequest
             from ..utils.sanitization import sanitize_query
             from .. import exceptions
-            
+
             # Pydantic validation + sanitization
             request_data = ChatRequest(**data)
             message = sanitize_query(request_data.message)
             use_rag = request_data.use_rag
             chat_history = request_data.history
+            conversation_id = request_data.conversation_id
+            images = request_data.images or []
             
         except ImportError as e:
             logger.error(f"Failed to import required modules: {e}")
@@ -204,22 +215,15 @@ def api_chat():
         original_message = message
         
         # RAG System Prompt
-        RAG_SYSTEM_PROMPT = """You are an ULTRA-PRECISE document analysis AI that provides COMPREHENSIVE and DETAILED answers using ONLY the provided context.
+        RAG_SYSTEM_PROMPT = """You are a helpful assistant that answers questions based strictly on the provided context passages.
 
-ABSOLUTE RULES - NO EXCEPTIONS:
-1. ?? ONLY use information EXPLICITLY stated in the provided context
-2. ?? If the answer is NOT in the context, respond EXACTLY: "I don't have that information in the provided documents."
-3. ? NEVER use external knowledge, prior training, assumptions, or inferences
-4. ?? ALWAYS cite the source: [Source: filename]
-5. ?? For numbers/data: Quote EXACT values from context
-
-RESPONSE QUALITY:
-- Be COMPREHENSIVE and DETAILED
-- Use proper formatting (paragraphs, bullets, tables)
-- Combine information from multiple sources
-- Provide CONTEXT around facts
-
-REMEMBER: Your value is in providing COMPLETE, ACCURATE information from the documents."""
+Rules:
+1. Answer directly and concisely using only information from the provided context.
+2. If the answer is not in the context, say: "I don't have that information in the provided documents."
+3. Do not describe the document structure or list section names — synthesize the content into a clear, direct answer.
+4. Do not reference internal identifiers like chunk numbers or section indices.
+5. Only use bullet points or tables when the content genuinely benefits from that structure.
+6. You may mention the source document name when it adds useful context."""
         
         # If RAG mode, retrieve context
         if use_rag:
@@ -258,7 +262,7 @@ REMEMBER: Your value is in providing COMPLETE, ACCURATE information from the doc
 
 Question: {original_message}
 
-Remember: Answer ONLY based on the context above."""
+Answer the question directly using the information above. Do not list document sections or describe the document structure — synthesize the relevant content into a clear response."""
                     
                     message = user_prompt
                     logger.info(f"[CHAT API] Context formatted - {len(results)} chunks")
@@ -276,21 +280,75 @@ Remember: Answer ONLY based on the context above."""
                 raise exceptions.SearchError(error_msg, details={"error": str(e)})
         else:
             logger.debug("[CHAT API] Direct LLM mode - no RAG")
-        
-        messages.append({'role': 'user', 'content': message})
-        
+
+        user_message: Dict[str, Any] = {'role': 'user', 'content': message}
+        if images:
+            user_message['images'] = images
+            logger.info(f"[CHAT API] Attaching {len(images)} image(s) to request")
+        messages.append(user_message)
+
+        # Persistent memory: create or reuse a conversation, then save the user message
+        if current_app.startup_status.get('database', False):
+            try:
+                if not conversation_id:
+                    title = original_message[:60] + ('...' if len(original_message) > 60 else '')
+                    conversation_id = current_app.db.create_conversation(title)
+                    logger.debug(f"[MEMORY] Created conversation: {conversation_id}")
+                current_app.db.save_message(conversation_id, 'user', original_message)
+                logger.debug(f"[MEMORY] Saved user message to conversation {conversation_id}")
+            except Exception as mem_err:
+                logger.warning(f"[MEMORY] Could not persist user message: {mem_err}")
+                conversation_id = None
+
         # Capture app object before entering generator
-        app = current_app._get_current_object()
-        
+        app = current_app._get_current_object()  # type: ignore[attr-defined]
+
+        # Initialize tool executor when tool calling is enabled
+        _tool_executor = None
+        if config.TOOL_CALLING_ENABLED:
+            try:
+                from ..tools import tool_registry, ToolExecutor
+
+                if len(tool_registry) > 0:
+                    _tool_executor = ToolExecutor(app.ollama_client, tool_registry)
+                    logger.debug(
+                        f"[CHAT API] Tool calling enabled with {len(tool_registry)} tool(s): "
+                        f"{', '.join(tool_registry.names)}"
+                    )
+            except ImportError:
+                logger.debug("[CHAT API] Tools module not available, skipping")
+
         # Stream response
         def generate() -> Generator[str, None, None]:
+            full_response: list = []
             try:
                 logger.debug("[CHAT API] Starting response stream...")
-                for chunk in app.ollama_client.generate_chat_response(
-                    active_model, messages, stream=True
-                ):
+
+                if _tool_executor is not None:
+                    response_stream = _tool_executor.execute(
+                        active_model, messages, stream=True
+                    )
+                else:
+                    response_stream = app.ollama_client.generate_chat_response(
+                        active_model, messages, stream=True
+                    )
+
+                for chunk in response_stream:
+                    full_response.append(chunk)
                     yield f"data: {json.dumps({'content': chunk})}\n\n"
-                yield f"data: {json.dumps({'done': True})}\n\n"
+
+                # Save assistant response to persistent memory
+                if conversation_id:
+                    try:
+                        app.db.save_message(conversation_id, 'assistant', ''.join(full_response))
+                        logger.debug(f"[MEMORY] Saved assistant message to conversation {conversation_id}")
+                    except Exception as mem_err:
+                        logger.warning(f"[MEMORY] Could not persist assistant message: {mem_err}")
+
+                done_payload: dict = {'done': True}
+                if conversation_id:
+                    done_payload['conversation_id'] = conversation_id
+                yield f"data: {json.dumps(done_payload)}\n\n"
                 logger.debug("[CHAT API] Response stream completed")
             except Exception as e:
                 logger.error(f"[CHAT API] Error generating response: {e}", exc_info=True)

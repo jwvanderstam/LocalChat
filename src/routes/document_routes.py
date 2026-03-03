@@ -11,11 +11,18 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from flask import Blueprint, jsonify, request, Response, current_app, copy_current_request_context
-from typing import Generator, Dict, Any
+from flask import Blueprint, jsonify, request, Response, copy_current_request_context
+from flask import current_app as _current_app
+from typing import Generator, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 import os
 import json
+
+if TYPE_CHECKING:
+    from ..types import LocalChatApp
+    current_app: LocalChatApp
+else:
+    current_app = _current_app
 
 from ..utils.logging_config import get_logger
 
@@ -124,7 +131,7 @@ def api_upload_documents():
         return jsonify({'success': False, 'message': 'No supported files found'}), 400
     
     # Get references to app objects before entering generator
-    app = current_app._get_current_object()
+    app = current_app._get_current_object()  # type: ignore[attr-defined]
     
     # Stream ingestion progress
     def generate() -> Generator[str, None, None]:
@@ -153,8 +160,12 @@ def api_upload_documents():
                     pass
 
             # Update document count
-            doc_count = app.db.get_document_count()
-            config.app_state.set_document_count(doc_count)
+            try:
+                doc_count = app.db.get_document_count()
+                config.app_state.set_document_count(doc_count)
+            except Exception as count_err:
+                logger.warning(f"Could not update document count: {count_err}")
+                doc_count = config.app_state.get_document_count()
 
             yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
         except Exception as e:
