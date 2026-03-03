@@ -2,24 +2,16 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-643%20passing-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-70--75%25-green)](htmlcov/)
-[![Code Quality](https://img.shields.io/badge/code%20quality-production%20ready-blue)](docs/)
-[![Status](https://img.shields.io/badge/status-80%25%20complete-success)](PROJECT_STATUS.md)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
+[![Code Quality](https://img.shields.io/badge/code%20quality-production%20ready-blue)]()
 
 A production-ready Retrieval-Augmented Generation (RAG) application built with Flask, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers.
 
 ## Project Status
 
-**Current State:** Production Ready (80% Complete) | **Last Updated:** January 2025
+**Current State:** Production Ready | **Last Updated:** June 2025
 
-- ? **Priority 1:** Hybrid mode removed, 300+ lines eliminated
-- ? **Priority 3:** 100% test pass rate (643/643 tests)
-- ?? **Priority 4:** Modular architecture, 23% size reduction
-- ? **Priority 5:** Standardized error handling
-- ?? **Priority 2:** Skipped (coverage adequate)
-
-See [PROJECT_STATUS.md](PROJECT_STATUS.md) for details | [OVERVIEW.md](OVERVIEW.md) for architecture
+See the [Architecture](#-architecture) and [Project Structure](#-project-structure) sections below for a full overview.
 
 ---
 
@@ -38,10 +30,9 @@ See [PROJECT_STATUS.md](PROJECT_STATUS.md) for details | [OVERVIEW.md](OVERVIEW.
 - **?? Security**: Rate limiting, CORS support, JWT authentication ready
 
 ### ?? Quality Assurance
-- **334 Tests**: Comprehensive test coverage
-- **26%+ Coverage**: 90-100% on critical modules
-- **Type Safety**: 100% type hints
-- **Documentation**: Extensive inline and standalone docs
+- **90+ Tests**: Unit, integration, and comprehensive test suites
+- **Type Safety**: Full type hints across codebase
+- **Modular Architecture**: Clean separation of concerns
 - **CI/CD Ready**: GitHub Actions configuration
 - **Error Handling**: Professional exception system with context preservation
 
@@ -84,7 +75,7 @@ cd LocalChat
 pip install -r requirements.txt
 
 # 3. Set up PostgreSQL with pgvector
-# See docs/INSTALLATION.md for details
+# See Configuration section below for details
 
 # 4. (Optional) Start Redis for caching
 redis-server
@@ -188,26 +179,92 @@ Cache Strategy:
 
 ## ?? Documentation
 
-### User Guides
-- **[Installation Guide](docs/INSTALLATION.md)** - Complete setup instructions
-- **[Setup Guide](docs/SETUP_GUIDE.md)** - Configuration and setup
-- **[User Manual](docs/README_OLD.md)** - How to use the application
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+All documentation lives in-code with comprehensive docstrings and type hints.
 
-### Developer Guides
-- **[Development Guide](docs/DEVELOPMENT.md)** - Contributing and development
-- **[API Documentation](docs/API.md)** - API endpoints and usage
-- **[Architecture](docs/ARCHITECTURE.md)** - System design and components
+### Key Entry Points
+- **[`app.py`](app.py)** — Application entry point
+- **[`src/app_factory.py`](src/app_factory.py)** — Flask app factory with blueprint registration
+- **[`src/config.py`](src/config.py)** — All configuration (env vars, RAG tuning, cache settings)
+- **[`config/.env.example`](config/.env.example)** — Environment variable template
 
-### Feature Documentation
-- **[RAG System](docs/features/RAG_HALLUCINATION_FIXED.md)** - RAG implementation
-- **[PDF Tables](docs/features/PDF_TABLE_EXTRACTION.md)** - Table extraction
-- **[Duplicate Prevention](docs/features/DUPLICATE_PREVENTION.md)** - Smart detection
+### API Documentation
+- Interactive Swagger UI available at `/api/docs/` when the app is running
+- Configured in [`src/api_docs.py`](src/api_docs.py)
 
-### Testing Documentation
-- **[Testing Guide](docs/testing/TESTING_GUIDE.md)** - How to write tests
-- **[Coverage Report](docs/testing/COMPLETION_REPORT.md)** - Test coverage details
-- **[Test Strategy](docs/testing/IMPLEMENTATION_PLAN.md)** - Testing approach
+---
+
+## ?? Project Structure
+
+```
+LocalChat/
+├── app.py                      # Entry point
+├── requirements.txt            # Python dependencies
+├── config/
+│   └── .env.example            # Environment variable template
+├── src/                        # Application source code
+│   ├── app_factory.py          # Flask app factory
+│   ├── app.py                  # WSGI app instance
+│   ├── config.py               # Configuration (env vars, RAG settings)
+│   ├── db.py                   # PostgreSQL + pgvector database layer
+│   ├── exceptions.py           # Custom exception hierarchy
+│   ├── models.py               # Pydantic request/response models
+│   ├── monitoring.py           # Metrics, health checks, decorators
+│   ├── ollama_client.py        # Ollama LLM/embedding client
+│   ├── security.py             # Rate limiting, CORS, JWT
+│   ├── api_docs.py             # Swagger/OpenAPI configuration
+│   ├── types.py                # Type definitions
+│   ├── blueprints/             # Flask blueprints
+│   │   └── web.py              # Web page routes
+│   ├── cache/                  # Caching layer
+│   │   ├── managers.py         # Cache manager (Redis/Memory)
+│   │   └── backends/
+│   │       └── database_cache.py
+│   ├── initialization/         # App startup
+│   │   ├── app_setup.py        # Blueprint & extension registration
+│   │   └── lifecycle.py        # Startup/shutdown hooks
+│   ├── performance/
+│   │   └── batch_processor.py  # Batch embedding processor
+│   ├── rag/                    # RAG pipeline
+│   │   ├── cache.py            # Embedding/query cache
+│   │   ├── chunking.py         # Smart text chunking
+│   │   ├── loaders.py          # PDF/DOCX/TXT file loaders
+│   │   ├── processor.py        # Document ingestion orchestrator
+│   │   ├── retrieval.py        # Hybrid search (semantic + BM25)
+│   │   └── scoring.py          # Result reranking & fusion
+│   ├── routes/                 # API endpoints
+│   │   ├── api_routes.py       # Chat API (/api/chat)
+│   │   ├── document_routes.py  # Document management (/api/documents)
+│   │   ├── error_handlers.py   # Global error handlers
+│   │   ├── memory_routes.py    # Memory/conversation routes
+│   │   ├── model_routes.py     # Ollama model management
+│   │   └── web_routes.py       # HTML page routes
+│   ├── tools/                  # Tool/function calling
+│   │   ├── builtin.py          # Built-in tools
+│   │   ├── executor.py         # Tool execution engine
+│   │   └── registry.py         # Tool registration
+│   └── utils/
+│       ├── logging_config.py   # Structured logging setup
+│       └── sanitization.py     # Input sanitization & validation
+├── static/                     # Frontend assets
+│   ├── css/style.css
+│   └── js/
+│       ├── chat.js             # Chat interface logic
+│       └── ingestion.js        # Document upload logic
+├── templates/                  # Jinja2 HTML templates
+│   ├── base.html
+│   ├── chat.html
+│   ├── documents.html
+│   ├── models.html
+│   └── overview.html
+├── tests/                      # Test suite
+│   ├── conftest.py             # Shared fixtures
+│   ├── integration/            # Integration tests
+│   ├── unit/                   # Unit tests
+│   └── utils/                  # Test helpers & mocks
+└── scripts/                    # Utility scripts
+    ├── helpers/                # Dev helper scripts
+    └── ...                     # Migration, test, diagnostic scripts
+```
 
 ---
 
@@ -251,10 +308,9 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Total Tests**: 334
-- **Passing**: 323 (96.7%)
-- **Coverage**: 26.35% overall
-- **Critical Modules**: 90-100% coverage
+- **Unit Tests**: `tests/unit/` — 20+ test modules covering all core components
+- **Integration Tests**: `tests/integration/` — API route testing
+- **Comprehensive Tests**: `tests/test_*.py` — End-to-end scenario tests
 
 ---
 
@@ -388,7 +444,7 @@ KEEP_TABLES_INTACT = True     # Don't split tables across chunks
 MIN_TABLE_ROWS = 3           # Minimum rows to detect as table
 ```
 
-See [docs/INSTALLATION.md](docs/INSTALLATION.md) for complete configuration options.
+See [`src/config.py`](src/config.py) for all configuration options.
 
 ---
 
@@ -397,8 +453,8 @@ See [docs/INSTALLATION.md](docs/INSTALLATION.md) for complete configuration opti
 ### Setting Up Development Environment
 
 ```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
+# Install dependencies
+pip install -r requirements.txt
 
 # Install pre-commit hooks
 pre-commit install
@@ -453,7 +509,7 @@ mypy src/
 
 ## ?? Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions!
 
 ### Quick Contribution Guide
 
@@ -476,60 +532,18 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## ?? Project Status
 
-### Current Version: 0.3.1
+### Current Version: 0.4.0
 
-**Phase**: Month 3 Complete + Critical Bug Fixes
+**Phase**: Production Ready — Clean Architecture
 
-**Milestones**:
-- ? Month 1: Professional logging, type hints, docstrings
-- ? Month 2: Validation, error handling, sanitization  
-- ? Month 3: Testing infrastructure, 334+ tests
-- ? Bug Fixes: Flask context errors, Redis configuration, dependency management
-- ?? Month 4: Performance optimization (in progress)
-
-### Recent Updates (v0.3.1 - January 2025)
-
-#### ?? Critical Bug Fixes
-- ? Fixed Flask application context errors in all streaming endpoints
-  - Document upload progress streaming
-  - Chat response streaming  
-  - Model download progress streaming
-- ? Fixed Redis authentication errors with configurable cache backend
-- ? Fixed missing package dependencies (redis, flasgger)
-- ? Improved error handling with graceful degradation
-
-#### ?? New Features
-- ? Added Redis caching support with automatic fallback to memory cache
-- ? Implemented Server-Sent Events (SSE) for real-time streaming
-- ? Added Swagger/OpenAPI documentation at `/api/docs/`
-- ? Enhanced monitoring with metrics and health checks
-- ? Improved cache management with separate TTLs for embeddings and queries
-
-#### ?? Improvements
-- ? Cleaned up project structure (removed 18 duplicate directories)
-- ? Consolidated documentation into organized folders
-- ? Updated .gitignore with comprehensive exclusions
-- ? Added verification script for testing all fixes
-- ? Improved logging throughout application
-
-#### ?? Documentation
-- ? Added comprehensive fix documentation
-  - Flask context handling guide
-  - Redis configuration guide
-  - Complete error resolution summary
-- ? Updated architecture diagram with Redis
-- ? Enhanced README with cache configuration
-- ? Added troubleshooting guides
-
-### Previous Updates
-
-#### v0.3.0 - December 2024
-- ? Fixed RAG hallucination with strict prompts
-- ? Enhanced PDF table extraction
-- ? Implemented table-aware chunking
-- ? Added comprehensive test suite
-- ? Improved documentation structure
-- ? Organized project structure
+**Highlights**:
+- Modular `src/` package with clean separation of concerns
+- RAG pipeline split into dedicated modules (`rag/cache`, `chunking`, `loaders`, `processor`, `retrieval`, `scoring`)
+- Tool/function calling system (`tools/builtin`, `executor`, `registry`)
+- Flask blueprint architecture with typed routes
+- Comprehensive test suite (unit, integration, comprehensive)
+- Professional error handling with custom exception hierarchy
+- Swagger/OpenAPI docs at `/api/docs/`
 
 ---
 
@@ -566,7 +580,7 @@ pg_isready
 psql rag_db -c "SELECT * FROM pg_extension WHERE extname='vector';"
 ```
 
-See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for more solutions.
+See [`src/config.py`](src/config.py) for database and connection pool settings.
 
 ---
 
@@ -588,7 +602,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## ?? Support
 
-- **Documentation**: [docs/](docs/)
+- **Source Code**: [`src/`](src/)
+- **Configuration**: [`src/config.py`](src/config.py)
 - **Issues**: [GitHub Issues](https://github.com/jwvanderstam/LocalChat/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/jwvanderstam/LocalChat/discussions)
 
@@ -596,21 +611,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## ??? Roadmap
 
-### Month 4 (Planned)
-- [ ] Performance optimization
-- [ ] Caching layer
-- [ ] Advanced query expansion
-- [ ] Multi-language support
-
-### Month 5 (Planned)
-- [ ] Docker deployment
-- [ ] Kubernetes configs
+- [ ] Docker deployment & Kubernetes configs
 - [ ] Monitoring dashboard
-- [ ] API rate limiting
-
-### Month 6 (Planned)
-- [ ] Advanced RAG techniques
-- [ ] Fine-tuning support
+- [ ] Advanced RAG techniques (query expansion, multi-hop)
+- [ ] Multi-language support
 - [ ] Plugin system
 - [ ] Admin dashboard
 
