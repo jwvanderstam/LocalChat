@@ -37,14 +37,15 @@ logger = get_logger(__name__)
 class ChatRequest(BaseModel):
     """
     Validation model for chat requests.
-    
+
     Validates chat messages, RAG mode, and conversation history.
-    
+
     Attributes:
         message: User's message (1-5000 chars)
         use_rag: Whether to use RAG mode (default: True)
         history: Chat history (max 50 messages)
-    
+        conversation_id: Optional UUID for persistent memory
+
     Example:
         >>> request = ChatRequest(
         ...     message="What is in the documents?",
@@ -52,7 +53,7 @@ class ChatRequest(BaseModel):
         ...     history=[]
         ... )
     """
-    
+
     message: str = Field(
         ...,
         min_length=1,
@@ -68,7 +69,27 @@ class ChatRequest(BaseModel):
         max_length=50,
         description="Chat conversation history"
     )
-    
+    conversation_id: Optional[str] = Field(
+        default=None,
+        description="Conversation UUID for persistent memory (omit to start a new conversation)"
+    )
+    images: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of base64-encoded images for vision-capable models"
+    )
+
+    @field_validator('conversation_id')
+    @classmethod
+    def valid_uuid(cls, v: Optional[str]) -> Optional[str]:
+        """Validate conversation_id is a well-formed UUID if provided."""
+        import uuid as _uuid
+        if v is not None:
+            try:
+                _uuid.UUID(v)
+            except ValueError:
+                raise ValueError('conversation_id must be a valid UUID')
+        return v
+
     @field_validator('message')
     @classmethod
     def message_not_empty(cls, v: str) -> str:
@@ -76,7 +97,7 @@ class ChatRequest(BaseModel):
         if not v.strip():
             raise ValueError('Message cannot be empty or whitespace only')
         return v.strip()
-    
+
     @field_validator('history')
     @classmethod
     def validate_history(cls, v: List[Dict[str, str]]) -> List[Dict[str, str]]:

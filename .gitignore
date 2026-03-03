@@ -65,6 +65,9 @@ bin/
 *.pyproj.user
 app_state.json
 
+# Archive/history
+history/
+
 # Uploads
 uploads/*
 !uploads/.gitkeep

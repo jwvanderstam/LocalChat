@@ -30,6 +30,7 @@ from typing import Optional, Dict, Any
 import os
 
 from . import config
+from .types import LocalChatApp
 from .utils.logging_config import setup_logging, get_logger
 
 # Setup logger
@@ -39,7 +40,7 @@ logger = get_logger(__name__)
 def create_app(
     config_override: Optional[Dict[str, Any]] = None,
     testing: bool = False
-) -> Flask:
+) -> LocalChatApp:
     """
     Create and configure Flask application instance.
     
@@ -66,7 +67,7 @@ def create_app(
     root_dir = Path(__file__).parent.parent
     
     # Create Flask app
-    app = Flask(
+    app = LocalChatApp(
         __name__,
         template_folder=str(root_dir / 'templates'),
         static_folder=str(root_dir / 'static')
@@ -109,7 +110,7 @@ def create_app(
 
 
 def _load_configuration(
-    app: Flask,
+    app: LocalChatApp,
     config_override: Optional[Dict[str, Any]],
     testing: bool
 ) -> None:
@@ -142,10 +143,10 @@ def _load_configuration(
     logger.debug(f"Configuration loaded (testing={testing})")
 
 
-def _init_services(app: Flask, testing: bool) -> None:
+def _init_services(app: LocalChatApp, testing: bool) -> None:
     """
     Initialize application services and dependencies.
-    
+
     Args:
         app: Flask application instance
         testing: Testing mode flag
@@ -223,10 +224,10 @@ def _init_services(app: Flask, testing: bool) -> None:
     logger.debug("Services initialized")
 
 
-def _init_caching(app: Flask, testing: bool) -> None:
+def _init_caching(app: LocalChatApp, testing: bool) -> None:
     """
     Initialize caching layer.
-    
+
     Args:
         app: Flask application instance
         testing: Testing mode flag
@@ -292,29 +293,30 @@ def _init_caching(app: Flask, testing: bool) -> None:
         app.query_cache = None
 
 
-def _register_blueprints(app: Flask) -> None:
+def _register_blueprints(app: LocalChatApp) -> None:
     """
     Register Flask blueprints for modular routing.
-    
+
     Args:
         app: Flask application instance
     """
     # Import blueprints
-    from .routes import web_routes, api_routes, document_routes, model_routes
-    
+    from .routes import web_routes, api_routes, document_routes, model_routes, memory_routes
+
     # Register blueprints
     app.register_blueprint(web_routes.bp)
     app.register_blueprint(api_routes.bp, url_prefix='/api')
     app.register_blueprint(document_routes.bp, url_prefix='/api/documents')
     app.register_blueprint(model_routes.bp, url_prefix='/api/models')
+    app.register_blueprint(memory_routes.bp, url_prefix='/api')
     
     logger.debug("Blueprints registered")
 
 
-def _register_error_handlers(app: Flask) -> None:
+def _register_error_handlers(app: LocalChatApp) -> None:
     """
     Register application error handlers.
-    
+
     Args:
         app: Flask application instance
     """
@@ -326,10 +328,10 @@ def _register_error_handlers(app: Flask) -> None:
     logger.debug("Error handlers registered")
 
 
-def _init_security(app: Flask, testing: bool) -> None:
+def _init_security(app: LocalChatApp, testing: bool) -> None:
     """
     Initialize security middleware.
-    
+
     Args:
         app: Flask application instance
         testing: Testing mode flag
@@ -356,10 +358,10 @@ def _init_security(app: Flask, testing: bool) -> None:
         logger.warning(f"??  Security middleware not available: {e}")
 
 
-def _setup_cleanup_handlers(app: Flask) -> None:
+def _setup_cleanup_handlers(app: LocalChatApp) -> None:
     """
     Setup application cleanup handlers.
-    
+
     Args:
         app: Flask application instance
     """
@@ -389,10 +391,10 @@ def _setup_cleanup_handlers(app: Flask) -> None:
     logger.debug("Cleanup handlers registered")
 
 
-def _init_api_docs(app: Flask) -> None:
+def _init_api_docs(app: LocalChatApp) -> None:
     """
     Initialize API documentation (Swagger/OpenAPI).
-    
+
     Args:
         app: Flask application instance
     """
@@ -410,10 +412,10 @@ def _init_api_docs(app: Flask) -> None:
         logger.error(f"Error initializing API docs: {e}", exc_info=True)
 
 
-def _init_monitoring(app: Flask) -> None:
+def _init_monitoring(app: LocalChatApp) -> None:
     """
     Initialize monitoring and metrics.
-    
+
     Args:
         app: Flask application instance
     """

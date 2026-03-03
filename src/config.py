@@ -77,7 +77,11 @@ CORS_ORIGINS: List[str] = os.environ.get('CORS_ORIGINS', '*').split(',')
 # ============================================================================
 
 PG_HOST: str = str(os.environ.get('PG_HOST', 'localhost'))
-PG_PORT: int = int(os.environ.get('PG_PORT', '5432'))
+try:
+    PG_PORT: int = int(os.environ.get('PG_PORT', '5432'))
+except ValueError:
+    logger.warning("Invalid PG_PORT value, defaulting to 5432")
+    PG_PORT: int = 5432
 PG_USER: str = str(os.environ.get('PG_USER', 'postgres'))
 
 _PG_PASSWORD_RAW: Optional[str] = os.environ.get('PG_PASSWORD')
@@ -182,6 +186,13 @@ ENABLE_PERF_METRICS: bool = True             # Enable metrics collection
 SLOW_QUERY_THRESHOLD: float = 1.0            # Log queries > 1s
 
 # ============================================================================
+# TOOL CALLING CONFIGURATION
+# ============================================================================
+
+TOOL_CALLING_ENABLED: bool = os.environ.get('TOOL_CALLING_ENABLED', 'True').lower() == 'true'
+TOOL_MAX_ROUNDS: int = int(os.environ.get('TOOL_MAX_ROUNDS', '5'))
+
+# ============================================================================
 # LLM CONFIGURATION - MAXIMUM QUALITY
 # ============================================================================
 
@@ -193,7 +204,15 @@ MAX_CONTEXT_LENGTH: int = 50000    # MAXIMUM context for most comprehensive answ
 # ============================================================================
 
 # Supported file types
-SUPPORTED_EXTENSIONS: List[str] = ['.pdf', '.txt', '.docx', '.md']
+SUPPORTED_IMAGE_EXTENSIONS: List[str] = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+SUPPORTED_EXTENSIONS: List[str] = ['.pdf', '.txt', '.docx', '.md'] + SUPPORTED_IMAGE_EXTENSIONS
+
+# Vision / multimodal configuration
+VISION_DESCRIBE_PROMPT: str = (
+    "Describe this image in detail. Include all visible text, charts, tables, diagrams, "
+    "key objects, and any relevant context. Be comprehensive so the description can be "
+    "used to answer questions about the image."
+)
 
 # Flask settings
 UPLOAD_FOLDER: str = 'uploads'

@@ -1,4 +1,7 @@
-/**
+"""Write the updated chat.js with persistent conversation memory support."""
+import pathlib
+
+content = r"""/**
  * Chat functionality with persistent conversation memory
  */
 
@@ -465,3 +468,8 @@ function copyChatToClipboard() {
 
 // Initialize on page load
 init();
+"""
+
+dest = pathlib.Path(__file__).parent.parent / "static" / "js" / "chat.js"
+dest.write_text(content, encoding="utf-8")
+print(f"Written {len(content)} chars to {dest}")

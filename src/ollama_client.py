@@ -234,10 +234,87 @@ class OllamaClient:
             logger.error(f"Error deleting model: {e}", exc_info=True)
             return False, str(e)
     
+    def get_vision_model(self) -> Optional[str]:
+        """
+        Get a vision-capable model for image processing.
+
+        Searches installed models for known multimodal/vision model families.
+        Falls back to the first available model if none are identified.
+
+        Returns:
+            Name of a vision model, or None if no models are available
+
+        Example:
+            >>> model = ollama_client.get_vision_model()
+            >>> if model:
+            ...     print(f"Vision model: {model}")
+        """
+        vision_families = ['llava', 'moondream', 'bakllava', 'minicpm-v', 'cogvlm']
+        success, models = self.list_models()
+        if not success or not models:
+            logger.warning("No models available for vision")
+            return None
+
+        model_names = [m['name'] for m in models]
+
+        # Prefer an explicitly vision-capable model
+        for family in vision_families:
+            for name in model_names:
+                if family in name.lower():
+                    logger.info(f"Using vision model: {name}")
+                    return name
+
+        # Fall back to the active / first model (may still support vision)
+        fallback = model_names[0]
+        logger.warning(f"No dedicated vision model found, falling back to: {fallback}")
+        return fallback
+
+    def describe_image(
+        self,
+        model: str,
+        image_b64: str,
+        prompt: Optional[str] = None
+    ) -> Tuple[bool, str]:
+        """
+        Generate a text description of an image using a vision model.
+
+        Args:
+            model: Vision-capable model name
+            image_b64: Base64-encoded image data
+            prompt: Custom description prompt (default: from config)
+
+        Returns:
+            Tuple of (success: bool, description_or_error: str)
+
+        Example:
+            >>> import base64
+            >>> with open("image.png", "rb") as f:
+            ...     b64 = base64.b64encode(f.read()).decode()
+            >>> success, desc = ollama_client.describe_image("llava", b64)
+        """
+        if prompt is None:
+            prompt = config.VISION_DESCRIBE_PROMPT
+
+        try:
+            logger.info(f"Describing image with model: {model}")
+            messages: List[Dict[str, Any]] = [
+                {"role": "user", "content": prompt, "images": [image_b64]}
+            ]
+            description = ""
+            for chunk in self.generate_chat_response(model, messages, stream=False):
+                description += chunk
+
+            logger.info(f"Image described: {len(description)} characters")
+            return True, description.strip()
+
+        except Exception as e:
+            logger.error(f"Error describing image: {e}", exc_info=True)
+            return False, str(e)
+
     def generate_chat_response(
         self,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         stream: bool = True
     ) -> Generator[str, None, None]:
         """
@@ -280,7 +357,8 @@ class OllamaClient:
                                 break
                 else:
                     data = response.json()
-                    yield data['message']['content']
+                    message = data.get('message', {})
+                    yield message.get('content', '')
                 logger.debug("Chat response generated successfully")
             else:
                 error_msg = f"Error: {response.status_code}"
@@ -291,7 +369,70 @@ class OllamaClient:
             error_msg = f"Error: {str(e)}"
             logger.error(f"Error generating chat response: {e}", exc_info=True)
             yield error_msg
-    
+
+    def generate_chat_completion(
+        self,
+        model: str,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Non-streaming chat completion that returns the full response.
+
+        Used by the tool-calling executor to inspect ``tool_calls`` before
+        deciding whether to stream the final answer.
+
+        Args:
+            model: Name of model to use.
+            messages: Conversation messages.
+            tools: Optional list of tool schemas in Ollama format.
+
+        Returns:
+            Full Ollama response dictionary (contains ``message`` with
+            ``content`` and/or ``tool_calls``).
+
+        Example:
+            >>> resp = ollama_client.generate_chat_completion("llama3.2", messages)
+            >>> if resp["message"].get("tool_calls"):
+            ...     print("Model wants to call tools")
+        """
+        payload: Dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+        }
+        if tools:
+            payload["tools"] = tools
+
+        try:
+            logger.debug(f"Chat completion (non-stream) with model: {model}")
+            response = requests.post(
+                f"{self.base_url}/api/chat",
+                json=payload,
+                timeout=120,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                tool_calls = data.get("message", {}).get("tool_calls")
+                if tool_calls:
+                    logger.info(f"Model returned {len(tool_calls)} tool call(s)")
+                return data
+
+            logger.error(f"Chat completion failed: {response.status_code}")
+            return {
+                "message": {
+                    "role": "assistant",
+                    "content": f"Error: HTTP {response.status_code}",
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error in chat completion: {e}", exc_info=True)
+            return {
+                "message": {"role": "assistant", "content": f"Error: {e}"}
+            }
+
     def generate_embedding(
         self,
         model: str,
