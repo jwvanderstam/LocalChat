@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyc
+*.pyo
 .Python
 build/
 develop-eggs/
@@ -32,8 +34,6 @@ env/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
 
 # Environment
 .env
@@ -55,14 +55,23 @@ logs/
 .coverage.*
 htmlcov/
 .tox/
+.nox/
 coverage.xml
 *.cover
 .hypothesis/
 
-# Build artifacts
+# Build artifacts / Visual Studio
 obj/
 bin/
+.vs/
+*.suo
+*.user
+*.slnx.user
 *.pyproj.user
+Debug/
+Release/
+Any CPU/
+deployment/
 app_state.json
 
 # Archive/history
@@ -72,14 +81,6 @@ history/
 uploads/*
 !uploads/.gitkeep
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-coverage.xml
-
 # Documentation builds
 docs/_build/
 site/
@@ -87,55 +88,23 @@ site/
 # Jupyter
 .ipynb_checkpoints/
 
-# mypy
+# Type checkers
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# Pyre
 .pyre/
 
-# Mac
+# OS files
 .DS_Store
-
-# Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-
-# Backup files
-*.bak
-*.backup
 *~
-
-# Compiled files
-*.pyc
-*.pyo
 
 # Package files
 *.tar.gz
 *.zip
 
-# Local test files
-test_*.py
-*_test.py
+# Scratch files
 scratch.py
 temp.py
-
-# Visual Studio
-.vs/
-*.suo
-*.user
-*.slnx.user
-obj/
-bin/
-Debug/
-Release/
-Any CPU/
-deployment/
-
-# Project state
-app_state.json
-
-# Build artifacts
-*.pyproj.user
