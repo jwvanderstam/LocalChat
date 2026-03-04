@@ -24,7 +24,15 @@ else:
     current_app = _current_app
 
 from .. import config
+from .. import exceptions
 from ..utils.logging_config import get_logger
+
+try:
+    from pydantic import ValidationError as PydanticValidationError
+except ImportError:
+    class PydanticValidationError(ValueError):
+        """Fallback exception when Pydantic is not available"""
+        pass
 
 bp = Blueprint('api', __name__)
 logger = get_logger(__name__)
@@ -171,12 +179,10 @@ def api_chat():
         if not data or not isinstance(data, dict):
             return jsonify({'success': False, 'message': 'Request body must be valid JSON'}), 400
 
-        # Import validation modules conditionally
+        # Import validation modules
         try:
-            from pydantic import ValidationError as PydanticValidationError
             from ..models import ChatRequest
             from ..utils.sanitization import sanitize_query
-            from .. import exceptions
 
             # Pydantic validation + sanitization
             request_data = ChatRequest(**data)
@@ -185,7 +191,7 @@ def api_chat():
             chat_history = request_data.history
             conversation_id = request_data.conversation_id
             images = request_data.images or []
-            
+
         except ImportError as e:
             logger.error(f"Failed to import required modules: {e}")
             return jsonify({'success': False, 'message': 'Server configuration error'}), 500
