@@ -64,6 +64,10 @@ class ChatRequest(BaseModel):
         default=True,
         description="Whether to use RAG mode for document context"
     )
+    enhance: bool = Field(
+        default=False,
+        description="Whether to enrich RAG context with web search results"
+    )
     history: List[Dict[str, str]] = Field(
         default_factory=list,
         max_length=50,

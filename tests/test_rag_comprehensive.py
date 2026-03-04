@@ -81,24 +81,30 @@ def sample_chunks():
 @pytest.fixture
 def mock_db():
     """Mock database for testing."""
-    with patch('src.rag.db') as mock_database:
-        mock_database.insert_document.return_value = 1
-        mock_database.insert_chunks_batch.return_value = None
-        mock_database.search_similar_chunks.return_value = [
-            ("chunk text 1", "doc1.pdf", 0, 0.95, {}),  # Added metadata
-            ("chunk text 2", "doc1.pdf", 1, 0.87, {}),
-            ("chunk text 3", "doc2.pdf", 0, 0.82, {})
-        ]
-        yield mock_database
+    with patch('src.rag.processor.db') as mock_proc_db, \
+         patch('src.rag.retrieval.db') as mock_ret_db:
+        for mock_database in [mock_proc_db, mock_ret_db]:
+            mock_database.insert_document.return_value = 1
+            mock_database.insert_chunks_batch.return_value = None
+            mock_database.search_similar_chunks.return_value = [
+                ("chunk text 1", "doc1.pdf", 0, 0.95, {}),
+                ("chunk text 2", "doc1.pdf", 1, 0.87, {}),
+                ("chunk text 3", "doc2.pdf", 0, 0.82, {})
+            ]
+            mock_database.document_exists.return_value = (False, {})
+            mock_database.is_connected = True
+        yield mock_proc_db
 
 
 @pytest.fixture
 def mock_ollama():
     """Mock Ollama client for testing."""
-    with patch('src.rag.ollama_client') as mock_client:
-        mock_client.get_embedding_model.return_value = "nomic-embed-text"
-        mock_client.generate_embedding.return_value = (True, [0.1] * 768)
-        yield mock_client
+    with patch('src.rag.processor.ollama_client') as mock_proc_client, \
+         patch('src.rag.retrieval.ollama_client') as mock_ret_client:
+        for mock_client in [mock_proc_client, mock_ret_client]:
+            mock_client.get_embedding_model.return_value = "nomic-embed-text"
+            mock_client.generate_embedding.return_value = (True, [0.1] * 768)
+        yield mock_proc_client
 
 
 # ============================================================================
@@ -123,8 +129,8 @@ class TestDocumentLoading:
         assert success is False
         assert "error" in error.lower() or "no such file" in error.lower()
     
-    @patch('src.rag.PDF_AVAILABLE', True)
-    @patch('src.rag.PyPDF2')
+    @patch('src.rag.loaders.PDF_AVAILABLE', True)
+    @patch('src.rag.loaders.PyPDF2')
     def test_load_pdf_file_success(self, mock_pypdf2, doc_processor, temp_file):
         """Should successfully load PDF file."""
         # Mock PDF reader
@@ -141,7 +147,7 @@ class TestDocumentLoading:
         assert success is True
         assert "PDF content" in content
     
-    @patch('src.rag.PDF_AVAILABLE', False)
+    @patch('src.rag.loaders.PDF_AVAILABLE', False)
     def test_load_pdf_file_unavailable(self, doc_processor):
         """Should handle PDF library not available."""
         success, error = doc_processor.load_pdf_file("test.pdf")
@@ -149,8 +155,8 @@ class TestDocumentLoading:
         assert success is False
         assert "not installed" in error.lower()
     
-    @patch('src.rag.DOCX_AVAILABLE', True)
-    @patch('src.rag.Document')
+    @patch('src.rag.loaders.DOCX_AVAILABLE', True)
+    @patch('src.rag.loaders.Document')
     def test_load_docx_file_success(self, mock_docx, doc_processor, temp_file):
         """Should successfully load DOCX file."""
         # Mock DOCX document
@@ -174,7 +180,7 @@ class TestDocumentLoading:
         assert "Paragraph 1" in content
         assert "Paragraph 2" in content
     
-    @patch('src.rag.DOCX_AVAILABLE', False)
+    @patch('src.rag.loaders.DOCX_AVAILABLE', False)
     def test_load_docx_file_unavailable(self, doc_processor):
         """Should handle DOCX library not available."""
         success, error = doc_processor.load_docx_file("test.docx")
@@ -399,7 +405,7 @@ class TestContextRetrieval:
         call_args = mock_db.search_similar_chunks.call_args
         assert call_args[1]['file_type_filter'] == ".pdf"
     
-    @patch('src.rag.config.RERANK_RESULTS', True)
+    @patch('src.rag.retrieval.config.RERANK_RESULTS', True)
     def test_retrieve_context_with_reranking(self, doc_processor, mock_db, mock_ollama):
         """Should apply re-ranking when enabled."""
         mock_db.search_similar_chunks.return_value = [

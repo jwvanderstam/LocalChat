@@ -21,7 +21,16 @@ Created: January 2025
 
 import pytest
 from unittest.mock import Mock, MagicMock, patch, call
-import psycopg2
+
+
+@pytest.fixture(autouse=True)
+def _ensure_db_connected():
+    """Temporarily mark db as connected for tests that mock get_connection."""
+    from src import db as db_module
+    old = db_module.db.is_connected
+    db_module.db.is_connected = True
+    yield
+    db_module.db.is_connected = old
 
 
 class TestDocumentOperations:
@@ -51,26 +60,25 @@ class TestDocumentOperations:
     def test_document_exists_returns_true_when_found(self):
         """Test document_exists returns True for existing document."""
         from src import db as db_module
-        
-        # Mock cursor to return document data
+
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = (1, "2025-01-01", 10)
-        
+
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
-        
+
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
-            
+
             exists, doc_info = db_module.db.document_exists("test.pdf")
-            
+
             assert exists is True
             assert doc_info is not None
             assert doc_info['id'] == 1
             assert doc_info['chunk_count'] == 10
-    
+
     def test_insert_document_returns_valid_id(self):
         """Test insert_document returns valid document ID."""
         from src import db as db_module
@@ -99,23 +107,23 @@ class TestDocumentOperations:
     def test_get_all_documents_returns_list(self):
         """Test retrieving all documents."""
         from src import db as db_module
-        
+
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
             (1, "doc1.pdf", "2025-01-01", 10),
             (2, "doc2.txt", "2025-01-02", 5),
         ]
-        
+
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
-        
+
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
-            
+
             docs = db_module.db.get_all_documents()
-            
+
             assert len(docs) == 2
             assert docs[0]['filename'] == "doc1.pdf"
             assert docs[1]['filename'] == "doc2.txt"
@@ -232,28 +240,28 @@ class TestVectorSearch:
     def test_search_similar_chunks_respects_top_k(self):
         """Test top_k limit in search."""
         from src import db as db_module
-        
+
         query_embedding = [0.1] * 768
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
             ("chunk 1", "doc.pdf", 0, 0.95),
             ("chunk 2", "doc.pdf", 1, 0.90),
         ]
-        
+
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_conn.cursor.return_value.__exit__.return_value = None
         mock_conn.commit = MagicMock()
-        
+
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
-            
+
             results = db_module.db.search_similar_chunks(
                 query_embedding=query_embedding,
                 top_k=2
             )
-            
+
             assert len(results) <= 2
     
     def test_search_similar_chunks_handles_empty_results(self):

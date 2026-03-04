@@ -114,7 +114,7 @@ async function uploadDocuments() {
         
     } catch (error) {
         progressMessage.textContent = 'Error: ' + error.message;
-        uploadResults.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+        uploadResults.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
     } finally {
         uploadBtn.disabled = false;
     }
@@ -133,7 +133,7 @@ function displayUploadResults(results) {
         html += `
             <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
                 <i class="bi bi-${icon} me-2"></i>
-                <strong>${result.filename}:</strong> ${result.message}
+                <strong>${escapeHtml(result.filename)}:</strong> ${escapeHtml(result.message)}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         `;
@@ -182,10 +182,10 @@ async function testRetrieval() {
                             <div class="card mb-2">
                                 <div class="card-body">
                                     <h6 class="card-subtitle mb-2 text-muted">
-                                        ${result.filename} - Chunk ${result.chunk_index}
-                                        <span class="badge bg-info float-end">Similarity: ${(result.similarity * 100).toFixed(1)}%</span>
-                                    </h6>
-                                    <p class="card-text small">${result.preview}</p>
+                                        ${escapeHtml(result.filename)} - Chunk ${result.chunk_index}
+                                            <span class="badge bg-info float-end">Similarity: ${(result.similarity * 100).toFixed(1)}%</span>
+                                        </h6>
+                                        <p class="card-text small">${escapeHtml(result.preview)}</p>
                                 </div>
                             </div>
                         `;
@@ -200,10 +200,10 @@ async function testRetrieval() {
                             <div class="card mb-2">
                                 <div class="card-body">
                                     <h6 class="card-subtitle mb-2 text-muted">
-                                        ${result.filename} - Chunk ${result.chunk_index}
-                                        <span class="badge bg-secondary float-end">Similarity: ${(result.similarity * 100).toFixed(1)}%</span>
-                                    </h6>
-                                    <p class="card-text small">${result.preview}</p>
+                                        ${escapeHtml(result.filename)} - Chunk ${result.chunk_index}
+                                            <span class="badge bg-secondary float-end">Similarity: ${(result.similarity * 100).toFixed(1)}%</span>
+                                        </h6>
+                                        <p class="card-text small">${escapeHtml(result.preview)}</p>
                                 </div>
                             </div>
                         `;
@@ -215,7 +215,7 @@ async function testRetrieval() {
                     html += `
                         <div class="alert alert-info mt-3">
                             <strong>Diagnostic Info:</strong><br>
-                            ${data.diagnostic.recommendation}
+                            ${escapeHtml(data.diagnostic.recommendation)}
                         </div>
                     `;
                 }
@@ -226,10 +226,10 @@ async function testRetrieval() {
                 testResults.innerHTML = '<div class="alert alert-warning mt-3">No results found. Make sure documents are ingested.</div>';
             }
         } else {
-            testResults.innerHTML = `<div class="alert alert-danger mt-3">Error: ${data.message || 'Unknown error'}</div>`;
+            testResults.innerHTML = `<div class="alert alert-danger mt-3">Error: ${escapeHtml(data.message || 'Unknown error')}</div>`;
         }
     } catch (error) {
-        testResults.innerHTML = `<div class="alert alert-danger mt-3">Error: ${error.message}</div>`;
+        testResults.innerHTML = `<div class="alert alert-danger mt-3">Error: ${escapeHtml(error.message)}</div>`;
     } finally {
         testBtn.disabled = false;
     }
@@ -254,7 +254,7 @@ async function loadDocuments() {
                     <div class="list-group-item">
                         <div class="d-flex w-100 justify-content-between">
                             <h6 class="mb-1">
-                                <i class="bi bi-file-text me-2"></i>${doc.filename}
+                                <i class="bi bi-file-text me-2"></i>${escapeHtml(doc.filename)}
                             </h6>
                             <small class="text-muted">${date}</small>
                         </div>
@@ -271,7 +271,7 @@ async function loadDocuments() {
             documentsList.innerHTML = '<div class="alert alert-info">No documents uploaded yet.</div>';
         }
     } catch (error) {
-        documentsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        documentsList.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -337,3 +337,16 @@ async function clearDatabase() {
 
 // Initialize on page load
 init();
+
+function escapeHtml(str) {
+    return String(str).replace(/[<>&"']/g, (char) => {
+        switch (char) {
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '&': return '&amp;';
+            case '"': return '&quot;';
+            case "'": return '&#39;';
+            default: return char;
+        }
+    });
+}

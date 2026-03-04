@@ -16,6 +16,7 @@ Last Updated: 2025-01-27
 """
 
 from flask import Flask, request, jsonify, Response
+import os
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -39,10 +40,11 @@ limiter = None
 # AUTHENTICATION
 # ============================================================================
 
-# Simple in-memory user store (replace with database in production)
+# Credentials are loaded from the ADMIN_PASSWORD environment variable.
+# The login endpoint rejects requests if the variable is not configured.
 USERS = {
     'admin': {
-        'password': 'change_this_password',  # Should be hashed in production
+        'password': os.environ.get('ADMIN_PASSWORD', ''),
         'role': 'admin'
     }
 }
@@ -157,7 +159,7 @@ def setup_auth_routes(app: Flask) -> None:
         
         # Verify credentials
         user = USERS.get(username)
-        if not user or user['password'] != password:
+        if not user or not user['password'] or user['password'] != password:
             logger.warning(f"Failed login attempt for user: {username}")
             return jsonify({'message': 'Invalid credentials'}), 401
         

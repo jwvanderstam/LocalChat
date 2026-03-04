@@ -12,10 +12,14 @@ Created: 2025-01-15
 """
 
 from flask import Blueprint, jsonify, request, Response, current_app
-from typing import Generator
+from typing import Generator, TYPE_CHECKING
 import json
 
+from .. import exceptions
 from ..utils.logging_config import get_logger
+
+if TYPE_CHECKING:
+    from ..types import LocalChatApp
 
 bp = Blueprint('models', __name__)
 logger = get_logger(__name__)
@@ -63,7 +67,9 @@ def api_list_models():
         schema:
           $ref: '#/definitions/Error'
     """
-    success, models = current_app.ollama_client.list_models()
+    from typing import cast
+    app = cast('LocalChatApp', current_app)
+    success, models = app.ollama_client.list_models()
     return jsonify({
         'success': success,
         'models': models
@@ -126,7 +132,10 @@ def api_active_model():
         schema:
           $ref: '#/definitions/Error'
     """
+    from typing import cast
     from .. import config
+    
+    app = cast('LocalChatApp', current_app)
     
     try:
         if request.method == 'POST':
@@ -143,7 +152,7 @@ def api_active_model():
             logger.info(f"Setting active model to: {model_name}")
             
             # Verify model exists
-            success, models = current_app.ollama_client.list_models()
+            success, models = app.ollama_client.list_models()
             if not success:
                 error_msg = "Failed to list models"
                 logger.error(error_msg)
@@ -184,6 +193,8 @@ def api_pull_model():
     Returns:
         Server-Sent Events stream with pull progress
     """
+    from typing import cast
+    
     try:
         data = request.get_json()
 
@@ -202,7 +213,7 @@ def api_pull_model():
         
         logger.info(f"Pulling model: {model_name}")
 
-        app = current_app._get_current_object()
+        app = cast('LocalChatApp', current_app)
         
         def generate() -> Generator[str, None, None]:
             try:
@@ -234,6 +245,8 @@ def api_delete_model():
     Returns:
         JSON response with success status
     """
+    from typing import cast
+    
     try:
         data = request.get_json()
         
@@ -247,7 +260,8 @@ def api_delete_model():
         
         logger.info(f"Deleting model: {model_name}")
         
-        success, message = current_app.ollama_client.delete_model(model_name)
+        app = cast('LocalChatApp', current_app)
+        success, message = app.ollama_client.delete_model(model_name)
         
         if not success:
             error_msg = f"Failed to delete model: {message}"
@@ -272,6 +286,8 @@ def api_test_model():
     Returns:
         JSON response with test results
     """
+    from typing import cast
+    
     try:
         data = request.get_json()
 
@@ -290,7 +306,8 @@ def api_test_model():
         
         logger.info(f"Testing model: {model_name}")
         
-        success, result = current_app.ollama_client.test_model(model_name)
+        app = cast('LocalChatApp', current_app)
+        success, result = app.ollama_client.test_model(model_name)
         
         return jsonify({'success': success, 'result': result})
         

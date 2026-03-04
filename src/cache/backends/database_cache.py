@@ -23,6 +23,7 @@ import hashlib
 import pickle
 import json
 
+from psycopg import sql as pg_sql
 from ...utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -63,8 +64,8 @@ class DatabaseCache:
     def _ensure_table_exists(self) -> None:
         """Create cache table if it doesn't exist."""
         try:
-            create_table_sql = f"""
-            CREATE TABLE IF NOT EXISTS {self.table_name} (
+            create_table_sql = pg_sql.SQL("""
+            CREATE TABLE IF NOT EXISTS {table} (
                 id SERIAL PRIMARY KEY,
                 cache_key VARCHAR(64) NOT NULL UNIQUE,
                 query_text TEXT NOT NULL,
@@ -76,14 +77,19 @@ class DatabaseCache:
                 expires_at TIMESTAMP NOT NULL,
                 last_accessed_at TIMESTAMP NOT NULL DEFAULT NOW()
             );
-            
-            CREATE INDEX IF NOT EXISTS idx_{self.table_name}_key 
-                ON {self.table_name}(cache_key);
-            CREATE INDEX IF NOT EXISTS idx_{self.table_name}_expires 
-                ON {self.table_name}(expires_at);
-            CREATE INDEX IF NOT EXISTS idx_{self.table_name}_hits 
-                ON {self.table_name}(hit_count DESC);
-            """
+
+            CREATE INDEX IF NOT EXISTS {idx_key}
+                ON {table}(cache_key);
+            CREATE INDEX IF NOT EXISTS {idx_expires}
+                ON {table}(expires_at);
+            CREATE INDEX IF NOT EXISTS {idx_hits}
+                ON {table}(hit_count DESC);
+            """).format(
+                table=pg_sql.Identifier(self.table_name),
+                idx_key=pg_sql.Identifier(f"idx_{self.table_name}_key"),
+                idx_expires=pg_sql.Identifier(f"idx_{self.table_name}_expires"),
+                idx_hits=pg_sql.Identifier(f"idx_{self.table_name}_hits"),
+            )
             
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -137,12 +143,12 @@ class DatabaseCache:
         cache_key = self._make_cache_key(query, params)
         
         try:
-            sql = f"""
+            sql = pg_sql.SQL("""
             SELECT result_data, hit_count
-            FROM {self.table_name}
+            FROM {table}
             WHERE cache_key = %s
                 AND expires_at > NOW()
-            """
+            """).format(table=pg_sql.Identifier(self.table_name))
             
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -153,12 +159,12 @@ class DatabaseCache:
                         result_data, hit_count = row
                         
                         # Update access stats
-                        update_sql = f"""
-                        UPDATE {self.table_name}
+                        update_sql = pg_sql.SQL("""
+                        UPDATE {table}
                         SET hit_count = hit_count + 1,
                             last_accessed_at = NOW()
                         WHERE cache_key = %s
-                        """
+                        """).format(table=pg_sql.Identifier(self.table_name))
                         cur.execute(update_sql, (cache_key,))
                         conn.commit()
                         
@@ -204,17 +210,17 @@ class DatabaseCache:
             # Serialize result
             result_data = pickle.dumps(result)
             
-            sql = f"""
-            INSERT INTO {self.table_name} 
+            sql = pg_sql.SQL("""
+            INSERT INTO {table}
                 (cache_key, query_text, query_params, result_data, metadata, expires_at)
             VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (cache_key) 
+            ON CONFLICT (cache_key)
             DO UPDATE SET
                 result_data = EXCLUDED.result_data,
                 metadata = EXCLUDED.metadata,
                 expires_at = EXCLUDED.expires_at,
                 last_accessed_at = NOW()
-            """
+            """).format(table=pg_sql.Identifier(self.table_name))
             
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -243,7 +249,9 @@ class DatabaseCache:
         cache_key = self._make_cache_key(query, params)
         
         try:
-            sql = f"DELETE FROM {self.table_name} WHERE cache_key = %s"
+            sql = pg_sql.SQL("DELETE FROM {table} WHERE cache_key = %s").format(
+                table=pg_sql.Identifier(self.table_name)
+            )
             
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -268,7 +276,9 @@ class DatabaseCache:
             Number of entries deleted
         """
         try:
-            sql = f"DELETE FROM {self.table_name} WHERE expires_at < NOW()"
+            sql = pg_sql.SQL("DELETE FROM {table} WHERE expires_at < NOW()").format(
+                table=pg_sql.Identifier(self.table_name)
+            )
             
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -288,15 +298,18 @@ class DatabaseCache:
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         try:
-            sql = f"""
+            sql = pg_sql.SQL("""
             SELECT 
                 COUNT(*) as total_entries,
                 SUM(hit_count) as total_hits,
                 AVG(hit_count) as avg_hits_per_entry,
                 COUNT(*) FILTER (WHERE expires_at < NOW()) as expired_entries,
-                pg_total_relation_size('{self.table_name}') as size_bytes
-            FROM {self.table_name}
-            """
+                pg_total_relation_size({table_lit}) as size_bytes
+            FROM {table}
+            """).format(
+                table=pg_sql.Identifier(self.table_name),
+                table_lit=pg_sql.Literal(self.table_name),
+            )
             
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
@@ -331,13 +344,13 @@ class DatabaseCache:
             List of (query_text, hit_count) tuples
         """
         try:
-            sql = f"""
+            sql = pg_sql.SQL("""
             SELECT query_text, hit_count
-            FROM {self.table_name}
+            FROM {table}
             WHERE expires_at > NOW()
             ORDER BY hit_count DESC
             LIMIT %s
-            """
+            """).format(table=pg_sql.Identifier(self.table_name))
             
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:

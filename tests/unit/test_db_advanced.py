@@ -21,6 +21,16 @@ from unittest.mock import Mock, MagicMock, patch, call
 import socket
 
 
+@pytest.fixture(autouse=True)
+def _ensure_db_connected():
+    """Temporarily mark db as connected for tests that mock get_connection."""
+    from src import db as db_module
+    old = db_module.db.is_connected
+    db_module.db.is_connected = True
+    yield
+    db_module.db.is_connected = old
+
+
 class TestVectorLoaderEdgeCases:
     """Test VectorLoader edge cases."""
     
@@ -84,7 +94,7 @@ class TestServerAvailabilityChecks:
             available, msg = Database.check_server_availability("localhost", 5432, timeout=0.1)
             
             assert available is False
-            assert "timeout" in msg.lower()
+            assert "timed out" in msg.lower()
     
     def test_check_server_connection_refused(self):
         """Test connection refused (server not running)."""

@@ -15,6 +15,7 @@ const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send-btn');
 const ragToggle = document.getElementById('rag-toggle');
+const enhanceToggle = document.getElementById('enhance-toggle');
 const modeBadge = document.getElementById('mode-badge');
 const copyChatBtn = document.getElementById('copy-chat-btn');
 const newChatBtn = document.getElementById('new-chat-btn');
@@ -28,16 +29,39 @@ const userMessageTemplate = document.getElementById('user-message-template');
 const assistantMessageTemplate = document.getElementById('assistant-message-template');
 const loadingTemplate = document.getElementById('loading-template');
 
+// ============================================================================
+// MODE BADGE
+// ============================================================================
+
+function updateModeBadge() {
+    if (!modeBadge) return;
+    const isRag = ragToggle.checked;
+    const isEnhanced = enhanceToggle && enhanceToggle.checked;
+    if (isEnhanced) {
+        modeBadge.textContent = 'RAG + Web Enhanced';
+        modeBadge.className = 'badge bg-success';
+    } else if (isRag) {
+        modeBadge.textContent = 'RAG Mode: ON';
+        modeBadge.className = 'badge bg-primary';
+    } else {
+        modeBadge.textContent = 'Direct LLM Mode';
+        modeBadge.className = 'badge bg-secondary';
+    }
+}
+
 // Initialize
 function init() {
     // RAG toggle
-    ragToggle.addEventListener('change', () => {
-        const isRagMode = ragToggle.checked;
-        if (modeBadge) {
-            modeBadge.textContent = isRagMode ? 'RAG Mode: ON' : 'Direct LLM Mode';
-            modeBadge.className = isRagMode ? 'badge bg-primary' : 'badge bg-secondary';
-        }
-    });
+    ragToggle.addEventListener('change', () => updateModeBadge());
+    if (enhanceToggle) {
+        enhanceToggle.addEventListener('change', () => {
+            // Enhanced only makes sense with RAG on
+            if (enhanceToggle.checked && !ragToggle.checked) {
+                ragToggle.checked = true;
+            }
+            updateModeBadge();
+        });
+    }
 
     // New chat buttons
     if (newChatBtn) newChatBtn.addEventListener('click', startNewChat);
@@ -287,6 +311,8 @@ async function sendMessage() {
     const message = chatInput.value.trim();
     if (!message || isStreaming) return;
 
+    const historySnapshot = chatHistory.slice(-10).filter(m => m.role !== 'system');
+
     chatInput.value = '';
     addUserMessage(message);
 
@@ -296,10 +322,12 @@ async function sendMessage() {
 
     try {
         const useRag = ragToggle.checked;
+        const useEnhance = enhanceToggle ? enhanceToggle.checked : false;
         const body = {
             message,
             use_rag: useRag,
-            history: chatHistory.slice(-10).filter(m => m.role !== 'system')
+            enhance: useEnhance,
+            history: historySnapshot
         };
         if (currentConversationId) body.conversation_id = currentConversationId;
 
