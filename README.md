@@ -9,34 +9,34 @@ A production-ready Retrieval-Augmented Generation (RAG) application built with F
 
 ## Project Status
 
-**Current State:** Production Ready | **Last Updated:** June 2025
+**Current State:** Production Ready | **Last Updated:** March 2026
 
-See the [Architecture](#-architecture) and [Project Structure](#-project-structure) sections below for a full overview.
+See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
 ---
 
-## ? Features
+## Features
 
-### ?? Core Capabilities
-- **?? Document Processing**: PDF, DOCX, TXT, Markdown with advanced table extraction
-- **?? RAG Pipeline**: Intelligent retrieval with hybrid search (semantic + BM25)
-- **?? Chat Interface**: Real-time streaming responses with document context
-- **?? Vector Search**: Lightning-fast similarity search using pgvector HNSW
-- **?? Table Extraction**: Advanced PDF table detection and preservation
-- **??? Duplicate Prevention**: Smart document fingerprinting
-- **? Input Validation**: Pydantic models with comprehensive sanitization
-- **? Caching Layer**: Redis/Memory cache for embeddings and queries
-- **?? Streaming Responses**: Server-Sent Events for real-time feedback
-- **?? Security**: Rate limiting, CORS support, JWT authentication ready
+### Core Capabilities
+- **Document Processing**: PDF, DOCX, TXT, Markdown with advanced table extraction
+- **RAG Pipeline**: Intelligent retrieval with hybrid search (semantic + BM25)
+- **Chat Interface**: Real-time streaming responses with document context
+- **Vector Search**: Lightning-fast similarity search using pgvector HNSW
+- **Table Extraction**: Advanced PDF table detection and preservation
+- **Duplicate Prevention**: Smart document fingerprinting
+- **Input Validation**: Pydantic models with comprehensive sanitization
+- **Caching Layer**: Redis/Memory cache for embeddings and queries
+- **Streaming Responses**: Server-Sent Events for real-time feedback
+- **Security**: Rate limiting, CORS support, JWT authentication ready
 
-### ?? Quality Assurance
+### Quality Assurance
 - **90+ Tests**: Unit, integration, and comprehensive test suites
 - **Type Safety**: Full type hints across codebase
 - **Modular Architecture**: Clean separation of concerns
 - **CI/CD Ready**: GitHub Actions configuration
 - **Error Handling**: Professional exception system with context preservation
 
-### ?? Performance Features
+### Performance Features
 - **Hybrid Search**: Combines semantic similarity with BM25 keyword matching
 - **Multi-level Caching**: 
   - Embedding cache (5000 capacity)
@@ -48,23 +48,23 @@ See the [Architecture](#-architecture) and [Project Structure](#-project-structu
 
 ---
 
-## ?? Table of Contents
+## Table of Contents
 
-- [Quick Start](#-quick-start)
-- [Installation](#-installation)
-- [Architecture](#-architecture)
-- [Usage](#-usage)
-- [Project Structure](#-project-structure)
-- [Documentation](#-documentation)
-- [Testing](#-testing)
-- [Configuration](#-configuration)
-- [Development](#-development)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Architecture](#architecture)
+- [Usage](#usage)
+- [Project Structure](#project-structure)
+- [Documentation](#documentation)
+- [Testing](#testing)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## ?? Quick Start
+## Quick Start
 
 ```bash
 # 1. Clone repository
@@ -93,66 +93,66 @@ python app.py
 
 ---
 
-## ??? Architecture
+## Architecture
 
 ### System Components
 
 ```
-???????????????????????????????????????????????????????????????
-?                     LocalChat RAG System                     ?
-???????????????????????????????????????????????????????????????
-?                                                               ?
-?  ????????????????    ????????????????    ????????????????  ?
-?  ?   Web UI     ?????? Flask API    ??????  Services    ?  ?
-?  ?  (Browser)   ??????  (Routes)    ??????   Layer      ?  ?
-?  ????????????????    ????????????????    ????????????????  ?
-?                             ?                    ?            ?
-?                             ?                    ?            ?
-?  ????????????????????????????????????????????????????????   ?
-?  ?              Application Core                         ?   ?
-?  ????????????????????????????????????????????????????????   ?
-?  ?                                                        ?   ?
-?  ?  ??????????????  ??????????????  ??????????????     ?   ?
-?  ?  ? RAG Engine ?  ?   Cache    ?  ?   Security ?     ?   ?
-?  ?  ?  - Hybrid  ?  ? - Redis    ?  ? - Rate     ?     ?   ?
-?  ?  ?    Search  ?  ? - Memory   ?  ?   Limit    ?     ?   ?
-?  ?  ?  - Rerank  ?  ? - TTL      ?  ? - CORS     ?     ?   ?
-?  ?  ??????????????  ??????????????  ??????????????     ?   ?
-?  ?                                                        ?   ?
-?  ?  ??????????????  ??????????????  ??????????????     ?   ?
-?  ?  ? Document   ?  ?   Ollama   ?  ? Monitoring ?     ?   ?
-?  ?  ? Processor  ?  ?   Client   ?  ? - Metrics  ?     ?   ?
-?  ?  ? - Extract  ?  ? - LLM      ?  ? - Health   ?     ?   ?
-?  ?  ? - Chunk    ?  ? - Embed    ?  ? - Logs     ?     ?   ?
-?  ?  ??????????????  ??????????????  ??????????????     ?   ?
-?  ?                                                        ?   ?
-?  ??????????????????????????????????????????????????????????  ?
-?                             ?                    ?            ?
-?                             ?                    ?            ?
-?  ????????????????    ????????????????    ????????????????  ?
-?  ?  PostgreSQL  ?    ?    Ollama    ?    ?    Redis     ?  ?
-?  ?  + pgvector  ?    ?   (LLM API)  ?    ?  (Optional)  ?  ?
-?  ?  - Documents ?    ? - Embeddings ?    ?  - Caching   ?  ?
-?  ?  - Chunks    ?    ? - Generation ?    ?  - Sessions  ?  ?
-?  ?  - Vectors   ?    ????????????????    ????????????????  ?
-?  ????????????????                                            ?
-?                                                               ?
-?????????????????????????????????????????????????????????????????
++---------------------------------------------------------------+
+|                     LocalChat RAG System                      |
++---------------------------------------------------------------+
+|                                                               |
+|  +------------+    +------------+    +------------+           |
+|  |  Web UI    |--->| Flask API  |--->|  Services  |           |
+|  | (Browser)  |--->|  (Routes)  |--->|   Layer    |           |
+|  +------------+    +------------+    +------------+           |
+|                          |                |                   |
+|                          |                |                   |
+|  +----------------------------------------------------+      |
+|  |              Application Core                      |      |
+|  +----------------------------------------------------+      |
+|  |                                                    |      |
+|  |  +------------+  +------------+  +------------+    |      |
+|  |  | RAG Engine |  |   Cache    |  |  Security  |    |      |
+|  |  |  - Hybrid  |  | - Redis    |  | - Rate     |    |      |
+|  |  |    Search  |  | - Memory   |  |   Limit    |    |      |
+|  |  |  - Rerank  |  | - TTL      |  | - CORS     |    |      |
+|  |  +------------+  +------------+  +------------+    |      |
+|  |                                                    |      |
+|  |  +------------+  +------------+  +------------+    |      |
+|  |  | Document   |  |   Ollama   |  | Monitoring |    |      |
+|  |  | Processor  |  |   Client   |  | - Metrics  |    |      |
+|  |  | - Extract  |  | - LLM      |  | - Health   |    |      |
+|  |  | - Chunk    |  | - Embed    |  | - Logs     |    |      |
+|  |  +------------+  +------------+  +------------+    |      |
+|  |                                                    |      |
+|  +----------------------------------------------------+      |
+|                          |                |                   |
+|                          |                |                   |
+|  +------------+    +------------+    +------------+           |
+|  | PostgreSQL |    |   Ollama   |    |   Redis    |           |
+|  | + pgvector |    |  (LLM API) |    | (Optional) |           |
+|  | - Documents|    | - Embeddings|   | - Caching  |           |
+|  | - Chunks   |    | - Generation|   | - Sessions |           |
+|  | - Vectors  |    +------------+    +------------+           |
+|  +------------+                                               |
+|                                                               |
++---------------------------------------------------------------+
 ```
 
 ### Data Flow
 
 ```
 Document Upload:
-  Upload ? Validate ? Extract Text ? Detect Tables ? 
-  Smart Chunk ? Generate Embeddings ? Store in DB ? 
+  Upload -> Validate -> Extract Text -> Detect Tables ->
+  Smart Chunk -> Generate Embeddings -> Store in DB ->
   Update Cache
 
 RAG Query:
-  Query ? Cache Check ? Generate Query Embedding ?
-  Hybrid Search (Semantic + BM25) ? Retrieve Chunks ?
-  Rerank Results ? Format Context ? LLM Generation ?
-  Stream Response ? Cache Result
+  Query -> Cache Check -> Generate Query Embedding ->
+  Hybrid Search (Semantic + BM25) -> Retrieve Chunks ->
+  Rerank Results -> Format Context -> LLM Generation ->
+  Stream Response -> Cache Result
 
 Cache Strategy:
   - Embedding Cache: 7 days TTL, 5000 capacity
@@ -177,7 +177,7 @@ Cache Strategy:
 
 ---
 
-## ?? Documentation
+## Documentation
 
 All documentation lives in-code with comprehensive docstrings and type hints.
 
@@ -193,7 +193,7 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 
 ---
 
-## ?? Project Structure
+## Project Structure
 
 ```
 LocalChat/
@@ -268,7 +268,7 @@ LocalChat/
 
 ---
 
-## ?? Testing
+## Testing
 
 ### Running Tests
 
@@ -314,7 +314,7 @@ pytest --cov=src --cov-report=term
 
 ---
 
-## ?? Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -448,7 +448,7 @@ See [`src/config.py`](src/config.py) for all configuration options.
 
 ---
 
-## ??? Development
+## Development
 
 ### Setting Up Development Environment
 
@@ -472,7 +472,7 @@ mypy src/
 
 - **Type Hints**: 100% (required)
 - **Docstrings**: Google-style (required)
-- **Test Coverage**: ?80% for new code
+- **Test Coverage**: >=80% for new code
 - **Linting**: Pass pylint, mypy, black
 - **Documentation**: Update relevant docs
 
@@ -507,7 +507,7 @@ mypy src/
 
 ---
 
-## ?? Contributing
+## Contributing
 
 We welcome contributions!
 
@@ -530,7 +530,7 @@ We welcome contributions!
 
 ---
 
-## ?? Project Status
+## Project Status (Detailed)
 
 ### Current Version: 0.4.0
 
@@ -547,7 +547,7 @@ We welcome contributions!
 
 ---
 
-## ?? Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -584,13 +584,13 @@ See [`src/config.py`](src/config.py) for database and connection pool settings.
 
 ---
 
-## ?? License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## ?? Acknowledgments
+## Acknowledgments
 
 - **Ollama** for local LLM inference
 - **pgvector** for vector similarity search
@@ -600,7 +600,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## ?? Support
+## Support
 
 - **Source Code**: [`src/`](src/)
 - **Configuration**: [`src/config.py`](src/config.py)
@@ -609,7 +609,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## ??? Roadmap
+## Roadmap
 
 - [ ] Docker deployment & Kubernetes configs
 - [ ] Monitoring dashboard
@@ -620,12 +620,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## ? Star History
+## Star History
 
-If you find this project useful, please consider giving it a star! ?
+If you find this project useful, please consider giving it a star!
 
 ---
 
-**Made with ?? by the LocalChat Team**
+**Made with care by the LocalChat Team**
 
 *Professional RAG application for document-based question answering*
