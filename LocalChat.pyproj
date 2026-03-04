@@ -46,6 +46,8 @@
     <Compile Include="scripts\test_section_extraction.py" />
     <Compile Include="scripts\verify_migration.py" />
     <Compile Include="scripts\write_chat_js.py" />
+    <Compile Include="src\performance\__init__.py" />
+    <Compile Include="src\rag\web_search.py" />
     <Compile Include="src\__init__.py" />
     <Compile Include="src\api_docs.py" />
     <Compile Include="src\app_factory.py" />

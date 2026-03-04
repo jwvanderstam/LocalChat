@@ -186,6 +186,16 @@ ENABLE_PERF_METRICS: bool = True             # Enable metrics collection
 SLOW_QUERY_THRESHOLD: float = 1.0            # Log queries > 1s
 
 # ============================================================================
+# WEB SEARCH CONFIGURATION (RAG Enhanced Mode)
+# ============================================================================
+
+WEB_SEARCH_ENABLED: bool = os.environ.get('WEB_SEARCH_ENABLED', 'True').lower() == 'true'
+WEB_SEARCH_MAX_RESULTS: int = int(os.environ.get('WEB_SEARCH_MAX_RESULTS', '5'))
+WEB_SEARCH_TIMEOUT: int = int(os.environ.get('WEB_SEARCH_TIMEOUT', '10'))
+WEB_SEARCH_FETCH_PAGES: bool = os.environ.get('WEB_SEARCH_FETCH_PAGES', 'False').lower() == 'true'
+WEB_SEARCH_MAX_PAGE_CHARS: int = int(os.environ.get('WEB_SEARCH_MAX_PAGE_CHARS', '2000'))
+
+# ============================================================================
 # TOOL CALLING CONFIGURATION
 # ============================================================================
 

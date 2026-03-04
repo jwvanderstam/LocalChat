@@ -1,6 +1,6 @@
 # Flask and Web Framework
 Flask==3.0.0
-Werkzeug==3.0.1
+Werkzeug>=3.0.6
 flasgger==0.9.7.1  # OpenAPI/Swagger documentation
 
 # Caching
@@ -23,10 +23,12 @@ email-validator==2.3.0
 # Document Processing
 PyPDF2==3.0.1
 pdfplumber==0.11.0  # Enhanced PDF extraction with table support
+pdfminer.six>=20221105  # Pinned to avoid unsafe deserialization CVE
 python-docx==1.1.0
 
 # HTTP Requests
 requests==2.31.0
+duckduckgo-search==7.5.1
 
 # Numerical processing for vector operations
 # Note: numpy 1.26.4 is the last version supporting Python 3.14 currently
