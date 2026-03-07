@@ -108,3 +108,6 @@ Desktop.ini
 # Scratch files
 scratch.py
 temp.py
+
+# Test output artifacts (root-level)
+test_*.txt
