@@ -6,10 +6,10 @@ Ready-to-use tools that are registered automatically when the ``tools``
 package is imported.
 
 Tools:
-    search_documents  – Search the RAG vector database.
-    list_documents    – List all ingested documents.
-    get_current_datetime – Return the current date and time.
-    calculate         – Evaluate a basic arithmetic expression.
+    search_documents  - Search the RAG vector database.
+    list_documents    - List all ingested documents.
+    get_current_datetime - Return the current date and time.
+    calculate         - Evaluate a basic arithmetic expression.
 
 Author: LocalChat Team
 """
@@ -91,7 +91,7 @@ def list_documents() -> str:
         name = doc.get("filename", "unknown")
         chunks = doc.get("chunk_count", "?")
         created = doc.get("created_at", "")
-        lines.append(f"  • {name}  ({chunks} chunks, uploaded {created})")
+        lines.append(f"  - {name}  ({chunks} chunks, uploaded {created})")
     return "\n".join(lines)
 
 
@@ -144,7 +144,7 @@ def calculate(expression: str) -> str:
     logger.info(f"[TOOL] calculate: {expression!r}")
 
     if not _SAFE_MATH_RE.match(expression):
-        return f"Invalid expression – only numbers and basic arithmetic operators (+, -, *, /, **, %, parentheses) are allowed."
+        return f"Invalid expression - only numbers and basic arithmetic operators (+, -, *, /, **, %, parentheses) are allowed."
 
     try:
         result = eval(expression, {"__builtins__": {}}, {})  # noqa: S307

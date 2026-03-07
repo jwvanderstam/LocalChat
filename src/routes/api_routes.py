@@ -228,7 +228,7 @@ def api_chat():
 Rules:
 1. Answer directly and concisely using only information from the provided context.
 2. If the answer is not in the context, say: "I don't have that information in the provided documents."
-3. Do not describe the document structure or list section names — synthesize the content into a clear, direct answer.
+3. Do not describe the document structure or list section names - synthesize the content into a clear, direct answer.
 4. Do not reference internal identifiers like chunk numbers or section indices.
 5. Only use bullet points or tables when the content genuinely benefits from that structure.
 6. You may mention the source document name when it adds useful context."""
@@ -240,7 +240,7 @@ Rules:
 2. Prefer local document content when it directly answers the question.
 3. Use web sources to fill gaps, provide current information, or verify facts.
 4. When citing web sources, mention the URL or site name briefly.
-5. Do not list section names or describe document structure — give a direct answer.
+5. Do not list section names or describe document structure - give a direct answer.
 6. Only use bullet points or tables when the content genuinely benefits from that structure."""
 
         # If RAG mode, retrieve context
@@ -303,7 +303,7 @@ Rules:
 
             combined_context = "\n\n".join(context_sections)
             message = f"""{combined_context}\n\n---\n\nQuestion: {original_message}\n\nAnswer the question directly using the information above. Synthesize the relevant content into a clear response."""
-            logger.info(f"[CHAT API] Context ready — local: {has_local}, web: {has_web}")
+            logger.info(f"[CHAT API] Context ready - local: {has_local}, web: {has_web}")
         elif use_rag:
             if not messages or messages[0].get('role') != 'system':
                 messages.insert(0, {

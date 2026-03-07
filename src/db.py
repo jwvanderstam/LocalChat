@@ -196,11 +196,11 @@ class Database:
             else:
                 error_msg = (
                     f"PostgreSQL server is NOT reachable at {host}:{port}\n"
-                    f"  ??  Please ensure:\n"
+                    f"  Please ensure:\n"
                     f"     1. PostgreSQL is installed\n"
                     f"     2. PostgreSQL service is running\n"
                     f"     3. Server is listening on {host}:{port}\n"
-                    f"  ?? Quick fix:\n"
+                    f"  Quick fix:\n"
                     f"     - Windows: Start 'postgresql-x64-XX' service in Services\n"
                     f"     - Linux: sudo systemctl start postgresql\n"
                     f"     - macOS: brew services start postgresql\n"
@@ -213,8 +213,8 @@ class Database:
             # DNS/hostname resolution error
             error_msg = (
                 f"Cannot resolve hostname '{host}'\n"
-                f"  ??  Check your database configuration in config.py\n"
-                f"  ?? Current setting: PG_HOST = '{host}'"
+                f"  Check your database configuration in config.py\n"
+                f"  Current setting: PG_HOST = '{host}'"
             )
             logger.error(error_msg)
             return False, error_msg
@@ -222,8 +222,8 @@ class Database:
         except socket.timeout:
             error_msg = (
                 f"Connection to PostgreSQL at {host}:{port} timed out\n"
-                f"  ??  Server may be unresponsive or firewalled\n"
-                f"  ?? Check network connectivity and firewall rules"
+                f"  Server may be unresponsive or firewalled\n"
+                f"  Check network connectivity and firewall rules"
             )
             logger.error(error_msg)
             return False, error_msg

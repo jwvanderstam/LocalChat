@@ -174,7 +174,7 @@ class FidelityTester:
         if avg_fidelity >= 0.90:
             logger.info("? GOAL ACHIEVED: 90%+ fidelity!")
         else:
-            logger.warning(f"??  Below goal: {avg_fidelity:.2%} < 90%")
+            logger.warning(f"Below goal: {avg_fidelity:.2%} < 90%")
         
         return {
             'overall_fidelity': avg_fidelity,

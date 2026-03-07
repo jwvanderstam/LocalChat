@@ -94,7 +94,7 @@ class ToolExecutor:
             tool_calls = assistant_msg.get("tool_calls")
 
             if not tool_calls:
-                # Model produced a final text answer — yield it.
+                # Model produced a final text answer - yield it.
                 content = assistant_msg.get("content", "")
                 if content:
                     yield content
@@ -118,7 +118,7 @@ class ToolExecutor:
 
                 working_messages.append({"role": "tool", "content": result})
 
-        # Exhausted all rounds — stream a final answer without tools.
+        # Exhausted all rounds - stream a final answer without tools.
         logger.warning(
             f"[TOOLS] Reached max rounds ({self._max_rounds}), "
             "streaming final response without tools"

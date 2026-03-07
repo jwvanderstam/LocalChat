@@ -96,5 +96,5 @@ if __name__ == "__main__":
     if count == 0:
         print("? All MONTH2_ENABLED removed!")
     else:
-        print(f"??  Still {count} occurrences remaining")
+        print(f"Still {count} occurrences remaining")
     exit(0 if count == 0 else 1)

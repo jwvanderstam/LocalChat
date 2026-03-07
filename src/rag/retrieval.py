@@ -302,7 +302,7 @@ class RetrievalMixin:
                 seen.add(key)
                 deduped_results.append(r)
         
-        logger.debug(f"[RAG] Deduplicated + adjacent filter: {len(final_results)} → {len(deduped_results)} chunks")
+        logger.debug(f"[RAG] Deduplicated + adjacent filter: {len(final_results)} -> {len(deduped_results)} chunks")
         
         # Sort final results by filename and chunk_index to maintain reading order
         deduped_results = sorted(deduped_results, key=lambda x: (x['filename'], x['chunk_index']))
@@ -702,7 +702,7 @@ class RetrievalMixin:
         formatted_lines = []
         for line in lines:
             stripped = line.strip()
-            if stripped.startswith(('- ', '* ', '• ', '1.', '2.', '3.', '4.', '5.')):
+            if stripped.startswith(('- ', '* ', '\u2022 ', '1.', '2.', '3.', '4.', '5.')):
                 formatted_lines.append(f"  {stripped}")
             elif len(stripped) < 50 and stripped.endswith(':'):
                 formatted_lines.append(f"\n**{stripped}**")

@@ -50,7 +50,7 @@ class TestChunkingEdgeCases:
         """Test chunking Unicode text."""
         from src.rag import doc_processor
         
-        text = "Hello ?? " * 20
+        text = "Hello world " * 20
         chunks = doc_processor.chunk_text(text, chunk_size=50)
         
         assert all(isinstance(c, str) for c in chunks)

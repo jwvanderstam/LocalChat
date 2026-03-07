@@ -43,9 +43,9 @@ def fix_ollama_tests():
         )
         
         file2.write_text(content, encoding='utf-8')
-        print(f"? Fixed {file2}")
+        print(f"Fixed {file2}")
     
-    print("\n?? Test fixes applied!")
+    print("\nTest fixes applied!")
     print("Run: pytest tests/unit/test_ollama*.py -v")
 
 if __name__ == "__main__":
