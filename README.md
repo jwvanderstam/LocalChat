@@ -1,15 +1,15 @@
 # LocalChat - Professional RAG Application
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
-[![Code Quality](https://img.shields.io/badge/code%20quality-production%20ready-blue)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/jwvanderstam/LocalChat/actions/workflows/tests.yml/badge.svg)](https://github.com/jwvanderstam/LocalChat/actions/workflows/tests.yml)
+[![Code Quality](https://img.shields.io/badge/code%20quality-production%20ready-blue)](https://github.com/jwvanderstam/LocalChat)
 
 A production-ready Retrieval-Augmented Generation (RAG) application built with Flask, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers.
 
 ## Project Status
 
-**Current State:** Production Ready | **Last Updated:** March 2026
+**Current State:** Production Ready | **Last Updated:** January 2025
 
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
@@ -21,6 +21,8 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Document Processing**: PDF, DOCX, TXT, Markdown with advanced table extraction
 - **RAG Pipeline**: Intelligent retrieval with hybrid search (semantic + BM25)
 - **Chat Interface**: Real-time streaming responses with document context
+- **Enhanced Web Search**: Optional live DuckDuckGo integration for up-to-date answers
+- **Persistent Memory**: Conversation history stored in PostgreSQL
 - **Vector Search**: Lightning-fast similarity search using pgvector HNSW
 - **Table Extraction**: Advanced PDF table detection and preservation
 - **Duplicate Prevention**: Smart document fingerprinting
@@ -51,7 +53,6 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 ## Table of Contents
 
 - [Quick Start](#quick-start)
-- [Installation](#installation)
 - [Architecture](#architecture)
 - [Usage](#usage)
 - [Project Structure](#project-structure)
@@ -90,6 +91,17 @@ python app.py
 # 7. Open browser
 # http://localhost:5000
 ```
+
+---
+
+## Usage
+
+Once running, open your browser at `http://localhost:5000`.
+
+- **Chat tab** — ask questions; toggle RAG Mode to ground answers in uploaded documents, Enhanced to additionally query the web via DuckDuckGo.
+- **Documents tab** — upload PDF, DOCX, TXT, or Markdown files and test retrieval.
+- **Models tab** — select the active Ollama model.
+- **API** — all endpoints are documented in the interactive Swagger UI at `/api/docs/`.
 
 ---
 
@@ -184,6 +196,8 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 ### Key Entry Points
 - **[`app.py`](app.py)** — Application entry point
 - **[`src/app_factory.py`](src/app_factory.py)** — Flask app factory with blueprint registration
+- **[`src/rag/web_search.py`](src/rag/web_search.py)** — DuckDuckGo web search provider (Enhanced mode)
+- **[`src/security.py`](src/security.py)** — Rate limiting, CORS, JWT authentication
 - **[`src/config.py`](src/config.py)** — All configuration (env vars, RAG tuning, cache settings)
 - **[`config/.env.example`](config/.env.example)** — Environment variable template
 
@@ -230,7 +244,8 @@ LocalChat/
 │   │   ├── loaders.py          # PDF/DOCX/TXT file loaders
 │   │   ├── processor.py        # Document ingestion orchestrator
 │   │   ├── retrieval.py        # Hybrid search (semantic + BM25)
-│   │   └── scoring.py          # Result reranking & fusion
+│   │   ├── scoring.py          # Result reranking & fusion
+│   │   └── web_search.py       # DuckDuckGo web search provider
 │   ├── routes/                 # API endpoints
 │   │   ├── api_routes.py       # Chat API (/api/chat)
 │   │   ├── document_routes.py  # Document management (/api/documents)
@@ -261,9 +276,7 @@ LocalChat/
 │   ├── integration/            # Integration tests
 │   ├── unit/                   # Unit tests
 │   └── utils/                  # Test helpers & mocks
-└── scripts/                    # Utility scripts
-    ├── helpers/                # Dev helper scripts
-    └── ...                     # Migration, test, diagnostic scripts
+└── scripts/                    # Utility scripts (migration, diagnostics, test helpers)
 ```
 
 ---
@@ -343,6 +356,7 @@ export REDIS_PASSWORD=                # Leave empty if no password
 # Flask Configuration
 export SECRET_KEY=your_secret_key_here
 export JWT_SECRET_KEY=your_jwt_secret_here
+export ADMIN_PASSWORD=your_admin_password_here  # Required for /api/auth/login
 export FLASK_ENV=production
 export DEBUG=False
 
@@ -605,7 +619,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Source Code**: [`src/`](src/)
 - **Configuration**: [`src/config.py`](src/config.py)
 - **Issues**: [GitHub Issues](https://github.com/jwvanderstam/LocalChat/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/jwvanderstam/LocalChat/discussions)
 
 ---
 
