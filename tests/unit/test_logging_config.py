@@ -182,7 +182,7 @@ class TestLoggingEdgeCases:
         from src.utils.logging_config import get_logger
         
         logger = get_logger("test")
-        logger.info("Unicode: ?? ??")
+        logger.info("Unicode: test string")
         
         # Should not raise
         assert True

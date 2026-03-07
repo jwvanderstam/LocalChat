@@ -179,15 +179,15 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
         app.startup_status['ollama'] = ollama_success
         
         if ollama_success:
-            logger.info(f"? {ollama_message}")
+            logger.info(f"{ollama_message}")
             # Load first available model
             if not config.app_state.get_active_model():
                 first_model = ollama_client.get_first_available_model()
                 if first_model:
                     config.app_state.set_active_model(first_model)
-                    logger.info(f"? Active model set to: {first_model}")
+                    logger.info(f"Active model set to: {first_model}")
         else:
-            logger.warning(f"? {ollama_message}")
+            logger.warning(f"{ollama_message}")
         
         # Check Database
         logger.info("Checking PostgreSQL with pgvector...")
@@ -195,26 +195,26 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
         app.startup_status['database'] = db_success
         
         if db_success:
-            logger.info(f"? {db_message}")
+            logger.info(f"{db_message}")
             doc_count = db.get_document_count()
             config.app_state.set_document_count(doc_count)
-            logger.info(f"? Documents in database: {doc_count}")
+            logger.info(f"Documents in database: {doc_count}")
         else:
-            logger.error(f"? {db_message}")
+            logger.error(f"{db_message}")
             logger.error("=" * 50)
-            logger.error("? WARNING: PostgreSQL database is not available!")
-            logger.error("? App will run in DEGRADED MODE (no document storage)")
+            logger.error("WARNING: PostgreSQL database is not available!")
+            logger.error("App will run in DEGRADED MODE (no document storage)")
             logger.error("=" * 50)
             
             # Check if we're in strict production mode (require DB)
             strict_mode = os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true'
             
             if strict_mode:
-                logger.critical("? REQUIRE_DATABASE=true - cannot start without database")
+                logger.critical("REQUIRE_DATABASE=true - cannot start without database")
                 import sys
                 sys.exit(1)
             else:
-                logger.warning("? Continuing without database (development mode)")
+                logger.warning("Continuing without database (development mode)")
         
         # Set overall ready status
         app.startup_status['ready'] = (
@@ -284,11 +284,11 @@ def _init_caching(app: LocalChatApp, testing: bool) -> None:
         app.query_cache = query_cache
         
         backend_name = type(embedding_backend).__name__
-        logger.info(f"? Caching initialized ({backend_name})")
+        logger.info(f"Caching initialized ({backend_name})")
         
     except Exception as e:
-        logger.warning(f"??  Caching initialization failed: {e}")
-        logger.warning("??  Running without cache (will impact performance)")
+        logger.warning(f"[!] Caching initialization failed: {e}")
+        logger.warning("[!] Running without cache (will impact performance)")
         app.embedding_cache = None
         app.query_cache = None
 
@@ -351,11 +351,11 @@ def _init_security(app: LocalChatApp, testing: bool) -> None:
         security.setup_rate_limit_handler(app)
         
         app.security_enabled = True
-        logger.info("? Security middleware initialized")
+        logger.info("Security middleware initialized")
         
     except ImportError as e:
         app.security_enabled = False
-        logger.warning(f"??  Security middleware not available: {e}")
+        logger.warning(f"[!] Security middleware not available: {e}")
 
 
 def _setup_cleanup_handlers(app: LocalChatApp) -> None:
@@ -404,10 +404,10 @@ def _init_api_docs(app: LocalChatApp) -> None:
         swagger = init_swagger(app)
         app.swagger = swagger
         
-        logger.info("? API documentation initialized at /api/docs/")
+        logger.info("API documentation initialized at /api/docs/")
         
     except ImportError as e:
-        logger.warning(f"??  API documentation not available: {e}")
+        logger.warning(f"[!] API documentation not available: {e}")
     except Exception as e:
         logger.error(f"Error initializing API docs: {e}", exc_info=True)
 
@@ -424,7 +424,7 @@ def _init_monitoring(app: LocalChatApp) -> None:
         
         init_monitoring(app)
         
-        logger.info("? Monitoring initialized at /api/metrics and /api/health")
+        logger.info("Monitoring initialized at /api/metrics and /api/health")
         
     except Exception as e:
         logger.error(f"Error initializing monitoring: {e}", exc_info=True)

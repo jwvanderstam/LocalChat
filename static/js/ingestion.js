@@ -293,7 +293,7 @@ async function loadStats() {
 // Clear database
 async function clearDatabase() {
     // Confirm action
-    if (!confirm('?? WARNING: This will permanently delete ALL documents and chunks from the database.\n\nThis action CANNOT be undone!\n\nAre you sure you want to continue?')) {
+    if (!confirm('WARNING: This will permanently delete ALL documents and chunks from the database.\n\nThis action CANNOT be undone!\n\nAre you sure you want to continue?')) {
         return;
     }
     

@@ -47,11 +47,11 @@ Professional Retrieval-Augmented Generation (RAG) application for document-based
 
 ## Features
 
-- ?? **Document Management**: Upload and manage PDF, DOCX, TXT, Markdown files
-- ?? **Vector Search**: Fast similarity search using pgvector
-- ?? **Chat Interface**: Conversational AI with RAG context
-- ?? **Model Management**: Manage and switch between Ollama models
-- ?? **Analytics**: Document and chunk statistics
+- **Document Management**: Upload and manage PDF, DOCX, TXT, Markdown files
+- **Vector Search**: Fast similarity search using pgvector
+- **Chat Interface**: Conversational AI with RAG context
+- **Model Management**: Manage and switch between Ollama models
+- **Analytics**: Document and chunk statistics
 
 ## Authentication
 

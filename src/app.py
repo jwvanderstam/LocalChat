@@ -321,7 +321,7 @@ When asked to summarize a document:
 1. Start with a brief overview of the document's purpose and scope
 2. Identify the main themes or topics covered
 3. Organize content logically (not by chunk retrieval order)
-4. Use clear hierarchy: Main topics → Subtopics → Key points
+4. Use clear hierarchy: Main topics -> Subtopics -> Key points
 5. Synthesize related information even if from different chunks
 6. DO NOT list sections by their original numbers unless showing document structure
 7. Create a narrative flow that makes sense to the reader
@@ -408,7 +408,7 @@ def api_chat():
                     
                     # Log the results for debugging
                     for idx, (_, filename, chunk_index, similarity) in enumerate(results, 1):
-                        logger.debug(f"[RAG]   ✓ Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}")
+                        logger.debug(f"[RAG] Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}")
                     
                     # Add RAG system prompt as first message
                     if not messages or messages[0].get('role') != 'system':

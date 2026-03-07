@@ -48,7 +48,7 @@ def add_skip_decorators():
             filepath.write_text(content, encoding='utf-8')
             print(f"? Updated {filepath} - added skip decorators")
         else:
-            print(f"??  No changes made to {filepath}")
+            print(f"No changes made to {filepath}")
     
     print("\n? Skip decorators added!")
     print("These tests will be skipped until features are implemented.")

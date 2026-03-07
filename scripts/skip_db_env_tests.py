@@ -47,7 +47,7 @@ def skip_db_env_tests():
             filepath.write_text(content, encoding='utf-8')
             print(f"? Updated {filepath} - added skip decorators")
         else:
-            print(f"??  No changes made to {filepath}")
+            print(f"No changes made to {filepath}")
     
     print("\n? Skip decorators added to DB environment tests!")
     print("These tests will be skipped until test environment issues are resolved.")

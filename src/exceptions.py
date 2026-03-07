@@ -7,13 +7,13 @@ Provides specific exception types for different error scenarios.
 
 Exception Hierarchy:
     LocalChatException (base)
-    ??? OllamaConnectionError
-    ??? DatabaseConnectionError
-    ??? DocumentProcessingError
-    ??? EmbeddingGenerationError
-    ??? InvalidModelError
-    ??? ValidationError
-    ??? ConfigurationError
+    - OllamaConnectionError
+    - DatabaseConnectionError
+    - DocumentProcessingError
+    - EmbeddingGenerationError
+    - InvalidModelError
+    - ValidationError
+    - ConfigurationError
 
 Example:
     >>> from exceptions import OllamaConnectionError

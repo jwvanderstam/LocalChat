@@ -70,7 +70,7 @@ def init_security(app: Flask) -> None:
     app.config['JWT_SECRET_KEY'] = config.JWT_SECRET_KEY
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=config.JWT_ACCESS_TOKEN_EXPIRES)
     jwt_manager = JWTManager(app)
-    logger.info("? JWT authentication configured")
+    logger.info("JWT authentication configured")
     
     # Rate Limiting Configuration
     if config.RATELIMIT_ENABLED:
@@ -80,7 +80,7 @@ def init_security(app: Flask) -> None:
             default_limits=[config.RATELIMIT_GENERAL],
             storage_uri="memory://"
         )
-        logger.info("? Rate limiting enabled")
+        logger.info("Rate limiting enabled")
     else:
         # Create a dummy limiter that doesn't actually limit
         limiter = Limiter(
@@ -88,14 +88,14 @@ def init_security(app: Flask) -> None:
             key_func=get_remote_address,
             enabled=False
         )
-        logger.info("??  Rate limiting disabled")
+        logger.info("Rate limiting disabled")
     
     # CORS Configuration
     if config.CORS_ENABLED:
         CORS(app, origins=config.CORS_ORIGINS)
-        logger.info(f"? CORS enabled for origins: {config.CORS_ORIGINS}")
+        logger.info(f"CORS enabled for origins: {config.CORS_ORIGINS}")
     else:
-        logger.info("??  CORS disabled")
+        logger.info("CORS disabled")
     
     # Request Logging Middleware
     @app.before_request
@@ -106,10 +106,10 @@ def init_security(app: Flask) -> None:
     @app.after_request
     def log_response(response):
         """Log outgoing responses."""
-        logger.debug(f"{request.method} {request.path} ? {response.status_code}")
+        logger.debug(f"{request.method} {request.path} -> {response.status_code}")
         return response
     
-    logger.info("? Security initialization complete")
+    logger.info("Security initialization complete")
 
 
 # ============================================================================
@@ -200,7 +200,7 @@ def setup_auth_routes(app: Flask) -> None:
             'valid': True
         }), 200
     
-    logger.info("? Authentication routes registered")
+    logger.info("Authentication routes registered")
 
 
 # ============================================================================
@@ -275,7 +275,7 @@ def setup_health_check(app: Flask) -> None:
     """
     # Health check is now handled by monitoring module
     # Monitoring provides a more comprehensive health check with component status
-    logger.info("??  Health check is provided by monitoring module at /api/health")
+    logger.info("Health check is provided by monitoring module at /api/health")
     pass
 
 
@@ -310,7 +310,7 @@ def setup_rate_limit_handler(app: Flask) -> None:
             'retry_after': e.description
         }), 429
     
-    logger.info("? Rate limit error handler registered")
+    logger.info("Rate limit error handler registered")
 
 
 logger.info("Security module loaded")
