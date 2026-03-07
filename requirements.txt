@@ -1,20 +1,20 @@
 # Flask and Web Framework
-Flask==3.0.0
-Werkzeug>=3.0.6
+Flask==3.1.3
+Werkzeug>=3.1.6
 flasgger==0.9.7.1  # OpenAPI/Swagger documentation
 
 # Caching
-redis==5.0.1  # Redis cache backend (optional but recommended)
+redis==7.3.0  # Redis cache backend (optional but recommended)
 
 # Security - Week 1 Improvements
-Flask-JWT-Extended==4.6.0  # Authentication
-Flask-Limiter==3.5.0       # Rate limiting
-Flask-CORS==4.0.0          # CORS support
+Flask-JWT-Extended==4.7.1  # Authentication
+Flask-Limiter==4.1.1       # Rate limiting
+Flask-CORS==6.0.2          # CORS support
 
 # Database - PostgreSQL and pgvector
 # Using latest psycopg3 with binary support for Python 3.14
-psycopg[binary]>=3.2.0
-psycopg-pool>=3.2.0
+psycopg[binary]>=3.3.3
+psycopg-pool>=3.3.0
 
 # Validation - Month 2 (Now with Python 3.14 support!)
 pydantic==2.12.5
@@ -22,32 +22,31 @@ email-validator==2.3.0
 
 # Document Processing
 PyPDF2==3.0.1
-pdfplumber==0.11.0  # Enhanced PDF extraction with table support
-pdfminer.six>=20221105  # Pinned to avoid unsafe deserialization CVE
-python-docx==1.1.0
+pdfplumber==0.11.9  # Enhanced PDF extraction with table support
+pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this version
+python-docx==1.2.0
 
 # HTTP Requests
-requests==2.31.0
-duckduckgo-search==7.5.1
+requests==2.32.5
+duckduckgo-search==8.1.1
 
 # Numerical processing for vector operations
-# Note: numpy 1.26.4 is the last version supporting Python 3.14 currently
-numpy>=1.26.0
+numpy>=2.4.2
 
 # Optional: For better document handling
-python-multipart==0.0.6
+python-multipart==0.0.22
 
 # Optional: For markdown support
-markdown==3.5.1
+markdown==3.10.2
 
 # Development Tools
-python-dotenv==1.0.0
+python-dotenv==1.2.2
 
 # Testing Dependencies - Month 3
-pytest==7.4.3
+pytest==9.0.2
 pytest-cov==7.0.0
 pytest-mock==3.15.1
-faker==39.0.0
-responses==0.25.8
+faker==40.8.0
+responses==0.26.0
 freezegun==1.5.5
-coverage==7.13.0
+coverage==7.13.4
