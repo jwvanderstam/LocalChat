@@ -259,22 +259,52 @@ def collect_env(docker_ok: bool) -> dict:
 # Docker PostgreSQL helper
 # ---------------------------------------------------------------------------
 
+def _docker(cmd: list, timeout: int = 30) -> tuple:
+    """Run a docker subcommand. Returns (success, stdout, stderr)."""
+    try:
+        r = subprocess.run(
+            ["docker"] + cmd,
+            capture_output=True, text=True, timeout=timeout,
+        )
+        return r.returncode == 0, r.stdout.strip(), r.stderr.strip()
+    except FileNotFoundError:
+        return False, "", "docker not found"
+    except subprocess.TimeoutExpired:
+        return False, "", f"timed out after {timeout}s"
+
+
 def start_postgres(user: str, password: str, db: str, port: str) -> None:
-    # Skip if container already exists (running or stopped)
-    _, names = _run([
-        "docker", "ps", "-a",
-        "--filter", f"name=^/{POSTGRES_CONTAINER}$",
+    # Check if the container already exists (running OR stopped)
+    ok, names, _ = _docker([
+        "ps", "-a",
+        "--filter", f"name={POSTGRES_CONTAINER}",
         "--format", "{{.Names}}",
     ])
-    if POSTGRES_CONTAINER in names:
-        _info(f"Container '{POSTGRES_CONTAINER}' already exists — skipping.")
+    existing = [n for n in names.splitlines() if n == POSTGRES_CONTAINER]
+
+    if existing:
+        # Container exists — check if it is running
+        ok, state, _ = _docker([
+            "inspect", "--format", "{{.State.Status}}", POSTGRES_CONTAINER,
+        ])
+        if state == "running":
+            _ok(f"Container '{POSTGRES_CONTAINER}' is already running.")
+            return
+        # Stopped — just start it
+        _info(f"Container '{POSTGRES_CONTAINER}' exists but is stopped — starting it.")
+        ok, _, err = _docker(["start", POSTGRES_CONTAINER])
+        if ok:
+            _ok(f"Container '{POSTGRES_CONTAINER}' started.")
+        else:
+            _fail(f"docker start failed: {err}")
         return
 
+    # Pull image (already cached after first run — docker is smart about this)
     print(f"  Pulling {PGVECTOR_IMAGE} ...")
     subprocess.run(["docker", "pull", PGVECTOR_IMAGE], check=False)
 
-    ok, _ = _run([
-        "docker", "run", "-d",
+    run_ok, _, err = _docker([
+        "run", "-d",
         "--name", POSTGRES_CONTAINER,
         "-e", f"POSTGRES_USER={user}",
         "-e", f"POSTGRES_PASSWORD={password}",
@@ -282,12 +312,23 @@ def start_postgres(user: str, password: str, db: str, port: str) -> None:
         "-p", f"{port}:5432",
         "--restart", "unless-stopped",
         PGVECTOR_IMAGE,
-    ])
-    if ok:
-        _ok(f"Container '{POSTGRES_CONTAINER}' started on port {port}")
+    ], timeout=60)
+
+    if run_ok:
+        _ok(f"Container '{POSTGRES_CONTAINER}' started on port {port}.")
         _info("PostgreSQL will be ready in a few seconds.")
+        return
+
+    # Diagnose common failure modes
+    err_lower = err.lower()
+    if "port is already allocated" in err_lower or "address already in use" in err_lower:
+        _fail(f"Port {port} is already in use.")
+        _info("A PostgreSQL instance may already be running on this machine.")
+        _info(f"Change PG_PORT in .env or stop the process using port {port}.")
+    elif "conflict" in err_lower and "name" in err_lower:
+        _fail("Container name conflict (unexpected — please run: docker rm localchat-postgres)")
     else:
-        _fail("Docker run failed — check 'docker ps' and retry manually.")
+        _fail(f"docker run failed: {err or '(no error output)'}")
 
 # ---------------------------------------------------------------------------
 # Helpers
