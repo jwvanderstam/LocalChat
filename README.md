@@ -178,7 +178,7 @@ Cache Strategy:
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | **Frontend** | HTML, CSS, JavaScript | Web interface |
-| **Backend** | Flask 3.0 | Web framework |
+| **Backend** | Flask 3.1 | Web framework |
 | **Database** | PostgreSQL 15+ | Document storage |
 | **Vector DB** | pgvector | Similarity search |
 | **Cache** | Redis / Memory | Performance optimization |
@@ -216,8 +216,7 @@ LocalChat/
 ├── config/
 │   └── .env.example            # Environment variable template
 ├── src/                        # Application source code
-│   ├── app_factory.py          # Flask app factory
-│   ├── app.py                  # WSGI app instance
+│   ├── app_factory.py          # Flask app factory (entry: create_app)
 │   ├── config.py               # Configuration (env vars, RAG settings)
 │   ├── db.py                   # PostgreSQL + pgvector database layer
 │   ├── exceptions.py           # Custom exception hierarchy
@@ -227,15 +226,10 @@ LocalChat/
 │   ├── security.py             # Rate limiting, CORS, JWT
 │   ├── api_docs.py             # Swagger/OpenAPI configuration
 │   ├── types.py                # Type definitions
-│   ├── blueprints/             # Flask blueprints
-│   │   └── web.py              # Web page routes
 │   ├── cache/                  # Caching layer
 │   │   ├── managers.py         # Cache manager (Redis/Memory)
 │   │   └── backends/
 │   │       └── database_cache.py
-│   ├── initialization/         # App startup
-│   │   ├── app_setup.py        # Blueprint & extension registration
-│   │   └── lifecycle.py        # Startup/shutdown hooks
 │   ├── performance/
 │   │   └── batch_processor.py  # Batch embedding processor
 │   ├── rag/                    # RAG pipeline
@@ -276,7 +270,8 @@ LocalChat/
 │   ├── integration/            # Integration tests
 │   ├── unit/                   # Unit tests
 │   └── utils/                  # Test helpers & mocks
-└── scripts/                    # Utility scripts (migration, diagnostics, test helpers)
+└── scripts/
+    └── check_dependencies.py   # Dependency checker and auto-installer
 ```
 
 ---
@@ -321,9 +316,8 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 20+ test modules covering all core components
-- **Integration Tests**: `tests/integration/` — API route testing
-- **Comprehensive Tests**: `tests/test_*.py` — End-to-end scenario tests
+- **Unit Tests**: `tests/unit/` — 24 test modules covering all core components
+- **Integration Tests**: `tests/integration/` — 4 modules covering all API route blueprints
 
 ---
 
