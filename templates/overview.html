@@ -303,7 +303,7 @@
                     <div class="col-md-3">
                         <div class="card border-primary">
                             <div class="card-body text-center">
-                                <h2 class="text-primary">100+</h2>
+                                <h2 class="text-primary">83</h2>
                                 <p class="mb-0 small text-muted">Total Files</p>
                             </div>
                         </div>
@@ -319,7 +319,7 @@
                     <div class="col-md-3">
                         <div class="card border-info">
                             <div class="card-body text-center">
-                                <h2 class="text-info">12</h2>
+                                <h2 class="text-info">10</h2>
                                 <p class="mb-0 small text-muted">Core Modules</p>
                             </div>
                         </div>
@@ -340,7 +340,7 @@
                         <h2 class="accordion-header">
                             <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#coreFiles">
                                 <i class="bi bi-code-square me-2 text-primary"></i><strong>src/ - Core Application Files</strong>
-                                <span class="badge bg-primary ms-2">12 modules</span>
+                                <span class="badge bg-primary ms-2">10 modules</span>
                             </button>
                         </h2>
                         <div id="coreFiles" class="accordion-collapse collapse show" data-bs-parent="#fileStructureAccordion">
@@ -381,12 +381,12 @@
                                     
                                     <div class="list-group-item">
                                         <div class="d-flex w-100 justify-content-between">
-                                            <h6 class="mb-1"><code>src/rag.py</code></h6>
-                                            <small class="text-muted">~800 lines</small>
+                                            <h6 class="mb-1"><code>src/rag/</code></h6>
+                                            <small class="text-muted">7 modules</small>
                                         </div>
-                                        <p class="mb-1">Document processing and RAG engine</p>
+                                        <p class="mb-1">RAG pipeline package</p>
                                         <small class="text-muted">
-                                            Multi-format loading, hierarchical chunking, embedding generation, hybrid search
+                                            chunking, loaders, processor, retrieval, scoring, cache, web_search
                                         </small>
                                     </div>
                                     
@@ -496,61 +496,35 @@
                                         <small class="text-muted">Mock objects, sample data, test helpers</small>
                                     </div>
                                     <div class="list-group-item">
-                                        <h6 class="mb-1"><code>tests/test_exceptions_comprehensive.py</code></h6>
-                                        <p class="mb-1">Exception testing (18 tests, 100% coverage)</p>
+                                        <h6 class="mb-1"><code>tests/unit/</code></h6>
+                                        <p class="mb-1">Unit tests &mdash; 24 modules covering all core components</p>
+                                        <small class="text-muted">config, db, rag, ollama, cache, security, exceptions, validation, monitoring, logging</small>
                                     </div>
                                     <div class="list-group-item">
-                                        <h6 class="mb-1"><code>tests/test_validation_comprehensive.py</code></h6>
-                                        <p class="mb-1">Validation testing (27 tests, 95% coverage)</p>
-                                    </div>
-                                    <div class="list-group-item">
-                                        <h6 class="mb-1"><code>tests/unit/*.py</code></h6>
-                                        <p class="mb-1">Unit tests for core modules</p>
-                                        <small class="text-muted">Config, sanitization, RAG, database, Ollama</small>
+                                        <h6 class="mb-1"><code>tests/integration/</code></h6>
+                                        <p class="mb-1">Integration tests &mdash; 4 modules covering all API route blueprints</p>
+                                        <small class="text-muted">api_routes, document_routes, model_routes, web_routes</small>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Documentation -->
+                    <!-- Scripts -->
                     <div class="accordion-item">
                         <h2 class="accordion-header">
                             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#docFiles">
-                                <i class="bi bi-book me-2 text-warning"></i><strong>docs/ - Documentation</strong>
-                                <span class="badge bg-warning ms-2">50+ files</span>
+                                <i class="bi bi-terminal me-2 text-danger"></i><strong>scripts/ - Utility Scripts</strong>
+                                <span class="badge bg-danger ms-2">1 script</span>
                             </button>
                         </h2>
                         <div id="docFiles" class="accordion-collapse collapse" data-bs-parent="#fileStructureAccordion">
                             <div class="accordion-body">
                                 <div class="list-group">
                                     <div class="list-group-item">
-                                        <h6 class="mb-1"><code>docs/INSTALLATION.md</code></h6>
-                                        <p class="mb-1">Complete installation guide</p>
-                                    </div>
-                                    <div class="list-group-item">
-                                        <h6 class="mb-1"><code>docs/API.md</code></h6>
-                                        <p class="mb-1">API endpoint documentation</p>
-                                    </div>
-                                    <div class="list-group-item">
-                                        <h6 class="mb-1"><code>docs/ARCHITECTURE.md</code></h6>
-                                        <p class="mb-1">System design and components</p>
-                                    </div>
-                                    <div class="list-group-item">
-                                        <h6 class="mb-1"><code>docs/features/*.md</code></h6>
-                                        <p class="mb-1">Feature documentation (RAG, tables, optimization)</p>
-                                    </div>
-                                    <div class="list-group-item">
-                                        <h6 class="mb-1"><code>docs/testing/*.md</code></h6>
-                                        <p class="mb-1">Testing guides and reports</p>
-                                    </div>
-                                    <div class="list-group-item">
-                                        <h6 class="mb-1"><code>docs/fixes/*.md</code></h6>
-                                        <p class="mb-1">Error resolution and fix documentation</p>
-                                    </div>
-                                    <div class="list-group-item">
-                                        <h6 class="mb-1"><code>docs/FILE_STRUCTURE_OVERVIEW.md</code></h6>
-                                        <p class="mb-1">Complete file structure documentation</p>
+                                        <h6 class="mb-1"><code>scripts/check_dependencies.py</code></h6>
+                                        <p class="mb-1">Dependency checker and auto-installer</p>
+                                        <small class="text-muted">Verifies all required packages are installed and installs missing ones</small>
                                     </div>
                                 </div>
                             </div>
@@ -735,7 +709,7 @@
                         <h6 class="mt-3">Core Components:</h6>
                         <ul>
                             <li><strong>Flask Application:</strong> Application factory pattern (src/app_factory.py)</li>
-                            <li><strong>RAG Engine:</strong> Document processing (src/rag.py)</li>
+                            <li><strong>RAG Engine:</strong> Document processing pipeline (<code>src/rag/</code>)</li>
                             <li><strong>Database Layer:</strong> PostgreSQL + pgvector (src/db.py)</li>
                             <li><strong>Ollama Client:</strong> LLM integration (src/ollama_client.py)</li>
                             <li><strong>Error Handling:</strong> 11 custom exceptions (src/exceptions.py)</li>
@@ -793,9 +767,8 @@
             <div class="modal-body">
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle me-2"></i>
-                    <strong>Complete Documentation:</strong> This modal shows a summary. 
-                    The full documentation is available in <code>docs/FILE_STRUCTURE_OVERVIEW.md</code> 
-                    in your project directory or on 
+                    <strong>Source of truth:</strong> This page reflects the live project structure.
+                    The repository is available on 
                     <a href="https://github.com/jwvanderstam/LocalChat" 
                        target="_blank" class="alert-link">GitHub</a>.
                 </div>
@@ -811,42 +784,36 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td><strong>Source Code</strong></td>
-                            <td>12 files</td>
-                            <td>~4,000</td>
-                            <td>Core application modules</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Templates</strong></td>
-                            <td>5 files</td>
-                            <td>~1,500</td>
-                            <td>Web interface HTML</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Tests</strong></td>
-                            <td>15+ files</td>
-                            <td>~2,500</td>
-                            <td>Pytest test suite</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Scripts</strong></td>
-                            <td>10+ files</td>
-                            <td>~1,000</td>
-                            <td>Setup and maintenance</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Documentation</strong></td>
-                            <td>50+ files</td>
-                            <td>~10,000</td>
-                            <td>Comprehensive docs</td>
-                        </tr>
-                        <tr class="table-primary">
-                            <td><strong>Total</strong></td>
-                            <td><strong>100+</strong></td>
-                            <td><strong>~19,000</strong></td>
-                            <td><strong>Complete application</strong></td>
-                        </tr>
+                    <tr>
+                        <td><strong>Source Code</strong></td>
+                        <td>36 files</td>
+                        <td>~8,000</td>
+                        <td>Core application modules + packages</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Templates</strong></td>
+                        <td>5 files</td>
+                        <td>~1,500</td>
+                        <td>Web interface HTML</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tests</strong></td>
+                        <td>28 files</td>
+                        <td>~5,000</td>
+                        <td>24 unit + 4 integration modules</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Scripts</strong></td>
+                        <td>1 file</td>
+                        <td>~150</td>
+                        <td>Dependency checker</td>
+                    </tr>
+                    <tr class="table-primary">
+                        <td><strong>Total</strong></td>
+                        <td><strong>83</strong></td>
+                        <td><strong>~15,000</strong></td>
+                        <td><strong>Complete application</strong></td>
+                    </tr>
                     </tbody>
                 </table>
 
@@ -857,23 +824,25 @@
                     <div class="accordion-item">
                         <h2 class="accordion-header">
                             <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#modalSrc">
-                                <strong>src/ - Core Application (12 modules, ~4,000 lines)</strong>
+                                <strong>src/ - Core Application (10 modules + packages)</strong>
                             </button>
                         </h2>
                         <div id="modalSrc" class="accordion-collapse collapse show" data-bs-parent="#modalFileAccordion">
                             <div class="accordion-body">
                                 <ul class="list-unstyled">
-                                    <li><code>app_factory.py</code> (~430) - Application factory &amp; service wiring</li>
-                                    <li><code>routes/</code> - Blueprint modules (api, documents, models, web)</li>
-                                    <li><code>config.py</code> (~200) - Configuration & state management</li>
+                                    <li><code>app_factory.py</code> (~430) - Application factory &amp; blueprint registration</li>
+                                    <li><code>routes/</code> - Blueprint modules (api, documents, models, memory, web, errors)</li>
+                                    <li><code>config.py</code> (~200) - Configuration &amp; state management</li>
                                     <li><code>db.py</code> (~600) - PostgreSQL + pgvector operations</li>
-                                    <li><code>rag.py</code> (~800) - Document processing & RAG engine</li>
+                                    <li><code>rag/</code> - RAG pipeline (chunking, loaders, processor, retrieval, scoring, cache, web_search)</li>
                                     <li><code>ollama_client.py</code> (~400) - LLM API client</li>
                                     <li><code>exceptions.py</code> (~150) - 11 custom exception classes</li>
                                     <li><code>models.py</code> (~400) - 8 Pydantic validation models</li>
                                     <li><code>security.py</code> (~300) - JWT, rate limiting, CORS</li>
-                                    <li><code>utils/logging_config.py</code> (~150) - Logging system</li>
-                                    <li><code>utils/sanitization.py</code> (~200) - Input sanitization</li>
+                                    <li><code>utils/</code> - logging_config.py, sanitization.py</li>
+                                    <li><code>cache/</code> - Redis/memory cache managers + backends</li>
+                                    <li><code>performance/</code> - batch_processor.py</li>
+                                    <li><code>tools/</code> - builtin.py, executor.py, registry.py</li>
                                 </ul>
                             </div>
                         </div>
@@ -910,32 +879,27 @@
                             <div class="accordion-body">
                                 <ul class="list-unstyled">
                                     <li><code>conftest.py</code> - Shared pytest fixtures</li>
-                                    <li><code>test_exceptions_comprehensive.py</code> - 18 tests (100% coverage)</li>
-                                    <li><code>test_validation_comprehensive.py</code> - 27 tests (95% coverage)</li>
-                                    <li><code>unit/*.py</code> - Unit tests for core modules</li>
-                                    <li><code>integration/*.py</code> - Integration tests</li>
+                                    <li><code>unit/test_exceptions_comprehensive.py</code> - Exception tests (100% coverage)</li>
+                                    <li><code>unit/test_validation_comprehensive.py</code> - Validation tests (95% coverage)</li>
+                                    <li><code>unit/*.py</code> - 24 unit test modules (all core components)</li>
+                                    <li><code>integration/*.py</code> - 4 integration test modules (all API blueprints)</li>
+                                    <li><code>utils/</code> - helpers.py, mocks.py</li>
                                 </ul>
                             </div>
                         </div>
                     </div>
 
-                    <!-- docs/ -->
+                    <!-- scripts/ -->
                     <div class="accordion-item">
                         <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#modalDocs">
-                                <strong>docs/ - Documentation (50+ files)</strong>
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#modalScripts">
+                                <strong>scripts/ - Utility Scripts (1 script)</strong>
                             </button>
                         </h2>
-                        <div id="modalDocs" class="accordion-collapse collapse" data-bs-parent="#modalFileAccordion">
+                        <div id="modalScripts" class="accordion-collapse collapse" data-bs-parent="#modalFileAccordion">
                             <div class="accordion-body">
                                 <ul class="list-unstyled">
-                                    <li><code>INSTALLATION.md</code> - Complete installation guide</li>
-                                    <li><code>API.md</code> - API endpoint documentation</li>
-                                    <li><code>ARCHITECTURE.md</code> - System design</li>
-                                    <li><code>FILE_STRUCTURE_OVERVIEW.md</code> - This documentation</li>
-                                    <li><code>features/</code> - Feature documentation</li>
-                                    <li><code>testing/</code> - Testing guides</li>
-                                    <li><code>fixes/</code> - Error resolution docs</li>
+                                    <li><code>check_dependencies.py</code> - Dependency checker and auto-installer</li>
                                 </ul>
                             </div>
                         </div>
@@ -961,7 +925,7 @@
                         </tr>
                         <tr>
                             <td>Modify chunking logic</td>
-                            <td><code>src/rag.py</code></td>
+                            <td><code>src/rag/chunking.py</code></td>
                         </tr>
                         <tr>
                             <td>Update database schema</td>
@@ -986,10 +950,6 @@
                         <tr>
                             <td>Write new test</td>
                             <td><code>tests/unit/*.py</code></td>
-                        </tr>
-                        <tr>
-                            <td>Update documentation</td>
-                            <td><code>docs/*.md</code></td>
                         </tr>
                     </tbody>
                 </table>
