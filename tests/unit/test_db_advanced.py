@@ -162,7 +162,7 @@ class TestInitializeErrorPaths:
         
         with patch.object(test_db, 'check_server_availability', return_value=(True, "OK")):
             with patch('psycopg.connect', return_value=mock_conn):
-                with patch('psycopg_pool.ConnectionPool') as mock_pool:
+                with patch('src.db.ConnectionPool') as mock_pool:
                     with patch.object(test_db, '_ensure_extensions_and_tables'):
                         test_db.initialize()
                         
