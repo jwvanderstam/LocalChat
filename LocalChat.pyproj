@@ -29,6 +29,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="app.py" />
+    <Compile Include="install.py" />
     <Compile Include="scripts\check_dependencies.py" />
     <Compile Include="scripts\fix_ollama_tests.py" />
     <Compile Include="scripts\helpers\analyze_routes.py" />

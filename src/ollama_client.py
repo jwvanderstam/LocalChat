@@ -315,7 +315,8 @@ class OllamaClient:
         self,
         model: str,
         messages: List[Dict[str, Any]],
-        stream: bool = True
+        stream: bool = True,
+        max_tokens: Optional[int] = None
     ) -> Generator[str, None, None]:
         """
         Generate a chat response from the model.
@@ -555,7 +556,10 @@ class OllamaClient:
             
             for chunk in self.generate_chat_response(model_name, messages, stream=True):
                 response_text += chunk
-            
+
+            if response_text.startswith("Error:"):
+                logger.warning(f"Model test returned error: {model_name}")
+                return False, response_text
             logger.info(f"Model test successful: {model_name}")
             return True, response_text.strip()
             
