@@ -176,9 +176,9 @@ def api_chat():
           $ref: '#/definitions/Error'
     """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data or not isinstance(data, dict):
-            return jsonify({'success': False, 'message': 'Request body must be valid JSON'}), 400
+            return jsonify({'error': 'BadRequest', 'success': False, 'message': 'Request body must be valid JSON'}), 400
 
         # Import validation modules
         try:

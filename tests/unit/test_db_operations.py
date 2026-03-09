@@ -21,6 +21,7 @@ Created: January 2025
 
 import pytest
 from unittest.mock import Mock, MagicMock, patch, call
+from datetime import datetime
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +63,7 @@ class TestDocumentOperations:
         from src import db as db_module
 
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = (1, "2025-01-01", 10)
+        mock_cursor.fetchone.return_value = (1, datetime(2025, 1, 1), 10)
 
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
@@ -110,8 +111,8 @@ class TestDocumentOperations:
 
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            (1, "doc1.pdf", "2025-01-01", 10),
-            (2, "doc2.txt", "2025-01-02", 5),
+            (1, "doc1.pdf", datetime(2025, 1, 1), 10),
+            (2, "doc2.txt", datetime(2025, 1, 2), 5),
         ]
 
         mock_conn = MagicMock()
@@ -244,8 +245,8 @@ class TestVectorSearch:
         query_embedding = [0.1] * 768
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            ("chunk 1", "doc.pdf", 0, 0.95),
-            ("chunk 2", "doc.pdf", 1, 0.90),
+            ("chunk 1", "doc.pdf", 0, 0.95, {}),
+            ("chunk 2", "doc.pdf", 1, 0.90, {}),
         ]
 
         mock_conn = MagicMock()

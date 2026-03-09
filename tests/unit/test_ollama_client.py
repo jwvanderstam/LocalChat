@@ -344,13 +344,14 @@ class TestModelTesting:
         
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            'response': 'Test response'
-        }
-        
+        mock_response.iter_lines.return_value = [
+            b'{"message": {"content": "Hello, I am working!"}}',
+            b'{"done": true}'
+        ]
+
         with patch('requests.post', return_value=mock_response):
             success, message = client.test_model("llama3.2")
-            
+
             assert success is True
             assert len(message) > 0
     

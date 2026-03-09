@@ -127,19 +127,21 @@ class TestModelPullProgress:
             progress_calls.append((status, progress))
         
         mock_response = Mock()
+        mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
             b'{"status": "downloading", "completed": 1000000, "total": 10000000}',
             b'{"status": "downloading", "completed": 5000000, "total": 10000000}',
             b'{"status": "downloading", "completed": 10000000, "total": 10000000}',
             b'{"status": "success"}'
         ]
-        
+
         with patch('requests.post', return_value=mock_response):
             if hasattr(client, 'pull_model'):
-                success, message = client.pull_model("llama3.2", progress_callback)
-                
-                # Should track progress
-                assert isinstance(success, bool)
+                results = list(client.pull_model("llama3.2"))
+
+                # Should yield progress updates
+                assert len(results) > 0
+                assert all(isinstance(r, dict) for r in results)
             else:
                 # Method might not exist, that's okay
                 pass
@@ -152,10 +154,10 @@ class TestModelPullProgress:
         
         with patch('requests.post', side_effect=requests.exceptions.ConnectionError("Network error")):
             if hasattr(client, 'pull_model'):
-                success, message = client.pull_model("llama3.2")
-                
-                assert success is False
-                assert "error" in message.lower() or "failed" in message.lower()
+                results = list(client.pull_model("llama3.2"))
+
+                assert len(results) == 1
+                assert "error" in results[0]
             else:
                 # Method might not exist
                 pass

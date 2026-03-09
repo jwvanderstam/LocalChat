@@ -553,8 +553,8 @@ class TestTestModel:
         mock_requests.post.return_value = mock_response
         
         success, response = ollama_client.test_model("nonexistent-model")
-        
-        assert success is True  # test_model considers completing without error as success
+
+        assert success is False  # status_code=500 yields error string -> failure
         assert isinstance(response, str)
 
 

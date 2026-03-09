@@ -19,6 +19,7 @@ Created: January 2025
 import pytest
 from unittest.mock import Mock, MagicMock, patch, call
 import socket
+from src.db import DatabaseUnavailableError
 
 
 @pytest.fixture(autouse=True)
@@ -385,7 +386,7 @@ class TestConnectionPoolManagement:
         test_db = db_module.Database()
         # Don't initialize
         
-        with pytest.raises(RuntimeError, match="Connection pool not initialized"):
+        with pytest.raises(DatabaseUnavailableError):
             with test_db.get_connection():
                 pass
     

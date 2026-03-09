@@ -348,6 +348,24 @@ class RetrievalMixin:
         
         return None
     
+    def _compute_simple_bm25(self, query: str, document: str) -> float:
+        """
+        Compute a simple normalized BM25 score for a single query-document pair.
+
+        Args:
+            query: Query text
+            document: Document text to score against
+
+        Returns:
+            Normalized BM25 score in range [0, 1]
+        """
+        if not document or not query:
+            return 0.0
+        scorer = BM25Scorer()
+        scorer.fit([document])
+        raw_score = scorer.score(query, document, 0)
+        return raw_score / (raw_score + 1.0) if raw_score > 0 else 0.0
+
     def _compute_bm25_scores(
         self, 
         query: str, 
