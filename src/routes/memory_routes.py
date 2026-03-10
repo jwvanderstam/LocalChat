@@ -148,6 +148,24 @@ def update_conversation(conversation_id: str):
     return jsonify({'id': conversation_id, 'title': title})
 
 
+@bp.route('/conversations', methods=['DELETE'])
+def delete_all_conversations():
+    """
+    Delete all conversations and their messages.
+    ---
+    tags:
+      - Memory
+    summary: Delete all conversations
+    responses:
+      200:
+        description: All conversations deleted
+      503:
+        description: Database unavailable
+    """
+    deleted = current_app.db.delete_all_conversations()
+    return jsonify({'success': True, 'deleted': deleted})
+
+
 @bp.route('/conversations/<conversation_id>', methods=['DELETE'])
 def delete_conversation(conversation_id: str):
     """

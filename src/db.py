@@ -1373,6 +1373,30 @@ class Database:
         logger.debug(f"Deleted conversation: {conversation_id}")
         return deleted
 
+    def delete_all_conversations(self) -> int:
+        """
+        Delete all conversations and their messages from the database.
+
+        WARNING: This operation cannot be undone!
+
+        Returns:
+            int: Number of conversations deleted
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot delete conversations: Database is not connected")
+
+        logger.warning("Deleting ALL conversations and messages")
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM conversations")
+                deleted = cursor.rowcount
+                conn.commit()
+        logger.info(f"Deleted {deleted} conversations (messages removed via cascade)")
+        return deleted
+
     def delete_all_documents(self) -> None:
         """
         Delete all documents and their chunks from the database.
