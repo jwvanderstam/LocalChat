@@ -203,9 +203,8 @@ def api_chat():
         
         active_model = config.app_state.get_active_model()
         if not active_model:
-            error_msg = "No active model set"
-            logger.error(error_msg)
-            raise exceptions.InvalidModelError(error_msg)
+            logger.error("No active model set")
+            return jsonify({'error': 'NoModelConfigured', 'message': 'No active model set. Please select a model first.'}), 400
         
         logger.debug(f"[CHAT API] Using model: {active_model}")
         
