@@ -308,60 +308,48 @@ class Database:
             
             logger.info("? PostgreSQL server is reachable, attempting connection...")
             
+            conninfo = f"host={config.PG_HOST} port={config.PG_PORT} user={config.PG_USER} password={config.PG_PASSWORD} dbname={config.PG_DB}"
+
+            def configure_connection(conn):
+                """Configure each connection from the pool."""
+                register_vector_types(conn)
+                # Ensure connection is in idle state
+                if conn.info.transaction_status != 0:  # 0 = IDLE
+                    conn.rollback()
+
             # First, check if database exists by trying to connect directly
             try:
                 # Try a simple connection without pool first
-                conninfo = f"host={config.PG_HOST} port={config.PG_PORT} user={config.PG_USER} password={config.PG_PASSWORD} dbname={config.PG_DB}"
                 test_conn = psycopg.connect(conninfo)
-                
-                # Register vector types for this connection
                 register_vector_types(test_conn)
-                
                 test_conn.close()
                 logger.debug("Database exists, creating connection pool")
-                
-                # Database exists, create the pool with configure callback
-                def configure_connection(conn):
-                    """Configure each connection from the pool."""
-                    register_vector_types(conn)
-                    # Ensure connection is in idle state
-                    if conn.info.transaction_status != 0:  # 0 = IDLE
-                        conn.rollback()
-                
+
                 self.connection_pool = ConnectionPool(
                     conninfo=conninfo,
                     min_size=config.DB_POOL_MIN_CONN,
                     max_size=config.DB_POOL_MAX_CONN,
                     timeout=5,
-                    configure=configure_connection  # Register types for each connection
+                    configure=configure_connection
                 )
                 self.is_connected = True
                 self._ensure_extensions_and_tables()
                 logger.info("Database connection established successfully with pgvector type support")
                 return True, "Database connection established"
-                
+
             except psycopg.OperationalError as e:
                 error_msg = str(e)
                 if "database" in error_msg and "does not exist" in error_msg:
                     # Database doesn't exist, create it
                     logger.warning(f"Database {config.PG_DB} doesn't exist, creating...")
                     self._create_database()
-                    
-                    # Now create the pool with configure callback
-                    def configure_connection(conn):
-                        """Configure each connection from the pool."""
-                        register_vector_types(conn)
-                        # Ensure connection is in idle state
-                        if conn.info.transaction_status != 0:  # 0 = IDLE
-                            conn.rollback()
-                    
-                    conninfo = f"host={config.PG_HOST} port={config.PG_PORT} user={config.PG_USER} password={config.PG_PASSWORD} dbname={config.PG_DB}"
+
                     self.connection_pool = ConnectionPool(
                         conninfo=conninfo,
                         min_size=config.DB_POOL_MIN_CONN,
                         max_size=config.DB_POOL_MAX_CONN,
                         timeout=5,
-                        configure=configure_connection  # Register types for each connection
+                        configure=configure_connection
                     )
                     self.is_connected = True
                     self._ensure_extensions_and_tables()
@@ -400,10 +388,8 @@ class Database:
                     )
                     
                     if not cursor.fetchone():
-                        # Use psycopg.sql for safe query composition
-                        from psycopg import sql as psycopg_sql
-                        query = psycopg_sql.SQL("CREATE DATABASE {}").format(
-                            psycopg_sql.Identifier(config.PG_DB)
+                        query = sql.SQL("CREATE DATABASE {}").format(
+                            sql.Identifier(config.PG_DB)
                         )
                         cursor.execute(query)  # type: ignore
                         logger.info(f"Database '{config.PG_DB}' created successfully")
@@ -770,7 +756,6 @@ class Database:
                     """
                     cursor.execute(query_sql, (embedding_str, embedding_str, top_k))
                 results = cursor.fetchall()
-                conn.commit()
                 logger.debug(f"Found {len(results)} similar chunks")
                 # Convert None metadata to empty dict
                 return [(r[0], r[1], r[2], r[3], r[4] or {}) for r in results]
@@ -853,7 +838,6 @@ class Database:
                     cursor.execute(query_sql, (embedding_str, embedding_str, max_distance, embedding_str, top_k))
 
                 results = cursor.fetchall()
-                conn.commit()
                 logger.debug(f"Found {len(results)} chunks above similarity threshold {min_similarity}")
                 return results
     

@@ -336,13 +336,16 @@ class OllamaClient:
         """
         try:
             logger.debug(f"Generating chat response with model: {model}")
+            payload: Dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "stream": stream,
+            }
+            if max_tokens is not None:
+                payload["options"] = {"num_predict": max_tokens}
             response = requests.post(
                 f"{self.base_url}/api/chat",
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "stream": stream
-                },
+                json=payload,
                 stream=stream,
                 timeout=120
             )

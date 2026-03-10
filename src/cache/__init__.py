@@ -20,6 +20,7 @@ Created: 2025-01-15
 
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Dict, List, Tuple
+from collections import OrderedDict
 from datetime import datetime, timedelta
 import hashlib
 import json
@@ -159,107 +160,93 @@ class MemoryCache(CacheBackend):
         super().__init__(namespace)
         self.max_size = max_size
         self.stats.max_size = max_size
-        self._cache: Dict[str, Tuple[Any, Optional[datetime]]] = {}
-        self._access_order: List[str] = []
-        
+        self._cache: OrderedDict[str, Tuple[Any, Optional[datetime]]] = OrderedDict()
+
         logger.info(f"MemoryCache initialized (max_size={max_size})")
     
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache."""
         full_key = self.make_key(key)
-        
+
         if full_key not in self._cache:
             self.stats.misses += 1
             return None
-        
+
         value, expiry = self._cache[full_key]
-        
+
         # Check expiry
         if expiry and datetime.now() > expiry:
             self.delete(key)
             self.stats.misses += 1
             return None
-        
-        # Update access order (LRU)
-        if full_key in self._access_order:
-            self._access_order.remove(full_key)
-        self._access_order.append(full_key)
-        
+
+        # Move to end to mark as most-recently used (O(1))
+        self._cache.move_to_end(full_key)
+
         self.stats.hits += 1
         return value
-    
+
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         """Set value in cache with optional TTL."""
         full_key = self.make_key(key)
-        
+
         # Calculate expiry
         expiry = None
         if ttl:
             expiry = datetime.now() + timedelta(seconds=ttl)
-        
-        # Evict oldest if at capacity
+
+        # Evict least-recently used entry if at capacity (O(1))
         if len(self._cache) >= self.max_size and full_key not in self._cache:
-            oldest_key = self._access_order.pop(0)
-            del self._cache[oldest_key]
+            self._cache.popitem(last=False)
             self.stats.evictions += 1
-        
+
         self._cache[full_key] = (value, expiry)
-        
-        # Update access order
-        if full_key in self._access_order:
-            self._access_order.remove(full_key)
-        self._access_order.append(full_key)
-        
+        self._cache.move_to_end(full_key)
+
         self.stats.sets += 1
         self.stats.size = len(self._cache)
-        
+
         return True
-    
+
     def delete(self, key: str) -> bool:
         """Delete key from cache."""
         full_key = self.make_key(key)
-        
+
         if full_key in self._cache:
             del self._cache[full_key]
-            if full_key in self._access_order:
-                self._access_order.remove(full_key)
             self.stats.deletes += 1
             self.stats.size = len(self._cache)
             return True
-        
+
         return False
-    
+
     def exists(self, key: str) -> bool:
         """Check if key exists in cache."""
         full_key = self.make_key(key)
-        
+
         if full_key not in self._cache:
             return False
-        
+
         _, expiry = self._cache[full_key]
         if expiry and datetime.now() > expiry:
             self.delete(key)
             return False
-        
+
         return True
-    
+
     def clear(self) -> bool:
         """Clear all keys in namespace."""
-        keys_to_delete = [
-            k for k in self._cache.keys() 
-            if k.startswith(f"{self.namespace}:")
-        ]
-        
+        prefix = f"{self.namespace}:"
+        keys_to_delete = [k for k in self._cache if k.startswith(prefix)]
+
         for key in keys_to_delete:
             del self._cache[key]
-            if key in self._access_order:
-                self._access_order.remove(key)
-        
+
         self.stats.size = len(self._cache)
         logger.info(f"Cleared {len(keys_to_delete)} keys from MemoryCache")
-        
+
         return True
-    
+
     def get_stats(self) -> CacheStats:
         """Get cache statistics."""
         self.stats.size = len(self._cache)

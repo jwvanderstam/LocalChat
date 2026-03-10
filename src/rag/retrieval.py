@@ -448,7 +448,7 @@ class RetrievalMixin:
         )
         
         diverse_results: Dict[str, Dict[str, Any]] = {}
-        selected_words: List[Set[str]] = [];
+        selected_words: List[Set[str]] = []
         
         for chunk_id, data in sorted_items:
             chunk_words = set(data['chunk_text'].lower().split())
@@ -517,46 +517,23 @@ class RetrievalMixin:
         return results
     
     def _expand_context_windows(
-        self, 
+        self,
         results: Dict[str, Dict[str, Any]]
     ) -> Dict[str, Dict[str, Any]]:
         """
         Expand context by including adjacent chunks.
-        
+
+        NOTE: Not yet implemented — returns results unchanged.
+        Intended future behaviour: fetch window_size chunks before/after
+        each result using db.get_adjacent_chunks() and merge the text.
+
         Args:
             results: Dictionary of chunk_id -> result data
-        
+
         Returns:
-            Results with expanded context in chunk_text
+            Results unchanged (pending implementation)
         """
-        window_size = config.CONTEXT_WINDOW_SIZE
-        if window_size <= 0:
-            return results
-        
-        # Group by document to minimize DB calls
-        doc_chunks: Dict[int, List[Tuple[str, Dict[str, Any]]]] = {}
-        
-        for chunk_id, data in results.items():
-            filename = data['filename']
-            if filename not in doc_chunks:
-                doc_chunks[filename] = []
-            doc_chunks[filename].append((chunk_id, data))
-        logger.debug(f"[RAG] Grouped {len(results)} chunks into {len(doc_chunks)} documents for context expansion")
-        
-        # Expand context for each chunk
-        expanded_results = {}
-        
-        for filename, chunks in doc_chunks.items():
-            for chunk_id, data in chunks:
-                chunk_index = data['chunk_index']
-                
-                try:
-                    expanded_results[chunk_id] = data
-                except Exception as e:
-                    logger.debug(f"[RAG] Could not expand context for {chunk_id}: {e}")
-                    expanded_results[chunk_id] = data
-        
-        return expanded_results
+        return results
     
     def test_retrieval(self, query: str, top_k: Optional[int] = None) -> Tuple[bool, List[Dict[str, Any]]]:
         """
@@ -648,14 +625,6 @@ class RetrievalMixin:
             
             # Add chunks from this document
             for chunk_text, chunk_index, similarity, metadata in chunks:
-                # Determine confidence level
-                if similarity >= 0.80:
-                    marker = "***"
-                elif similarity >= 0.65:
-                    marker = " + "
-                else:
-                    marker = " - "
-                
                 # Build citation with page and section
                 citation_parts = []
 
