@@ -47,6 +47,13 @@
     <Compile Include="scripts\test_section_extraction.py" />
     <Compile Include="scripts\verify_migration.py" />
     <Compile Include="scripts\write_chat_js.py" />
+    <Compile Include="src\cache\backends\base.py" />
+    <Compile Include="src\cache\backends\memory.py" />
+    <Compile Include="src\cache\backends\redis_cache.py" />
+    <Compile Include="src\db\connection.py" />
+    <Compile Include="src\db\conversations.py" />
+    <Compile Include="src\db\documents.py" />
+    <Compile Include="src\db\__init__.py" />
     <Compile Include="src\performance\__init__.py" />
     <Compile Include="src\rag\web_search.py" />
     <Compile Include="src\__init__.py" />
@@ -60,7 +67,6 @@
     <Compile Include="src\cache\backends\database_cache.py" />
     <Compile Include="src\cache\managers.py" />
     <Compile Include="src\config.py" />
-    <Compile Include="src\db.py" />
     <Compile Include="src\exceptions.py" />
     <Compile Include="src\initialization\__init__.py" />
     <Compile Include="src\initialization\app_setup.py" />
@@ -162,6 +168,7 @@
     <Folder Include="src\blueprints\" />
     <Folder Include="src\cache\" />
     <Folder Include="src\cache\backends\" />
+    <Folder Include="src\db\" />
     <Folder Include="src\initialization\" />
     <Folder Include="src\performance\" />
     <Folder Include="src\rag\" />

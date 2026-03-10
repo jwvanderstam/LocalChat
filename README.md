@@ -32,7 +32,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Security**: Rate limiting, CORS support, JWT authentication ready
 
 ### Quality Assurance
-- **90+ Tests**: Unit, integration, and comprehensive test suites
+- **628 Tests**: Unit, integration, and comprehensive test suites
 - **Type Safety**: Full type hints across codebase
 - **Modular Architecture**: Clean separation of concerns
 - **CI/CD Ready**: GitHub Actions configuration
@@ -218,7 +218,11 @@ LocalChat/
 ├── src/                        # Application source code
 │   ├── app_factory.py          # Flask app factory (entry: create_app)
 │   ├── config.py               # Configuration (env vars, RAG settings)
-│   ├── db.py                   # PostgreSQL + pgvector database layer
+│   ├── db/                     # PostgreSQL + pgvector database layer
+│   │   ├── __init__.py         # Package: Database class + db singleton
+│   │   ├── connection.py       # Connection pool, pgvector adapters, schema
+│   │   ├── documents.py        # Document & chunk CRUD + vector search
+│   │   └── conversations.py    # Conversation & message persistence
 │   ├── exceptions.py           # Custom exception hierarchy
 │   ├── models.py               # Pydantic request/response models
 │   ├── monitoring.py           # Metrics, health checks, decorators
@@ -227,9 +231,13 @@ LocalChat/
 │   ├── api_docs.py             # Swagger/OpenAPI configuration
 │   ├── types.py                # Type definitions
 │   ├── cache/                  # Caching layer
-│   │   ├── managers.py         # Cache manager (Redis/Memory)
+│   │   ├── __init__.py         # Factory + re-exports
+│   │   ├── managers.py         # Cache manager (embedding, query)
 │   │   └── backends/
-│   │       └── database_cache.py
+│   │       ├── base.py         # CacheStats + CacheBackend ABC
+│   │       ├── memory.py       # In-memory LRU cache (OrderedDict)
+│   │       ├── redis_cache.py  # Redis-backed distributed cache
+│   │       └── database_cache.py # PostgreSQL-backed cache
 │   ├── performance/
 │   │   └── batch_processor.py  # Batch embedding processor
 │   ├── rag/                    # RAG pipeline
@@ -316,8 +324,9 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 24 test modules covering all core components
+- **Unit Tests**: `tests/unit/` — 25 test modules covering all core components
 - **Integration Tests**: `tests/integration/` — 4 modules covering all API route blueprints
+- **Total**: 628 passing tests, 4 skipped, 0 failed
 
 ---
 
@@ -540,16 +549,18 @@ We welcome contributions!
 
 ## Project Status (Detailed)
 
-### Current Version: 0.4.0
+### Current Version: 0.5.0
 
 **Phase**: Production Ready — Clean Architecture
 
 **Highlights**:
+- `src/db/` package split into `connection`, `documents`, `conversations` modules
+- `src/cache/backends/` subpackage with `base`, `memory`, `redis_cache`, `database_cache`
 - Modular `src/` package with clean separation of concerns
 - RAG pipeline split into dedicated modules (`rag/cache`, `chunking`, `loaders`, `processor`, `retrieval`, `scoring`)
 - Tool/function calling system (`tools/builtin`, `executor`, `registry`)
 - Flask blueprint architecture with typed routes
-- Comprehensive test suite (unit, integration, comprehensive)
+- Comprehensive test suite: 628 passing tests (unit, integration, comprehensive)
 - Professional error handling with custom exception hierarchy
 - Swagger/OpenAPI docs at `/api/docs/`
 

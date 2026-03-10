@@ -1,18 +1,26 @@
 # -*- coding: utf-8 -*-
 
 """
-Cache Backends Module
-====================
+Cache Backends
+==============
 
-Provides various caching backend implementations:
-- Memory: Fast, in-process cache (L1)
-- Redis: Distributed cache (L2)
-- Database: Persistent cache (L3)
-
-Author: LocalChat Team
-Created: January 2025
+Provides all cache backend implementations:
+- base        — CacheStats dataclass + CacheBackend ABC
+- memory      — MemoryCache  (in-process LRU, zero-dependency)
+- redis_cache — RedisCache   (distributed, requires redis package)
+- database_cache — DatabaseCache (persistent, uses PostgreSQL)
 """
 
+from .base import CacheStats, CacheBackend
+from .memory import MemoryCache
+from .redis_cache import RedisCache
 from .database_cache import DatabaseCache, create_db_cache
 
-__all__ = ['DatabaseCache', 'create_db_cache']
+__all__ = [
+    'CacheStats',
+    'CacheBackend',
+    'MemoryCache',
+    'RedisCache',
+    'DatabaseCache',
+    'create_db_cache',
+]

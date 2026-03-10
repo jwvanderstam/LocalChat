@@ -272,8 +272,8 @@
                         <div id="testing" class="accordion-collapse collapse" data-bs-parent="#featuresAccordion">
                             <div class="accordion-body">
                                 <ul class="list-unstyled">
-                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>231 Unit Tests:</strong> Comprehensive test coverage</li>
-                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>59% Code Coverage:</strong> Core modules well-tested</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>628 Tests:</strong> Unit, integration, and comprehensive test coverage</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>60% Code Coverage:</strong> Core modules well-tested</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>100% Exception Coverage:</strong> All errors tested</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>95% Validation Coverage:</strong> Input validation verified</li>
                                     <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Fast Execution:</strong> 1.39s for all tests</li>
@@ -303,7 +303,7 @@
                     <div class="col-md-3">
                         <div class="card border-primary">
                             <div class="card-body text-center">
-                                <h2 class="text-primary">83</h2>
+                                <h2 class="text-primary">86+</h2>
                                 <p class="mb-0 small text-muted">Total Files</p>
                             </div>
                         </div>
@@ -311,7 +311,7 @@
                     <div class="col-md-3">
                         <div class="card border-success">
                             <div class="card-body text-center">
-                                <h2 class="text-success">~19K</h2>
+                                <h2 class="text-success">~20K</h2>
                                 <p class="mb-0 small text-muted">Lines of Code</p>
                             </div>
                         </div>
@@ -319,7 +319,7 @@
                     <div class="col-md-3">
                         <div class="card border-info">
                             <div class="card-body text-center">
-                                <h2 class="text-info">10</h2>
+                                <h2 class="text-info">13</h2>
                                 <p class="mb-0 small text-muted">Core Modules</p>
                             </div>
                         </div>
@@ -340,7 +340,7 @@
                         <h2 class="accordion-header">
                             <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#coreFiles">
                                 <i class="bi bi-code-square me-2 text-primary"></i><strong>src/ - Core Application Files</strong>
-                                <span class="badge bg-primary ms-2">10 modules</span>
+                                <span class="badge bg-primary ms-2">13 modules</span>
                             </button>
                         </h2>
                         <div id="coreFiles" class="accordion-collapse collapse show" data-bs-parent="#fileStructureAccordion">
@@ -370,12 +370,12 @@
                                     
                                     <div class="list-group-item">
                                         <div class="d-flex w-100 justify-content-between">
-                                            <h6 class="mb-1"><code>src/db.py</code></h6>
-                                            <small class="text-muted">~600 lines</small>
+                                            <h6 class="mb-1"><code>src/db/</code></h6>
+                                            <small class="text-muted">4 modules</small>
                                         </div>
-                                        <p class="mb-1">PostgreSQL database operations with pgvector support</p>
+                                        <p class="mb-1">PostgreSQL database package with pgvector support</p>
                                         <small class="text-muted">
-                                            Connection pooling, CRUD operations, vector similarity search, HNSW indexing
+                                            <code>__init__</code> (singleton), <code>connection</code> (pool + adapters), <code>documents</code> (CRUD + vector search), <code>conversations</code> (chat memory)
                                         </small>
                                     </div>
                                     
@@ -484,7 +484,7 @@
                         <h2 class="accordion-header">
                             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#testFiles">
                                 <i class="bi bi-check2-square me-2 text-info"></i><strong>tests/ - Test Suite</strong>
-                                <span class="badge bg-info ms-2">231 tests</span>
+                                <span class="badge bg-info ms-2">628 tests</span>
                             </button>
                         </h2>
                         <div id="testFiles" class="accordion-collapse collapse" data-bs-parent="#fileStructureAccordion">
@@ -504,27 +504,6 @@
                                         <h6 class="mb-1"><code>tests/integration/</code></h6>
                                         <p class="mb-1">Integration tests &mdash; 4 modules covering all API route blueprints</p>
                                         <small class="text-muted">api_routes, document_routes, model_routes, web_routes</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Scripts -->
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#docFiles">
-                                <i class="bi bi-terminal me-2 text-danger"></i><strong>scripts/ - Utility Scripts</strong>
-                                <span class="badge bg-danger ms-2">1 script</span>
-                            </button>
-                        </h2>
-                        <div id="docFiles" class="accordion-collapse collapse" data-bs-parent="#fileStructureAccordion">
-                            <div class="accordion-body">
-                                <div class="list-group">
-                                    <div class="list-group-item">
-                                        <h6 class="mb-1"><code>scripts/check_dependencies.py</code></h6>
-                                        <p class="mb-1">Dependency checker and auto-installer</p>
-                                        <small class="text-muted">Verifies all required packages are installed and installs missing ones</small>
                                     </div>
                                 </div>
                             </div>
@@ -710,7 +689,7 @@
                         <ul>
                             <li><strong>Flask Application:</strong> Application factory pattern (src/app_factory.py)</li>
                             <li><strong>RAG Engine:</strong> Document processing pipeline (<code>src/rag/</code>)</li>
-                            <li><strong>Database Layer:</strong> PostgreSQL + pgvector (src/db.py)</li>
+                            <li><strong>Database Layer:</strong> PostgreSQL + pgvector package (<code>src/db/</code>)</li>
                             <li><strong>Ollama Client:</strong> LLM integration (src/ollama_client.py)</li>
                             <li><strong>Error Handling:</strong> 11 custom exceptions (src/exceptions.py)</li>
                             <li><strong>Validation:</strong> 8 Pydantic models (src/models.py)</li>
@@ -719,7 +698,7 @@
                     <div class="col-md-6">
                         <h6 class="mt-3">Key Capabilities:</h6>
                         <ul>
-                            <li>231 comprehensive tests (59% coverage)</li>
+                            <li>628 comprehensive tests (~60% coverage)</li>
                             <li>Streaming responses (Server-Sent Events)</li>
                             <li>Connection pooling (2-10 connections)</li>
                             <li>Parallel processing (8 workers)</li>
@@ -746,7 +725,7 @@
                     <li>Document Processing: ~5 seconds per MB</li>
                     <li>Query Response: <1 second (retrieval) + LLM time</li>
                     <li>Concurrent Users: Supports multiple simultaneous requests</li>
-                    <li>Test Execution: 1.39 seconds for 231 tests</li>
+                    <li>Test Execution: ~8 minutes for 628 tests</li>
                 </ul>
             </div>
             <div class="modal-footer">
@@ -786,8 +765,8 @@
                     <tbody>
                     <tr>
                         <td><strong>Source Code</strong></td>
-                        <td>36 files</td>
-                        <td>~8,000</td>
+                        <td>45 files</td>
+                        <td>~10,000</td>
                         <td>Core application modules + packages</td>
                     </tr>
                     <tr>
@@ -798,9 +777,9 @@
                     </tr>
                     <tr>
                         <td><strong>Tests</strong></td>
-                        <td>28 files</td>
-                        <td>~5,000</td>
-                        <td>24 unit + 4 integration modules</td>
+                        <td>35 files</td>
+                        <td>~8,000</td>
+                        <td>25 unit + 4 integration modules, 628 tests</td>
                     </tr>
                     <tr>
                         <td><strong>Scripts</strong></td>
@@ -810,8 +789,8 @@
                     </tr>
                     <tr class="table-primary">
                         <td><strong>Total</strong></td>
-                        <td><strong>83</strong></td>
-                        <td><strong>~15,000</strong></td>
+                        <td><strong>86+</strong></td>
+                        <td><strong>~20,000</strong></td>
                         <td><strong>Complete application</strong></td>
                     </tr>
                     </tbody>
@@ -833,14 +812,14 @@
                                     <li><code>app_factory.py</code> (~430) - Application factory &amp; blueprint registration</li>
                                     <li><code>routes/</code> - Blueprint modules (api, documents, models, memory, web, errors)</li>
                                     <li><code>config.py</code> (~200) - Configuration &amp; state management</li>
-                                    <li><code>db.py</code> (~600) - PostgreSQL + pgvector operations</li>
+                                    <li><code>db/</code> - PostgreSQL + pgvector package (connection, documents, conversations)</li>
                                     <li><code>rag/</code> - RAG pipeline (chunking, loaders, processor, retrieval, scoring, cache, web_search)</li>
                                     <li><code>ollama_client.py</code> (~400) - LLM API client</li>
                                     <li><code>exceptions.py</code> (~150) - 11 custom exception classes</li>
                                     <li><code>models.py</code> (~400) - 8 Pydantic validation models</li>
                                     <li><code>security.py</code> (~300) - JWT, rate limiting, CORS</li>
                                     <li><code>utils/</code> - logging_config.py, sanitization.py</li>
-                                    <li><code>cache/</code> - Redis/memory cache managers + backends</li>
+                                    <li><code>cache/</code> - Factory + backends (memory, redis, database)</li>
                                     <li><code>performance/</code> - batch_processor.py</li>
                                     <li><code>tools/</code> - builtin.py, executor.py, registry.py</li>
                                 </ul>
@@ -872,7 +851,7 @@
                     <div class="accordion-item">
                         <h2 class="accordion-header">
                             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#modalTests">
-                                <strong>tests/ - Test Suite (231 tests, 59% coverage)</strong>
+                                <strong>tests/ - Test Suite (628 tests, ~60% coverage)</strong>
                             </button>
                         </h2>
                         <div id="modalTests" class="accordion-collapse collapse" data-bs-parent="#modalFileAccordion">
@@ -929,7 +908,7 @@
                         </tr>
                         <tr>
                             <td>Update database schema</td>
-                            <td><code>src/db.py</code></td>
+                            <td><code>src/db/connection.py</code></td>
                         </tr>
                         <tr>
                             <td>Add validation rule</td>
