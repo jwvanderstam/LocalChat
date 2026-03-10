@@ -20,6 +20,7 @@ const modeBadge = document.getElementById('mode-badge');
 const copyChatBtn = document.getElementById('copy-chat-btn');
 const newChatBtn = document.getElementById('new-chat-btn');
 const newChatHeaderBtn = document.getElementById('new-chat-header-btn');
+const clearHistoryBtn = document.getElementById('clear-history-btn');
 const conversationsList = document.getElementById('conversations-list');
 const renameInput = document.getElementById('rename-input');
 const renameConfirmBtn = document.getElementById('rename-confirm-btn');
@@ -66,6 +67,7 @@ function init() {
     // New chat buttons
     if (newChatBtn) newChatBtn.addEventListener('click', startNewChat);
     if (newChatHeaderBtn) newChatHeaderBtn.addEventListener('click', startNewChat);
+    if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', deleteAllConversations);
 
     // Copy chat
     if (copyChatBtn) copyChatBtn.addEventListener('click', copyChatToClipboard);
@@ -189,6 +191,19 @@ async function deleteConversation(id) {
         }
     } catch (err) {
         console.error('Failed to delete conversation:', err);
+    }
+}
+
+async function deleteAllConversations() {
+    if (!confirm('Delete all conversations and chat history? This cannot be undone.')) return;
+    try {
+        const response = await fetch('/api/conversations', { method: 'DELETE' });
+        if (response.ok) {
+            conversations = [];
+            startNewChat();
+        }
+    } catch (err) {
+        console.error('Failed to delete all conversations:', err);
     }
 }
 
