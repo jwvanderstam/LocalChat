@@ -357,7 +357,7 @@ class RedisCache(CacheBackend):
         
         try:
             result = self.client.delete(full_key)
-            if result > 0:
+            if int(result) > 0:  # type: ignore[arg-type]
                 self.stats.deletes += 1
                 return True
             return False
@@ -399,7 +399,7 @@ class RedisCache(CacheBackend):
     def get_stats(self) -> CacheStats:
         """Get cache statistics."""
         try:
-            info = self.client.info('stats')
+            info: dict = self.client.info('stats')  # type: ignore[assignment]
             self.stats.size = info.get('keyspace_hits', 0) + info.get('keyspace_misses', 0)
             
             # Get namespace key count
