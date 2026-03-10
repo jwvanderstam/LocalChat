@@ -15,8 +15,26 @@ import logging
 import functools
 import logging.handlers
 import os
+import sys
 from pathlib import Path
 from typing import Optional
+
+
+class SafeStreamHandler(logging.StreamHandler):
+    """
+    StreamHandler that silently drops 'I/O operation on closed file' errors.
+
+    During interpreter shutdown (or pytest teardown), the stream held by this
+    handler can be closed before all atexit/teardown callbacks have finished.
+    The base class would then print a noisy --- Logging error --- traceback to
+    stderr via handleError().  We suppress only that specific case.
+    """
+
+    def handleError(self, record: logging.LogRecord) -> None:
+        t, v, _ = sys.exc_info()
+        if t is ValueError and "closed file" in str(v):
+            return  # silently ignore — stream was closed during teardown
+        super().handleError(record)
 
 
 class ColoredFormatter(logging.Formatter):
@@ -101,7 +119,7 @@ def setup_logging(
     
     # Console handler with colored output
     if enable_console:
-        console_handler = logging.StreamHandler()
+        console_handler = SafeStreamHandler()
         console_handler.setLevel(logging.INFO)
         console_formatter = ColoredFormatter(
             '%(levelname)s - %(name)s - %(message)s'
