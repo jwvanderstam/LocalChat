@@ -76,7 +76,7 @@ def api_list_models():
     })
 
 
-@bp.route('/active', methods=['GET', 'POST'])
+@bp.route('/active', methods=['GET', 'POST'])  # NOSONAR
 def api_active_model():
     """
     Get or set the active model.

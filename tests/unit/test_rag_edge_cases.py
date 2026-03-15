@@ -24,8 +24,6 @@ class TestChunkingEdgeCases:
         chunks = doc_processor.chunk_text(text, chunk_size=5, overlap=0)
         
         assert isinstance(chunks, list)
-        # May return 0 or more chunks depending on implementation
-        assert len(chunks) >= 0
     
     def test_chunk_with_zero_overlap(self):
         """Test chunking with no overlap."""
@@ -263,4 +261,4 @@ class TestBM25ScorerEdgeCases:
         
         scorer = BM25Scorer(k1=1.5, b=1.0)
         
-        assert scorer.b == 1.0
+        assert abs(scorer.b - 1.0) < 1e-9

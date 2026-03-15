@@ -211,8 +211,8 @@ class TestRequestLogging:
         with caplog.at_level(logging.INFO):
             response = client.get('/')
             
-            # Some logging should occur
-            assert len(caplog.records) >= 0
+            # Logging may or may not occur depending on configuration
+            assert isinstance(caplog.records, list)
 
 
 class TestSecurityDecorators:

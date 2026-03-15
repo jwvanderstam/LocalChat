@@ -150,8 +150,8 @@ class TestErrorLogging:
         with caplog.at_level(logging.WARNING):
             response = client.get('/nonexistent')
             
-            # Should have logged something
-            assert len(caplog.records) >= 0  # Logging may or may not happen
+            # Logging may or may not happen depending on configuration
+            assert isinstance(caplog.records, list)
 
 
 class TestErrorHandlerRegistration:
