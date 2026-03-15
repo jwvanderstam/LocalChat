@@ -1,0 +1,49 @@
+name: SonarCloud Analysis
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  sonarcloud:
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history required for accurate blame information and new code detection
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests with coverage
+        run: pytest tests/unit/ -v --tb=short -x --cov=src --cov-report=xml --cov-report=term-missing
+        env:
+          PG_HOST: localhost
+          PG_PORT: 5432
+          PG_USER: postgres
+          PG_PASSWORD: ci_test_password
+          PG_DB: rag_db
+          SECRET_KEY: ci-test-secret-key-32chars-minimum
+          JWT_SECRET_KEY: ci-test-jwt-secret-key
+          ADMIN_PASSWORD: ci-test-admin-password
+          OLLAMA_BASE_URL: http://localhost:11434
+          APP_ENV: development
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
