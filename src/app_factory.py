@@ -212,6 +212,16 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
             if strict_mode:
                 logger.critical("REQUIRE_DATABASE=true - cannot start without database")
                 import sys
+                border = "=" * 60
+                print("", file=sys.stderr)
+                print(border, file=sys.stderr)
+                print("  FATAL: PostgreSQL database is NOT available", file=sys.stderr)
+                print(f"  Reason: {db_message.splitlines()[0]}", file=sys.stderr)
+                print("", file=sys.stderr)
+                print("  REQUIRE_DATABASE=true is set — aborting startup.", file=sys.stderr)
+                print("  Ensure PostgreSQL is running and reachable, then retry.", file=sys.stderr)
+                print(border, file=sys.stderr)
+                print("", file=sys.stderr)
                 sys.exit(1)
             else:
                 logger.warning("Continuing without database (development mode)")

@@ -115,6 +115,7 @@
   <ItemGroup>
     <Content Include=".coveragerc" />
     <Content Include=".env" />
+    <Content Include=".github\workflows\sonarcloud.yml" />
     <Content Include=".github\workflows\tests.yml" />
     <Content Include=".gitignore" />
     <Content Include=".vscode\settings.json" />
@@ -124,6 +125,7 @@
     <Content Include="pytest.ini" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />
+    <Content Include="sonar-project.properties" />
     <Content Include="static\css\style.css" />
     <Content Include="static\js\chat.js" />
     <Content Include="static\js\ingestion.js" />

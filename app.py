@@ -28,6 +28,28 @@ from src.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def _print_db_unavailable_warning() -> None:
+    """Print a prominent console warning when PostgreSQL is not available at startup."""
+    border = "=" * 60
+    print("", file=sys.stderr)
+    print(border, file=sys.stderr)
+    print("  WARNING: PostgreSQL database is NOT available", file=sys.stderr)
+    print(border, file=sys.stderr)
+    print("  LocalChat is running in DEGRADED MODE:", file=sys.stderr)
+    print("    - Document storage and retrieval are disabled", file=sys.stderr)
+    print("    - Conversation history will not be persisted", file=sys.stderr)
+    print("    - RAG features are unavailable", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  To resolve this, ensure:", file=sys.stderr)
+    print("    1. PostgreSQL is installed and running", file=sys.stderr)
+    print("    2. The database host/port in config.py are correct", file=sys.stderr)
+    print("    3. The database credentials are correct", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  Set REQUIRE_DATABASE=true to abort startup instead.", file=sys.stderr)
+    print(border, file=sys.stderr)
+    print("", file=sys.stderr)
+
+
 def main():
     """
     Main application entry point.
@@ -36,7 +58,11 @@ def main():
     """
     # Create application
     app = create_app()
-    
+
+    # Warn the user prominently if the database is unavailable
+    if not app.startup_status.get('database', False):
+        _print_db_unavailable_warning()
+
     # Get configuration from environment
     HOST = os.environ.get('SERVER_HOST', 'localhost')
     try:
@@ -51,8 +77,8 @@ def main():
     logger.info("=" * 50)
     logger.info(f"Server: http://{HOST}:{PORT}")
     logger.info(f"Debug: {DEBUG}")
-    logger.info(f"Ollama: {'?' if app.startup_status['ollama'] else '?'}")
-    logger.info(f"Database: {'?' if app.startup_status['database'] else '?'}")
+    logger.info(f"Ollama: {'OK' if app.startup_status['ollama'] else 'UNAVAILABLE'}")
+    logger.info(f"Database: {'OK' if app.startup_status['database'] else 'UNAVAILABLE'}")
     logger.info("=" * 50)
     
     # Run application
