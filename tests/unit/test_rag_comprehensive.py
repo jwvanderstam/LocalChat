@@ -99,12 +99,13 @@ def mock_db():
 @pytest.fixture
 def mock_ollama():
     """Mock Ollama client for testing."""
-    with patch('src.rag.processor.ollama_client') as mock_proc_client, \
-         patch('src.rag.retrieval.ollama_client') as mock_ret_client:
-        for mock_client in [mock_proc_client, mock_ret_client]:
-            mock_client.get_embedding_model.return_value = "nomic-embed-text"
-            mock_client.generate_embedding.return_value = (True, [0.1] * 768)
-        yield mock_proc_client
+    shared_mock = MagicMock()
+    shared_mock.get_embedding_model.return_value = "nomic-embed-text"
+    shared_mock.generate_embedding.return_value = (True, [0.1] * 768)
+
+    with patch('src.rag.processor.ollama_client', shared_mock), \
+         patch('src.rag.retrieval.ollama_client', shared_mock):
+        yield shared_mock
 
 
 # ============================================================================
