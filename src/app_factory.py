@@ -79,7 +79,7 @@ def create_app(
     # Initialize logging
     if not testing:
         log_level = "DEBUG" if app.config.get('DEBUG', False) else "INFO"
-        setup_logging(log_level=log_level, log_file="logs/app.log")
+        setup_logging(log_level=log_level, log_file=config.LOG_FILE)
     
     # Initialize extensions and services
     _init_services(app, testing)

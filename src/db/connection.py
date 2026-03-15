@@ -50,18 +50,6 @@ class VectorDumper(Dumper):
         return f'[{values_str}]'.encode('utf-8')
 
 
-class VectorBinaryDumper(Dumper):
-    """Binary dumper for pgvector vector type."""
-
-    format: int = 1  # type: ignore
-
-    def dump(self, obj):
-        if hasattr(obj, 'tolist'):
-            obj = obj.tolist()
-        values_str = ','.join(str(float(v)) for v in obj)
-        return f'[{values_str}]'.encode('utf-8')
-
-
 class VectorLoader(Loader):
     """Loader for pgvector vector type."""
 
@@ -206,13 +194,7 @@ class DatabaseConnection:
                     conn.rollback()
 
             try:
-                test_conn = psycopg.connect(conninfo)
-                try:
-                    register_vector_types(test_conn)
-                finally:
-                    test_conn.close()
-                logger.debug("Database exists, creating connection pool")
-
+                logger.debug("Creating connection pool")
                 self.connection_pool = ConnectionPool(
                     conninfo=conninfo,
                     min_size=config.DB_POOL_MIN_CONN,
@@ -314,10 +296,6 @@ class DatabaseConnection:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-                cursor.execute("""
-                    ALTER TABLE document_chunks
-                    ADD COLUMN IF NOT EXISTS metadata JSONB
-                """)
                 logger.debug("Document chunks table ensured")
 
                 cursor.execute("""
@@ -389,7 +367,7 @@ class DatabaseConnection:
                 connection.commit()
         except Exception as e:
             connection.rollback()
-            logger.error(f"Connection error, rolled back: {e}", exc_info=True)
+            logger.debug(f"Transaction rolled back: {e}")
             raise
         finally:
             self.connection_pool.putconn(connection)

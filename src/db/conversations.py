@@ -75,6 +75,7 @@ class ConversationsMixin:
                     LEFT JOIN conversation_messages cm ON c.id = cm.conversation_id
                     GROUP BY c.id, c.title, c.created_at, c.updated_at
                     ORDER BY c.updated_at DESC
+                    LIMIT 100
                 """)
                 rows = cursor.fetchall()
                 return [
@@ -108,19 +109,20 @@ class ConversationsMixin:
 
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id FROM conversations WHERE id = %s", (conversation_id,)
-                )
-                if not cursor.fetchone():
-                    return None
-
                 cursor.execute("""
-                    SELECT role, content, created_at
-                    FROM conversation_messages
-                    WHERE conversation_id = %s
-                    ORDER BY created_at ASC, id ASC
+                    SELECT cm.role, cm.content, cm.created_at
+                    FROM conversations c
+                    JOIN conversation_messages cm ON cm.conversation_id = c.id
+                    WHERE c.id = %s
+                    ORDER BY cm.created_at ASC, cm.id ASC
                 """, (conversation_id,))
                 rows = cursor.fetchall()
+                if rows is not None and len(rows) == 0:
+                    cursor.execute(
+                        "SELECT 1 FROM conversations WHERE id = %s", (conversation_id,)
+                    )
+                    if not cursor.fetchone():
+                        return None
                 return [
                     {
                         'role': row[0],
@@ -151,15 +153,18 @@ class ConversationsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """INSERT INTO conversation_messages (conversation_id, role, content)
-                       VALUES (%s, %s, %s) RETURNING id""",
-                    (conversation_id, role, content),
+                    """
+                    WITH ins AS (
+                        INSERT INTO conversation_messages (conversation_id, role, content)
+                        VALUES (%s, %s, %s) RETURNING id
+                    ), upd AS (
+                        UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = %s
+                    )
+                    SELECT id FROM ins
+                    """,
+                    (conversation_id, role, content, conversation_id),
                 )
                 message_id = cursor.fetchone()[0]
-                cursor.execute(
-                    "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = %s",
-                    (conversation_id,),
-                )
                 conn.commit()
         logger.debug(f"Saved {role} message (id={message_id}) to conversation {conversation_id}")
         return message_id

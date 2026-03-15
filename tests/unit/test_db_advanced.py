@@ -146,9 +146,9 @@ class TestInitializeErrorPaths:
         test_db = db_module.Database()
         
         with patch.object(test_db, 'check_server_availability', return_value=(True, "OK")):
-            with patch('psycopg.connect', side_effect=psycopg.OperationalError("Auth failed")):
+            with patch('src.db.connection.ConnectionPool', side_effect=psycopg.OperationalError("Auth failed")):
                 success, msg = test_db.initialize()
-                
+
                 assert success is False
                 assert "failed" in msg.lower()
     

@@ -145,31 +145,35 @@ class DocumentsMixin:
                 if file_type_filter:
                     cursor.execute(
                         """
+                        WITH q AS (SELECT %s::vector AS emb)
                         SELECT dc.chunk_text, d.filename, dc.chunk_index,
-                               1 - (dc.embedding <=> %s::vector) AS similarity,
+                               1 - (dc.embedding <=> q.emb) AS similarity,
                                dc.metadata
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
+                        CROSS JOIN q
                         WHERE dc.embedding IS NOT NULL AND d.filename LIKE %s
-                        ORDER BY dc.embedding <=> %s::vector
+                        ORDER BY dc.embedding <=> q.emb
                         LIMIT %s
                         """,
-                        (embedding_str, f'%{file_type_filter}', embedding_str, top_k),
+                        (embedding_str, f'%{file_type_filter}', top_k),
                     )
                     logger.debug(f"Searching with file type filter: {file_type_filter}")
                 else:
                     cursor.execute(
                         """
+                        WITH q AS (SELECT %s::vector AS emb)
                         SELECT dc.chunk_text, d.filename, dc.chunk_index,
-                               1 - (dc.embedding <=> %s::vector) AS similarity,
+                               1 - (dc.embedding <=> q.emb) AS similarity,
                                dc.metadata
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
+                        CROSS JOIN q
                         WHERE dc.embedding IS NOT NULL
-                        ORDER BY dc.embedding <=> %s::vector
+                        ORDER BY dc.embedding <=> q.emb
                         LIMIT %s
                         """,
-                        (embedding_str, embedding_str, top_k),
+                        (embedding_str, top_k),
                     )
 
                 results = cursor.fetchall()

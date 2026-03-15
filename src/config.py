@@ -228,6 +228,9 @@ VISION_DESCRIBE_PROMPT: str = (
 UPLOAD_FOLDER: str = 'uploads'
 MAX_CONTENT_LENGTH: int = 16 * 1024 * 1024  # 16MB max upload size
 
+# Logging
+LOG_FILE: str = os.environ.get('LOG_FILE', 'logs/app.log')
+
 # State persistence file
 STATE_FILE: str = 'app_state.json'
 
