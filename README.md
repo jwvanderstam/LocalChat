@@ -11,7 +11,7 @@ A production-ready Retrieval-Augmented Generation (RAG) application built with F
 
 ## Project Status
 
-**Current State:** Production Ready | **Last Updated:** March 2025
+**Current State:** Production Ready | **Last Updated:** March 2026
 
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
