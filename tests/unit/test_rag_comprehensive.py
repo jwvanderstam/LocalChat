@@ -443,12 +443,13 @@ class TestContextRetrieval:
         # Should clean up whitespace and contractions and return a list
         assert isinstance(results, list)
     
-    def test_retrieve_context_no_embedding_model(self, doc_processor, mock_ollama):
+    def test_retrieve_context_no_embedding_model(self, doc_processor, mock_db, mock_ollama):
         """Should handle no embedding model available."""
-        mock_ollama.get_embedding_model.return_value = None
-        
-        results = doc_processor.retrieve_context("test query")
-        
+        with patch('src.rag.retrieval.ollama_client') as mock_ret_ollama:
+            mock_ret_ollama.get_embedding_model.return_value = None
+
+            results = doc_processor.retrieve_context("test query")
+
         assert results == []
     
     def test_retrieve_context_embedding_failure(self, doc_processor, mock_db, mock_ollama):
