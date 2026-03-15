@@ -207,8 +207,10 @@ class DatabaseConnection:
 
             try:
                 test_conn = psycopg.connect(conninfo)
-                register_vector_types(test_conn)
-                test_conn.close()
+                try:
+                    register_vector_types(test_conn)
+                finally:
+                    test_conn.close()
                 logger.debug("Database exists, creating connection pool")
 
                 self.connection_pool = ConnectionPool(
@@ -246,6 +248,12 @@ class DatabaseConnection:
 
         except Exception as e:
             self.is_connected = False
+            if self.connection_pool is not None:
+                try:
+                    self.connection_pool.close(timeout=2)
+                except Exception:
+                    pass
+                self.connection_pool = None
             error_msg = f"Database connection failed: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return False, error_msg
@@ -392,8 +400,9 @@ class DatabaseConnection:
             try:
                 logger.info("Closing database connection pool...")
                 self.connection_pool.close(timeout=2)
-                self.is_connected = False
                 logger.info("Connection pool closed successfully")
             except Exception as e:
                 logger.warning(f"Error closing connection pool: {e}", exc_info=True)
+            finally:
                 self.is_connected = False
+                self.connection_pool = None
