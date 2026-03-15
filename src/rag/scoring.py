@@ -77,7 +77,7 @@ class BM25Scorer:
         self._initialized = True
         logger.debug(f"BM25 fitted on {self.corpus_size} documents, {len(self.idf)} unique terms")
     
-    def score(self, query: str, document: str, doc_idx: int = 0) -> float:
+    def score(self, query: str, document: str, doc_idx: int = 0) -> float:  # noqa: ARG002
         """
         Calculate BM25 score for a query-document pair.
         

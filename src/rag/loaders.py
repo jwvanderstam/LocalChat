@@ -43,9 +43,9 @@ except ImportError:
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(metric_name): 
+    def timed(_metric_name):  # noqa: E306
         return lambda func: func
-    def counted(metric_name, labels=None): 
+    def counted(_metric_name, _labels=None):  # noqa: E306
         return lambda func: func
 
 
@@ -165,7 +165,7 @@ class DocumentLoaderMixin:
                                 logger.error(f"  Page {page_num}: Error extracting tables: {table_error}")
                     
                     extraction_method = "pdfplumber"
-                    logger.info(f"pdfplumber extraction complete:")
+                    logger.info("pdfplumber extraction complete:")
                     logger.info(f"  - Total pages: {num_pages}")
                     logger.info(f"  - Pages with tables: {pages_with_tables}")
                     logger.info(f"  - Total tables: {total_tables}")
@@ -174,7 +174,7 @@ class DocumentLoaderMixin:
                     # Validate extraction quality
                     if len(text) < 100:
                         logger.warning(f"pdfplumber extraction yielded very little text ({len(text)} chars), trying PyPDF2 as backup...")
-                        raise Exception("Insufficient text extracted with pdfplumber")
+                        raise ValueError("Insufficient text extracted with pdfplumber")
                     
                 except Exception as plumber_error:
                     logger.warning(f"pdfplumber extraction failed: {plumber_error}")

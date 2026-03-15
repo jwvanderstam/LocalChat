@@ -32,6 +32,8 @@ from ..utils.logging_config import get_logger
 bp = Blueprint('memory', __name__)
 logger = get_logger(__name__)
 
+_CONVERSATION_NOT_FOUND = 'Conversation not found'
+
 
 @bp.route('/conversations', methods=['GET'])
 def list_conversations():
@@ -102,7 +104,7 @@ def get_conversation(conversation_id: str):
     """
     messages = current_app.db.get_conversation_messages(conversation_id)
     if messages is None:
-        return jsonify({'error': 'Conversation not found'}), 404
+        return jsonify({'error': _CONVERSATION_NOT_FOUND}), 404
     return jsonify({'id': conversation_id, 'messages': messages})
 
 
@@ -144,7 +146,7 @@ def update_conversation(conversation_id: str):
 
     updated = current_app.db.update_conversation_title(conversation_id, title)
     if not updated:
-        return jsonify({'error': 'Conversation not found'}), 404
+        return jsonify({'error': _CONVERSATION_NOT_FOUND}), 404
     return jsonify({'id': conversation_id, 'title': title})
 
 
@@ -189,5 +191,5 @@ def delete_conversation(conversation_id: str):
     """
     deleted = current_app.db.delete_conversation(conversation_id)
     if not deleted:
-        return jsonify({'error': 'Conversation not found'}), 404
+        return jsonify({'error': _CONVERSATION_NOT_FOUND}), 404
     return jsonify({'success': True})

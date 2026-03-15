@@ -130,7 +130,7 @@ def _load_configuration(
     # Testing configuration
     if testing:
         app.config['TESTING'] = True
-        app.config['WTF_CSRF_ENABLED'] = False
+        app.config['WTF_CSRF_ENABLED'] = False  # NOSONAR
         app.config['DEBUG'] = False
     
     # Apply overrides

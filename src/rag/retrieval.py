@@ -24,9 +24,9 @@ logger = get_logger(__name__)
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(metric_name): 
+    def timed(_metric_name):  # noqa: E306
         return lambda func: func
-    def counted(metric_name, labels=None): 
+    def counted(_metric_name, _labels=None):  # noqa: E306
         return lambda func: func
 
 
@@ -419,8 +419,8 @@ class RetrievalMixin:
                 logger.debug(f"[BM25] All scores equal ({max_score:.3f}), using 0.5 for all")
             else:
                 scores = {k: 0.0 for k in scores}
-                logger.info(f"[BM25] No keyword matches found (query terms not in documents)")
-                logger.info(f"[BM25] ? Falling back to semantic similarity only - this is expected for abstract/conceptual queries")
+                logger.info("[BM25] No keyword matches found (query terms not in documents)")
+                logger.info("[BM25] Falling back to semantic similarity only - this is expected for abstract/conceptual queries")
         
         return scores
     

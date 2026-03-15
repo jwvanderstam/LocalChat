@@ -30,8 +30,8 @@ class TestBM25Scorer:
         from src.rag import BM25Scorer
         
         scorer = BM25Scorer(k1=2.0, b=0.5)
-        assert scorer.k1 == 2.0
-        assert scorer.b == 0.5
+        assert abs(scorer.k1 - 2.0) < 1e-9
+        assert abs(scorer.b - 0.5) < 1e-9
 
 
 class TestTextChunking:
