@@ -12,7 +12,7 @@ Example:
     # Starts web server on http://localhost:5000
 
 Author: LocalChat Team
-Last Updated: 2025-01-15 (Refactored to use application factory)
+Last Updated: 2026-03-15 (Refactored to use application factory)
 """
 
 import os
