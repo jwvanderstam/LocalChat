@@ -80,6 +80,9 @@ class DocumentsMixin:
         Raises:
             DatabaseUnavailableError: If database is not connected
         """
+        if not chunks_data:
+            return
+
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot insert chunks: Database is not connected")
 
