@@ -3,13 +3,15 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/jwvanderstam/LocalChat/actions/workflows/tests.yml/badge.svg)](https://github.com/jwvanderstam/LocalChat/actions/workflows/tests.yml)
-[![Code Quality](https://img.shields.io/badge/code%20quality-production%20ready-blue)](https://github.com/jwvanderstam/LocalChat)
+[![SonarCloud](https://github.com/jwvanderstam/LocalChat/actions/workflows/sonarcloud.yml/badge.svg)](https://github.com/jwvanderstam/LocalChat/actions/workflows/sonarcloud.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 
 A production-ready Retrieval-Augmented Generation (RAG) application built with Flask, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers.
 
 ## Project Status
 
-**Current State:** Production Ready | **Last Updated:** January 2025
+**Current State:** Production Ready | **Last Updated:** March 2025
 
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
@@ -59,6 +61,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - [Documentation](#documentation)
 - [Testing](#testing)
 - [Configuration](#configuration)
+- [CI/CD & Code Quality](#cicd--code-quality)
 - [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
@@ -263,10 +266,15 @@ LocalChat/
 │       ├── logging_config.py   # Structured logging setup
 │       └── sanitization.py     # Input sanitization & validation
 ├── static/                     # Frontend assets
-│   ├── css/style.css
+│   ├── css/
+│   │   ├── style.css               # Application styles
+│   │   ├── bootstrap.min.css       # Bootstrap 5.3.0 (self-hosted)
+│   │   ├── bootstrap-icons.css     # Bootstrap Icons 1.10.0 (self-hosted)
+│   │   └── fonts/                  # Bootstrap icon fonts (woff, woff2)
 │   └── js/
-│       ├── chat.js             # Chat interface logic
-│       └── ingestion.js        # Document upload logic
+│       ├── bootstrap.bundle.min.js # Bootstrap 5.3.0 JS (self-hosted)
+│       ├── chat.js                 # Chat interface logic
+│       └── ingestion.js            # Document upload logic
 ├── templates/                  # Jinja2 HTML templates
 │   ├── base.html
 │   ├── chat.html
@@ -491,7 +499,38 @@ mypy src/
 - **Docstrings**: Google-style (required)
 - **Test Coverage**: >=80% for new code
 - **Linting**: Pass pylint, mypy, black
+- **Static Analysis**: SonarCloud Quality Gate must pass
 - **Documentation**: Update relevant docs
+
+---
+
+## CI/CD & Code Quality
+
+Two GitHub Actions workflows run on every push and pull request to `main`:
+
+| Workflow | File | Purpose |
+|---|---|---|
+| **Tests** | `.github/workflows/tests.yml` | Runs all unit tests on Python 3.12 |
+| **SonarCloud** | `.github/workflows/sonarcloud.yml` | Runs unit tests with coverage, then uploads results to SonarCloud |
+
+### SonarCloud
+
+Static analysis and coverage tracking are handled by [SonarCloud](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat).
+
+- **Project key**: `jwvanderstam_LocalChat`
+- **Organisation**: `jwvanderstam`
+- **Configuration**: [`sonar-project.properties`](sonar-project.properties)
+- **Coverage source**: `coverage.xml` produced by `pytest --cov=src --cov-report=xml`
+
+Vendored third-party assets (`static/css/bootstrap*.css`, `static/js/bootstrap*.js`, `static/css/fonts/`) are excluded from analysis so they don't skew metrics.
+
+To run the same coverage report locally that the SonarCloud workflow uses:
+
+```bash
+pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
+```
+
+The `coverage.xml` file is produced in the project root and is picked up automatically by the `sonarcloud-github-action`.
 
 ### Development Workflow
 
@@ -563,6 +602,9 @@ We welcome contributions!
 - Comprehensive test suite: 628 passing tests (unit, integration, comprehensive)
 - Professional error handling with custom exception hierarchy
 - Swagger/OpenAPI docs at `/api/docs/`
+- Bootstrap 5 and Bootstrap Icons self-hosted (no CDN dependency)
+- SonarCloud static analysis integrated via GitHub Actions
+- Database connection pool resource-leak fixes (`connection.py`)
 
 ---
 
