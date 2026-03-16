@@ -383,77 +383,8 @@ def invalid_chat_request_long() -> Dict[str, Any]:
 
 
 # ============================================================================
-# APP FIXTURES
+# APP FIXTURES  (single canonical definition — see top of file)
 # ============================================================================
-
-@pytest.fixture
-def app():
-    """
-    Provide a Flask application instance for testing.
-    
-    Returns:
-        Flask: Configured Flask application
-    """
-    from src.app_factory import create_app
-    
-    app = create_app()
-    app.config['TESTING'] = True
-    app.config['WTF_CSRF_ENABLED'] = False
-    
-    return app
-
-
-@pytest.fixture
-def client(app):
-    """
-    Provide a Flask test client.
-    
-    Args:
-        app: Flask application fixture
-        
-    Returns:
-        FlaskClient: Test client for making requests
-        
-    Example:
-        def test_endpoint(client):
-            response = client.get('/api/status')
-            assert response.status_code == 200
-    """
-    return app.test_client()
-
-
-@pytest.fixture
-def runner(app):
-    """
-    Provide a Flask CLI runner.
-    
-    Args:
-        app: Flask application fixture
-        
-    Returns:
-        FlaskCliRunner: CLI runner for testing commands
-    """
-    return app.test_cli_runner()
-
-
-@pytest.fixture
-def app_context(app):
-    """
-    Provide Flask application context.
-    
-    Args:
-        app: Flask application fixture
-        
-    Yields:
-        Flask application context
-        
-    Example:
-        def test_with_context(app_context):
-            # Code here runs within app context
-            pass
-    """
-    with app.app_context():
-        yield app
 
 
 @pytest.fixture
