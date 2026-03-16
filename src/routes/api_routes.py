@@ -221,11 +221,110 @@ def api_status():
     return jsonify(response)
 
 
+def _retrieve_contexts(fields: dict, doc_processor) -> tuple:
+    """Retrieve local RAG context and web search context based on request flags."""
+    local_context = ""
+    web_context = ""
+
+    if fields['use_rag']:
+        try:
+            local_context = _get_rag_context(fields['message'], doc_processor)
+        except Exception as e:
+            raise exceptions.SearchError(
+                f"Failed to retrieve context: {e}", details={"error": str(e)}
+            )
+
+    if fields['enhance']:
+        try:
+            web_context = _get_web_context(fields['message'])
+        except Exception as web_err:
+            logger.warning(f"[ENHANCED] Web search failed, continuing without: {web_err}")
+
+    return local_context, web_context
+
+
+def _build_user_message(message: str, images: list) -> Dict[str, Any]:
+    """Construct the user message dict, optionally attaching images."""
+    msg: Dict[str, Any] = {'role': 'user', 'content': message}
+    if images:
+        msg['images'] = images
+        logger.info(f"[CHAT API] Attaching {len(images)} image(s) to request")
+    return msg
+
+
+def _persist_user_message(app, conversation_id, message: str):
+    """Save the user message to the database if available. Returns conversation_id."""
+    if not app.startup_status.get('database', False):
+        return conversation_id
+    try:
+        if not conversation_id:
+            title = message[:60] + ('...' if len(message) > 60 else '')
+            conversation_id = app.db.create_conversation(title)
+        app.db.save_message(conversation_id, 'user', message)
+    except Exception as mem_err:
+        logger.warning(f"[MEMORY] Could not persist user message: {mem_err}")
+        conversation_id = None
+    return conversation_id
+
+
+def _persist_assistant_message(app, conversation_id, text: str) -> None:
+    """Save the assistant response to the database."""
+    if not conversation_id:
+        return
+    try:
+        app.db.save_message(conversation_id, 'assistant', text)
+    except Exception as mem_err:
+        logger.warning(f"[MEMORY] Could not persist assistant message: {mem_err}")
+
+
+def _get_tool_executor(app):
+    """Create a ToolExecutor if tool calling is enabled and tools are registered."""
+    if not config.TOOL_CALLING_ENABLED:
+        return None
+    try:
+        from ..tools import tool_registry, ToolExecutor
+        if len(tool_registry) > 0:
+            return ToolExecutor(app.ollama_client, tool_registry)
+    except ImportError:
+        pass
+    return None
+
+
+def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor):
+    """Build and return an SSE Response that streams the chat completion."""
+    def generate() -> Generator[str, None, None]:
+        full_response: list = []
+        try:
+            stream = (
+                tool_executor.execute(active_model, messages, stream=True)
+                if tool_executor is not None
+                else app.ollama_client.generate_chat_response(active_model, messages, stream=True)
+            )
+            for chunk in stream:
+                full_response.append(chunk)
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+            _persist_assistant_message(app, conversation_id, ''.join(full_response))
+
+            done_payload: dict = {'done': True}
+            if conversation_id:
+                done_payload['conversation_id'] = conversation_id
+            yield f"data: {json.dumps(done_payload)}\n\n"
+        except Exception as e:
+            logger.error(f"[CHAT API] Error generating response: {e}", exc_info=True)
+            yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response'})}\n\n"
+
+    response = Response(generate(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
+    return response
+
+
 @bp.route('/chat', methods=['POST'])
 def api_chat():
     """
     Chat endpoint with RAG or direct LLM.
-    
+
     Send a chat message and receive AI response with optional RAG context retrieval.
     ---
     tags:
@@ -233,17 +332,17 @@ def api_chat():
     summary: Send chat message
     description: |
       Chat with the AI assistant. Supports two modes:
-      
+
       **RAG Mode (use_rag=true)**:
       - Retrieves relevant context from uploaded documents
       - Provides accurate, document-based answers
       - Cites sources in responses
-      
+
       **Direct LLM Mode (use_rag=false)**:
       - Direct conversation with the AI model
       - No document context
       - General knowledge responses
-      
+
       Responses are streamed using Server-Sent Events (SSE).
     consumes:
       - application/json
@@ -270,9 +369,9 @@ def api_chat():
         examples:
           text/event-stream: |
             data: {"content": "Based on the documents..."}
-            
+
             data: {"content": " the answer is..."}
-            
+
             data: {"done": true}
       400:
         description: Bad request (invalid message, too long, etc.)
@@ -294,129 +393,28 @@ def api_chat():
             logger.error(f"Failed to import required modules: {e}")
             return jsonify({'success': False, 'message': 'Server configuration error'}), 500
 
-        message = fields['message']
-        use_rag = fields['use_rag']
-        enhance = fields['enhance']
-        chat_history = fields['chat_history']
-        conversation_id = fields['conversation_id']
-        images = fields['images']
-        original_message = message
-
-        logger.info(f"[CHAT API] Request - RAG Mode: {use_rag}, Enhanced: {enhance}, Query: {message[:50]}...")
-
         active_model = config.app_state.get_active_model()
         if not active_model:
             return jsonify({'error': 'NoModelConfigured', 'message': 'No active model set. Please select a model first.'}), 400
 
-        messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in chat_history]
+        logger.info(f"[CHAT API] Request - RAG Mode: {fields['use_rag']}, Enhanced: {fields['enhance']}, Query: {fields['message'][:50]}...")
 
-        # Retrieve context
-        local_context_block = ""
-        web_context_block = ""
-
-        if use_rag:
-            try:
-                local_context_block = _get_rag_context(message, current_app.doc_processor)
-            except Exception as e:
-                error_msg = f"Failed to retrieve context: {e}"
-                logger.error(error_msg, exc_info=True)
-                raise exceptions.SearchError(error_msg, details={"error": str(e)})
-
-        if enhance:
-            try:
-                web_context_block = _get_web_context(original_message)
-            except Exception as web_err:
-                logger.warning(f"[ENHANCED] Web search failed, continuing without: {web_err}")
-
-        messages, message = _build_context_prompt(
-            original_message, local_context_block, web_context_block, messages, use_rag, enhance
+        messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in fields['chat_history']]
+        local_ctx, web_ctx = _retrieve_contexts(fields, current_app.doc_processor)
+        messages, final_message = _build_context_prompt(
+            fields['message'], local_ctx, web_ctx, messages, fields['use_rag'], fields['enhance']
         )
-
-        user_message: Dict[str, Any] = {'role': 'user', 'content': message}
-        if images:
-            user_message['images'] = images
-            logger.info(f"[CHAT API] Attaching {len(images)} image(s) to request")
-        messages.append(user_message)
-
-        # Persistent memory
-        if current_app.startup_status.get('database', False):
-            try:
-                if not conversation_id:
-                    title = original_message[:60] + ('...' if len(original_message) > 60 else '')
-                    conversation_id = current_app.db.create_conversation(title)
-                current_app.db.save_message(conversation_id, 'user', original_message)
-            except Exception as mem_err:
-                logger.warning(f"[MEMORY] Could not persist user message: {mem_err}")
-                conversation_id = None
+        messages.append(_build_user_message(final_message, fields['images']))
 
         app = current_app._get_current_object()  # type: ignore[attr-defined]
+        conversation_id = _persist_user_message(app, fields['conversation_id'], fields['message'])
+        tool_executor = _get_tool_executor(app)
 
-        _tool_executor = None
-        if config.TOOL_CALLING_ENABLED:
-            try:
-                from ..tools import tool_registry, ToolExecutor
-                if len(tool_registry) > 0:
-                    _tool_executor = ToolExecutor(app.ollama_client, tool_registry)
-            except ImportError:
-                pass
-
-        def generate() -> Generator[str, None, None]:
-            full_response: list = []
-            try:
-                response_stream = (
-                    _tool_executor.execute(active_model, messages, stream=True)
-                    if _tool_executor is not None
-                    else app.ollama_client.generate_chat_response(active_model, messages, stream=True)
-                )
-                for chunk in response_stream:
-                    full_response.append(chunk)
-                    yield f"data: {json.dumps({'content': chunk})}\n\n"
-
-                if conversation_id:
-                    try:
-                        app.db.save_message(conversation_id, 'assistant', ''.join(full_response))
-                    except Exception as mem_err:
-                        logger.warning(f"[MEMORY] Could not persist assistant message: {mem_err}")
-
-                done_payload: dict = {'done': True}
-                if conversation_id:
-                    done_payload['conversation_id'] = conversation_id
-                yield f"data: {json.dumps(done_payload)}\n\n"
-            except Exception as e:
-                logger.error(f"[CHAT API] Error generating response: {e}", exc_info=True)
-                yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response'})}\n\n"
-
-        response = Response(generate(), mimetype='text/event-stream')
-        response.headers['Cache-Control'] = 'no-cache'
-        response.headers['X-Accel-Buffering'] = 'no'
-        return response
+        return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor)
 
     except (PydanticValidationError, exceptions.LocalChatException):
         raise
     except Exception as e:
         logger.error(f"[CHAT API] Unexpected error: {e}", exc_info=True)
         return jsonify({'success': False, 'message': 'An unexpected error occurred during chat'}), 500
-        
-        logger.info(f"[CHAT API] Request - RAG Mode: {use_rag}, Enhanced: {enhance}, Query: {message[:50]}...")
-        logger.debug(f"[CHAT API] History length: {len(chat_history)}")
-        
-        active_model = config.app_state.get_active_model()
-        if not active_model:
-            logger.error("No active model set")
-            return jsonify({'error': 'NoModelConfigured', 'message': 'No active model set. Please select a model first.'}), 400
-        
-        logger.debug(f"[CHAT API] Using model: {active_model}")
-        
-        # Prepare messages
-        messages = []
-        
-        # Add chat history
-        for msg in chat_history:
-            messages.append({
-                'role': msg.get('role', 'user'),
-                'content': msg.get('content', '')
-            })
-
-        # Store original message
-        original_message = message
 
