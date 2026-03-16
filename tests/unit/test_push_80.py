@@ -25,9 +25,8 @@ class TestSrcInitDevBranch:
 # db/conversations.py — lines 237-247: delete_all_conversations
 # ---------------------------------------------------------------------------
 
-def _make_conv_db():
-    """Return the app's db object with a mocked connection."""
-    from src.db import db
+def _make_mock_conn():
+    """Return a (conn, cursor) pair without touching the global db singleton."""
     conn = MagicMock()
     cursor = MagicMock()
     cursor.rowcount = 3
@@ -35,32 +34,32 @@ def _make_conv_db():
     conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
     conn.__enter__ = MagicMock(return_value=conn)
     conn.__exit__ = MagicMock(return_value=False)
-    db.get_connection = MagicMock(return_value=conn)
-    db.is_connected = True
-    return db, cursor
+    return conn, cursor
 
 
 class TestDeleteAllConversations:
     def test_deletes_all_and_returns_count(self):
-        db, cursor = _make_conv_db()
+        from src.db import db
+        conn, cursor = _make_mock_conn()
         cursor.rowcount = 5
-        result = db.delete_all_conversations()
+        with patch.object(db, 'is_connected', True), \
+             patch.object(db, 'get_connection', return_value=conn):
+            result = db.delete_all_conversations()
         assert result == 5
 
     def test_raises_when_not_connected(self):
         from src.db import db
         from src.db.connection import DatabaseUnavailableError
-        original = db.is_connected
-        db.is_connected = False
-        try:
+        with patch.object(db, 'is_connected', False):
             with pytest.raises(DatabaseUnavailableError):
                 db.delete_all_conversations()
-        finally:
-            db.is_connected = original
 
     def test_executes_delete_statement(self):
-        db, cursor = _make_conv_db()
-        db.delete_all_conversations()
+        from src.db import db
+        conn, cursor = _make_mock_conn()
+        with patch.object(db, 'is_connected', True), \
+             patch.object(db, 'get_connection', return_value=conn):
+            db.delete_all_conversations()
         cursor.execute.assert_called()
         call_args = cursor.execute.call_args[0][0]
         assert "DELETE" in call_args.upper()

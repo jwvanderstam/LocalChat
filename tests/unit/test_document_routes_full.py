@@ -48,10 +48,19 @@ class TestDocumentDeleteRoute:
 
 class TestDocumentClearRoute:
     def test_clear_all_documents(self, client, app):
-        app.db.clear_all_documents = MagicMock(return_value=True)
-        app.db.get_document_count = MagicMock(return_value=0)
+        # Route calls delete_all_documents(); mock the correct method name
+        app.db.delete_all_documents = MagicMock()
         response = client.delete('/api/documents/clear')
-        assert response.status_code in (200, 204, 404, 405)
+        assert response.status_code in (200, 204)
+        app.db.delete_all_documents.assert_called_once()
+
+    def test_clear_documents_db_unavailable_returns_503(self, client, app):
+        from src.db import DatabaseUnavailableError
+        app.db.delete_all_documents = MagicMock(
+            side_effect=DatabaseUnavailableError("not connected")
+        )
+        response = client.delete('/api/documents/clear')
+        assert response.status_code == 503
 
 
 class TestDocumentUploadRoute:

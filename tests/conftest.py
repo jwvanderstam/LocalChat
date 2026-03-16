@@ -141,22 +141,33 @@ def mock_ollama_client():
 def app():
     """
     Provide Flask application for testing.
-    
+
     Returns:
         Flask: Test Flask application instance
     """
     from src.app_factory import create_app
     import os
-    
+
     # Force testing mode via environment variable as backup
     os.environ['TESTING'] = '1'
-    
+
     test_app = create_app(testing=True)
-    
+
     # Double-check testing mode is enabled
     assert test_app.config.get('TESTING') is True, "App not in testing mode!"
-    
-    return test_app
+
+    # create_app(testing=True) intentionally skips db.initialize() to keep
+    # unit tests fast and offline.  Explicitly mark the db as connected so
+    # every test starts from a known True state; individual tests that need
+    # the "not-connected" path can set app.db.is_connected = False themselves.
+    _original_is_connected = test_app.db.is_connected
+    test_app.db.is_connected = True
+
+    yield test_app
+
+    # Restore the original flag so this fixture never permanently alters the
+    # global db singleton between test functions.
+    test_app.db.is_connected = _original_is_connected
 
 
 @pytest.fixture
