@@ -7,7 +7,7 @@ and metadata tracking for enhanced citations.
 """
 
 import re
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 from .. import config
 from ..utils.logging_config import get_logger
@@ -51,6 +51,50 @@ class TextChunkerMixin:
             chunks.append('\n'.join(current))
         return chunks
 
+    def _process_tables_in_text(
+        self,
+        text: str,
+        table_matches: list,
+        chunk_size: int,
+        overlap: int,
+        keep_tables_intact: bool,
+        table_chunk_size: int,
+    ) -> List[str]:
+        """Process text that contains table markers, returning chunks with tables preserved."""
+        chunks: List[str] = []
+        current_pos = 0
+        max_table_chunk = table_chunk_size if keep_tables_intact else chunk_size
+
+        for match in table_matches:
+            if match.start() > current_pos:
+                before = text[current_pos:match.start()].strip()
+                if before:
+                    chunks.extend(self._chunk_text_standard(before, chunk_size, overlap))
+
+            table_text = match.group(0).strip()
+            if len(table_text) <= max_table_chunk:
+                chunks.append(table_text)
+                logger.debug(f"Table kept intact ({len(table_text)} chars)")
+            else:
+                table_header = table_text.split('\n')[0]
+                split_chunks = self._split_large_table(table_text, table_header, max_table_chunk)
+                chunks.extend(split_chunks)
+                logger.debug(f"Large table split into {len(split_chunks)} chunks")
+
+            current_pos = match.end()
+
+        if current_pos < len(text):
+            after = text[current_pos:].strip()
+            if after:
+                chunks.extend(self._chunk_text_standard(after, chunk_size, overlap))
+
+        return chunks
+
+    @staticmethod
+    def _filter_valid_chunks(chunks: List[str]) -> List[str]:
+        """Strip and drop chunks shorter than 10 characters."""
+        return [c for raw in chunks if (c := raw.strip()) and len(c) >= 10]
+
     @timed('rag.chunk_text')
     def chunk_text(
         self, text: str, chunk_size: Optional[int] = None, overlap: Optional[int] = None
@@ -60,12 +104,12 @@ class TextChunkerMixin:
 
         ENHANCED: Keeps tables together as single chunks when possible, using larger
         TABLE_CHUNK_SIZE for tables to maximize context retention.
-        
+
         Args:
             text: The input text to chunk
             chunk_size: Maximum size of each chunk (in characters)
             overlap: Overlap between chunks (in characters)
-        
+
         Returns:
             List of text chunks
         """
@@ -73,68 +117,23 @@ class TextChunkerMixin:
         overlap = overlap or config.CHUNK_OVERLAP
         table_chunk_size = getattr(config, 'TABLE_CHUNK_SIZE', chunk_size * 2)
         keep_tables_intact = getattr(config, 'KEEP_TABLES_INTACT', True)
-        
-        # Clean text
+
         text = text.strip()
-        
         if len(text) <= chunk_size:
             return [text] if text else []
-        
-        # STEP 1: Extract and protect tables
+
         table_pattern = r'\[Table \d+ on page \d+\].*?(?=\[Table \d+ on page \d+\]|\Z)'
-        
-        chunks = []
         table_matches = list(re.finditer(table_pattern, text, re.DOTALL))
-        
+
         if table_matches:
-            logger.debug(f"Found {len(table_matches)} table(s) in text - will try to keep them intact")
-            
-            # Process text with tables
-            current_pos = 0
-            
-            for match in table_matches:
-                table_start = match.start()
-                table_end = match.end()
-                table_text = match.group(0).strip()
-                
-                # Process text BEFORE this table
-                if table_start > current_pos:
-                    before_text = text[current_pos:table_start].strip()
-                    if before_text:
-                        before_chunks = self._chunk_text_standard(before_text, chunk_size, overlap)
-                        chunks.extend(before_chunks)
-                
-                # Handle the TABLE itself with larger chunk size
-                max_table_chunk = table_chunk_size if keep_tables_intact else chunk_size
-                fits_intact = len(table_text) <= max_table_chunk
-                if fits_intact:
-                    chunks.append(table_text)
-                    logger.debug(f"Table kept intact ({len(table_text)} chars)")
-                else:
-                    table_header = table_text.split('\n')[0]
-                    split_chunks = self._split_large_table(table_text, table_header, max_table_chunk)
-                    chunks.extend(split_chunks)
-                    logger.debug(f"Large table split into {len(split_chunks)} chunks (max size={max_table_chunk})")
-                
-                current_pos = table_end
-            
-            # Process text AFTER last table
-            if current_pos < len(text):
-                after_text = text[current_pos:].strip()
-                if after_text:
-                    after_chunks = self._chunk_text_standard(after_text, chunk_size, overlap)
-                    chunks.extend(after_chunks)
+            logger.debug(f"Found {len(table_matches)} table(s) in text")
+            chunks = self._process_tables_in_text(
+                text, table_matches, chunk_size, overlap, keep_tables_intact, table_chunk_size
+            )
         else:
-            # No tables - use standard chunking
             chunks = self._chunk_text_standard(text, chunk_size, overlap)
-        
-        # Final validation
-        valid_chunks = []
-        for chunk in chunks:
-            chunk = chunk.strip()
-            if len(chunk) >= 10:
-                valid_chunks.append(chunk)
-        
+
+        valid_chunks = self._filter_valid_chunks(chunks)
         logger.info(f"Chunked text into {len(valid_chunks)} valid chunks (standard_size={chunk_size}, table_size={table_chunk_size})")
         return valid_chunks
     
@@ -152,6 +151,36 @@ class TextChunkerMixin:
                 break
         return chunks
 
+    def _handle_split(
+        self,
+        split_with_sep: str,
+        split_size: int,
+        chunks: List[str],
+        current_chunk: List[str],
+        current_size: int,
+        separators: List[str],
+        separator: str,
+        chunk_size: int,
+        overlap: int,
+    ) -> Tuple[List[str], int]:
+        """Process one split token, returning updated (current_chunk, current_size)."""
+        if split_size > chunk_size:
+            if current_chunk:
+                chunks.append(''.join(current_chunk).strip())
+            remaining = separators[separators.index(separator) + 1:]
+            chunks.extend(self._split_text_recursive(split_with_sep, remaining, chunk_size, overlap))
+            return [], 0
+
+        if current_size + split_size > chunk_size:
+            if current_chunk:
+                chunks.append(''.join(current_chunk).strip())
+            if overlap > 0 and current_chunk:
+                overlap_text = ''.join(current_chunk)[-overlap:]
+                return [overlap_text, split_with_sep], len(overlap_text) + split_size
+            return [split_with_sep], split_size
+
+        return current_chunk + [split_with_sep], current_size + split_size
+
     def _split_text_recursive(
         self, text: str, separators: List[str], chunk_size: int, overlap: int
     ) -> List[str]:
@@ -167,35 +196,17 @@ class TextChunkerMixin:
             if separator not in text:
                 continue
 
-            splits = text.split(separator)
             chunks: List[str] = []
             current_chunk: List[str] = []
             current_size = 0
 
-            for i, split in enumerate(splits):
-                split_with_sep = split + separator if i < len(splits) - 1 else split
-                split_size = len(split_with_sep)
-
-                if split_size > chunk_size:
-                    if current_chunk:
-                        chunks.append(''.join(current_chunk).strip())
-                        current_chunk = []
-                        current_size = 0
-                    remaining = separators[separators.index(separator) + 1:]
-                    chunks.extend(self._split_text_recursive(split_with_sep, remaining, chunk_size, overlap))
-                elif current_size + split_size > chunk_size:
-                    if current_chunk:
-                        chunks.append(''.join(current_chunk).strip())
-                    if overlap > 0 and current_chunk:
-                        overlap_text = ''.join(current_chunk)[-overlap:]
-                        current_chunk = [overlap_text, split_with_sep]
-                        current_size = len(overlap_text) + split_size
-                    else:
-                        current_chunk = [split_with_sep]
-                        current_size = split_size
-                else:
-                    current_chunk.append(split_with_sep)
-                    current_size += split_size
+            for i, split in enumerate(text.split(separator)):
+                split_with_sep = split + separator if i < len(text.split(separator)) - 1 else split
+                current_chunk, current_size = self._handle_split(
+                    split_with_sep, len(split_with_sep),
+                    chunks, current_chunk, current_size,
+                    separators, separator, chunk_size, overlap,
+                )
 
             if current_chunk:
                 chunks.append(''.join(current_chunk).strip())
