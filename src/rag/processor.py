@@ -120,6 +120,121 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         logger.warning(f"Failed to generate embedding for chunk {chunk_index}")
         return None
     
+    def _load_document_chunks(
+        self,
+        file_path: str,
+        filename: str,
+        ext: str,
+        progress_callback: Optional[Callable[[str], None]],
+    ) -> Tuple[bool, str, Optional[List[Dict[str, Any]]]]:
+        """Load a document and return (success, error_msg, chunks_with_metadata)."""
+        if progress_callback:
+            progress_callback(f"Loading {filename}...")
+
+        if ext == '.pdf':
+            success, pages_or_error = self._load_pdf_with_pages(file_path)
+            if not success:
+                return False, f"Failed to load {filename}: {pages_or_error}", None
+            pages_data = pages_or_error
+            logger.info(f"Successfully loaded {len(pages_data)} pages with metadata")
+            if progress_callback:
+                progress_callback(f"Chunking {filename}...")
+            chunks_with_metadata = self.chunk_pages_with_metadata(pages_data)
+            if not chunks_with_metadata:
+                return False, f"No chunks generated from {filename}", None
+            logger.info(f"Generated {len(chunks_with_metadata)} chunks with metadata")
+            return True, "", chunks_with_metadata
+
+        success, content = self.load_document(file_path)
+        if not success:
+            return False, f"Failed to load {filename}: {content}", None
+        logger.info(f"Successfully loaded {len(content)} characters")
+        if not content or len(content.strip()) < 10:
+            return False, f"Document {filename} has insufficient content ({len(content)} chars)", None
+        if progress_callback:
+            progress_callback(f"Chunking {filename}...")
+        chunk_texts = self.chunk_text(content)
+        if not chunk_texts:
+            return False, f"No chunks generated from {filename}", None
+        chunks_with_metadata = [
+            {'text': c, 'page_number': None, 'section_title': None, 'chunk_index': i}
+            for i, c in enumerate(chunk_texts)
+        ]
+        logger.info(f"Generated {len(chunks_with_metadata)} chunks")
+        return True, "", chunks_with_metadata
+
+    def _build_embeddings_batch(
+        self,
+        chunks_with_metadata: List[Dict[str, Any]],
+        doc_id: int,
+        embedding_model: str,
+        filename: str,
+        progress_callback: Optional[Callable[[str], None]],
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Generate embeddings via BatchEmbeddingProcessor. Returns (chunks_data, failed)."""
+        from ..performance.batch_processor import BatchEmbeddingProcessor
+
+        batch_size = getattr(config, 'BATCH_SIZE', 64)
+        max_workers = getattr(config, 'BATCH_MAX_WORKERS', 8)
+        processor = BatchEmbeddingProcessor(ollama_client, batch_size=batch_size, max_workers=max_workers)
+        embeddings = processor.process_batch([c['text'] for c in chunks_with_metadata], embedding_model)
+
+        chunks_data = []
+        failed = 0
+        for idx, (chunk_meta, embedding) in enumerate(zip(chunks_with_metadata, embeddings)):
+            if embedding is None:
+                failed += 1
+                logger.warning(f"Failed to generate embedding for chunk {idx}")
+                continue
+            metadata = {k: chunk_meta[k] for k in ('page_number', 'section_title') if chunk_meta.get(k)}
+            chunks_data.append({
+                'doc_id': doc_id, 'chunk_text': chunk_meta['text'],
+                'chunk_index': chunk_meta['chunk_index'], 'embedding': embedding, 'metadata': metadata
+            })
+            if progress_callback and (idx + 1) % 10 == 0:
+                pct = (idx + 1) / len(chunks_with_metadata) * 100
+                progress_callback(f"Processing {filename}: {pct:.1f}% ({idx + 1}/{len(chunks_with_metadata)} chunks)")
+        return chunks_data, failed
+
+    def _build_embeddings_parallel(
+        self,
+        chunks_with_metadata: List[Dict[str, Any]],
+        doc_id: int,
+        embedding_model: str,
+        filename: str,
+        progress_callback: Optional[Callable[[str], None]],
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Generate embeddings via ThreadPoolExecutor fallback. Returns (chunks_data, failed)."""
+        chunks_data = []
+        failed = 0
+        with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(
+                    self.process_document_chunk, doc_id,
+                    cm['text'], cm['chunk_index'], embedding_model
+                ): cm for cm in chunks_with_metadata
+            }
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    logger.warning(f"Chunk embedding task failed: {exc}")
+                    failed += 1
+                    continue
+                if result:
+                    cm = futures[future]
+                    metadata = {k: cm[k] for k in ('page_number', 'section_title') if cm.get(k)}
+                    chunks_data.append({
+                        'doc_id': result[0], 'chunk_text': result[1],
+                        'chunk_index': result[2], 'embedding': result[3], 'metadata': metadata
+                    })
+                else:
+                    failed += 1
+                if progress_callback:
+                    pct = len(chunks_data) / len(chunks_with_metadata) * 100
+                    progress_callback(f"Processing {filename}: {pct:.1f}% ({len(chunks_data)}/{len(chunks_with_metadata)} chunks)")
+        return chunks_data, failed
+
     @timed('rag.ingest_document')
     @counted('rag.document_ingestions')
     def ingest_document(
@@ -140,240 +255,78 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         try:
             filename = os.path.basename(file_path)
             logger.info(f"Starting ingestion for: {filename}")
-            logger.debug(f"Full path: {file_path}")
-            
-            # Check if document already exists
+
             exists, doc_info = db.document_exists(filename)
             if exists:
-                message = f"Document '{filename}' already exists (ID: {doc_info['id']}, {doc_info['chunk_count']} chunks{', ingested on ' + str(doc_info.get('created_at', 'unknown date')) if 'created_at' in doc_info else ''}). Skipping ingestion."
+                message = (
+                    f"Document '{filename}' already exists (ID: {doc_info['id']}, "
+                    f"{doc_info['chunk_count']} chunks). Skipping ingestion."
+                )
                 logger.info(message)
                 if progress_callback:
                     progress_callback(message)
                 return True, message, doc_info['id']
-            
-            # Verify file exists
+
             if not os.path.exists(file_path):
                 error_msg = f"File not found: {file_path}"
                 logger.error(error_msg)
                 return False, error_msg, None
-            
-            # Load document
-            if progress_callback:
-                progress_callback(f"Loading {filename}...")
-            
-            logger.debug("Loading document...")
-            
-            # Determine file type
+
             ext = Path(file_path).suffix.lower()
-            
-            # For PDFs, use page-aware loading for enhanced citations
+            ok, err, chunks_with_metadata = self._load_document_chunks(file_path, filename, ext, progress_callback)
+            if not ok:
+                logger.error(err)
+                return False, err, None
+
+            # Build content preview for the document record
             if ext == '.pdf':
-                success, pages_or_error = self._load_pdf_with_pages(file_path)
-                
-                if not success:
-                    error_msg = f"Failed to load {filename}: {pages_or_error}"
-                    logger.error(error_msg)
-                    return False, error_msg, None
-                
-                pages_data = pages_or_error
-                logger.info(f"Successfully loaded {len(pages_data)} pages with metadata")
-                
-                # Chunk with metadata preservation
-                if progress_callback:
-                    progress_callback(f"Chunking {filename}...")
-                
-                logger.debug("Chunking document with metadata...")
-                chunks_with_metadata = self.chunk_pages_with_metadata(pages_data)
-                
-                if not chunks_with_metadata:
-                    error_msg = f"No chunks generated from {filename}"
-                    logger.error(error_msg)
-                    return False, error_msg, None
-                
-                logger.info(f"Generated {len(chunks_with_metadata)} chunks with metadata")
-                
+                success_pages, pages_or_err = self._load_pdf_with_pages(file_path)
+                content_preview = pages_or_err[0]['text'][:1000] if success_pages else ""
             else:
-                # For non-PDF files, use standard loading
-                success, content = self.load_document(file_path)
-                
-                if not success:
-                    error_msg = f"Failed to load {filename}: {content}"
-                    logger.error(error_msg)
-                    return False, error_msg, None
-                
-                logger.info(f"Successfully loaded {len(content)} characters")
-                
-                # Check if content is meaningful
-                if not content or len(content.strip()) < 10:
-                    error_msg = f"Document {filename} has insufficient content (only {len(content)} characters)"
-                    logger.error(error_msg)
-                    return False, error_msg, None
-                
-                # Chunk document (without metadata)
-                if progress_callback:
-                    progress_callback(f"Chunking {filename}...")
-                
-                logger.debug("Chunking document...")
-                chunk_texts = self.chunk_text(content)
-                
-                if not chunk_texts:
-                    error_msg = f"No chunks generated from {filename}"
-                    logger.error(error_msg)
-                    return False, error_msg, None
-                
-                # Convert to metadata format (without page numbers/sections)
-                chunks_with_metadata = [
-                    {
-                        'text': chunk,
-                        'page_number': None,
-                        'section_title': None,
-                        'chunk_index': idx
-                    }
-                    for idx, chunk in enumerate(chunk_texts)
-                ]
-                
-                logger.info(f"Generated {len(chunks_with_metadata)} chunks")
-            
-            # Insert document record
-            logger.debug("Inserting document record...")
-            
-            # Get content preview for document record
-            if ext == '.pdf':
-                content_preview = pages_data[0]['text'][:1000] if pages_data else ""
-            else:
-                content_preview = content[:1000]
-            
+                _, raw_content = self.load_document(file_path)
+                content_preview = raw_content[:1000]
+
             doc_id = db.insert_document(
                 filename=filename,
                 content=content_preview,
                 metadata={'total_chunks': len(chunks_with_metadata), 'file_path': file_path}
             )
             logger.debug(f"Document ID: {doc_id}")
-            
-            # Get embedding model
+
             embedding_model = ollama_client.get_embedding_model()
             if not embedding_model:
-                error_msg = "No embedding model available"
-                logger.error(error_msg)
-                return False, error_msg, None
-            
+                logger.error("No embedding model available")
+                return False, "No embedding model available", None
+
             logger.info(f"Using embedding model: {embedding_model}")
-            
             if progress_callback:
                 progress_callback(f"Generating embeddings for {len(chunks_with_metadata)} chunks...")
-            
-            # Extract chunk texts for embedding generation
-            chunk_texts = [chunk_data['text'] for chunk_data in chunks_with_metadata]
-            
-            # Use BatchEmbeddingProcessor for faster embedding generation
+
             try:
-                from ..performance.batch_processor import BatchEmbeddingProcessor
-                
-                batch_size = getattr(config, 'BATCH_SIZE', 64)
-                max_workers = getattr(config, 'BATCH_MAX_WORKERS', 8)
-                
-                logger.info(f"Using BatchEmbeddingProcessor (batch_size={batch_size}, workers={max_workers})")
-                
-                processor = BatchEmbeddingProcessor(
-                    ollama_client,
-                    batch_size=batch_size,
-                    max_workers=max_workers
+                chunks_data, failed_chunks = self._build_embeddings_batch(
+                    chunks_with_metadata, doc_id, embedding_model, filename, progress_callback
                 )
-                
-                embeddings = processor.process_batch(chunk_texts, embedding_model)
-                
-                # Build chunks_data from embeddings with metadata
-                chunks_data = []
-                failed_chunks = 0
-                
-                for idx, (chunk_meta, embedding) in enumerate(zip(chunks_with_metadata, embeddings)):
-                    if embedding is not None:
-                        metadata = {}
-                        if chunk_meta.get('page_number'):
-                            metadata['page_number'] = chunk_meta['page_number']
-                        if chunk_meta.get('section_title'):
-                            metadata['section_title'] = chunk_meta['section_title']
-                        
-                        chunks_data.append({
-                            'doc_id': doc_id,
-                            'chunk_text': chunk_meta['text'],
-                            'chunk_index': chunk_meta['chunk_index'],
-                            'embedding': embedding,
-                            'metadata': metadata
-                        })
-                    else:
-                        failed_chunks += 1
-                        logger.warning(f"Failed to generate embedding for chunk {idx}")
-                    
-                    if progress_callback and (idx + 1) % 10 == 0:
-                        progress = ((idx + 1) / len(chunks_with_metadata)) * 100
-                        progress_callback(f"Processing {filename}: {progress:.1f}% ({idx + 1}/{len(chunks_with_metadata)} chunks)")
-                
-                logger.info(f"Batch processing complete: {len(chunks_data)} successful, {failed_chunks} failed")
-                
+                logger.info(f"Batch processing complete: {len(chunks_data)} ok, {failed_chunks} failed")
             except ImportError:
-                # Fallback to old method if BatchEmbeddingProcessor not available
                 logger.warning("BatchEmbeddingProcessor not available, falling back to parallel processing")
-                
-                chunks_data = []
-                failed_chunks = 0
-                
-                with ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
-                    futures = {
-                        executor.submit(
-                            self.process_document_chunk,
-                            doc_id,
-                            chunk_meta['text'],
-                            chunk_meta['chunk_index'],
-                            embedding_model
-                        ): chunk_meta for chunk_meta in chunks_with_metadata
-                    }
-                    
-                    for future in as_completed(futures):
-                        try:
-                            result = future.result()
-                        except Exception as exc:
-                            logger.warning(f"Chunk embedding task failed: {exc}")
-                            failed_chunks += 1
-                            continue
-                        if result:
-                            chunk_meta = futures[future]
-                            metadata = {}
-                            if chunk_meta.get('page_number'):
-                                metadata['page_number'] = chunk_meta['page_number']
-                            if chunk_meta.get('section_title'):
-                                metadata['section_title'] = chunk_meta['section_title']
-                            
-                            chunks_data.append({
-                                'doc_id': result[0],
-                                'chunk_text': result[1],
-                                'chunk_index': result[2],
-                                'embedding': result[3],
-                                'metadata': metadata
-                            })
-                        else:
-                            failed_chunks += 1
-                        
-                        if progress_callback:
-                            progress = len(chunks_data) / len(chunks_with_metadata) * 100
-                            progress_callback(f"Processing {filename}: {progress:.1f}% ({len(chunks_data)}/{len(chunks_with_metadata)} chunks)")
-            
+                chunks_data, failed_chunks = self._build_embeddings_parallel(
+                    chunks_with_metadata, doc_id, embedding_model, filename, progress_callback
+                )
+
             logger.info(f"Successfully processed {len(chunks_data)} chunks ({failed_chunks} failed)")
-            
-            # Batch insert chunks
-            if chunks_data:
-                logger.debug(f"Inserting {len(chunks_data)} chunks into database...")
-                db.insert_chunks_batch(chunks_data)
-                logger.info("Chunks inserted successfully")
-            else:
+
+            if not chunks_data:
                 error_msg = f"No chunks were successfully processed for {filename}"
                 logger.error(error_msg)
                 return False, error_msg, None
-            
+
+            db.insert_chunks_batch(chunks_data)
+            logger.info("Chunks inserted successfully")
+
             success_msg = f"Successfully ingested {filename} ({len(chunks_data)} chunks)"
             logger.info(success_msg)
             return True, success_msg, doc_id
-        
+
         except Exception as e:
             error_msg = f"Error ingesting document: {str(e)}"
             logger.error(error_msg, exc_info=True)

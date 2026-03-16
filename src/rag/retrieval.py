@@ -147,13 +147,43 @@ class RetrievalMixin:
         
         return queries
     
+    def _apply_hybrid_scoring(
+        self,
+        all_results: dict,
+        query_clean: str,
+        use_hybrid_search: bool,
+    ) -> None:
+        """Apply BM25 scores and blend them with semantic scores (in-place)."""
+        if not (use_hybrid_search and len(all_results) > 1):
+            logger.debug("[RAG] Skipped hybrid scoring (BM25 disabled or insufficient results)")
+            return
+        bm25_scores = self._compute_bm25_scores(query_clean, all_results)
+        semantic_weight = config.SIMILARITY_WEIGHT
+        bm25_weight = config.BM25_WEIGHT + config.KEYWORD_WEIGHT
+        for chunk_id, data in all_results.items():
+            bm25_norm = bm25_scores.get(chunk_id, 0.0)
+            data['bm25_score'] = bm25_norm
+            data['combined_score'] = semantic_weight * data['semantic_score'] + bm25_weight * bm25_norm
+        logger.debug("[RAG] Applied hybrid BM25 scoring")
+
+    def _deduplicate_results(self, sorted_results: list) -> list:
+        """Remove exact duplicates and adjacent chunks (within 2 positions)."""
+        seen: set = set()
+        deduped: list = []
+        for r in sorted_results:
+            key = (r['filename'], r['chunk_index'])
+            if not any(key[0] == s[0] and abs(key[1] - s[1]) <= 2 for s in seen):
+                seen.add(key)
+                deduped.append(r)
+        return deduped
+
     @timed('rag.retrieve_context')
     @counted('rag.retrieval_requests')
     def retrieve_context(
-        self, 
-        query: str, 
-        top_k: Optional[int] = None, 
-        min_similarity: Optional[float] = None, 
+        self,
+        query: str,
+        top_k: Optional[int] = None,
+        min_similarity: Optional[float] = None,
         file_type_filter: Optional[str] = None,
         use_hybrid_search: bool = True,
         expand_context: bool = True
@@ -219,39 +249,17 @@ class RetrievalMixin:
         
         # Step 6: Hybrid search - combine with BM25 (if enabled)
         all_results: Dict[str, Dict[str, Any]] = {}
-        
         for chunk_text, filename, chunk_index, similarity, metadata in semantic_results:
             chunk_id = f"{filename}:{chunk_index}"
             all_results[chunk_id] = {
-                'chunk_text': chunk_text,
-                'filename': filename,
-                'chunk_index': chunk_index,
-                'semantic_score': similarity,
-                'bm25_score': 0.0,
-                'combined_score': similarity,
+                'chunk_text': chunk_text, 'filename': filename,
+                'chunk_index': chunk_index, 'semantic_score': similarity,
+                'bm25_score': 0.0, 'combined_score': similarity,
                 'metadata': metadata or {}
             }
         logger.debug(f"[RAG] Collected {len(all_results)} results for hybrid scoring")
-        
-        # BM25 scoring for hybrid search
-        if use_hybrid_search and len(all_results) > 1:
-            bm25_scores = self._compute_bm25_scores(query_clean, all_results)
-            
-            # Combine scores: semantic (70%) + BM25 (30%)
-            semantic_weight = config.SIMILARITY_WEIGHT
-            bm25_weight = config.BM25_WEIGHT + config.KEYWORD_WEIGHT
-            
-            for chunk_id, data in all_results.items():
-                bm25_norm = bm25_scores.get(chunk_id, 0.0)
-                data['bm25_score'] = bm25_norm
-                data['combined_score'] = (
-                    semantic_weight * data['semantic_score'] + 
-                    bm25_weight * bm25_norm
-                )
-            
-            logger.debug("[RAG] Applied hybrid BM25 scoring")
-        else:
-            logger.debug("[RAG] Skipped hybrid scoring (BM25 disabled or insufficient results)")
+
+        self._apply_hybrid_scoring(all_results, query_clean, use_hybrid_search)
         
         # Step 7: Filter by similarity threshold
         filtered_results = {
@@ -288,20 +296,7 @@ class RetrievalMixin:
         # Get results and remove exact duplicates + adjacent chunks
         final_top_k = getattr(config, 'RERANK_TOP_K', 8)
         final_results = sorted_results[:final_top_k]
-        
-        # CRITICAL: Remove exact duplicates AND adjacent chunks (within 2 positions)
-        seen: set = set()
-        deduped_results = []
-        for r in final_results:
-            key = (r['filename'], r['chunk_index'])
-            is_adjacent_to_seen = any(
-                (key[0] == s[0] and abs(key[1] - s[1]) <= 2)
-                for s in seen
-            )
-            if not is_adjacent_to_seen:
-                seen.add(key)
-                deduped_results.append(r)
-        
+        deduped_results = self._deduplicate_results(final_results)
         logger.debug(f"[RAG] Deduplicated + adjacent filter: {len(final_results)} -> {len(deduped_results)} chunks")
         
         # Sort final results by filename and chunk_index to maintain reading order
@@ -599,70 +594,45 @@ class RetrievalMixin:
             return ""
         
         logger.debug(f"Formatting {len(results)} chunks for LLM (max length: {max_length})")
-        
-        # Group chunks by document for better synthesis
+
         doc_chunks = defaultdict(list)
         for chunk_text, filename, chunk_index, similarity, metadata in results:
             doc_chunks[filename].append((chunk_text, chunk_index, similarity, metadata))
-        
+
         formatted_parts = []
         current_length = 0
         chunks_included = 0
-        doc_num = 0
-        
-        # Format by document
-        for filename, chunks in doc_chunks.items():
-            doc_num += 1
-            
-            # Document header
+
+        for doc_num, (filename, chunks) in enumerate(doc_chunks.items(), 1):
             doc_header = f"\n[Source: {filename}]\n\n"
-            
             if current_length + len(doc_header) > max_length:
                 break
-            
             formatted_parts.append(doc_header)
             current_length += len(doc_header)
-            
-            # Add chunks from this document
+
             for chunk_text, chunk_index, similarity, metadata in chunks:
-                # Build citation with page and section
-                citation_parts = []
-
-                if metadata.get('page_number'):
-                    citation_parts.append(f"p. {metadata['page_number']}")
-
-                if metadata.get('section_title'):
-                    section = metadata['section_title']
-                    if len(section) > 50:
-                        section = section[:47] + "..."
-                    citation_parts.append(section)
-
-                citation = f" ({', '.join(citation_parts)})" if citation_parts else ""
-                header = f"[Passage{citation}]\n"
-                
-                # Clean and format chunk text
-                cleaned_text = self._format_chunk_text_rich(chunk_text)
-                
-                # Build formatted chunk
-                formatted_chunk = header + cleaned_text + "\n\n"
-                
-                # Check length constraint
+                formatted_chunk = self._format_single_chunk(chunk_text, metadata)
                 if current_length + len(formatted_chunk) > max_length:
-                    logger.info(f"Context size limit reached: {chunks_included} chunks from {doc_num} documents included")
+                    logger.info(f"Context size limit reached: {chunks_included} chunks from {doc_num} docs")
                     break
-                
                 formatted_parts.append(formatted_chunk)
                 current_length += len(formatted_chunk)
                 chunks_included += 1
-        
-        context = "".join(formatted_parts)
 
-        doc_count = len(doc_chunks)
-        final_context = context
-        
-        logger.info(f"Formatted context: {len(final_context):,} chars from {chunks_included} chunks across {doc_count} documents")
-        
+        final_context = "".join(formatted_parts)
+        logger.info(f"Formatted context: {len(final_context):,} chars from {chunks_included} chunks across {len(doc_chunks)} documents")
         return final_context
+
+    def _format_single_chunk(self, chunk_text: str, metadata: dict) -> str:
+        """Build a formatted passage block with citation header."""
+        citation_parts = []
+        if metadata.get('page_number'):
+            citation_parts.append(f"p. {metadata['page_number']}")
+        if metadata.get('section_title'):
+            section = metadata['section_title']
+            citation_parts.append(section[:47] + "..." if len(section) > 50 else section)
+        citation = f" ({', '.join(citation_parts)})" if citation_parts else ""
+        return f"[Passage{citation}]\n" + self._format_chunk_text_rich(chunk_text) + "\n\n"
     
     def _format_chunk_text_rich(self, chunk_text: str) -> str:
         """

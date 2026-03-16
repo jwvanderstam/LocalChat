@@ -173,65 +173,57 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
     
     # Don't initialize services in testing mode
     if not testing:
-        # Check Ollama
-        logger.info("Checking Ollama connection...")
-        ollama_success, ollama_message = ollama_client.check_connection()
-        app.startup_status['ollama'] = ollama_success
-        
-        if ollama_success:
-            logger.info(f"{ollama_message}")
-            # Load first available model
-            if not config.app_state.get_active_model():
-                first_model = ollama_client.get_first_available_model()
-                if first_model:
-                    config.app_state.set_active_model(first_model)
-                    logger.info(f"Active model set to: {first_model}")
-        else:
-            logger.warning(f"{ollama_message}")
-        
-        # Check Database
-        logger.info("Checking PostgreSQL with pgvector...")
-        db_success, db_message = db.initialize()
-        app.startup_status['database'] = db_success
-        
-        if db_success:
-            logger.info(f"{db_message}")
-            doc_count = db.get_document_count()
-            config.app_state.set_document_count(doc_count)
-            logger.info(f"Documents in database: {doc_count}")
-        else:
-            logger.error(f"{db_message}")
-            logger.error("=" * 50)
-            logger.error("WARNING: PostgreSQL database is not available!")
-            logger.error("App will run in DEGRADED MODE (no document storage)")
-            logger.error("=" * 50)
-            
-            # Check if we're in strict production mode (require DB)
-            strict_mode = os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true'
-            
-            if strict_mode:
-                logger.critical("REQUIRE_DATABASE=true - cannot start without database")
-                import sys
-                border = "=" * 60
-                print("", file=sys.stderr)
-                print(border, file=sys.stderr)
-                print("  FATAL: PostgreSQL database is NOT available", file=sys.stderr)
-                print(f"  Reason: {db_message.splitlines()[0]}", file=sys.stderr)
-                print("", file=sys.stderr)
-                print("  REQUIRE_DATABASE=true is set — aborting startup.", file=sys.stderr)
-                print("  Ensure PostgreSQL is running and reachable, then retry.", file=sys.stderr)
-                print(border, file=sys.stderr)
-                print("", file=sys.stderr)
-                sys.exit(1)
-            else:
-                logger.warning("Continuing without database (development mode)")
-        
-        # Set overall ready status
+        _init_ollama_service(app, ollama_client)
+        _init_database_service(app, db)
         app.startup_status['ready'] = (
             app.startup_status['ollama'] and app.startup_status['database']
         )
-    
+
     logger.debug("Services initialized")
+
+
+def _init_ollama_service(app: LocalChatApp, ollama_client) -> None:
+    """Check Ollama availability and set the active model."""
+    from . import config
+    logger.info("Checking Ollama connection...")
+    ollama_success, ollama_message = ollama_client.check_connection()
+    app.startup_status['ollama'] = ollama_success
+    if ollama_success:
+        logger.info(ollama_message)
+        if not config.app_state.get_active_model():
+            first_model = ollama_client.get_first_available_model()
+            if first_model:
+                config.app_state.set_active_model(first_model)
+                logger.info(f"Active model set to: {first_model}")
+    else:
+        logger.warning(ollama_message)
+
+
+def _init_database_service(app: LocalChatApp, db) -> None:
+    """Initialise the database; abort if REQUIRE_DATABASE is set and DB is unavailable."""
+    import sys
+    from . import config
+    logger.info("Checking PostgreSQL with pgvector...")
+    db_success, db_message = db.initialize()
+    app.startup_status['database'] = db_success
+    if db_success:
+        logger.info(db_message)
+        doc_count = db.get_document_count()
+        config.app_state.set_document_count(doc_count)
+        logger.info(f"Documents in database: {doc_count}")
+        return
+    logger.error(db_message)
+    logger.error("WARNING: PostgreSQL database is not available! App will run in DEGRADED MODE.")
+    if os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true':
+        logger.critical("REQUIRE_DATABASE=true - cannot start without database")
+        border = "=" * 60
+        print(f"\n{border}", file=sys.stderr)
+        print("  FATAL: PostgreSQL database is NOT available", file=sys.stderr)
+        print(f"  Reason: {db_message.splitlines()[0]}", file=sys.stderr)
+        print("  REQUIRE_DATABASE=true is set — aborting startup.", file=sys.stderr)
+        print(f"{border}\n", file=sys.stderr)
+        sys.exit(1)
+    logger.warning("Continuing without database (development mode)")
 
 
 def _init_caching(app: LocalChatApp, testing: bool) -> None:

@@ -23,6 +23,34 @@ from ..db import DatabaseUnavailableError
 logger = get_logger(__name__)
 
 
+def _build_validation_message(errors: list) -> str:
+    """Build a user-friendly validation error message from Pydantic error list."""
+    if len(errors) == 1:
+        err = errors[0]
+        field = err.get('loc', ['field'])[-1]
+        error_type = err.get('type', 'validation_error')
+        if error_type == 'string_too_long':
+            max_length = err.get('ctx', {}).get('max_length', 5000)
+            input_length = len(str(err.get('input', '')))
+            return (
+                f"Your {field} is too long ({input_length:,} characters). "
+                f"Please shorten it to {max_length:,} characters or less."
+            )
+        if error_type == 'string_too_short':
+            min_length = err.get('ctx', {}).get('min_length', 1)
+            return f"Your {field} must be at least {min_length} character(s) long."
+        if error_type == 'missing':
+            return f"Required field '{field}' is missing."
+        return f"Invalid {field}: {err.get('msg', 'Please check your input')}"
+    msg = "Multiple validation errors occurred:\n"
+    for idx, err in enumerate(errors[:3], 1):
+        field = err.get('loc', ['field'])[-1]
+        msg += f"{idx}. {field}: {err.get('msg', 'Invalid value')}\n"
+    if len(errors) > 3:
+        msg += f"... and {len(errors) - 3} more error(s)."
+    return msg
+
+
 def register_error_handlers(app: Flask) -> None:
     """
     Register all error handlers for the application.
@@ -104,49 +132,12 @@ def register_error_handlers(app: Flask) -> None:
     def validation_error_handler(error: PydanticValidationError):
         """Handle Pydantic validation errors with user-friendly messages."""
         errors = error.errors()
-        
-        # Create user-friendly message
-        if len(errors) == 1:
-            err = errors[0]
-            field = err.get('loc', ['field'])[-1]
-            error_type = err.get('type', 'validation_error')
-            
-            # Create specific messages
-            if error_type == 'string_too_long':
-                max_length = err.get('ctx', {}).get('max_length', 5000)
-                input_length = len(str(err.get('input', '')))
-                user_message = (
-                    f"Your {field} is too long ({input_length:,} characters). "
-                    f"Please shorten it to {max_length:,} characters or less."
-                )
-            elif error_type == 'string_too_short':
-                min_length = err.get('ctx', {}).get('min_length', 1)
-                user_message = f"Your {field} must be at least {min_length} character(s) long."
-            elif error_type == 'value_error':
-                user_message = f"Invalid {field}: {err.get('msg', 'Please check your input')}"
-            elif error_type == 'missing':
-                user_message = f"Required field '{field}' is missing."
-            else:
-                user_message = f"Invalid {field}: {err.get('msg', 'Please check your input')}"
-                
-            logger.warning(f"Validation error: {user_message}")
-        else:
-            # Multiple errors
-            user_message = "Multiple validation errors occurred:\n"
-            for idx, err in enumerate(errors[:3], 1):
-                field = err.get('loc', ['field'])[-1]
-                user_message += f"{idx}. {field}: {err.get('msg', 'Invalid value')}\n"
-            if len(errors) > 3:
-                user_message += f"... and {len(errors) - 3} more error(s)."
-            logger.warning(f"Multiple validation errors: {len(errors)} total")
-        
+        user_message = _build_validation_message(errors)
+        logger.warning(f"Validation error ({len(errors)} issue(s)): {user_message[:80]}")
         error_response = ErrorResponse(
             error="ValidationError",
             message=user_message,
-            details={
-                "errors": errors,
-                "help": "Please check your input and try again."
-            }
+            details={"errors": errors, "help": "Please check your input and try again."}
         )
         return jsonify(error_response.model_dump()), 400
     
