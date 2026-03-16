@@ -18,6 +18,8 @@ from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
 from .loaders import DocumentLoaderMixin
 from .chunking import TextChunkerMixin
+
+_NO_EMBEDDING_MODEL = "No embedding model available"
 from .retrieval import RetrievalMixin
 
 logger = get_logger(__name__)
@@ -70,7 +72,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         if model is None:
             model = self.embedding_model or ollama_client.get_embedding_model()
             if model is None:
-                logger.error("No embedding model available")
+                logger.error(_NO_EMBEDDING_MODEL)
                 return [None] * len(texts)
         
         batch_size_int = batch_size or getattr(config, 'BATCH_SIZE', 50)
@@ -295,8 +297,8 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
             embedding_model = ollama_client.get_embedding_model()
             if not embedding_model:
-                logger.error("No embedding model available")
-                return False, "No embedding model available", None
+                logger.error(_NO_EMBEDDING_MODEL)
+                return False, _NO_EMBEDDING_MODEL, None
 
             logger.info(f"Using embedding model: {embedding_model}")
             if progress_callback:

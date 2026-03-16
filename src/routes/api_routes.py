@@ -104,6 +104,12 @@ def _get_web_context(message: str) -> str:
     return searcher.format_web_context(web_results, max_length=4000)
 
 
+def _insert_system_prompt(messages: list, prompt: str) -> None:
+    """Prepend a system message if one is not already present."""
+    if not messages or messages[0].get('role') != 'system':
+        messages.insert(0, {'role': 'system', 'content': prompt})
+
+
 def _build_context_prompt(
     original_message: str,
     local_context: str,
@@ -117,9 +123,7 @@ def _build_context_prompt(
     has_web = bool(web_context)
 
     if has_local or has_web:
-        system_prompt = _ENHANCED_SYSTEM_PROMPT if enhance else _RAG_SYSTEM_PROMPT
-        if not messages or messages[0].get('role') != 'system':
-            messages.insert(0, {'role': 'system', 'content': system_prompt})
+        _insert_system_prompt(messages, _ENHANCED_SYSTEM_PROMPT if enhance else _RAG_SYSTEM_PROMPT)
         sections = []
         if has_local:
             sections.append("=== Local Document Context ===\n" + local_context)
@@ -133,11 +137,9 @@ def _build_context_prompt(
         )
         logger.info(f"[CHAT API] Context ready - local: {has_local}, web: {has_web}")
     elif use_rag:
-        if not messages or messages[0].get('role') != 'system':
-            messages.insert(0, {
-                'role': 'system',
-                'content': "You are a helpful AI assistant. No relevant documents or web results were found."
-            })
+        _insert_system_prompt(
+            messages, "You are a helpful AI assistant. No relevant documents or web results were found."
+        )
         final_message = original_message
     else:
         final_message = original_message
