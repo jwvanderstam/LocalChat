@@ -414,26 +414,29 @@ def api_search_text():
 def api_clear_documents():
     """
     Clear all documents and chunks from the database.
-    
+
     Warning: This operation cannot be undone!
-    
+
     Returns:
         JSON response with success status
     """
     from .. import config
-    
+    from ..db import DatabaseUnavailableError
+
     try:
         logger.warning("Clearing all documents from database")
         current_app.db.delete_all_documents()
-        
+
         # Update document count
         config.app_state.set_document_count(0)
-        
+
         logger.info("All documents cleared successfully")
         return jsonify({
             'success': True,
             'message': 'All documents and chunks have been deleted'
         })
+    except DatabaseUnavailableError:
+        raise  # propagate to the global 503 error handler
     except Exception as e:
         logger.error(f"Error clearing documents: {e}", exc_info=True)
         return jsonify({
