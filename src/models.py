@@ -28,6 +28,9 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+
+_MODEL_NAME_EMPTY = 'Model name cannot be empty'
+_MODEL_NAME_INVALID_CHARS = 'Model name contains invalid characters'
 from . import config
 from .utils.logging_config import get_logger
 
@@ -206,10 +209,10 @@ class ModelRequest(BaseModel):
     def model_not_empty(cls, v: str) -> str:
         """Validate model name is not empty."""
         if not v.strip():
-            raise ValueError('Model name cannot be empty')
+            raise ValueError(_MODEL_NAME_EMPTY)
         # Remove potentially dangerous characters
         if any(char in v for char in ['/', '\\', '..', '<', '>', '|', '&']):
-            raise ValueError('Model name contains invalid characters')
+            raise ValueError(_MODEL_NAME_INVALID_CHARS)
         return v.strip()
     
     model_config = {
@@ -325,10 +328,10 @@ class ModelPullRequest(BaseModel):
     def valid_model_name(cls, v: str) -> str:
         """Validate model name format."""
         if not v.strip():
-            raise ValueError('Model name cannot be empty')
+            raise ValueError(_MODEL_NAME_EMPTY)
         # Basic validation for model name format
         if not all(c.isalnum() or c in ['-', '_', '.', ':'] for c in v):
-            raise ValueError('Model name contains invalid characters')
+            raise ValueError(_MODEL_NAME_INVALID_CHARS)
         return v.strip()
     
     model_config = {
@@ -366,7 +369,7 @@ class ModelDeleteRequest(BaseModel):
     def model_not_empty(cls, v: str) -> str:
         """Validate model name is not empty."""
         if not v.strip():
-            raise ValueError('Model name cannot be empty')
+            raise ValueError(_MODEL_NAME_EMPTY)
         return v.strip()
 
 

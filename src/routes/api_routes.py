@@ -38,6 +38,112 @@ except ImportError:
 bp = Blueprint('api', __name__)
 logger = get_logger(__name__)
 
+# ── System prompts (module-level to avoid re-creation per request) ──────────
+_RAG_SYSTEM_PROMPT = """You are a helpful assistant that answers questions based strictly on the provided context passages.
+
+Rules:
+1. Answer directly and concisely using only information from the provided context.
+2. If the answer is not in the context, say: "I don't have that information in the provided documents."
+3. Do not describe the document structure or list section names - synthesize the content into a clear, direct answer.
+4. Do not reference internal identifiers like chunk numbers or section indices.
+5. Only use bullet points or tables when the content genuinely benefits from that structure.
+6. You may mention the source document name when it adds useful context."""
+
+_ENHANCED_SYSTEM_PROMPT = """You are a helpful assistant that answers questions using both uploaded documents and live web search results.
+
+Rules:
+1. Synthesize information from both local documents and web sources into a single clear answer.
+2. Prefer local document content when it directly answers the question.
+3. Use web sources to fill gaps, provide current information, or verify facts.
+4. When citing web sources, mention the URL or site name briefly.
+5. Do not list section names or describe document structure - give a direct answer.
+6. Only use bullet points or tables when the content genuinely benefits from that structure."""
+
+
+def _parse_chat_request(data: dict) -> dict:
+    """Validate and sanitise chat request data. Returns cleaned field dict."""
+    from ..models import ChatRequest
+    from ..utils.sanitization import sanitize_query
+    req = ChatRequest(**data)
+    return {
+        'message': sanitize_query(req.message),
+        'use_rag': req.use_rag,
+        'enhance': req.enhance and config.WEB_SEARCH_ENABLED,
+        'chat_history': req.history,
+        'conversation_id': req.conversation_id,
+        'images': req.images or [],
+    }
+
+
+def _get_rag_context(message: str, doc_processor) -> str:
+    """Retrieve and format RAG context. Returns formatted context block."""
+    results = doc_processor.retrieve_context(message)
+    logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
+    if not results:
+        logger.warning("[RAG] No chunks retrieved from documents")
+        return ""
+    for idx, (_, filename, chunk_index, similarity, metadata) in enumerate(results, 1):
+        parts = [f"[RAG] Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}"]
+        if metadata.get('page_number'):
+            parts.append(f"page {metadata['page_number']}")
+        if metadata.get('section_title'):
+            parts.append(f"section: {metadata['section_title'][:30]}")
+        logger.debug(" ".join(parts))
+    return doc_processor.format_context_for_llm(results, max_length=6000)
+
+
+def _get_web_context(message: str) -> str:
+    """Run web search and return formatted context block."""
+    from ..rag.web_search import WebSearchProvider
+    searcher = WebSearchProvider()
+    web_results = searcher.search(message)
+    if not web_results:
+        logger.warning("[ENHANCED] Web search returned no results")
+        return ""
+    logger.info(f"[ENHANCED] Got {len(web_results)} web result(s)")
+    return searcher.format_web_context(web_results, max_length=4000)
+
+
+def _build_context_prompt(
+    original_message: str,
+    local_context: str,
+    web_context: str,
+    messages: list,
+    use_rag: bool,
+    enhance: bool,
+) -> tuple:
+    """Inject context into messages list and return (updated_messages, final_message)."""
+    has_local = bool(local_context)
+    has_web = bool(web_context)
+
+    if has_local or has_web:
+        system_prompt = _ENHANCED_SYSTEM_PROMPT if enhance else _RAG_SYSTEM_PROMPT
+        if not messages or messages[0].get('role') != 'system':
+            messages.insert(0, {'role': 'system', 'content': system_prompt})
+        sections = []
+        if has_local:
+            sections.append("=== Local Document Context ===\n" + local_context)
+        if has_web:
+            sections.append("=== Web Search Results ===\n" + web_context)
+        combined = "\n\n".join(sections)
+        final_message = (
+            f"{combined}\n\n---\n\nQuestion: {original_message}\n\n"
+            "Answer the question directly using the information above. "
+            "Synthesize the relevant content into a clear response."
+        )
+        logger.info(f"[CHAT API] Context ready - local: {has_local}, web: {has_web}")
+    elif use_rag:
+        if not messages or messages[0].get('role') != 'system':
+            messages.insert(0, {
+                'role': 'system',
+                'content': "You are a helpful AI assistant. No relevant documents or web results were found."
+            })
+        final_message = original_message
+    else:
+        final_message = original_message
+
+    return messages, final_message
+
 
 @bp.route('/status')
 def api_status():
@@ -180,23 +286,114 @@ def api_chat():
         if not data or not isinstance(data, dict):
             return jsonify({'error': 'BadRequest', 'success': False, 'message': 'Request body must be valid JSON'}), 400
 
-        # Import validation modules
         try:
-            from ..models import ChatRequest
-            from ..utils.sanitization import sanitize_query
-
-            # Pydantic validation + sanitization
-            request_data = ChatRequest(**data)
-            message = sanitize_query(request_data.message)
-            use_rag = request_data.use_rag
-            enhance = request_data.enhance and config.WEB_SEARCH_ENABLED
-            chat_history = request_data.history
-            conversation_id = request_data.conversation_id
-            images = request_data.images or []
-
+            fields = _parse_chat_request(data)
         except ImportError as e:
             logger.error(f"Failed to import required modules: {e}")
             return jsonify({'success': False, 'message': 'Server configuration error'}), 500
+
+        message = fields['message']
+        use_rag = fields['use_rag']
+        enhance = fields['enhance']
+        chat_history = fields['chat_history']
+        conversation_id = fields['conversation_id']
+        images = fields['images']
+        original_message = message
+
+        logger.info(f"[CHAT API] Request - RAG Mode: {use_rag}, Enhanced: {enhance}, Query: {message[:50]}...")
+
+        active_model = config.app_state.get_active_model()
+        if not active_model:
+            return jsonify({'error': 'NoModelConfigured', 'message': 'No active model set. Please select a model first.'}), 400
+
+        messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in chat_history]
+
+        # Retrieve context
+        local_context_block = ""
+        web_context_block = ""
+
+        if use_rag:
+            try:
+                local_context_block = _get_rag_context(message, current_app.doc_processor)
+            except Exception as e:
+                error_msg = f"Failed to retrieve context: {e}"
+                logger.error(error_msg, exc_info=True)
+                raise exceptions.SearchError(error_msg, details={"error": str(e)})
+
+        if enhance:
+            try:
+                web_context_block = _get_web_context(original_message)
+            except Exception as web_err:
+                logger.warning(f"[ENHANCED] Web search failed, continuing without: {web_err}")
+
+        messages, message = _build_context_prompt(
+            original_message, local_context_block, web_context_block, messages, use_rag, enhance
+        )
+
+        user_message: Dict[str, Any] = {'role': 'user', 'content': message}
+        if images:
+            user_message['images'] = images
+            logger.info(f"[CHAT API] Attaching {len(images)} image(s) to request")
+        messages.append(user_message)
+
+        # Persistent memory
+        if current_app.startup_status.get('database', False):
+            try:
+                if not conversation_id:
+                    title = original_message[:60] + ('...' if len(original_message) > 60 else '')
+                    conversation_id = current_app.db.create_conversation(title)
+                current_app.db.save_message(conversation_id, 'user', original_message)
+            except Exception as mem_err:
+                logger.warning(f"[MEMORY] Could not persist user message: {mem_err}")
+                conversation_id = None
+
+        app = current_app._get_current_object()  # type: ignore[attr-defined]
+
+        _tool_executor = None
+        if config.TOOL_CALLING_ENABLED:
+            try:
+                from ..tools import tool_registry, ToolExecutor
+                if len(tool_registry) > 0:
+                    _tool_executor = ToolExecutor(app.ollama_client, tool_registry)
+            except ImportError:
+                pass
+
+        def generate() -> Generator[str, None, None]:
+            full_response: list = []
+            try:
+                response_stream = (
+                    _tool_executor.execute(active_model, messages, stream=True)
+                    if _tool_executor is not None
+                    else app.ollama_client.generate_chat_response(active_model, messages, stream=True)
+                )
+                for chunk in response_stream:
+                    full_response.append(chunk)
+                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+                if conversation_id:
+                    try:
+                        app.db.save_message(conversation_id, 'assistant', ''.join(full_response))
+                    except Exception as mem_err:
+                        logger.warning(f"[MEMORY] Could not persist assistant message: {mem_err}")
+
+                done_payload: dict = {'done': True}
+                if conversation_id:
+                    done_payload['conversation_id'] = conversation_id
+                yield f"data: {json.dumps(done_payload)}\n\n"
+            except Exception as e:
+                logger.error(f"[CHAT API] Error generating response: {e}", exc_info=True)
+                yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response'})}\n\n"
+
+        response = Response(generate(), mimetype='text/event-stream')
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['X-Accel-Buffering'] = 'no'
+        return response
+
+    except (PydanticValidationError, exceptions.LocalChatException):
+        raise
+    except Exception as e:
+        logger.error(f"[CHAT API] Unexpected error: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'An unexpected error occurred during chat'}), 500
         
         logger.info(f"[CHAT API] Request - RAG Mode: {use_rag}, Enhanced: {enhance}, Query: {message[:50]}...")
         logger.debug(f"[CHAT API] History length: {len(chat_history)}")
@@ -217,188 +414,7 @@ def api_chat():
                 'role': msg.get('role', 'user'),
                 'content': msg.get('content', '')
             })
-        
+
         # Store original message
         original_message = message
-        
-        # System prompts
-        RAG_SYSTEM_PROMPT = """You are a helpful assistant that answers questions based strictly on the provided context passages.
 
-Rules:
-1. Answer directly and concisely using only information from the provided context.
-2. If the answer is not in the context, say: "I don't have that information in the provided documents."
-3. Do not describe the document structure or list section names - synthesize the content into a clear, direct answer.
-4. Do not reference internal identifiers like chunk numbers or section indices.
-5. Only use bullet points or tables when the content genuinely benefits from that structure.
-6. You may mention the source document name when it adds useful context."""
-
-        ENHANCED_SYSTEM_PROMPT = """You are a helpful assistant that answers questions using both uploaded documents and live web search results.
-
-Rules:
-1. Synthesize information from both local documents and web sources into a single clear answer.
-2. Prefer local document content when it directly answers the question.
-3. Use web sources to fill gaps, provide current information, or verify facts.
-4. When citing web sources, mention the URL or site name briefly.
-5. Do not list section names or describe document structure - give a direct answer.
-6. Only use bullet points or tables when the content genuinely benefits from that structure."""
-
-        # If RAG mode, retrieve context
-        local_context_block = ""
-        web_context_block = ""
-
-        if use_rag:
-            logger.debug("[RAG] Retrieving context from documents...")
-            try:
-                results = current_app.doc_processor.retrieve_context(message)
-                logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
-
-                if results:
-                    local_context_block = current_app.doc_processor.format_context_for_llm(
-                        results, max_length=6000
-                    )
-                    for idx, (_, filename, chunk_index, similarity, metadata) in enumerate(results, 1):
-                        log_parts = [f"[RAG] Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}"]
-                        if metadata.get('page_number'):
-                            log_parts.append(f"page {metadata['page_number']}")
-                        if metadata.get('section_title'):
-                            log_parts.append(f"section: {metadata['section_title'][:30]}")
-                        logger.debug(" ".join(log_parts))
-                else:
-                    logger.warning("[RAG] No chunks retrieved from documents")
-
-            except Exception as e:
-                error_msg = f"Failed to retrieve context: {str(e)}"
-                logger.error(error_msg, exc_info=True)
-                raise exceptions.SearchError(error_msg, details={"error": str(e)})
-
-        if enhance:
-            logger.info("[ENHANCED] Running web search...")
-            try:
-                from ..rag.web_search import WebSearchProvider
-                searcher = WebSearchProvider()
-                web_results = searcher.search(original_message)
-                if web_results:
-                    web_context_block = searcher.format_web_context(web_results, max_length=4000)
-                    logger.info(f"[ENHANCED] Got {len(web_results)} web result(s)")
-                else:
-                    logger.warning("[ENHANCED] Web search returned no results")
-            except Exception as web_err:
-                logger.warning(f"[ENHANCED] Web search failed, continuing without: {web_err}")
-
-        # Build combined prompt
-        has_local = bool(local_context_block)
-        has_web = bool(web_context_block)
-
-        if has_local or has_web:
-            system_prompt = ENHANCED_SYSTEM_PROMPT if enhance else RAG_SYSTEM_PROMPT
-            if not messages or messages[0].get('role') != 'system':
-                messages.insert(0, {'role': 'system', 'content': system_prompt})
-
-            context_sections: list = []
-            if has_local:
-                context_sections.append("=== Local Document Context ===\n" + local_context_block)
-            if has_web:
-                context_sections.append("=== Web Search Results ===\n" + web_context_block)
-
-            combined_context = "\n\n".join(context_sections)
-            message = f"""{combined_context}\n\n---\n\nQuestion: {original_message}\n\nAnswer the question directly using the information above. Synthesize the relevant content into a clear response."""
-            logger.info(f"[CHAT API] Context ready - local: {has_local}, web: {has_web}")
-        elif use_rag:
-            if not messages or messages[0].get('role') != 'system':
-                messages.insert(0, {
-                    'role': 'system',
-                    'content': "You are a helpful AI assistant. No relevant documents or web results were found."
-                })
-        else:
-            logger.debug("[CHAT API] Direct LLM mode - no RAG")
-
-        user_message: Dict[str, Any] = {'role': 'user', 'content': message}
-        if images:
-            user_message['images'] = images
-            logger.info(f"[CHAT API] Attaching {len(images)} image(s) to request")
-        messages.append(user_message)
-
-        # Persistent memory: create or reuse a conversation, then save the user message
-        if current_app.startup_status.get('database', False):
-            try:
-                if not conversation_id:
-                    title = original_message[:60] + ('...' if len(original_message) > 60 else '')
-                    conversation_id = current_app.db.create_conversation(title)
-                    logger.debug(f"[MEMORY] Created conversation: {conversation_id}")
-                current_app.db.save_message(conversation_id, 'user', original_message)
-                logger.debug(f"[MEMORY] Saved user message to conversation {conversation_id}")
-            except Exception as mem_err:
-                logger.warning(f"[MEMORY] Could not persist user message: {mem_err}")
-                conversation_id = None
-
-        # Capture app object before entering generator
-        app = current_app._get_current_object()  # type: ignore[attr-defined]
-
-        # Initialize tool executor when tool calling is enabled
-        _tool_executor = None
-        if config.TOOL_CALLING_ENABLED:
-            try:
-                from ..tools import tool_registry, ToolExecutor
-
-                if len(tool_registry) > 0:
-                    _tool_executor = ToolExecutor(app.ollama_client, tool_registry)
-                    logger.debug(
-                        f"[CHAT API] Tool calling enabled with {len(tool_registry)} tool(s): "
-                        f"{', '.join(tool_registry.names)}"
-                    )
-            except ImportError:
-                logger.debug("[CHAT API] Tools module not available, skipping")
-
-        # Stream response
-        def generate() -> Generator[str, None, None]:
-            full_response: list = []
-            try:
-                logger.debug("[CHAT API] Starting response stream...")
-
-                if _tool_executor is not None:
-                    response_stream = _tool_executor.execute(
-                        active_model, messages, stream=True
-                    )
-                else:
-                    response_stream = app.ollama_client.generate_chat_response(
-                        active_model, messages, stream=True
-                    )
-
-                for chunk in response_stream:
-                    full_response.append(chunk)
-                    yield f"data: {json.dumps({'content': chunk})}\n\n"
-
-                # Save assistant response to persistent memory
-                if conversation_id:
-                    try:
-                        app.db.save_message(conversation_id, 'assistant', ''.join(full_response))
-                        logger.debug(f"[MEMORY] Saved assistant message to conversation {conversation_id}")
-                    except Exception as mem_err:
-                        logger.warning(f"[MEMORY] Could not persist assistant message: {mem_err}")
-
-                done_payload: dict = {'done': True}
-                if conversation_id:
-                    done_payload['conversation_id'] = conversation_id
-                yield f"data: {json.dumps(done_payload)}\n\n"
-                logger.debug("[CHAT API] Response stream completed")
-            except Exception as e:
-                logger.error(f"[CHAT API] Error generating response: {e}", exc_info=True)
-                error_msg = json.dumps({
-                    'error': 'GenerationError',
-                    'message': 'Failed to generate response'
-                })
-                yield f"data: {error_msg}\n\n"
-        
-        response = Response(generate(), mimetype='text/event-stream')
-        response.headers['Cache-Control'] = 'no-cache'
-        response.headers['X-Accel-Buffering'] = 'no'
-        return response
-        
-    except (PydanticValidationError, exceptions.LocalChatException):
-        raise  # Let error handlers deal with it
-    except Exception as e:
-        logger.error(f"[CHAT API] Unexpected error: {e}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': 'An unexpected error occurred during chat'
-        }), 500

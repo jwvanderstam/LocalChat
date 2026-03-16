@@ -343,55 +343,32 @@ def init_monitoring(app: Flask):
             description: System unhealthy
         """
         from flask import current_app
-        
-        checks = {}
-        overall_healthy = True
-        
-        # Check database
-        if hasattr(current_app, 'startup_status'):
-            checks['database'] = {
-                'status': 'up' if current_app.startup_status.get('database') else 'down',
-                'healthy': current_app.startup_status.get('database', False)
-            }
-            if not checks['database']['healthy']:
-                overall_healthy = False
-        
-        # Check Ollama
-        if hasattr(current_app, 'startup_status'):
-            checks['ollama'] = {
-                'status': 'up' if current_app.startup_status.get('ollama') else 'down',
-                'healthy': current_app.startup_status.get('ollama', False)
-            }
-            # Ollama not critical - mark as degraded not unhealthy
-            if not checks['ollama']['healthy']:
-                checks['ollama']['message'] = 'Ollama unavailable - direct LLM mode disabled'
-        
-        # Check cache
-        if hasattr(current_app, 'embedding_cache'):
-            checks['cache'] = {
-                'status': 'up',
-                'healthy': True,
-                'stats': current_app.embedding_cache.get_stats().to_dict()
-            }
-        
-        # Overall status
-        if overall_healthy:
-            status = 'healthy'
-            status_code = 200
-        elif checks.get('database', {}).get('healthy', False):
-            status = 'degraded'
-            status_code = 200
-        else:
-            status = 'unhealthy'
-            status_code = 503
-        
-        return jsonify({
-            'status': status,
-            'checks': checks,
-            'timestamp': datetime.now().isoformat()
-        }), status_code
-    
-    logger.info("? Monitoring endpoints initialized")
+        status, status_code, checks = _compute_health_status(current_app)
+        return jsonify({'status': status, 'checks': checks, 'timestamp': datetime.now().isoformat()}), status_code
+
+    logger.info("✓ Monitoring endpoints initialized")
+
+
+def _compute_health_status(app) -> tuple:
+    """Compute health status dict from app startup_status. Returns (status, code, checks)."""
+    checks = {}
+    overall_healthy = True
+    if hasattr(app, 'startup_status'):
+        db_up = app.startup_status.get('database', False)
+        checks['database'] = {'status': 'up' if db_up else 'down', 'healthy': db_up}
+        if not db_up:
+            overall_healthy = False
+        ollama_up = app.startup_status.get('ollama', False)
+        checks['ollama'] = {'status': 'up' if ollama_up else 'down', 'healthy': ollama_up}
+        if not ollama_up:
+            checks['ollama']['message'] = 'Ollama unavailable - direct LLM mode disabled'
+    if hasattr(app, 'embedding_cache'):
+        checks['cache'] = {'status': 'up', 'healthy': True, 'stats': app.embedding_cache.get_stats().to_dict()}
+    if overall_healthy:
+        return 'healthy', 200, checks
+    if checks.get('database', {}).get('healthy', False):
+        return 'degraded', 200, checks
+    return 'unhealthy', 503, checks
 
 
 # Prometheus text format export

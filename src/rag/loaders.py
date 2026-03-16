@@ -48,6 +48,8 @@ except ImportError:
     def counted(_metric_name, _labels=None):  # noqa: E306
         return lambda func: func
 
+_PDF_NOT_INSTALLED = "PyPDF2 not installed"
+
 
 class DocumentLoaderMixin:
     """
@@ -76,27 +78,161 @@ class DocumentLoaderMixin:
             logger.error(f"Error loading text file: {e}", exc_info=True)
             return False, str(e)
     
+    def _try_pdfplumber_import(self):
+        """Try to import pdfplumber, return module or None."""
+        try:
+            import pdfplumber as pdf_lib
+            return pdf_lib
+        except ImportError:
+            return None
+
+    def _extract_pdfplumber_table_text(self, page, page_num: int) -> str:
+        """Extract and format table text from a single pdfplumber page."""
+        try:
+            tables = page.extract_tables()
+            if not tables:
+                return ""
+            table_text = ""
+            for table_idx, table in enumerate(tables, 1):
+                if not table:
+                    continue
+                table_text += f"\n[Table {table_idx} on page {page_num}]\n"
+                for row in table:
+                    if not row:
+                        continue
+                    row_text = " | ".join([str(cell).strip() if cell else "" for cell in row])
+                    if row_text.strip():
+                        table_text += row_text + "\n"
+                table_text += "\n"
+            return table_text
+        except Exception as e:
+            logger.error(f"  Page {page_num}: Error extracting tables: {e}")
+            return ""
+
+    def _extract_pdfplumber_text(self, pdfplumber_module, file_path: str) -> str:
+        """Extract full concatenated text from a PDF using pdfplumber."""
+        text = ""
+        with pdfplumber_module.open(file_path) as pdf:
+            num_pages = len(pdf.pages)
+            logger.info(f"PDF has {num_pages} pages (using pdfplumber)")
+            for page_num, page in enumerate(pdf.pages, 1):
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+                else:
+                    logger.warning(f"  Page {page_num}: no text extracted")
+                text += self._extract_pdfplumber_table_text(page, page_num)
+        logger.info(f"pdfplumber extraction: {len(text):,} chars from {num_pages} pages")
+        if len(text) < 100:
+            raise ValueError("Insufficient text extracted with pdfplumber")
+        return text
+
+    def _extract_pypdf2_text(self, file_path: str) -> str:
+        """Extract full concatenated text from a PDF using PyPDF2."""
+        text = ""
+        with open(file_path, 'rb') as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            num_pages = len(pdf_reader.pages)
+            logger.info(f"PDF has {num_pages} pages (using PyPDF2)")
+            for page_num, page in enumerate(pdf_reader.pages, 1):
+                try:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+                    else:
+                        logger.warning(f"  Page {page_num}: no text extracted")
+                except Exception as e:
+                    logger.error(f"  Page {page_num}: Error extracting text: {e}")
+        logger.info(f"PyPDF2 extraction complete: {len(text):,} characters")
+        return text
+
+    def _load_pages_pdfplumber(self, pdfplumber_module, file_path: str) -> List[Dict[str, Any]]:
+        """Load per-page data with metadata using pdfplumber."""
+        pages_data = []
+        with pdfplumber_module.open(file_path) as pdf:
+            num_pages = len(pdf.pages)
+            logger.info(f"PDF has {num_pages} pages")
+            for page_num, page in enumerate(pdf.pages, 1):
+                page_text = (page.extract_text() or "") + self._extract_pdfplumber_table_text(page, page_num)
+                if page_text.strip():
+                    pages_data.append({
+                        'page_number': page_num,
+                        'text': page_text,
+                        'section_title': self._extract_section_title(page_text)
+                    })
+                else:
+                    logger.warning(f"  Page {page_num}: No text extracted")
+        return pages_data
+
+    def _load_pages_pypdf2(self, file_path: str) -> List[Dict[str, Any]]:
+        """Load per-page data with metadata using PyPDF2."""
+        pages_data = []
+        with open(file_path, 'rb') as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            num_pages = len(pdf_reader.pages)
+            logger.info(f"PDF has {num_pages} pages (PyPDF2)")
+            for page_num, page in enumerate(pdf_reader.pages, 1):
+                page_text = page.extract_text() or ""
+                if page_text.strip():
+                    pages_data.append({
+                        'page_number': page_num,
+                        'text': page_text,
+                        'section_title': self._extract_section_title(page_text)
+                    })
+        return pages_data
+
     def load_pdf_file(self, file_path: str) -> Tuple[bool, str]:
         """
         Load a PDF file with enhanced table extraction and improved text extraction.
-        
+
         Uses pdfplumber for better table extraction if available,
         falls back to PyPDF2 for basic text extraction.
-        
+
         Args:
             file_path: Path to PDF file
-        
+
         Returns:
             Tuple of (success: bool, content_or_error: str)
         """
         if not PDF_AVAILABLE:
-            logger.error("PyPDF2 not installed")
-            return False, "PyPDF2 not installed"
-        
+            logger.error(_PDF_NOT_INSTALLED)
+            return False, _PDF_NOT_INSTALLED
+
         try:
             logger.info(f"Loading PDF file: {file_path}")
             file_size = os.path.getsize(file_path)
             logger.debug(f"PDF file size: {file_size:,} bytes")
+
+            pdfplumber = self._try_pdfplumber_import()
+            text = ""
+            extraction_method = "unknown"
+
+            if pdfplumber is not None:
+                try:
+                    text = self._extract_pdfplumber_text(pdfplumber, file_path)
+                    extraction_method = "pdfplumber"
+                except Exception as plumber_error:
+                    logger.warning(f"pdfplumber extraction failed: {plumber_error}, falling back to PyPDF2")
+                    text = ""
+
+            if not text:
+                text = self._extract_pypdf2_text(file_path)
+                extraction_method = "PyPDF2"
+
+            if not text.strip():
+                error_msg = "PDF extraction resulted in empty text - file may be image-based or password-protected."
+                logger.error(f"{error_msg} File: {file_path} ({file_size:,} bytes)")
+                return False, error_msg
+
+            if len(text) < 100:
+                logger.warning(f"PDF extraction yielded very little text: {len(text)} characters")
+
+            logger.info(f"PDF extraction successful using {extraction_method}: {len(text):,} characters extracted")
+            return True, text
+
+        except Exception as e:
+            logger.error(f"Error loading PDF: {e}", exc_info=True)
+            return False, str(e)
             
             # Try to use pdfplumber for better table extraction
             pdfplumber = None  # Initialize to None
@@ -226,225 +362,132 @@ class DocumentLoaderMixin:
     def _load_pdf_with_pages(self, file_path: str) -> Tuple[bool, Union[List[Dict[str, Any]], str]]:
         """
         Load PDF with page-by-page tracking for enhanced citations.
-        
-        Returns page data with page numbers and section titles instead of
-        concatenated text.
-        
+
         Args:
             file_path: Path to PDF file
-        
+
         Returns:
             Tuple of (success: bool, pages_data_or_error)
-            On success: List of dicts with keys: page_number, text, section_title
-            On failure: Error message string
         """
         if not PDF_AVAILABLE:
-            logger.error("PyPDF2 not installed")
-            return False, "PyPDF2 not installed"
-        
+            logger.error(_PDF_NOT_INSTALLED)
+            return False, _PDF_NOT_INSTALLED
+
         try:
             logger.info(f"Loading PDF with page tracking: {file_path}")
-            
-            # Try pdfplumber first
-            pdfplumber = None
-            try:
-                import pdfplumber as pdf_lib
-                pdfplumber = pdf_lib
-                logger.info("Using pdfplumber for page-by-page extraction")
-            except ImportError:
-                logger.warning("pdfplumber not available, using PyPDF2")
-            
-            pages_data = []
-            
+            pdfplumber = self._try_pdfplumber_import()
+
             if pdfplumber is not None:
-                # Use pdfplumber
-                with pdfplumber.open(file_path) as pdf:
-                    num_pages = len(pdf.pages)
-                    logger.info(f"PDF has {num_pages} pages")
-                    
-                    for page_num, page in enumerate(pdf.pages, 1):
-                        logger.debug(f"Processing page {page_num}/{num_pages}...")
-                        
-                        # Extract text
-                        page_text = page.extract_text() or ""
-                        
-                        # Extract tables and append to text
-                        try:
-                            tables = page.extract_tables()
-                            if tables:
-                                logger.debug(f"  Page {page_num}: Found {len(tables)} table(s)")
-                                for table_idx, table in enumerate(tables, 1):
-                                    if table:
-                                        page_text += f"\n[Table {table_idx}]\n"
-                                        for row in table:
-                                            if row:
-                                                row_text = " | ".join([str(cell).strip() if cell else "" for cell in row])
-                                                if row_text.strip():
-                                                    page_text += row_text + "\n"
-                                        page_text += "\n"
-                        except Exception as e:
-                            logger.warning(f"  Page {page_num}: Error extracting tables: {e}")
-                        
-                        if page_text and len(page_text.strip()) > 0:
-                            # Extract section title
-                            section_title = self._extract_section_title(page_text)
-                            
-                            pages_data.append({
-                                'page_number': page_num,
-                                'text': page_text,
-                                'section_title': section_title
-                            })
-                            
-                            logger.debug(f"  Page {page_num}: {len(page_text)} chars, section: {section_title or 'None'}")
-                        else:
-                            logger.warning(f"  Page {page_num}: No text extracted")
-            
+                pages_data = self._load_pages_pdfplumber(pdfplumber, file_path)
             else:
-                # Fallback to PyPDF2
-                with open(file_path, 'rb') as f:
-                    pdf_reader = PyPDF2.PdfReader(f)
-                    num_pages = len(pdf_reader.pages)
-                    logger.info(f"PDF has {num_pages} pages (PyPDF2)")
-                    
-                    for page_num, page in enumerate(pdf_reader.pages, 1):
-                        page_text = page.extract_text() or ""
-                        
-                        if page_text and len(page_text.strip()) > 0:
-                            section_title = self._extract_section_title(page_text)
-                            
-                            pages_data.append({
-                                'page_number': page_num,
-                                'text': page_text,
-                                'section_title': section_title
-                            })
-                            
-                            logger.debug(f"  Page {page_num}: {len(page_text)} chars, section: {section_title or 'None'}")
-            
+                logger.warning("pdfplumber not available, using PyPDF2")
+                pages_data = self._load_pages_pypdf2(file_path)
+
             logger.info(f"Extracted {len(pages_data)} pages with metadata")
-            
-            # Validate
+
             if not pages_data:
                 return False, "No pages with text extracted from PDF"
-            
+
             return True, pages_data
-            
+
         except Exception as e:
             logger.error(f"Error loading PDF with pages: {e}", exc_info=True)
             return False, str(e)
     
+    def _validate_docx_file(self, file_path: str) -> Tuple[bool, str]:
+        """Validate DOCX file exists and is non-empty. Returns (ok, error_msg)."""
+        if not os.path.exists(file_path):
+            return False, f"File not found: {file_path}"
+        if os.path.getsize(file_path) == 0:
+            return False, "File is empty (0 bytes)"
+        return True, ""
+
+    def _extract_docx_text(self, doc) -> str:
+        """Extract combined text from DOCX paragraphs and table cells."""
+        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        cells = [
+            cell.text.strip()
+            for table in doc.tables
+            for row in table.rows
+            for cell in row.cells
+            if cell.text.strip()
+        ]
+        return "\n".join(paragraphs + cells)
+
     def load_docx_file(self, file_path: str) -> Tuple[bool, str]:
         """
         Load a DOCX file with enhanced error handling.
-        
+
         Extracts text from both paragraphs and tables in the document.
-        
+
         Args:
             file_path: Path to DOCX file
-        
+
         Returns:
             Tuple of (success: bool, content_or_error: str)
         """
         if not DOCX_AVAILABLE:
             logger.error("python-docx not installed")
             return False, "python-docx not installed"
-        
+
         try:
             logger.debug(f"Loading DOCX file: {file_path}")
-            
-            # Check if file exists
-            if not os.path.exists(file_path):
-                error_msg = f"File not found: {file_path}"
-                logger.error(error_msg)
-                return False, error_msg
-            
-            # Check file size
-            file_size = os.path.getsize(file_path)
-            logger.debug(f"DOCX file size: {file_size} bytes")
-            
-            if file_size == 0:
-                logger.error("File is empty (0 bytes)")
-                return False, "File is empty (0 bytes)"
-            
-            # Try to open the document
+            ok, err = self._validate_docx_file(file_path)
+            if not ok:
+                logger.error(err)
+                return False, err
+
             try:
                 doc = Document(file_path)
             except Exception as doc_error:
-                error_msg = f"Failed to open DOCX file: {str(doc_error)}"
+                error_msg = f"Failed to open DOCX file: {doc_error}"
                 logger.error(error_msg, exc_info=True)
                 return False, f"{error_msg}. File might be corrupted or password-protected."
-            
-            # Extract text from paragraphs
-            paragraphs = []
-            for para in doc.paragraphs:
-                text = para.text.strip()
-                if text:  # Only include non-empty paragraphs
-                    paragraphs.append(text)
-            
-            # Also extract text from tables
-            tables_text = []
-            for table in doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        text = cell.text.strip()
-                        if text:
-                            tables_text.append(text)
-            
-            # Combine all text
-            all_text = paragraphs + tables_text
-            text = "\n".join(all_text)
-            
-            logger.debug(f"Extracted {len(paragraphs)} paragraphs and {len(tables_text)} table cells")
-            logger.debug(f"Total text length: {len(text)} characters")
-            
-            if not text or len(text.strip()) < 10:
-                error_msg = f"Document appears to be empty or has very little text (only {len(text)} characters)"
+
+            text = self._extract_docx_text(doc)
+            logger.debug(f"DOCX extracted {len(text)} characters")
+
+            if len(text.strip()) < 10:
+                error_msg = f"Document appears to be empty or has very little text ({len(text)} chars)"
                 logger.warning(error_msg)
                 return False, f"{error_msg}. Check if document has actual content."
-            
+
             return True, text
-            
+
         except Exception as e:
             logger.error(f"Error loading DOCX: {e}", exc_info=True)
             return False, f"Error loading DOCX: {str(e)}"
     
+    def _line_looks_like_title(self, line: str) -> Optional[str]:
+        """Return title text if line looks like a section header, else None."""
+        if len(line) >= 100:
+            return None
+        if line.endswith(':'):
+            return line.rstrip(':')
+        words = line.split()
+        if len(words) >= 2 and (line.istitle() or line.isupper()):
+            return line
+        return None
+
     def _extract_section_title(self, page_text: str) -> Optional[str]:
         """
         Extract likely section title from page start.
-        
-        Looks at the first few lines of a page to identify section headers.
-        
+
         Args:
             page_text: Text content of a page
-        
+
         Returns:
             Section title string or None if no title found
         """
         if not page_text:
             return None
-        
-        lines = page_text.strip().split('\n')
-        
-        # Check first 5 lines for potential title
-        for line in lines[:5]:
+        for line in page_text.strip().split('\n')[:5]:
             line = line.strip()
-            
-            # Skip empty lines or very short lines
-            if not line or len(line) < 3:
+            if not line or len(line) < 3 or re.match(r'^\d+\.', line):
                 continue
-            
-            # Skip numbered lines (e.g., "1. Introduction")
-            if re.match(r'^\d+\.', line):
-                continue
-            
-            # Check if looks like a title
-            if len(line) < 100:
-                if line.endswith(':'):
-                    return line.rstrip(':')
-                elif line.istitle() and len(line.split()) >= 2:
-                    return line
-                elif line.isupper() and len(line.split()) >= 2:
-                    return line
-        
+            title = self._line_looks_like_title(line)
+            if title is not None:
+                return title
         return None
     
     def load_image_file(self, file_path: str) -> Tuple[bool, str]:

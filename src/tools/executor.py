@@ -57,6 +57,16 @@ class ToolExecutor:
     # Public API
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _parse_tool_arguments(arguments) -> dict:
+        """Deserialise tool arguments to a dict, handling JSON strings."""
+        if isinstance(arguments, dict):
+            return arguments
+        try:
+            return json.loads(arguments)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
     def execute(
         self,
         model: str,
@@ -106,13 +116,7 @@ class ToolExecutor:
             for tc in tool_calls:
                 func = tc.get("function", {})
                 name = func.get("name", "")
-                arguments = func.get("arguments", {})
-
-                if isinstance(arguments, str):
-                    try:
-                        arguments = json.loads(arguments)
-                    except json.JSONDecodeError:
-                        arguments = {}
+                arguments = self._parse_tool_arguments(func.get("arguments", {}))
 
                 result = self._run_tool(name, arguments)
 

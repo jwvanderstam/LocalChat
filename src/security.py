@@ -226,7 +226,7 @@ def require_auth_optional(f: Callable) -> Callable:
             # Try to get user if token is provided
             from flask_jwt_extended import verify_jwt_in_request
             verify_jwt_in_request(optional=True)
-        except:
+        except Exception:
             pass
         return f(*args, **kwargs)
     return decorated_function

@@ -311,6 +311,16 @@ class OllamaClient:
             logger.error(f"Error describing image: {e}", exc_info=True)
             return False, str(e)
 
+    def _iter_stream_chunks(self, response) -> Generator[str, None, None]:
+        """Yield content chunks from a streaming Ollama /api/chat response."""
+        for line in response.iter_lines():
+            if line:
+                data = json.loads(line)
+                if 'message' in data:
+                    yield data['message'].get('content', '')
+                if data.get('done', False):
+                    break
+
     def generate_chat_response(
         self,
         model: str,
@@ -352,17 +362,10 @@ class OllamaClient:
             
             if response.status_code == 200:
                 if stream:
-                    for line in response.iter_lines():
-                        if line:
-                            data = json.loads(line)
-                            if 'message' in data:
-                                yield data['message'].get('content', '')
-                            if data.get('done', False):
-                                break
+                    yield from self._iter_stream_chunks(response)
                 else:
                     data = response.json()
-                    message = data.get('message', {})
-                    yield message.get('content', '')
+                    yield data.get('message', {}).get('content', '')
                 logger.debug("Chat response generated successfully")
             else:
                 error_msg = f"Error: {response.status_code}"
@@ -483,6 +486,14 @@ class OllamaClient:
             logger.error(f"Error generating embedding: {e}", exc_info=True)
             return False, []
     
+    def _find_model_in_list(self, model_names: list, preferred: list) -> Optional[str]:
+        """Return first model from preferred list found (by substring) in model_names."""
+        for embed_model in preferred:
+            for model_name in model_names:
+                if embed_model in model_name:
+                    return model_name
+        return model_names[0] if model_names else None
+
     def get_embedding_model(self, preferred_model: Optional[str] = None) -> Optional[str]:
         """
         Get the best available embedding model.
@@ -509,31 +520,20 @@ class OllamaClient:
                     logger.info(f"Using preferred embedding model: {preferred_model}")
                     return preferred_model
         
-        # Common embedding models in order of preference
         embedding_models = [
-            'nomic-embed-text',
-            'mxbai-embed-large',
-            'all-minilm',
-            'llama2',
-            'mistral'
+            'nomic-embed-text', 'mxbai-embed-large', 'all-minilm', 'llama2', 'mistral'
         ]
-        
         success, models = self.list_models()
         if success:
             model_names = [m['name'] for m in models]
-            for embed_model in embedding_models:
-                # Check for exact match or partial match
-                for model_name in model_names:
-                    if embed_model in model_name:
-                        logger.info(f"Using embedding model: {model_name}")
-                        return model_name
-            
-            # If no embedding model found, use the first available model
-            if model_names:
-                fallback_model = model_names[0]
-                logger.warning(f"No dedicated embedding model found, using: {fallback_model}")
-                return fallback_model
-        
+            found = self._find_model_in_list(model_names, embedding_models)
+            if found:
+                is_fallback = found == model_names[0] and not any(e in found for e in embedding_models)
+                if is_fallback:
+                    logger.warning(f"No dedicated embedding model found, using: {found}")
+                else:
+                    logger.info(f"Using embedding model: {found}")
+            return found
         logger.error("No embedding model available")
         return None
     
