@@ -34,7 +34,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Security**: Rate limiting, CORS support, JWT authentication ready
 
 ### Quality Assurance
-- **628 Tests**: Unit, integration, and comprehensive test suites
+- **970 Tests**: Unit, integration, and comprehensive test suites
 - **Type Safety**: Full type hints across codebase
 - **Modular Architecture**: Clean separation of concerns
 - **CI/CD Ready**: GitHub Actions configuration
@@ -332,9 +332,10 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 25 test modules covering all core components
+- **Unit Tests**: `tests/unit/` — 40 test modules covering all core components
 - **Integration Tests**: `tests/integration/` — 4 modules covering all API route blueprints
-- **Total**: 628 passing tests, 4 skipped, 0 failed
+- **Total**: 970 passing tests, 4 skipped, 0 failed
+- **Coverage**: 80.03% (4,272 statements)
 
 ---
 
