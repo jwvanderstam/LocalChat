@@ -86,6 +86,17 @@ class DocumentLoaderMixin:
         except ImportError:
             return None
 
+    def _format_table_rows(self, table: list) -> str:
+        """Format a pdfplumber table (list of rows) into pipe-delimited text."""
+        lines = ""
+        for row in table:
+            if not row:
+                continue
+            row_text = " | ".join(str(cell).strip() if cell else "" for cell in row)
+            if row_text.strip():
+                lines += row_text + "\n"
+        return lines
+
     def _extract_pdfplumber_table_text(self, page, page_num: int) -> str:
         """Extract and format table text from a single pdfplumber page."""
         try:
@@ -97,12 +108,7 @@ class DocumentLoaderMixin:
                 if not table:
                     continue
                 table_text += f"\n[Table {table_idx} on page {page_num}]\n"
-                for row in table:
-                    if not row:
-                        continue
-                    row_text = " | ".join([str(cell).strip() if cell else "" for cell in row])
-                    if row_text.strip():
-                        table_text += row_text + "\n"
+                table_text += self._format_table_rows(table)
                 table_text += "\n"
             return table_text
         except Exception as e:
@@ -233,133 +239,10 @@ class DocumentLoaderMixin:
         except Exception as e:
             logger.error(f"Error loading PDF: {e}", exc_info=True)
             return False, str(e)
-            
-            # Try to use pdfplumber for better table extraction
-            pdfplumber = None  # Initialize to None
-            try:
-                import pdfplumber as pdf_lib
-                pdfplumber = pdf_lib
-                logger.info("pdfplumber available - using enhanced table extraction")
-            except ImportError:
-                logger.warning("pdfplumber not available - will use basic PyPDF2 extraction")
-            
-            text = ""
-            extraction_method = "unknown"
-            
-            if pdfplumber is not None:
-                # Enhanced extraction with pdfplumber (handles tables better)
-                try:
-                    logger.debug("Attempting pdfplumber extraction...")
-                    with pdfplumber.open(file_path) as pdf:
-                        num_pages = len(pdf.pages)
-                        logger.info(f"PDF has {num_pages} pages (using pdfplumber)")
-                        
-                        pages_with_tables = 0
-                        total_tables = 0
-                        
-                        for page_num, page in enumerate(pdf.pages, 1):
-                            logger.debug(f"Processing page {page_num}/{num_pages}...")
-                            
-                            # Extract regular text
-                            page_text = page.extract_text()
-                            if page_text:
-                                text += page_text + "\n"
-                                logger.debug(f"  Page {page_num}: extracted {len(page_text)} characters of text")
-                            else:
-                                logger.warning(f"  Page {page_num}: no text extracted")
-                            
-                            # Extract tables
-                            try:
-                                tables = page.extract_tables()
-                                if tables:
-                                    pages_with_tables += 1
-                                    logger.info(f"  Page {page_num}: Found {len(tables)} table(s)")
-                                    total_tables += len(tables)
-                                    
-                                    for table_idx, table in enumerate(tables, 1):
-                                        if not table:
-                                            logger.warning(f"    Table {table_idx}: Empty table")
-                                            continue
-                                        text += f"\n[Table {table_idx} on page {page_num}]\n"
-                                        
-                                        # Convert table to text format with better handling
-                                        rows_added = 0
-                                        for row_idx, row in enumerate(table):
-                                            if not row:  # Skip empty rows
-                                                continue
-                                            # Filter out None values and join cells
-                                            row_text = " | ".join([str(cell).strip() if cell else "" for cell in row])
-                                            if row_text.strip():  # Only add non-empty rows
-                                                text += row_text + "\n"
-                                                rows_added += 1
-                                                
-                                        text += "\n"
-                                        logger.debug(f"    Table {table_idx}: {len(table)} total rows, {rows_added} non-empty rows added")
-                                else:
-                                    logger.debug(f"  Page {page_num}: No tables found")
-                            except Exception as table_error:
-                                logger.error(f"  Page {page_num}: Error extracting tables: {table_error}")
-                    
-                    extraction_method = "pdfplumber"
-                    logger.info("pdfplumber extraction complete:")
-                    logger.info(f"  - Total pages: {num_pages}")
-                    logger.info(f"  - Pages with tables: {pages_with_tables}")
-                    logger.info(f"  - Total tables: {total_tables}")
-                    logger.info(f"  - Total characters extracted: {len(text):,}")
-                    
-                    # Validate extraction quality
-                    if len(text) < 100:
-                        logger.warning(f"pdfplumber extraction yielded very little text ({len(text)} chars), trying PyPDF2 as backup...")
-                        raise ValueError("Insufficient text extracted with pdfplumber")
-                    
-                except Exception as plumber_error:
-                    logger.warning(f"pdfplumber extraction failed: {plumber_error}")
-                    logger.warning("Falling back to PyPDF2 extraction...")
-                    text = ""  # Reset for PyPDF2 attempt
-                    extraction_method = "pdfplumber_failed"
-            
-            # Fallback to PyPDF2 (basic extraction) - if pdfplumber not available or failed
-            if not text or extraction_method == "pdfplumber_failed":
-                logger.info("Using PyPDF2 for text extraction...")
-                text = ""
-                with open(file_path, 'rb') as f:
-                    pdf_reader = PyPDF2.PdfReader(f)
-                    num_pages = len(pdf_reader.pages)
-                    logger.info(f"PDF has {num_pages} pages (using PyPDF2)")
-                    
-                    for page_num, page in enumerate(pdf_reader.pages, 1):
-                        logger.debug(f"Processing page {page_num}/{num_pages} with PyPDF2...")
-                        try:
-                            page_text = page.extract_text()
-                            if page_text:
-                                text += page_text + "\n"
-                                logger.debug(f"  Page {page_num}: extracted {len(page_text)} characters")
-                            else:
-                                logger.warning(f"  Page {page_num}: no text extracted")
-                        except Exception as page_error:
-                            logger.error(f"  Page {page_num}: Error extracting text: {page_error}")
-                
-                extraction_method = "PyPDF2"
-                logger.info(f"PyPDF2 extraction complete: {len(text):,} characters")
-            
-            # Final validation
-            if not text.strip():
-                error_msg = "PDF extraction resulted in empty text - file may be image-based (scanned) or password-protected."
-                logger.error(error_msg)
-                logger.error(f"File details: size={file_size:,} bytes, path={file_path}")
-                return False, error_msg
-            
-            if len(text) < 100:
-                logger.warning(f"PDF extraction yielded very little text: {len(text)} characters (expected more based on file size)")
-            
-            logger.info(f"PDF extraction successful using {extraction_method}: {len(text):,} characters extracted")
-            return True, text
-            
-        except Exception as e:
-            logger.error(f"Error loading PDF: {e}", exc_info=True)
-            return False, str(e)
-    
-    def _load_pdf_with_pages(self, file_path: str) -> Tuple[bool, Union[List[Dict[str, Any]], str]]:
+
+    def _load_pdf_with_pages(
+        self, file_path: str
+    ) -> Tuple[bool, Union[List[Dict[str, Any]], str]]:
         """
         Load PDF with page-by-page tracking for enhanced citations.
 
