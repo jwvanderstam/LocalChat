@@ -389,6 +389,16 @@ async function sendMessage() {
             for (const line of lines) {
                 const data = JSON.parse(line.substring(6));
 
+                if (data.error) {
+                    if (messageTextElement) {
+                        messageTextElement.innerHTML = formatMessageText('❌ ' + (data.message || 'An error occurred'));
+                        messageTextElement.classList.add('error-message');
+                    }
+                    if (messageTimeElement) messageTimeElement.textContent = formatTime(new Date());
+                    scrollToBottom();
+                    break;
+                }
+
                 if (data.content) {
                     assistantResponse += data.content;
                     if (messageTextElement) {

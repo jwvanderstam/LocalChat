@@ -312,7 +312,8 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
             yield f"data: {json.dumps(done_payload)}\n\n"
         except Exception as e:
             logger.error(f"[CHAT API] Error generating response: {e}", exc_info=True)
-            yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response'})}\n\n"
+            msg = str(e) if str(e) else "Failed to generate response"
+            yield f"data: {json.dumps({'error': 'GenerationError', 'message': msg, 'done': True})}\n\n"
 
     response = Response(generate(), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
