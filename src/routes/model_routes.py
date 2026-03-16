@@ -213,7 +213,7 @@ def api_pull_model():
         
         logger.info(f"Pulling model: {model_name}")
 
-        app = cast('LocalChatApp', current_app)
+        app = current_app._get_current_object()  # type: ignore[attr-defined]
         
         def generate() -> Generator[str, None, None]:
             try:
