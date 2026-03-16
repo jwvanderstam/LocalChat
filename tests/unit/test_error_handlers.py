@@ -178,9 +178,10 @@ class TestCustomExceptionHandling:
     def test_handles_database_error(self, client):
         """Test handling of database errors."""
         response = client.get('/api/documents/stats')
-        
-        # Should handle gracefully
-        assert response.status_code in [200, 500]
+
+        # With db.is_connected=True but unmocked get_document_count the route
+        # either succeeds (real DB) or propagates DatabaseUnavailableError → 503.
+        assert response.status_code in [200, 500, 503]
 
 
 class TestErrorLogging:

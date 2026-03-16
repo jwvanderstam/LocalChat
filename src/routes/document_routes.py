@@ -235,12 +235,15 @@ def api_list_documents():
         schema:
           $ref: '#/definitions/Error'
     """
+    from ..db import DatabaseUnavailableError
     try:
         documents = current_app.db.get_all_documents()
         return jsonify({
             'success': True,
             'documents': documents
         })
+    except DatabaseUnavailableError:
+        raise
     except Exception as e:
         logger.error(f"Error listing documents: {e}", exc_info=True)
         return jsonify({
@@ -350,17 +353,20 @@ def api_document_stats():
         schema:
           $ref: '#/definitions/Error'
     """
+    from ..db import DatabaseUnavailableError
     try:
         doc_count = current_app.db.get_document_count()
         chunk_count = current_app.db.get_chunk_count()
         chunk_stats = current_app.db.get_chunk_statistics()
-        
+
         return jsonify({
             'success': True,
             'document_count': doc_count,
             'chunk_count': chunk_count,
             'chunk_statistics': chunk_stats
         })
+    except DatabaseUnavailableError:
+        raise
     except Exception as e:
         logger.error(f"Error getting document stats: {e}", exc_info=True)
         return jsonify({
@@ -394,14 +400,16 @@ def api_search_text():
         
         logger.info(f"Searching chunks for text: {search_text}")
         results = current_app.db.search_chunks_by_text(search_text, limit)
-        
+
         return jsonify({
             'success': True,
             'search_text': search_text,
             'count': len(results),
             'results': results
         })
-        
+
+    except DatabaseUnavailableError:
+        raise
     except Exception as e:
         logger.error(f"Error searching text: {e}", exc_info=True)
         return jsonify({
