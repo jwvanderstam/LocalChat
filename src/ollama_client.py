@@ -368,9 +368,9 @@ class OllamaClient:
                     yield data.get('message', {}).get('content', '')
                 logger.debug("Chat response generated successfully")
             else:
-                error_msg = f"Error: {response.status_code}"
-                logger.error(error_msg)
-                yield error_msg
+                body = response.text[:200] if response.text else ""
+                logger.error(f"Chat response failed: {response.status_code} {body}")
+                raise RuntimeError(f"Ollama returned HTTP {response.status_code}")
                 
         except Exception as e:
             error_msg = f"Error: {str(e)}"
@@ -426,13 +426,9 @@ class OllamaClient:
                     logger.info(f"Model returned {len(tool_calls)} tool call(s)")
                 return data
 
-            logger.error(f"Chat completion failed: {response.status_code}")
-            return {
-                "message": {
-                    "role": "assistant",
-                    "content": f"Error: HTTP {response.status_code}",
-                }
-            }
+            body = response.text[:200] if response.text else ""
+            logger.error(f"Chat completion failed: {response.status_code} {body}")
+            raise RuntimeError(f"Ollama returned HTTP {response.status_code}")
 
         except Exception as e:
             logger.error(f"Error in chat completion: {e}", exc_info=True)
