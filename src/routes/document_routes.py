@@ -30,11 +30,37 @@ bp = Blueprint('documents', __name__)
 logger = get_logger(__name__)
 
 
+def _save_uploaded_files(files) -> list:
+    """Filter by supported extension, save to the upload folder, return saved paths."""
+    from .. import config
+    saved = []
+    for file in files:
+        if file.filename:
+            ext = Path(file.filename).suffix.lower()
+            if ext in config.SUPPORTED_EXTENSIONS:
+                file_path = os.path.join(config.UPLOAD_FOLDER, file.filename)
+                file.save(file_path)
+                saved.append(file_path)
+    return saved
+
+
+def _update_document_count(app) -> int:
+    """Fetch and cache the latest document count, falling back to the cached value."""
+    from .. import config
+    try:
+        doc_count = app.db.get_document_count()
+        config.app_state.set_document_count(doc_count)
+        return doc_count
+    except Exception as count_err:
+        logger.warning(f"Could not update document count: {count_err}")
+        return config.app_state.get_document_count()
+
+
 @bp.route('/upload', methods=['POST'])
 def api_upload_documents():
     """
     Upload and ingest documents.
-    
+
     Upload one or more documents for RAG processing and indexing.
     ---
     tags:
@@ -46,16 +72,16 @@ def api_upload_documents():
       - DOCX (Microsoft Word)
       - TXT (plain text)
       - MD (Markdown)
-      
+
       **Maximum file size**: 16 MB
-      
+
       **Processing steps**:
       1. File validation and storage
       2. Text extraction (with table detection for PDFs)
       3. Intelligent chunking
       4. Embedding generation
       5. Vector database storage
-      
+
       Returns progress via Server-Sent Events (SSE).
     consumes:
       - multipart/form-data
@@ -94,9 +120,9 @@ def api_upload_documents():
         examples:
           text/event-stream: |
             data: {"message": "Processing document.pdf..."}
-            
+
             data: {"result": {"filename": "document.pdf", "success": true, "message": "Ingested successfully"}}
-            
+
             data: {"done": true, "total_documents": 42}
       400:
         description: Bad request (no files, invalid format)
@@ -107,36 +133,25 @@ def api_upload_documents():
         schema:
           $ref: '#/definitions/Error'
     """
-    from .. import config
-    
     if 'files' not in request.files:
         return jsonify({'success': False, 'message': 'No files provided'}), 400
-    
+
     files = request.files.getlist('files')
-    
+
     if not files or files[0].filename == '':
         return jsonify({'success': False, 'message': 'No files selected'}), 400
-    
-    # Save files temporarily
-    file_paths = []
-    for file in files:
-        if file.filename:
-            ext = Path(file.filename).suffix.lower()
-            if ext in config.SUPPORTED_EXTENSIONS:
-                file_path = os.path.join(config.UPLOAD_FOLDER, file.filename)
-                file.save(file_path)
-                file_paths.append(file_path)
-    
+
+    file_paths = _save_uploaded_files(files)
+
     if not file_paths:
         return jsonify({'success': False, 'message': 'No supported files found'}), 400
-    
+
     # Get references to app objects before entering generator
     app = current_app._get_current_object()  # type: ignore[attr-defined]
-    
+
     # Stream ingestion progress
     def generate() -> Generator[str, None, None]:
         try:
-            results = []
             for file_path in file_paths:
                 yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
 
@@ -145,33 +160,19 @@ def api_upload_documents():
                     lambda m: None
                 )
 
-                results.append({
-                    'filename': os.path.basename(file_path),
-                    'success': success,
-                    'message': message
-                })
+                yield f"data: {json.dumps({'result': {'filename': os.path.basename(file_path), 'success': success, 'message': message}})}\n\n"
 
-                yield f"data: {json.dumps({'result': results[-1]})}\n\n"
-
-                # Clean up temporary file
                 try:
                     os.remove(file_path)
                 except OSError:
                     pass
 
-            # Update document count
-            try:
-                doc_count = app.db.get_document_count()
-                config.app_state.set_document_count(doc_count)
-            except Exception as count_err:
-                logger.warning(f"Could not update document count: {count_err}")
-                doc_count = config.app_state.get_document_count()
-
+            doc_count = _update_document_count(app)
             yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
         except Exception as e:
             logger.error(f"Upload stream error: {e}", exc_info=True)
             yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
-    
+
     response = Response(generate(), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['X-Accel-Buffering'] = 'no'
