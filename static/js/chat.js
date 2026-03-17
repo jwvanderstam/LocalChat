@@ -114,33 +114,60 @@ async function loadConversations() {
 function renderConversationList() {
     if (!conversationsList) return;
 
+    conversationsList.innerHTML = '';
+
     if (conversations.length === 0) {
-        conversationsList.innerHTML = `
-            <div class="text-center text-muted py-4 small" id="conversations-placeholder">
-                No conversations yet.<br>Start chatting!
-            </div>`;
+        const placeholder = document.createElement('div');
+        placeholder.className = 'text-center text-muted py-4 small';
+        placeholder.id = 'conversations-placeholder';
+        placeholder.innerHTML = 'No conversations yet.<br>Start chatting!';
+        conversationsList.appendChild(placeholder);
         return;
     }
 
-    conversationsList.innerHTML = conversations.map(conv => {
+    conversations.forEach(conv => {
         const isActive = conv.id === currentConversationId;
-        const title = escapeHtml(conv.title || 'Untitled');
-        return `
-            <div class="conversation-item d-flex align-items-center px-2 py-2 border-bottom ${isActive ? 'bg-primary bg-opacity-10 fw-semibold' : ''}"
-                 style="cursor:pointer;" onclick="loadConversation('${conv.id}')">
-                <span class="flex-grow-1 text-truncate small" title="${title}">${title}</span>
-                <span class="ms-1 d-flex gap-1 flex-shrink-0">
-                    <button class="btn btn-link btn-sm p-0 text-secondary" title="Rename"
-                            onclick="event.stopPropagation(); openRenameModal('${conv.id}', '${title}')">
-                        <i class="bi bi-pencil" style="font-size:0.75rem;"></i>
-                    </button>
-                    <button class="btn btn-link btn-sm p-0 text-danger" title="Delete"
-                            onclick="event.stopPropagation(); deleteConversation('${conv.id}')">
-                        <i class="bi bi-trash" style="font-size:0.75rem;"></i>
-                    </button>
-                </span>
-            </div>`;
-    }).join('');
+        const title = conv.title || 'Untitled';
+
+        // --- outer item div ---
+        const item = document.createElement('div');
+        item.className = 'conversation-item d-flex align-items-center px-2 py-2 border-bottom'
+            + (isActive ? ' bg-primary bg-opacity-10 fw-semibold' : '');
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', () => loadConversation(conv.id));
+
+        // --- title span (user content via textContent — never innerHTML) ---
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'flex-grow-1 text-truncate small';
+        titleSpan.title = title;
+        titleSpan.textContent = title;
+
+        // --- action buttons ---
+        const actionsSpan = document.createElement('span');
+        actionsSpan.className = 'ms-1 d-flex gap-1 flex-shrink-0';
+
+        const renameBtn = document.createElement('button');
+        renameBtn.className = 'btn btn-link btn-sm p-0 text-secondary';
+        renameBtn.title = 'Rename';
+        renameBtn.innerHTML = '<i class="bi bi-pencil" style="font-size:0.75rem;"></i>';
+        renameBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            openRenameModal(conv.id, title);
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-link btn-sm p-0 text-danger';
+        deleteBtn.title = 'Delete';
+        deleteBtn.innerHTML = '<i class="bi bi-trash" style="font-size:0.75rem;"></i>';
+        deleteBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            deleteConversation(conv.id);
+        });
+
+        actionsSpan.append(renameBtn, deleteBtn);
+        item.append(titleSpan, actionsSpan);
+        conversationsList.appendChild(item);
+    });
 }
 
 function startNewChat() {
