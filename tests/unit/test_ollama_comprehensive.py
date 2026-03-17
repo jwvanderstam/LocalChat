@@ -320,26 +320,23 @@ class TestChatGeneration:
         assert len(chunks) >= 0  # May return empty or done signal
     
     def test_generate_chat_response_http_error(self, ollama_client, mock_requests):
-        """Should handle HTTP errors."""
+        """Should raise RuntimeError on non-200 HTTP responses."""
         mock_response = Mock()
         mock_response.status_code = 500
+        mock_response.text = 'Internal Server Error'
         mock_requests.post.return_value = mock_response
-        
+
         messages = [{"role": "user", "content": "Hi"}]
-        chunks = list(ollama_client.generate_chat_response("llama3.2", messages))
-        
-        assert len(chunks) > 0
-        assert "Error" in chunks[0]
+        with pytest.raises(RuntimeError, match="Ollama returned HTTP 500"):
+            list(ollama_client.generate_chat_response("llama3.2", messages))
     
     def test_generate_chat_response_exception(self, ollama_client, mock_requests):
-        """Should handle exceptions gracefully."""
+        """Should propagate network-level exceptions."""
         mock_requests.post.side_effect = Exception("Network error")
-        
+
         messages = [{"role": "user", "content": "Hi"}]
-        chunks = list(ollama_client.generate_chat_response("llama3.2", messages))
-        
-        assert len(chunks) > 0
-        assert "Error" in chunks[0]
+        with pytest.raises(Exception, match="Network error"):
+            list(ollama_client.generate_chat_response("llama3.2", messages))
 
 
 # ============================================================================

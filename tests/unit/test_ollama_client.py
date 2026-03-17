@@ -254,9 +254,10 @@ class TestChatGeneration:
         
         # Mock streaming response
         mock_response = Mock()
+        mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
-            b'{"response": "Hello"}',
-            b'{"response": " world"}',
+            b'{"message": {"role": "assistant", "content": "Hello"}}',
+            b'{"message": {"role": "assistant", "content": " world"}}',
             b'{"done": true}'
         ]
         
@@ -276,9 +277,10 @@ class TestChatGeneration:
         client = OllamaClient(base_url="http://localhost:11434")
         
         mock_response = Mock()
+        mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
-            b'{"response": "chunk1"}',
-            b'{"response": "chunk2"}',
+            b'{"message": {"role": "assistant", "content": "chunk1"}}',
+            b'{"message": {"role": "assistant", "content": "chunk2"}}',
             b'{"done": true}'
         ]
         
@@ -317,6 +319,7 @@ class TestChatGeneration:
         client = OllamaClient(base_url="http://localhost:11434")
         
         mock_response = Mock()
+        mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
             b'{"response": "Based on context..."}',
             b'{"done": true}'

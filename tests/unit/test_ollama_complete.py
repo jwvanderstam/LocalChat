@@ -74,8 +74,9 @@ class TestChatTokenLimits:
         client = OllamaClient(base_url="http://localhost:11434")
         
         mock_response = Mock()
+        mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
-            b'{"response": "Short response due to token limit"}',
+            b'{"message": {"role": "assistant", "content": "Short response due to token limit"}}',
             b'{"done": true}'
         ]
         
@@ -96,6 +97,7 @@ class TestChatTokenLimits:
         client = OllamaClient(base_url="http://localhost:11434")
         
         mock_response = Mock()
+        mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
             b'{"response": "Part 1"}',
             b'{"response": " Part 2"}',
@@ -173,6 +175,7 @@ class TestStreamingEdgeCases:
         client = OllamaClient(base_url="http://localhost:11434")
         
         mock_response = Mock()
+        mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
             b'{"done": true}'
         ]
