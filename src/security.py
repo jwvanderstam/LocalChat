@@ -139,9 +139,9 @@ def setup_auth_routes(app: Flask) -> None:
         
         Example:
             >>> POST /api/auth/login
-            >>> {"username": "admin", "password": "secret"}
+            >>> {"username": "admin", "password": "<password>"}
             {
-                "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+                "access_token": "<jwt-token>",
                 "token_type": "Bearer",
                 "expires_in": 3600
             }
