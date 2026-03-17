@@ -344,38 +344,32 @@ class OllamaClient:
             >>> for chunk in ollama_client.generate_chat_response("llama3.2", messages):
             ...     print(chunk, end='')
         """
-        try:
-            logger.debug(f"Generating chat response with model: {model}")
-            payload: Dict[str, Any] = {
-                "model": model,
-                "messages": messages,
-                "stream": stream,
-            }
-            if max_tokens is not None:
-                payload["options"] = {"num_predict": max_tokens}
-            response = requests.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                stream=stream,
-                timeout=120
-            )
-            
-            if response.status_code == 200:
-                if stream:
-                    yield from self._iter_stream_chunks(response)
-                else:
-                    data = response.json()
-                    yield data.get('message', {}).get('content', '')
-                logger.debug("Chat response generated successfully")
+        logger.debug(f"Generating chat response with model: {model}")
+        payload: Dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": stream,
+        }
+        if max_tokens is not None:
+            payload["options"] = {"num_predict": max_tokens}
+        response = requests.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+            stream=stream,
+            timeout=120
+        )
+
+        if response.status_code == 200:
+            if stream:
+                yield from self._iter_stream_chunks(response)
             else:
-                body = response.text[:200] if response.text else ""
-                logger.error(f"Chat response failed: {response.status_code} {body}")
-                raise RuntimeError(f"Ollama returned HTTP {response.status_code}")
-                
-        except Exception as e:
-            error_msg = f"Error: {str(e)}"
-            logger.error(f"Error generating chat response: {e}", exc_info=True)
-            yield error_msg
+                data = response.json()
+                yield data.get('message', {}).get('content', '')
+            logger.debug("Chat response generated successfully")
+        else:
+            body = response.text[:200] if response.text else ""
+            logger.error(f"Chat response failed: {response.status_code} {body}")
+            raise RuntimeError(f"Ollama returned HTTP {response.status_code}")
 
     def generate_chat_completion(
         self,
