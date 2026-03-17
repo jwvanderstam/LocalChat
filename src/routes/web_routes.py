@@ -17,7 +17,7 @@ from pathlib import Path
 bp = Blueprint('web', __name__)
 
 
-@bp.route('/favicon.ico')
+@bp.route('/favicon.ico', methods=['GET'])
 def favicon():
     """
     Serve favicon or return 204 No Content if not found.
@@ -36,7 +36,7 @@ def favicon():
     return '', 204
 
 
-@bp.route('/')
+@bp.route('/', methods=['GET'])
 def index() -> str:
     """
     Redirect to chat page.
@@ -47,7 +47,7 @@ def index() -> str:
     return render_template('chat.html')
 
 
-@bp.route('/chat')
+@bp.route('/chat', methods=['GET'])
 def chat() -> str:
     """
     Render chat page.
@@ -58,7 +58,7 @@ def chat() -> str:
     return render_template('chat.html')
 
 
-@bp.route('/documents')
+@bp.route('/documents', methods=['GET'])
 def documents() -> str:
     """
     Render document management page.
@@ -69,7 +69,7 @@ def documents() -> str:
     return render_template('documents.html')
 
 
-@bp.route('/models')
+@bp.route('/models', methods=['GET'])
 def models() -> str:
     """
     Render model management page.
@@ -80,7 +80,7 @@ def models() -> str:
     return render_template('models.html')
 
 
-@bp.route('/overview')
+@bp.route('/overview', methods=['GET'])
 def overview() -> str:
     """
     Render overview page.

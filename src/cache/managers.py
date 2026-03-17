@@ -268,8 +268,7 @@ class QueryCache:
         Returns:
             True if successful
         """
-        # For now, just clear all
-        # TODO: Implement pattern matching for Redis
+        # Pattern-based invalidation is not yet implemented; clear all entries.
         logger.info(f"Invalidating query cache (pattern: {pattern})")
         return self.backend.clear()
     

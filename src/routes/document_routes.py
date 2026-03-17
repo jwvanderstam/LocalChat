@@ -155,7 +155,7 @@ def api_upload_documents():
             for file_path in file_paths:
                 yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
 
-                success, message, doc_id = app.doc_processor.ingest_document(
+                success, message, _ = app.doc_processor.ingest_document(
                     file_path,
                     lambda m: None
                 )
@@ -179,7 +179,7 @@ def api_upload_documents():
     return response
 
 
-@bp.route('/list')
+@bp.route('/list', methods=['GET'])
 def api_list_documents():
     """
     List all documents.
@@ -317,7 +317,7 @@ def api_test_retrieval():
         }), 500
 
 
-@bp.route('/stats')
+@bp.route('/stats', methods=['GET'])
 def api_document_stats():
     """
     Get document statistics including chunk analysis.
