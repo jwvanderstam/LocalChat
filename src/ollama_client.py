@@ -345,7 +345,6 @@ class OllamaClient:
             except Exception:
                 ollama_detail = response.text[:200]
 
-            logger.error(f"Model not found: {model!r} — {ollama_detail}")
             raise InvalidModelError(
                 f"Model '{model}' is not available. "
                 "Go to Model Management to pull or select an installed model.",
