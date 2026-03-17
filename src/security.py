@@ -16,6 +16,7 @@ Last Updated: 2025-01-27
 """
 
 from flask import Flask, request, jsonify, Response
+from flask.typing import ResponseReturnValue
 import os
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_limiter import Limiter
@@ -126,7 +127,7 @@ def setup_auth_routes(app: Flask) -> None:
     
     @app.route('/api/auth/login', methods=['POST'])
     @limiter.limit(config.RATELIMIT_GENERAL)
-    def login() -> Response:
+    def login() -> ResponseReturnValue:
         """
         Authenticate user and return JWT token.
         
@@ -179,7 +180,7 @@ def setup_auth_routes(app: Flask) -> None:
     
     @app.route('/api/auth/verify', methods=['GET'])
     @jwt_required()
-    def verify_token() -> Response:
+    def verify_token() -> ResponseReturnValue:
         """
         Verify JWT token is valid.
         
@@ -292,7 +293,7 @@ def setup_rate_limit_handler(app: Flask) -> None:
     """
     
     @app.errorhandler(429)
-    def ratelimit_handler(e) -> Response:
+    def ratelimit_handler(e) -> ResponseReturnValue:
         """
         Handle rate limit exceeded errors.
         
