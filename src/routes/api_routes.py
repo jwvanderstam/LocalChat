@@ -310,8 +310,13 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
             if conversation_id:
                 done_payload['conversation_id'] = conversation_id
             yield f"data: {json.dumps(done_payload)}\n\n"
+        except exceptions.LocalChatException as e:
+            # Expected application error (e.g. model not found) — already logged
+            # at WARNING level by the exception constructor; no traceback needed.
+            msg = e.message
+            yield f"data: {json.dumps({'error': 'GenerationError', 'message': msg, 'done': True})}\n\n"
         except Exception as e:
-            logger.error(f"[CHAT API] Error generating response: {e}", exc_info=True)
+            logger.error(f"[CHAT API] Unexpected error generating response: {e}", exc_info=True)
             msg = str(e) if str(e) else "Failed to generate response"
             yield f"data: {json.dumps({'error': 'GenerationError', 'message': msg, 'done': True})}\n\n"
 

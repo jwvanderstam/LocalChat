@@ -56,7 +56,7 @@ class LocalChatException(Exception):
         self.message = message
         self.details = details or {}
         super().__init__(self.message)
-        logger.error(f"{self.__class__.__name__}: {message}", extra={"exception_details": self.details})
+        logger.warning(f"{self.__class__.__name__}: {message}", extra={"exception_details": self.details})
     
     def to_dict(self) -> Dict[str, Any]:
         """
