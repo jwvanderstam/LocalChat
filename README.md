@@ -11,7 +11,7 @@ A production-ready Retrieval-Augmented Generation (RAG) application built with F
 
 ## Project Status
 
-**Current State:** Production Ready | **Last Updated:** March 2026
+**Current State:** Production Ready | **Last Updated:** January 2026
 
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
@@ -31,14 +31,22 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Input Validation**: Pydantic models with comprehensive sanitization
 - **Caching Layer**: Redis/Memory cache for embeddings and queries
 - **Streaming Responses**: Server-Sent Events for real-time feedback
-- **Security**: Rate limiting, CORS support, JWT authentication ready
+- **Security**: Rate limiting, CORS support, JWT authentication, XSS-safe frontend
 
 ### Quality Assurance
-- **970 Tests**: Unit, integration, and comprehensive test suites
+- **995 Tests**: Unit, integration, and comprehensive test suites
 - **Type Safety**: Full type hints across codebase
 - **Modular Architecture**: Clean separation of concerns
 - **CI/CD Ready**: GitHub Actions configuration
 - **Error Handling**: Professional exception system with context preservation
+
+### Security
+- **XSS Prevention**: DOM-based conversation rendering (no innerHTML with user data)
+- **Rate Limiting**: Configurable per-endpoint via Flask-Limiter
+- **CORS Support**: Configurable allowed origins
+- **JWT Authentication**: Token-based auth for admin endpoints
+- **Input Sanitization**: Pydantic validation + server-side sanitization on all inputs
+- **Secret Scanning**: No credentials in source; placeholder examples only
 
 ### Performance Features
 - **Hybrid Search**: Combines semantic similarity with BM25 keyword matching
@@ -332,10 +340,10 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 40 test modules covering all core components
+- **Unit Tests**: `tests/unit/` — 48 test modules covering all core components
 - **Integration Tests**: `tests/integration/` — 4 modules covering all API route blueprints
-- **Total**: 970 passing tests, 4 skipped, 0 failed
-- **Coverage**: 80.03% (4,272 statements)
+- **Total**: 995 passing tests, 4 skipped, 0 failed
+- **Coverage**: ~79% (4,298 statements)
 
 ---
 
@@ -561,6 +569,19 @@ The `coverage.xml` file is produced in the project root and is picked up automat
    ```
 
 5. **Create pull request**
+
+---
+
+## Changelog
+
+### January 2026
+- **Security**: Fixed XSS vulnerability in conversation sidebar — replaced `innerHTML` template-literal interpolation with DOM API (`createElement` + `addEventListener`), eliminating injection surface for user-controlled `conv.id` and `conv.title` data
+- **Security**: Removed `eyJ…` JWT example placeholder from `security.py` docstring to suppress secret-scanner false positives
+- **Bug fix**: `DatabaseUnavailableError` now propagates as HTTP 503 from all document routes (`/stats`, `/list`, `/search-text`, `/clear`) instead of being swallowed as 500
+- **Bug fix**: Resolved "Working outside of application context" error on model-pull SSE stream — replaced `cast(current_app)` with `current_app._get_current_object()`
+- **Bug fix**: Ollama non-200 responses (e.g. 404 model-not-found) now raise `RuntimeError` instead of being forwarded as chat content; frontend handles `data.error` SSE events and shows them in the assistant bubble
+- **Refactor**: Reduced cognitive complexity in `api_chat` (43→~8) and `api_upload_documents` (19→~11) by extracting focused helper functions
+- **Tests**: Expanded unit suite from 970 → 995 passing tests (48 modules); fixed order-dependent fixture pollution caused by duplicate `app()` fixture calling `create_app(testing=False)`
 
 ---
 
