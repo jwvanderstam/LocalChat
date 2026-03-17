@@ -1,5 +1,6 @@
 [run]
 source = .
+relative_files = True
 omit =
     */tests/*
     */venv/*
@@ -14,6 +15,7 @@ omit =
 
 [report]
 precision = 2
+relative_files = True
 show_missing = True
 skip_covered = False
 
