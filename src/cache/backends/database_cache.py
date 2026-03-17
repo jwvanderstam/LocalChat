@@ -127,16 +127,16 @@ class DatabaseCache:
         self,
         query: str,
         params: Optional[Dict] = None,
-        similarity_threshold: float = 0.95
+        _similarity_threshold: float = 0.95
     ) -> Optional[Any]:
         """
         Get cached result for query.
-        
+
         Args:
             query: Query text
             params: Query parameters
-            similarity_threshold: Minimum similarity for semantic match
-        
+            _similarity_threshold: Reserved for future semantic matching (unused)
+
         Returns:
             Cached result or None if not found/expired
         """

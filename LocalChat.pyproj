@@ -86,6 +86,7 @@
     <Compile Include="tests\unit\test_document_routes_full.py" />
     <Compile Include="tests\unit\test_final_coverage.py" />
     <Compile Include="tests\unit\test_five_lines.py" />
+    <Compile Include="tests\unit\test_init_coverage_recovery.py" />
     <Compile Include="tests\unit\test_loaders_coverage.py" />
     <Compile Include="tests\unit\test_memory_routes_full.py" />
     <Compile Include="tests\unit\test_model_routes_full.py" />

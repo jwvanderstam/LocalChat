@@ -162,7 +162,7 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
     app.doc_processor = doc_processor
     
     # Initialize caching
-    _init_caching(app, testing)
+    _init_caching(app)
     
     # Initialize global startup status
     app.startup_status = {
@@ -226,13 +226,12 @@ def _init_database_service(app: LocalChatApp, db) -> None:
     logger.warning("Continuing without database (development mode)")
 
 
-def _init_caching(app: LocalChatApp, testing: bool) -> None:
+def _init_caching(app: LocalChatApp) -> None:
     """
     Initialize caching layer.
 
     Args:
         app: Flask application instance
-        testing: Testing mode flag
     """
     try:
         from .cache import create_cache_backend

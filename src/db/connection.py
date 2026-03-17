@@ -21,6 +21,8 @@ from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+_PG_TRANSACTION_IDLE = 0  # psycopg TransactionStatus.IDLE
+
 
 # ============================================================================
 # CUSTOM EXCEPTIONS
@@ -190,7 +192,7 @@ class DatabaseConnection:
 
             def configure_connection(conn):
                 register_vector_types(conn)
-                if conn.info.transaction_status != 0:  # 0 = IDLE
+                if conn.info.transaction_status != _PG_TRANSACTION_IDLE:
                     conn.rollback()
 
             try:

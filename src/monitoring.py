@@ -275,7 +275,7 @@ def init_monitoring(app: Flask):
     RequestTimingMiddleware(app)
     
     # Add metrics endpoint
-    @app.route('/api/metrics')
+    @app.route('/api/metrics', methods=['GET'])
     def metrics_endpoint():
         """
         Get application metrics.
@@ -309,7 +309,7 @@ def init_monitoring(app: Flask):
         return jsonify(get_metrics().get_metrics())
     
     # Add health check endpoint
-    @app.route('/api/health')
+    @app.route('/api/health', methods=['GET'])
     def health_check():
         """
         Detailed health check.

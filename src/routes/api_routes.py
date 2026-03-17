@@ -147,7 +147,7 @@ def _build_context_prompt(
     return messages, final_message
 
 
-@bp.route('/status')
+@bp.route('/status', methods=['GET'])
 def api_status():
     """
     Get system status.
