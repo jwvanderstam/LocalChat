@@ -321,6 +321,41 @@ class OllamaClient:
                 if data.get('done', False):
                     break
 
+    def _raise_for_ollama_error(self, response, model: str) -> None:
+        """
+        Parse a non-200 Ollama response and raise an appropriate exception.
+
+        A 404 is interpreted as "model not found" and raises
+        ``InvalidModelError`` with an actionable user message.  All other
+        non-200 codes raise a generic ``RuntimeError``.
+
+        Args:
+            response: The ``requests.Response`` object (status_code != 200).
+            model: Model name that was requested (used in the error message).
+
+        Raises:
+            InvalidModelError: Model not found in Ollama (HTTP 404).
+            RuntimeError: Any other non-200 Ollama API error.
+        """
+        from .exceptions import InvalidModelError
+
+        if response.status_code == 404:
+            try:
+                ollama_detail = response.json().get("error", "")
+            except Exception:
+                ollama_detail = response.text[:200]
+
+            logger.error(f"Model not found: {model!r} — {ollama_detail}")
+            raise InvalidModelError(
+                f"Model '{model}' is not available. "
+                "Go to Model Management to pull or select an installed model.",
+                details={"model": model, "ollama_error": ollama_detail},
+            )
+
+        body = response.text[:200] if response.text else ""
+        logger.error(f"Ollama API error {response.status_code}: {body}")
+        raise RuntimeError(f"Ollama returned HTTP {response.status_code}")
+
     def generate_chat_response(
         self,
         model: str,
@@ -330,15 +365,20 @@ class OllamaClient:
     ) -> Generator[str, None, None]:
         """
         Generate a chat response from the model.
-        
+
         Args:
-            model: Name of model to use
-            messages: List of message dicts with 'role' and 'content'
-            stream: Whether to stream response (default: True)
-        
+            model: Name of model to use.
+            messages: List of message dicts with ``role`` and ``content``.
+            stream: Whether to stream response (default: ``True``).
+            max_tokens: Optional token limit passed to Ollama.
+
         Yields:
-            Response text chunks if streaming, or complete response
-        
+            Response text chunks.
+
+        Raises:
+            InvalidModelError: If the requested model is not installed.
+            RuntimeError: For any other non-200 Ollama API response.
+
         Example:
             >>> messages = [{"role": "user", "content": "Hello"}]
             >>> for chunk in ollama_client.generate_chat_response("llama3.2", messages):
@@ -352,11 +392,12 @@ class OllamaClient:
         }
         if max_tokens is not None:
             payload["options"] = {"num_predict": max_tokens}
+
         response = requests.post(
             f"{self.base_url}/api/chat",
             json=payload,
             stream=stream,
-            timeout=120
+            timeout=120,
         )
 
         if response.status_code == 200:
@@ -367,9 +408,7 @@ class OllamaClient:
                 yield data.get('message', {}).get('content', '')
             logger.debug("Chat response generated successfully")
         else:
-            body = response.text[:200] if response.text else ""
-            logger.error(f"Chat response failed: {response.status_code} {body}")
-            raise RuntimeError(f"Ollama returned HTTP {response.status_code}")
+            self._raise_for_ollama_error(response, model)
 
     def generate_chat_completion(
         self,
@@ -392,6 +431,10 @@ class OllamaClient:
             Full Ollama response dictionary (contains ``message`` with
             ``content`` and/or ``tool_calls``).
 
+        Raises:
+            InvalidModelError: If the requested model is not installed.
+            RuntimeError: For any other non-200 Ollama API response.
+
         Example:
             >>> resp = ollama_client.generate_chat_completion("llama3.2", messages)
             >>> if resp["message"].get("tool_calls"):
@@ -405,30 +448,21 @@ class OllamaClient:
         if tools:
             payload["tools"] = tools
 
-        try:
-            logger.debug(f"Chat completion (non-stream) with model: {model}")
-            response = requests.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                timeout=120,
-            )
+        logger.debug(f"Chat completion (non-stream) with model: {model}")
+        response = requests.post(
+            f"{self.base_url}/api/chat",
+            json=payload,
+            timeout=120,
+        )
 
-            if response.status_code == 200:
-                data = response.json()
-                tool_calls = data.get("message", {}).get("tool_calls")
-                if tool_calls:
-                    logger.info(f"Model returned {len(tool_calls)} tool call(s)")
-                return data
+        if response.status_code == 200:
+            data = response.json()
+            tool_calls = data.get("message", {}).get("tool_calls")
+            if tool_calls:
+                logger.info(f"Model returned {len(tool_calls)} tool call(s)")
+            return data
 
-            body = response.text[:200] if response.text else ""
-            logger.error(f"Chat completion failed: {response.status_code} {body}")
-            raise RuntimeError(f"Ollama returned HTTP {response.status_code}")
-
-        except Exception as e:
-            logger.error(f"Error in chat completion: {e}", exc_info=True)
-            return {
-                "message": {"role": "assistant", "content": f"Error: {e}"}
-            }
+        self._raise_for_ollama_error(response, model)
 
     def generate_embedding(
         self,
