@@ -38,9 +38,9 @@ _CONTRACTIONS: dict = {
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(_metric_name):  # noqa: E306
+    def timed(metric_name: str):  # noqa: E306
         return lambda func: func
-    def counted(_metric_name, _labels=None):  # noqa: E306
+    def counted(metric_name: str, labels=None):  # noqa: E306
         return lambda func: func
 
 
@@ -158,7 +158,7 @@ class RetrievalMixin:
         """Return a named cache from the Flask app, or None outside a request context."""
         try:
             from flask import current_app as _cur_app
-            return getattr(_cur_app._get_current_object(), attr_name, None)
+            return getattr(_cur_app._get_current_object(), attr_name, None)  # type: ignore[attr-defined]
         except RuntimeError:
             return None
 
@@ -341,7 +341,7 @@ class RetrievalMixin:
         _app_emb_cache = None
         try:
             from flask import current_app as _cur_app
-            _app_emb_cache = getattr(_cur_app._get_current_object(), 'embedding_cache', None)
+            _app_emb_cache = getattr(_cur_app._get_current_object(), 'embedding_cache', None)  # type: ignore[attr-defined]
         except RuntimeError:
             pass
 
