@@ -144,7 +144,7 @@ def calculate(expression: str) -> str:
     logger.info(f"[TOOL] calculate: {expression!r}")
 
     if not _SAFE_MATH_RE.match(expression):
-        return f"Invalid expression - only numbers and basic arithmetic operators (+, -, *, /, **, %, parentheses) are allowed."
+        return "Invalid expression - only numbers and basic arithmetic operators (+, -, *, /, **, %, parentheses) are allowed."
 
     try:
         result = eval(expression, {"__builtins__": {}}, {})  # noqa: S307

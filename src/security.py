@@ -273,7 +273,7 @@ def admin_required(f: Callable) -> Callable:
 # HEALTH CHECK
 # ============================================================================
 
-def setup_health_check(app: Flask) -> None:
+def setup_health_check(_app: Flask) -> None:
     """
     Setup health check endpoint.
     

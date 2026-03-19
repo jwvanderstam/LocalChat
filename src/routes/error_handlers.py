@@ -89,7 +89,7 @@ def register_error_handlers(app: Flask) -> None:
         return jsonify(error_response.model_dump()), 404
     
     @app.errorhandler(405)
-    def method_not_allowed_handler(error: Any):
+    def method_not_allowed_handler(_error: Any):
         """Handle 405 Method Not Allowed errors."""
         logger.warning(f"Method not allowed: {request.method} {request.path}")
         

@@ -382,7 +382,7 @@ def _setup_cleanup_handlers(app: LocalChatApp) -> None:
             app.db.close()
             logger.info("Cleanup complete")
     
-    def signal_handler(sig: int, frame: Any) -> None:
+    def signal_handler(_sig: int, _frame: Any) -> None:
         """Handle interrupt signals gracefully."""
         logger.info("\nReceived interrupt signal, shutting down...")
         cleanup()
