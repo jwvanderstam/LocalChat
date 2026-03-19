@@ -38,7 +38,7 @@ class TestConnectionManagement:
         mock_response.status_code = 200
         mock_response.json.return_value = {'status': 'ok'}
         
-        with patch('requests.get', return_value=mock_response):
+        with patch.object(client._session, 'get', return_value=mock_response):
             success, message = client.check_connection()
             
             assert success is True
@@ -50,7 +50,7 @@ class TestConnectionManagement:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.get', side_effect=requests.exceptions.ConnectionError("Connection refused")):
+        with patch.object(client._session, 'get', side_effect=requests.exceptions.ConnectionError("Connection refused")):
             success, message = client.check_connection()
             
             assert success is False
@@ -62,7 +62,7 @@ class TestConnectionManagement:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.get', side_effect=requests.exceptions.Timeout("Timeout")):
+        with patch.object(client._session, 'get', side_effect=requests.exceptions.Timeout("Timeout")):
             success, message = client.check_connection()
             
             assert success is False
@@ -87,7 +87,7 @@ class TestModelListing:
             ]
         }
         
-        with patch('requests.get', return_value=mock_response):
+        with patch.object(client._session, 'get', return_value=mock_response):
             success, models = client.list_models()
             
             assert success is True
@@ -104,7 +104,7 @@ class TestModelListing:
         mock_response.status_code = 200
         mock_response.json.return_value = {'models': []}
         
-        with patch('requests.get', return_value=mock_response):
+        with patch.object(client._session, 'get', return_value=mock_response):
             success, models = client.list_models()
             
             assert success is True
@@ -116,7 +116,7 @@ class TestModelListing:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.get', side_effect=Exception("API Error")):
+        with patch.object(client._session, 'get', side_effect=Exception("API Error")):
             success, models = client.list_models()
             
             assert success is False
@@ -136,7 +136,7 @@ class TestModelListing:
             ]
         }
         
-        with patch('requests.get', return_value=mock_response):
+        with patch.object(client._session, 'get', return_value=mock_response):
             model = client.get_first_available_model()
             
             assert model == 'llama3.2'
@@ -151,7 +151,7 @@ class TestModelListing:
         mock_response.status_code = 200
         mock_response.json.return_value = {'models': []}
         
-        with patch('requests.get', return_value=mock_response):
+        with patch.object(client._session, 'get', return_value=mock_response):
             model = client.get_first_available_model()
             
             assert model is None
@@ -169,12 +169,12 @@ class TestEmbeddingGeneration:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'embedding': [0.1] * 768
+            'embeddings': [[0.1] * 768]
         }
-        
-        with patch('requests.post', return_value=mock_response):
+
+        with patch.object(client._session, 'post', return_value=mock_response):
             success, embedding = client.generate_embedding("nomic-embed-text", "test text")
-            
+
             assert success is True
             assert len(embedding) == 768
             assert all(isinstance(x, float) for x in embedding)
@@ -197,7 +197,7 @@ class TestEmbeddingGeneration:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.post', side_effect=Exception("API Error")):
+        with patch.object(client._session, 'post', side_effect=Exception("API Error")):
             success, result = client.generate_embedding("nomic-embed-text", "test")
             
             assert success is False
@@ -217,7 +217,7 @@ class TestEmbeddingGeneration:
             ]
         }
         
-        with patch('requests.get', return_value=mock_response):
+        with patch.object(client._session, 'get', return_value=mock_response):
             model = client.get_embedding_model()
             
             assert model == 'nomic-embed-text'
@@ -236,7 +236,7 @@ class TestEmbeddingGeneration:
             ]
         }
         
-        with patch('requests.get', return_value=mock_response):
+        with patch.object(client._session, 'get', return_value=mock_response):
             model = client.get_embedding_model()
             
             # Should return None or fallback model
@@ -261,7 +261,7 @@ class TestChatGeneration:
             b'{"done": true}'
         ]
         
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[{"role": "user", "content": "Hi"}]
@@ -284,7 +284,7 @@ class TestChatGeneration:
             b'{"done": true}'
         ]
         
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[]
@@ -300,7 +300,7 @@ class TestChatGeneration:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.post', side_effect=Exception("API Error")):
+        with patch.object(client._session, 'post', side_effect=Exception("API Error")):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[]
@@ -325,7 +325,7 @@ class TestChatGeneration:
             b'{"done": true}'
         ]
         
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[{"role": "user", "content": "Question?"}]
@@ -352,7 +352,7 @@ class TestModelTesting:
             b'{"done": true}'
         ]
 
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             success, message = client.test_model("llama3.2")
 
             assert success is True
@@ -364,7 +364,7 @@ class TestModelTesting:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.post', side_effect=Exception("Model not found")):
+        with patch.object(client._session, 'post', side_effect=Exception("Model not found")):
             success, message = client.test_model("nonexistent")
             
             assert success is False
@@ -380,7 +380,7 @@ class TestErrorHandling:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.get', side_effect=requests.exceptions.ConnectionError("Connection refused")):
+        with patch.object(client._session, 'get', side_effect=requests.exceptions.ConnectionError("Connection refused")):
             success, message = client.check_connection()
             
             assert success is False
@@ -392,7 +392,7 @@ class TestErrorHandling:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.post', side_effect=requests.exceptions.Timeout()):
+        with patch.object(client._session, 'post', side_effect=requests.exceptions.Timeout()):
             success, embedding = client.generate_embedding("model", "text")
             
             assert success is False
@@ -407,7 +407,7 @@ class TestErrorHandling:
         mock_response.status_code = 200
         mock_response.json.side_effect = ValueError("Invalid JSON")
         
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             success, result = client.generate_embedding("model", "text")
             
             # Should handle gracefully
@@ -423,7 +423,7 @@ class TestErrorHandling:
         mock_response.status_code = 404
         mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found")
         
-        with patch('requests.get', return_value=mock_response):
+        with patch.object(client._session, 'get', return_value=mock_response):
             try:
                 success, message = client.check_connection()
                 # May succeed or fail depending on implementation

@@ -3,23 +3,27 @@ Configuration Module
 ===================
 
 Manages configuration settings and application state for the LocalChat RAG application.
-Handles environment variables, database settings, RAG parameters, and persistent state.
+Handles environment variables, database settings, RAG parameters, Ollama GPU settings,
+observability options, and persistent state.
 
 Classes:
     AppState: Manages persistent application state (active model, document count)
 
 Constants:
-    Database configuration (PG_HOST, PG_PORT, etc.)
-    RAG configuration (CHUNK_SIZE, TOP_K_RESULTS, etc.)
-    Application settings (SECRET_KEY, UPLOAD_FOLDER, etc.)
+    Database configuration (PG_HOST, PG_PORT, DB_POOL_MIN_CONN, DB_POOL_MAX_CONN)
+    Ollama configuration (OLLAMA_BASE_URL, OLLAMA_NUM_GPU)
+    RAG configuration (CHUNK_SIZE, TOP_K_RESULTS, HYBRID_SEARCH_ENABLED, etc.)
+    Application settings (SECRET_KEY, UPLOAD_FOLDER, APP_VERSION, etc.)
+    Observability (METRICS_TOKEN, ENABLE_PERF_METRICS, SLOW_QUERY_THRESHOLD)
+    Demo mode (DEMO_MODE — disables JWT authentication; never use in production)
 
 Example:
-    >>> from config import app_state, CHUNK_SIZE
+    >>> from config import app_state, CHUNK_SIZE, OLLAMA_NUM_GPU
     >>> app_state.set_active_model("llama3.2")
-    >>> print(f"Chunk size: {CHUNK_SIZE}")
+    >>> print(f"Chunk size: {CHUNK_SIZE}, GPU layers: {OLLAMA_NUM_GPU}")
 
 Author: LocalChat Team
-Last Updated: 2025-01-27 (Fixed type safety)
+Last Updated: 2026-03-19
 """
 
 import os
@@ -100,6 +104,10 @@ DB_POOL_MAX_CONN: int = int(os.environ.get('DB_POOL_MAX_CONN', '10'))
 # ============================================================================
 
 OLLAMA_BASE_URL: str = str(os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434'))
+# Number of model layers to offload to GPU(s).
+# -1 = all layers on GPU (recommended when GPU VRAM is sufficient).
+#  0 = CPU only.  Set via OLLAMA_NUM_GPU env var.
+OLLAMA_NUM_GPU: int = int(os.environ.get('OLLAMA_NUM_GPU', '-1'))
 
 # ============================================================================
 # RAG CONFIGURATION - OPTIMIZED FOR HIGH QUALITY RESPONSES
@@ -173,7 +181,8 @@ BATCH_SIZE: int = 64                         # Embeddings batch size (increased 
 BATCH_MAX_WORKERS: int = 8                   # Batch processor workers
 
 # Database Performance
-DB_SEARCH_EF: int = 100                      # HNSW ef_search parameter
+# ef_search is computed dynamically in documents.py as max(top_k * 2, 40)
+# to balance recall and query latency based on the configured TOP_K_RESULTS.
 DB_INDEX_TYPE: str = 'hnsw'                  # Use HNSW index
 
 # L3 Database Cache Configuration (NEW - Phase 4)
@@ -213,6 +222,9 @@ MAX_CONTEXT_LENGTH: int = 50000    # MAXIMUM context for most comprehensive answ
 # APPLICATION SETTINGS
 # ============================================================================
 
+# Application version (override with APP_VERSION env var for CI-stamped builds)
+APP_VERSION: str = os.environ.get('APP_VERSION', '0.5.0')
+
 # Supported file types
 SUPPORTED_IMAGE_EXTENSIONS: List[str] = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
 SUPPORTED_EXTENSIONS: List[str] = ['.pdf', '.txt', '.docx', '.md'] + SUPPORTED_IMAGE_EXTENSIONS
@@ -230,9 +242,33 @@ MAX_CONTENT_LENGTH: int = 16 * 1024 * 1024  # 16MB max upload size
 
 # Logging
 LOG_FILE: str = os.environ.get('LOG_FILE', 'logs/app.log')
+# Set LOG_FORMAT=json to emit JSON lines (recommended for production log aggregators)
+LOG_FORMAT: str = os.environ.get('LOG_FORMAT', 'text')
 
 # State persistence file
 STATE_FILE: str = 'app_state.json'
+
+# ============================================================================
+# DEMO MODE
+# ============================================================================
+# DEMO_MODE=true is intended ONLY for single-user local evaluation.
+# It disables JWT authentication and suppresses web search.
+# NEVER enable demo mode in a network-accessible or multi-user deployment.
+
+DEMO_MODE: bool = os.environ.get('DEMO_MODE', 'false').lower() == 'true'
+if DEMO_MODE:
+    logger.warning(
+        "DEMO_MODE is ON — authentication is disabled. "
+        "Do not expose this instance to untrusted networks."
+    )
+
+# ============================================================================
+# METRICS / OBSERVABILITY
+# ============================================================================
+# Optional static bearer token that Prometheus (or an operator) must supply
+# when scraping /api/metrics.  Leave empty to allow unauthenticated access
+# (acceptable when the endpoint is behind a firewall or a private network).
+METRICS_TOKEN: str = os.environ.get('METRICS_TOKEN', '')
 
 
 class AppState:

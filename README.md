@@ -11,7 +11,7 @@ A production-ready Retrieval-Augmented Generation (RAG) application built with F
 
 ## Project Status
 
-**Current State:** Production Ready | **Last Updated:** January 2026
+**Current State:** Production Ready | **Last Updated:** March 2026
 
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
@@ -32,9 +32,11 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Caching Layer**: Redis/Memory cache for embeddings and queries
 - **Streaming Responses**: Server-Sent Events for real-time feedback
 - **Security**: Rate limiting, CORS support, JWT authentication, XSS-safe frontend
+- **GPU Acceleration**: Automatic NVIDIA/AMD GPU detection; configurable multi-GPU layer offload via `OLLAMA_NUM_GPU`
+- **Observability**: Prometheus metrics endpoint, request timing middleware, detailed health checks, admin dashboard
 
 ### Quality Assurance
-- **995 Tests**: Unit, integration, and comprehensive test suites
+- **1191 Tests**: Unit, integration, and comprehensive test suites
 - **Type Safety**: Full type hints across codebase
 - **Modular Architecture**: Clean separation of concerns
 - **CI/CD Ready**: GitHub Actions configuration
@@ -57,6 +59,9 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Efficient Indexing**: HNSW for fast approximate nearest neighbor search
 - **Smart Chunking**: Context-aware with table preservation
 - **Reranking**: Multi-signal fusion for improved relevance
+- **GPU Acceleration**: Multi-GPU support via `OLLAMA_NUM_GPU`; NVIDIA/AMD auto-detection
+- **Request Timing**: `X-Request-Duration` header + Prometheus histogram on every response
+- **TTL-Cached Subprocess Calls**: `nvidia-smi`/`rocm-smi` results cached 30 s; Ollama `/api/ps` cached 5 s
 
 ---
 
@@ -69,6 +74,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - [Documentation](#documentation)
 - [Testing](#testing)
 - [Configuration](#configuration)
+- [Monitoring & Observability](#monitoring--observability)
 - [CI/CD & Code Quality](#cicd--code-quality)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -195,6 +201,8 @@ Cache Strategy:
 | **Cache** | Redis / Memory | Performance optimization |
 | **LLM** | Ollama | Local inference |
 | **Embeddings** | nomic-embed-text | Vector generation |
+| **GPU** | NVIDIA (nvidia-smi) / AMD (rocm-smi) | Hardware acceleration |
+| **Metrics** | Prometheus text format v0.0.4 | Observability |
 | **Validation** | Pydantic 2.12 | Input validation |
 | **Testing** | pytest | Test framework |
 
@@ -207,9 +215,12 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 ### Key Entry Points
 - **[`app.py`](app.py)** — Application entry point
 - **[`src/app_factory.py`](src/app_factory.py)** — Flask app factory with blueprint registration
+- **[`src/monitoring.py`](src/monitoring.py)** — Prometheus metrics, request timing, health checks (`/api/metrics`, `/api/health`)
+- **[`src/ollama_client.py`](src/ollama_client.py)** — Ollama LLM/embedding client with GPU detection and TTL caching
+- **[`src/routes/admin_routes.py`](src/routes/admin_routes.py)** — Admin dashboard with GPU stats and loaded-model breakdown
 - **[`src/rag/web_search.py`](src/rag/web_search.py)** — DuckDuckGo web search provider (Enhanced mode)
 - **[`src/security.py`](src/security.py)** — Rate limiting, CORS, JWT authentication
-- **[`src/config.py`](src/config.py)** — All configuration (env vars, RAG tuning, cache settings)
+- **[`src/config.py`](src/config.py)** — All configuration (env vars, RAG tuning, GPU settings, cache settings)
 - **[`config/.env.example`](config/.env.example)** — Environment variable template
 
 ### API Documentation
@@ -260,6 +271,7 @@ LocalChat/
 │   │   ├── scoring.py          # Result reranking & fusion
 │   │   └── web_search.py       # DuckDuckGo web search provider
 │   ├── routes/                 # API endpoints
+│   │   ├── admin_routes.py     # Admin dashboard (/admin, /api/admin/stats)
 │   │   ├── api_routes.py       # Chat API (/api/chat)
 │   │   ├── document_routes.py  # Document management (/api/documents)
 │   │   ├── error_handlers.py   # Global error handlers
@@ -284,6 +296,7 @@ LocalChat/
 │       ├── chat.js                 # Chat interface logic
 │       └── ingestion.js            # Document upload logic
 ├── templates/                  # Jinja2 HTML templates
+│   ├── admin.html              # Operator dashboard (GPU stats, metrics, cache)
 │   ├── base.html
 │   ├── chat.html
 │   ├── documents.html
@@ -342,8 +355,7 @@ pytest --cov=src --cov-report=term
 
 - **Unit Tests**: `tests/unit/` — 48 test modules covering all core components
 - **Integration Tests**: `tests/integration/` — 4 modules covering all API route blueprints
-- **Total**: 995 passing tests, 4 skipped, 0 failed
-- **Coverage**: ~79% (4,298 statements)
+- **Total**: 1191 passing tests (9 integration failures require a live PostgreSQL instance)
 
 ---
 
@@ -365,6 +377,8 @@ export PG_DB=rag_db
 export OLLAMA_BASE_URL=http://localhost:11434
 export OLLAMA_DEFAULT_MODEL=llama3.2
 export OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest
+# GPU layer offload: -1 = all layers on GPU (default), 0 = CPU only
+export OLLAMA_NUM_GPU=-1
 
 # Redis Configuration (Optional)
 export REDIS_ENABLED=False          # Set to True to enable Redis
@@ -386,6 +400,11 @@ export RATELIMIT_CHAT=10 per minute
 export RATELIMIT_UPLOAD=5 per hour
 export CORS_ENABLED=False
 export CORS_ORIGINS=http://localhost:3000
+
+# Observability
+# Leave METRICS_TOKEN empty to allow unauthenticated Prometheus scraping
+# (acceptable on a private network). Set a strong token in production.
+export METRICS_TOKEN=
 ```
 
 ### Cache Configuration
@@ -463,7 +482,7 @@ DB_POOL_MAX_CONN = 10
 DB_POOL_TIMEOUT = 5
 
 # HNSW Index Parameters
-DB_SEARCH_EF = 100            # Higher = more accurate but slower
+# ef_search is computed dynamically as max(TOP_K_RESULTS * 2, 40)
 DB_INDEX_TYPE = 'hnsw'        # Use HNSW for fast ANN search
 ```
 
@@ -479,6 +498,105 @@ MIN_TABLE_ROWS = 3           # Minimum rows to detect as table
 ```
 
 See [`src/config.py`](src/config.py) for all configuration options.
+
+---
+
+## Monitoring & Observability
+
+### Prometheus Metrics
+
+The application exposes a Prometheus-compatible scrape endpoint:
+
+```
+GET /api/metrics        — Prometheus text format v0.0.4
+GET /api/metrics.json   — JSON metrics snapshot (used by admin dashboard)
+GET /api/health         — Detailed component health check
+```
+
+Sample output from `/api/metrics`:
+```
+# TYPE http_requests_total counter
+http_requests_total{method="GET",endpoint="health_check",status="200"} 42
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_count 42
+http_request_duration_seconds_sum 1.234
+http_request_duration_seconds_bucket{le="0.1"} 38
+http_request_duration_seconds_bucket{le="+Inf"} 42
+# TYPE app_uptime_seconds gauge
+app_uptime_seconds 3600.5
+```
+
+Every response also carries an `X-Request-Duration` header (e.g. `0.042s`).
+
+### Securing the Scrape Endpoint
+
+Set `METRICS_TOKEN` in `.env` to require a Bearer token:
+
+```bash
+export METRICS_TOKEN=your_strong_token_here
+```
+
+Prometheus scrape config:
+```yaml
+scrape_configs:
+  - job_name: localchat
+    static_configs:
+      - targets: ['localhost:5000']
+    bearer_token: your_strong_token_here
+```
+
+Leave `METRICS_TOKEN` empty for unauthenticated access (safe on a private network).
+
+### Health Check
+
+```
+GET /api/health
+```
+
+Returns `200 healthy`, `200 degraded` (Ollama down), or `503 unhealthy` (database down):
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-03-19T10:00:00.000000",
+  "checks": {
+    "database": { "status": "up", "healthy": true },
+    "ollama":   { "status": "up", "healthy": true },
+    "cache":    { "status": "up", "healthy": true, "stats": { "hits": 120, "misses": 5 } }
+  }
+}
+```
+
+### Admin Dashboard
+
+Navigate to `/admin` (JWT required in production; open in demo mode).
+
+The dashboard surfaces:
+- **GPU Hardware** — per-physical-GPU cards: VRAM usage bar, utilisation %, temperature (refreshed every 30 s)
+- **Loaded Models** — per-model VRAM breakdown with GPU offload % (refreshed every 5 s)
+- **Cache Stats** — embedding cache and query cache hit rates
+- **System Info** — app version, active model, uptime, request count
+
+### GPU Acceleration
+
+LocalChat automatically detects available GPUs:
+
+| Vendor | Tool | Detection |
+|--------|------|-----------|
+| NVIDIA | `nvidia-smi` | Auto-detected if on `PATH` |
+| AMD    | `rocm-smi`   | Auto-detected if on `PATH` |
+
+Control GPU layer offload in `.env`:
+
+```bash
+# -1 = all transformer layers on GPU (recommended when VRAM is sufficient)
+#  0 = CPU-only inference
+#  N = offload N layers to GPU
+export OLLAMA_NUM_GPU=-1
+```
+
+The value is forwarded in `options.num_gpu` on every `/api/chat` and `/api/embed` request,
+so Ollama distributes work across all detected GPUs automatically when multiple GPUs are present.
 
 ---
 
@@ -573,6 +691,17 @@ The `coverage.xml` file is produced in the project root and is picked up automat
 ---
 
 ## Changelog
+
+### March 2026
+- **GPU support**: Automatic NVIDIA/AMD GPU detection via `nvidia-smi`/`rocm-smi`; per-GPU VRAM, utilisation and temperature surfaced in the admin dashboard
+- **Multi-GPU**: `OLLAMA_NUM_GPU` config constant (default `-1`) forwarded in `options.num_gpu` on all `/api/chat` and `/api/embed` requests so Ollama distributes layers across all available GPUs
+- **Performance**: TTL caching on `get_gpu_info()` (30 s) and `get_running_models()` (5 s) — eliminates 2 s nvidia-smi cold-start penalty on every admin dashboard load; stale-on-error fallback keeps the models table visible during Ollama hiccups
+- **Monitoring**: Prometheus-compatible `/api/metrics` endpoint (text format v0.0.4); `/api/metrics.json` JSON snapshot; `/api/health` detailed component check; optional `METRICS_TOKEN` Bearer auth for the scrape endpoints
+- **Observability**: `RequestTimingMiddleware` adds `X-Request-Duration` header to every response; `@timed` decorator logs slow operations (>1 s) and records histogram; `@counted` decorator increments request counters
+- **Admin dashboard**: New GPU hardware cards row (per-GPU VRAM bar + utilisation bar + temperature); loaded models table with VRAM and GPU offload percentage
+- **Embedding endpoint**: Upgraded from legacy `/api/embeddings` to `/api/embed` (Ollama ≥ 0.1.32) with automatic fallback; embedding model name cached after first lookup
+- **Connection pooling**: All Ollama HTTP requests share a single `requests.Session` for TCP connection reuse
+- **Tests**: Suite expanded from 995 → 1191 passing tests; added `TestGetGpuInfo` (12 tests), `TestMetricsEndpoints` (8 tests), `TestMetricsAuth` (5 tests), `TestComputeHealthStatus` (5 tests), `TestExportPrometheusMetrics` (7 tests)
 
 ### January 2026
 - **Security**: Fixed XSS vulnerability in conversation sidebar — replaced `innerHTML` template-literal interpolation with DOM API (`createElement` + `addEventListener`), eliminating injection surface for user-controlled `conv.id` and `conv.title` data

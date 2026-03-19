@@ -1,0 +1,40 @@
+feat: multi-GPU support, Prometheus monitoring, admin dashboard, perf
+
+GPU support:
+- Auto-detect NVIDIA (nvidia-smi) and AMD (rocm-smi) GPUs in OllamaClient
+- Per-GPU VRAM, utilisation pct and temperature via get_gpu_info()
+- OLLAMA_NUM_GPU forwarded as options.num_gpu on all /api/chat and /api/embed
+- TTL-cache gpu_info (30s) and get_running_models (5s)
+- Admin dashboard: per-GPU hardware cards + loaded-model VRAM table
+
+Monitoring and observability:
+- Prometheus text v0.0.4 at /api/metrics
+- JSON snapshot at /api/metrics.json
+- Health check at /api/health (database, Ollama, cache)
+- RequestTimingMiddleware: X-Request-Duration header on every response
+- @timed and @counted decorators; warns on operations over 1 s
+- Optional Bearer-token auth for scrape endpoints (METRICS_TOKEN)
+- MetricsCollector: thread-safe counters, histograms, gauges
+
+Performance:
+- requests.Session for connection pooling on all Ollama HTTP calls
+- /api/embed primary endpoint with /api/embeddings legacy fallback
+- Embedding model name cached after first list_models() call
+- ef_search computed dynamically as max(top_k*2, 40); removed stale DB_SEARCH_EF=100
+
+Admin dashboard (new files):
+- src/routes/admin_routes.py: GET /admin and GET /api/admin/stats
+- templates/admin.html: GPU cards, loaded models, cache stats, metrics
+
+Bug fixes and type safety:
+- _raise_for_ollama_error typed -> NoReturn; fixes missing-return on generate_chat_completion
+- type: ignore[misc/attr-defined] on Flask dynamic attribute setattr calls in tests
+
+Tests (995 -> 1191 passing):
+- test_admin_routes.py: 36 tests incl. TTL cache, GPU detection, health status
+- test_monitoring.py: 62 tests covering endpoints, auth, Prometheus, histogram, timed
+- Embedding mock responses updated to /api/embed format
+
+Docs (all dated 2026-03-19):
+- README: Monitoring section, GPU guide, METRICS_TOKEN config, updated test count
+- All module docstrings updated with new features and correct date

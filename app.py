@@ -28,6 +28,20 @@ from src.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def create_gunicorn_app():
+    """
+    Entry point for Gunicorn / WSGI servers.
+
+    Usage in Dockerfile CMD::
+
+        gunicorn "app:create_gunicorn_app()"
+
+    Returns:
+        Configured Flask application instance.
+    """
+    return create_app()
+
+
 def _print_db_unavailable_warning() -> None:
     """Print a prominent console warning when PostgreSQL is not available at startup."""
     border = "=" * 60

@@ -20,7 +20,21 @@ from .cache import embedding_cache
 
 logger = get_logger(__name__)
 
-# Try to import monitoring - graceful degradation if not available
+# Pre-built at import time — avoids recreating this dict on every query
+_CONTRACTIONS: dict = {
+    "what's": "what is", "what're": "what are", "where's": "where is",
+    "when's": "when is", "who's": "who is", "how's": "how is",
+    "don't": "do not", "doesn't": "does not", "didn't": "did not",
+    "won't": "will not", "wouldn't": "would not", "shouldn't": "should not",
+    "can't": "cannot", "couldn't": "could not", "isn't": "is not",
+    "aren't": "are not", "wasn't": "was not", "weren't": "were not",
+    "haven't": "have not", "hasn't": "has not", "hadn't": "had not",
+    "i'm": "i am", "you're": "you are", "he's": "he is", "she's": "she is",
+    "it's": "it is", "we're": "we are", "they're": "they are",
+    "i've": "i have", "you've": "you have", "we've": "we have",
+    "they've": "they have", "i'll": "i will", "you'll": "you will",
+    "we'll": "we will", "they'll": "they will",
+}
 try:
     from ..monitoring import timed, counted
 except ImportError:
@@ -53,46 +67,7 @@ class RetrievalMixin:
         query_lower = query.lower()
         
         # Expand common contractions for better matching
-        contractions = {
-            "what's": "what is",
-            "what're": "what are",
-            "where's": "where is",
-            "when's": "when is",
-            "who's": "who is",
-            "how's": "how is",
-            "don't": "do not",
-            "doesn't": "does not",
-            "didn't": "did not",
-            "won't": "will not",
-            "wouldn't": "would not",
-            "shouldn't": "should not",
-            "can't": "cannot",
-            "couldn't": "could not",
-            "isn't": "is not",
-            "aren't": "are not",
-            "wasn't": "was not",
-            "weren't": "were not",
-            "haven't": "have not",
-            "hasn't": "has not",
-            "hadn't": "had not",
-            "i'm": "i am",
-            "you're": "you are",
-            "he's": "he is",
-            "she's": "she is",
-            "it's": "it is",
-            "we're": "we are",
-            "they're": "they are",
-            "i've": "i have",
-            "you've": "you have",
-            "we've": "we have",
-            "they've": "they have",
-            "i'll": "i will",
-            "you'll": "you will",
-            "we'll": "we will",
-            "they'll": "they will",
-        }
-        
-        for contraction, expansion in contractions.items():
+        for contraction, expansion in _CONTRACTIONS.items():
             query_lower = query_lower.replace(contraction, expansion)
         
         # Remove special characters but keep important punctuation
@@ -168,12 +143,14 @@ class RetrievalMixin:
 
     def _deduplicate_results(self, sorted_results: list) -> list:
         """Remove exact duplicates and adjacent chunks (within 2 positions)."""
-        seen: set = set()
+        seen: Dict[str, set] = {}  # filename -> set of seen chunk indices
         deduped: list = []
         for r in sorted_results:
-            key = (r['filename'], r['chunk_index'])
-            if not any(key[0] == s[0] and abs(key[1] - s[1]) <= 2 for s in seen):
-                seen.add(key)
+            fname, cidx = r['filename'], r['chunk_index']
+            indices = seen.setdefault(fname, set())
+            # O(1): intersect with a fixed-size 5-element window set
+            if not (indices & {cidx - 2, cidx - 1, cidx, cidx + 1, cidx + 2}):
+                indices.add(cidx)
                 deduped.append(r)
         return deduped
 
@@ -213,11 +190,20 @@ class RetrievalMixin:
         
         # Step 1: Query preprocessing
         query_clean = self._preprocess_query(query)
-        
-        # Step 2: Query expansion for better coverage
-        query_variations = self._expand_query(query_clean)
-        logger.debug(f"[RAG] Generated {len(query_variations)} query variations")
-        
+
+        # Check query cache before expensive retrieval
+        _app_query_cache = None
+        try:
+            from flask import current_app as _cur_app
+            _app_query_cache = getattr(_cur_app._get_current_object(), 'query_cache', None)
+        except RuntimeError:
+            pass
+        if _app_query_cache is not None:
+            _cached_result = _app_query_cache.get(query_clean, top_k, min_similarity, use_hybrid_search)
+            if _cached_result is not None:
+                logger.info("[RAG] Query cache hit")
+                return _cached_result
+
         # Step 3: Get embedding model
         embedding_model = ollama_client.get_embedding_model()
         if not embedding_model:
@@ -311,11 +297,10 @@ class RetrievalMixin:
         total_time = time.time() - start_time
         logger.info(f"[RAG] Retrieved {len(output)} chunks in {total_time:.3f}s")
         
-        # Log cache stats periodically
-        cache_stats = embedding_cache.stats()
-        if cache_stats['hits'] + cache_stats['misses'] > 0 and (cache_stats['hits'] + cache_stats['misses']) % 10 == 0:
-            logger.debug(f"[RAG] Embedding cache: {cache_stats}")
-        
+        # Populate query cache for future identical requests
+        if _app_query_cache is not None and output:
+            _app_query_cache.set(query_clean, top_k, min_similarity, use_hybrid_search, output)
+
         return output
     
     def _get_cached_embedding(self, text: str, model: str) -> Optional[List[float]]:
@@ -329,18 +314,34 @@ class RetrievalMixin:
         Returns:
             Embedding vector or None on failure
         """
-        # Check cache first
+        # Prefer app-level cache (tracked by admin dashboard)
+        _app_emb_cache = None
+        try:
+            from flask import current_app as _cur_app
+            _app_emb_cache = getattr(_cur_app._get_current_object(), 'embedding_cache', None)
+        except RuntimeError:
+            pass
+
+        if _app_emb_cache is not None:
+            cached = _app_emb_cache.get(text, model)
+            if cached is not None:
+                logger.debug("[RAG] Embedding cache hit")
+                return cached
+            success, emb = ollama_client.generate_embedding(model, text)
+            if success and emb:
+                _app_emb_cache.set(text, model, emb)
+                return emb
+            return None
+
+        # Fallback to module-level LRU cache (no Flask context)
         cached = embedding_cache.get(text, model)
         if cached is not None:
             logger.debug("[RAG] Embedding cache hit")
             return cached
-        
-        # Generate new embedding
-        success, embedding = ollama_client.generate_embedding(model, text)
-        if success and embedding:
-            embedding_cache.put(text, model, embedding)
-            return embedding
-        
+        success, emb = ollama_client.generate_embedding(model, text)
+        if success and emb:
+            embedding_cache.put(text, model, emb)
+            return emb
         return None
     
     def _compute_simple_bm25(self, query: str, document: str) -> float:
@@ -392,7 +393,7 @@ class RetrievalMixin:
         for i, (chunk_id, data) in enumerate(results.items()):
             score = scorer.score(query, data['chunk_text'], i)
             scores[chunk_id] = score
-        logger.debug(f"BM25 scores: {scores}")
+        logger.debug("[BM25] Scored %d chunks", len(scores))
         
         # Normalize scores to [0, 1]
         max_score = max(scores.values()) if scores else 0.0

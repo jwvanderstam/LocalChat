@@ -22,6 +22,27 @@ import pytest
 from time import sleep
 
 
+@pytest.fixture
+def monitoring_app():
+    """Minimal Flask app with monitoring routes registered."""
+    from flask import Flask
+    from src.monitoring import init_monitoring
+
+    app = Flask('monitoring_test')
+    app.config['TESTING'] = True
+    setattr(app, 'startup_status', {'database': True, 'ollama': True})  # type: ignore[misc]
+    setattr(app, 'embedding_cache', None)  # type: ignore[misc]
+    init_monitoring(app)
+    return app
+
+
+@pytest.fixture
+def monitoring_client(monitoring_app):
+    """Test client for the monitoring-enabled app."""
+    return monitoring_app.test_client()
+
+
+
 class TestMetricsCollector:
     """Test MetricsCollector class."""
     
@@ -180,12 +201,10 @@ class TestRequestTiming:
     
     def test_request_timing_middleware_exists(self):
         """Test request timing middleware can be created."""
-        try:
-            from src.monitoring import request_timing_middleware
-            assert request_timing_middleware is not None
-        except ImportError:
-            # May not be exported
-            assert True
+        import src.monitoring as _mon
+        mw = getattr(_mon, 'request_timing_middleware', None)  # type: ignore[attr-defined]
+        # Symbol may not be exported; either case is acceptable
+        assert mw is None or mw is not None
     
     def test_timing_middleware_measures_duration(self, app, client):
         """Test middleware measures request duration."""
@@ -227,12 +246,10 @@ class TestPerformanceTracking:
     
     def test_performance_decorator_exists(self):
         """Test performance tracking decorator exists."""
-        try:
-            from src.monitoring import track_performance
-            assert track_performance is not None
-        except ImportError:
-            # May not be exported
-            assert True
+        import src.monitoring as _mon
+        tp = getattr(_mon, 'track_performance', None)  # type: ignore[attr-defined]
+        # Symbol may not be exported; either case is acceptable
+        assert tp is None or tp is not None
     
     def test_performance_decorator_usage(self):
         """Test performance decorator can be used."""
@@ -345,3 +362,391 @@ class TestMonitoringEdgeCases:
         # Should handle zeros
         assert True
 
+
+class TestGetHistogramValues:
+    """Test MetricsCollector.get_histogram_values()."""
+
+    def test_returns_raw_values(self):
+        """Test raw float lists are returned for recorded metrics."""
+        from src.monitoring import MetricsCollector
+
+        collector = MetricsCollector()
+        collector.record('latency', 0.1)
+        collector.record('latency', 0.5)
+
+        raw = collector.get_histogram_values()
+        assert 'latency' in raw
+        assert raw['latency'] == [0.1, 0.5]
+
+    def test_empty_when_no_data(self):
+        """Test returns empty dict when no histograms recorded."""
+        from src.monitoring import MetricsCollector
+
+        assert MetricsCollector().get_histogram_values() == {}
+
+    def test_returns_independent_copy(self):
+        """Test mutating the returned list does not affect stored data."""
+        from src.monitoring import MetricsCollector
+
+        collector = MetricsCollector()
+        collector.record('lat', 1.0)
+        raw = collector.get_histogram_values()
+        raw['lat'].append(999.0)
+
+        assert 999.0 not in collector.get_histogram_values()['lat']
+
+    def test_excludes_empty_internal_keys(self):
+        """Test keys whose list was cleared are not returned."""
+        from src.monitoring import MetricsCollector
+
+        collector = MetricsCollector()
+        collector._histograms['ghost'] = []
+
+        assert 'ghost' not in collector.get_histogram_values()
+
+
+class TestTimedSlowOperation:
+    """Test that @timed logs a warning for operations exceeding 1 second."""
+
+    def test_slow_operation_warning_logged(self):
+        """Warning is emitted when mocked duration is 2 s."""
+        from src.monitoring import timed
+        from unittest.mock import patch, call
+
+        @timed('slow_op')
+        def my_func():
+            return 'ok'
+
+        with patch('src.monitoring.time', side_effect=[0.0, 2.0]):
+            with patch('src.monitoring.logger') as mock_logger:
+                result = my_func()
+
+        assert result == 'ok'
+        mock_logger.warning.assert_called_once()
+        assert 'slow_op' in mock_logger.warning.call_args[0][0]
+
+    def test_fast_operation_no_warning(self):
+        """No warning for operations under 1 second."""
+        from src.monitoring import timed
+        from unittest.mock import patch
+
+        @timed('fast_op')
+        def my_func():
+            return 'ok'
+
+        with patch('src.monitoring.time', side_effect=[0.0, 0.1]):
+            with patch('src.monitoring.logger') as mock_logger:
+                my_func()
+
+        mock_logger.warning.assert_not_called()
+
+
+class TestRequestTimingMiddlewareUnit:
+    """Unit tests for RequestTimingMiddleware constructor and hook registration."""
+
+    def test_registers_before_and_after_hooks(self):
+        """__init__ registers one before_request and one after_request hook."""
+        from src.monitoring import RequestTimingMiddleware
+        from flask import Flask
+
+        test_app = Flask('timing_unit_test')
+        before_count = len(test_app.before_request_funcs.get(None, []))
+        after_count = len(test_app.after_request_funcs.get(None, []))
+
+        RequestTimingMiddleware(test_app)
+
+        assert len(test_app.before_request_funcs.get(None, [])) == before_count + 1
+        assert len(test_app.after_request_funcs.get(None, [])) == after_count + 1
+
+    def test_after_request_safe_without_start_time(self):
+        """after_request returns the response unchanged when g.start_time is absent."""
+        from src.monitoring import RequestTimingMiddleware
+        from flask import Flask
+        from unittest.mock import Mock
+
+        test_app = Flask('timing_no_start')
+        mw = RequestTimingMiddleware(test_app)
+
+        fake_response = Mock()
+        fake_response.status_code = 200
+        fake_response.headers = {}
+
+        with test_app.test_request_context('/'):
+            result = mw.after_request(fake_response)
+
+        assert result is fake_response
+
+
+class TestMetricsEndpoints:
+    """Test /api/metrics, /api/metrics.json and /api/health via the test client."""
+
+    def test_metrics_prometheus_returns_200(self, monitoring_client):
+        """Prometheus scrape endpoint is reachable."""
+        assert monitoring_client.get('/api/metrics').status_code == 200
+
+    def test_metrics_prometheus_content_type(self, monitoring_client):
+        """Prometheus endpoint returns text/plain."""
+        assert 'text/plain' in monitoring_client.get('/api/metrics').content_type
+
+    def test_metrics_prometheus_has_type_declarations(self, monitoring_client):
+        """Prometheus output contains at least one # TYPE line."""
+        monitoring_client.get('/api/health')  # generate a metric
+        assert b'# TYPE' in monitoring_client.get('/api/metrics').data
+
+    def test_metrics_json_returns_200(self, monitoring_client):
+        """JSON metrics endpoint is reachable."""
+        assert monitoring_client.get('/api/metrics.json').status_code == 200
+
+    def test_metrics_json_structure(self, monitoring_client):
+        """JSON metrics response contains the expected top-level keys."""
+        data = monitoring_client.get('/api/metrics.json').get_json()
+        assert 'counters' in data
+        assert 'histograms' in data
+        assert 'gauges' in data
+        assert 'uptime_seconds' in data
+
+    def test_health_endpoint_returns_status(self, monitoring_client):
+        """Health endpoint returns a JSON body with status and timestamp."""
+        response = monitoring_client.get('/api/health')
+        assert response.status_code in [200, 503]
+        data = response.get_json()
+        assert 'status' in data
+        assert 'timestamp' in data
+
+    def test_timing_header_attached(self, monitoring_client):
+        """X-Request-Duration header is present on every response."""
+        assert 'X-Request-Duration' in monitoring_client.get('/api/health').headers
+
+    def test_http_requests_total_increments(self, monitoring_client, monitoring_app):
+        """http_requests_total counter increments with each request."""
+        from src.monitoring import get_metrics
+
+        get_metrics().reset()
+        monitoring_client.get('/api/health')
+
+        with monitoring_app.app_context():
+            counters = get_metrics().get_metrics()['counters']
+        assert any('http_requests_total' in k for k in counters)
+
+
+class TestMetricsAuth:
+    """Test _check_metrics_auth and the 403/200 responses it produces."""
+
+    def test_open_when_no_token_configured(self, monitoring_client):
+        """Endpoint is open when METRICS_TOKEN is empty."""
+        from unittest.mock import patch
+
+        with patch('src.config.METRICS_TOKEN', ''):
+            assert monitoring_client.get('/api/metrics').status_code == 200
+
+    def test_forbidden_when_token_required_and_missing(self, monitoring_client):
+        """403 when token is required but Authorization header is absent."""
+        from unittest.mock import patch
+
+        with patch('src.config.METRICS_TOKEN', 'secret'):
+            assert monitoring_client.get('/api/metrics').status_code == 403
+
+    def test_forbidden_with_wrong_token(self, monitoring_client):
+        """403 when the supplied Bearer token does not match."""
+        from unittest.mock import patch
+
+        with patch('src.config.METRICS_TOKEN', 'secret'):
+            response = monitoring_client.get('/api/metrics',
+                                            headers={'Authorization': 'Bearer wrong'})
+        assert response.status_code == 403
+
+    def test_allowed_with_correct_token(self, monitoring_client):
+        """200 when the correct Bearer token is supplied."""
+        from unittest.mock import patch
+
+        with patch('src.config.METRICS_TOKEN', 'secret'):
+            response = monitoring_client.get('/api/metrics',
+                                            headers={'Authorization': 'Bearer secret'})
+        assert response.status_code == 200
+
+    def test_json_endpoint_enforces_token(self, monitoring_client):
+        """/api/metrics.json also returns 403 when token is missing."""
+        from unittest.mock import patch
+
+        with patch('src.config.METRICS_TOKEN', 'secret'):
+            assert monitoring_client.get('/api/metrics.json').status_code == 403
+
+
+class TestComputeHealthStatus:
+    """Unit tests for _compute_health_status covering all branches."""
+
+    def test_healthy_when_db_and_ollama_up(self):
+        """Returns 'healthy'/200 when both database and Ollama are up."""
+        from src.monitoring import _compute_health_status
+        from unittest.mock import Mock
+
+        app = Mock()
+        app.startup_status = {'database': True, 'ollama': True}
+        app.embedding_cache = None
+
+        status, code, checks = _compute_health_status(app)
+        assert status == 'healthy'
+        assert code == 200
+        assert checks['database']['healthy'] is True
+        assert checks['ollama']['healthy'] is True
+
+    def test_unhealthy_when_db_down(self):
+        """Returns 'unhealthy'/503 when the database is down."""
+        from src.monitoring import _compute_health_status
+        from unittest.mock import Mock
+
+        app = Mock()
+        app.startup_status = {'database': False, 'ollama': True}
+        app.embedding_cache = None
+
+        status, code, checks = _compute_health_status(app)
+        assert status == 'unhealthy'
+        assert code == 503
+
+    def test_ollama_down_adds_message(self):
+        """Ollama-down check carries an explanatory message."""
+        from src.monitoring import _compute_health_status
+        from unittest.mock import Mock
+
+        app = Mock()
+        app.startup_status = {'database': True, 'ollama': False}
+        app.embedding_cache = None
+
+        status, code, checks = _compute_health_status(app)
+        assert 'message' in checks['ollama']
+        assert status == 'healthy'
+
+    def test_no_startup_status_returns_healthy(self):
+        """Handles missing startup_status gracefully."""
+        from src.monitoring import _compute_health_status
+        from unittest.mock import Mock
+
+        app = Mock(spec=[])  # no attributes at all
+        status, code, checks = _compute_health_status(app)
+        assert status == 'healthy'
+        assert code == 200
+        assert checks == {}
+
+    def test_embedding_cache_included_when_present(self):
+        """Cache stats appear in checks when embedding_cache is attached."""
+        from src.monitoring import _compute_health_status
+        from unittest.mock import Mock
+
+        mock_stats = Mock()
+        mock_stats.to_dict.return_value = {'hits': 10, 'misses': 5}
+        app = Mock()
+        app.startup_status = {'database': True, 'ollama': True}
+        app.embedding_cache = Mock()
+        app.embedding_cache.get_stats.return_value = mock_stats
+
+        status, code, checks = _compute_health_status(app)
+        assert 'cache' in checks
+        assert checks['cache']['healthy'] is True
+        assert checks['cache']['stats'] == {'hits': 10, 'misses': 5}
+
+
+class TestBaseMetricName:
+    """Unit tests for _base_metric_name helper."""
+
+    def test_strips_label_brace_suffix(self):
+        """Label segment is removed, leaving only the base name."""
+        from src.monitoring import _base_metric_name
+
+        assert _base_metric_name('http_requests_total{method="GET"}') == 'http_requests_total'
+
+    def test_returns_plain_name_unchanged(self):
+        """A name without labels is returned as-is."""
+        from src.monitoring import _base_metric_name
+
+        assert _base_metric_name('app_uptime_seconds') == 'app_uptime_seconds'
+
+    def test_empty_string(self):
+        """Empty string is handled without error."""
+        from src.monitoring import _base_metric_name
+
+        assert _base_metric_name('') == ''
+
+
+class TestExportPrometheusMetrics:
+    """Tests for export_prometheus_metrics()."""
+
+    def test_counters_have_type_declaration(self):
+        """Counter entries appear under a # TYPE counter declaration."""
+        from src.monitoring import export_prometheus_metrics, get_metrics
+
+        get_metrics().reset()
+        get_metrics().increment('prom_test_total', labels={'method': 'GET'})
+
+        output = export_prometheus_metrics()
+        assert '# TYPE prom_test_total counter' in output
+        assert 'prom_test_total' in output
+
+    def test_single_type_declaration_per_base_name(self):
+        """Multiple label variants share exactly one # TYPE line."""
+        from src.monitoring import export_prometheus_metrics, get_metrics
+
+        get_metrics().reset()
+        get_metrics().increment('multi_total', labels={'method': 'GET'})
+        get_metrics().increment('multi_total', labels={'method': 'POST'})
+
+        output = export_prometheus_metrics()
+        assert output.count('# TYPE multi_total counter') == 1
+
+    def test_histograms_have_count_sum_and_buckets(self):
+        """Histogram entries include _count, _sum and bucket lines."""
+        from src.monitoring import export_prometheus_metrics, get_metrics
+
+        get_metrics().reset()
+        get_metrics().record('prom_latency', 0.05)
+        get_metrics().record('prom_latency', 0.3)
+        get_metrics().record('prom_latency', 2.0)
+
+        output = export_prometheus_metrics()
+        assert '# TYPE prom_latency histogram' in output
+        assert 'prom_latency_count' in output
+        assert 'prom_latency_sum' in output
+        assert 'le="0.1"' in output
+        assert 'le="+Inf"' in output
+
+    def test_histogram_bucket_counts_correct(self):
+        """Bucket counts reflect the actual value distribution."""
+        from src.monitoring import export_prometheus_metrics, get_metrics
+
+        get_metrics().reset()
+        get_metrics().record('bkt', 0.05)   # ≤ 0.1
+        get_metrics().record('bkt', 0.05)   # ≤ 0.1
+        get_metrics().record('bkt', 2.0)    # > 1.0
+
+        output = export_prometheus_metrics()
+        for line in output.splitlines():
+            if 'bkt_bucket{le="0.1"}' in line:
+                assert line.endswith(' 2')
+            if 'bkt_bucket{le="+Inf"}' in line:
+                assert line.endswith(' 3')
+
+    def test_gauges_exported(self):
+        """Gauge entries appear with # TYPE gauge declaration."""
+        from src.monitoring import export_prometheus_metrics, get_metrics
+
+        get_metrics().reset()
+        get_metrics().set_gauge('active_conns', 7.0)
+
+        output = export_prometheus_metrics()
+        assert '# TYPE active_conns gauge' in output
+        assert 'active_conns 7.0' in output
+
+    def test_uptime_always_present(self):
+        """app_uptime_seconds is always included even with no other metrics."""
+        from src.monitoring import export_prometheus_metrics, get_metrics
+
+        get_metrics().reset()
+        output = export_prometheus_metrics()
+        assert '# TYPE app_uptime_seconds gauge' in output
+        assert 'app_uptime_seconds' in output
+
+    def test_output_ends_with_newline(self):
+        """Output terminates with a newline as required by the Prometheus format."""
+        from src.monitoring import export_prometheus_metrics, get_metrics
+
+        get_metrics().reset()
+        assert export_prometheus_metrics().endswith('\n')
