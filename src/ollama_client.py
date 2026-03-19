@@ -732,18 +732,30 @@ class OllamaClient:
                     return model_name
         return model_names[0] if model_names else None
 
+    def _log_embedding_model_selection(
+        self, found: Optional[str], model_names: List[str], embedding_models: List[str]
+    ) -> None:
+        """Log which embedding model was selected and whether it is a fallback."""
+        if not found:
+            return
+        is_fallback = found == model_names[0] and not any(e in found for e in embedding_models)
+        if is_fallback:
+            logger.warning(f"No dedicated embedding model found, using: {found}")
+        else:
+            logger.info(f"Using embedding model: {found}")
+
     def get_embedding_model(self, preferred_model: Optional[str] = None) -> Optional[str]:
         """
         Get the best available embedding model.
-        
+
         Tries preferred model first, then falls back to common embedding models.
-        
+
         Args:
             preferred_model: Preferred model name (optional)
-        
+
         Returns:
             Name of best available embedding model, or None if none available
-        
+
         Example:
             >>> model = ollama_client.get_embedding_model("nomic-embed-text")
             >>> print(f"Using embedding model: {model}")
@@ -767,19 +779,14 @@ class OllamaClient:
             'nomic-embed-text', 'mxbai-embed-large', 'all-minilm', 'llama2', 'mistral'
         ]
         success, models = self.list_models()
-        if success:
-            model_names = [m['name'] for m in models]
-            found = self._find_model_in_list(model_names, embedding_models)
-            if found:
-                is_fallback = found == model_names[0] and not any(e in found for e in embedding_models)
-                if is_fallback:
-                    logger.warning(f"No dedicated embedding model found, using: {found}")
-                else:
-                    logger.info(f"Using embedding model: {found}")
-            self._embedding_model_cache = found
-            return found
-        logger.error("No embedding model available")
-        return None
+        if not success:
+            logger.error("No embedding model available")
+            return None
+        model_names = [m['name'] for m in models]
+        found = self._find_model_in_list(model_names, embedding_models)
+        self._log_embedding_model_selection(found, model_names, embedding_models)
+        self._embedding_model_cache = found
+        return found
     
     def test_model(self, model_name: str) -> Tuple[bool, str]:
         """
