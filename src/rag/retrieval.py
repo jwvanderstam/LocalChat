@@ -154,6 +154,36 @@ class RetrievalMixin:
                 deduped.append(r)
         return deduped
 
+    def _get_app_cache(self, attr_name: str) -> Optional[Any]:
+        """Return a named cache from the Flask app, or None outside a request context."""
+        try:
+            from flask import current_app as _cur_app
+            return getattr(_cur_app._get_current_object(), attr_name, None)
+        except RuntimeError:
+            return None
+
+    def _log_similarity_miss(
+        self, all_results: Dict[str, Dict[str, Any]], min_similarity: float
+    ) -> None:
+        """Warn that no chunks passed the similarity threshold and log the best score."""
+        logger.warning(f"[RAG] No chunks passed similarity threshold {min_similarity}")
+        if all_results:
+            best = max(all_results.values(), key=lambda x: x['semantic_score'])
+            logger.warning(f"[RAG] Best similarity was {best['semantic_score']:.3f}")
+
+    def _store_query_cache(
+        self,
+        cache: Any,
+        query_clean: str,
+        top_k: int,
+        min_similarity: float,
+        use_hybrid_search: bool,
+        output: list,
+    ) -> None:
+        """Populate the query cache when results are available."""
+        if cache is not None and output:
+            cache.set(query_clean, top_k, min_similarity, use_hybrid_search, output)
+
     @timed('rag.retrieve_context')
     @counted('rag.retrieval_requests')
     def retrieve_context(
@@ -167,7 +197,7 @@ class RetrievalMixin:
     ) -> List[Tuple[str, str, int, float, Dict[str, Any]]]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
-        
+
         Args:
             query: User's question
             top_k: Number of chunks to retrieve (default from config)
@@ -175,64 +205,61 @@ class RetrievalMixin:
             file_type_filter: Filter by file extension (e.g., '.pdf', '.docx')
             use_hybrid_search: Enable BM25 + semantic hybrid search
             expand_context: Enable context window expansion
-        
+
         Returns:
             List of (chunk_text, filename, chunk_index, similarity, metadata) tuples, sorted by relevance
             metadata dict contains page_number, section_title when available
         """
         start_time = time.time()
-        
+
         top_k = top_k or config.TOP_K_RESULTS
         min_similarity = min_similarity if min_similarity is not None else config.MIN_SIMILARITY_THRESHOLD
-        
+
         logger.info(f"[RAG] Retrieve context - query: {query[:80]}...")
         logger.debug(f"[RAG] Parameters: top_k={top_k}, min_sim={min_similarity}, hybrid={use_hybrid_search}")
-        
+
         # Step 1: Query preprocessing
         query_clean = self._preprocess_query(query)
 
         # Check query cache before expensive retrieval
-        _app_query_cache = None
-        try:
-            from flask import current_app as _cur_app
-            _app_query_cache = getattr(_cur_app._get_current_object(), 'query_cache', None)
-        except RuntimeError:
-            pass
-        if _app_query_cache is not None:
-            _cached_result = _app_query_cache.get(query_clean, top_k, min_similarity, use_hybrid_search)
-            if _cached_result is not None:
-                logger.info("[RAG] Query cache hit")
-                return _cached_result
+        _app_query_cache = self._get_app_cache('query_cache')
+        cached_result = (
+            _app_query_cache.get(query_clean, top_k, min_similarity, use_hybrid_search)
+            if _app_query_cache is not None else None
+        )
+        if cached_result is not None:
+            logger.info("[RAG] Query cache hit")
+            return cached_result
 
         # Step 3: Get embedding model
         embedding_model = ollama_client.get_embedding_model()
         if not embedding_model:
             logger.error("[RAG] No embedding model available")
             return []
-        
+
         # Step 4: Generate query embedding (with caching)
         query_embedding = self._get_cached_embedding(query_clean, embedding_model)
         if not query_embedding:
             logger.error("[RAG] Failed to generate query embedding")
             return []
-        
+
         embedding_time = time.time()
         logger.debug(f"[RAG] Embedding generated in {embedding_time - start_time:.3f}s")
-        
+
         # Step 5: Semantic search (primary signal)
         semantic_results = db.search_similar_chunks(
-            query_embedding, 
+            query_embedding,
             top_k=top_k * 2,  # Get more for re-ranking
             file_type_filter=file_type_filter
         )
-        
+
         search_time = time.time()
         logger.debug(f"[RAG] Semantic search returned {len(semantic_results)} results in {search_time - embedding_time:.3f}s")
-        
+
         if not semantic_results:
             logger.warning("[RAG] No semantic search results")
             return []
-        
+
         # Step 6: Hybrid search - combine with BM25 (if enabled)
         all_results: Dict[str, Dict[str, Any]] = {}
         for chunk_text, filename, chunk_index, similarity, metadata in semantic_results:
@@ -246,63 +273,59 @@ class RetrievalMixin:
         logger.debug(f"[RAG] Collected {len(all_results)} results for hybrid scoring")
 
         self._apply_hybrid_scoring(all_results, query_clean, use_hybrid_search)
-        
+
         # Step 7: Filter by similarity threshold
         filtered_results = {
-            k: v for k, v in all_results.items() 
+            k: v for k, v in all_results.items()
             if v['semantic_score'] >= min_similarity
         }
-        
+
         if not filtered_results:
-            logger.warning(f"[RAG] No chunks passed similarity threshold {min_similarity}")
-            if all_results:
-                best = max(all_results.values(), key=lambda x: x['semantic_score'])
-                logger.warning(f"[RAG] Best similarity was {best['semantic_score']:.3f}")
+            self._log_similarity_miss(all_results, min_similarity)
             return []
-        
+
         logger.info(f"[RAG] {len(filtered_results)} chunks passed threshold (from {len(all_results)})")
-        
+
         # Step 8: Diversity filtering
         if config.ENABLE_DIVERSITY_FILTER:
             filtered_results = self._apply_diversity_filter_dict(filtered_results)
             logger.debug(f"[RAG] After diversity filter: {len(filtered_results)} chunks")
-        
+
         # Step 9: Multi-signal re-ranking
         if config.RERANK_RESULTS and len(filtered_results) > 1:
             filtered_results = self._rerank_with_signals(query_clean, filtered_results)
             logger.debug("[RAG] Applied multi-signal re-ranking")
-        
+
         # Sort by combined score AND document position to maintain reading order
         sorted_results = sorted(
             filtered_results.values(),
             key=lambda x: (x['combined_score'], -(x['chunk_index'])),
             reverse=True
         )
-        
+
         # Get results and remove exact duplicates + adjacent chunks
         final_top_k = getattr(config, 'RERANK_TOP_K', 8)
         final_results = sorted_results[:final_top_k]
         deduped_results = self._deduplicate_results(final_results)
         logger.debug(f"[RAG] Deduplicated + adjacent filter: {len(final_results)} -> {len(deduped_results)} chunks")
-        
+
         # Sort final results by filename and chunk_index to maintain reading order
         deduped_results = sorted(deduped_results, key=lambda x: (x['filename'], x['chunk_index']))
-        
+
         # Convert to output format with metadata
         output = [
             (r['chunk_text'], r['filename'], r['chunk_index'], r['semantic_score'], r.get('metadata', {}))
             for r in deduped_results
         ]
-        
+
         total_time = time.time() - start_time
         logger.info(f"[RAG] Retrieved {len(output)} chunks in {total_time:.3f}s")
-        
+
         # Populate query cache for future identical requests
-        if _app_query_cache is not None and output:
-            _app_query_cache.set(query_clean, top_k, min_similarity, use_hybrid_search, output)
+        self._store_query_cache(_app_query_cache, query_clean, top_k, min_similarity, use_hybrid_search, output)
 
         return output
-    
+
     def _get_cached_embedding(self, text: str, model: str) -> Optional[List[float]]:
         """
         Get embedding with caching support.
