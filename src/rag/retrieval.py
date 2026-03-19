@@ -38,9 +38,9 @@ _CONTRACTIONS: dict = {
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(metric_name: str):  # noqa: E306
+    def timed(_metric_name: str):  # type: ignore[assignment] # noqa: E306
         return lambda func: func
-    def counted(metric_name: str, labels=None):  # noqa: E306
+    def counted(_metric_name: str, _labels=None):  # type: ignore[assignment] # noqa: E306
         return lambda func: func
 
 
@@ -193,7 +193,7 @@ class RetrievalMixin:
         min_similarity: Optional[float] = None,
         file_type_filter: Optional[str] = None,
         use_hybrid_search: bool = True,
-        expand_context: bool = True
+        expand_context: bool = True  # NOSONAR — reserved public API parameter
     ) -> List[Tuple[str, str, int, float, Dict[str, Any]]]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.

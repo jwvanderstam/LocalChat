@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 try:
     from ..monitoring import timed
 except ImportError:
-    def timed(metric_name): 
+    def timed(_metric_name):  # noqa: E306
         return lambda func: func
 
 
@@ -122,7 +122,7 @@ class TextChunkerMixin:
         if len(text) <= chunk_size:
             return [text] if text else []
 
-        table_pattern = r'\[Table \d+ on page \d+\].*?(?=\[Table \d+ on page \d+\]|\Z)'
+        table_pattern = r'\[Table \d+ on page \d+\].*?(?=\[Table \d+ on page \d+\]|\Z)'  # NOSONAR
         table_matches = list(re.finditer(table_pattern, text, re.DOTALL))
 
         if table_matches:
