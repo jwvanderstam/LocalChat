@@ -414,7 +414,9 @@ def api_chat():
 
         app = current_app._get_current_object()  # type: ignore[attr-defined]
         conversation_id = _persist_user_message(app, fields['conversation_id'], fields['message'])
-        tool_executor = _get_tool_executor(app)
+        # Don't use tool calling when context is already embedded — the model
+        # would try to call retrieval tools it doesn't need, causing confusion.
+        tool_executor = None if (local_ctx or web_ctx) else _get_tool_executor(app)
 
         return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor)
 

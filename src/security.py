@@ -66,8 +66,17 @@ def init_security(app: Flask) -> None:
     global jwt_manager, limiter
     
     logger.info("Initializing security features...")
-    
-    # JWT Configuration
+
+    # Skip JWT and rate-limiting in demo mode — auth is intentionally off.
+    if config.DEMO_MODE:
+        logger.warning("DEMO_MODE: JWT authentication and rate limiting are disabled.")
+        jwt_manager = JWTManager(app)
+        limiter = Limiter(app=app, key_func=get_remote_address, enabled=False)
+        if config.CORS_ENABLED:
+            CORS(app, origins=config.CORS_ORIGINS)
+        logger.info("Security initialization complete (demo mode)")
+        return
+
     app.config['JWT_SECRET_KEY'] = config.JWT_SECRET_KEY
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=config.JWT_ACCESS_TOKEN_EXPIRES)
     jwt_manager = JWTManager(app)

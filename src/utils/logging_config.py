@@ -13,9 +13,11 @@ Example:
 
 import logging
 import functools
+import json
 import logging.handlers
 import os
 import sys
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +37,56 @@ class SafeStreamHandler(logging.StreamHandler):
         if t is ValueError and "closed file" in str(v):
             return  # silently ignore — stream was closed during teardown
         super().handleError(record)
+
+
+class JsonFormatter(logging.Formatter):
+    """
+    Emit each log record as a single JSON line.
+
+    Fields: timestamp (ISO-8601), level, logger, message, module,
+    funcName, lineno, and — when available on the record — request_id.
+
+    Enable by setting ``LOG_FORMAT=json`` in the environment.  Recommended
+    for production deployments feeding logs into an aggregator (Loki,
+    Elasticsearch, CloudWatch, etc.).
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "funcName": record.funcName,
+            "lineno": record.lineno,
+        }
+        # Inject request_id when present (set by RequestIdMiddleware via flask.g)
+        request_id = getattr(record, "request_id", None)
+        if request_id:
+            payload["request_id"] = request_id
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
+
+class RequestIdFilter(logging.Filter):
+    """
+    Logging filter that copies ``flask.g.request_id`` onto every log record.
+
+    Must be added to each handler (or the root logger) **after** the Flask
+    application context is set up.  Falls back to an empty string outside of
+    a request context so it is safe to use in background threads and tests.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            from flask import g
+            record.request_id = getattr(g, "request_id", "")
+        except RuntimeError:
+            # No application/request context — e.g. tests or worker threads.
+            record.request_id = ""
+        return True
 
 
 class ColoredFormatter(logging.Formatter):
@@ -67,71 +119,76 @@ class ColoredFormatter(logging.Formatter):
 def setup_logging(
     log_level: str = "INFO",
     log_file: str = "logs/app.log",
-    max_bytes: int = 10485760,  # 10MB
+    max_bytes: int = 10485760,  # 10 MB
     backup_count: int = 5,
-    enable_console: bool = True
+    enable_console: bool = True,
+    log_format: str = "text",
 ) -> logging.Logger:
     """
     Configure application-wide logging.
-    
-    Sets up both file and console logging with rotating file handlers.
-    File logs are more detailed than console logs.
-    
+
+    Sets up rotating file handler and optional console handler.
+    Pass ``log_format='json'`` to emit JSON lines (production default).
+
     Args:
-        log_level: Minimum log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: Path to log file
-        max_bytes: Maximum size of log file before rotation
-        backup_count: Number of backup files to keep
-        enable_console: Whether to enable console logging
-    
+        log_level: Minimum log level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+        log_file: Path to the rotating log file.
+        max_bytes: Maximum file size before rotation.
+        backup_count: Number of rotated files to retain.
+        enable_console: Whether to attach a console (stderr) handler.
+        log_format: ``'json'`` for JSON lines, ``'text'`` for human-readable.
+
     Returns:
-        Configured root logger
-    
+        Configured root logger.
+
     Example:
-        >>> logger = setup_logging(log_level="DEBUG")
+        >>> logger = setup_logging(log_level="DEBUG", log_format="json")
         >>> logger.info("Application configured")
     """
-    # Create logs directory if it doesn't exist
     log_path = Path(log_file)
     log_path.parent.mkdir(exist_ok=True)
-    
-    # Get root logger
+
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, log_level.upper()))
-    
-    # Clear existing handlers
     root_logger.handlers.clear()
-    
-    # File handler with detailed formatting
+
+    request_id_filter = RequestIdFilter()
+    use_json = log_format.lower() == "json"
+
+    # --- File handler ---
     file_handler = logging.handlers.RotatingFileHandler(
         log_file,
         maxBytes=max_bytes,
         backupCount=backup_count,
-        encoding='utf-8'
+        encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)
-    file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    file_handler.setFormatter(file_formatter)
+    if use_json:
+        file_handler.setFormatter(JsonFormatter())
+    else:
+        file_handler.setFormatter(logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d"
+            " - [%(request_id)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        ))
+    file_handler.addFilter(request_id_filter)
     root_logger.addHandler(file_handler)
-    
-    # Console handler with colored output
+
+    # --- Console handler ---
     if enable_console:
         console_handler = SafeStreamHandler()
         console_handler.setLevel(logging.INFO)
-        console_formatter = ColoredFormatter(
-            '%(levelname)s - %(name)s - %(message)s'
-        )
-        console_handler.setFormatter(console_formatter)
+        if use_json:
+            console_handler.setFormatter(JsonFormatter())
+        else:
+            console_handler.setFormatter(
+                ColoredFormatter("%(levelname)s - %(name)s - %(message)s")
+            )
+        console_handler.addFilter(request_id_filter)
         root_logger.addHandler(console_handler)
-    
-    # Log initial message
-    root_logger.info("Logging system initialized")
-    root_logger.debug(f"Log file: {log_file}")
-    root_logger.debug(f"Log level: {log_level}")
-    
+
+    root_logger.info("Logging system initialized (format=%s)", log_format)
+    root_logger.debug("Log file: %s | level: %s", log_file, log_level)
     return root_logger
 
 

@@ -1,21 +1,30 @@
-# -*- coding: utf-8 -*-
+                # -*- coding: utf-8 -*-
 
 """
 Monitoring and Metrics Module
 ==============================
 
 Provides comprehensive monitoring, metrics, and observability
-for LocalChat application.
+for the LocalChat application.
+
+Endpoints registered by ``init_monitoring()``::
+
+    GET /api/metrics       — Prometheus text format v0.0.4 scrape endpoint
+    GET /api/metrics.json  — JSON metrics snapshot for the admin dashboard
+    GET /api/health        — Detailed component health check
 
 Features:
-- Prometheus metrics export
-- Request timing middleware
-- Performance tracking
-- Health checks
-- Custom metrics
+- Prometheus metrics export (counters, histograms with buckets, gauges)
+- Request timing middleware (``X-Request-Duration`` header on every response)
+- Detailed health checks (database, Ollama, embedding cache)
+- GPU-aware health reporting via Ollama ``/api/ps`` data in health checks
+- Performance tracking decorators (``@timed``, ``@counted``)
+- Optional Bearer-token authentication for scrape endpoints (``METRICS_TOKEN``)
+- Thread-safe ``MetricsCollector`` with per-key label support
+- ``app_uptime_seconds`` gauge always present in Prometheus output
 
 Author: LocalChat Team
-Created: 2025-01-15
+Last Updated: 2026-03-19
 """
 
 from functools import wraps
@@ -144,6 +153,11 @@ class MetricsCollector:
             self._gauges.clear()
             self._start_time = datetime.now()
 
+    def get_histogram_values(self) -> Dict[str, list]:
+        """Return a snapshot of raw histogram value lists (for Prometheus bucket export)."""
+        with self._lock:
+            return {k: list(v) for k, v in self._histograms.items() if v}
+
 
 # Global metrics collector
 _metrics: Optional[MetricsCollector] = None
@@ -231,9 +245,8 @@ class RequestTimingMiddleware:
         logger.info("RequestTimingMiddleware initialized")
     
     def before_request(self):
-        """Record request start time."""
+        """Record request start time; request_id is already on g via RequestIdMiddleware."""
         g.start_time = time()
-        g.request_id = f"{int(time() * 1000)}"
     
     def after_request(self, response):
         """Record request metrics."""
@@ -257,94 +270,97 @@ class RequestTimingMiddleware:
                 'status': response.status_code
             })
             
-            # Add timing header
+            # Add timing header; request_id header is handled by RequestIdMiddleware
             response.headers['X-Request-Duration'] = f"{duration:.3f}s"
-            response.headers['X-Request-ID'] = g.request_id
         
         return response
+
+
+def _check_metrics_auth() -> bool:
+    """
+    Return True if the request is authorised to read metrics.
+
+    When ``METRICS_TOKEN`` is configured the caller must supply it as a
+    Bearer token (``Authorization: Bearer <token>``).  When the config value
+    is empty the endpoint is open — acceptable when it is only reachable from
+    a private network or a dedicated scrape interface.
+    """
+    from . import config
+    if not config.METRICS_TOKEN:
+        return True
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN:
+        return True
+    return False
 
 
 def init_monitoring(app: Flask):
     """
     Initialize monitoring for Flask app.
-    
+
+    Registers:
+      * ``/api/metrics``       — Prometheus text format (scrape endpoint)
+      * ``/api/metrics.json``  — JSON metrics for the admin dashboard
+      * ``/api/health``        — Detailed health check
+
     Args:
         app: Flask application
     """
-    # Add request timing middleware
+    # Attach timing middleware
     RequestTimingMiddleware(app)
-    
-    # Add metrics endpoint
+
     @app.route('/api/metrics', methods=['GET'])
     def metrics_endpoint():
         """
-        Get application metrics.
-        
-        Returns Prometheus-compatible metrics.
+        Prometheus-compatible metrics scrape endpoint.
+
+        Returns text/plain in the Prometheus exposition format (v0.0.4).
+        Requires a Bearer token when ``METRICS_TOKEN`` is set.
         ---
         tags:
           - System
-        summary: Get application metrics
-        description: |
-          Returns comprehensive application metrics including:
-          - Request counts and durations
-          - Cache hit rates
-          - Database query times
-          - RAG pipeline performance
-        responses:
-          200:
-            description: Metrics retrieved successfully
-            schema:
-              type: object
-              properties:
-                counters:
-                  type: object
-                histograms:
-                  type: object
-                gauges:
-                  type: object
-                uptime_seconds:
-                  type: number
         """
+        if not _check_metrics_auth():
+            return "Forbidden", 403, {"WWW-Authenticate": 'Bearer realm="metrics"'}
+        text = export_prometheus_metrics()
+        return text, 200, {"Content-Type": "text/plain; version=0.0.4; charset=utf-8"}
+
+    @app.route('/api/metrics.json', methods=['GET'])
+    def metrics_json_endpoint():
+        """
+        JSON metrics endpoint — used internally by the admin dashboard.
+        Requires the same optional token as /api/metrics.
+        ---
+        tags:
+          - System
+        """
+        if not _check_metrics_auth():
+            return jsonify({"error": "Forbidden"}), 403
         return jsonify(get_metrics().get_metrics())
-    
-    # Add health check endpoint
+
     @app.route('/api/health', methods=['GET'])
     def health_check():
         """
         Detailed health check.
-        
+
         Checks all system components and returns detailed status.
         ---
         tags:
           - System
         summary: Health check
-        description: |
-          Performs comprehensive health check of all services:
-          - Database connectivity
-          - Ollama service
-          - Cache availability
-          - System resources
         responses:
           200:
-            description: System healthy
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [healthy, degraded, unhealthy]
-                checks:
-                  type: object
-                timestamp:
-                  type: string
-                  format: date-time
+            description: System healthy or degraded
           503:
-            description: System unhealthy
+            description: System unhealthy (database down)
         """
         from flask import current_app
         status, status_code, checks = _compute_health_status(current_app)
-        return jsonify({'status': status, 'checks': checks, 'timestamp': datetime.now().isoformat()}), status_code
+        return (
+            jsonify({"status": status, "checks": checks,
+                     "timestamp": datetime.now().isoformat()}),
+            status_code,
+        )
 
     logger.info("✓ Monitoring endpoints initialized")
 
@@ -362,7 +378,7 @@ def _compute_health_status(app) -> tuple:
         checks['ollama'] = {'status': 'up' if ollama_up else 'down', 'healthy': ollama_up}
         if not ollama_up:
             checks['ollama']['message'] = 'Ollama unavailable - direct LLM mode disabled'
-    if hasattr(app, 'embedding_cache'):
+    if getattr(app, 'embedding_cache', None) is not None:
         checks['cache'] = {'status': 'up', 'healthy': True, 'stats': app.embedding_cache.get_stats().to_dict()}
     if overall_healthy:
         return 'healthy', 200, checks
@@ -372,38 +388,59 @@ def _compute_health_status(app) -> tuple:
 
 
 # Prometheus text format export
+def _base_metric_name(key: str) -> str:
+    """Strip label suffix from a storage key to get the Prometheus base name."""
+    brace = key.find('{')
+    return key[:brace] if brace != -1 else key
+
+
 def export_prometheus_metrics() -> str:
     """
     Export metrics in Prometheus text format.
-    
+
     Returns:
         Prometheus-formatted metrics string
     """
-    metrics = get_metrics().get_metrics()
+    collector = get_metrics()
+    metrics = collector.get_metrics()
+    raw_histograms = collector.get_histogram_values()
     lines = []
-    
-    # Counters
-    for name, value in metrics['counters'].items():
-        lines.append(f'# TYPE {name} counter')
-        lines.append(f'{name} {value}')
-    
+
+    # Counters — one TYPE declaration per base name, all label variants beneath it
+    counter_groups: Dict[str, Dict[str, int]] = {}
+    for key, value in metrics['counters'].items():
+        counter_groups.setdefault(_base_metric_name(key), {})[key] = value
+    for base_name, entries in counter_groups.items():
+        lines.append(f'# TYPE {base_name} counter')
+        for key, value in entries.items():
+            lines.append(f'{key} {value}')
+
     # Histograms
-    for name, stats in metrics['histograms'].items():
-        lines.append(f'# TYPE {name} histogram')
-        lines.append(f'{name}_count {stats["count"]}')
-        lines.append(f'{name}_sum {stats["sum"]}')
-        lines.append(f'{name}_bucket{{le="0.1"}} {sum(1 for v in metrics["histograms"][name] if v <= 0.1)}')
-        lines.append(f'{name}_bucket{{le="0.5"}} {sum(1 for v in metrics["histograms"][name] if v <= 0.5)}')
-        lines.append(f'{name}_bucket{{le="1.0"}} {sum(1 for v in metrics["histograms"][name] if v <= 1.0)}')
-        lines.append(f'{name}_bucket{{le="+Inf"}} {stats["count"]}')
-    
+    histogram_groups: Dict[str, Dict] = {}
+    for key, stats in metrics['histograms'].items():
+        histogram_groups.setdefault(_base_metric_name(key), {})[key] = stats
+    for base_name, entries in histogram_groups.items():
+        lines.append(f'# TYPE {base_name} histogram')
+        for key, stats in entries.items():
+            raw = raw_histograms.get(key, [])
+            lines.append(f'{key}_count {stats["count"]}')
+            lines.append(f'{key}_sum {stats["sum"]}')
+            lines.append(f'{key}_bucket{{le="0.1"}} {sum(1 for v in raw if v <= 0.1)}')
+            lines.append(f'{key}_bucket{{le="0.5"}} {sum(1 for v in raw if v <= 0.5)}')
+            lines.append(f'{key}_bucket{{le="1.0"}} {sum(1 for v in raw if v <= 1.0)}')
+            lines.append(f'{key}_bucket{{le="+Inf"}} {stats["count"]}')
+
     # Gauges
-    for name, value in metrics['gauges'].items():
-        lines.append(f'# TYPE {name} gauge')
-        lines.append(f'{name} {value}')
-    
+    gauge_groups: Dict[str, Dict[str, float]] = {}
+    for key, value in metrics['gauges'].items():
+        gauge_groups.setdefault(_base_metric_name(key), {})[key] = value
+    for base_name, entries in gauge_groups.items():
+        lines.append(f'# TYPE {base_name} gauge')
+        for key, value in entries.items():
+            lines.append(f'{key} {value}')
+
     # Uptime
     lines.append('# TYPE app_uptime_seconds gauge')
     lines.append(f'app_uptime_seconds {metrics["uptime_seconds"]}')
-    
+
     return '\n'.join(lines) + '\n'

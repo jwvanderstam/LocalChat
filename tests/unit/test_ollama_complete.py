@@ -35,12 +35,12 @@ class TestLongTextHandling:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'embedding': [0.1] * 768
+            'embeddings': [[0.1] * 768]
         }
-        
-        with patch('requests.post', return_value=mock_response):
+
+        with patch.object(client._session, 'post', return_value=mock_response):
             success, embedding = client.generate_embedding("nomic-embed-text", long_text)
-            
+
             # Should handle long text gracefully
             assert success is True
             assert len(embedding) == 768
@@ -54,12 +54,12 @@ class TestLongTextHandling:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'embedding': [0.0] * 768
+            'embeddings': [[0.0] * 768]
         }
-        
-        with patch('requests.post', return_value=mock_response):
+
+        with patch.object(client._session, 'post', return_value=mock_response):
             success, embedding = client.generate_embedding("nomic-embed-text", "")
-            
+
             # Should handle empty string
             assert isinstance(success, bool)
 
@@ -80,7 +80,7 @@ class TestChatTokenLimits:
             b'{"done": true}'
         ]
         
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[{"role": "user", "content": "Tell me a story"}],
@@ -104,7 +104,7 @@ class TestChatTokenLimits:
             b'{"done": true, "context": [1, 2, 3]}'
         ]
         
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[{"role": "user", "content": "Long question"}]
@@ -137,7 +137,7 @@ class TestModelPullProgress:
             b'{"status": "success"}'
         ]
 
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             if hasattr(client, 'pull_model'):
                 results = list(client.pull_model("llama3.2"))
 
@@ -154,7 +154,7 @@ class TestModelPullProgress:
         
         client = OllamaClient(base_url="http://localhost:11434")
         
-        with patch('requests.post', side_effect=requests.exceptions.ConnectionError("Network error")):
+        with patch.object(client._session, 'post', side_effect=requests.exceptions.ConnectionError("Network error")):
             if hasattr(client, 'pull_model'):
                 results = list(client.pull_model("llama3.2"))
 
@@ -180,7 +180,7 @@ class TestStreamingEdgeCases:
             b'{"done": true}'
         ]
         
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[]
@@ -203,7 +203,7 @@ class TestStreamingEdgeCases:
             b'{"done": true}'
         ]
         
-        with patch('requests.post', return_value=mock_response):
+        with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[]

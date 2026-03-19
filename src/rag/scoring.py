@@ -39,6 +39,7 @@ class BM25Scorer:
         self.doc_freqs: Dict[str, int] = {}
         self.idf: Dict[str, float] = {}
         self.doc_len: List[int] = []
+        self._tokenized_docs: List[List[str]] = []
         self._initialized = False
     
     def _tokenize(self, text: str) -> List[str]:
@@ -57,9 +58,11 @@ class BM25Scorer:
             return
         
         nd: Dict[str, int] = {}  # word -> number of documents containing word
-        
+        self._tokenized_docs = []
+
         for document in corpus:
             tokens = self._tokenize(document)
+            self._tokenized_docs.append(tokens)
             self.doc_len.append(len(tokens))
             
             # Count unique words in document
@@ -91,9 +94,14 @@ class BM25Scorer:
         """
         if not self._initialized:
             return 0.0
-        
+
         query_tokens = self._tokenize(query)
-        doc_tokens = self._tokenize(document)
+
+        # Reuse tokens stored during fit() — avoids re-tokenizing the document
+        if self._tokenized_docs and 0 <= doc_idx < len(self._tokenized_docs):
+            doc_tokens = self._tokenized_docs[doc_idx]
+        else:
+            doc_tokens = self._tokenize(document)
         doc_len = len(doc_tokens)
         
         if doc_len == 0:

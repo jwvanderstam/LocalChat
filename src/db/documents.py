@@ -137,7 +137,8 @@ class DocumentsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 embedding_str = self._embedding_to_pg_array(query_embedding)
-                ef_search_value = max(top_k * 2, 100)
+                # ef_search > ef_construction (64) gives no recall gain but costs time
+                ef_search_value = max(top_k * 2, 40)
                 cursor.execute(
                     sql.SQL("SET hnsw.ef_search = {}").format(sql.Literal(ef_search_value))
                 )

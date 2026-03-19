@@ -72,7 +72,7 @@ def search_documents(query: str) -> str:
         "required": [],
     },
 )
-def list_documents() -> str:
+def list_documents(**_kwargs) -> str:
     """Return a human-readable list of all ingested documents."""
     from ..db import db
 

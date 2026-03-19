@@ -79,19 +79,23 @@ def create_app(
     # Initialize logging
     if not testing:
         log_level = "DEBUG" if app.config.get('DEBUG', False) else "INFO"
-        setup_logging(log_level=log_level, log_file=config.LOG_FILE)
+        setup_logging(log_level=log_level, log_file=config.LOG_FILE, log_format=config.LOG_FORMAT)
     
     # Initialize extensions and services
     _init_services(app, testing)
-    
+
+    # Attach request-ID middleware (runs before everything else)
+    from .utils.request_id import init_request_id
+    init_request_id(app)
+
     # Initialize API documentation (Swagger/OpenAPI)
     if not testing:
         _init_api_docs(app)
-    
+
     # Initialize monitoring and metrics
     if not testing:
         _init_monitoring(app)
-    
+
     # Register blueprints
     _register_blueprints(app)
     
@@ -303,6 +307,7 @@ def _register_blueprints(app: LocalChatApp) -> None:
     """
     # Import blueprints
     from .routes import web_routes, api_routes, document_routes, model_routes, memory_routes
+    from .routes import admin_routes
 
     # Register blueprints
     app.register_blueprint(web_routes.bp)
@@ -310,7 +315,8 @@ def _register_blueprints(app: LocalChatApp) -> None:
     app.register_blueprint(document_routes.bp, url_prefix='/api/documents')
     app.register_blueprint(model_routes.bp, url_prefix='/api/models')
     app.register_blueprint(memory_routes.bp, url_prefix='/api')
-    
+    app.register_blueprint(admin_routes.bp)
+
     logger.debug("Blueprints registered")
 
 

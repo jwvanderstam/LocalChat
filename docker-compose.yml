@@ -1,0 +1,189 @@
+# ============================================================
+# LocalChat — docker-compose.yml
+# ============================================================
+#
+# Services
+# --------
+#   app      — LocalChat Flask/Gunicorn application
+#   db       — PostgreSQL 16 with pgvector extension
+#   redis    — Optional cache (set REDIS_ENABLED=true in app)
+#   ollama   — Local LLM inference (CPU by default)
+#
+# Quick start
+# -----------
+#   1. cp config/.env.example .env  && edit .env
+#   2. docker compose up -d
+#   3. Open http://localhost:5000
+#
+# Production notes
+# ----------------
+#   * Place Nginx / Traefik in front of the app service for TLS
+#     termination.  Bind the app to 127.0.0.1:5000 and expose only
+#     the reverse-proxy port (443) to the outside world.
+#   * NEVER set DEMO_MODE=true in production.
+#   * Rotate all secrets before exposing any port externally.
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # PostgreSQL + pgvector
+  # ----------------------------------------------------------
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD must be set}
+      POSTGRES_DB:       ${PG_DB:-rag_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres} -d ${PG_DB:-rag_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+
+  # ----------------------------------------------------------
+  # Redis (optional cache layer)
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+        --save 60 1
+        --loglevel warning
+        ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - backend
+
+  # ----------------------------------------------------------
+  # Ollama — local LLM inference
+  # ----------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    # GPU pass-through: uncomment the section below if you have an
+    # NVIDIA GPU and nvidia-container-toolkit installed.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ----------------------------------------------------------
+  # LocalChat application
+  # ----------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: localchat:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started   # Ollama may still be loading models
+    environment:
+      # ── Application ──────────────────────────────────────
+      APP_ENV:         ${APP_ENV:-production}
+      APP_VERSION:     ${APP_VERSION:-0.5.0}
+      SECRET_KEY:      ${SECRET_KEY:?SECRET_KEY must be set}
+      JWT_SECRET_KEY:  ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      ADMIN_PASSWORD:  ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      LOG_FORMAT:      ${LOG_FORMAT:-json}
+      DEMO_MODE:       ${DEMO_MODE:-false}
+
+      # ── Database ─────────────────────────────────────────
+      PG_HOST:         db
+      PG_PORT:         5432
+      PG_USER:         ${PG_USER:-postgres}
+      PG_PASSWORD:     ${PG_PASSWORD}
+      PG_DB:           ${PG_DB:-rag_db}
+
+      # ── Redis ────────────────────────────────────────────
+      REDIS_ENABLED:   ${REDIS_ENABLED:-true}
+      REDIS_HOST:      redis
+      REDIS_PORT:      6379
+      REDIS_PASSWORD:  ${REDIS_PASSWORD:-}
+
+      # ── Ollama ───────────────────────────────────────────
+      OLLAMA_BASE_URL: http://ollama:11434
+
+      # ── Security ─────────────────────────────────────────
+      RATELIMIT_ENABLED: ${RATELIMIT_ENABLED:-true}
+      CORS_ENABLED:      ${CORS_ENABLED:-false}
+      METRICS_TOKEN:     ${METRICS_TOKEN:-}
+
+      # ── Performance ──────────────────────────────────────
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+    ports:
+      # Bind to 127.0.0.1 so the app is NOT directly reachable from the
+      # outside.  Let Nginx / Traefik forward traffic on port 443.
+      # Change to "0.0.0.0:5000:5000" only for local development.
+      - "${BIND_HOST:-127.0.0.1}:${BIND_PORT:-5000}:5000"
+    volumes:
+      - app_uploads:/app/uploads
+      - app_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - frontend
+      - backend
+
+# ──────────────────────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_models:
+    driver: local
+  app_uploads:
+    driver: local
+  app_logs:
+    driver: local
+
+# ──────────────────────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────────────────────
+networks:
+  # frontend: app ↔ reverse-proxy only
+  frontend:
+    driver: bridge
+  # backend: app ↔ db, redis, ollama (never directly exposed)
+  backend:
+    driver: bridge
+    internal: true

@@ -1,0 +1,26 @@
+---
+# LocalChat — Kubernetes ConfigMap
+# Non-sensitive configuration values.
+# Secrets (passwords, keys) live in k8s/secret.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: localchat-config
+  labels:
+    app: localchat
+data:
+  APP_ENV:          "production"
+  APP_VERSION:      "0.5.0"
+  LOG_FORMAT:       "json"
+  DEMO_MODE:        "false"
+  PG_HOST:          "localchat-db"
+  PG_PORT:          "5432"
+  PG_DB:            "rag_db"
+  PG_USER:          "postgres"
+  REDIS_ENABLED:    "true"
+  REDIS_HOST:       "localchat-redis"
+  REDIS_PORT:       "6379"
+  OLLAMA_BASE_URL:  "http://localchat-ollama:11434"
+  RATELIMIT_ENABLED: "true"
+  CORS_ENABLED:     "false"
+  GUNICORN_WORKERS: "2"

@@ -35,8 +35,8 @@ def mock_env_vars():
 # ============================================================================
 
 @pytest.fixture
-def ollama_client():
-    """Create a fresh OllamaClient instance."""
+def ollama_client(mock_requests):
+    """Create a fresh OllamaClient instance with mocked HTTP session."""
     from src.ollama_client import OllamaClient
     return OllamaClient("http://localhost:11434")
 
@@ -48,6 +48,12 @@ def mock_requests():
         # Keep the actual exception classes
         import requests
         mock_req.exceptions = requests.exceptions
+        # Wire the session's methods to the same mocks so tests that set
+        # mock_requests.get/post/delete still intercept self._session.* calls
+        mock_session = mock_req.Session.return_value
+        mock_session.get = mock_req.get
+        mock_session.post = mock_req.post
+        mock_session.delete = mock_req.delete
         yield mock_req
 
 
@@ -351,12 +357,12 @@ class TestEmbeddingGeneration:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'embedding': [0.1, 0.2, 0.3] * 256  # 768 dimensions
+            'embeddings': [[0.1, 0.2, 0.3] * 256]  # 768 dimensions
         }
         mock_requests.post.return_value = mock_response
-        
+
         success, embedding = ollama_client.generate_embedding("nomic-embed-text", "test text")
-        
+
         assert success is True
         assert len(embedding) == 768
         assert all(isinstance(x, (int, float)) for x in embedding)
@@ -376,11 +382,11 @@ class TestEmbeddingGeneration:
         """Should handle empty text."""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {'embedding': [0.0] * 768}
+        mock_response.json.return_value = {'embeddings': [[0.0] * 768]}
         mock_requests.post.return_value = mock_response
-        
+
         success, embedding = ollama_client.generate_embedding("nomic-embed-text", "")
-        
+
         assert success is True
         assert len(embedding) == 768
     
@@ -388,9 +394,9 @@ class TestEmbeddingGeneration:
         """Should handle long text."""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {'embedding': [0.1] * 768}
+        mock_response.json.return_value = {'embeddings': [[0.1] * 768]}
         mock_requests.post.return_value = mock_response
-        
+
         long_text = "test " * 1000  # 5000 characters
         success, embedding = ollama_client.generate_embedding("nomic-embed-text", long_text)
         
@@ -401,11 +407,11 @@ class TestEmbeddingGeneration:
         """Should return correct embedding dimensions."""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {'embedding': [0.1] * 768}
+        mock_response.json.return_value = {'embeddings': [[0.1] * 768]}
         mock_requests.post.return_value = mock_response
-        
+
         success, embedding = ollama_client.generate_embedding("nomic-embed-text", "test")
-        
+
         assert len(embedding) == 768
     
     def test_generate_embedding_exception(self, ollama_client, mock_requests):

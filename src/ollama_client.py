@@ -2,25 +2,52 @@
 Ollama Client Module
 ===================
 
-Client for interacting with the Ollama API for LLM inference and embeddings.
-Provides functions for chat completion, embedding generation, and model management.
+Client for interacting with the Ollama API for LLM inference, embeddings,
+model management, and GPU hardware detection.
 
 Classes:
     OllamaClient: Main client for Ollama API operations
+
+GPU Support:
+    GPU layer offload is controlled by ``OLLAMA_NUM_GPU`` (default ``-1``,
+    meaning all transformer layers are placed on GPU).  The value is forwarded
+    in ``options.num_gpu`` on every ``/api/chat`` and ``/api/embed`` request so
+    Ollama distributes work across all detected GPUs automatically.
+
+GPU Detection:
+    ``get_gpu_info()`` auto-detects NVIDIA GPUs via ``nvidia-smi`` and AMD
+    GPUs via ``rocm-smi``.  Results are TTL-cached (30 s) to avoid spawning
+    a subprocess on every admin dashboard refresh.  Returns an empty list when
+    neither tool is available.
+
+TTL Caching:
+    ``get_running_models()`` caches ``/api/ps`` responses for 5 s.  Stale
+    cached data is returned on network errors rather than an empty list.
+    ``get_gpu_info()`` caches hardware stats for 30 s.
+
+Embedding Endpoint:
+    Uses the newer ``/api/embed`` endpoint (Ollama ≥ 0.1.32) with automatic
+    fallback to the legacy ``/api/embeddings`` endpoint on HTTP 404.  The
+    resolved embedding model name is cached after the first ``list_models()``
+    call to avoid repeated API round-trips.
 
 Example:
     >>> from ollama_client import ollama_client
     >>> success, message = ollama_client.check_connection()
     >>> if success:
     ...     embedding = ollama_client.generate_embedding("nomic-embed-text", "Hello")
+    ...     gpus = ollama_client.get_gpu_info()
 
 Author: LocalChat Team
-Last Updated: 2025-01-27
+Last Updated: 2026-03-19
 """
 
-import requests
 import json
-from typing import Tuple, List, Dict, Any, Optional, Generator
+import shutil
+import subprocess
+import time
+import requests
+from typing import Tuple, List, Dict, Any, Optional, Generator, NoReturn
 from . import config
 from .utils.logging_config import get_logger
 
@@ -31,32 +58,52 @@ logger = get_logger(__name__)
 class OllamaClient:
     """
     Client for interacting with Ollama API.
-    
+
     Handles communication with the Ollama server for chat completions,
-    embedding generation, and model management operations.
-    
+    embedding generation, model management, and GPU hardware detection.
+    All HTTP requests reuse a single ``requests.Session`` for connection
+    pooling.
+
     Attributes:
-        base_url (str): Base URL for Ollama API
-        is_available (bool): Whether Ollama server is accessible
-        available_models (List[str]): List of available model names
-    
+        base_url (str): Base URL for Ollama API.
+        is_available (bool): Whether Ollama server is accessible.
+        available_models (List[str]): List of available model names.
+
+    TTL cache attributes (internal):
+        _running_models_cache: Cached ``/api/ps`` result; refreshed every
+            ``_RUNNING_MODELS_TTL`` seconds (default 5 s).
+        _gpu_info_cache: Cached GPU hardware stats; refreshed every
+            ``_GPU_INFO_TTL`` seconds (default 30 s).
+
     Example:
         >>> client = OllamaClient("http://localhost:11434")
         >>> success, msg = client.check_connection()
         >>> if success:
-        ...     models = client.list_models()
+        ...     gpus = client.get_gpu_info()
+        ...     models = client.get_running_models()
     """
     
+    # How long (seconds) to serve cached results before re-querying.
+    _RUNNING_MODELS_TTL: float = 5.0   # loaded models can change at any time
+    _GPU_INFO_TTL: float = 30.0        # hardware stats; subprocess is expensive
+
     def __init__(self, base_url: Optional[str] = None) -> None:
         """
         Initialize Ollama client.
-        
+
         Args:
             base_url: Base URL for Ollama API (default from config)
         """
         self.base_url: str = base_url or config.OLLAMA_BASE_URL
         self.is_available: bool = False
         self.available_models: List[str] = []
+        self._session = requests.Session()  # reuse TCP connections across calls
+        self._embedding_model_cache: Optional[str] = None  # resolved once, reused
+        # TTL caches — avoids /api/ps and nvidia-smi on every admin page load
+        self._running_models_cache: Optional[List[Dict[str, Any]]] = None
+        self._running_models_cache_time: float = 0.0
+        self._gpu_info_cache: Optional[List[Dict[str, Any]]] = None
+        self._gpu_info_cache_time: float = 0.0
         logger.info(f"OllamaClient initialized with base_url: {self.base_url}")
     
     def check_connection(self) -> Tuple[bool, str]:
@@ -77,7 +124,7 @@ class OllamaClient:
         """
         try:
             logger.debug(f"Checking connection to {self.base_url}")
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            response = self._session.get(f"{self.base_url}/api/tags", timeout=5)
             
             if response.status_code == 200:
                 self.is_available = True
@@ -116,7 +163,7 @@ class OllamaClient:
         """
         try:
             logger.debug("Fetching model list")
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            response = self._session.get(f"{self.base_url}/api/tags", timeout=5)
             
             if response.status_code == 200:
                 data = response.json()
@@ -176,7 +223,7 @@ class OllamaClient:
         """
         try:
             logger.info(f"Pulling model: {model_name}")
-            response = requests.post(
+            response = self._session.post(
                 f"{self.base_url}/api/pull",
                 json={"name": model_name},
                 stream=True,
@@ -214,7 +261,7 @@ class OllamaClient:
         """
         try:
             logger.info(f"Deleting model: {model_name}")
-            response = requests.delete(
+            response = self._session.delete(
                 f"{self.base_url}/api/delete",
                 json={"name": model_name},
                 timeout=30
@@ -321,7 +368,7 @@ class OllamaClient:
                 if data.get('done', False):
                     break
 
-    def _raise_for_ollama_error(self, response, model: str) -> None:
+    def _raise_for_ollama_error(self, response, model: str) -> NoReturn:
         """
         Parse a non-200 Ollama response and raise an appropriate exception.
 
@@ -384,15 +431,17 @@ class OllamaClient:
             ...     print(chunk, end='')
         """
         logger.debug(f"Generating chat response with model: {model}")
+        options: Dict[str, Any] = {"num_gpu": config.OLLAMA_NUM_GPU}
+        if max_tokens is not None:
+            options["num_predict"] = max_tokens
         payload: Dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": stream,
+            "options": options,
         }
-        if max_tokens is not None:
-            payload["options"] = {"num_predict": max_tokens}
 
-        response = requests.post(
+        response = self._session.post(
             f"{self.base_url}/api/chat",
             json=payload,
             stream=stream,
@@ -443,12 +492,13 @@ class OllamaClient:
             "model": model,
             "messages": messages,
             "stream": False,
+            "options": {"num_gpu": config.OLLAMA_NUM_GPU},
         }
         if tools:
             payload["tools"] = tools
 
         logger.debug(f"Chat completion (non-stream) with model: {model}")
-        response = requests.post(
+        response = self._session.post(
             f"{self.base_url}/api/chat",
             json=payload,
             timeout=120,
@@ -470,45 +520,210 @@ class OllamaClient:
     ) -> Tuple[bool, List[float]]:
         """
         Generate embedding vector for text.
-        
+
+        Tries the newer ``/api/embed`` endpoint first (more efficient, supports
+        batching and truncation).  Falls back to the legacy ``/api/embeddings``
+        endpoint if the server returns 404 (older Ollama build).
+
         Args:
             model: Name of embedding model (e.g., "nomic-embed-text")
             text: Input text to embed
-        
+
         Returns:
             Tuple of (success: bool, embedding: List[float])
-            - success: True if embedding generated
-            - embedding: Vector as list of floats, or empty list on failure
-        
-        Example:
-            >>> success, emb = ollama_client.generate_embedding("nomic-embed-text", "test")
-            >>> if success:
-            ...     print(f"Embedding dimension: {len(emb)}")
         """
         try:
             logger.debug(f"Generating embedding with model: {model}")
-            response = requests.post(
-                f"{self.base_url}/api/embeddings",
+            # ── Prefer the newer /api/embed endpoint (Ollama ≥ 0.1.32) ────────
+            response = self._session.post(
+                f"{self.base_url}/api/embed",
                 json={
                     "model": model,
-                    "prompt": text
+                    "input": text,
+                    "keep_alive": "30m",
+                    "options": {"num_gpu": config.OLLAMA_NUM_GPU},
                 },
                 timeout=60
             )
-            
             if response.status_code == 200:
-                data = response.json()
-                embedding = data.get('embedding', [])
-                logger.debug(f"Generated embedding with {len(embedding)} dimensions")
-                return True, embedding
-            else:
+                embeddings = response.json().get('embeddings', [])
+                if embeddings:
+                    embedding = embeddings[0]
+                    logger.debug(f"Generated embedding with {len(embedding)} dimensions")
+                    return True, embedding
+
+            if response.status_code != 404:
                 logger.warning(f"Failed to generate embedding: {response.status_code}")
                 return False, []
-                
+
+            # ── Fallback: legacy /api/embeddings endpoint ────────────────────
+            logger.debug("Falling back to legacy /api/embeddings endpoint")
+            response = self._session.post(
+                f"{self.base_url}/api/embeddings",
+                json={
+                    "model": model,
+                    "prompt": text,
+                    "keep_alive": "30m",
+                    "options": {"num_gpu": config.OLLAMA_NUM_GPU},
+                },
+                timeout=60
+            )
+            if response.status_code == 200:
+                embedding = response.json().get('embedding', [])
+                logger.debug(f"Generated embedding with {len(embedding)} dimensions")
+                return True, embedding
+
+            logger.warning(f"Failed to generate embedding (legacy): {response.status_code}")
+            return False, []
+
         except Exception as e:
             logger.error(f"Error generating embedding: {e}", exc_info=True)
             return False, []
     
+    def get_running_models(self) -> List[Dict[str, Any]]:
+        """
+        Return models currently loaded in Ollama (from ``/api/ps``).
+
+        Results are cached for ``_RUNNING_MODELS_TTL`` seconds so that
+        repeated admin dashboard refreshes do not hammer the Ollama HTTP API.
+
+        Each entry contains ``name``, ``size`` (bytes), ``size_vram`` (bytes)
+        and ``processor`` so callers can display GPU/CPU offload percentages.
+
+        Returns:
+            List of model info dicts, or empty list if unavailable.
+        """
+        now = time.monotonic()
+        if (
+            self._running_models_cache is not None
+            and (now - self._running_models_cache_time) < self._RUNNING_MODELS_TTL
+        ):
+            return self._running_models_cache
+        try:
+            response = self._session.get(f"{self.base_url}/api/ps", timeout=5)
+            if response.status_code == 200:
+                result = response.json().get("models", [])
+                self._running_models_cache = result
+                self._running_models_cache_time = now
+                return result
+        except Exception as e:
+            logger.debug("Could not fetch running models from /api/ps: %s", e)
+        # Return stale data rather than an empty list when the query fails
+        return self._running_models_cache if self._running_models_cache is not None else []
+
+    def get_gpu_info(self) -> List[Dict[str, Any]]:
+        """
+        Detect all available GPUs and return per-GPU hardware stats.
+
+        Results are cached for ``_GPU_INFO_TTL`` seconds because spawning
+        ``nvidia-smi`` or ``rocm-smi`` on every request adds ~2 seconds of
+        latency on the first call and is wasteful on subsequent ones.
+
+        Tries NVIDIA first (via ``nvidia-smi``), then AMD (via ``rocm-smi``).
+        Returns an empty list when neither tool is found or both fail.
+
+        Each entry contains:
+            ``id``, ``name``, ``vendor``, ``vram_total_mb``, ``vram_used_mb``,
+            ``vram_free_mb``, ``utilization_percent``, ``temperature_c``.
+
+        Returns:
+            List of GPU info dicts (one per physical GPU).
+        """
+        now = time.monotonic()
+        if (
+            self._gpu_info_cache is not None
+            and (now - self._gpu_info_cache_time) < self._GPU_INFO_TTL
+        ):
+            return self._gpu_info_cache
+        gpus = self._get_nvidia_gpu_info()
+        if not gpus:
+            gpus = self._get_amd_gpu_info()
+        self._gpu_info_cache = gpus
+        self._gpu_info_cache_time = now
+        return gpus
+
+    def _get_nvidia_gpu_info(self) -> List[Dict[str, Any]]:
+        """Query ``nvidia-smi`` for per-GPU stats (NVIDIA)."""
+        if not shutil.which("nvidia-smi"):
+            return []
+        try:
+            result = subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=index,name,memory.total,memory.used,"
+                    "memory.free,utilization.gpu,temperature.gpu",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode != 0:
+                logger.debug("nvidia-smi exited with code %d", result.returncode)
+                return []
+            gpus: List[Dict[str, Any]] = []
+            for line in result.stdout.strip().splitlines():
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) < 7:
+                    continue
+                try:
+                    gpus.append({
+                        "id": int(parts[0]),
+                        "name": parts[1],
+                        "vendor": "NVIDIA",
+                        "vram_total_mb": int(parts[2]),
+                        "vram_used_mb": int(parts[3]),
+                        "vram_free_mb": int(parts[4]),
+                        "utilization_percent": int(parts[5]),
+                        "temperature_c": int(parts[6]),
+                    })
+                except (ValueError, IndexError) as exc:
+                    logger.debug("Skipping malformed nvidia-smi line: %s (%s)", line, exc)
+            return gpus
+        except Exception as exc:
+            logger.debug("nvidia-smi query failed: %s", exc)
+            return []
+
+    def _get_amd_gpu_info(self) -> List[Dict[str, Any]]:
+        """Query ``rocm-smi`` for per-GPU stats (AMD/ROCm)."""
+        if not shutil.which("rocm-smi"):
+            return []
+        try:
+            result = subprocess.run(
+                ["rocm-smi", "--showmeminfo", "vram", "--showuse", "--json"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode != 0:
+                logger.debug("rocm-smi exited with code %d", result.returncode)
+                return []
+            data = json.loads(result.stdout)
+            gpus: List[Dict[str, Any]] = []
+            for idx, (_, card_val) in enumerate(data.items()):
+                if not isinstance(card_val, dict):
+                    continue
+                total_mb = int(card_val.get("VRAM Total Memory (B)", 0)) // (1024 * 1024)
+                used_mb = int(card_val.get("VRAM Total Used Memory (B)", 0)) // (1024 * 1024)
+                try:
+                    util = int(float(str(card_val.get("GPU use (%)", "0")).rstrip("%")))
+                except (ValueError, TypeError):
+                    util = 0
+                gpus.append({
+                    "id": idx,
+                    "name": card_val.get("Card Series", card_val.get("GPU ID", f"AMD GPU {idx}")),
+                    "vendor": "AMD",
+                    "vram_total_mb": total_mb,
+                    "vram_used_mb": used_mb,
+                    "vram_free_mb": max(0, total_mb - used_mb),
+                    "utilization_percent": util,
+                    "temperature_c": None,
+                })
+            return gpus
+        except Exception as exc:
+            logger.debug("rocm-smi query failed: %s", exc)
+            return []
+
     def _find_model_in_list(self, model_names: list, preferred: list) -> Optional[str]:
         """Return first model from preferred list found (by substring) in model_names."""
         for embed_model in preferred:
@@ -533,16 +748,21 @@ class OllamaClient:
             >>> model = ollama_client.get_embedding_model("nomic-embed-text")
             >>> print(f"Using embedding model: {model}")
         """
+        # Return cached value if already resolved and no override requested
+        if not preferred_model and self._embedding_model_cache is not None:
+            return self._embedding_model_cache
+
         logger.debug(f"Finding best embedding model (preferred: {preferred_model})")
-        
+
         if preferred_model:
             success, models = self.list_models()
             if success:
                 model_names = [m['name'] for m in models]
                 if preferred_model in model_names:
                     logger.info(f"Using preferred embedding model: {preferred_model}")
+                    self._embedding_model_cache = preferred_model
                     return preferred_model
-        
+
         embedding_models = [
             'nomic-embed-text', 'mxbai-embed-large', 'all-minilm', 'llama2', 'mistral'
         ]
@@ -556,6 +776,7 @@ class OllamaClient:
                     logger.warning(f"No dedicated embedding model found, using: {found}")
                 else:
                     logger.info(f"Using embedding model: {found}")
+            self._embedding_model_cache = found
             return found
         logger.error("No embedding model available")
         return None

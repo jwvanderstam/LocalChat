@@ -40,6 +40,8 @@
     <Compile Include="src\db\__init__.py" />
     <Compile Include="src\performance\__init__.py" />
     <Compile Include="src\rag\web_search.py" />
+    <Compile Include="src\routes\admin_routes.py" />
+    <Compile Include="src\utils\request_id.py" />
     <Compile Include="src\__init__.py" />
     <Compile Include="src\api_docs.py" />
     <Compile Include="src\app_factory.py" />
@@ -76,6 +78,7 @@
     <Compile Include="src\utils\__init__.py" />
     <Compile Include="src\utils\logging_config.py" />
     <Compile Include="src\utils\sanitization.py" />
+    <Compile Include="tests\unit\test_admin_routes.py" />
     <Compile Include="tests\unit\test_api_routes_coverage.py" />
     <Compile Include="tests\unit\test_cache_backends_mock.py" />
     <Compile Include="tests\unit\test_cache_init_coverage.py" />
@@ -143,6 +146,12 @@
     <Content Include=".gitignore" />
     <Content Include=".vscode\settings.json" />
     <Content Include="config\.env.example" />
+    <Content Include="docker-compose.yml" />
+    <Content Include="Dockerfile" />
+    <Content Include="k8s\configmap.yaml" />
+    <Content Include="k8s\deployment.yaml" />
+    <Content Include="k8s\ingress.yaml" />
+    <Content Include="k8s\secret.yaml" />
     <Content Include="LICENSE" />
     <Content Include="pyrightconfig.json" />
     <Content Include="pytest.ini" />
@@ -152,6 +161,7 @@
     <Content Include="static\css\style.css" />
     <Content Include="static\js\chat.js" />
     <Content Include="static\js\ingestion.js" />
+    <Content Include="templates\admin.html" />
     <Content Include="templates\base.html" />
     <Content Include="templates\chat.html" />
     <Content Include="templates\documents.html" />
@@ -163,6 +173,7 @@
     <Folder Include=".github\workflows\" />
     <Folder Include=".vscode\" />
     <Folder Include="config\" />
+    <Folder Include="k8s\" />
     <Folder Include="scripts\" />
     <Folder Include="src\" />
     <Folder Include="src\cache\" />

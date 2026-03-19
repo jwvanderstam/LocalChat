@@ -5,10 +5,15 @@ OpenAPI Documentation Configuration
 ===================================
 
 Configures Swagger UI and OpenAPI specification for LocalChat API.
-Provides interactive API documentation at /api/docs
+Provides interactive API documentation at ``/api/docs/``.
+
+The System tag covers health, metrics and observability endpoints:
+  * ``GET /api/health``        — Detailed component health check
+  * ``GET /api/metrics``       — Prometheus text format v0.0.4 scrape endpoint
+  * ``GET /api/metrics.json``  — JSON metrics snapshot for the admin dashboard
 
 Author: LocalChat Team
-Created: 2025-01-15
+Last Updated: 2026-03-19
 """
 
 from flask import Flask
@@ -51,6 +56,8 @@ Professional Retrieval-Augmented Generation (RAG) application for document-based
 - **Vector Search**: Fast similarity search using pgvector
 - **Chat Interface**: Conversational AI with RAG context
 - **Model Management**: Manage and switch between Ollama models
+- **GPU Acceleration**: Multi-GPU support; layer offload configurable via `OLLAMA_NUM_GPU`
+- **Observability**: Prometheus metrics (`/api/metrics`), health checks (`/api/health`), JSON dashboard metrics (`/api/metrics.json`)
 - **Analytics**: Document and chunk statistics
 
 ## Authentication
@@ -126,7 +133,11 @@ Maximum file size: 16 MB
     "tags": [
         {
             "name": "System",
-            "description": "System status and health checks",
+            "description": "System status, health checks and API info",
+        },
+        {
+            "name": "Monitoring",
+            "description": "Prometheus metrics, health checks and observability endpoints",
         },
         {
             "name": "Documents",
