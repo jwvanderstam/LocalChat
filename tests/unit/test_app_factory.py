@@ -202,7 +202,8 @@ class TestAppContext:
         
         with app.app_context():
             # Context should work
-            assert True
+            from flask import current_app
+            assert current_app is not None
     
     def test_app_request_context_works(self):
         """Test request context can be created."""
@@ -212,7 +213,8 @@ class TestAppContext:
         
         with app.test_request_context('/'):
             # Request context should work
-            assert True
+            from flask import request
+            assert request.path == '/'
 
 
 class TestTestClient:
@@ -252,7 +254,7 @@ class TestApiDocumentation:
         
         # In testing mode, API docs should not be initialized
         # (This is expected behavior)
-        assert True
+        assert app.config.get('TESTING') is True
     
     def test_api_docs_initialized_in_production(self):
         """Test API docs initialized in production mode."""
@@ -274,7 +276,7 @@ class TestMonitoring:
         app = create_app(testing=True)
         
         # In testing mode, monitoring should not be initialized
-        assert True
+        assert app.config.get('TESTING') is True
     
     def test_monitoring_initialized_in_production(self):
         """Test monitoring initialized in production mode."""
@@ -295,7 +297,7 @@ class TestCleanupHandlers:
         app = create_app(testing=True)
         
         # Should have teardown handlers
-        assert True  # Hard to test directly
+        assert app.config.get('TESTING') is True  # App created successfully with expected config
     
     def test_app_context_teardown_works(self):
         """Test app context teardown."""

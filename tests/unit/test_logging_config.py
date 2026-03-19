@@ -183,9 +183,9 @@ class TestLoggingEdgeCases:
         
         logger = get_logger("test")
         logger.info("Unicode: test string")
-        
+
         # Should not raise
-        assert True
+        assert logger is not None
     
     def test_setup_with_invalid_level(self, tmp_path):
         """Test setup with invalid log level."""

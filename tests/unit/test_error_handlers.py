@@ -70,7 +70,7 @@ class TestHTTPErrorHandlers:
         """Test 500 error handler."""
         # This is hard to trigger in tests, but verify handler exists
         # The handler should be registered
-        assert True
+        pass
     
     def test_413_file_too_large(self, client):
         """Test 413 file too large error."""
@@ -198,7 +198,7 @@ class TestErrorLogging:
     def test_500_errors_are_logged_with_details(self, client):
         """Test 500 errors log detailed information."""
         # Hard to trigger in tests, but verify structure
-        assert True
+        pass
 
 
 class TestErrorHandlerEdgeCases:

@@ -137,6 +137,7 @@
     <Compile Include="tests\utils\__init__.py" />
     <Compile Include="tests\utils\helpers.py" />
     <Compile Include="tests\utils\mocks.py" />
+    <Compile Include="_scan.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include=".coveragerc" />
