@@ -273,7 +273,7 @@ def sanitize_json_keys(data: dict, max_depth: int = 10) -> dict:
     sanitized = {}
     for key, value in data.items():
         # Sanitize key
-        clean_key = re.sub(r'[^\w\-_]', '', str(key))
+        clean_key = re.sub(r'[^\w\-]', '', str(key))
         
         # Recursively sanitize nested dictionaries
         if isinstance(value, dict):
