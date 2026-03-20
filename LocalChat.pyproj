@@ -142,6 +142,7 @@
   <ItemGroup>
     <Content Include=".coveragerc" />
     <Content Include=".env" />
+    <Content Include=".github\workflows\docker-publish.yml" />
     <Content Include=".github\workflows\sonarcloud.yml" />
     <Content Include=".github\workflows\tests.yml" />
     <Content Include=".gitignore" />
@@ -149,11 +150,13 @@
     <Content Include="config\.env.example" />
     <Content Include="docker-compose.yml" />
     <Content Include="Dockerfile" />
+    <Content Include="IaCplan.md" />
     <Content Include="k8s\configmap.yaml" />
     <Content Include="k8s\deployment.yaml" />
     <Content Include="k8s\ingress.yaml" />
     <Content Include="k8s\secret.yaml" />
     <Content Include="LICENSE" />
+    <Content Include="PrivateInfraPlan.md" />
     <Content Include="pyrightconfig.json" />
     <Content Include="pytest.ini" />
     <Content Include="README.md" />
