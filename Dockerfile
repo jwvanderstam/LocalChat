@@ -79,14 +79,7 @@ EXPOSE 5000
 
 # Healthcheck — hits the lightweight /api/health endpoint.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD python - <<'EOF'
-import urllib.request, sys
-try:
-    urllib.request.urlopen("http://localhost:5000/api/health", timeout=5)
-    sys.exit(0)
-except Exception:
-    sys.exit(1)
-EOF
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)" 2>/dev/null || exit 1
 
 # Gunicorn entrypoint.
 # Workers = 2 × CPU + 1  (override with GUNICORN_WORKERS env var).
