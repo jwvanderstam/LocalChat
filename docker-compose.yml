@@ -101,7 +101,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: localchat:latest
+    image: ghcr.io/jwvanderstam/localchat:latest
     restart: unless-stopped
     depends_on:
       db:
