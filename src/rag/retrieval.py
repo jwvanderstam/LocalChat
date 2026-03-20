@@ -38,9 +38,9 @@ _CONTRACTIONS: dict = {
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(_metric_name: str):  # type: ignore[assignment] # noqa: E306
+    def timed(metric_name: str):  # noqa: E306
         return lambda func: func
-    def counted(_metric_name: str, _labels=None):  # type: ignore[assignment] # noqa: E306
+    def counted(metric_name: str, labels=None):  # noqa: E306
         return lambda func: func
 
 

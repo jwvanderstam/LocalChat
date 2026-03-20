@@ -23,9 +23,9 @@ try:
     from ..monitoring import timed, counted, get_metrics
     MONITORING_AVAILABLE = True
 except ImportError:
-    def timed(_metric_name):  # noqa: E306
+    def timed(metric_name):  # noqa: E306
         return lambda func: func
-    def counted(_metric_name, _labels=None):  # noqa: E306
+    def counted(metric_name, labels=None):  # noqa: E306
         return lambda func: func
     MONITORING_AVAILABLE = False
 
