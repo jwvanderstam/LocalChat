@@ -96,20 +96,359 @@ and OS firewall (UFW) according to this table.
 
 ## Hardware Requirements
 
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| GPU | NVIDIA GTX 1080 (8 GB VRAM) | RTX 3090 / RTX 4090 (24 GB VRAM) |
-| CPU | 4 cores | 8+ cores |
-| RAM | 16 GB | 32 GB |
-| Storage | 200 GB SSD | 500 GB NVMe SSD |
-| OS | Ubuntu 22.04 LTS | Ubuntu 22.04 LTS |
-| CUDA driver | ≥ 535 | latest stable |
+### Deployment tiers
 
-> **Model VRAM requirements:**
-> - `llama3.2` (3B): ~3 GB VRAM
-> - `llama3.2` (8B): ~6 GB VRAM
-> - `nomic-embed-text`: ~274 MB VRAM
-> A 8 GB GPU can run both simultaneously. 24 GB covers larger models (llama3.1:70b requires ~40 GB).
+Three tiers are defined. Pick the one that fits your workload. All tiers run the
+identical Docker Compose stack — only the hardware changes.
+
+| Tier | Use case | Concurrent users |
+|------|----------|-----------------|
+| **Dev / home lab** | Personal use, evaluation | 1–2 |
+| **Small team** | Small office, team of ≤ 10 | 5–10 |
+| **Production** | Departmental / public-facing | 20+ |
+
+---
+
+### CPU
+
+The application itself (Flask + RAG pipeline) is CPU-bound during document
+chunking and BM25 scoring. PostgreSQL pgvector ANN search benefits from
+multiple cores for parallel index scans.
+
+| Tier | Minimum | Recommended | Notes |
+|------|---------|-------------|-------|
+| Dev | 4 cores / 4 threads | 6 cores | Any modern x86-64 |
+| Small team | 6 cores / 12 threads | 8 cores / 16 threads | Hyperthreading helps |
+| Production | 8 cores / 16 threads | 16 cores / 32 threads | Server-class preferred |
+
+**Specific validated CPUs:**
+
+| Tier | Intel | AMD |
+|------|-------|-----|
+| Dev | Core i5-12400 | Ryzen 5 5600 |
+| Small team | Core i7-13700 | Ryzen 7 7700X |
+| Production | Xeon Silver 4314 | EPYC 7282 |
+
+**PCIe lanes:** The GPU must sit in a PCIe x16 (Gen 3 or Gen 4) slot.
+Bandwidth to system RAM is only relevant for CPU-offloaded layers — ensure your
+CPU provides at least 16 PCIe lanes direct to the GPU.
+
+---
+
+### GPU (NVIDIA only — required for Ollama)
+
+Ollama uses CUDA for inference. AMD ROCm is supported by Ollama but is not
+covered by this plan. A CUDA-capable NVIDIA GPU is **mandatory**.
+
+#### VRAM requirements per model
+
+| Model | VRAM needed | Notes |
+|-------|------------|-------|
+| `nomic-embed-text` | 274 MB | Embedding only — always loaded |
+| `llama3.2:3b` | ~2.5 GB | Default chat model |
+| `llama3.2:8b` | ~5.5 GB | Better quality, same family |
+| `mistral:7b` | ~5.0 GB | Alternative 7B |
+| `llama3.1:8b` | ~6.0 GB | Context-window optimised |
+| `llama3.1:70b` | ~40 GB | Requires A100 / multi-GPU |
+| `deepseek-r1:7b` | ~5.5 GB | Reasoning model |
+| `deepseek-r1:32b` | ~22 GB | High-quality reasoning |
+
+> **Rule of thumb:** VRAM needed = model parameter count × 2 bytes (FP16)
+> + ~500 MB overhead. A single model is always kept loaded in VRAM
+> between requests — plan for the largest model you intend to run.
+
+#### GPU selection by tier
+
+| Tier | Card | VRAM | TDP | PCIe | Validated CUDA |
+|------|------|------|-----|------|----------------|
+| Dev | NVIDIA RTX 3060 | 12 GB | 170 W | x16 Gen 4 | ✅ CUDA 12.x |
+| Dev | NVIDIA RTX 3070 | 8 GB | 220 W | x16 Gen 4 | ✅ CUDA 12.x |
+| Small team | NVIDIA RTX 3090 | 24 GB | 350 W | x16 Gen 4 | ✅ CUDA 12.x |
+| Small team | NVIDIA RTX 4070 Ti | 12 GB | 285 W | x16 Gen 4 | ✅ CUDA 12.x |
+| Production | NVIDIA RTX 4090 | 24 GB | 450 W | x16 Gen 4 | ✅ CUDA 12.x |
+| Production | NVIDIA A10G (server) | 24 GB | 150 W | x16 Gen 4 | ✅ CUDA 12.x |
+| Production | NVIDIA A100 SXM | 80 GB | 400 W | SXM4 | ✅ CUDA 12.x |
+
+> Minimum supported CUDA compute capability: **7.5** (Turing architecture, e.g. RTX 2060).
+> Older Pascal (compute 6.x) cards are **not** supported by current Ollama builds.
+
+---
+
+### System RAM
+
+RAM is consumed by: Python/Flask workers, PostgreSQL shared buffers,
+pgvector index caching, and Docker overhead.
+
+| Tier | Minimum | Recommended | Notes |
+|------|---------|-------------|-------|
+| Dev | 16 GB | 32 GB | DDR4-3200 or better |
+| Small team | 32 GB | 64 GB | Dual-channel mandatory |
+| Production | 64 GB | 128 GB | ECC recommended for server boards |
+
+**PostgreSQL shared_buffers guideline:** allocate 25% of total RAM.
+With 32 GB RAM → set `shared_buffers = 8GB` in `postgresql.conf`
+(passed via `POSTGRES_SHARED_BUFFERS` env var in docker-compose).
+
+---
+
+### Storage
+
+Storage is split across three logical purposes with different I/O profiles:
+
+| Volume | Path in Docker | I/O profile | Minimum size | Recommended |
+|--------|---------------|-------------|-------------|-------------|
+| OS + Docker images | host `/` | Sequential read/write | 80 GB | 120 GB |
+| PostgreSQL data (`pgdata`) | `/var/lib/postgresql/data` | **Random 4K IOPS** — critical | 100 GB | 500 GB NVMe |
+| Uploaded documents (`uploads`) | `/app/uploads` | Sequential write | 20 GB | 100 GB |
+| Ollama models (`ollama_models`) | `/root/.ollama` | Large sequential read | 50 GB | 200 GB |
+| Application logs (`logs`) | `/app/logs` | Sequential write | 5 GB | 20 GB |
+
+**Disk type requirements:**
+
+| Volume | Type | Minimum IOPS | Rationale |
+|--------|------|-------------|-----------|
+| PostgreSQL | NVMe SSD | 10 000 random 4K read | pgvector ANN index scans are I/O intensive |
+| Ollama models | SATA SSD or NVMe | 500 sequential read | Models are memory-mapped; cold load only |
+| OS | SATA SSD | 500 | Standard boot + Docker layer pulls |
+| Uploads / logs | HDD or SATA SSD | 100 | Low I/O |
+
+**Validated storage configurations:**
+
+| Tier | Config |
+|------|--------|
+| Dev | 1× 1 TB NVMe (all volumes on one drive) |
+| Small team | 1× 500 GB NVMe for PostgreSQL + 1× 1 TB SATA SSD for models + OS |
+| Production | 1× 1 TB NVMe RAID-1 for PostgreSQL + 2× 2 TB NVMe for models + 240 GB SSD OS |
+
+---
+
+### Network interface
+
+| Tier | Minimum | Recommended |
+|------|---------|-------------|
+| Dev / home lab | 100 Mbit/s | 1 Gbit/s |
+| Small team | 1 Gbit/s | 1 Gbit/s |
+| Production | 1 Gbit/s | 10 Gbit/s |
+
+**Internet uplink requirements:**
+
+| Scenario | Required bandwidth | Notes |
+|----------|--------------------|-------|
+| 1 concurrent streaming chat | ~50 Kbit/s downstream to client | SSE token stream |
+| Document upload (10 MB PDF) | 10 MB / upload time | Depends on user's uplink |
+| Ollama model pull (llama3.2:8b ~5 GB) | Any — one-time | Done at setup only |
+| 10 concurrent users | ~5 Mbit/s sustained | Typical office DSL is sufficient |
+
+---
+
+### Power supply
+
+| Tier | PSU capacity needed | Example card + PSU |
+|------|--------------------|--------------------|
+| Dev | 550 W | RTX 3060 (170 W) + 65 W CPU → 550 W PSU |
+| Small team | 750 W | RTX 3090 (350 W) + 125 W CPU → 750 W PSU |
+| Production | 1000 W | RTX 4090 (450 W) + 150 W CPU → 1000 W PSU |
+
+> Add 20% headroom above peak draw. 80+ Gold certification or better is
+> recommended for efficiency and stability under sustained GPU load.
+
+---
+
+### UPS (recommended for production)
+
+PostgreSQL write-ahead log (WAL) can be corrupted by sudden power loss.
+
+| Tier | UPS capacity | Hold-up time |
+|------|-------------|-------------|
+| Dev | Not required | — |
+| Small team | 650 VA / 400 W | ≥ 5 min (time to `docker compose stop` cleanly) |
+| Production | 1500 VA / 900 W | ≥ 10 min + automatic `shutdown` hook |
+
+---
+
+### Cooling
+
+| Component | Requirement |
+|-----------|------------|
+| GPU | Case must accommodate the GPU length (RTX 4090: up to 336 mm). Minimum 2 case fans. |
+| Ambient temp | ≤ 25 °C intake for sustained full-GPU workloads |
+| Server room | Active airflow recommended for production; do not run in enclosed cabinet without ventilation |
+
+---
+
+## Software Requirements
+
+### Operating system
+
+| Requirement | Value |
+|-------------|-------|
+| **OS** | Ubuntu Server **22.04 LTS** (Jammy Jellyfish) |
+| Kernel | ≥ 5.15 (ships with Ubuntu 22.04; do not downgrade) |
+| Architecture | x86-64 (amd64) only — ARM64 is not supported by all NVIDIA drivers |
+| Init system | systemd (required for `localchat.service`) |
+| Shell | bash 5.x |
+
+> Ubuntu 20.04 (Focal) is **not** recommended — NVIDIA driver packages for
+> the toolkit may lag behind the 22.04 versions.
+> Ubuntu 24.04 (Noble) works but is not yet validated against all NVIDIA driver
+> versions as of this writing.
+
+---
+
+### NVIDIA software stack
+
+All three layers must be compatible with each other. Use the version matrix below.
+
+| Component | Minimum version | Recommended | Install method |
+|-----------|----------------|-------------|----------------|
+| NVIDIA GPU driver | **535.x** | latest 560.x | `ubuntu-drivers install` |
+| CUDA runtime (in container) | **12.1** | 12.4 | bundled in Ollama image |
+| NVIDIA Container Toolkit | **1.14.0** | latest 1.16.x | `apt` from NVIDIA repo |
+| `nvidia-ctk` CLI | same as toolkit | same | same package |
+
+**Version compatibility check (run after install):**
+```bash
+# NVIDIA driver
+nvidia-smi
+
+# Expected output includes:
+# Driver Version: 560.xx   CUDA Version: 12.x
+
+# Container toolkit
+nvidia-ctk --version
+
+# Docker can see the GPU
+docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+```
+
+**CUDA compute capability verification:**
+```bash
+# Must be ≥ 7.5
+nvidia-smi --query-gpu=compute_cap --format=csv,noheader
+```
+
+---
+
+### Docker
+
+| Component | Minimum version | Recommended | Notes |
+|-----------|----------------|-------------|-------|
+| Docker Engine (CE) | **24.0** | latest 27.x | Install via `get.docker.com` script |
+| Docker Compose plugin | **2.20** | latest 2.29.x | Bundled with Docker CE ≥ 24 |
+| Docker daemon config | — | See below | Must enable NVIDIA runtime |
+
+**Required `/etc/docker/daemon.json` after `nvidia-ctk runtime configure`:**
+```json
+{
+  "runtimes": {
+    "nvidia": {
+      "path": "nvidia-container-runtime",
+      "runtimeArgs": []
+    }
+  },
+  "default-runtime": "nvidia"
+}
+```
+
+**Version check:**
+```bash
+docker --version          # Docker version 27.x.x
+docker compose version    # Docker Compose version v2.29.x
+```
+
+---
+
+### Nginx
+
+| Property | Value |
+|----------|-------|
+| Version | **1.27.x** (Alpine-based Docker image `nginx:1.27-alpine`) |
+| Modules needed | `ngx_http_proxy_module`, `ngx_http_ssl_module`, `ngx_http_rewrite_module` — all included in the official image |
+| TLS | TLSv1.2 + TLSv1.3 (TLSv1.0 and TLSv1.1 disabled) |
+| Streaming | `proxy_buffering off` required for Gunicorn SSE responses |
+
+---
+
+### Certbot / Let's Encrypt
+
+| Property | Value |
+|----------|-------|
+| Version | ≥ **2.6.0** (`apt install certbot`) |
+| Challenge type | HTTP-01 webroot (port 80 must be reachable) |
+| Certificate renewal | Automatic via cron — runs `certbot renew` + Nginx reload |
+| Certificate validity | 90 days (auto-renewed at 30 days remaining) |
+| Wildcard certificates | Supported via DNS-01 challenge (requires DNS provider plugin) |
+
+---
+
+### Python (inside Docker container — no host install needed)
+
+The application runs entirely inside the Docker image. No Python installation
+is required on the host OS.
+
+| Property | Value |
+|----------|-------|
+| Python version | **3.12.x** (pinned in `Dockerfile` `FROM python:3.12-slim`) |
+| Key packages | Flask 3.1, Gunicorn 23.0, psycopg[binary] ≥ 3.3, pydantic 2.12 |
+| Virtual environment | `/opt/venv` inside container (multi-stage build) |
+| WSGI workers | `2 × CPU_count + 1` (default), overridable via `GUNICORN_WORKERS` |
+
+---
+
+### PostgreSQL + pgvector
+
+| Property | Value |
+|----------|-------|
+| PostgreSQL version | **16** (`pgvector/pgvector:pg16` Docker image) |
+| pgvector extension | **0.7.x** (bundled in the image) |
+| Vector dimensions | 768 (nomic-embed-text output — stored in `VECTOR(768)` columns) |
+| Index type | HNSW (default in pgvector 0.5+) — requires `CREATE INDEX USING hnsw` |
+| Connection pooling | psycopg-pool (min 2, max 10 — configurable via env vars) |
+
+---
+
+### Ollama
+
+| Property | Value |
+|----------|-------|
+| Image | `ollama/ollama:latest` |
+| Minimum Ollama version | **0.3.0** (first stable release with HNSW model offloading) |
+| API port | `11434` (internal Docker network only) |
+| GPU offload | Controlled via `OLLAMA_NUM_GPU` env var (`-1` = all layers on GPU) |
+| Model storage | Docker named volume `ollama_models` mounted at `/root/.ollama` |
+
+---
+
+### Host OS packages (installed by `setup-server.sh`)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `ubuntu-drivers-common` | distro default | Auto-detect + install NVIDIA driver |
+| `nvidia-container-toolkit` | ≥ 1.14 | Docker → GPU passthrough |
+| `certbot` | ≥ 2.6 | Let's Encrypt TLS certificates |
+| `ufw` | distro default (0.36) | Host firewall |
+| `fail2ban` | distro default (0.11) | SSH brute-force protection |
+| `openssh-server` | ≥ 8.9 | SSH access + CI/CD deploy |
+| `curl`, `gnupg`, `apt-transport-https` | distro default | Package bootstrapping |
+
+---
+
+### Internet access requirements (outbound from server)
+
+All of the following must be reachable from the server over HTTPS (TCP 443)
+for initial setup and ongoing operation.
+
+| Endpoint | Required for | Frequency |
+|----------|-------------|-----------|
+| `get.docker.com` | Docker CE install | Once |
+| `download.docker.com` | Docker APT repo | On `apt upgrade` |
+| `nvidia.github.io` | NVIDIA Container Toolkit APT repo | Once + on upgrade |
+| `ghcr.io` | Pull app Docker image | Every deploy |
+| `registry-1.docker.io` | Pull `postgres`, `ollama`, `nginx` images | First deploy + upgrades |
+| `registry.ollama.ai` | Pull LLM/embedding models | Once per model |
+| `acme-v02.api.letsencrypt.org` | TLS certificate issuance | Every 90 days |
+| `github.com` | CI/CD SSH callback | Every deploy |
+| `*.ubuntu.com`, `security.ubuntu.com` | `apt` updates | Weekly (recommended) |
 
 ---
 
