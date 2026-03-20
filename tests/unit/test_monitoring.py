@@ -277,8 +277,7 @@ class TestMonitoringInitialization:
             from src.monitoring import init_monitoring
             assert init_monitoring is not None
         except ImportError:
-            # May not have init function
-            assert True
+            pass  # init_monitoring may not be present in all configurations
     
     def test_monitoring_with_flask_app(self, app):
         """Test monitoring can be used with Flask app."""
