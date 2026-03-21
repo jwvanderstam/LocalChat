@@ -30,6 +30,7 @@
   <ItemGroup>
     <Compile Include="app.py" />
     <Compile Include="install.py" />
+    <Compile Include="plugins\example_plugin.py" />
     <Compile Include="scripts\check_dependencies.py" />
     <Compile Include="src\cache\backends\base.py" />
     <Compile Include="src\cache\backends\memory.py" />
@@ -41,6 +42,7 @@
     <Compile Include="src\performance\__init__.py" />
     <Compile Include="src\rag\web_search.py" />
     <Compile Include="src\routes\admin_routes.py" />
+    <Compile Include="src\tools\plugin_loader.py" />
     <Compile Include="src\utils\request_id.py" />
     <Compile Include="src\__init__.py" />
     <Compile Include="src\api_docs.py" />
@@ -156,6 +158,7 @@
     <Content Include="k8s\ingress.yaml" />
     <Content Include="k8s\secret.yaml" />
     <Content Include="LICENSE" />
+    <Content Include="plugins\README.md" />
     <Content Include="PrivateInfraPlan.md" />
     <Content Include="pyrightconfig.json" />
     <Content Include="pytest.ini" />
@@ -178,6 +181,7 @@
     <Folder Include=".vscode\" />
     <Folder Include="config\" />
     <Folder Include="k8s\" />
+    <Folder Include="plugins\" />
     <Folder Include="scripts\" />
     <Folder Include="src\" />
     <Folder Include="src\cache\" />

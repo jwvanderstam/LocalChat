@@ -217,7 +217,7 @@ class TestFormatWebContext:
         results = [WebSearchResult("Title A", "http://a.com", "Snippet A")]
         output = WebSearchProvider().format_web_context(results)
         assert "Title A" in output
-        assert "http://a.com" in output
+        assert "URL: http://a.com" in output
 
     def test_respects_max_length(self):
         from src.rag.web_search import WebSearchProvider, WebSearchResult

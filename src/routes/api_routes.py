@@ -317,7 +317,7 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
             yield f"data: {json.dumps({'error': 'GenerationError', 'message': msg, 'done': True})}\n\n"
         except Exception as e:
             logger.error(f"[CHAT API] Unexpected error generating response: {e}", exc_info=True)
-            msg = str(e) if str(e) else "Failed to generate response"
+            msg = "Failed to generate response"
             yield f"data: {json.dumps({'error': 'GenerationError', 'message': msg, 'done': True})}\n\n"
 
     response = Response(generate(), mimetype='text/event-stream')
@@ -426,3 +426,52 @@ def api_chat():
         logger.error(f"[CHAT API] Unexpected error: {e}", exc_info=True)
         return jsonify({'success': False, 'message': 'An unexpected error occurred during chat'}), 500
 
+
+# ---------------------------------------------------------------------------
+# Plugin system endpoints
+# ---------------------------------------------------------------------------
+
+@bp.route('/api/plugins', methods=['GET'])
+def list_plugins():
+    """List all loaded tool plugins and the tools each one registered."""
+    try:
+        from ..tools import plugin_loader, tool_registry
+
+        plugins = plugin_loader.list_plugins()
+        builtin_tools = [
+            {"name": s.name, "description": s.description}
+            for s in tool_registry.get_by_source("builtin")
+        ]
+
+        return jsonify({
+            "success": True,
+            "plugins": plugins,
+            "plugin_count": len(plugins),
+            "builtin_tools": builtin_tools,
+            "builtin_tool_count": len(builtin_tools),
+            "total_tools": len(tool_registry),
+        })
+    except Exception as exc:
+        logger.error(f"[PLUGINS] list_plugins error: {exc}", exc_info=True)
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@bp.route('/api/plugins/reload', methods=['POST'])
+def reload_plugins():
+    """Reload all plugins from disk without restarting the server."""
+    try:
+        from ..tools import plugin_loader
+        from .. import config
+
+        if not config.PLUGINS_ENABLED:
+            return jsonify({"success": False, "message": "Plugin system is disabled"}), 400
+
+        count = plugin_loader.reload_all()
+        return jsonify({
+            "success": True,
+            "reloaded": count,
+            "plugins": plugin_loader.list_plugins(),
+        })
+    except Exception as exc:
+        logger.error(f"[PLUGINS] reload error: {exc}", exc_info=True)
+        return jsonify({"success": False, "message": str(exc)}), 500

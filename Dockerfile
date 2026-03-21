@@ -17,7 +17,7 @@
 # ============================================================
 
 # ---- Stage 1: builder ----------------------------------------
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4 AS builder
 
 # System deps needed to compile native extensions (psycopg, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,7 +38,7 @@ RUN python -m venv /opt/venv && \
 
 
 # ---- Stage 2: runtime ----------------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4 AS runtime
 
 # Runtime system dep: libpq for psycopg
 RUN apt-get update && apt-get install -y --no-install-recommends \

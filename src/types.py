@@ -29,3 +29,4 @@ class LocalChatApp(Flask):
     query_cache: Optional[Any]
     security_enabled: bool
     swagger: Any
+    plugin_loader: Any

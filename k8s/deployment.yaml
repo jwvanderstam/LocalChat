@@ -28,7 +28,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: localchat
-          image: localchat:latest    # replace with your registry path
+          image: localchat:latest    # replace with a pinned tag, e.g. localchat:1.0.0 or localchat:<git-sha>
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000

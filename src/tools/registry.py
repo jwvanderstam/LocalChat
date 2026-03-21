@@ -45,6 +45,7 @@ class ToolSpec:
     description: str
     parameters: Dict[str, Any]
     handler: Callable[..., Any]
+    source: str = "builtin"
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +70,7 @@ class ToolRegistry:
         name: str,
         description: str,
         parameters: Dict[str, Any],
+        source: str = "builtin",
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """
         Decorator that registers a function as a tool.
@@ -77,6 +79,7 @@ class ToolRegistry:
             name: Unique tool name (used in Ollama ``tool_calls``).
             description: Human-readable description shown to the model.
             parameters: JSON-Schema object describing accepted arguments.
+            source: Origin label — ``"builtin"`` or the plugin stem name.
 
         Returns:
             The original function, unmodified.
@@ -90,8 +93,9 @@ class ToolRegistry:
                 description=description,
                 parameters=parameters,
                 handler=func,
+                source=source,
             )
-            logger.debug(f"Registered tool: {name}")
+            logger.debug(f"Registered tool: {name} (source={source!r})")
             return func
 
         return decorator
@@ -101,6 +105,26 @@ class ToolRegistry:
     def get(self, name: str) -> Optional[ToolSpec]:
         """Return the ``ToolSpec`` for *name*, or ``None``."""
         return self._tools.get(name)
+
+    def unregister(self, name: str) -> bool:
+        """
+        Remove a tool from the registry by name.
+
+        Args:
+            name: Registered tool name to remove.
+
+        Returns:
+            ``True`` if the tool existed and was removed, ``False`` otherwise.
+        """
+        if name in self._tools:
+            del self._tools[name]
+            logger.debug(f"Unregistered tool: {name}")
+            return True
+        return False
+
+    def get_by_source(self, source: str) -> List["ToolSpec"]:
+        """Return all tools whose ``source`` matches *source*."""
+        return [s for s in self._tools.values() if s.source == source]
 
     def execute(self, name: str, arguments: Dict[str, Any]) -> Any:
         """
