@@ -281,6 +281,7 @@ LocalChat/
 │   ├── tools/                  # Tool/function calling
 │   │   ├── builtin.py          # Built-in tools
 │   │   ├── executor.py         # Tool execution engine
+│   │   ├── plugin_loader.py    # Plugin discovery & dynamic loading
 │   │   └── registry.py         # Tool registration
 │   └── utils/
 │       ├── logging_config.py   # Structured logging setup
@@ -309,6 +310,9 @@ LocalChat/
 │   └── utils/                  # Test helpers & mocks
 └── scripts/
     └── check_dependencies.py   # Dependency checker and auto-installer
+plugins/                        # Drop-in tool plugins (auto-loaded at startup)
+    ├── README.md               # Plugin authoring guide
+    └── example_plugin.py       # Annotated starter template
 ```
 
 ---
@@ -637,7 +641,7 @@ Two GitHub Actions workflows run on every push and pull request to `main`:
 
 | Workflow | File | Purpose |
 |---|---|---|
-| **Tests** | `.github/workflows/tests.yml` | Runs all unit tests on Python 3.12 |
+| **Tests** | `.github/workflows/tests.yml` | Runs all unit tests on Python 3.11 |
 | **SonarCloud** | `.github/workflows/sonarcloud.yml` | Runs unit tests with coverage, then uploads results to SonarCloud |
 
 ### SonarCloud
@@ -691,6 +695,15 @@ The `coverage.xml` file is produced in the project root and is picked up automat
 ---
 
 ## Changelog
+
+### May 2026
+- **Security (CodeQL)**: Replaced `str(e)` in all API error responses with generic messages to prevent information exposure (CWE-209) — affects `document_routes`, `api_routes`, `model_routes`
+- **Security (CodeQL)**: Fixed incomplete URL substring sanitization in web-search test assertion (CWE-20)
+- **Security (CodeQL)**: Removed `max_size` from `MemoryCache` init log to cut CodeQL taint chain from Redis password kwargs (CWE-312)
+- **Supply chain**: Pinned `python:3.12-slim` Docker base image to SHA-256 digest in `Dockerfile`; updated `k8s/deployment.yaml` comment to use versioned image tags
+- **CI hardening**: Added explicit `permissions: contents: read` to both GitHub Actions workflows (`tests.yml`, `sonarcloud.yml`)
+- **SonarCloud (S1172)**: Prefixed all unused monitoring-stub parameters (`metric_name`, `labels`) with `_` across `rag/__init__.py`, `chunking.py`, `loaders.py`, `processor.py`, `retrieval.py`
+- **Types**: Added `plugin_loader: Any` to `LocalChatApp` type definition in `src/types.py`
 
 ### March 2026
 - **GPU support**: Automatic NVIDIA/AMD GPU detection via `nvidia-smi`/`rocm-smi`; per-GPU VRAM, utilisation and temperature surfaced in the admin dashboard
@@ -822,12 +835,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Roadmap
 
-- [ ] Docker deployment & Kubernetes configs
-- [ ] Monitoring dashboard
-- [ ] Advanced RAG techniques (query expansion, multi-hop)
+- [x] Docker deployment & Kubernetes configs
+- [x] Monitoring dashboard
+- [x] Advanced RAG techniques (query expansion, multi-hop)
 - [ ] Multi-language support
-- [ ] Plugin system
-- [ ] Admin dashboard
+- [x] Plugin system
+- [x] Admin dashboard
 
 ---
 
