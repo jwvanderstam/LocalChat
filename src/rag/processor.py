@@ -28,9 +28,9 @@ logger = get_logger(__name__)
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(metric_name):  # noqa: E306
+    def timed(_metric_name):  # noqa: E306
         return lambda func: func
-    def counted(metric_name, labels=None):  # noqa: E306
+    def counted(_metric_name, _labels=None):  # noqa: E306
         return lambda func: func
 
 
