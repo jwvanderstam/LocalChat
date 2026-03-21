@@ -171,7 +171,7 @@ def api_upload_documents():
             yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
         except Exception as e:
             logger.error(f"Upload stream error: {e}", exc_info=True)
-            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+            yield f"data: {json.dumps({'error': 'Upload failed', 'done': True})}\n\n"
 
     response = Response(generate(), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
@@ -249,7 +249,7 @@ def api_list_documents():
         logger.error(f"Error listing documents: {e}", exc_info=True)
         return jsonify({
             'success': False,
-            'message': str(e)
+            'message': 'Failed to retrieve documents'
         }), 500
 
 
@@ -372,7 +372,7 @@ def api_document_stats():
         logger.error(f"Error getting document stats: {e}", exc_info=True)
         return jsonify({
             'success': False,
-            'message': str(e)
+            'message': 'Failed to retrieve statistics'
         }), 500
 
 
@@ -415,7 +415,7 @@ def api_search_text():
         logger.error(f"Error searching text: {e}", exc_info=True)
         return jsonify({
             'success': False,
-            'message': str(e)
+            'message': 'Search failed'
         }), 500
 
 
@@ -450,7 +450,7 @@ def api_clear_documents():
         logger.error(f"Error clearing documents: {e}", exc_info=True)
         return jsonify({
             'success': False,
-            'message': str(e)
+            'message': 'Failed to clear documents'
         }), 500
 
 

@@ -162,7 +162,7 @@ class MemoryCache(CacheBackend):
         self.stats.max_size = max_size
         self._cache: OrderedDict[str, Tuple[Any, Optional[datetime]]] = OrderedDict()
 
-        logger.info(f"MemoryCache initialized (max_size={max_size})")
+        logger.info("MemoryCache initialized")
     
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache."""

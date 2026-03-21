@@ -221,7 +221,7 @@ def api_pull_model():
                     yield f"data: {json.dumps(progress)}\n\n"
             except Exception as e:
                 logger.error(f"Error pulling model: {e}", exc_info=True)
-                error_msg = json.dumps({'error': str(e)})
+                error_msg = json.dumps({'error': 'Failed to pull model'})
                 yield f"data: {error_msg}\n\n"
         
         response = Response(generate(), mimetype='text/event-stream')

@@ -182,6 +182,7 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
         app.startup_status['ready'] = (
             app.startup_status['ollama'] and app.startup_status['database']
         )
+        _load_plugins(app)
 
     logger.debug("Services initialized")
 
@@ -228,6 +229,27 @@ def _init_database_service(app: LocalChatApp, db) -> None:
         print(f"{border}\n", file=sys.stderr)
         sys.exit(1)
     logger.warning("Continuing without database (development mode)")
+
+
+def _load_plugins(app: LocalChatApp) -> None:
+    """Scan the configured plugins directory and load all tool plugins."""
+    if not config.PLUGINS_ENABLED:
+        logger.info("[PLUGINS] Plugin loading disabled (PLUGINS_ENABLED=false)")
+        return
+
+    from pathlib import Path
+    from .tools import plugin_loader
+
+    plugins_dir = Path(config.PLUGINS_DIR)
+    # Resolve relative paths against the repo root (parent of src/)
+    if not plugins_dir.is_absolute():
+        plugins_dir = Path(__file__).parent.parent / plugins_dir
+
+    count = plugin_loader.load_all(plugins_dir)
+    if count:
+        tool_names = [t for p in plugin_loader.list_plugins() for t in p["tools"]]
+        logger.info(f"[PLUGINS] {count} plugin(s) loaded — tools: {tool_names}")
+    app.plugin_loader = plugin_loader
 
 
 def _init_caching(app: LocalChatApp) -> None:

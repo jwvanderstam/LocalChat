@@ -212,6 +212,15 @@ TOOL_CALLING_ENABLED: bool = os.environ.get('TOOL_CALLING_ENABLED', 'True').lowe
 TOOL_MAX_ROUNDS: int = int(os.environ.get('TOOL_MAX_ROUNDS', '5'))
 
 # ============================================================================
+# PLUGIN SYSTEM CONFIGURATION
+# ============================================================================
+
+# Set PLUGINS_ENABLED=false to skip plugin loading entirely at startup.
+PLUGINS_ENABLED: bool = os.environ.get('PLUGINS_ENABLED', 'True').lower() == 'true'
+# Directory (relative to repo root) that is scanned for .py plugin files.
+PLUGINS_DIR: str = os.environ.get('PLUGINS_DIR', 'plugins')
+
+# ============================================================================
 # LLM CONFIGURATION - MAXIMUM QUALITY
 # ============================================================================
 
