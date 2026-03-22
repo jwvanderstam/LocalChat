@@ -30,6 +30,12 @@ spec:
         - name: localchat
           image: localchat:latest    # replace with a pinned tag, e.g. localchat:1.0.0 or localchat:<git-sha>
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 5000
               name: http
@@ -66,11 +72,16 @@ spec:
               mountPath: /app/uploads
             - name: logs
               mountPath: /app/logs
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: uploads
           emptyDir: {}        # replace with a PVC for persistent uploads
         - name: logs
           emptyDir: {}
+        - name: tmp
+          emptyDir:
+            medium: Memory    # tmpfs — writable scratch space for the read-only root FS
 ---
 # LocalChat Service (ClusterIP — expose via Ingress)
 apiVersion: v1
