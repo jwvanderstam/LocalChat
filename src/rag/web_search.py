@@ -15,10 +15,12 @@ Author: LocalChat Team
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from dataclasses import dataclass, field
 from html import unescape
 from typing import List, Optional
+from urllib.parse import urlparse
 
 import requests
 
@@ -149,6 +151,9 @@ class WebSearchProvider:
     def _fetch_page_texts(self, results: List[WebSearchResult]) -> None:
         """Fetch and extract plain text from each result URL."""
         for r in results:
+            if not self._is_safe_url(r.url):
+                logger.warning(f"[WEB SEARCH] Skipping unsafe URL: {r.url!r}")
+                continue
             try:
                 resp = requests.get(
                     r.url,
@@ -161,6 +166,39 @@ class WebSearchProvider:
                 r.page_text = text[: self.max_page_chars] if text else None
             except requests.RequestException as exc:
                 logger.debug(f"[WEB SEARCH] Could not fetch {r.url}: {exc}")
+
+    @staticmethod
+    def _is_safe_url(url: str) -> bool:
+        """Return True only for http/https URLs targeting a non-private hostname.
+
+        Blocks loopback, private IP ranges, link-local addresses, and
+        well-known cloud metadata endpoints to prevent SSRF attacks.
+        """
+        try:
+            parsed = urlparse(url)
+            if parsed.scheme not in ("http", "https"):
+                return False
+            hostname = (parsed.hostname or "").lower()
+            if not hostname:
+                return False
+            # Block well-known internal / cloud-metadata hostnames
+            _BLOCKED_HOSTS = {
+                "localhost", "127.0.0.1", "::1", "0.0.0.0",
+                "169.254.169.254",           # AWS / GCP / Azure IMDS
+                "metadata.google.internal",
+            }
+            if hostname in _BLOCKED_HOSTS:
+                return False
+            # Block IP literals that fall in private / loopback / link-local ranges
+            try:
+                addr = ipaddress.ip_address(hostname)
+                if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                    return False
+            except ValueError:
+                pass  # hostname is a DNS name, not an IP literal — proceed
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def _extract_body_text(html: str) -> str:
