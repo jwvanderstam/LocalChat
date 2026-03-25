@@ -146,7 +146,6 @@ class TestWebSearchDuckDuckGo:
 
 class TestWebSearchFetchPages:
     def test_fetch_page_texts_sets_page_text(self):
-        import requests as req_mod
         from src.rag.web_search import WebSearchProvider, WebSearchResult
 
         result = WebSearchResult("T", "http://x.com", "S")
@@ -154,8 +153,12 @@ class TestWebSearchFetchPages:
         mock_response = MagicMock()
         mock_response.text = "<html><body><p>Hello world</p></body></html>"
         mock_response.raise_for_status = MagicMock()
+        mock_response.headers = {"Content-Type": "text/html; charset=utf-8"}
 
-        with patch("src.rag.web_search.requests.get", return_value=mock_response):
+        with patch("src.rag.web_search.requests.Session") as mock_session_class:
+            mock_session = MagicMock()
+            mock_session_class.return_value = mock_session
+            mock_session.get.return_value = mock_response
             provider = WebSearchProvider(max_page_chars=500)
             provider._fetch_page_texts([result])
 
@@ -168,8 +171,10 @@ class TestWebSearchFetchPages:
 
         result = WebSearchResult("T", "http://x.com", "S")
 
-        with patch("src.rag.web_search.requests.get",
-                   side_effect=req_mod.RequestException("timeout")):
+        with patch("src.rag.web_search.requests.Session") as mock_session_class:
+            mock_session = MagicMock()
+            mock_session_class.return_value = mock_session
+            mock_session.get.side_effect = req_mod.RequestException("timeout")
             provider = WebSearchProvider()
             provider._fetch_page_texts([result])
 

@@ -69,12 +69,11 @@ class TestJWTAuthentication:
         assert isinstance(USERS, dict)
         assert 'admin' in USERS
     
-    def test_users_have_password(self):
-        """Test users have password field."""
+    def test_users_have_role(self):
+        """Test users have role field (password is now stored as a module-level hash)."""
         from src.security import USERS
-        
+
         for username, user_data in USERS.items():
-            assert 'password' in user_data
             assert 'role' in user_data
 
 

@@ -295,9 +295,15 @@ class TestAuthRoutesWithFullApp:
         assert response.status_code == 401
 
     def test_login_success_returns_token(self, auth_client):
-        with patch("src.security.USERS", {"admin": {"password": "pass", "role": "admin"}}):
+        import hashlib
+        test_password = "pass"
+        test_salt = b"fixed-test-salt-32-bytes-padding"
+        test_hash = hashlib.pbkdf2_hmac('sha256', test_password.encode(), test_salt, 100_000)
+        with patch("src.security._ADMIN_PASSWORD_RAW", test_password), \
+             patch("src.security._ADMIN_PASSWORD_SALT", test_salt), \
+             patch("src.security._ADMIN_PASSWORD_HASH", test_hash):
             response = auth_client.post("/api/auth/login",
-                                        json={"username": "admin", "password": "pass"})
+                                        json={"username": "admin", "password": test_password})
         assert response.status_code == 200
         data = response.get_json()
         assert "access_token" in data
