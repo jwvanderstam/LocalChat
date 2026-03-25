@@ -67,6 +67,37 @@ class ToolExecutor:
         except (json.JSONDecodeError, TypeError):
             return {}
 
+    @staticmethod
+    def _try_parse_content_tool_call(content: str) -> Optional[Dict[str, Any]]:
+        """
+        Detect a tool call emitted as a raw JSON string in the content field.
+
+        Some models (e.g. Llama 3.2) do not support the structured
+        ``tool_calls`` field and instead output a JSON object such as::
+
+            {"name": "search_documents", "parameters": {"query": "..."}}
+
+        Returns a normalised tool_calls entry dict, or ``None``.
+        """
+        if not content:
+            return None
+        stripped = content.strip()
+        if not stripped.startswith("{"):
+            return None
+        try:
+            data = json.loads(stripped)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        if not isinstance(data, dict) or "name" not in data:
+            return None
+        args = (
+            data.get("parameters")
+            or data.get("arguments")
+            or data.get("input")
+            or {}
+        )
+        return {"function": {"name": data["name"], "arguments": args}}
+
     def execute(
         self,
         model: str,
@@ -104,11 +135,18 @@ class ToolExecutor:
             tool_calls = assistant_msg.get("tool_calls")
 
             if not tool_calls:
-                # Model produced a final text answer - yield it.
                 content = assistant_msg.get("content", "")
-                if content:
-                    yield content
-                return
+                # Models that don't support structured tool_calls may emit
+                # the call as a raw JSON object in the content field.
+                inlined = self._try_parse_content_tool_call(content)
+                if inlined is not None:
+                    logger.debug("[TOOLS] Detected inline JSON tool call in content field")
+                    tool_calls = [inlined]
+                else:
+                    # Genuine final answer — stream it.
+                    if content:
+                        yield content
+                    return
 
             # --- Execute tool calls -----------------------------------
             working_messages.append(assistant_msg)
