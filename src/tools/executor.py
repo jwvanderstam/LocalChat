@@ -121,6 +121,9 @@ class ToolExecutor:
             return
 
         working_messages: List[Dict[str, Any]] = list(messages)
+        # True once we know the model emits tool calls as raw JSON in content
+        # rather than via the structured tool_calls field.
+        inline_mode: bool = False
 
         for round_num in range(1, self._max_rounds + 1):
             logger.debug(
@@ -128,8 +131,10 @@ class ToolExecutor:
                 f"{len(working_messages)} messages, {len(schemas)} tool(s)"
             )
 
+            # In inline mode don't send schemas — the model can't use them
+            # properly and they cause it to loop by emitting more JSON.
             response = self._client.generate_chat_completion(
-                model, working_messages, tools=schemas
+                model, working_messages, tools=(None if inline_mode else schemas)
             )
             assistant_msg = response.get("message", {})
             tool_calls = assistant_msg.get("tool_calls")
@@ -141,6 +146,7 @@ class ToolExecutor:
                 inlined = self._try_parse_content_tool_call(content)
                 if inlined is not None:
                     logger.debug("[TOOLS] Detected inline JSON tool call in content field")
+                    inline_mode = True
                     tool_calls = [inlined]
                 else:
                     # Genuine final answer — stream it.
@@ -149,7 +155,12 @@ class ToolExecutor:
                     return
 
             # --- Execute tool calls -----------------------------------
-            working_messages.append(assistant_msg)
+            # For models that understand the tool role, keep the standard
+            # message chain.  For inline-mode models, skip appending the
+            # raw-JSON assistant message (it confuses them) and instead
+            # feed the result back as a plain user turn.
+            if not inline_mode:
+                working_messages.append(assistant_msg)
 
             for tc in tool_calls:
                 func = tc.get("function", {})
@@ -158,7 +169,17 @@ class ToolExecutor:
 
                 result = self._run_tool(name, arguments)
 
-                working_messages.append({"role": "tool", "content": result})
+                if inline_mode:
+                    working_messages.append({
+                        "role": "user",
+                        "content": (
+                            f"Tool '{name}' returned:\n{result}\n\n"
+                            "Using this information, answer the original question "
+                            "in plain natural language. Do not output JSON."
+                        ),
+                    })
+                else:
+                    working_messages.append({"role": "tool", "content": result})
 
         # Exhausted all rounds - stream a final answer without tools.
         logger.warning(
