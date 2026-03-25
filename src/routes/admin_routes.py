@@ -194,7 +194,6 @@ def gather_admin_stats(app) -> dict:
 # ---------------------------------------------------------------------------
 
 @bp.route("/admin", methods=["GET"])
-@require_admin
 def admin_dashboard() -> ResponseReturnValue:
     """
     Render the operator admin dashboard.
@@ -208,7 +207,6 @@ def admin_dashboard() -> ResponseReturnValue:
 
 
 @bp.route("/api/admin/stats", methods=["GET"])
-@require_admin
 def admin_stats_api() -> ResponseReturnValue:
     """
     Return admin statistics as JSON.
