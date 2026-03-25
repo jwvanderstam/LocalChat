@@ -10,8 +10,7 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-from typing import List, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Optional
 import time
 
 from ..utils.logging_config import get_logger
@@ -56,63 +55,51 @@ class BatchEmbeddingProcessor:
         model: str
     ) -> List[Optional[List[float]]]:
         """
-        Process a batch of texts to generate embeddings in parallel.
-        
+        Process a batch of texts to generate embeddings.
+
+        Calls ``generate_embeddings_batch`` on the Ollama client so all texts
+        in each sub-batch are sent in a single HTTP request and processed in
+        one GPU forward pass, instead of one round-trip per text.
+
         Args:
             texts: List of text strings
             model: Embedding model name
-        
+
         Returns:
             List of embeddings (None for failed items)
         """
         start_time = time.time()
         total = len(texts)
-        
+
         logger.info(f"Processing {total} embeddings in batches of {self.batch_size}")
-        
+
         results: List[Optional[List[float]]] = [None] * total
         processed = 0
         failed = 0
-        
-        # Process in batches
+
         for batch_start in range(0, total, self.batch_size):
             batch_end = min(batch_start + self.batch_size, total)
             batch_texts = texts[batch_start:batch_end]
-            
-            logger.debug(f"Batch {batch_start//self.batch_size + 1}: Processing texts {batch_start+1}-{batch_end}")
-            
-            # Process batch in parallel
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = {
-                    executor.submit(
-                        self._generate_single,
-                        text,
-                        model
-                    ): idx for idx, text in enumerate(batch_texts, start=batch_start)
-                }
-                
-                for future in as_completed(futures):
-                    idx = futures[future]
-                    try:
-                        embedding = future.result()
-                        if embedding is not None:
-                            results[idx] = embedding
-                            processed += 1
-                        else:
-                            failed += 1
-                    except Exception as e:
-                        logger.error(f"Error processing text {idx}: {e}")
-                        failed += 1
-            
-            # Progress update
+
+            logger.debug(f"Batch {batch_start//self.batch_size + 1}: texts {batch_start+1}-{batch_end}")
+
+            batch_embeddings = self.ollama_client.generate_embeddings_batch(model, batch_texts)
+            for i, embedding in enumerate(batch_embeddings):
+                global_idx = batch_start + i
+                if embedding is not None:
+                    results[global_idx] = embedding
+                    processed += 1
+                else:
+                    failed += 1
+
             progress = (batch_end / total) * 100
             logger.info(f"Progress: {progress:.1f}% ({batch_end}/{total})")
-        
+
         elapsed = time.time() - start_time
         rate = total / elapsed if elapsed > 0 else 0
-        
+
         logger.info(f"Completed: {processed} successful, {failed} failed in {elapsed:.2f}s ({rate:.1f} emb/s)")
-        
+
         return results
     
     def _generate_single(

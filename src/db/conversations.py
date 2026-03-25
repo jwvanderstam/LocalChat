@@ -117,7 +117,7 @@ class ConversationsMixin:
                     ORDER BY cm.created_at ASC, cm.id ASC
                 """, (conversation_id,))
                 rows = cursor.fetchall()
-                if rows is not None and len(rows) == 0:
+                if not rows:
                     cursor.execute(
                         "SELECT 1 FROM conversations WHERE id = %s", (conversation_id,)
                     )

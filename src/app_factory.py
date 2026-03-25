@@ -200,8 +200,29 @@ def _init_ollama_service(app: LocalChatApp, ollama_client) -> None:
             if first_model:
                 config.app_state.set_active_model(first_model)
                 logger.info(f"Active model set to: {first_model}")
+        _warmup_embedding_model(ollama_client)
     else:
         logger.warning(ollama_message)
+
+
+def _warmup_embedding_model(ollama_client) -> None:
+    """Trigger one embedding call at startup to pre-initialize CUDA kernels.
+
+    Ollama lazily compiles GPU kernels on the first inference call, which adds
+    1-2 s of latency that would otherwise be charged to the first user request.
+    Running a throwaway embedding here amortises that cost at startup.
+    """
+    try:
+        embedding_model = ollama_client.get_embedding_model()
+        if embedding_model:
+            logger.info(f"Warming up embedding model: {embedding_model}...")
+            success, _ = ollama_client.generate_embedding(embedding_model, "warmup")
+            if success:
+                logger.info("Embedding model warm-up complete")
+            else:
+                logger.warning("Embedding model warm-up returned no data (non-fatal)")
+    except Exception as e:
+        logger.warning(f"Embedding model warm-up failed (non-fatal): {e}")
 
 
 def _init_database_service(app: LocalChatApp, db) -> None:

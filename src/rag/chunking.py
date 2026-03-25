@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 try:
     from ..monitoring import timed
 except ImportError:
-    def timed(_metric_name):  # noqa: E306
+    def timed(metric_name: str):  # noqa: E306
         return lambda func: func
 
 
@@ -199,9 +199,10 @@ class TextChunkerMixin:
             chunks: List[str] = []
             current_chunk: List[str] = []
             current_size = 0
+            splits = text.split(separator)
 
-            for i, split in enumerate(text.split(separator)):
-                split_with_sep = split + separator if i < len(text.split(separator)) - 1 else split
+            for i, split in enumerate(splits):
+                split_with_sep = split + separator if i < len(splits) - 1 else split
                 current_chunk, current_size = self._handle_split(
                     split_with_sep, len(split_with_sep),
                     chunks, current_chunk, current_size,

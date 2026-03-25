@@ -21,7 +21,8 @@ from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-_PG_TRANSACTION_IDLE = 0  # psycopg TransactionStatus.IDLE
+_PG_TRANSACTION_IDLE = 0    # psycopg TransactionStatus.IDLE
+_PG_TRANSACTION_INTRANS = 2  # psycopg TransactionStatus.INTRANS
 
 
 # ============================================================================
@@ -48,7 +49,7 @@ class VectorDumper(Dumper):
     def dump(self, obj):
         if hasattr(obj, 'tolist'):
             obj = obj.tolist()
-        values_str = ','.join(str(float(v)) for v in obj)
+        values_str = ','.join(f'{float(v):.6g}' for v in obj)
         return f'[{values_str}]'.encode('utf-8')
 
 
@@ -162,7 +163,7 @@ class DatabaseConnection:
         """Convert a Python list/numpy array to a PostgreSQL vector literal."""
         if isinstance(embedding, np.ndarray):
             embedding = embedding.tolist()
-        values_str = ','.join(str(float(v)) for v in embedding)
+        values_str = ','.join(f'{float(v):.6g}' for v in embedding)
         return f'[{values_str}]'
 
     def initialize(self) -> Tuple[bool, str]:
@@ -194,6 +195,13 @@ class DatabaseConnection:
                 register_vector_types(conn)
                 if conn.info.transaction_status != _PG_TRANSACTION_IDLE:
                     conn.rollback()
+                # Set session GUCs once per connection — avoids a round-trip on every query.
+                # ef_search=100 covers max(top_k*2, 100) for all callers; going above
+                # ef_construction (64) is capped by the index but never hurts correctness.
+                conn.autocommit = True
+                with conn.cursor() as _cur:
+                    _cur.execute("SET hnsw.ef_search = 100")
+                conn.autocommit = False
 
             try:
                 logger.debug("Creating connection pool")
@@ -365,7 +373,7 @@ class DatabaseConnection:
         connection = self.connection_pool.getconn()
         try:
             yield connection
-            if connection.info.transaction_status == 2:  # INTRANS
+            if connection.info.transaction_status == _PG_TRANSACTION_INTRANS:
                 connection.commit()
         except Exception as e:
             connection.rollback()

@@ -6,26 +6,26 @@ LRU cache for query embeddings to avoid redundant API calls.
 """
 
 import hashlib
+from collections import OrderedDict
 from typing import List, Optional, Dict, Any
 
 
 class EmbeddingCache:
     """
     LRU cache for query embeddings to avoid redundant API calls.
-    
+
     Caches embeddings based on text hash for fast lookup.
     """
-    
+
     def __init__(self, max_size: int = 1000) -> None:
         """
         Initialize embedding cache.
-        
+
         Args:
             max_size: Maximum number of embeddings to cache
         """
         self.max_size = max_size
-        self._cache: Dict[str, List[float]] = {}
-        self._access_order: List[str] = []
+        self._cache: OrderedDict[str, List[float]] = OrderedDict()
         self._hits = 0
         self._misses = 0
     
@@ -46,9 +46,7 @@ class EmbeddingCache:
         """
         key = self._hash_text(text, model)
         if key in self._cache:
-            # Move to end (most recently used)
-            self._access_order.remove(key)
-            self._access_order.append(key)
+            self._cache.move_to_end(key)  # O(1)
             self._hits += 1
             return self._cache[key]
         self._misses += 1
@@ -64,16 +62,12 @@ class EmbeddingCache:
             embedding: The embedding vector
         """
         key = self._hash_text(text, model)
-        
-        # Evict oldest if at capacity
-        if len(self._cache) >= self.max_size and key not in self._cache:
-            oldest_key = self._access_order.pop(0)
-            del self._cache[oldest_key]
-        
+        if key in self._cache:
+            self._cache.move_to_end(key)  # O(1)
+        else:
+            if len(self._cache) >= self.max_size:
+                self._cache.popitem(last=False)  # O(1) evict LRU
         self._cache[key] = embedding
-        if key in self._access_order:
-            self._access_order.remove(key)
-        self._access_order.append(key)
     
     def stats(self) -> Dict[str, Any]:
         """Get cache statistics."""

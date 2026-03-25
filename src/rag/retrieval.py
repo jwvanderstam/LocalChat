@@ -38,9 +38,9 @@ _CONTRACTIONS: dict = {
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(_metric_name: str):  # noqa: E306
+    def timed(metric_name: str):  # noqa: E306
         return lambda func: func
-    def counted(_metric_name: str, _labels=None):  # noqa: E306
+    def counted(metric_name: str, labels=None):  # noqa: E306
         return lambda func: func
 
 
@@ -221,8 +221,11 @@ class RetrievalMixin:
         # Step 1: Query preprocessing
         query_clean = self._preprocess_query(query)
 
-        # Check query cache before expensive retrieval
+        # Resolve both app-level caches once — avoids repeated Flask context lookups
         _app_query_cache = self._get_app_cache('query_cache')
+        _app_emb_cache = self._get_app_cache('embedding_cache')
+
+        # Check query cache before expensive retrieval
         cached_result = (
             _app_query_cache.get(query_clean, top_k, min_similarity, use_hybrid_search)
             if _app_query_cache is not None else None
@@ -238,7 +241,7 @@ class RetrievalMixin:
             return []
 
         # Step 4: Generate query embedding (with caching)
-        query_embedding = self._get_cached_embedding(query_clean, embedding_model)
+        query_embedding = self._get_cached_embedding(query_clean, embedding_model, _app_emb_cache)
         if not query_embedding:
             logger.error("[RAG] Failed to generate query embedding")
             return []
@@ -247,9 +250,11 @@ class RetrievalMixin:
         logger.debug(f"[RAG] Embedding generated in {embedding_time - start_time:.3f}s")
 
         # Step 5: Semantic search (primary signal)
+        # min_similarity is pushed to SQL so only qualifying chunks are transferred.
         semantic_results = db.search_similar_chunks(
             query_embedding,
             top_k=top_k * 2,  # Get more for re-ranking
+            min_similarity=min_similarity,
             file_type_filter=file_type_filter
         )
 
@@ -326,24 +331,26 @@ class RetrievalMixin:
 
         return output
 
-    def _get_cached_embedding(self, text: str, model: str) -> Optional[List[float]]:
+    def _get_cached_embedding(self, text: str, model: str, app_cache=None) -> Optional[List[float]]:
         """
         Get embedding with caching support.
-        
+
         Args:
             text: Text to embed
             model: Embedding model name
-        
+            app_cache: Pre-fetched app-level embedding cache (avoids Flask context lookup)
+
         Returns:
             Embedding vector or None on failure
         """
         # Prefer app-level cache (tracked by admin dashboard)
-        _app_emb_cache = None
-        try:
-            from flask import current_app as _cur_app
-            _app_emb_cache = getattr(_cur_app._get_current_object(), 'embedding_cache', None)  # type: ignore[attr-defined]
-        except RuntimeError:
-            pass
+        _app_emb_cache = app_cache
+        if _app_emb_cache is None:
+            try:
+                from flask import current_app as _cur_app
+                _app_emb_cache = getattr(_cur_app._get_current_object(), 'embedding_cache', None)  # type: ignore[attr-defined]
+            except RuntimeError:
+                pass
 
         if _app_emb_cache is not None:
             cached = _app_emb_cache.get(text, model)
@@ -484,7 +491,11 @@ class RetrievalMixin:
             if is_diverse:
                 diverse_results[chunk_id] = data
                 selected_words.append(chunk_words)
-        
+                # We only keep RERANK_TOP_K results downstream, so stop as soon
+                # as we have enough diverse candidates — turns O(n²) into O(n×k).
+                if len(diverse_results) >= getattr(config, 'RERANK_TOP_K', 8):
+                    break
+
         return diverse_results
     
     def _rerank_with_signals(

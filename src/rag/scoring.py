@@ -19,11 +19,12 @@ logger = get_logger(__name__)
 class BM25Scorer:
     """
     BM25 scoring for keyword-based retrieval.
-    
+
     Implements the BM25 algorithm for traditional information retrieval,
     used in combination with semantic search for hybrid retrieval.
     """
-    
+
+    _WORD_RE = re.compile(r'\w+')
     def __init__(self, k1: float = 1.5, b: float = 0.75) -> None:
         """
         Initialize BM25 scorer.
@@ -40,11 +41,12 @@ class BM25Scorer:
         self.idf: Dict[str, float] = {}
         self.doc_len: List[int] = []
         self._tokenized_docs: List[List[str]] = []
+        self._doc_term_freqs: List[Counter] = []
         self._initialized = False
     
     def _tokenize(self, text: str) -> List[str]:
         """Simple tokenization - lowercase and split on non-alphanumeric."""
-        return re.findall(r'\w+', text.lower())
+        return self._WORD_RE.findall(text.lower())
     
     def fit(self, corpus: List[str]) -> None:
         """
@@ -72,11 +74,15 @@ class BM25Scorer:
         
         self.avgdl = sum(self.doc_len) / self.corpus_size
         self.doc_freqs = nd
-        
+
         # Calculate IDF
         for word, freq in nd.items():
             self.idf[word] = math.log((self.corpus_size - freq + 0.5) / (freq + 0.5) + 1)
-        
+
+        # Pre-compute term-frequency Counters once so score() doesn't rebuild
+        # them on every call (saves O(n_docs) Counter constructions per query).
+        self._doc_term_freqs = [Counter(tokens) for tokens in self._tokenized_docs]
+
         self._initialized = True
         logger.debug(f"BM25 fitted on {self.corpus_size} documents, {len(self.idf)} unique terms")
     
@@ -97,18 +103,17 @@ class BM25Scorer:
 
         query_tokens = self._tokenize(query)
 
-        # Reuse tokens stored during fit() — avoids re-tokenizing the document
+        # Reuse tokens and pre-computed term-frequency Counter from fit().
         if self._tokenized_docs and 0 <= doc_idx < len(self._tokenized_docs):
             doc_tokens = self._tokenized_docs[doc_idx]
+            tf = self._doc_term_freqs[doc_idx]
         else:
             doc_tokens = self._tokenize(document)
+            tf = Counter(doc_tokens)
         doc_len = len(doc_tokens)
-        
+
         if doc_len == 0:
             return 0.0
-        
-        # Term frequency in document
-        tf = Counter(doc_tokens)
         
         score = 0.0
         for token in query_tokens:

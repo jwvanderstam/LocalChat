@@ -108,6 +108,12 @@ OLLAMA_BASE_URL: str = str(os.environ.get('OLLAMA_BASE_URL', 'http://localhost:1
 # -1 = all layers on GPU (recommended when GPU VRAM is sufficient).
 #  0 = CPU only.  Set via OLLAMA_NUM_GPU env var.
 OLLAMA_NUM_GPU: int = int(os.environ.get('OLLAMA_NUM_GPU', '-1'))
+# Context window size (tokens) sent to Ollama as num_ctx.
+# KV-cache VRAM ≈ num_ctx × 0.125 MB for a 7B model.
+#   8192  → ~0.5 GB  (safe for any 12 GB GPU + any quantization)
+#  32768  → ~4.0 GB  (requires Q4 model ≤5 GB to avoid CPU offload on 12 GB GPU)
+# Override via OLLAMA_NUM_CTX env var to match your GPU + model combination.
+OLLAMA_NUM_CTX: int = int(os.environ.get('OLLAMA_NUM_CTX', '8192'))
 
 # ============================================================================
 # RAG CONFIGURATION - OPTIMIZED FOR HIGH QUALITY RESPONSES
@@ -225,7 +231,7 @@ PLUGINS_DIR: str = os.environ.get('PLUGINS_DIR', 'plugins')
 # ============================================================================
 
 DEFAULT_TEMPERATURE: float = 0.0   # ZERO temperature for maximum factuality
-MAX_CONTEXT_LENGTH: int = 50000    # MAXIMUM context for most comprehensive answers
+MAX_CONTEXT_LENGTH: int = OLLAMA_NUM_CTX  # Mirrors OLLAMA_NUM_CTX; override via env var
 
 # ============================================================================
 # APPLICATION SETTINGS
@@ -247,7 +253,7 @@ VISION_DESCRIBE_PROMPT: str = (
 
 # Flask settings
 UPLOAD_FOLDER: str = 'uploads'
-MAX_CONTENT_LENGTH: int = 16 * 1024 * 1024  # 16MB max upload size
+MAX_CONTENT_LENGTH: int = int(os.environ.get('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))  # Default: 16MB
 
 # Logging
 LOG_FILE: str = os.environ.get('LOG_FILE', 'logs/app.log')

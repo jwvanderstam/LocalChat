@@ -28,9 +28,9 @@ logger = get_logger(__name__)
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(_metric_name):  # noqa: E306
+    def timed(metric_name: str):  # noqa: E306
         return lambda func: func
-    def counted(_metric_name, _labels=None):  # noqa: E306
+    def counted(metric_name: str, labels=None):  # noqa: E306
         return lambda func: func
 
 
@@ -280,10 +280,9 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 logger.error(err)
                 return False, err, None
 
-            # Build content preview for the document record
+            # Build content preview for the document record — reuse already-loaded data
             if ext == '.pdf':
-                success_pages, pages_or_err = self._load_pdf_with_pages(file_path)
-                content_preview = pages_or_err[0]['text'][:1000] if success_pages else ""
+                content_preview = chunks_with_metadata[0]['text'][:1000] if chunks_with_metadata else ""
             else:
                 _, raw_content = self.load_document(file_path)
                 content_preview = raw_content[:1000]

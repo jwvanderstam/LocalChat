@@ -54,6 +54,10 @@ class DocumentsMixin:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot insert document: Database is not connected")
 
+        # PostgreSQL text columns reject NUL (0x00) bytes; strip them defensively.
+        filename = filename.replace('\x00', '')
+        content = content.replace('\x00', '')
+
         logger.debug(f"Inserting document: {filename}")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
@@ -100,6 +104,9 @@ class DocumentsMixin:
                         doc_id, chunk_text, chunk_index, embedding = chunk
                         metadata = {}
 
+                    # PostgreSQL text columns reject NUL (0x00) bytes.
+                    chunk_text = chunk_text.replace('\x00', '')
+
                     embedding_str = self._embedding_to_pg_array(embedding)
                     cursor.execute(
                         """INSERT INTO document_chunks
@@ -114,6 +121,7 @@ class DocumentsMixin:
         self,
         query_embedding: Union[List[float], 'np.ndarray'],
         top_k: int = 5,
+        min_similarity: float = 0.0,
         file_type_filter: Optional[str] = None,
     ) -> List[Tuple[str, str, int, float, Dict[str, Any]]]:
         """
@@ -122,6 +130,9 @@ class DocumentsMixin:
         Args:
             query_embedding: Query vector (768 dimensions)
             top_k: Number of results to return
+            min_similarity: Minimum cosine similarity threshold (0.0–1.0).
+                Filtering at the database level avoids transferring chunks that
+                would be discarded by the Python-side threshold check anyway.
             file_type_filter: Optional file extension filter (e.g. '.pdf')
 
         Returns:
@@ -133,15 +144,11 @@ class DocumentsMixin:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
 
-        logger.debug(f"Searching for top {top_k} similar chunks")
+        logger.debug(f"Searching for top {top_k} similar chunks (min_similarity={min_similarity})")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 embedding_str = self._embedding_to_pg_array(query_embedding)
-                # ef_search > ef_construction (64) gives no recall gain but costs time
-                ef_search_value = max(top_k * 2, 40)
-                cursor.execute(
-                    sql.SQL("SET hnsw.ef_search = {}").format(sql.Literal(ef_search_value))
-                )
+                max_distance = 1.0 - min_similarity  # cosine distance = 1 - similarity
 
                 if file_type_filter:
                     cursor.execute(
@@ -153,11 +160,13 @@ class DocumentsMixin:
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
                         CROSS JOIN q
-                        WHERE dc.embedding IS NOT NULL AND d.filename LIKE %s
+                        WHERE dc.embedding IS NOT NULL
+                          AND d.filename LIKE %s
+                          AND (dc.embedding <=> q.emb) <= %s
                         ORDER BY dc.embedding <=> q.emb
                         LIMIT %s
                         """,
-                        (embedding_str, f'%{file_type_filter}', top_k),
+                        (embedding_str, f'%{file_type_filter}', max_distance, top_k),
                     )
                     logger.debug(f"Searching with file type filter: {file_type_filter}")
                 else:
@@ -171,10 +180,11 @@ class DocumentsMixin:
                         JOIN documents d ON dc.document_id = d.id
                         CROSS JOIN q
                         WHERE dc.embedding IS NOT NULL
+                          AND (dc.embedding <=> q.emb) <= %s
                         ORDER BY dc.embedding <=> q.emb
                         LIMIT %s
                         """,
-                        (embedding_str, top_k),
+                        (embedding_str, max_distance, top_k),
                     )
 
                 results = cursor.fetchall()
@@ -204,43 +214,42 @@ class DocumentsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 embedding_str = self._embedding_to_pg_array(query_embedding)
-                ef_search_value = max(top_k * 2, 100)
-                cursor.execute(
-                    sql.SQL("SET hnsw.ef_search = {}").format(sql.Literal(ef_search_value))
-                )
                 max_distance = 1.0 - min_similarity
 
                 if file_type_filter:
                     cursor.execute(
                         """
+                        WITH q AS (SELECT %s::vector AS emb)
                         SELECT dc.chunk_text, d.filename, dc.chunk_index,
-                               1 - (dc.embedding <=> %s::vector) AS similarity,
+                               1 - (dc.embedding <=> q.emb) AS similarity,
                                dc.document_id
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
+                        CROSS JOIN q
                         WHERE dc.embedding IS NOT NULL
                           AND d.filename LIKE %s
-                          AND (dc.embedding <=> %s::vector) <= %s
-                        ORDER BY dc.embedding <=> %s::vector
+                          AND (dc.embedding <=> q.emb) <= %s
+                        ORDER BY dc.embedding <=> q.emb
                         LIMIT %s
                         """,
-                        (embedding_str, f'%{file_type_filter}', embedding_str,
-                         max_distance, embedding_str, top_k),
+                        (embedding_str, f'%{file_type_filter}', max_distance, top_k),
                     )
                 else:
                     cursor.execute(
                         """
+                        WITH q AS (SELECT %s::vector AS emb)
                         SELECT dc.chunk_text, d.filename, dc.chunk_index,
-                               1 - (dc.embedding <=> %s::vector) AS similarity,
+                               1 - (dc.embedding <=> q.emb) AS similarity,
                                dc.document_id
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
+                        CROSS JOIN q
                         WHERE dc.embedding IS NOT NULL
-                          AND (dc.embedding <=> %s::vector) <= %s
-                        ORDER BY dc.embedding <=> %s::vector
+                          AND (dc.embedding <=> q.emb) <= %s
+                        ORDER BY dc.embedding <=> q.emb
                         LIMIT %s
                         """,
-                        (embedding_str, embedding_str, max_distance, embedding_str, top_k),
+                        (embedding_str, max_distance, top_k),
                     )
 
                 results = cursor.fetchall()

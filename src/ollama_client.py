@@ -45,6 +45,7 @@ Last Updated: 2026-03-19
 import json
 import shutil
 import subprocess
+import threading
 import time
 import requests
 from typing import Tuple, List, Dict, Any, Optional, Generator, NoReturn
@@ -86,6 +87,7 @@ class OllamaClient:
     # How long (seconds) to serve cached results before re-querying.
     _RUNNING_MODELS_TTL: float = 5.0   # loaded models can change at any time
     _GPU_INFO_TTL: float = 30.0        # hardware stats; subprocess is expensive
+    _LIST_MODELS_TTL: float = 60.0     # installed models list; rarely changes
 
     def __init__(self, base_url: Optional[str] = None) -> None:
         """
@@ -104,6 +106,8 @@ class OllamaClient:
         self._running_models_cache_time: float = 0.0
         self._gpu_info_cache: Optional[List[Dict[str, Any]]] = None
         self._gpu_info_cache_time: float = 0.0
+        self._list_models_cache: Optional[List[Dict[str, Any]]] = None
+        self._list_models_cache_time: float = 0.0
         logger.info(f"OllamaClient initialized with base_url: {self.base_url}")
     
     def check_connection(self) -> Tuple[bool, str]:
@@ -132,6 +136,7 @@ class OllamaClient:
                 self.available_models = [model['name'] for model in data.get('models', [])]
                 message = f"Ollama is running with {len(self.available_models)} models"
                 logger.info(message)
+                self._start_background_refresh()
                 return True, message
             else:
                 self.is_available = False
@@ -161,10 +166,16 @@ class OllamaClient:
             >>> for model in models:
             ...     print(model['name'], model['size'])
         """
+        now = time.monotonic()
+        if (
+            self._list_models_cache is not None
+            and (now - self._list_models_cache_time) < self._LIST_MODELS_TTL
+        ):
+            return True, self._list_models_cache
         try:
             logger.debug("Fetching model list")
             response = self._session.get(f"{self.base_url}/api/tags", timeout=5)
-            
+
             if response.status_code == 200:
                 data = response.json()
                 models = []
@@ -176,14 +187,16 @@ class OllamaClient:
                         'digest': model.get('digest', '')
                     })
                 logger.debug(f"Found {len(models)} models")
+                self._list_models_cache = models
+                self._list_models_cache_time = now
                 return True, models
             else:
                 logger.warning(f"Failed to list models: {response.status_code}")
-                return False, []
-                
+                return False, self._list_models_cache if self._list_models_cache is not None else []
+
         except Exception as e:
             logger.error(f"Error listing models: {e}", exc_info=True)
-            return False, []
+            return False, self._list_models_cache if self._list_models_cache is not None else []
     
     def get_first_available_model(self) -> Optional[str]:
         """
@@ -235,6 +248,7 @@ class OllamaClient:
                     if line:
                         yield json.loads(line)
                 logger.info(f"Successfully pulled model: {model_name}")
+                self._list_models_cache = None  # invalidate after pull
             else:
                 error_msg = f"Failed to pull model: {response.status_code}"
                 logger.error(error_msg)
@@ -272,6 +286,7 @@ class OllamaClient:
             
             if success:
                 logger.info(f"Deleted model: {model_name}")
+                self._list_models_cache = None  # invalidate after delete
             else:
                 logger.warning(f"Failed to delete model: {model_name}")
             
@@ -431,7 +446,10 @@ class OllamaClient:
             ...     print(chunk, end='')
         """
         logger.debug(f"Generating chat response with model: {model}")
-        options: Dict[str, Any] = {"num_gpu": config.OLLAMA_NUM_GPU}
+        options: Dict[str, Any] = {
+            "num_gpu": config.OLLAMA_NUM_GPU,
+            "num_ctx": config.MAX_CONTEXT_LENGTH,
+        }
         if max_tokens is not None:
             options["num_predict"] = max_tokens
         payload: Dict[str, Any] = {
@@ -492,7 +510,10 @@ class OllamaClient:
             "model": model,
             "messages": messages,
             "stream": False,
-            "options": {"num_gpu": config.OLLAMA_NUM_GPU},
+            "options": {
+                "num_gpu": config.OLLAMA_NUM_GPU,
+                "num_ctx": config.MAX_CONTEXT_LENGTH,
+            },
         }
         if tools:
             payload["tools"] = tools
@@ -579,7 +600,68 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"Error generating embedding: {e}", exc_info=True)
             return False, []
-    
+
+    def generate_embeddings_batch(
+        self,
+        model: str,
+        texts: List[str],
+    ) -> List[Optional[List[float]]]:
+        """
+        Generate embeddings for multiple texts in a single API call.
+
+        Sends all texts as a batch via the ``/api/embed`` endpoint so Ollama
+        processes them in one GPU forward pass — far faster than one
+        ``generate_embedding`` call per text.
+
+        Falls back to individual ``generate_embedding`` calls if the batch
+        request fails.
+
+        Args:
+            model: Embedding model name (e.g., "nomic-embed-text")
+            texts: List of input texts to embed
+
+        Returns:
+            List of embeddings aligned with ``texts``; ``None`` for any that
+            failed.
+        """
+        if not texts:
+            return []
+        try:
+            logger.debug(f"Batch-embedding {len(texts)} texts with model: {model}")
+            response = self._session.post(
+                f"{self.base_url}/api/embed",
+                json={
+                    "model": model,
+                    "input": texts,
+                    "keep_alive": "30m",
+                    "options": {"num_gpu": config.OLLAMA_NUM_GPU},
+                },
+                timeout=120,
+            )
+            if response.status_code == 200:
+                embeddings = response.json().get("embeddings", [])
+                if len(embeddings) == len(texts):
+                    logger.debug(f"Batch embed returned {len(embeddings)} embeddings")
+                    return embeddings
+                logger.warning(
+                    f"Batch embed returned {len(embeddings)} results for {len(texts)} texts; padding"
+                )
+                result: List[Optional[List[float]]] = list(embeddings)
+                result += [None] * (len(texts) - len(embeddings))
+                return result
+            logger.warning(
+                f"Batch embed failed: HTTP {response.status_code}; falling back to per-text"
+            )
+        except Exception as exc:
+            logger.warning(f"Batch embedding error: {exc}; falling back to per-text")
+
+        # Per-text fallback
+        fallback_results = []
+        for text in texts:
+            success, embedding = self.generate_embedding(model, text)
+            fallback_results.append(embedding if success else None)
+        return fallback_results
+
     def get_running_models(self) -> List[Dict[str, Any]]:
         """
         Return models currently loaded in Ollama (from ``/api/ps``).
@@ -787,7 +869,40 @@ class OllamaClient:
         self._log_embedding_model_selection(found, model_names, embedding_models)
         self._embedding_model_cache = found
         return found
-    
+
+    def _start_background_refresh(self) -> None:
+        """Start a daemon thread that proactively refreshes slow TTL caches.
+
+        Refreshes ``get_gpu_info()`` every ~25 s (TTL = 30 s) and
+        ``get_running_models()`` every 4 s (TTL = 5 s) so the admin
+        dashboard never stalls on a cold cache miss.
+
+        Safe to call multiple times — only one thread is ever started.
+        """
+        if getattr(self, '_background_refresh_started', False):
+            return
+        self._background_refresh_started = True
+
+        def _refresh_loop() -> None:
+            gpu_tick = 0
+            while True:
+                time.sleep(4.0)
+                try:
+                    self.get_running_models()
+                except Exception:
+                    pass
+                gpu_tick += 1
+                if gpu_tick >= 6:  # ~24 s — refresh before 30 s TTL expires
+                    gpu_tick = 0
+                    try:
+                        self.get_gpu_info()
+                    except Exception:
+                        pass
+
+        t = threading.Thread(target=_refresh_loop, name="ollama-cache-refresh", daemon=True)
+        t.start()
+        logger.debug("Background cache refresh thread started")
+
     def test_model(self, model_name: str) -> Tuple[bool, str]:
         """
         Test a model with a simple prompt.

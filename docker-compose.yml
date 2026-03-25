@@ -36,6 +36,8 @@ services:
       POSTGRES_USER:     ${PG_USER:-postgres}
       POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD must be set}
       POSTGRES_DB:       ${PG_DB:-rag_db}
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

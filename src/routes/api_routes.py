@@ -16,6 +16,7 @@ from flask import Blueprint, jsonify, request, Response
 from flask import current_app as _current_app
 from typing import Dict, Any, Generator, TYPE_CHECKING
 import json
+import time
 
 if TYPE_CHECKING:
     from ..types import LocalChatApp
@@ -37,6 +38,11 @@ except ImportError:
 
 bp = Blueprint('api', __name__)
 logger = get_logger(__name__)
+
+# TTL cache for document count — /status is polled ~every second by the UI;
+# avoid a DB round-trip on every poll by caching for 5 s.
+_status_doc_count_cache: list = [0, 0.0]  # [count, last_refresh_monotonic]
+_STATUS_CACHE_TTL: float = 5.0
 
 # ── System prompts (module-level to avoid re-creation per request) ──────────
 _RAG_SYSTEM_PROMPT = """You are a helpful assistant that answers questions based strictly on the provided context passages.
@@ -193,11 +199,15 @@ def api_status():
     db_available = current_app.startup_status.get('database', False)
 
     if db_available:
-        try:
-            doc_count = current_app.db.get_document_count()
-        except Exception as e:
-            logger.warning(f"Could not get document count: {e}")
-            db_available = False
+        now = time.monotonic()
+        if now - _status_doc_count_cache[1] > _STATUS_CACHE_TTL:
+            try:
+                _status_doc_count_cache[0] = current_app.db.get_document_count()
+                _status_doc_count_cache[1] = now
+            except Exception as e:
+                logger.warning(f"Could not get document count: {e}")
+                db_available = False
+        doc_count = _status_doc_count_cache[0]
     
     # Get cache stats if available
     cache_stats = {}

@@ -73,7 +73,7 @@ def api_upload_documents():
       - TXT (plain text)
       - MD (Markdown)
 
-      **Maximum file size**: 16 MB
+      **Maximum file size**: Configured via MAX_CONTENT_LENGTH (default 16 MB)
 
       **Processing steps**:
       1. File validation and storage
@@ -129,7 +129,7 @@ def api_upload_documents():
         schema:
           $ref: '#/definitions/Error'
       413:
-        description: File too large (exceeds 16 MB limit)
+        description: File too large (exceeds MAX_CONTENT_LENGTH limit)
         schema:
           $ref: '#/definitions/Error'
     """
@@ -380,14 +380,15 @@ def api_document_stats():
 def api_search_text():
     """
     Search chunks by text content (for debugging).
-    
+
     Request Body:
         - search_text (str): Text to search for
         - limit (int, optional): Max results
-    
+
     Returns:
         JSON response with matching chunks
     """
+    from ..db import DatabaseUnavailableError
     try:
         data = request.get_json()
         search_text = data.get('search_text', '').strip()
