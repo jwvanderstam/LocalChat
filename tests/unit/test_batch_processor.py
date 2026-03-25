@@ -63,40 +63,40 @@ class TestBatchEmbeddingProcessor:
     def test_process_batch_with_single_text(self):
         """Test processing single text."""
         from src.performance.batch_processor import BatchEmbeddingProcessor
-        
+
         mock_client = Mock()
-        mock_client.generate_embedding.return_value = (True, [0.1, 0.2, 0.3])
-        
+        mock_client.generate_embeddings_batch.return_value = [[0.1, 0.2, 0.3]]
+
         processor = BatchEmbeddingProcessor(mock_client)
         result = processor.process_batch(["test text"], "model")
-        
+
         assert len(result) == 1
         assert result[0] is not None
     
     def test_process_batch_calls_ollama_client(self):
         """Test that process_batch calls Ollama client."""
         from src.performance.batch_processor import BatchEmbeddingProcessor
-        
+
         mock_client = Mock()
-        mock_client.generate_embedding.return_value = (True, [0.1, 0.2])
-        
+        mock_client.generate_embeddings_batch.return_value = [[0.1, 0.2], [0.1, 0.2]]
+
         processor = BatchEmbeddingProcessor(mock_client)
         processor.process_batch(["text1", "text2"], "model")
-        
-        # Should have called generate_embedding
-        assert mock_client.generate_embedding.call_count >= 1
+
+        # Should have called generate_embeddings_batch
+        assert mock_client.generate_embeddings_batch.call_count >= 1
     
     def test_process_batch_handles_errors_gracefully(self):
         """Test that errors in batch processing are handled."""
         from src.performance.batch_processor import BatchEmbeddingProcessor
-        
+
         mock_client = Mock()
-        # Simulate failure
-        mock_client.generate_embedding.return_value = (False, "Error message")
-        
+        # Simulate failure — batch returns None for the failed item
+        mock_client.generate_embeddings_batch.return_value = [None]
+
         processor = BatchEmbeddingProcessor(mock_client)
         result = processor.process_batch(["text"], "model")
-        
+
         # Should still return a list
         assert isinstance(result, list)
 
@@ -110,23 +110,22 @@ class TestBatchProcessingPerformance:
         import time
         
         mock_client = Mock()
-        
-        def slow_embedding(text, model):
-            time.sleep(0.01)  # Simulate work
-            return (True, [0.1] * 768)
-        
-        mock_client.generate_embedding.side_effect = slow_embedding
-        
+
+        def batch_embedding(model, batch_texts):
+            time.sleep(0.01)  # Simulate one GPU batch pass
+            return [[0.1] * 768 for _ in batch_texts]
+
+        mock_client.generate_embeddings_batch.side_effect = batch_embedding
+
         processor = BatchEmbeddingProcessor(mock_client, max_workers=4)
         texts = [f"text_{i}" for i in range(8)]
-        
+
         start = time.time()
         result = processor.process_batch(texts, "model")
         elapsed = time.time() - start
-        
-        # With 8 texts and 4 workers, should be faster than sequential
+
+        # All 8 texts processed in a single batch call
         assert len(result) == 8
-        # Parallelization should make it faster (but still took some time)
         assert elapsed < 0.5  # Should complete in reasonable time
 
 
@@ -136,12 +135,12 @@ class TestBatchProcessorEdgeCases:
     def test_process_batch_with_none_in_list(self):
         """Test handling None in text list."""
         from src.performance.batch_processor import BatchEmbeddingProcessor
-        
+
         mock_client = Mock()
-        mock_client.generate_embedding.return_value = (True, [0.1])
-        
+        mock_client.generate_embeddings_batch.return_value = [None, [0.1]]
+
         processor = BatchEmbeddingProcessor(mock_client)
-        
+
         # Should handle gracefully or filter Nones
         try:
             result = processor.process_batch([None, "text"], "model")
@@ -152,13 +151,13 @@ class TestBatchProcessorEdgeCases:
     def test_process_batch_with_empty_strings(self):
         """Test handling empty strings."""
         from src.performance.batch_processor import BatchEmbeddingProcessor
-        
+
         mock_client = Mock()
-        mock_client.generate_embedding.return_value = (True, [0.1])
-        
+        mock_client.generate_embeddings_batch.return_value = [[0.1], [0.1]]
+
         processor = BatchEmbeddingProcessor(mock_client)
         result = processor.process_batch(["", "text"], "model")
-        
+
         assert isinstance(result, list)
     
     def test_processor_with_zero_workers(self):
