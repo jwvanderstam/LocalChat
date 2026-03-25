@@ -102,6 +102,9 @@ def mock_ollama():
     shared_mock = MagicMock()
     shared_mock.get_embedding_model.return_value = "nomic-embed-text"
     shared_mock.generate_embedding.return_value = (True, [0.1] * 768)
+    shared_mock.generate_embeddings_batch.side_effect = (
+        lambda model, texts: [[0.1] * 768 for _ in texts]
+    )
 
     with patch('src.rag.processor.ollama_client', shared_mock), \
          patch('src.rag.retrieval.ollama_client', shared_mock):
@@ -547,20 +550,24 @@ class TestDocumentIngestion:
     def test_ingest_document_embedding_failures(self, doc_processor, temp_file, mock_db, mock_ollama):
         """Should handle partial embedding failures."""
         mock_db.document_exists.return_value = (False, None)
-        
-        # Mock some embedding failures
+
+        # Simulate partial failures via the batch path: every 3rd slot is None
         call_count = [0]
-        
-        def mock_generate_embedding(model, text):
-            call_count[0] += 1
-            if call_count[0] % 3 == 0:
-                return (False, [])  # Every 3rd fails
-            return (True, [0.1] * 768)
-        
-        mock_ollama.generate_embedding.side_effect = mock_generate_embedding
-        
+
+        def mock_generate_batch(model, texts):
+            result = []
+            for _ in texts:
+                call_count[0] += 1
+                if call_count[0] % 3 == 0:
+                    result.append(None)  # Every 3rd fails
+                else:
+                    result.append([0.1] * 768)
+            return result
+
+        mock_ollama.generate_embeddings_batch.side_effect = mock_generate_batch
+
         success, message, doc_id = doc_processor.ingest_document(temp_file)
-        
+
         # Should succeed even with some failures
         assert success is True or "no chunks" in message.lower()
 

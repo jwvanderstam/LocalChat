@@ -128,6 +128,10 @@ class MockOllamaClient:
         """Generate embedding."""
         embedding = [random.random() for _ in range(768)]
         return True, embedding
+
+    def generate_embeddings_batch(self, model: str, texts) -> list:
+        """Generate embeddings for a batch of texts."""
+        return [[random.random() for _ in range(768)] for _ in texts]
     
     def generate_chat_response(self, model: str, messages: List[Dict], 
                               stream: bool = True):
