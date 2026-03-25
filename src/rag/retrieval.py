@@ -450,49 +450,45 @@ class RetrievalMixin:
         
         return scores
     
+    def _is_diverse(self, chunk_words: Set[str], selected_words: List[Set[str]]) -> bool:
+        """Return True when chunk_words is sufficiently different from every selected chunk."""
+        for selected in selected_words:
+            union = chunk_words | selected
+            if union and len(chunk_words & selected) / len(union) > config.DIVERSITY_THRESHOLD:
+                return False
+        return True
+
     def _apply_diversity_filter_dict(
-        self, 
+        self,
         results: Dict[str, Dict[str, Any]]
     ) -> Dict[str, Dict[str, Any]]:
         """
         Remove near-duplicate chunks to increase diversity.
-        
+
         Args:
             results: Dictionary of chunk_id -> result data
-        
+
         Returns:
             Filtered dictionary with duplicates removed
         """
         if len(results) <= 1:
             return results
-        
-        # Sort by combined score
+
         sorted_items = sorted(
             results.items(),
             key=lambda x: x[1]['combined_score'],
             reverse=True
         )
-        
+
         diverse_results: Dict[str, Dict[str, Any]] = {}
         selected_words: List[Set[str]] = []
-        
+
         for chunk_id, data in sorted_items:
             chunk_words = set(data['chunk_text'].lower().split())
-            
-            # Check similarity with already selected chunks
-            is_diverse = True
-            for selected in selected_words:
-                if len(chunk_words) > 0 and len(selected) > 0:
-                    jaccard = len(chunk_words & selected) / len(chunk_words | selected)
-                    if jaccard > config.DIVERSITY_THRESHOLD:
-                        is_diverse = False
-                        break
-            
-            if is_diverse:
+            if self._is_diverse(chunk_words, selected_words):
                 diverse_results[chunk_id] = data
                 selected_words.append(chunk_words)
-                # We only keep RERANK_TOP_K results downstream, so stop as soon
-                # as we have enough diverse candidates — turns O(n²) into O(n×k).
+                # Stop once we have enough diverse candidates (O(n×k) instead of O(n²))
                 if len(diverse_results) >= getattr(config, 'RERANK_TOP_K', 8):
                     break
 
