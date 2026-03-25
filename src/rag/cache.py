@@ -31,7 +31,7 @@ class EmbeddingCache:
     
     def _hash_text(self, text: str, model: str) -> str:
         """Create hash key for text + model combination."""
-        return hashlib.md5(f"{model}:{text}".encode()).hexdigest()
+        return hashlib.sha256(f"{model}:{text}".encode()).hexdigest()
     
     def get(self, text: str, model: str) -> Optional[List[float]]:
         """

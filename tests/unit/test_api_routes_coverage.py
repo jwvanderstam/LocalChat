@@ -127,6 +127,45 @@ class TestApiStatusEndpoint:
         assert isinstance(data, dict)
 
 
+class TestApiStatusTTLCache:
+    """Tests for the document-count TTL cache inside api_status()."""
+
+    def test_cache_miss_queries_db(self, app, client):
+        """When the cache is stale, get_document_count() must be called."""
+        import src.routes.api_routes as routes
+        routes._status_doc_count_cache[1] = 0.0  # force cache miss
+        app.startup_status['database'] = True
+        app.db.get_document_count = MagicMock(return_value=42)
+        response = client.get('/api/status')
+        assert response.status_code == 200
+        app.db.get_document_count.assert_called_once()
+
+    def test_cache_hit_skips_db(self, app, client):
+        """Within the TTL window, get_document_count() must NOT be called."""
+        import time
+        import src.routes.api_routes as routes
+        routes._status_doc_count_cache[0] = 7
+        routes._status_doc_count_cache[1] = time.monotonic()  # just refreshed
+        app.startup_status['database'] = True
+        app.db.get_document_count = MagicMock(return_value=99)
+        response = client.get('/api/status')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['document_count'] == 7
+        app.db.get_document_count.assert_not_called()
+
+    def test_cache_miss_db_exception_marks_db_unavailable(self, app, client):
+        """When the DB raises during a cache miss, database must be False in response."""
+        import src.routes.api_routes as routes
+        routes._status_doc_count_cache[1] = 0.0  # force cache miss
+        app.startup_status['database'] = True
+        app.db.get_document_count = MagicMock(side_effect=Exception("DB error"))
+        response = client.get('/api/status')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['database'] is False
+
+
 class TestApiChatEndpoint:
     def test_chat_missing_body_returns_400(self, client):
         response = client.post('/api/chat',

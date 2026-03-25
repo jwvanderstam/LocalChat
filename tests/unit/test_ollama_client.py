@@ -416,20 +416,112 @@ class TestErrorHandling:
     def test_handles_http_error_codes(self):
         """Test handling of HTTP error codes."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found")
-        
+
         with patch.object(client._session, 'get', return_value=mock_response):
             try:
                 success, message = client.check_connection()
                 # May succeed or fail depending on implementation
                 assert isinstance(success, bool)
-            except:
-                pass  # Some implementations may raise
+            except Exception:
+                pass
+
+
+class TestGenerateEmbeddingsBatch:
+    """Tests for the generate_embeddings_batch() method."""
+
+    def test_empty_texts_returns_empty_list(self):
+        from src.ollama_client import OllamaClient
+        client = OllamaClient(base_url="http://localhost:11434")
+        assert client.generate_embeddings_batch("nomic-embed-text", []) == []
+
+    def test_successful_batch_returns_embeddings(self):
+        from src.ollama_client import OllamaClient
+        from unittest.mock import patch, Mock
+        client = OllamaClient(base_url="http://localhost:11434")
+        texts = ["hello", "world"]
+        expected = [[0.1] * 768, [0.2] * 768]
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"embeddings": expected}
+        with patch.object(client._session, 'post', return_value=mock_resp):
+            result = client.generate_embeddings_batch("nomic-embed-text", texts)
+        assert result == expected
+
+    def test_partial_response_pads_with_none(self):
+        from src.ollama_client import OllamaClient
+        from unittest.mock import patch, Mock
+        client = OllamaClient(base_url="http://localhost:11434")
+        texts = ["a", "b", "c"]
+        partial = [[0.1] * 768, [0.2] * 768]  # only 2 out of 3
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"embeddings": partial}
+        with patch.object(client._session, 'post', return_value=mock_resp):
+            result = client.generate_embeddings_batch("nomic-embed-text", texts)
+        assert len(result) == 3
+        assert result[0] == partial[0]
+        assert result[1] == partial[1]
+        assert result[2] is None
+
+    def test_http_error_falls_back_to_per_text(self):
+        from src.ollama_client import OllamaClient
+        from unittest.mock import patch, Mock
+        client = OllamaClient(base_url="http://localhost:11434")
+        texts = ["hello"]
+        embedding = [0.5] * 768
+        mock_resp = Mock()
+        mock_resp.status_code = 500
+        with patch.object(client._session, 'post', return_value=mock_resp):
+            with patch.object(client, 'generate_embedding', return_value=(True, embedding)):
+                result = client.generate_embeddings_batch("nomic-embed-text", texts)
+        assert result == [embedding]
+
+    def test_exception_falls_back_to_per_text(self):
+        from src.ollama_client import OllamaClient
+        from unittest.mock import patch
+        client = OllamaClient(base_url="http://localhost:11434")
+        texts = ["hello"]
+        embedding = [0.5] * 768
+        with patch.object(client._session, 'post', side_effect=Exception("Network error")):
+            with patch.object(client, 'generate_embedding', return_value=(True, embedding)):
+                result = client.generate_embeddings_batch("nomic-embed-text", texts)
+        assert result == [embedding]
+
+    def test_fallback_yields_none_on_embedding_failure(self):
+        from src.ollama_client import OllamaClient
+        from unittest.mock import patch
+        client = OllamaClient(base_url="http://localhost:11434")
+        texts = ["hello"]
+        with patch.object(client._session, 'post', side_effect=Exception("Network error")):
+            with patch.object(client, 'generate_embedding', return_value=(False, None)):
+                result = client.generate_embeddings_batch("nomic-embed-text", texts)
+        assert result == [None]
+
+
+class TestBackgroundRefresh:
+    """Tests for _start_background_refresh()."""
+
+    def test_sets_started_flag(self):
+        from src.ollama_client import OllamaClient
+        client = OllamaClient(base_url="http://localhost:11434")
+        assert not getattr(client, '_background_refresh_started', False)
+        client._start_background_refresh()
+        assert client._background_refresh_started is True
+
+    def test_idempotent_second_call_starts_no_extra_thread(self):
+        import threading
+        from src.ollama_client import OllamaClient
+        client = OllamaClient(base_url="http://localhost:11434")
+        client._start_background_refresh()
+        count_after_first = threading.active_count()
+        client._start_background_refresh()
+        assert threading.active_count() == count_after_first
 
 
 class TestClientConfiguration:

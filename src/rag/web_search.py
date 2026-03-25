@@ -184,8 +184,9 @@ class WebSearchProvider:
             # Block well-known internal / cloud-metadata hostnames
             _BLOCKED_HOSTS = {
                 "localhost", "127.0.0.1", "::1", "0.0.0.0",
-                "169.254.169.254",           # AWS / GCP / Azure IMDS
                 "metadata.google.internal",
+                # Note: 169.254.0.0/16 (link-local, incl. IMDS) is caught below
+                # by addr.is_link_local — no need to hardcode the IP here.
             }
             if hostname in _BLOCKED_HOSTS:
                 return False
