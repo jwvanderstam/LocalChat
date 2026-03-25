@@ -142,8 +142,6 @@ class ToolExecutor:
             return
 
         working_messages: List[Dict[str, Any]] = list(messages)
-        # True once we know the model emits tool calls as raw JSON in content
-        # rather than via the structured tool_calls field.
         inline_mode: bool = False
 
         for round_num in range(1, self._max_rounds + 1):
@@ -152,64 +150,27 @@ class ToolExecutor:
                 f"{len(working_messages)} messages, {len(schemas)} tool(s)"
             )
 
-            # In inline mode don't send schemas — the model can't use them
-            # properly and they cause it to loop by emitting more JSON.
+            active_tools = None if inline_mode else schemas
             response = self._client.generate_chat_completion(
-                model, working_messages, tools=(None if inline_mode else schemas)
+                model, working_messages, tools=active_tools
             )
             assistant_msg = response.get("message", {})
             tool_calls = assistant_msg.get("tool_calls")
 
             if not tool_calls:
-                content = assistant_msg.get("content", "")
-                # Models that don't support structured tool_calls may emit
-                # the call as a raw JSON object in the content field.
-                inlined = self._try_parse_content_tool_call(content)
-                if inlined is not None:
-                    if inline_mode:
-                        # Model is echoing the tool result wrapped in JSON.
-                        # Extract the embedded data and format it as readable text.
-                        logger.debug("[TOOLS] Model echoing result as JSON; formatting as text")
-                        args = inlined.get("function", {}).get("arguments", {})
-                        yield self._format_data_as_text(args) if args else content
-                        return
-                    logger.debug("[TOOLS] Detected inline JSON tool call in content field")
-                    inline_mode = True
-                    tool_calls = [inlined]
-                else:
-                    # Genuine final answer — stream it.
-                    if content:
-                        yield content
+                answer, tool_calls, inline_mode = self._handle_no_tool_calls(
+                    assistant_msg.get("content", ""), inline_mode
+                )
+                if answer is not None:
+                    if answer:
+                        yield answer
                     return
 
-            # --- Execute tool calls -----------------------------------
-            # For models that understand the tool role, keep the standard
-            # message chain.  For inline-mode models, skip appending the
-            # raw-JSON assistant message (it confuses them) and instead
-            # feed the result back as a plain user turn.
             if not inline_mode:
                 working_messages.append(assistant_msg)
 
-            for tc in tool_calls:
-                func = tc.get("function", {})
-                name = func.get("name", "")
-                arguments = self._parse_tool_arguments(func.get("arguments", {}))
+            self._append_tool_results(tool_calls, inline_mode, working_messages)
 
-                result = self._run_tool(name, arguments)
-
-                if inline_mode:
-                    working_messages.append({
-                        "role": "user",
-                        "content": (
-                            f"Tool '{name}' returned:\n{result}\n\n"
-                            "Using this information, answer the original question "
-                            "in plain natural language. Do not output JSON."
-                        ),
-                    })
-                else:
-                    working_messages.append({"role": "tool", "content": result})
-
-        # Exhausted all rounds - stream a final answer without tools.
         logger.warning(
             f"[TOOLS] Reached max rounds ({self._max_rounds}), "
             "streaming final response without tools"
@@ -221,6 +182,51 @@ class ToolExecutor:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _handle_no_tool_calls(
+        self, content: str, inline_mode: bool
+    ) -> tuple:
+        """
+        Process a round where the model returned no tool_calls field.
+
+        Returns ``(answer, tool_calls, new_inline_mode)``.  When ``answer``
+        is not ``None`` it is the final text to yield (empty string means
+        yield nothing); otherwise ``tool_calls`` is a list to execute next.
+        """
+        inlined = self._try_parse_content_tool_call(content)
+        if inlined is None:
+            return content, None, inline_mode
+        if inline_mode:
+            logger.debug("[TOOLS] Model echoing result as JSON; formatting as text")
+            args = inlined.get("function", {}).get("arguments", {})
+            text = self._format_data_as_text(args) if args else content
+            return text, None, inline_mode
+        logger.debug("[TOOLS] Detected inline JSON tool call in content field")
+        return None, [inlined], True
+
+    def _append_tool_results(
+        self,
+        tool_calls: list,
+        inline_mode: bool,
+        working_messages: List[Dict[str, Any]],
+    ) -> None:
+        """Execute each tool call and append results to working_messages."""
+        for tc in tool_calls:
+            func = tc.get("function", {})
+            name = func.get("name", "")
+            arguments = self._parse_tool_arguments(func.get("arguments", {}))
+            result = self._run_tool(name, arguments)
+            if inline_mode:
+                working_messages.append({
+                    "role": "user",
+                    "content": (
+                        f"Tool '{name}' returned:\n{result}\n\n"
+                        "Using this information, answer the original question "
+                        "in plain natural language. Do not output JSON."
+                    ),
+                })
+            else:
+                working_messages.append({"role": "tool", "content": result})
 
     def _run_tool(self, name: str, arguments: Dict[str, Any]) -> str:
         """Execute a single tool and return its result as a string."""
