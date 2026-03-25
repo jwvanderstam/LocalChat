@@ -309,7 +309,9 @@ def require_admin(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         from flask import current_app
-        if config.DEMO_MODE or current_app.config.get('TESTING', False):
+        # Allow unauthenticated access when no password has been configured,
+        # in DEMO_MODE, or during automated tests.
+        if not _ADMIN_PASSWORD_RAW or config.DEMO_MODE or current_app.config.get('TESTING', False):
             return f(*args, **kwargs)
         from flask_jwt_extended import verify_jwt_in_request, get_jwt
         try:
