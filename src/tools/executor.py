@@ -98,6 +98,27 @@ class ToolExecutor:
         )
         return {"function": {"name": data["name"], "arguments": args}}
 
+    @staticmethod
+    def _format_data_as_text(data: Any, indent: int = 0) -> str:
+        """Recursively convert a dict/list/scalar to a readable plain-text string."""
+        pad = "  " * indent
+        if isinstance(data, dict):
+            lines = []
+            for k, v in data.items():
+                label = str(k).replace("_", " ").title()
+                if isinstance(v, (dict, list)):
+                    lines.append(f"{pad}**{label}:**")
+                    lines.append(ToolExecutor._format_data_as_text(v, indent + 1))
+                else:
+                    lines.append(f"{pad}- {label}: {v}")
+            return "\n".join(lines)
+        if isinstance(data, list):
+            return "\n".join(
+                f"{pad}- {ToolExecutor._format_data_as_text(item, indent + 1)}"
+                for item in data
+            )
+        return f"{pad}{data}"
+
     def execute(
         self,
         model: str,
@@ -145,6 +166,13 @@ class ToolExecutor:
                 # the call as a raw JSON object in the content field.
                 inlined = self._try_parse_content_tool_call(content)
                 if inlined is not None:
+                    if inline_mode:
+                        # Model is echoing the tool result wrapped in JSON.
+                        # Extract the embedded data and format it as readable text.
+                        logger.debug("[TOOLS] Model echoing result as JSON; formatting as text")
+                        args = inlined.get("function", {}).get("arguments", {})
+                        yield self._format_data_as_text(args) if args else content
+                        return
                     logger.debug("[TOOLS] Detected inline JSON tool call in content field")
                     inline_mode = True
                     tool_calls = [inlined]
