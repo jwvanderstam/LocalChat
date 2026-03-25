@@ -11,7 +11,7 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, current_app
 from typing import Any
 from pydantic import ValidationError as PydanticValidationError
 
@@ -119,11 +119,12 @@ def register_error_handlers(app: Flask) -> None:
     def internal_server_error_handler(error: Any):
         """Handle 500 Internal Server Error."""
         logger.error(f"Internal server error: {error}", exc_info=True)
-        
+
+        details = {"type": type(error).__name__} if current_app.debug else {}
         error_response = ErrorResponse(
             error="InternalServerError",
             message="An unexpected error occurred on the server",
-            details={"type": type(error).__name__}
+            details=details
         )
         return jsonify(error_response.model_dump()), 500
     

@@ -25,6 +25,7 @@ else:
     current_app = _current_app
 
 from ..utils.logging_config import get_logger
+from ..utils.sanitization import sanitize_filename
 
 bp = Blueprint('documents', __name__)
 logger = get_logger(__name__)
@@ -38,7 +39,8 @@ def _save_uploaded_files(files) -> list:
         if file.filename:
             ext = Path(file.filename).suffix.lower()
             if ext in config.SUPPORTED_EXTENSIONS:
-                file_path = os.path.join(config.UPLOAD_FOLDER, file.filename)
+                safe_name = sanitize_filename(file.filename)
+                file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
                 file.save(file_path)
                 saved.append(file_path)
     return saved

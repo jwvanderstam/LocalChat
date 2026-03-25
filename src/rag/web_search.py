@@ -150,18 +150,24 @@ class WebSearchProvider:
 
     def _fetch_page_texts(self, results: List[WebSearchResult]) -> None:
         """Fetch and extract plain text from each result URL."""
+        session = requests.Session()
+        session.max_redirects = 5
         for r in results:
             if not self._is_safe_url(r.url):
                 logger.warning(f"[WEB SEARCH] Skipping unsafe URL: {r.url!r}")
                 continue
             try:
-                resp = requests.get(
+                resp = session.get(
                     r.url,
                     headers=self._HEADERS,
                     timeout=self.timeout,
                     allow_redirects=True,
                 )
                 resp.raise_for_status()
+                content_type = resp.headers.get("Content-Type", "")
+                if not content_type.startswith("text/"):
+                    logger.debug(f"[WEB SEARCH] Skipping non-text response at {r.url!r}: {content_type!r}")
+                    continue
                 text = self._extract_body_text(resp.text)
                 r.page_text = text[: self.max_page_chars] if text else None
             except requests.RequestException as exc:

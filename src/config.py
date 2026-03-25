@@ -289,6 +289,11 @@ if DEMO_MODE:
 # when scraping /api/metrics.  Leave empty to allow unauthenticated access
 # (acceptable when the endpoint is behind a firewall or a private network).
 METRICS_TOKEN: str = os.environ.get('METRICS_TOKEN', '')
+if not METRICS_TOKEN:
+    logger.warning(
+        "METRICS_TOKEN is not set — /api/metrics is accessible without authentication. "
+        "Set METRICS_TOKEN in .env to restrict access."
+    )
 
 
 class AppState:
@@ -445,6 +450,31 @@ class AppState:
 
 # Create global app state instance
 app_state = AppState()
+
+
+def validate_config() -> None:
+    """
+    Validate configuration values for logical consistency.
+
+    Raises:
+        ValueError: If any configuration value is invalid.
+    """
+    if CHUNK_OVERLAP >= CHUNK_SIZE:
+        raise ValueError(
+            f"CHUNK_OVERLAP ({CHUNK_OVERLAP}) must be less than CHUNK_SIZE ({CHUNK_SIZE})"
+        )
+    if RERANK_TOP_K > TOP_K_RESULTS:
+        raise ValueError(
+            f"RERANK_TOP_K ({RERANK_TOP_K}) cannot exceed TOP_K_RESULTS ({TOP_K_RESULTS})"
+        )
+    if OLLAMA_NUM_GPU < -1:
+        raise ValueError(
+            f"OLLAMA_NUM_GPU ({OLLAMA_NUM_GPU}) must be >= -1 (-1 means all layers on GPU)"
+        )
+    logger.debug("Configuration validation passed")
+
+
+validate_config()
 
 logger.info("Configuration module loaded")
 logger.debug(f"Database: {PG_HOST}:{PG_PORT}/{PG_DB}")

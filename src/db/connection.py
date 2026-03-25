@@ -186,10 +186,13 @@ class DatabaseConnection:
 
             logger.info("PostgreSQL server is reachable, attempting connection...")
 
-            conninfo = (
-                f"host={config.PG_HOST} port={config.PG_PORT} "
-                f"user={config.PG_USER} password={config.PG_PASSWORD} dbname={config.PG_DB}"
-            )
+            _conn_kwargs = {
+                "host": config.PG_HOST,
+                "port": config.PG_PORT,
+                "user": config.PG_USER,
+                "password": config.PG_PASSWORD,
+                "dbname": config.PG_DB,
+            }
 
             def configure_connection(conn):
                 register_vector_types(conn)
@@ -206,7 +209,7 @@ class DatabaseConnection:
             try:
                 logger.debug("Creating connection pool")
                 self.connection_pool = ConnectionPool(
-                    conninfo=conninfo,
+                    kwargs=_conn_kwargs,
                     min_size=config.DB_POOL_MIN_CONN,
                     max_size=config.DB_POOL_MAX_CONN,
                     timeout=5,
@@ -224,7 +227,7 @@ class DatabaseConnection:
                     self._create_database()
 
                     self.connection_pool = ConnectionPool(
-                        conninfo=conninfo,
+                        kwargs=_conn_kwargs,
                         min_size=config.DB_POOL_MIN_CONN,
                         max_size=config.DB_POOL_MAX_CONN,
                         timeout=5,
@@ -254,11 +257,14 @@ class DatabaseConnection:
         """Create the target database if it does not exist."""
         try:
             logger.info(f"Creating database: {config.PG_DB}")
-            conninfo = (
-                f"host={config.PG_HOST} port={config.PG_PORT} "
-                f"user={config.PG_USER} password={config.PG_PASSWORD} dbname=postgres"
-            )
-            with psycopg.connect(conninfo, autocommit=True) as conn:
+            with psycopg.connect(
+                host=config.PG_HOST,
+                port=config.PG_PORT,
+                user=config.PG_USER,
+                password=config.PG_PASSWORD,
+                dbname="postgres",
+                autocommit=True,
+            ) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "SELECT 1 FROM pg_database WHERE datname = %s",

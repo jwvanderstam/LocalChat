@@ -15,6 +15,7 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from ..utils.logging_config import get_logger
+from ..utils.sanitization import escape_sql_like
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -472,10 +473,10 @@ class DocumentsMixin:
                            LENGTH(dc.chunk_text) AS length
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
-                    WHERE dc.chunk_text ILIKE %s
+                    WHERE dc.chunk_text ILIKE %s ESCAPE '\\'
                     ORDER BY dc.chunk_index
                     LIMIT %s
-                """, (f'%{search_text}%', limit))
+                """, (f'%{escape_sql_like(search_text)}%', limit))
                 results = [
                     {
                         'filename': r[0],

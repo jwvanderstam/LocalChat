@@ -17,6 +17,8 @@ Last Updated: 2025-01-27
 
 from flask import Flask, request, jsonify, Response
 from flask.typing import ResponseReturnValue
+import hashlib
+import hmac
 import os
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_limiter import Limiter
@@ -42,10 +44,17 @@ limiter = None
 # ============================================================================
 
 # Credentials are loaded from the ADMIN_PASSWORD environment variable.
-# The login endpoint rejects requests if the variable is not configured.
+# The password is hashed with PBKDF2-HMAC-SHA256 at startup so it is never
+# stored or compared in plaintext.  The salt is regenerated each time the
+# process starts; this is intentional (env-var secrets should not be stored).
+_ADMIN_PASSWORD_RAW: str = os.environ.get('ADMIN_PASSWORD', '')
+_ADMIN_PASSWORD_SALT: bytes = os.urandom(32)
+_ADMIN_PASSWORD_HASH: bytes = hashlib.pbkdf2_hmac(
+    'sha256', _ADMIN_PASSWORD_RAW.encode('utf-8'), _ADMIN_PASSWORD_SALT, 100_000
+)
+
 USERS = {
     'admin': {
-        'password': os.environ.get('ADMIN_PASSWORD', ''),
         'role': 'admin'
     }
 }
@@ -69,6 +78,8 @@ def init_security(app: Flask) -> None:
 
     # Skip JWT and rate-limiting in demo mode — auth is intentionally off.
     if config.DEMO_MODE:
+        if os.environ.get('APP_ENV') == 'production':
+            raise RuntimeError("DEMO_MODE must not be enabled in production")
         logger.warning("DEMO_MODE: JWT authentication and rate limiting are disabled.")
         jwt_manager = JWTManager(app)
         limiter = Limiter(app=app, key_func=get_remote_address, enabled=False)
@@ -76,6 +87,11 @@ def init_security(app: Flask) -> None:
             CORS(app, origins=config.CORS_ORIGINS)
         logger.info("Security initialization complete (demo mode)")
         return
+
+    if not _ADMIN_PASSWORD_RAW:
+        if os.environ.get('APP_ENV') == 'production':
+            raise RuntimeError("ADMIN_PASSWORD must be set in production")
+        logger.warning("ADMIN_PASSWORD is not set — admin login will be rejected until it is configured.")
 
     app.config['JWT_SECRET_KEY'] = config.JWT_SECRET_KEY
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=config.JWT_ACCESS_TOKEN_EXPIRES)
@@ -169,7 +185,14 @@ def setup_auth_routes(app: Flask) -> None:
         
         # Verify credentials
         user = USERS.get(username)
-        if not user or not user['password'] or user['password'] != password:
+        if not user or not _ADMIN_PASSWORD_RAW:
+            logger.warning(f"Failed login attempt for user: {username}")
+            return jsonify({'message': 'Invalid credentials'}), 401
+
+        provided_hash = hashlib.pbkdf2_hmac(
+            'sha256', password.encode('utf-8'), _ADMIN_PASSWORD_SALT, 100_000
+        )
+        if not hmac.compare_digest(provided_hash, _ADMIN_PASSWORD_HASH):
             logger.warning(f"Failed login attempt for user: {username}")
             return jsonify({'message': 'Invalid credentials'}), 401
         
@@ -245,13 +268,13 @@ def require_auth_optional(f: Callable) -> Callable:
 def admin_required(f: Callable) -> Callable:
     """
     Require admin role for endpoint access.
-    
+
     Args:
         f: Function to decorate
-    
+
     Returns:
         Decorated function
-    
+
     Raises:
         403: If user is not an admin
     """
@@ -260,11 +283,42 @@ def admin_required(f: Callable) -> Callable:
     def decorated_function(*args, **kwargs):
         from flask_jwt_extended import get_jwt
         claims = get_jwt()
-        
+
         if claims.get('role') != 'admin':
             logger.warning(f"Non-admin user attempted to access admin endpoint: {request.path}")
             return jsonify({'message': 'Admin access required'}), 403
-        
+
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def require_admin(f: Callable) -> Callable:
+    """
+    DEMO_MODE-aware admin guard.
+
+    In DEMO_MODE the endpoint is accessible without a token (single-user
+    local evaluation).  In all other modes a valid JWT with ``role=admin``
+    is required.
+
+    Args:
+        f: Function to decorate
+
+    Returns:
+        Decorated function
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if config.DEMO_MODE:
+            return f(*args, **kwargs)
+        from flask_jwt_extended import verify_jwt_in_request, get_jwt
+        try:
+            verify_jwt_in_request()
+        except Exception:
+            return jsonify({'message': 'Authentication required'}), 401
+        claims = get_jwt()
+        if claims.get('role') != 'admin':
+            logger.warning(f"Non-admin user attempted to access admin endpoint: {request.path}")
+            return jsonify({'message': 'Admin access required'}), 403
         return f(*args, **kwargs)
     return decorated_function
 
