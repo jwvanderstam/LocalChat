@@ -102,7 +102,7 @@ class TestWebSearchDuckDuckGo:
     def test_duckduckgo_missing_library_returns_empty(self):
         from src.rag.web_search import WebSearchProvider
 
-        with patch.dict("sys.modules", {"duckduckgo_search": None}):
+        with patch.dict("sys.modules", {"ddgs": None, "duckduckgo_search": None}):
             provider = WebSearchProvider()
             results = provider._search_duckduckgo("test")
             assert results == []
@@ -116,7 +116,7 @@ class TestWebSearchDuckDuckGo:
         mock_module = MagicMock()
         mock_module.DDGS = mock_ddgs_cls
 
-        with patch.dict("sys.modules", {"duckduckgo_search": mock_module}):
+        with patch.dict("sys.modules", {"ddgs": mock_module, "duckduckgo_search": mock_module}):
             provider = WebSearchProvider()
             results = provider._search_duckduckgo("test")
             assert results == []
@@ -137,7 +137,7 @@ class TestWebSearchDuckDuckGo:
         mock_module = MagicMock()
         mock_module.DDGS = mock_ddgs_cls
 
-        with patch.dict("sys.modules", {"duckduckgo_search": mock_module}):
+        with patch.dict("sys.modules", {"ddgs": mock_module, "duckduckgo_search": mock_module}):
             provider = WebSearchProvider()
             results = provider._search_duckduckgo("test")
             assert len(results) == 1

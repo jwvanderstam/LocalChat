@@ -126,10 +126,14 @@ class WebSearchProvider:
     def _search_duckduckgo(self, query: str) -> List[WebSearchResult]:
         """Search via the duckduckgo-search library."""
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
         except ImportError:
-            logger.warning("[WEB SEARCH] duckduckgo-search library not installed")
-            return []
+            try:
+                from duckduckgo_search import DDGS  # type: ignore[no-redef]
+            except ImportError:
+                logger.warning("[WEB SEARCH] Neither 'ddgs' nor 'duckduckgo_search' is installed. "
+                               "Run: pip install ddgs")
+                return []
 
         try:
             with DDGS() as ddgs:

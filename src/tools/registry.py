@@ -24,6 +24,7 @@ Author: LocalChat Team
 
 from __future__ import annotations
 
+import inspect
 import json
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
@@ -143,7 +144,20 @@ class ToolRegistry:
         spec = self._tools.get(name)
         if spec is None:
             raise KeyError(f"Unknown tool: {name}")
-        return spec.handler(**arguments)
+        # Drop any keys that the handler does not accept.  LLMs occasionally
+        # inject extra fields (e.g. "object", "parameters") that are not part
+        # of the tool schema.
+        sig = inspect.signature(spec.handler)
+        valid_params = sig.parameters
+        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in valid_params.values()):
+            # Handler accepts **kwargs — forward everything as-is.
+            filtered = arguments
+        else:
+            filtered = {k: v for k, v in arguments.items() if k in valid_params}
+            dropped = set(arguments) - set(filtered)
+            if dropped:
+                logger.debug(f"[TOOLS] Dropping unexpected arguments for '{name}': {dropped}")
+        return spec.handler(**filtered)
 
     # -- Ollama schema export -----------------------------------------------
 
