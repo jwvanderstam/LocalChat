@@ -387,7 +387,7 @@ class TestGetGpuInfo:
         with patch("shutil.which", return_value="/usr/bin/nvidia-smi"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=1, stdout="")
-                gpus = client._get_nvidia_gpu_info()
+                gpus = client._gpu_monitor._get_nvidia_gpu_info()
         assert gpus == []
 
     def test_amd_returns_empty_on_nonzero_exit(self):
@@ -396,7 +396,7 @@ class TestGetGpuInfo:
         with patch("shutil.which", return_value="/usr/bin/rocm-smi"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=1, stdout="")
-                gpus = client._get_amd_gpu_info()
+                gpus = client._gpu_monitor._get_amd_gpu_info()
         assert gpus == []
 
     def test_nvidia_returns_empty_on_exception(self):
@@ -404,7 +404,7 @@ class TestGetGpuInfo:
         client = self._make_client()
         with patch("shutil.which", return_value="/usr/bin/nvidia-smi"):
             with patch("subprocess.run", side_effect=OSError("not found")):
-                gpus = client._get_nvidia_gpu_info()
+                gpus = client._gpu_monitor._get_nvidia_gpu_info()
         assert gpus == []
 
     def test_amd_handles_invalid_json(self):
@@ -413,7 +413,7 @@ class TestGetGpuInfo:
         with patch("shutil.which", return_value="/usr/bin/rocm-smi"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0, stdout="not json")
-                gpus = client._get_amd_gpu_info()
+                gpus = client._gpu_monitor._get_amd_gpu_info()
         assert gpus == []
 
     # -- TTL cache tests -------------------------------------------------------
@@ -436,7 +436,7 @@ class TestGetGpuInfo:
     def test_gpu_info_cache_expires(self):
         """get_gpu_info re-queries when TTL has elapsed."""
         client = self._make_client()
-        client._GPU_INFO_TTL = 0.0              # force immediate expiry
+        client._gpu_monitor._ttl = 0.0          # force immediate expiry
         nvidia_output = "0, NVIDIA RTX 5070, 12288, 595, 11693, 42, 65\n"
 
         with patch("shutil.which", return_value="/usr/bin/nvidia-smi"):
