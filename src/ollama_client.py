@@ -15,15 +15,12 @@ GPU Support:
     Ollama distributes work across all detected GPUs automatically.
 
 GPU Detection:
-    ``get_gpu_info()`` auto-detects NVIDIA GPUs via ``nvidia-smi`` and AMD
-    GPUs via ``rocm-smi``.  Results are TTL-cached (30 s) to avoid spawning
-    a subprocess on every admin dashboard refresh.  Returns an empty list when
-    neither tool is available.
+    ``get_gpu_info()`` delegates to :class:`~src.gpu_monitor.GpuMonitor`,
+    which auto-detects NVIDIA/AMD GPUs and TTL-caches results (30 s).
 
 TTL Caching:
     ``get_running_models()`` caches ``/api/ps`` responses for 5 s.  Stale
     cached data is returned on network errors rather than an empty list.
-    ``get_gpu_info()`` caches hardware stats for 30 s.
 
 Embedding Endpoint:
     Uses the newer ``/api/embed`` endpoint (Ollama ≥ 0.1.32) with automatic
@@ -43,13 +40,12 @@ Last Updated: 2026-03-19
 """
 
 import json
-import shutil
-import subprocess
 import threading
 import time
 import requests
 from typing import Tuple, List, Dict, Any, Optional, Generator, NoReturn
 from . import config
+from .gpu_monitor import GpuMonitor
 from .utils.logging_config import get_logger
 
 # Setup logger
@@ -86,7 +82,6 @@ class OllamaClient:
     
     # How long (seconds) to serve cached results before re-querying.
     _RUNNING_MODELS_TTL: float = 5.0   # loaded models can change at any time
-    _GPU_INFO_TTL: float = 30.0        # hardware stats; subprocess is expensive
     _LIST_MODELS_TTL: float = 60.0     # installed models list; rarely changes
 
     def __init__(self, base_url: Optional[str] = None) -> None:
@@ -101,13 +96,12 @@ class OllamaClient:
         self.available_models: List[str] = []
         self._session = requests.Session()  # reuse TCP connections across calls
         self._embedding_model_cache: Optional[str] = None  # resolved once, reused
-        # TTL caches — avoids /api/ps and nvidia-smi on every admin page load
+        # TTL caches — avoids /api/ps on every admin page load
         self._running_models_cache: Optional[List[Dict[str, Any]]] = None
         self._running_models_cache_time: float = 0.0
-        self._gpu_info_cache: Optional[List[Dict[str, Any]]] = None
-        self._gpu_info_cache_time: float = 0.0
         self._list_models_cache: Optional[List[Dict[str, Any]]] = None
         self._list_models_cache_time: float = 0.0
+        self._gpu_monitor = GpuMonitor()
         logger.info(f"OllamaClient initialized with base_url: {self.base_url}")
     
     def check_connection(self) -> Tuple[bool, str]:
@@ -697,114 +691,17 @@ class OllamaClient:
         """
         Detect all available GPUs and return per-GPU hardware stats.
 
-        Results are cached for ``_GPU_INFO_TTL`` seconds because spawning
-        ``nvidia-smi`` or ``rocm-smi`` on every request adds ~2 seconds of
-        latency on the first call and is wasteful on subsequent ones.
-
-        Tries NVIDIA first (via ``nvidia-smi``), then AMD (via ``rocm-smi``).
-        Returns an empty list when neither tool is found or both fail.
+        Delegates to :class:`~src.gpu_monitor.GpuMonitor`, which TTL-caches
+        results (30 s) and tries NVIDIA first, then AMD.
 
         Each entry contains:
             ``id``, ``name``, ``vendor``, ``vram_total_mb``, ``vram_used_mb``,
             ``vram_free_mb``, ``utilization_percent``, ``temperature_c``.
 
         Returns:
-            List of GPU info dicts (one per physical GPU).
+            List of GPU info dicts (one per physical GPU), or empty list.
         """
-        now = time.monotonic()
-        if (
-            self._gpu_info_cache is not None
-            and (now - self._gpu_info_cache_time) < self._GPU_INFO_TTL
-        ):
-            return self._gpu_info_cache
-        gpus = self._get_nvidia_gpu_info()
-        if not gpus:
-            gpus = self._get_amd_gpu_info()
-        self._gpu_info_cache = gpus
-        self._gpu_info_cache_time = now
-        return gpus
-
-    def _get_nvidia_gpu_info(self) -> List[Dict[str, Any]]:
-        """Query ``nvidia-smi`` for per-GPU stats (NVIDIA)."""
-        if not shutil.which("nvidia-smi"):
-            return []
-        try:
-            result = subprocess.run(
-                [
-                    "nvidia-smi",
-                    "--query-gpu=index,name,memory.total,memory.used,"
-                    "memory.free,utilization.gpu,temperature.gpu",
-                    "--format=csv,noheader,nounits",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode != 0:
-                logger.debug("nvidia-smi exited with code %d", result.returncode)
-                return []
-            gpus: List[Dict[str, Any]] = []
-            for line in result.stdout.strip().splitlines():
-                parts = [p.strip() for p in line.split(",")]
-                if len(parts) < 7:
-                    continue
-                try:
-                    gpus.append({
-                        "id": int(parts[0]),
-                        "name": parts[1],
-                        "vendor": "NVIDIA",
-                        "vram_total_mb": int(parts[2]),
-                        "vram_used_mb": int(parts[3]),
-                        "vram_free_mb": int(parts[4]),
-                        "utilization_percent": int(parts[5]),
-                        "temperature_c": int(parts[6]),
-                    })
-                except (ValueError, IndexError) as exc:
-                    logger.debug("Skipping malformed nvidia-smi line: %s (%s)", line, exc)
-            return gpus
-        except Exception as exc:
-            logger.debug("nvidia-smi query failed: %s", exc)
-            return []
-
-    def _get_amd_gpu_info(self) -> List[Dict[str, Any]]:
-        """Query ``rocm-smi`` for per-GPU stats (AMD/ROCm)."""
-        if not shutil.which("rocm-smi"):
-            return []
-        try:
-            result = subprocess.run(
-                ["rocm-smi", "--showmeminfo", "vram", "--showuse", "--json"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode != 0:
-                logger.debug("rocm-smi exited with code %d", result.returncode)
-                return []
-            data = json.loads(result.stdout)
-            gpus: List[Dict[str, Any]] = []
-            for idx, (_, card_val) in enumerate(data.items()):
-                if not isinstance(card_val, dict):
-                    continue
-                total_mb = int(card_val.get("VRAM Total Memory (B)", 0)) // (1024 * 1024)
-                used_mb = int(card_val.get("VRAM Total Used Memory (B)", 0)) // (1024 * 1024)
-                try:
-                    util = int(float(str(card_val.get("GPU use (%)", "0")).rstrip("%")))
-                except (ValueError, TypeError):
-                    util = 0
-                gpus.append({
-                    "id": idx,
-                    "name": card_val.get("Card Series", card_val.get("GPU ID", f"AMD GPU {idx}")),
-                    "vendor": "AMD",
-                    "vram_total_mb": total_mb,
-                    "vram_used_mb": used_mb,
-                    "vram_free_mb": max(0, total_mb - used_mb),
-                    "utilization_percent": util,
-                    "temperature_c": None,
-                })
-            return gpus
-        except Exception as exc:
-            logger.debug("rocm-smi query failed: %s", exc)
-            return []
+        return self._gpu_monitor.get_gpu_info()
 
     def _find_model_in_list(self, model_names: list, preferred: list) -> Optional[str]:
         """Return first model from preferred list found (by substring) in model_names."""

@@ -343,7 +343,6 @@ def setup_health_check(_app: Flask) -> None:
     # Health check is now handled by monitoring module
     # Monitoring provides a more comprehensive health check with component status
     logger.info("Health check is provided by monitoring module at /api/health")
-    pass
 
 
 # ============================================================================

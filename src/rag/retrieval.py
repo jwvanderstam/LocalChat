@@ -38,9 +38,9 @@ _CONTRACTIONS: dict = {
 try:
     from ..monitoring import timed, counted
 except ImportError:
-    def timed(metric_name: str):  # noqa: E306
+    def timed(_metric_name: str):  # noqa: E306
         return lambda func: func
-    def counted(metric_name: str, labels=None):  # noqa: E306
+    def counted(_metric_name: str, _labels=None):  # noqa: E306
         return lambda func: func
 
 
@@ -412,8 +412,7 @@ class RetrievalMixin:
         
         # Create mini-corpus from results
         corpus = [data['chunk_text'] for data in results.values()]
-        chunk_ids = list(results.keys())
-        
+
         # Fit BM25 on this corpus
         scorer = BM25Scorer()
         scorer.fit(corpus)
@@ -441,10 +440,10 @@ class RetrievalMixin:
                 scores = {k: (v - min_score) / score_range for k, v in scores.items()}
                 logger.debug(f"[BM25] Normalized {len(scores)} scores (range was {score_range:.3f})")
             elif max_score > 0:
-                scores = {k: 0.5 for k in scores}
+                scores = dict.fromkeys(scores, 0.5)
                 logger.debug(f"[BM25] All scores equal ({max_score:.3f}), using 0.5 for all")
             else:
-                scores = {k: 0.0 for k in scores}
+                scores = dict.fromkeys(scores, 0.0)
                 logger.info("[BM25] No keyword matches found (query terms not in documents)")
                 logger.info("[BM25] Falling back to semantic similarity only - this is expected for abstract/conceptual queries")
         
