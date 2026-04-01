@@ -16,6 +16,8 @@ const chatInput = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send-btn');
 const ragToggle = document.getElementById('rag-toggle');
 const enhanceToggle = document.getElementById('enhance-toggle');
+const temperatureSlider = document.getElementById('temperature-slider');
+const temperatureValue = document.getElementById('temperature-value');
 const modeBadge = document.getElementById('mode-badge');
 const copyChatBtn = document.getElementById('copy-chat-btn');
 const newChatBtn = document.getElementById('new-chat-btn');
@@ -52,6 +54,14 @@ function updateModeBadge() {
 
 // Initialize
 function init() {
+    // Temperature slider
+    if (temperatureSlider) {
+        temperatureSlider.addEventListener('input', () => {
+            const val = parseFloat(temperatureSlider.value);
+            if (temperatureValue) temperatureValue.textContent = val.toFixed(1);
+        });
+    }
+
     // RAG toggle
     ragToggle.addEventListener('change', () => updateModeBadge());
     if (enhanceToggle) {
@@ -365,11 +375,13 @@ async function sendMessage() {
     try {
         const useRag = ragToggle.checked;
         const useEnhance = enhanceToggle ? enhanceToggle.checked : false;
+        const temperature = temperatureSlider ? parseFloat(temperatureSlider.value) : 0.7;
         const body = {
             message,
             use_rag: useRag,
             enhance: useEnhance,
-            history: historySnapshot
+            history: historySnapshot,
+            temperature,
         };
         if (currentConversationId) body.conversation_id = currentConversationId;
 

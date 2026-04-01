@@ -416,7 +416,8 @@ class OllamaClient:
         model: str,
         messages: List[Dict[str, Any]],
         stream: bool = True,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        temperature: float = 0.7,
     ) -> Generator[str, None, None]:
         """
         Generate a chat response from the model.
@@ -443,6 +444,7 @@ class OllamaClient:
         options: Dict[str, Any] = {
             "num_gpu": config.OLLAMA_NUM_GPU,
             "num_ctx": config.MAX_CONTEXT_LENGTH,
+            "temperature": temperature,
         }
         if max_tokens is not None:
             options["num_predict"] = max_tokens

@@ -84,6 +84,12 @@ class ChatRequest(BaseModel):
         default=None,
         description="Optional list of base64-encoded images for vision-capable models"
     )
+    temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=2.0,
+        description="Sampling temperature (0 = deterministic, 2 = very creative)"
+    )
 
     @field_validator('conversation_id')
     @classmethod

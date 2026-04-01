@@ -16,6 +16,19 @@
                 <i class="bi bi-globe me-1"></i>Enhanced
             </label>
         </div>
+        <div class="d-flex align-items-center me-3" style="min-width: 200px;">
+            <i class="bi bi-thermometer-half me-1 text-muted" title="Temperature"></i>
+            <div class="flex-grow-1">
+                <div class="d-flex justify-content-between" style="font-size: 0.7rem; color: #6c757d; line-height: 1;">
+                    <span>Precise</span>
+                    <span id="temperature-value" class="fw-semibold text-primary">0.7</span>
+                    <span>Creative</span>
+                </div>
+                <input type="range" class="form-range" id="temperature-slider"
+                       min="0" max="2" step="0.1" value="0.7"
+                       title="Temperature: controls randomness. Low = focused answers, High = creative responses.">
+            </div>
+        </div>
         <button class="btn btn-sm btn-outline-primary me-2" id="copy-chat-btn" title="Copy chat to clipboard">
             <i class="bi bi-clipboard me-1"></i>Copy Chat
         </button>

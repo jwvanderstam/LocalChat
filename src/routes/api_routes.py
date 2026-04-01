@@ -78,6 +78,7 @@ def _parse_chat_request(data: dict) -> dict:
         'chat_history': req.history,
         'conversation_id': req.conversation_id,
         'images': req.images or [],
+        'temperature': req.temperature,
     }
 
 
@@ -299,7 +300,7 @@ def _get_tool_executor(app):
     return None
 
 
-def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor):
+def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7):
     """Build and return an SSE Response that streams the chat completion."""
     def generate() -> Generator[str, None, None]:
         full_response: list = []
@@ -307,7 +308,7 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
             stream = (
                 tool_executor.execute(active_model, messages, stream=True)
                 if tool_executor is not None
-                else app.ollama_client.generate_chat_response(active_model, messages, stream=True)
+                else app.ollama_client.generate_chat_response(active_model, messages, stream=True, temperature=temperature)
             )
             for chunk in stream:
                 full_response.append(chunk)
@@ -427,7 +428,7 @@ def api_chat():
         # would try to call retrieval tools it doesn't need, causing confusion.
         tool_executor = None if (local_ctx or web_ctx) else _get_tool_executor(app)
 
-        return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor)
+        return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, fields['temperature'])
 
     except (PydanticValidationError, exceptions.LocalChatException):
         raise

@@ -17,6 +17,8 @@ from typing import Generator, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 import os
 import json
+import queue
+import threading
 
 if TYPE_CHECKING:
     from ..types import LocalChatApp
@@ -157,10 +159,37 @@ def api_upload_documents():
             for file_path in file_paths:
                 yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
 
-                success, message, _ = app.doc_processor.ingest_document(
-                    file_path,
-                    lambda m: None
-                )
+                progress_queue: queue.Queue = queue.Queue()
+                result_container: dict = {}
+
+                def _run_ingest(path=file_path):
+                    try:
+                        s, m, d = app.doc_processor.ingest_document(
+                            path,
+                            lambda msg: progress_queue.put(('progress', msg))
+                        )
+                        result_container.update({'success': s, 'message': m, 'doc_id': d})
+                    except Exception as exc:
+                        result_container.update({'success': False, 'message': str(exc), 'doc_id': None})
+                    finally:
+                        progress_queue.put(('done', None))
+
+                thread = threading.Thread(target=_run_ingest, daemon=True)
+                thread.start()
+
+                while True:
+                    try:
+                        event_type, data = progress_queue.get(timeout=5)
+                        if event_type == 'done':
+                            break
+                        yield f"data: {json.dumps({'message': data})}\n\n"
+                    except queue.Empty:
+                        yield ": keep-alive\n\n"
+
+                thread.join()
+
+                success = result_container.get('success', False)
+                message = result_container.get('message', 'Unknown error')
 
                 yield f"data: {json.dumps({'result': {'filename': os.path.basename(file_path), 'success': success, 'message': message}})}\n\n"
 
@@ -171,6 +200,8 @@ def api_upload_documents():
 
             doc_count = _update_document_count(app)
             yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
+        except GeneratorExit:
+            pass
         except Exception as e:
             logger.error(f"Upload stream error: {e}", exc_info=True)
             yield f"data: {json.dumps({'error': 'Upload failed', 'done': True})}\n\n"
