@@ -260,11 +260,6 @@ LOG_FILE: str = os.environ.get('LOG_FILE', 'logs/app.log')
 # Set LOG_FORMAT=json to emit JSON lines (recommended for production log aggregators)
 LOG_FORMAT: str = os.environ.get('LOG_FORMAT', 'text')
 
-# Logging
-LOG_FILE: str = os.environ.get('LOG_FILE', 'logs/app.log')
-# Set LOG_FORMAT=json to emit JSON lines (recommended for production log aggregators)
-LOG_FORMAT: str = os.environ.get('LOG_FORMAT', 'text')
-
 # State persistence file
 STATE_FILE: str = 'app_state.json'
 

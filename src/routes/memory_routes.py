@@ -49,8 +49,13 @@ def list_conversations():
       503:
         description: Database unavailable
     """
-    conversations = current_app.db.list_conversations()
-    return jsonify({'conversations': conversations})
+    try:
+        limit = min(int(request.args.get('limit', 50)), 200)
+        offset = max(int(request.args.get('offset', 0)), 0)
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': 'limit and offset must be integers'}), 400
+    conversations = current_app.db.list_conversations(limit=limit, offset=offset)
+    return jsonify({'conversations': conversations, 'limit': limit, 'offset': offset})
 
 
 @bp.route('/conversations', methods=['POST'])

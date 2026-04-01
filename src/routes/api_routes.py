@@ -202,8 +202,7 @@ def api_status():
         now = time.monotonic()
         if now - _status_doc_count_cache[1] > _STATUS_CACHE_TTL:
             try:
-                _status_doc_count_cache[0] = current_app.db.get_document_count()
-                _status_doc_count_cache[1] = now
+                _status_doc_count_cache[:] = [current_app.db.get_document_count(), now]
             except Exception as e:
                 logger.warning(f"Could not get document count: {e}")
                 db_available = False

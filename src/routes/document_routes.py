@@ -270,22 +270,20 @@ def api_test_retrieval():
     try:
         data = request.get_json()
         
+        data = data or {}
+        query = data.get('query', '').strip()
+        if not query:
+            return jsonify({'success': False, 'message': 'Query required'}), 400
+        if len(query) > 1000:
+            return jsonify({'success': False, 'message': 'Query too long'}), 400
+
+        use_hybrid = data.get('use_hybrid_search', True)
+
         try:
-            from ..models import RetrievalRequest
             from ..utils.sanitization import sanitize_query
-
-            request_data = RetrievalRequest(**data)
-            query = sanitize_query(request_data.query)
-            use_hybrid = data.get('use_hybrid_search', True)
-
+            query = sanitize_query(query)
         except ImportError:
-            query = data.get('query', 'What is this about?').strip()
-            use_hybrid = data.get('use_hybrid_search', True)
-            
-            if not query:
-                return jsonify({'success': False, 'message': 'Query required'}), 400
-            if len(query) > 1000:
-                return jsonify({'success': False, 'message': 'Query too long'}), 400
+            pass
         
         logger.info(f"Testing retrieval: {query[:50]}... (hybrid={use_hybrid})")
         

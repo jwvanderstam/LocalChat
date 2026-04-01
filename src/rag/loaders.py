@@ -226,7 +226,10 @@ class DocumentLoaderMixin:
                 extraction_method = "PyPDF2"
 
             if not text.strip():
-                error_msg = "PDF extraction resulted in empty text - file may be image-based or password-protected."
+                error_msg = (
+                    f"PDF extraction yielded no text using {extraction_method} "
+                    "(file may be image-based, password-protected, or corrupt)."
+                )
                 logger.error(f"{error_msg} File: {file_path} ({file_size:,} bytes)")
                 return False, error_msg
 

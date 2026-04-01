@@ -420,9 +420,8 @@ class DocumentsMixin:
                     SELECT d.filename, dc.chunk_index, dc.chunk_text,
                            LENGTH(dc.chunk_text) AS length,
                            dc.embedding IS NOT NULL AS has_embedding
-                    FROM document_chunks dc
+                    FROM document_chunks dc TABLESAMPLE SYSTEM(1)
                     JOIN documents d ON dc.document_id = d.id
-                    ORDER BY RANDOM()
                     LIMIT 3
                 """)
                 samples = [

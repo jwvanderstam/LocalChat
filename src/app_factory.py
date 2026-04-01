@@ -310,13 +310,14 @@ def _init_caching(app: LocalChatApp) -> None:
         )
         
         # Create query backend (different max_size for memory)
+        query_backend_config = dict(backend_config)
         if cache_backend_type == 'memory':
-            backend_config['max_size'] = 1000
-        
+            query_backend_config['max_size'] = 1000
+
         query_backend = create_cache_backend(
             cache_backend_type,
             namespace='queries',
-            **backend_config
+            **query_backend_config
         )
         
         # Initialize cache managers

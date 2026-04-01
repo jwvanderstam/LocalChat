@@ -53,9 +53,13 @@ class ConversationsMixin:
         logger.debug(f"Created conversation: {conversation_id}")
         return conversation_id
 
-    def list_conversations(self) -> List[Dict[str, Any]]:
+    def list_conversations(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """
-        List all conversations ordered by most recently updated.
+        List conversations ordered by most recently updated.
+
+        Args:
+            limit: Maximum number of conversations to return (default 50, max 200).
+            offset: Number of conversations to skip for pagination (default 0).
 
         Returns:
             List of dicts with keys: id, title, created_at, updated_at, message_count
@@ -66,6 +70,9 @@ class ConversationsMixin:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot list conversations: Database is not connected")
 
+        limit = max(1, min(limit, 200))
+        offset = max(0, offset)
+
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -75,8 +82,8 @@ class ConversationsMixin:
                     LEFT JOIN conversation_messages cm ON c.id = cm.conversation_id
                     GROUP BY c.id, c.title, c.created_at, c.updated_at
                     ORDER BY c.updated_at DESC
-                    LIMIT 100
-                """)
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
                 rows = cursor.fetchall()
                 return [
                     {
