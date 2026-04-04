@@ -97,6 +97,32 @@ services:
       start_period: 20s
 
   # ----------------------------------------------------------
+  # LocalChat MCP Server — exposes DB + Ollama tools to
+  # GitHub Copilot via SSE on http://localhost:3001/sse
+  # ----------------------------------------------------------
+  mcp:
+    build:
+      context: ./mcp_server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      PG_HOST:         db
+      PG_PORT:         5432
+      PG_USER:         ${PG_USER:-postgres}
+      PG_PASSWORD:     ${PG_PASSWORD}
+      PG_DB:           ${PG_DB:-rag_db}
+      OLLAMA_BASE_URL: http://ollama:11434
+      MCP_PORT:        3001
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks:
+      - backend
+
+  # ----------------------------------------------------------
   # LocalChat application
   # ----------------------------------------------------------
   app:

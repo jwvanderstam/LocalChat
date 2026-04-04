@@ -73,28 +73,37 @@ async function uploadDocuments() {
         const results = [];
         let processedFiles = 0;
         const totalFiles = files.length;
-        
+        let buffer = '';
+
         while (true) {
             const {done, value} = await reader.read();
             if (done) break;
-            
-            const text = decoder.decode(value);
-            const lines = text.split('\n').filter(line => line.startsWith('data: '));
-            
+
+            buffer += decoder.decode(value, {stream: true});
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // retain any incomplete trailing line
+
             for (const line of lines) {
-                const data = JSON.parse(line.substring(6));
-                
+                if (!line.startsWith('data: ')) continue;
+
+                let data;
+                try {
+                    data = JSON.parse(line.substring(6));
+                } catch (e) {
+                    continue; // skip malformed SSE line
+                }
+
                 if (data.message) {
                     progressMessage.textContent = data.message;
                 }
-                
+
                 if (data.result) {
                     results.push(data.result);
                     processedFiles++;
                     const percent = (processedFiles / totalFiles) * 90; // Reserve 10% for final steps
                     progressBar.style.width = percent + '%';
                 }
-                
+
                 if (data.done) {
                     progressBar.style.width = '100%';
                     progressMessage.textContent = `Completed! Total documents: ${data.total_documents}`;

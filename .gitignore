@@ -30,7 +30,8 @@ env/
 .venv/
 
 # IDEs
-.vscode/
+.vscode/*
+!.vscode/mcp.json
 .idea/
 *.swp
 *.swo

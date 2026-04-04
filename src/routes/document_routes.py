@@ -11,7 +11,7 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from flask import Blueprint, jsonify, request, Response, copy_current_request_context
+from flask import Blueprint, jsonify, request, Response
 from flask import current_app as _current_app
 from typing import Generator, Dict, Any, TYPE_CHECKING
 from pathlib import Path
@@ -179,10 +179,10 @@ def api_upload_documents():
 
                 while True:
                     try:
-                        event_type, data = progress_queue.get(timeout=5)
+                        event_type, event_data = progress_queue.get(timeout=5)
                         if event_type == 'done':
                             break
-                        yield f"data: {json.dumps({'message': data})}\n\n"
+                        yield f"data: {json.dumps({'message': event_data})}\n\n"
                     except queue.Empty:
                         yield ": keep-alive\n\n"
 
@@ -205,6 +205,12 @@ def api_upload_documents():
         except Exception as e:
             logger.error(f"Upload stream error: {e}", exc_info=True)
             yield f"data: {json.dumps({'error': 'Upload failed', 'done': True})}\n\n"
+        finally:
+            for fp in file_paths:
+                try:
+                    os.remove(fp)
+                except OSError:
+                    pass  # already deleted or unremovable
 
     response = Response(generate(), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
@@ -421,7 +427,7 @@ def api_search_text():
     """
     from ..db import DatabaseUnavailableError
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         search_text = data.get('search_text', '').strip()
         limit = data.get('limit', 10)
         
