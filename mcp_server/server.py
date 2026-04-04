@@ -28,7 +28,11 @@ import psycopg
 from psycopg.rows import dict_row
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("localchat")
+mcp = FastMCP(
+    "localchat",
+    host="0.0.0.0",
+    port=int(os.environ.get("MCP_PORT", "3001")),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -173,5 +177,4 @@ def run_select_query(sql: str) -> str:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    port = int(os.environ.get("MCP_PORT", "3001"))
-    mcp.run(transport="sse", host="0.0.0.0", port=port)
+    mcp.run(transport="sse")
