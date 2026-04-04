@@ -50,8 +50,8 @@ def _conn_kwargs() -> dict[str, Any]:
 
 
 def _query(sql: str, params: tuple = ()) -> list[dict[str, Any]]:
-    with psycopg.connect(**_conn_kwargs(), row_factory=dict_row) as conn:
-        with conn.cursor() as cur:
+    with psycopg.connect(**_conn_kwargs()) as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(sql, params)
             return cur.fetchall()
 
