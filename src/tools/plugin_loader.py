@@ -236,7 +236,8 @@ class PluginLoader:
             Number of plugins successfully reloaded.
         """
         count = 0
-        for plugin_name in list(self._plugins):  # copy keys — reload() mutates self._plugins
+        plugin_names = list(self._plugins)  # snapshot — reload() mutates self._plugins
+        for plugin_name in plugin_names:
             try:
                 self.reload(plugin_name)
                 count += 1

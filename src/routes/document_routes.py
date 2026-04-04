@@ -60,6 +60,49 @@ def _update_document_count(app) -> int:
         return config.app_state.get_document_count()
 
 
+def _stream_file_ingest(app, file_path: str) -> Generator[str, None, None]:
+    """Ingest a single file and yield SSE progress events."""
+    yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
+
+    progress_queue: queue.Queue = queue.Queue()
+    result_container: dict = {}
+
+    def _run_ingest(path=file_path, pq=progress_queue, rc=result_container):
+        try:
+            s, m, d = app.doc_processor.ingest_document(
+                path,
+                lambda msg: pq.put(('progress', msg))
+            )
+            rc.update({'success': s, 'message': m, 'doc_id': d})
+        except Exception as exc:
+            rc.update({'success': False, 'message': str(exc), 'doc_id': None})
+        finally:
+            pq.put(('done', None))
+
+    thread = threading.Thread(target=_run_ingest, daemon=True)
+    thread.start()
+
+    while True:
+        try:
+            event_type, event_data = progress_queue.get(timeout=5)
+            if event_type == 'done':
+                break
+            yield f"data: {json.dumps({'message': event_data})}\n\n"
+        except queue.Empty:
+            yield ": keep-alive\n\n"
+
+    thread.join()
+
+    success = result_container.get('success', False)
+    message = result_container.get('message', 'Unknown error')
+    yield f"data: {json.dumps({'result': {'filename': os.path.basename(file_path), 'success': success, 'message': message}})}\n\n"
+
+    try:
+        os.remove(file_path)
+    except OSError as e:
+        logger.debug("Failed to remove temp file %s: %s", file_path, e)
+
+
 @bp.route('/upload', methods=['POST'])
 def api_upload_documents():
     """
@@ -157,53 +200,13 @@ def api_upload_documents():
     def generate() -> Generator[str, None, None]:
         try:
             for file_path in file_paths:
-                yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
-
-                progress_queue: queue.Queue = queue.Queue()
-                result_container: dict = {}
-
-                def _run_ingest(path=file_path):
-                    try:
-                        s, m, d = app.doc_processor.ingest_document(
-                            path,
-                            lambda msg: progress_queue.put(('progress', msg))
-                        )
-                        result_container.update({'success': s, 'message': m, 'doc_id': d})
-                    except Exception as exc:
-                        result_container.update({'success': False, 'message': str(exc), 'doc_id': None})
-                    finally:
-                        progress_queue.put(('done', None))
-
-                thread = threading.Thread(target=_run_ingest, daemon=True)
-                thread.start()
-
-                while True:
-                    try:
-                        event_type, event_data = progress_queue.get(timeout=5)
-                        if event_type == 'done':
-                            break
-                        yield f"data: {json.dumps({'message': event_data})}\n\n"
-                    except queue.Empty:
-                        yield ": keep-alive\n\n"
-
-                thread.join()
-
-                success = result_container.get('success', False)
-                message = result_container.get('message', 'Unknown error')
-
-                yield f"data: {json.dumps({'result': {'filename': os.path.basename(file_path), 'success': success, 'message': message}})}\n\n"
-
-                try:
-                    os.remove(file_path)
-                except OSError as e:
-                    logger.debug("Failed to remove temp file %s: %s", file_path, e)
-
+                yield from _stream_file_ingest(app, file_path)
             doc_count = _update_document_count(app)
             yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
         except GeneratorExit:
             pass
         except Exception as e:
-            logger.error(f"Upload stream error: {e}", exc_info=True)
+            logger.error("Upload stream error: %s", e, exc_info=True)
             yield f"data: {json.dumps({'error': 'Upload failed', 'done': True})}\n\n"
         finally:
             for fp in file_paths:
@@ -322,7 +325,7 @@ def api_test_retrieval():
         except ImportError:
             pass
         
-        logger.info(f"Testing retrieval: {query[:50]}... (hybrid={use_hybrid})")
+        logger.info("Testing retrieval: query_len=%d hybrid=%s", len(query), use_hybrid)
         
         # Test both modes
         results_hybrid = current_app.doc_processor.retrieve_context(query, use_hybrid_search=True)
