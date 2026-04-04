@@ -195,8 +195,8 @@ def api_upload_documents():
 
                 try:
                     os.remove(file_path)
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.debug("Failed to remove temp file %s: %s", file_path, e)
 
             doc_count = _update_document_count(app)
             yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"

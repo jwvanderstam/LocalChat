@@ -49,12 +49,12 @@ def generate_mock_chunks(count: int = 5, min_length: int = 50, max_length: int =
 def generate_mock_search_results(count: int = 5) -> List[tuple]:
     """
     Generate mock search results.
-    
+
     Args:
         count: Number of results
-    
+
     Returns:
-        List of (chunk_text, filename, chunk_index, similarity) tuples
+        List of (chunk_text, filename, chunk_index, similarity, metadata) tuples
     """
     results = []
     for i in range(count):
@@ -62,7 +62,8 @@ def generate_mock_search_results(count: int = 5) -> List[tuple]:
             fake.text(max_nb_chars=200),
             f"document_{i}.pdf",
             i,
-            random.uniform(0.7, 0.99)
+            random.uniform(0.7, 0.99),
+            {}
         ))
     return results
 
@@ -98,27 +99,6 @@ def assert_error_response(response, error_type: str = None):
     
     if error_type:
         assert data.get('error') == error_type, f"Expected error type {error_type}, got {data.get('error')}"
-
-
-def generate_mock_search_results(count: int = 5) -> List[tuple]:
-    """
-    Generate mock search results.
-    
-    Args:
-        count: Number of results
-    
-    Returns:
-        List of (chunk_text, filename, chunk_index, similarity) tuples
-    """
-    results = []
-    for i in range(count):
-        results.append((
-            fake.paragraph(),
-            f"document_{i}.pdf",
-            i,
-            random.uniform(0.7, 1.0)
-        ))
-    return results
 
 
 def generate_mock_document_metadata() -> Dict[str, Any]:

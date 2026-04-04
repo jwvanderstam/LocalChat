@@ -499,6 +499,11 @@ def generate_search_results(count: int = 5) -> list:
 
 def pytest_configure(config):
     """Configure pytest with custom markers."""
+    # Set required env vars before any src module is imported so config.py
+    # doesn't raise at collection time in unit tests without a real .env file.
+    import os
+    os.environ.setdefault('PG_PASSWORD', 'test_password')
+
     config.addinivalue_line("markers", "unit: Unit tests")
     config.addinivalue_line("markers", "integration: Integration tests")
     config.addinivalue_line("markers", "slow: Slow tests")

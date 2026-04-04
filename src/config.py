@@ -74,7 +74,7 @@ RATELIMIT_GENERAL: str = str(os.environ.get('RATELIMIT_GENERAL', '60 per minute'
 
 # CORS settings
 CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
-CORS_ORIGINS: List[str] = os.environ.get('CORS_ORIGINS', '*').split(',')
+CORS_ORIGINS: List[str] = [o.strip() for o in os.environ.get('CORS_ORIGINS', 'localhost,127.0.0.1').split(',')]
 
 # ============================================================================
 # DATABASE CONFIGURATION
@@ -465,6 +465,10 @@ def validate_config() -> None:
     if OLLAMA_NUM_GPU < -1:
         raise ValueError(
             f"OLLAMA_NUM_GPU ({OLLAMA_NUM_GPU}) must be >= -1 (-1 means all layers on GPU)"
+        )
+    if DB_POOL_MIN_CONN > DB_POOL_MAX_CONN:
+        raise ValueError(
+            f"DB_POOL_MIN_CONN ({DB_POOL_MIN_CONN}) cannot exceed DB_POOL_MAX_CONN ({DB_POOL_MAX_CONN})"
         )
     logger.debug("Configuration validation passed")
 

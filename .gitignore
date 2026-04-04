@@ -36,6 +36,9 @@ env/
 *.swp
 *.swo
 
+# Claude Code local config
+.claude/
+
 # Environment
 .env
 .env.local
@@ -74,6 +77,7 @@ Release/
 Any CPU/
 deployment/
 app_state.json
+TestResults/
 
 # Archive/history
 history/
