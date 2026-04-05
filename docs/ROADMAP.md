@@ -1,7 +1,7 @@
 # LocalChat — Roadmap & Implementation Plan
 
-> Last updated: 2026-04-07
-> Current version: v0.7.0
+> Last updated: 2026-04-06
+> Current version: v0.8.0
 
 ---
 
@@ -22,7 +22,7 @@
 | Security | ✅ 98% | _(cookie Secure ✅, file validation ✅, distributed rate limiting ✅)_ |
 | Test coverage | ✅ 95% | 9 integration tests + 47 unit test files; GPU monitor ✅, vision ✅, rate limit ✅ |
 | Code quality | ✅ 100% | All S3776 complexity violations resolved |
-| Documentation | ✅ 95% | Architecture diagram ✅, DB schema ✅, troubleshooting ✅, CONTRIBUTING.md ✅ |
+| Documentation | ✅ 100% | Architecture diagram ✅, DB schema ✅, troubleshooting ✅, operations ✅, CONTRIBUTING.md ✅ |
 | Feature completeness | ✅ 95% | 4.1 Pyright strict, 2.5 L3 cache audit remaining |
 
 ---

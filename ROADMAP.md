@@ -3,8 +3,8 @@
 > **Canonical location moved to [`docs/ROADMAP.md`](docs/ROADMAP.md).**
 > This file is kept for backwards compatibility; please edit the docs/ version.
 
-> Last updated: 2026-04-05
-> Current version: v0.6.0
+> Last updated: 2026-04-06
+> Current version: v0.8.0
 
 ---
 
