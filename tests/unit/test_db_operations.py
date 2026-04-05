@@ -63,7 +63,7 @@ class TestDocumentOperations:
         from src import db as db_module
 
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = (1, datetime(2025, 1, 1), 10)
+        mock_cursor.fetchone.return_value = (1, datetime(2025, 1, 1), 10, "abc123")
 
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
