@@ -14,12 +14,11 @@ Scenarios tested:
 import hashlib
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call, patch  # noqa: F401
 
 import pytest
 
 from src.rag.processor import _compute_file_hash
-
 
 # ---------------------------------------------------------------------------
 # _compute_file_hash
