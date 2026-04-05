@@ -1,7 +1,7 @@
 # LocalChat — Roadmap & Implementation Plan
 
-> Last updated: 2026-04-06
-> Current version: v0.6.0
+> Last updated: 2026-04-07
+> Current version: v0.7.0
 
 ---
 
@@ -23,7 +23,7 @@
 | Test coverage | ✅ 95% | 9 integration tests + 47 unit test files; GPU monitor ✅, vision ✅, rate limit ✅ |
 | Code quality | ✅ 100% | All S3776 complexity violations resolved |
 | Documentation | ✅ 95% | Architecture diagram ✅, DB schema ✅, troubleshooting ✅, CONTRIBUTING.md ✅ |
-| Feature completeness | ⚠️ 85% | L3 cache (`database_cache.py`) status unclear; no multi-document conversation context |
+| Feature completeness | ⚠️ 90% | 4.1 Pyright strict, 4.5 doc re-ingestion dedup, 2.5 L3 cache audit remaining |
 
 ---
 
@@ -152,26 +152,30 @@ _`src/security.py` auto-detects Redis at startup (`_resolve_ratelimit_storage`);
 - Add per-module `# pyright: strict` comments as each module passes
 - Do not force strict on `src/routes/` until cognitive complexity is resolved
 
-### 4.2 Multi-document conversation context
+### ~~4.2 Multi-document conversation context~~ ✅
 
-Currently: each chat session uses all documents equally.
+~~Currently: each chat session uses all documents equally.~~
 
-- Add per-conversation document filter: user selects which documents are in scope
-- Store filter in `conversations` table
-- Update retrieval to apply filter before vector search
+- ~~Add per-conversation document filter: user selects which documents are in scope~~
+- ~~Store filter in `conversations.document_ids` JSONB column (additive `ALTER TABLE … ADD COLUMN IF NOT EXISTS`)~~
+- ~~`GET /api/conversations/<id>/documents` — read filter~~
+- ~~`PUT /api/conversations/<id>/documents` — set/clear filter (body: `{"filenames": [...]}`)~~
+- ~~`search_similar_chunks` extended with `filename_filter: list[str] | None` param~~
+- ~~`retrieve_context` extended with `filename_filter`; threaded through `_run_retrieval_pipeline`~~
+- ~~`_retrieve_contexts` in `api_routes.py` reads filter from DB before each retrieval call~~
 
-### 4.3 Conversation export
+### ~~4.3 Conversation export~~ ✅
 
-- `GET /api/conversations/{id}/export?format=markdown|json`
-- Includes: messages, sources cited, timestamps
-- Rate-limited; requires auth
+- ~~`GET /api/conversations/{id}/export?format=markdown|json`~~
+- ~~JSON returns `application/json` attachment; Markdown returns `text/markdown` attachment~~
+- ~~Includes: messages, role labels, timestamps~~
 
-### 4.4 Chunk provenance in responses
+### ~~4.4 Chunk provenance in responses~~ ✅
 
-Currently: sources listed by filename only.
+~~Currently: sources listed by filename only.~~
 
-- Return chunk index and page number (where available from metadata)
-- Frontend: clickable source reference opens document at correct position
+- ~~Return chunk index and page number (where available from metadata)~~
+- ~~`sources` array included in SSE `done` event: `[{filename, chunk_index, page_number, section_title}]`~~
 
 ### 4.5 Document re-ingestion
 
@@ -187,16 +191,19 @@ Currently: re-uploading a document creates a duplicate.
 
 **Goal:** Make production deployments easier to monitor and diagnose.
 
-### 5.1 Structured log output
+### ~~5.1 Structured log output~~ ✅
 
-Current logging is human-readable. Add JSON mode for log aggregation:
-- `LOG_FORMAT=json` env var switches to structured JSON output
-- Include: `request_id`, `user_agent`, `duration_ms`, `model`, `chunks_retrieved`
+~~Current logging is human-readable. Add JSON mode for log aggregation:~~
+- ~~`LOG_FORMAT=json` env var switches to structured JSON output~~
+- ~~`RequestIdFilter` injects `request_id` + `user_agent` onto every record~~
+- ~~`JsonFormatter` passes through all extra fields (`duration_ms`, `model`, `chunks_retrieved`, `status_code`, etc.)~~
+- ~~Per-request access log emitted in `after_request` via `_access_logger` in `request_id.py`~~
+- ~~`g.model` and `g.chunks_retrieved` set in `api_routes.py` for access log pickup~~
 
-### 5.2 Grafana dashboard definition
+### ~~5.2 Grafana dashboard definition~~ ✅
 
-- Add `docs/grafana-dashboard.json` (exportable dashboard)
-- Panels: requests/min, P95 latency, cache hit rate, embedding queue depth, active Ollama model
+- ~~`docs/grafana-dashboard.json` — importable dashboard, uid `localchat-rag-v1`~~
+- ~~Panels: requests/s, P50/P95 retrieval latency, embedding cache hit rate, query cache hit rate, chunks retrieved histogram, embedding queue depth, active model stat~~
 
 ### 5.3 Backup and restore documentation
 

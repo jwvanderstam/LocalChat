@@ -8,17 +8,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**As of 2026-04-06 (commit after `c3d0d37`):**
+**As of 2026-04-07 (post feature-evolution commits):**
 
 | Phase | Status | Remaining work |
 |-------|--------|---------------|
-| 1 — Code Quality & Security | ✅ 100% | Complete — all S3776 violations resolved |
-| 2 — Test Coverage | ✅ 95% | 2.5 L3 cache audit (`src/cache/backends/database_cache.py`) low priority |
-| 3 — Documentation | ✅ complete | — |
-| 4 — Feature Evolution | ❌ not started | Multi-doc context, conversation export, chunk provenance |
-| 5 — Observability | ❌ not started | JSON logs, Grafana dashboard |
+| 1 — Code Quality & Security | ✅ 100% | Complete |
+| 2 — Test Coverage | ✅ 95% | 2.5 L3 cache audit (`src/cache/backends/database_cache.py`) — low priority |
+| 3 — Documentation | ✅ 100% | Complete |
+| 4 — Feature Evolution | ✅ 75% | 4.1 Pyright strict, 4.5 doc re-ingestion dedup |
+| 5 — Observability | ✅ 100% | Complete |
 
-**Next priority:** Phase 4 — Feature Evolution.  Start with multi-document conversation context (track which documents were cited per turn).
+**Completed this session:**
+- **Phase 5.1** — Structured JSON logs: `JsonFormatter` extra-field passthrough, `RequestIdFilter` + `user_agent`, per-request access log in `request_id.py` (`after_request`), `g.model` / `g.chunks_retrieved` set in `api_routes.py`.
+- **Phase 4.4** — Chunk provenance: `sources` list `[{filename, chunk_index, page_number, section_title}]` threaded from `_get_rag_context` → SSE `done` event.
+- **Phase 5.2** — Grafana dashboard: `docs/grafana-dashboard.json` (7 panels, uid `localchat-rag-v1`).
+- **Phase 4.3** — Conversation export: `GET /api/conversations/<id>/export?format=json|markdown`.
+- **Phase 4.2** — Multi-document context: `conversations.document_ids JSONB` column; `get/set_conversation_document_filter`; `search_similar_chunks` `filename_filter` param; `PUT /api/conversations/<id>/documents`.
+
+**Next priority:** Phase 4.1 Pyright strict, then Phase 4.5 document re-ingestion dedup.
 
 ---
 
@@ -113,13 +120,20 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `src/app_factory.py` | `create_app()` — Flask factory, wires everything together |
 | `src/config.py` | All configuration constants, loads `.env` |
 | `src/rag/processor.py` | Document ingestion orchestration |
-| `src/rag/retrieval.py` | Hybrid search (semantic + BM25) |
-| `src/db/connection.py` | PostgreSQL connection pool and schema init |
+| `src/rag/retrieval.py` | Hybrid search (semantic + BM25); `retrieve_context(filename_filter=)` |
+| `src/db/connection.py` | PostgreSQL connection pool and schema init (incl. additive migrations) |
+| `src/db/documents.py` | Document/chunk CRUD; `search_similar_chunks(filename_filter=)` |
+| `src/db/conversations.py` | Persistent conversation history; `get/set_conversation_document_filter` |
 | `src/tools/executor.py` | LLM tool-call loop |
-| `src/routes/` | Blueprint handlers for all API and web routes |
+| `src/routes/api_routes.py` | Chat (SSE), status; sets `g.model`, `g.chunks_retrieved`; emits `sources` in `done` |
+| `src/routes/memory_routes.py` | Conversation CRUD, export, document-filter endpoints |
+| `src/routes/` | All other blueprint handlers |
+| `src/utils/logging_config.py` | `JsonFormatter` + `RequestIdFilter`; `LOG_FORMAT=json` for structured output |
+| `src/utils/request_id.py` | X-Request-ID middleware; per-request access log via `_access_logger` |
 | `src/security.py` | JWT, rate limiting, CORS |
 | `src/models.py` | Pydantic request/response models |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama |
+| `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 7 panels) |
 
 > **Maintenance rule:** When adding or removing a module, update the Key Files table above in the same PR. This is a checked item in PR review, not a best-effort afterthought.
