@@ -489,13 +489,17 @@ class TestDocumentIngestion:
         mock_db.insert_chunks_batch.assert_called_once()
 
     def test_ingest_document_duplicate(self, doc_processor, temp_file, mock_db):
-        """Should detect duplicate documents."""
-        mock_db.document_exists.return_value = (True, {'id': 1, 'chunk_count': 5})
+        """Should skip re-ingestion when file content is unchanged (same hash)."""
+        from src.rag.processor import _compute_file_hash
+        real_hash = _compute_file_hash(temp_file)
+        mock_db.document_exists.return_value = (
+            True, {'id': 1, 'chunk_count': 5, 'content_hash': real_hash}
+        )
 
         success, message, doc_id = doc_processor.ingest_document(temp_file)
 
         assert success is True
-        assert "already exists" in message.lower()
+        assert "up to date" in message.lower()
         assert doc_id == 1
         # Should not insert again
         mock_db.insert_document.assert_not_called()

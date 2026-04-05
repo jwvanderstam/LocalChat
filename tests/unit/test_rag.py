@@ -246,13 +246,18 @@ class TestDocumentIngestion:
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
 
-        # Mock existing document
-        mock_db.document_exists.return_value = (True, {'id': 1, 'chunk_count': 10})
+        # Mock existing document with matching hash so the skip path is taken.
+        # _compute_file_hash is not mocked here, so we compute the real hash first.
+        from src.rag.processor import _compute_file_hash
+        real_hash = _compute_file_hash(sample_txt_path)
+        mock_db.document_exists.return_value = (
+            True, {'id': 1, 'chunk_count': 10, 'content_hash': real_hash}
+        )
 
         success, message, doc_id = processor.ingest_document(sample_txt_path)
 
         assert success is True
-        assert "already exists" in message
+        assert "up to date" in message
         assert doc_id == 1
 
     def test_ingest_document_nonexistent_file(self):
