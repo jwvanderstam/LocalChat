@@ -101,3 +101,5 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `src/models.py` | Pydantic request/response models |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama |
+
+> **Maintenance rule:** When adding or removing a module, update the Key Files table above in the same PR. This is a checked item in PR review, not a best-effort afterthought.

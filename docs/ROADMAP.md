@@ -1,7 +1,7 @@
 # LocalChat — Roadmap & Implementation Plan
 
 > Last updated: 2026-04-05
-> Current version: v0.5.0 (production-ready baseline)
+> Current version: v0.6.0
 
 ---
 
@@ -19,11 +19,11 @@
 | Area | Score | Key gaps |
 |------|-------|---------|
 | Architecture | ✅ 100% | All documented services implemented |
-| Security | ⚠️ 93% | Missing distributed rate limiting _(cookie Secure flag ✅, file content validation ✅)_ |
-| Test coverage | ⚠️ 85% | 5 integration tests vs. 47 unit tests; vision feature untested; no GPU monitor test |
-| Code quality | ⚠️ 82% | 20 SonarCloud issues (complexity); Pyright basic mode _(ruff ✅, pre-commit ✅)_ |
-| Documentation | ⚠️ 85% | No architecture diagrams, no DB schema docs, no troubleshooting guide _(CONTRIBUTING.md ✅)_ |
-| Feature completeness | ⚠️ 85% | Vision feature ~80% implemented but untested; L3 cache status unclear |
+| Security | ✅ 98% | _(cookie Secure ✅, file validation ✅, distributed rate limiting ✅)_ |
+| Test coverage | ✅ 95% | 9 integration tests + 47 unit test files; GPU monitor ✅, vision ✅, rate limit ✅ |
+| Code quality | ⚠️ 85% | S3776 complexity remaining in `ollama_client.py`, `api_routes.py`, `retrieval.py`, `processor.py` |
+| Documentation | ✅ 95% | Architecture diagram ✅, DB schema ✅, troubleshooting ✅, CONTRIBUTING.md ✅ |
+| Feature completeness | ⚠️ 85% | L3 cache (`database_cache.py`) status unclear; no multi-document conversation context |
 
 ---
 
@@ -58,13 +58,15 @@
 ~~- `pyright` (basic, non-blocking on new violations)~~
 ~~- `pytest -m "not (slow or ollama or db)"` (fast unit tests only)~~
 
-### 1.4 Distributed rate limiting
+### ~~1.4 Distributed rate limiting~~ ✅
 
-Current in-memory rate limiter breaks in multi-instance deployments.
+~~Current in-memory rate limiter breaks in multi-instance deployments.~~
 
-- Replace `FlaskLimiter` memory storage with Redis backend when `REDIS_URL` is set
-- Fallback to memory storage when Redis is unavailable (development mode)
-- Add integration test: two simulated requests that share the same Redis counter
+~~- Replace `FlaskLimiter` memory storage with Redis backend when `REDIS_URL` is set~~
+~~- Fallback to memory storage when Redis is unavailable (development mode)~~
+~~- Add integration test: two simulated requests that share the same Redis counter~~
+
+_`src/security.py` auto-detects Redis at startup (`_resolve_ratelimit_storage`); `config.py` sets `RATELIMIT_STORAGE_URI` from env; `tests/integration/test_ratelimit.py` covers memory + Redis + shared-counter scenarios._
 
 ### ~~1.5 File content validation on upload~~ ✅
 
@@ -80,40 +82,21 @@ Current in-memory rate limiter breaks in multi-instance deployments.
 
 **Goal:** Meaningful integration tests for multi-service flows; edge-case coverage for complex logic.
 
-### 2.1 Integration test: full RAG flow
+### ~~2.1 Integration test: full RAG flow~~ ✅
 
-`tests/integration/test_rag_flow.py`
+~~`tests/integration/test_rag_flow.py`~~
 
-- Upload a document → verify chunks stored in DB
-- Query that document → verify relevant chunks returned
-- Chat using retrieved chunks → verify LLM context contains chunk text
-- Requires: `@pytest.mark.integration`, `@pytest.mark.db`
+### ~~2.2 Integration test: authentication flow~~ ✅
 
-### 2.2 Integration test: authentication flow
+~~`tests/integration/test_auth_flow.py`~~
 
-`tests/integration/test_auth_flow.py`
+### ~~2.3 Vision feature — complete and test~~ ✅
 
-- Login with valid credentials → JWT returned
-- Access protected endpoint with valid token → 200
-- Access with expired token → 401
-- Access with tampered token → 401
-
-### 2.3 Vision feature — complete and test
-
-The vision pipeline is ~80% implemented (`OllamaClient.describe_image()`, `ChatRequest.images`, route handling) but has no tests.
-
-- Verify `describe_image()` returns structured description
-- Add `tests/integration/test_vision.py` with mocked Ollama vision response
-- Add edge cases: no vision model available, oversized image, unsupported format
+~~`tests/integration/test_vision.py`~~
 
 ### ~~2.4 GPU monitor test~~ ✅
 
 ~~`tests/unit/test_gpu_monitor.py`~~
-
-~~- Mock `nvidia-smi` stdout → verify parsed GPU info~~
-~~- Mock `rocm-smi` stdout → verify AMD detection~~
-~~- Verify TTL cache (30 s) prevents redundant subprocess calls~~
-~~- Verify graceful handling when neither tool is present~~
 
 ### 2.5 L3 cache — clarify and test
 
@@ -123,12 +106,9 @@ The vision pipeline is ~80% implemented (`OllamaClient.describe_image()`, `ChatR
 - If complete: add integration test with `@pytest.mark.db`
 - If placeholder: remove it and remove `L3_CACHE_ENABLED` from config to avoid confusion
 
-### 2.6 Plugin loader edge cases
+### ~~2.6 Plugin loader edge cases~~ ✅
 
-Add to `tests/unit/test_tools_full.py`:
-- Plugin with syntax error → loader skips it, logs warning, continues
-- Plugin that defines no tools → silently ignored
-- Plugin reload endpoint called twice in quick succession → idempotent
+~~`tests/unit/test_tools_full.py` — syntax error, no-tools, reload-idempotent~~
 
 ---
 
@@ -144,36 +124,21 @@ Add to `tests/unit/test_tools_full.py`:
 ~~- SonarCloud quality gate requirements~~
 ~~- Commit message format~~
 
-### 3.2 Architecture diagram (Mermaid)
+### ~~3.2 Architecture diagram (Mermaid)~~ ✅
 
-Add to README.md — request flow from HTTP to SSE response:
+~~Add to README.md — Mermaid request flow diagram showing Flask → RAG → Ollama → SSE.~~
 
-```
-Browser → Flask routes → Pydantic validation → RAG retrieval
-       → Ollama tool-call loop → SSE stream → Browser
-```
+### ~~3.3 Database schema documentation~~ ✅
 
-And a services diagram showing PostgreSQL/pgvector, Redis, Ollama, MCP server.
+~~`docs/SCHEMA.md` — ER diagram, table descriptions, HNSW index parameters.~~
 
-### 3.3 Database schema documentation
+### ~~3.4 Troubleshooting guide~~ ✅
 
-Add `docs/SCHEMA.md`:
-- ER diagram (Mermaid)
-- Table descriptions: `documents`, `document_chunks`, `conversations`, `conversation_messages`
-- Index documentation (HNSW vector index parameters and rationale)
+~~`docs/TROUBLESHOOTING.md` — Ollama, pgvector, Redis, JWT, file upload issues.~~
 
-### 3.4 Troubleshooting guide
+### ~~3.5 CLAUDE.md maintenance rule~~ ✅
 
-Add `docs/TROUBLESHOOTING.md`:
-- Ollama not responding
-- pgvector extension missing
-- Redis connection refused (fallback behaviour explained)
-- Embedding dimension mismatch after model change
-- JWT secret rotation
-
-### 3.5 CLAUDE.md maintenance rule
-
-Add to CLAUDE.md: _"When adding or removing a module, update the Key Files table in the same PR."_ This makes it a checked item in PR review, not a best-effort afterthought.
+~~Add to CLAUDE.md: "When adding or removing a module, update the Key Files table in the same PR."~~
 
 ---
 

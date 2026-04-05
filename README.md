@@ -190,6 +190,41 @@ Cache Strategy:
   - Redis fallback to memory cache
 ```
 
+### Request Flow
+
+```mermaid
+flowchart TD
+    Browser["Browser / API Client"]
+
+    subgraph Flask["Flask Application"]
+        Routes["Routes\n(Blueprints)"]
+        Auth["Security\n(JWT · Rate Limit · CORS)"]
+        Pydantic["Pydantic Validation\n+ Sanitization"]
+        RAG["RAG Pipeline\n(Retrieval · Reranking)"]
+        Tools["Tool Executor\n(Function Calling)"]
+        SSE["SSE Stream"]
+    end
+
+    subgraph Services["External Services"]
+        PG["PostgreSQL + pgvector\n(documents · chunks · vectors)"]
+        Ollama["Ollama\n(LLM · Embeddings)"]
+        Redis["Redis\n(Cache · Rate Limiting)"]
+    end
+
+    Browser -->|HTTP request| Routes
+    Routes --> Auth
+    Auth --> Pydantic
+    Pydantic --> RAG
+    RAG -->|vector search| PG
+    RAG -->|embed query| Ollama
+    Pydantic --> Tools
+    Tools -->|tool-call loop| Ollama
+    Tools --> RAG
+    Ollama -->|stream tokens| SSE
+    SSE -->|text/event-stream| Browser
+    Routes -.->|cache r/w| Redis
+```
+
 ### Technology Stack
 
 | Layer | Technology | Purpose |
@@ -211,6 +246,15 @@ Cache Strategy:
 ## Documentation
 
 All documentation lives in-code with comprehensive docstrings and type hints.
+
+### Additional Docs
+
+| Document | Purpose |
+|----------|---------|
+| [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema, ER diagram, index rationale |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Evolution roadmap and completion status |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup, test commands, PR conventions |
 
 ### Key Entry Points
 - **[`app.py`](app.py)** — Application entry point

@@ -1,7 +1,10 @@
 # LocalChat — Roadmap & Implementation Plan
 
+> **Canonical location moved to [`docs/ROADMAP.md`](docs/ROADMAP.md).**
+> This file is kept for backwards compatibility; please edit the docs/ version.
+
 > Last updated: 2026-04-05
-> Current version: v0.5.0 (production-ready baseline)
+> Current version: v0.6.0
 
 ---
 
