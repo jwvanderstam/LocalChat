@@ -3,6 +3,7 @@
  */
 
 // DOM elements
+let maxUploadBytes = 0;
 const uploadForm = document.getElementById('upload-form');
 const fileInput = document.getElementById('file-input');
 const uploadBtn = document.getElementById('upload-btn');
@@ -44,6 +45,20 @@ async function uploadDocuments() {
         return;
     }
     
+    // Client-side size pre-check — avoids an unnecessary round-trip for oversized files
+    if (maxUploadBytes > 0) {
+        const totalSize = Array.from(files).reduce((sum, f) => sum + f.size, 0);
+        if (totalSize > maxUploadBytes) {
+            const maxMB = (maxUploadBytes / (1024 * 1024)).toFixed(0);
+            const msg = `File(s) too large. Total size exceeds the ${maxMB} MB server limit.`;
+            uploadProgress.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressMessage.textContent = 'Error: ' + msg;
+            uploadResults.innerHTML = `<div class="alert alert-danger">${escapeHtml(msg)}</div>`;
+            return;
+        }
+    }
+
     // Prepare form data
     const formData = new FormData();
     for (let file of files) {
@@ -64,7 +79,17 @@ async function uploadDocuments() {
         });
         
         if (!response.ok) {
-            throw new Error('Upload failed');
+            let errorMessage = `Upload failed (${response.status})`;
+            try {
+                const errData = await response.json();
+                if (errData.message) {
+                    errorMessage = errData.message;
+                    if (errData.details?.max_size) {
+                        errorMessage += ` Maximum allowed size: ${errData.details.max_size}.`;
+                    }
+                }
+            } catch (_) { /* ignore JSON parse errors */ }
+            throw new Error(errorMessage);
         }
         
         // Read streaming response
@@ -293,6 +318,7 @@ async function loadStats() {
         if (data.success) {
             document.getElementById('stat-docs').textContent = data.document_count || 0;
             document.getElementById('stat-chunks').textContent = data.chunk_count || 0;
+            if (data.max_upload_size) maxUploadBytes = data.max_upload_size;
         }
     } catch (error) {
         console.error('Error loading stats:', error);
