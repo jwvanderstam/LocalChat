@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Flask Application Launcher
@@ -67,7 +66,7 @@ def _print_db_unavailable_warning() -> None:
 def main():
     """
     Main application entry point.
-    
+
     Creates and runs the Flask application using the factory pattern.
     """
     # Create application
@@ -83,9 +82,9 @@ def main():
         PORT = int(os.environ.get('SERVER_PORT', '5000'))
     except ValueError:
         PORT = 5000
-    
+
     DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-    
+
     logger.info("=" * 50)
     logger.info("LocalChat Application Ready")
     logger.info("=" * 50)
@@ -94,7 +93,7 @@ def main():
     logger.info(f"Ollama: {'OK' if app.startup_status['ollama'] else 'UNAVAILABLE'}")
     logger.info(f"Database: {'OK' if app.startup_status['database'] else 'UNAVAILABLE'}")
     logger.info("=" * 50)
-    
+
     # Run application
     try:
         app.run(

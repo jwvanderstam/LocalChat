@@ -25,8 +25,8 @@ from typing import Any
 
 import httpx
 import psycopg
-from psycopg.rows import dict_row
 from mcp.server.fastmcp import FastMCP
+from psycopg.rows import dict_row
 
 mcp = FastMCP(
     "localchat",

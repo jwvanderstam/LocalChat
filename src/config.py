@@ -26,12 +26,14 @@ Author: LocalChat Team
 Last Updated: 2026-03-19
 """
 
-import os
 import json
+import os
 import secrets
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from dotenv import load_dotenv
+
 from .utils.logging_config import get_logger
 
 # Load environment variables from .env file
@@ -45,7 +47,7 @@ logger = get_logger(__name__)
 # ============================================================================
 
 # Secret keys - MUST be set in production!
-_SECRET_KEY_RAW: Optional[str] = os.environ.get('SECRET_KEY')
+_SECRET_KEY_RAW: str | None = os.environ.get('SECRET_KEY')
 if not _SECRET_KEY_RAW or _SECRET_KEY_RAW == 'change-this-to-a-random-secret-key-in-production':
     if os.environ.get('APP_ENV') == 'production':
         raise ValueError("SECRET_KEY must be set in production!")
@@ -54,7 +56,7 @@ if not _SECRET_KEY_RAW or _SECRET_KEY_RAW == 'change-this-to-a-random-secret-key
 else:
     SECRET_KEY: str = _SECRET_KEY_RAW
 
-_JWT_SECRET_KEY_RAW: Optional[str] = os.environ.get('JWT_SECRET_KEY')
+_JWT_SECRET_KEY_RAW: str | None = os.environ.get('JWT_SECRET_KEY')
 if not _JWT_SECRET_KEY_RAW or _JWT_SECRET_KEY_RAW == 'change-this-to-a-random-jwt-secret-in-production':
     if os.environ.get('APP_ENV') == 'production':
         raise ValueError("JWT_SECRET_KEY must be set in production!")
@@ -72,6 +74,21 @@ RATELIMIT_UPLOAD: str = str(os.environ.get('RATELIMIT_UPLOAD', '5 per hour'))
 RATELIMIT_MODELS: str = str(os.environ.get('RATELIMIT_MODELS', '20 per minute'))
 RATELIMIT_GENERAL: str = str(os.environ.get('RATELIMIT_GENERAL', '60 per minute'))
 
+# Redis settings (shared by cache layer and rate limiting storage)
+REDIS_ENABLED: bool = os.environ.get('REDIS_ENABLED', 'False').lower() == 'true'
+REDIS_HOST: str = str(os.environ.get('REDIS_HOST', 'localhost'))
+REDIS_PORT: int = int(os.environ.get('REDIS_PORT', '6379'))
+REDIS_PASSWORD: str | None = os.environ.get('REDIS_PASSWORD') or None
+
+# Rate limiting storage URI.
+# Uses Redis DB 1 (DB 0 is reserved for application caches) when Redis is
+# enabled.  Falls back to in-process memory when Redis is not configured.
+if REDIS_ENABLED:
+    _redis_auth = f":{REDIS_PASSWORD}@" if REDIS_PASSWORD else ""
+    RATELIMIT_STORAGE_URI: str = f"redis://{_redis_auth}{REDIS_HOST}:{REDIS_PORT}/1"
+else:
+    RATELIMIT_STORAGE_URI: str = "memory://"
+
 # CORS settings
 CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
 CORS_ORIGINS: List[str] = [o.strip() for o in os.environ.get('CORS_ORIGINS', 'localhost,127.0.0.1').split(',')]
@@ -88,7 +105,7 @@ except ValueError:
     PG_PORT: int = 5432
 PG_USER: str = str(os.environ.get('PG_USER', 'postgres'))
 
-_PG_PASSWORD_RAW: Optional[str] = os.environ.get('PG_PASSWORD')
+_PG_PASSWORD_RAW: str | None = os.environ.get('PG_PASSWORD')
 if not _PG_PASSWORD_RAW:
     raise ValueError("PG_PASSWORD must be set in .env file!")
 PG_PASSWORD: str = _PG_PASSWORD_RAW
@@ -122,13 +139,13 @@ OLLAMA_NUM_CTX: int = int(os.environ.get('OLLAMA_NUM_CTX', '8192'))
 # Chunking - OPTIMIZED (prevents repetition)
 CHUNK_SIZE: int = 1200             # Large chunks for context
 CHUNK_OVERLAP: int = 150           # 12.5% overlap - industry standard (was 300/25%)
-CHUNK_SEPARATORS: List[str] = [
+CHUNK_SEPARATORS: list[str] = [
     '\n\n\n',      # Major section breaks
     '\n\n',        # Paragraph breaks (primary)
     '\n',          # Line breaks
     '. ',          # Sentences
     '! ',          # Sentences
-    '? ',          # Sentences  
+    '? ',          # Sentences
     '; ',          # Clauses
     ': ',          # Lists/definitions
     ', ',          # Phrases
@@ -183,7 +200,7 @@ EMBEDDING_CACHE_ENABLED: bool = True         # Enable query embedding caching
 
 # Processing Configuration
 MAX_WORKERS: int = 8                         # Parallel processing threads
-BATCH_SIZE: int = 64                         # Embeddings batch size (increased from 32)
+BATCH_SIZE: int = 512                        # Embeddings batch size
 BATCH_MAX_WORKERS: int = 8                   # Batch processor workers
 
 # Database Performance
@@ -241,8 +258,8 @@ MAX_CONTEXT_LENGTH: int = OLLAMA_NUM_CTX  # Mirrors OLLAMA_NUM_CTX; override via
 APP_VERSION: str = os.environ.get('APP_VERSION', '0.5.0')
 
 # Supported file types
-SUPPORTED_IMAGE_EXTENSIONS: List[str] = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
-SUPPORTED_EXTENSIONS: List[str] = ['.pdf', '.txt', '.docx', '.md'] + SUPPORTED_IMAGE_EXTENSIONS
+SUPPORTED_IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+SUPPORTED_EXTENSIONS: list[str] = ['.pdf', '.txt', '.docx', '.md'] + SUPPORTED_IMAGE_EXTENSIONS
 
 # Vision / multimodal configuration
 VISION_DESCRIBE_PROMPT: str = (
@@ -294,14 +311,14 @@ if not METRICS_TOKEN:
 class AppState:
     """
     Manages persistent application state.
-    
+
     Handles runtime configuration such as active model and document count,
     persisting state to a JSON file for recovery after restarts.
-    
+
     Attributes:
         state_file (str): Path to state persistence file
         state (Dict[str, Any]): Current application state
-    
+
     Example:
         >>> state = AppState()
         >>> state.set_active_model("llama3.2")
@@ -309,38 +326,38 @@ class AppState:
         >>> print(model)
         llama3.2
     """
-    
+
     def __init__(self, state_file: str = STATE_FILE) -> None:
         """
         Initialize application state manager.
-        
+
         Args:
             state_file: Path to state persistence file
         """
         self.state_file: str = state_file
-        self.state: Dict[str, Any] = self._load_state()
+        self.state: dict[str, Any] = self._load_state()
         logger.info("Application state initialized")
-    
-    def _load_state(self) -> Dict[str, Any]:
+
+    def _load_state(self) -> dict[str, Any]:
         """
         Load state from JSON file.
-        
+
         Returns:
             Dictionary containing application state, or default state if file
             doesn't exist or cannot be read.
-        
+
         Note:
             If loading fails, returns default state and logs the error.
         """
         if os.path.exists(self.state_file):
             try:
-                with open(self.state_file, 'r') as f:
+                with open(self.state_file) as f:
                     state = json.load(f)
                     logger.debug(f"Loaded state from {self.state_file}")
                     return state
             except Exception as e:
                 logger.error(f"Error loading state: {e}", exc_info=True)
-        
+
         # Return default state
         default_state = {
             'active_model': None,
@@ -349,11 +366,11 @@ class AppState:
         }
         logger.debug("Using default application state")
         return default_state
-    
+
     def _save_state(self) -> None:
         """
         Save state to JSON file.
-        
+
         Updates the last_updated timestamp and persists state to disk.
         Logs errors if save fails but doesn't raise exceptions.
         """
@@ -364,72 +381,72 @@ class AppState:
             logger.debug(f"Saved state to {self.state_file}")
         except Exception as e:
             logger.error(f"Error saving state: {e}", exc_info=True)
-    
-    def get_active_model(self) -> Optional[str]:
+
+    def get_active_model(self) -> str | None:
         """
         Get the currently active model name.
-        
+
         Returns:
             Name of active model, or None if no model is set
-        
+
         Example:
             >>> model = app_state.get_active_model()
             >>> if model:
             ...     print(f"Using model: {model}")
         """
         return self.state.get('active_model')
-    
+
     def set_active_model(self, model_name: str) -> None:
         """
         Set the active model name.
-        
+
         Args:
             model_name: Name of the model to set as active
-        
+
         Example:
             >>> app_state.set_active_model("llama3.2:latest")
         """
         self.state['active_model'] = model_name
         self._save_state()
         logger.info(f"Active model set to: {model_name}")
-    
+
     def get_document_count(self) -> int:
         """
         Get the current document count.
-        
+
         Returns:
             Number of documents in the system
         """
         return self.state.get('document_count', 0)
-    
+
     def set_document_count(self, count: int) -> None:
         """
         Set the document count.
-        
+
         Args:
             count: New document count
-        
+
         Raises:
             ValueError: If count is negative
-        
+
         Example:
             >>> app_state.set_document_count(10)
         """
         if count < 0:
             logger.error(f"Invalid document count: {count}")
             raise ValueError("Document count cannot be negative")
-        
+
         self.state['document_count'] = count
         self._save_state()
         logger.debug(f"Document count set to: {count}")
-    
+
     def increment_document_count(self, increment: int = 1) -> None:
         """
         Increment the document count.
-        
+
         Args:
             increment: Amount to increment by (default: 1)
-        
+
         Example:
             >>> app_state.increment_document_count(5)
         """
@@ -479,3 +496,4 @@ logger.info("Configuration module loaded")
 logger.debug(f"Database: {PG_HOST}:{PG_PORT}/{PG_DB}")
 logger.debug(f"Chunk size: {CHUNK_SIZE}, Overlap: {CHUNK_OVERLAP}")
 logger.debug(f"Top-K results: {TOP_K_RESULTS}, Min similarity: {MIN_SIMILARITY_THRESHOLD}")
+

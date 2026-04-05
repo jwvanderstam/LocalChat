@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Memory Routes Blueprint
@@ -17,9 +16,10 @@ Author: LocalChat Team
 Created: 2025-01-27
 """
 
+from typing import TYPE_CHECKING
+
 from flask import Blueprint, jsonify, request
 from flask import current_app as _current_app
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..types import LocalChatApp

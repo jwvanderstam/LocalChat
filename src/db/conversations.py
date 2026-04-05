@@ -53,7 +53,7 @@ class ConversationsMixin:
         logger.debug(f"Created conversation: {conversation_id}")
         return conversation_id
 
-    def list_conversations(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_conversations(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         """
         List conversations ordered by most recently updated.
 
@@ -98,7 +98,7 @@ class ConversationsMixin:
 
     def get_conversation_messages(
         self, conversation_id: str
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> list[dict[str, Any]] | None:
         """
         Get all messages for a conversation.
 

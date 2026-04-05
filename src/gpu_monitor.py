@@ -46,10 +46,10 @@ class GpuMonitor:
 
     def __init__(self, ttl: float = 30.0) -> None:
         self._ttl = ttl
-        self._cache: List[Dict[str, Any]] = []
+        self._cache: list[dict[str, Any]] = []
         self._cache_time: float = 0.0
 
-    def get_gpu_info(self) -> List[Dict[str, Any]]:
+    def get_gpu_info(self) -> list[dict[str, Any]]:
         """
         Return per-GPU hardware stats, refreshing after TTL expires.
 
@@ -64,7 +64,7 @@ class GpuMonitor:
         self._cache_time = now
         return gpus
 
-    def _get_nvidia_gpu_info(self) -> List[Dict[str, Any]]:
+    def _get_nvidia_gpu_info(self) -> list[dict[str, Any]]:
         """Query ``nvidia-smi`` for per-GPU stats."""
         if not shutil.which("nvidia-smi"):
             return []
@@ -83,7 +83,7 @@ class GpuMonitor:
             if result.returncode != 0:
                 logger.debug("nvidia-smi exited with code %d", result.returncode)
                 return []
-            gpus: List[Dict[str, Any]] = []
+            gpus: list[dict[str, Any]] = []
             for line in result.stdout.strip().splitlines():
                 parts = [p.strip() for p in line.split(",")]
                 if len(parts) < 7:
@@ -106,7 +106,7 @@ class GpuMonitor:
             logger.debug("nvidia-smi query failed: %s", exc)
             return []
 
-    def _get_amd_gpu_info(self) -> List[Dict[str, Any]]:
+    def _get_amd_gpu_info(self) -> list[dict[str, Any]]:
         """Query ``rocm-smi`` for per-GPU stats."""
         if not shutil.which("rocm-smi"):
             return []
@@ -121,7 +121,7 @@ class GpuMonitor:
                 logger.debug("rocm-smi exited with code %d", result.returncode)
                 return []
             data = json.loads(result.stdout)
-            gpus: List[Dict[str, Any]] = []
+            gpus: list[dict[str, Any]] = []
             for idx, (_, card_val) in enumerate(data.items()):
                 if not isinstance(card_val, dict):
                     continue

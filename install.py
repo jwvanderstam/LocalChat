@@ -9,14 +9,14 @@ Usage:
     python install.py
 """
 
-import sys
-import os
-import subprocess
-import secrets
-import json
 import getpass
-import urllib.request
+import json
+import os
+import secrets
+import subprocess
+import sys
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 # ---------------------------------------------------------------------------

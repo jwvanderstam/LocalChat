@@ -7,15 +7,15 @@ rather than line coverage.
 """
 
 import os
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 # src/config.py raises at import time if PG_PASSWORD is missing.
 # Set a test sentinel so collection succeeds without a real database.
 os.environ.setdefault("PG_PASSWORD", "test-sentinel")
 
 from src.rag.chunking import TextChunkerMixin
-
 
 # ---------------------------------------------------------------------------
 # Minimal concrete class for testing the mixin

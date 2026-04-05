@@ -12,15 +12,15 @@ from .. import config
 from ..db import db
 from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
-
-from .scoring import BM25Scorer
-from .cache import EmbeddingCache, embedding_cache as _embedding_cache
-from .loaders import PDF_AVAILABLE, DOCX_AVAILABLE, PyPDF2, Document
+from .cache import EmbeddingCache
+from .cache import embedding_cache as _embedding_cache
+from .loaders import DOCX_AVAILABLE, PDF_AVAILABLE, Document, PyPDF2
 from .processor import DocumentProcessor, doc_processor
+from .scoring import BM25Scorer
 
 # Try to import monitoring - graceful degradation if not available
 try:
-    from ..monitoring import timed, counted, get_metrics
+    from ..monitoring import counted, get_metrics, timed
     MONITORING_AVAILABLE = True
 except ImportError:
     def timed(_metric_name: str):  # noqa: E306

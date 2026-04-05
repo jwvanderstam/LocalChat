@@ -47,7 +47,7 @@ class ToolExecutor:
         self,
         client: OllamaClient,
         registry: ToolRegistry,
-        max_rounds: Optional[int] = None,
+        max_rounds: int | None = None,
     ) -> None:
         self._client = client
         self._registry = registry
@@ -68,7 +68,7 @@ class ToolExecutor:
             return {}
 
     @staticmethod
-    def _try_parse_content_tool_call(content: str) -> Optional[Dict[str, Any]]:
+    def _try_parse_content_tool_call(content: str) -> dict[str, Any] | None:
         """
         Detect a tool call emitted as a raw JSON string in the content field.
 
@@ -122,7 +122,7 @@ class ToolExecutor:
     def execute(
         self,
         model: str,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         stream: bool = True,
     ) -> Generator[str, None, None]:
         """
@@ -141,7 +141,7 @@ class ToolExecutor:
             )
             return
 
-        working_messages: List[Dict[str, Any]] = list(messages)
+        working_messages: list[dict[str, Any]] = list(messages)
         inline_mode: bool = False
 
         for round_num in range(1, self._max_rounds + 1):
@@ -208,7 +208,7 @@ class ToolExecutor:
         self,
         tool_calls: list,
         inline_mode: bool,
-        working_messages: List[Dict[str, Any]],
+        working_messages: list[dict[str, Any]],
     ) -> None:
         """Execute each tool call and append results to working_messages."""
         for tc in tool_calls:
@@ -228,7 +228,7 @@ class ToolExecutor:
             else:
                 working_messages.append({"role": "tool", "content": result})
 
-    def _run_tool(self, name: str, arguments: Dict[str, Any]) -> str:
+    def _run_tool(self, name: str, arguments: dict[str, Any]) -> str:
         """Execute a single tool and return its result as a string."""
         logger.info(
             f"[TOOLS] Calling: {name}("

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Error Handlers Module
@@ -11,14 +10,15 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from flask import Flask, jsonify, request, current_app
 from typing import Any
+
+from flask import Flask, current_app, jsonify, request
 from pydantic import ValidationError as PydanticValidationError
 
-from ..utils.logging_config import get_logger
 from .. import exceptions
-from ..models import ErrorResponse
 from ..db import DatabaseUnavailableError
+from ..models import ErrorResponse
+from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -54,67 +54,67 @@ def _build_validation_message(errors: list) -> str:
 def register_error_handlers(app: Flask) -> None:
     """
     Register all error handlers for the application.
-    
+
     Handles HTTP errors and custom exceptions with appropriate
     responses and logging.
-    
+
     Args:
         app: Flask application instance
     """
     logger.info("? Error handlers initialized with Pydantic validation")
-    
+
     # Register HTTP error handlers
     @app.errorhandler(400)
     def bad_request_handler(error: Any):
         """Handle 400 Bad Request errors."""
         logger.warning(f"Bad request: {error}")
-        
+
         error_response = ErrorResponse(
             error="BadRequest",
             message="The request was invalid or cannot be served",
             details={"description": str(error)}
         )
         return jsonify(error_response.model_dump()), 400
-    
+
     @app.errorhandler(404)
     def not_found_handler(error: Any):
         """Handle 404 Not Found errors."""
         logger.warning(f"Resource not found: {error}")
-        
+
         error_response = ErrorResponse(
             error="NotFound",
             message="The requested resource was not found",
             details={"path": request.path}
         )
         return jsonify(error_response.model_dump()), 404
-    
+
     @app.errorhandler(405)
     def method_not_allowed_handler(_error: Any):
         """Handle 405 Method Not Allowed errors."""
         logger.warning(f"Method not allowed: {request.method} {request.path}")
-        
+
         error_response = ErrorResponse(
             error="MethodNotAllowed",
             message=f"Method {request.method} not allowed for this endpoint",
             details={"method": request.method, "path": request.path}
         )
         return jsonify(error_response.model_dump()), 405
-    
+
     @app.errorhandler(413)
     def request_entity_too_large_handler(error: Any):
         """Handle 413 Request Entity Too Large errors."""
         logger.warning(f"File too large: {error}")
-        
+
         max_size = app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024)
         max_size_mb = max_size / (1024 * 1024)
-        
+
         error_response = ErrorResponse(
             error="FileTooLarge",
             message="The uploaded file is too large",
             details={"max_size": f"{max_size_mb:.0f}MB"}
         )
         return jsonify(error_response.model_dump()), 413
-    
+
     @app.errorhandler(500)
     def internal_server_error_handler(error: Any):
         """Handle 500 Internal Server Error."""
@@ -127,7 +127,7 @@ def register_error_handlers(app: Flask) -> None:
             details=details
         )
         return jsonify(error_response.model_dump()), 500
-    
+
     # Register Pydantic validation error handlers
     @app.errorhandler(PydanticValidationError)
     def validation_error_handler(error: PydanticValidationError):
@@ -141,7 +141,7 @@ def register_error_handlers(app: Flask) -> None:
             details={"errors": errors, "help": "Please check your input and try again."}
         )
         return jsonify(error_response.model_dump()), 400
-    
+
     @app.errorhandler(exceptions.LocalChatException)
     def localchat_exception_handler(error: exceptions.LocalChatException):
         """Handle custom LocalChat exceptions."""

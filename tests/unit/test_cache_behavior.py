@@ -5,11 +5,11 @@ Verifies that EmbeddingCache and QueryCache honour cache-hit/miss semantics,
 produce independent entries for different parameters, and correctly invalidate.
 """
 
-import pytest
 from unittest.mock import MagicMock
 
-from src.cache.managers import EmbeddingCache, QueryCache
+import pytest
 
+from src.cache.managers import EmbeddingCache, QueryCache
 
 # ---------------------------------------------------------------------------
 # Helpers

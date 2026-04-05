@@ -25,8 +25,8 @@ __author__ = "LocalChat Team"
 # WARNING SUPPRESSIONS
 # ============================================================================
 
-import warnings
 import os
+import warnings
 
 # Suppress PyPDF2 deprecation warning
 # Note: PyPDF2 is deprecated in favor of pypdf, but still functional

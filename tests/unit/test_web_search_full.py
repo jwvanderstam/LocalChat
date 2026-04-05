@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """Tests for WebSearchProvider."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestWebSearchResult:
@@ -167,6 +167,7 @@ class TestWebSearchFetchPages:
 
     def test_fetch_page_request_error_leaves_page_text_none(self):
         import requests as req_mod
+
         from src.rag.web_search import WebSearchProvider, WebSearchResult
 
         result = WebSearchResult("T", "http://x.com", "S")

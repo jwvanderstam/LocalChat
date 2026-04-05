@@ -24,7 +24,8 @@ Author: LocalChat Team
 Last Updated: 2025-01-27
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from .utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -33,22 +34,22 @@ logger = get_logger(__name__)
 class LocalChatException(Exception):
     """
     Base exception class for LocalChat application.
-    
+
     All custom exceptions inherit from this class for consistent
     error handling and logging.
-    
+
     Attributes:
         message (str): Error message
         details (Dict[str, Any]): Additional error details
-    
+
     Example:
         >>> raise LocalChatException("Something went wrong")
     """
-    
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
         """
         Initialize LocalChat exception.
-        
+
         Args:
             message: Human-readable error message
             details: Optional dictionary with additional error context
@@ -57,11 +58,11 @@ class LocalChatException(Exception):
         self.details = details or {}
         super().__init__(self.message)
         logger.warning(f"{self.__class__.__name__}: {message}", extra={"exception_details": self.details})
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert exception to dictionary for API responses.
-        
+
         Returns:
             Dictionary with error information
         """
@@ -75,10 +76,10 @@ class LocalChatException(Exception):
 class OllamaConnectionError(LocalChatException):
     """
     Raised when Ollama service is unavailable or unreachable.
-    
+
     This exception indicates that the application cannot connect
     to the Ollama API server.
-    
+
     Example:
         >>> if not ollama_client.is_available:
         ...     raise OllamaConnectionError(
@@ -92,10 +93,10 @@ class OllamaConnectionError(LocalChatException):
 class DatabaseConnectionError(LocalChatException):
     """
     Raised when database connection fails.
-    
+
     This exception indicates issues with PostgreSQL connection,
     authentication, or database availability.
-    
+
     Example:
         >>> try:
         ...     db.connect()
@@ -111,10 +112,10 @@ class DatabaseConnectionError(LocalChatException):
 class DocumentProcessingError(LocalChatException):
     """
     Raised when document ingestion or processing fails.
-    
+
     This exception covers errors during document loading,
     parsing, chunking, or embedding generation.
-    
+
     Example:
         >>> try:
         ...     doc_processor.ingest_document(file_path)
@@ -130,10 +131,10 @@ class DocumentProcessingError(LocalChatException):
 class EmbeddingGenerationError(LocalChatException):
     """
     Raised when embedding generation fails.
-    
+
     This exception indicates issues with generating vector embeddings
     for text chunks using the embedding model.
-    
+
     Example:
         >>> success, embedding = generate_embedding(text)
         >>> if not success:
@@ -148,10 +149,10 @@ class EmbeddingGenerationError(LocalChatException):
 class InvalidModelError(LocalChatException):
     """
     Raised when specified model is not found or invalid.
-    
+
     This exception indicates that the requested model does not
     exist in Ollama or is not properly configured.
-    
+
     Example:
         >>> if model_name not in available_models:
         ...     raise InvalidModelError(
@@ -165,10 +166,10 @@ class InvalidModelError(LocalChatException):
 class ValidationError(LocalChatException):
     """
     Raised when input validation fails.
-    
+
     This exception indicates that user input does not meet
     validation requirements (format, type, constraints).
-    
+
     Example:
         >>> if len(message) == 0:
         ...     raise ValidationError(
@@ -182,10 +183,10 @@ class ValidationError(LocalChatException):
 class ConfigurationError(LocalChatException):
     """
     Raised when configuration is invalid or missing.
-    
+
     This exception indicates issues with application configuration,
     environment variables, or settings files.
-    
+
     Example:
         >>> if not pg_password:
         ...     raise ConfigurationError(
@@ -199,10 +200,10 @@ class ConfigurationError(LocalChatException):
 class ChunkingError(LocalChatException):
     """
     Raised when text chunking fails.
-    
+
     This exception indicates issues during the text chunking process,
     such as invalid chunk size or text format errors.
-    
+
     Example:
         >>> if chunk_size <= 0:
         ...     raise ChunkingError(
@@ -216,10 +217,10 @@ class ChunkingError(LocalChatException):
 class SearchError(LocalChatException):
     """
     Raised when vector similarity search fails.
-    
+
     This exception indicates issues with the pgvector similarity
     search operation or query execution.
-    
+
     Example:
         >>> try:
         ...     results = db.search_similar_chunks(embedding)
@@ -235,10 +236,10 @@ class SearchError(LocalChatException):
 class FileUploadError(LocalChatException):
     """
     Raised when file upload fails.
-    
+
     This exception indicates issues with file upload, such as
     file too large, invalid format, or storage errors.
-    
+
     Example:
         >>> if file_size > MAX_FILE_SIZE:
         ...     raise FileUploadError(
@@ -268,13 +269,13 @@ EXCEPTION_STATUS_CODES = {
 def get_status_code(exception: Exception) -> int:
     """
     Get HTTP status code for exception.
-    
+
     Args:
         exception: Exception instance
-    
+
     Returns:
         HTTP status code (default: 500)
-    
+
     Example:
         >>> exc = ValidationError("Invalid input")
         >>> status = get_status_code(exc)

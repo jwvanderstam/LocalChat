@@ -7,7 +7,7 @@ LRU cache for query embeddings to avoid redundant API calls.
 
 import hashlib
 from collections import OrderedDict
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 class EmbeddingCache:
@@ -25,22 +25,22 @@ class EmbeddingCache:
             max_size: Maximum number of embeddings to cache
         """
         self.max_size = max_size
-        self._cache: OrderedDict[str, List[float]] = OrderedDict()
+        self._cache: OrderedDict[str, list[float]] = OrderedDict()
         self._hits = 0
         self._misses = 0
-    
+
     def _hash_text(self, text: str, model: str) -> str:
         """Create hash key for text + model combination."""
         return hashlib.sha256(f"{model}:{text}".encode()).hexdigest()
-    
-    def get(self, text: str, model: str) -> Optional[List[float]]:
+
+    def get(self, text: str, model: str) -> list[float] | None:
         """
         Get cached embedding if available.
-        
+
         Args:
             text: Text that was embedded
             model: Model used for embedding
-        
+
         Returns:
             Cached embedding or None
         """
@@ -51,11 +51,11 @@ class EmbeddingCache:
             return self._cache[key]
         self._misses += 1
         return None
-    
-    def put(self, text: str, model: str, embedding: List[float]) -> None:
+
+    def put(self, text: str, model: str, embedding: list[float]) -> None:
         """
         Cache an embedding.
-        
+
         Args:
             text: Text that was embedded
             model: Model used for embedding
@@ -68,8 +68,8 @@ class EmbeddingCache:
             if len(self._cache) >= self.max_size:
                 self._cache.popitem(last=False)  # O(1) evict LRU
         self._cache[key] = embedding
-    
-    def stats(self) -> Dict[str, Any]:
+
+    def stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         total = self._hits + self._misses
         hit_rate = self._hits / total if total > 0 else 0.0

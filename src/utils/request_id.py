@@ -25,7 +25,6 @@ import uuid
 
 from flask import Flask, g, request
 
-
 _HEADER = "X-Request-ID"
 
 

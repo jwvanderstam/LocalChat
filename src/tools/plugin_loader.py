@@ -45,8 +45,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .registry import ToolRegistry, tool_registry
 from ..utils.logging_config import get_logger
+from .registry import ToolRegistry, tool_registry
 
 logger = get_logger(__name__)
 
@@ -63,10 +63,10 @@ class PluginLoader:
                   Defaults to the module-level ``tool_registry`` singleton.
     """
 
-    def __init__(self, registry: Optional[ToolRegistry] = None) -> None:
+    def __init__(self, registry: ToolRegistry | None = None) -> None:
         self._registry = registry or tool_registry
         # plugin_stem -> {"path": str, "tools": [name, ...], "meta": {...}, "error": str|None}
-        self._plugins: Dict[str, Dict[str, Any]] = {}
+        self._plugins: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -111,7 +111,7 @@ class PluginLoader:
         logger.info(f"[PLUGINS] Loaded {loaded} plugin(s) from {plugins_dir}")
         return loaded
 
-    def load_file(self, path: Path) -> List[str]:
+    def load_file(self, path: Path) -> list[str]:
         """
         Dynamically import a single plugin file.
 
@@ -208,7 +208,7 @@ class PluginLoader:
         logger.info(f"[PLUGINS] Unloaded plugin '{plugin_name}'")
         return True
 
-    def reload(self, plugin_name: str) -> List[str]:
+    def reload(self, plugin_name: str) -> list[str]:
         """
         Unload then re-import a plugin, picking up any file changes.
 
@@ -249,7 +249,7 @@ class PluginLoader:
         logger.info(f"[PLUGINS] Reloaded {count} plugin(s)")
         return count
 
-    def list_plugins(self) -> List[Dict[str, Any]]:
+    def list_plugins(self) -> list[dict[str, Any]]:
         """
         Return metadata for every loaded plugin.
 

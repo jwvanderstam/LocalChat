@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """Unit tests for src/routes/admin_routes.py helper functions and endpoints."""
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # _collect_document_stats
@@ -499,8 +498,8 @@ class TestGatherAdminStats:
 
     def test_metrics_contains_uptime_and_request_count(self):
         """metrics sub-dict has uptime_seconds and request_count."""
-        from src.routes.admin_routes import gather_admin_stats
         from src.monitoring import get_metrics
+        from src.routes.admin_routes import gather_admin_stats
 
         get_metrics().reset()
         get_metrics().increment("http_requests_total", labels={"method": "GET"})

@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """Tests for RedisCache and DatabaseCache backends (fully mocked)."""
 
 import pickle
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # RedisCache
@@ -19,6 +18,7 @@ class TestRedisCacheInit:
 
         with patch.dict("sys.modules", {"redis": mock_redis_mod}):
             from importlib import reload
+
             import src.cache.backends.redis_cache as rc_mod
             reload(rc_mod)
             cache = rc_mod.RedisCache(namespace="test")
@@ -27,6 +27,7 @@ class TestRedisCacheInit:
     def test_init_import_error_raises(self):
         with patch.dict("sys.modules", {"redis": None}):
             from importlib import reload
+
             import src.cache.backends.redis_cache as rc_mod
             reload(rc_mod)
             with pytest.raises((ImportError, Exception)):
@@ -40,6 +41,7 @@ class TestRedisCacheInit:
 
         with patch.dict("sys.modules", {"redis": mock_redis_mod}):
             from importlib import reload
+
             import src.cache.backends.redis_cache as rc_mod
             reload(rc_mod)
             with pytest.raises(Exception):
@@ -57,6 +59,7 @@ class TestRedisCacheOperations:
 
         with patch.dict("sys.modules", {"redis": mock_redis_mod}):
             from importlib import reload
+
             import src.cache.backends.redis_cache as rc_mod
             reload(rc_mod)
             cache = rc_mod.RedisCache(namespace="op_test")

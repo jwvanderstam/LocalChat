@@ -5,11 +5,12 @@ This file contains shared fixtures, mock objects, and test utilities
 that can be used across all test files.
 """
 
-import pytest
 import os
 import tempfile
-from typing import Generator, Dict, Any
-from unittest.mock import Mock, MagicMock
+from typing import Any, Dict, Generator
+from unittest.mock import MagicMock, Mock
+
+import pytest
 from faker import Faker
 
 # Initialize Faker for generating test data
@@ -24,10 +25,10 @@ fake = Faker()
 def temp_dir() -> Generator[str, None, None]:
     """
     Provide a temporary directory for tests.
-    
+
     Yields:
         str: Path to temporary directory
-        
+
     Example:
         def test_file_creation(temp_dir):
             file_path = os.path.join(temp_dir, "test.txt")
@@ -39,10 +40,10 @@ def temp_dir() -> Generator[str, None, None]:
 
 
 @pytest.fixture
-def sample_config() -> Dict[str, Any]:
+def sample_config() -> dict[str, Any]:
     """
     Provide sample configuration for tests.
-    
+
     Returns:
         Dict: Sample configuration dictionary
     """
@@ -63,7 +64,7 @@ def sample_config() -> Dict[str, Any]:
 def mock_db():
     """
     Provide a mock database instance.
-    
+
     Returns:
         Mock: Mock database object with common methods
     """
@@ -83,7 +84,7 @@ def mock_db():
 def sample_embedding() -> list:
     """
     Provide a sample embedding vector.
-    
+
     Returns:
         list: 768-dimensional embedding vector
     """
@@ -91,10 +92,10 @@ def sample_embedding() -> list:
 
 
 @pytest.fixture
-def sample_document_info() -> Dict[str, Any]:
+def sample_document_info() -> dict[str, Any]:
     """
     Provide sample document information.
-    
+
     Returns:
         Dict: Document information dictionary
     """
@@ -115,7 +116,7 @@ def sample_document_info() -> Dict[str, Any]:
 def mock_ollama_client():
     """
     Provide a mock Ollama client.
-    
+
     Returns:
         Mock: Mock Ollama client with common methods
     """
@@ -145,8 +146,9 @@ def app():
     Returns:
         Flask: Test Flask application instance
     """
-    from src.app_factory import create_app
     import os
+
+    from src.app_factory import create_app
 
     # Force testing mode via environment variable as backup
     os.environ['TESTING'] = '1'
@@ -174,10 +176,10 @@ def app():
 def client(app):
     """
     Provide Flask test client.
-    
+
     Args:
         app: Flask application fixture
-    
+
     Returns:
         FlaskClient: Test client for making requests
     """
@@ -188,18 +190,18 @@ def client(app):
 def sample_text() -> str:
     """
     Provide sample text for testing.
-    
+
     Returns:
         str: Sample text content
     """
     return """
     This is a sample document for testing purposes.
     It contains multiple paragraphs and sentences.
-    
+
     The document should be long enough to test chunking.
     We need at least a few hundred characters to make
     meaningful tests for the RAG system.
-    
+
     This paragraph discusses testing strategies and
     the importance of having good test coverage.
     """
@@ -209,7 +211,7 @@ def sample_text() -> str:
 def long_text() -> str:
     """
     Provide long text for chunking tests.
-    
+
     Returns:
         str: Long text content (>1000 characters)
     """
@@ -221,10 +223,10 @@ def long_text() -> str:
 def sample_pdf_path(temp_dir) -> str:
     """
     Create a sample text file (simulating PDF for simple tests).
-    
+
     Args:
         temp_dir: Temporary directory fixture
-        
+
     Returns:
         str: Path to sample file
     """
@@ -238,10 +240,10 @@ def sample_pdf_path(temp_dir) -> str:
 def sample_txt_path(temp_dir) -> str:
     """
     Create a sample text file.
-    
+
     Args:
         temp_dir: Temporary directory fixture
-        
+
     Returns:
         str: Path to sample text file
     """
@@ -255,21 +257,21 @@ def sample_txt_path(temp_dir) -> str:
 def sample_pdf_file():
     """
     Create a sample PDF file in memory for testing.
-    
+
     Returns:
         BytesIO: PDF file in memory
     """
     from io import BytesIO
     try:
         from reportlab.pdfgen import canvas
-        
+
         buffer = BytesIO()
         c = canvas.Canvas(buffer)
         c.drawString(100, 750, "Test Document")
         c.drawString(100, 730, "This is a test document for E2E testing.")
         c.drawString(100, 710, "It contains sample content for RAG pipeline verification.")
         c.save()
-        
+
         buffer.seek(0)
         return buffer
     except ImportError:
@@ -282,14 +284,14 @@ def sample_pdf_file():
 def sample_txt_file():
     """
     Create a sample text file in memory for testing.
-    
+
     Returns:
         BytesIO: Text file in memory
     """
     from io import BytesIO
-    
+
     content = b"""Test Document
-    
+
 This is a test document for E2E testing.
 It contains sample content for RAG pipeline verification.
 
@@ -306,24 +308,24 @@ This section contains the main content.
 def large_pdf_file():
     """
     Create a large PDF file in memory for performance testing.
-    
+
     Returns:
         BytesIO: Large PDF file in memory
     """
     from io import BytesIO
     try:
         from reportlab.pdfgen import canvas
-        
+
         buffer = BytesIO()
         c = canvas.Canvas(buffer)
-        
+
         # Generate 50 pages of content
         for page in range(50):
             c.drawString(100, 750, f"Page {page + 1}")
             for line in range(30):
                 c.drawString(100, 730 - (line * 20), f"Line {line + 1} of page {page + 1}")
             c.showPage()
-        
+
         c.save()
         buffer.seek(0)
         return buffer
@@ -338,10 +340,10 @@ def large_pdf_file():
 # ============================================================================
 
 @pytest.fixture
-def valid_chat_request() -> Dict[str, Any]:
+def valid_chat_request() -> dict[str, Any]:
     """
     Provide a valid chat request.
-    
+
     Returns:
         Dict: Valid chat request data
     """
@@ -353,10 +355,10 @@ def valid_chat_request() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def invalid_chat_request_empty() -> Dict[str, Any]:
+def invalid_chat_request_empty() -> dict[str, Any]:
     """
     Provide an invalid chat request (empty message).
-    
+
     Returns:
         Dict: Invalid chat request data
     """
@@ -368,10 +370,10 @@ def invalid_chat_request_empty() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def invalid_chat_request_long() -> Dict[str, Any]:
+def invalid_chat_request_long() -> dict[str, Any]:
     """
     Provide an invalid chat request (message too long).
-    
+
     Returns:
         Dict: Invalid chat request data
     """
@@ -391,7 +393,7 @@ def invalid_chat_request_long() -> Dict[str, Any]:
 def mock_flask_app():
     """
     Provide a mock Flask app for testing.
-    
+
     Returns:
         Mock: Mock Flask application
     """
@@ -404,30 +406,30 @@ def mock_flask_app():
 def app_with_documents(client, monkeypatch):
     """
     Fixture that provides an app with pre-loaded documents.
-    
+
     Args:
         client: Flask test client
         monkeypatch: Pytest monkeypatch fixture
-        
+
     Returns:
         FlaskClient: Test client with documents loaded
     """
     # Mock the document ingestion to avoid actual processing
     def mock_ingest(file_path, progress_callback=None):
         return True, "Document ingested successfully", 1
-    
+
     monkeypatch.setattr('src.rag.doc_processor.ingest_document', mock_ingest)
-    
+
     # Mock retrieval to return sample data
-    def mock_retrieve(query, top_k=None, min_similarity=None, file_type_filter=None, 
+    def mock_retrieve(query, top_k=None, min_similarity=None, file_type_filter=None,
                       use_hybrid_search=True, expand_context=True):
         return [
             ("Sample chunk about the topic", "test_doc.pdf", 0, 0.95),
             ("More relevant information here", "test_doc.pdf", 1, 0.85),
         ]
-    
+
     monkeypatch.setattr('src.rag.doc_processor.retrieve_context', mock_retrieve)
-    
+
     return client
 
 
@@ -435,11 +437,11 @@ def app_with_documents(client, monkeypatch):
 def app_with_many_documents(client, monkeypatch):
     """
     Fixture with many documents for stress testing.
-    
+
     Args:
         client: Flask test client
         monkeypatch: Pytest monkeypatch fixture
-        
+
     Returns:
         FlaskClient: Test client with many documents
     """
@@ -449,9 +451,9 @@ def app_with_many_documents(client, monkeypatch):
             {'id': i, 'filename': f'doc_{i}.pdf', 'chunk_count': 10}
             for i in range(10)
         ]
-    
+
     monkeypatch.setattr('src.db.db.get_all_documents', mock_get_docs)
-    
+
     return client
 
 
@@ -462,10 +464,10 @@ def app_with_many_documents(client, monkeypatch):
 def generate_chunks(count: int = 5) -> list:
     """
     Generate sample text chunks.
-    
+
     Args:
         count: Number of chunks to generate
-        
+
     Returns:
         list: List of text chunks
     """
@@ -475,10 +477,10 @@ def generate_chunks(count: int = 5) -> list:
 def generate_search_results(count: int = 5) -> list:
     """
     Generate sample search results.
-    
+
     Args:
         count: Number of results to generate
-        
+
     Returns:
         list: List of (chunk_text, filename, chunk_index, similarity) tuples
     """

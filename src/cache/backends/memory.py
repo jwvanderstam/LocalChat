@@ -32,7 +32,7 @@ class MemoryCache(CacheBackend):
         self._cache: OrderedDict[str, tuple] = OrderedDict()
         logger.info(f"MemoryCache initialized (max_size={max_size})")
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         full_key = self.make_key(key)
 
         if full_key not in self._cache:
@@ -51,7 +51,7 @@ class MemoryCache(CacheBackend):
         self.stats.hits += 1
         return value
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
         full_key = self.make_key(key)
         expiry = datetime.now() + timedelta(seconds=ttl) if ttl else None
 

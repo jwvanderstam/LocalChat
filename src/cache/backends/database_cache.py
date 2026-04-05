@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Database Cache Backend - L3 Cache Tier
@@ -17,13 +16,14 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-from typing import Any, Optional, Dict, List, Tuple
-from datetime import datetime, timedelta
 import hashlib
-import pickle
 import json
+import pickle
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 from psycopg import sql as pg_sql
+
 from ...utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -32,14 +32,14 @@ logger = get_logger(__name__)
 class DatabaseCache:
     """
     L3 cache tier using PostgreSQL for persistent storage.
-    
+
     Slower than L1/L2 but provides:
     - Persistence across restarts
     - Larger capacity
     - Semantic similarity matching
     - Analytics and warming capabilities
     """
-    
+
     def __init__(
         self,
         db_client,
@@ -48,7 +48,7 @@ class DatabaseCache:
     ):
         """
         Initialize database cache.
-        
+
         Args:
             db_client: Database client instance
             table_name: Cache table name
@@ -57,10 +57,10 @@ class DatabaseCache:
         self.db = db_client
         self.table_name = table_name
         self.default_ttl = default_ttl
-        
+
         self._ensure_table_exists()
         logger.info(f"DatabaseCache initialized (table={table_name}, ttl={default_ttl}s)")
-    
+
     def _ensure_table_exists(self) -> None:
         """Create cache table if it doesn't exist."""
         try:
@@ -90,45 +90,45 @@ class DatabaseCache:
                 idx_expires=pg_sql.Identifier(f"idx_{self.table_name}_expires"),
                 idx_hits=pg_sql.Identifier(f"idx_{self.table_name}_hits"),
             )
-            
+
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(create_table_sql)
                     conn.commit()
-                    
+
             logger.debug(f"Cache table {self.table_name} verified/created")
-            
+
         except Exception as e:
             logger.error(f"Error creating cache table: {e}", exc_info=True)
             raise
-    
-    def _make_cache_key(self, query: str, params: Optional[Dict] = None) -> str:
+
+    def _make_cache_key(self, query: str, params: dict | None = None) -> str:
         """
         Generate cache key from query and parameters.
-        
+
         Args:
             query: Query text
             params: Query parameters
-        
+
         Returns:
             64-character hex hash
         """
         # Normalize query
         normalized = query.lower().strip()
-        
+
         # Include params if provided
         if params:
             param_str = json.dumps(params, sort_keys=True)
             normalized = f"{normalized}:{param_str}"
-        
+
         return hashlib.sha256(normalized.encode()).hexdigest()
-    
+
     def get(
         self,
         query: str,
-        params: Optional[Dict] = None,
+        params: dict | None = None,
         _similarity_threshold: float = 0.95
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Get cached result for query.
 
@@ -141,7 +141,7 @@ class DatabaseCache:
             Cached result or None if not found/expired
         """
         cache_key = self._make_cache_key(query, params)
-        
+
         try:
             sql = pg_sql.SQL("""
             SELECT result_data, hit_count
@@ -149,15 +149,15 @@ class DatabaseCache:
             WHERE cache_key = %s
                 AND expires_at > NOW()
             """).format(table=pg_sql.Identifier(self.table_name))
-            
+
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(sql, (cache_key,))
                     row = cur.fetchone()
-                    
+
                     if row:
                         result_data, hit_count = row
-                        
+
                         # Update access stats
                         update_sql = pg_sql.SQL("""
                         UPDATE {table}
@@ -167,49 +167,49 @@ class DatabaseCache:
                         """).format(table=pg_sql.Identifier(self.table_name))
                         cur.execute(update_sql, (cache_key,))
                         conn.commit()
-                        
+
                         # Deserialize
                         result = pickle.loads(result_data)
-                        
+
                         logger.debug(f"Cache HIT (L3): {cache_key[:16]}... (hits={hit_count + 1})")
                         return result
                     else:
                         logger.debug(f"Cache MISS (L3): {cache_key[:16]}...")
                         return None
-                        
+
         except Exception as e:
             logger.error(f"Error reading from cache: {e}", exc_info=True)
             return None
-    
+
     def set(
         self,
         query: str,
         result: Any,
-        params: Optional[Dict] = None,
-        ttl: Optional[int] = None,
-        metadata: Optional[Dict] = None
+        params: dict | None = None,
+        ttl: int | None = None,
+        metadata: dict | None = None
     ) -> bool:
         """
         Store result in cache.
-        
+
         Args:
             query: Query text
             result: Result to cache
             params: Query parameters
             ttl: Time-to-live in seconds (None = use default)
             metadata: Additional metadata
-        
+
         Returns:
             True if successful, False otherwise
         """
         cache_key = self._make_cache_key(query, params)
         ttl = ttl or self.default_ttl
         expires_at = datetime.now() + timedelta(seconds=ttl)
-        
+
         try:
             # Serialize result
             result_data = pickle.dumps(result)
-            
+
             sql = pg_sql.SQL("""
             INSERT INTO {table}
                 (cache_key, query_text, query_params, result_data, metadata, expires_at)
@@ -221,7 +221,7 @@ class DatabaseCache:
                 expires_at = EXCLUDED.expires_at,
                 last_accessed_at = NOW()
             """).format(table=pg_sql.Identifier(self.table_name))
-            
+
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
@@ -236,42 +236,42 @@ class DatabaseCache:
                         )
                     )
                     conn.commit()
-            
+
             logger.debug(f"Cache SET (L3): {cache_key[:16]}... (ttl={ttl}s)")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error writing to cache: {e}", exc_info=True)
             return False
-    
-    def delete(self, query: str, params: Optional[Dict] = None) -> bool:
+
+    def delete(self, query: str, params: dict | None = None) -> bool:
         """Delete cached entry."""
         cache_key = self._make_cache_key(query, params)
-        
+
         try:
             sql = pg_sql.SQL("DELETE FROM {table} WHERE cache_key = %s").format(
                 table=pg_sql.Identifier(self.table_name)
             )
-            
+
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(sql, (cache_key,))
                     deleted = cur.rowcount
                     conn.commit()
-            
+
             if deleted > 0:
                 logger.debug(f"Cache DELETE (L3): {cache_key[:16]}...")
                 return True
             return False
-            
+
         except Exception as e:
             logger.error(f"Error deleting from cache: {e}", exc_info=True)
             return False
-    
+
     def clear_expired(self) -> int:
         """
         Remove expired entries.
-        
+
         Returns:
             Number of entries deleted
         """
@@ -279,27 +279,27 @@ class DatabaseCache:
             sql = pg_sql.SQL("DELETE FROM {table} WHERE expires_at < NOW()").format(
                 table=pg_sql.Identifier(self.table_name)
             )
-            
+
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(sql)
                     deleted = cur.rowcount
                     conn.commit()
-            
+
             if deleted > 0:
                 logger.info(f"Cleared {deleted} expired cache entries")
-            
+
             return deleted
-            
+
         except Exception as e:
             logger.error(f"Error clearing expired entries: {e}", exc_info=True)
             return 0
-    
-    def get_stats(self) -> Dict[str, Any]:
+
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         try:
             sql = pg_sql.SQL("""
-            SELECT 
+            SELECT
                 COUNT(*) as total_entries,
                 SUM(hit_count) as total_hits,
                 AVG(hit_count) as avg_hits_per_entry,
@@ -310,15 +310,15 @@ class DatabaseCache:
                 table=pg_sql.Identifier(self.table_name),
                 table_lit=pg_sql.Literal(self.table_name),
             )
-            
+
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(sql)
                     row = cur.fetchone()
-                    
+
                     if row:
                         total, total_hits, avg_hits, expired, size_bytes = row
-                        
+
                         return {
                             'total_entries': total or 0,
                             'total_hits': int(total_hits or 0),
@@ -326,20 +326,20 @@ class DatabaseCache:
                             'expired_entries': expired or 0,
                             'size_mb': round((size_bytes or 0) / 1024 / 1024, 2)
                         }
-            
+
             return {}
-            
+
         except Exception as e:
             logger.error(f"Error getting cache stats: {e}", exc_info=True)
             return {}
-    
-    def get_top_queries(self, limit: int = 10) -> List[Tuple[str, int]]:
+
+    def get_top_queries(self, limit: int = 10) -> list[tuple[str, int]]:
         """
         Get most frequently accessed queries.
-        
+
         Args:
             limit: Number of queries to return
-        
+
         Returns:
             List of (query_text, hit_count) tuples
         """
@@ -351,23 +351,23 @@ class DatabaseCache:
             ORDER BY hit_count DESC
             LIMIT %s
             """).format(table=pg_sql.Identifier(self.table_name))
-            
+
             with self.db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(sql, (limit,))
                     return cur.fetchall()
-            
+
         except Exception as e:
             logger.error(f"Error getting top queries: {e}", exc_info=True)
             return []
-    
-    def warm_cache(self, queries: List[Tuple[str, Any]]) -> int:
+
+    def warm_cache(self, queries: list[tuple[str, Any]]) -> int:
         """
         Pre-populate cache with common queries.
-        
+
         Args:
             queries: List of (query, result) tuples
-        
+
         Returns:
             Number of queries cached
         """
@@ -375,7 +375,7 @@ class DatabaseCache:
         for query, result in queries:
             if self.set(query, result):
                 count += 1
-        
+
         logger.info(f"Warmed cache with {count} queries")
         return count
 
@@ -383,14 +383,14 @@ class DatabaseCache:
 def create_db_cache(db_client, ttl: int = 86400) -> DatabaseCache:
     """
     Factory function to create database cache.
-    
+
     Args:
         db_client: Database client instance
         ttl: Default TTL in seconds (24 hours)
-    
+
     Returns:
         Configured DatabaseCache instance
-    
+
     Example:
         >>> from src.db import db
         >>> cache = create_db_cache(db, ttl=3600)

@@ -6,11 +6,11 @@ Handles loading of various document formats (text, PDF, DOCX, images).
 Extracted from DocumentProcessor for modularity.
 """
 
+import base64
 import os
 import re
-import base64
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict, Any, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .. import config
 from ..ollama_client import ollama_client
@@ -41,7 +41,7 @@ except ImportError:
 
 # Try to import monitoring - graceful degradation if not available
 try:
-    from ..monitoring import timed, counted
+    from ..monitoring import counted, timed
 except ImportError:
     def timed(_metric_name):  # noqa: E306
         return lambda func: func
@@ -49,35 +49,38 @@ except ImportError:
         return lambda func: func
 
 _PDF_NOT_INSTALLED = "PyPDF2 not installed"
+_DOCX_NOT_INSTALLED = "python-docx not installed"
+_EXTRACTOR_PDFPLUMBER = "pdfplumber"
+_EXTRACTOR_PYPDF2 = "PyPDF2"
 
 
 class DocumentLoaderMixin:
     """
     Mixin providing document loading methods for DocumentProcessor.
-    
+
     Supports text, PDF (with table extraction), DOCX, and image files.
     """
-    
-    def load_text_file(self, file_path: str) -> Tuple[bool, str]:
+
+    def load_text_file(self, file_path: str) -> tuple[bool, str]:
         """
         Load a text file.
-        
+
         Args:
             file_path: Path to text file
-        
+
         Returns:
             Tuple of (success: bool, content_or_error: str)
         """
         try:
             logger.debug(f"Loading text file: {file_path}")
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 content = f.read()
             logger.debug(f"Loaded {len(content)} characters from text file")
             return True, content
         except Exception as e:
             logger.error(f"Error loading text file: {e}", exc_info=True)
             return False, str(e)
-    
+
     def _try_pdfplumber_import(self):
         """Try to import pdfplumber, return module or None."""
         try:
@@ -152,7 +155,7 @@ class DocumentLoaderMixin:
         logger.info(f"PyPDF2 extraction complete: {len(text):,} characters")
         return text
 
-    def _load_pages_pdfplumber(self, pdfplumber_module, file_path: str) -> List[Dict[str, Any]]:
+    def _load_pages_pdfplumber(self, pdfplumber_module, file_path: str) -> list[dict[str, Any]]:
         """Load per-page data with metadata using pdfplumber."""
         pages_data = []
         with pdfplumber_module.open(file_path) as pdf:
@@ -170,7 +173,7 @@ class DocumentLoaderMixin:
                     logger.warning(f"  Page {page_num}: No text extracted")
         return pages_data
 
-    def _load_pages_pypdf2(self, file_path: str) -> List[Dict[str, Any]]:
+    def _load_pages_pypdf2(self, file_path: str) -> list[dict[str, Any]]:
         """Load per-page data with metadata using PyPDF2."""
         pages_data = []
         with open(file_path, 'rb') as f:
@@ -187,7 +190,7 @@ class DocumentLoaderMixin:
                     })
         return pages_data
 
-    def load_pdf_file(self, file_path: str) -> Tuple[bool, str]:
+    def load_pdf_file(self, file_path: str) -> tuple[bool, str]:
         """
         Load a PDF file with enhanced table extraction and improved text extraction.
 
@@ -216,14 +219,14 @@ class DocumentLoaderMixin:
             if pdfplumber is not None:
                 try:
                     text = self._extract_pdfplumber_text(pdfplumber, file_path)
-                    extraction_method = "pdfplumber"
+                    extraction_method = _EXTRACTOR_PDFPLUMBER
                 except Exception as plumber_error:
-                    logger.warning(f"pdfplumber extraction failed: {plumber_error}, falling back to PyPDF2")
+                    logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF2}")
                     text = ""
 
             if not text:
                 text = self._extract_pypdf2_text(file_path)
-                extraction_method = "PyPDF2"
+                extraction_method = _EXTRACTOR_PYPDF2
 
             if not text.strip():
                 error_msg = (
@@ -245,7 +248,7 @@ class DocumentLoaderMixin:
 
     def _load_pdf_with_pages(
         self, file_path: str
-    ) -> Tuple[bool, Union[List[Dict[str, Any]], str]]:
+    ) -> tuple[bool, list[dict[str, Any]] | str]:
         """
         Load PDF with page-by-page tracking for enhanced citations.
 
@@ -279,8 +282,8 @@ class DocumentLoaderMixin:
         except Exception as e:
             logger.error(f"Error loading PDF with pages: {e}", exc_info=True)
             return False, str(e)
-    
-    def _validate_docx_file(self, file_path: str) -> Tuple[bool, str]:
+
+    def _validate_docx_file(self, file_path: str) -> tuple[bool, str]:
         """Validate DOCX file exists and is non-empty. Returns (ok, error_msg)."""
         if not os.path.exists(file_path):
             return False, f"File not found: {file_path}"
@@ -300,7 +303,7 @@ class DocumentLoaderMixin:
         ]
         return "\n".join(paragraphs + cells)
 
-    def load_docx_file(self, file_path: str) -> Tuple[bool, str]:
+    def load_docx_file(self, file_path: str) -> tuple[bool, str]:
         """
         Load a DOCX file with enhanced error handling.
 
@@ -313,8 +316,8 @@ class DocumentLoaderMixin:
             Tuple of (success: bool, content_or_error: str)
         """
         if not DOCX_AVAILABLE:
-            logger.error("python-docx not installed")
-            return False, "python-docx not installed"
+            logger.error(_DOCX_NOT_INSTALLED)
+            return False, _DOCX_NOT_INSTALLED
 
         try:
             logger.debug(f"Loading DOCX file: {file_path}")
@@ -343,8 +346,8 @@ class DocumentLoaderMixin:
         except Exception as e:
             logger.error(f"Error loading DOCX: {e}", exc_info=True)
             return False, f"Error loading DOCX: {str(e)}"
-    
-    def _line_looks_like_title(self, line: str) -> Optional[str]:
+
+    def _line_looks_like_title(self, line: str) -> str | None:
         """Return title text if line looks like a section header, else None."""
         if len(line) >= 100:
             return None
@@ -355,7 +358,7 @@ class DocumentLoaderMixin:
             return line
         return None
 
-    def _extract_section_title(self, page_text: str) -> Optional[str]:
+    def _extract_section_title(self, page_text: str) -> str | None:
         """
         Extract likely section title from page start.
 
@@ -375,8 +378,8 @@ class DocumentLoaderMixin:
             if title is not None:
                 return title
         return None
-    
-    def load_image_file(self, file_path: str) -> Tuple[bool, str]:
+
+    def load_image_file(self, file_path: str) -> tuple[bool, str]:
         """
         Load an image file by generating a text description via a vision model.
 
@@ -413,13 +416,13 @@ class DocumentLoaderMixin:
 
     @timed('rag.load_document')
     @counted('rag.document_loads')
-    def load_document(self, file_path: str) -> Tuple[bool, str]:
+    def load_document(self, file_path: str) -> tuple[bool, str]:
         """
         Load a document based on its extension.
-        
+
         Args:
             file_path: Path to document file
-        
+
         Returns:
             Tuple of (success: bool, content_or_error: str)
         """

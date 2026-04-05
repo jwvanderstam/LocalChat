@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 API Routes Blueprint
@@ -12,11 +11,12 @@ Created: 2025-01-15
 Last Updated: 2025-01-27
 """
 
-from flask import Blueprint, jsonify, request, Response
-from flask import current_app as _current_app
-from typing import Dict, Any, Generator, TYPE_CHECKING
 import json
 import time
+from typing import TYPE_CHECKING, Any, Dict, Generator
+
+from flask import Blueprint, Response, jsonify, request
+from flask import current_app as _current_app
 
 if TYPE_CHECKING:
     from ..types import LocalChatApp
@@ -24,8 +24,7 @@ if TYPE_CHECKING:
 else:
     current_app = _current_app
 
-from .. import config
-from .. import exceptions
+from .. import config, exceptions
 from ..utils.logging_config import get_logger
 
 try:
@@ -117,6 +116,16 @@ def _insert_system_prompt(messages: list, prompt: str) -> None:
         messages.insert(0, {'role': 'system', 'content': prompt})
 
 
+def _build_context_sections(local_context: str, web_context: str) -> str:
+    """Build the combined context block from local and web sources."""
+    sections = []
+    if local_context:
+        sections.append("=== Local Document Context ===\n" + local_context)
+    if web_context:
+        sections.append("=== Web Search Results ===\n" + web_context)
+    return "\n\n".join(sections)
+
+
 def _build_context_prompt(
     original_message: str,
     local_context: str,
@@ -131,12 +140,7 @@ def _build_context_prompt(
 
     if has_local or has_web:
         _insert_system_prompt(messages, _ENHANCED_SYSTEM_PROMPT if enhance else _RAG_SYSTEM_PROMPT)
-        sections = []
-        if has_local:
-            sections.append("=== Local Document Context ===\n" + local_context)
-        if has_web:
-            sections.append("=== Web Search Results ===\n" + web_context)
-        combined = "\n\n".join(sections)
+        combined = _build_context_sections(local_context, web_context)
         final_message = (
             f"{combined}\n\n---\n\nQuestion: {original_message}\n\n"
             "Answer the question directly using the information above. "
@@ -208,15 +212,15 @@ def api_status():
                 logger.warning(f"Could not get document count: {e}")
                 db_available = False
         doc_count = _status_doc_count_cache[0]
-    
+
     # Get cache stats if available
     cache_stats = {}
     if hasattr(current_app, 'embedding_cache') and current_app.embedding_cache:
         cache_stats['embedding'] = current_app.embedding_cache.get_stats().to_dict()
-    
+
     if hasattr(current_app, 'query_cache') and current_app.query_cache:
         cache_stats['query'] = current_app.query_cache.get_stats().to_dict()
-    
+
     response = {
         'ollama': current_app.startup_status['ollama'],
         'database': db_available,  # Use checked availability
@@ -224,10 +228,10 @@ def api_status():
         'active_model': active_model,
         'document_count': doc_count
     }
-    
+
     if cache_stats:
         response['cache'] = cache_stats
-    
+
     return jsonify(response)
 
 
@@ -253,9 +257,9 @@ def _retrieve_contexts(fields: dict, doc_processor) -> tuple:
     return local_context, web_context
 
 
-def _build_user_message(message: str, images: list) -> Dict[str, Any]:
+def _build_user_message(message: str, images: list) -> dict[str, Any]:
     """Construct the user message dict, optionally attaching images."""
-    msg: Dict[str, Any] = {'role': 'user', 'content': message}
+    msg: dict[str, Any] = {'role': 'user', 'content': message}
     if images:
         msg['images'] = images
         logger.info(f"[CHAT API] Attaching {len(images)} image(s) to request")
@@ -292,7 +296,7 @@ def _get_tool_executor(app):
     if not config.TOOL_CALLING_ENABLED:
         return None
     try:
-        from ..tools import tool_registry, ToolExecutor
+        from ..tools import ToolExecutor, tool_registry
         if len(tool_registry) > 0:
             return ToolExecutor(app.ollama_client, tool_registry)
     except ImportError:
@@ -470,8 +474,8 @@ def list_plugins():
 def reload_plugins():
     """Reload all plugins from disk without restarting the server."""
     try:
-        from ..tools import plugin_loader
         from .. import config
+        from ..tools import plugin_loader
 
         if not config.PLUGINS_ENABLED:
             return jsonify({"success": False, "message": "Plugin system is disabled"}), 400

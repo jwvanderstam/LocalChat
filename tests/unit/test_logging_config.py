@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Logging Configuration Tests
@@ -18,37 +17,38 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-import pytest
 import logging
 from pathlib import Path
+
+import pytest
 
 
 class TestColoredFormatter:
     """Test colored formatter."""
-    
+
     def test_formatter_adds_colors(self):
         """Test that formatter adds ANSI color codes."""
         from src.utils.logging_config import ColoredFormatter
-        
+
         formatter = ColoredFormatter('%(levelname)s - %(message)s')
         record = logging.LogRecord(
             name='test', level=logging.INFO, pathname='', lineno=0,
             msg='Test message', args=(), exc_info=None
         )
-        
+
         result = formatter.format(record)
-        
+
         assert isinstance(result, str)
         assert 'Test message' in result
-    
+
     def test_formatter_handles_all_levels(self):
         """Test formatter with all log levels."""
         from src.utils.logging_config import ColoredFormatter
-        
+
         formatter = ColoredFormatter('%(levelname)s')
-        levels = [logging.DEBUG, logging.INFO, logging.WARNING, 
+        levels = [logging.DEBUG, logging.INFO, logging.WARNING,
                   logging.ERROR, logging.CRITICAL]
-        
+
         for level in levels:
             record = logging.LogRecord(
                 name='test', level=level, pathname='', lineno=0,
@@ -60,92 +60,93 @@ class TestColoredFormatter:
 
 class TestSetupLogging:
     """Test logging setup."""
-    
+
     def test_setup_logging_creates_logger(self, tmp_path):
         """Test that setup_logging creates a configured logger."""
         from src.utils.logging_config import setup_logging
-        
+
         log_file = tmp_path / "test.log"
         logger = setup_logging(
             log_level="INFO",
             log_file=str(log_file),
             enable_console=False
         )
-        
+
         assert isinstance(logger, logging.Logger)
         assert logger.level == logging.INFO
-    
+
     def test_setup_logging_creates_log_directory(self, tmp_path):
         """Test that log directory is created."""
         from src.utils.logging_config import setup_logging
-        
+
         log_file = tmp_path / "subdir" / "test.log"
         setup_logging(log_file=str(log_file), enable_console=False)
-        
+
         assert log_file.parent.exists()
-    
+
     def test_setup_logging_sets_log_level(self, tmp_path):
         """Test that log level is set correctly."""
         from src.utils.logging_config import setup_logging
-        
+
         log_file = tmp_path / "test.log"
         logger = setup_logging(
             log_level="DEBUG",
             log_file=str(log_file),
             enable_console=False
         )
-        
+
         assert logger.level == logging.DEBUG
-    
+
     def test_setup_logging_adds_handlers(self, tmp_path):
         """Test that handlers are added."""
         from src.utils.logging_config import setup_logging
-        
+
         log_file = tmp_path / "test.log"
         logger = setup_logging(log_file=str(log_file), enable_console=True)
-        
+
         assert len(logger.handlers) > 0
 
 
 class TestGetLogger:
     """Test get_logger function."""
-    
+
     def test_get_logger_returns_logger(self):
         """Test that get_logger returns a logger instance."""
         from src.utils.logging_config import get_logger
-        
+
         logger = get_logger("test_module")
-        
+
         assert isinstance(logger, logging.Logger)
         assert logger.name == "test_module"
-    
+
     def test_get_logger_caches_loggers(self):
         """Test that loggers are cached."""
         from src.utils.logging_config import get_logger
-        
+
         logger1 = get_logger("test")
         logger2 = get_logger("test")
-        
+
         assert logger1 is logger2
-    
+
     def test_get_logger_different_names(self):
         """Test that different names create different loggers."""
         from src.utils.logging_config import get_logger
-        
+
         logger1 = get_logger("module1")
         logger2 = get_logger("module2")
-        
+
         assert logger1.name != logger2.name
 
 
 class TestLogRotation:
     """Test log file rotation."""
-    
+
     def test_rotating_handler_configured(self, tmp_path):
         """Test that rotating handler is configured."""
-        from src.utils.logging_config import setup_logging
         import logging.handlers
-        
+
+        from src.utils.logging_config import setup_logging
+
         log_file = tmp_path / "test.log"
         logger = setup_logging(
             log_file=str(log_file),
@@ -153,7 +154,7 @@ class TestLogRotation:
             backup_count=3,
             enable_console=False
         )
-        
+
         # Check if rotating handler exists
         has_rotating = any(
             isinstance(h, logging.handlers.RotatingFileHandler)
@@ -164,35 +165,35 @@ class TestLogRotation:
 
 class TestLoggingEdgeCases:
     """Test edge cases in logging."""
-    
+
     def test_logging_with_none_message(self):
         """Test logging with None message."""
         from src.utils.logging_config import get_logger
-        
+
         logger = get_logger("test")
-        
+
         # Should not raise
         try:
             logger.info(None)
         except:
             pass  # Some implementations may reject None
-    
+
     def test_logging_with_unicode(self):
         """Test logging with unicode characters."""
         from src.utils.logging_config import get_logger
-        
+
         logger = get_logger("test")
         logger.info("Unicode: test string")
 
         # Should not raise
         assert logger is not None
-    
+
     def test_setup_with_invalid_level(self, tmp_path):
         """Test setup with invalid log level."""
         from src.utils.logging_config import setup_logging
-        
+
         log_file = tmp_path / "test.log"
-        
+
         # Should handle gracefully or raise
         try:
             setup_logging(
@@ -209,8 +210,9 @@ class TestSafeStreamHandler:
 
     def test_suppresses_closed_file_value_error(self):
         """ValueError('closed file') is silently swallowed."""
-        from src.utils.logging_config import SafeStreamHandler
         import io
+
+        from src.utils.logging_config import SafeStreamHandler
 
         handler = SafeStreamHandler(io.StringIO())
         record = logging.LogRecord("t", logging.INFO, "", 0, "m", (), None)
@@ -224,8 +226,9 @@ class TestSafeStreamHandler:
 
     def test_delegates_other_errors(self):
         """Non 'closed file' errors are passed to the base class."""
-        from src.utils.logging_config import SafeStreamHandler
         import io
+
+        from src.utils.logging_config import SafeStreamHandler
 
         handler = SafeStreamHandler(io.StringIO())
         record = logging.LogRecord("t", logging.INFO, "", 0, "m", (), None)
@@ -249,6 +252,7 @@ class TestJsonFormatter:
     def test_output_is_valid_json(self):
         """Each formatted record is a parseable JSON object."""
         import json
+
         from src.utils.logging_config import JsonFormatter
 
         fmt = JsonFormatter()
@@ -261,6 +265,7 @@ class TestJsonFormatter:
     def test_includes_all_standard_fields(self):
         """All required fields are present."""
         import json
+
         from src.utils.logging_config import JsonFormatter
 
         fmt = JsonFormatter()
@@ -271,6 +276,7 @@ class TestJsonFormatter:
     def test_includes_request_id_when_set(self):
         """request_id attribute on the record is forwarded to the JSON."""
         import json
+
         from src.utils.logging_config import JsonFormatter
 
         fmt = JsonFormatter()
@@ -282,6 +288,7 @@ class TestJsonFormatter:
     def test_includes_exc_info_when_present(self):
         """Exception info is serialised into the JSON output."""
         import json
+
         from src.utils.logging_config import JsonFormatter
 
         fmt = JsonFormatter()
@@ -299,8 +306,9 @@ class TestSetupLoggingJsonFormat:
 
     def test_json_format_file_handler(self, tmp_path):
         """JSON formatter is used for the file handler when log_format='json'."""
-        from src.utils.logging_config import setup_logging, JsonFormatter
         import logging.handlers
+
+        from src.utils.logging_config import JsonFormatter, setup_logging
 
         log_file = tmp_path / "app.log"
         logger = setup_logging(
@@ -317,7 +325,7 @@ class TestSetupLoggingJsonFormat:
 
     def test_json_format_console_handler(self, tmp_path):
         """JSON formatter is used for the console handler when log_format='json'."""
-        from src.utils.logging_config import setup_logging, JsonFormatter
+        from src.utils.logging_config import JsonFormatter, setup_logging
 
         log_file = tmp_path / "app.log"
         logger = setup_logging(
@@ -359,8 +367,9 @@ class TestLogFunctionCall:
 
     def test_reraises_exceptions(self):
         """Exceptions from the wrapped function propagate normally."""
-        from src.utils.logging_config import log_function_call
         import pytest
+
+        from src.utils.logging_config import log_function_call
 
         @log_function_call
         def fail():
@@ -371,8 +380,9 @@ class TestLogFunctionCall:
 
     def test_logs_call_and_result(self):
         """Debug messages are emitted for the call and its return value."""
-        from src.utils.logging_config import log_function_call
         from unittest.mock import patch
+
+        from src.utils.logging_config import log_function_call
 
         @log_function_call
         def greet(name):

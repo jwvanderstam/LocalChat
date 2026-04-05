@@ -9,14 +9,14 @@ diversity filtering, and context formatting for LLM prompts.
 import re
 import time
 from collections import defaultdict
-from typing import List, Tuple, Optional, Dict, Any, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .. import config
 from ..db import db
 from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
-from .scoring import BM25Scorer
 from .cache import embedding_cache
+from .scoring import BM25Scorer
 
 logger = get_logger(__name__)
 
@@ -36,7 +36,7 @@ _CONTRACTIONS: dict = {
     "we'll": "we will", "they'll": "they will",
 }
 try:
-    from ..monitoring import timed, counted
+    from ..monitoring import counted, timed
 except ImportError:
     def timed(_metric_name: str):  # noqa: E306
         return lambda func: func
@@ -49,51 +49,51 @@ class RetrievalMixin:
     Mixin providing retrieval, re-ranking, and context formatting
     methods for DocumentProcessor.
     """
-    
+
     def _preprocess_query(self, query: str) -> str:
         """
         Preprocess and clean query for better retrieval.
-        
+
         Args:
             query: Raw user query
-        
+
         Returns:
             Cleaned and normalized query string
         """
         # Remove extra whitespace
         query = ' '.join(query.split())
-        
+
         # Convert to lowercase for processing
         query_lower = query.lower()
-        
+
         # Expand common contractions for better matching
         for contraction, expansion in _CONTRACTIONS.items():
             query_lower = query_lower.replace(contraction, expansion)
-        
+
         # Remove special characters but keep important punctuation
         query_lower = re.sub(r'[^\w\s\-\?\.\!\,]', ' ', query_lower)
-        
+
         # Normalize multiple spaces
         query_lower = ' '.join(query_lower.split())
-        
+
         logger.debug(f"Preprocessed query: '{query}' -> '{query_lower}'")
         return query_lower
-    
-    def _expand_query(self, query: str) -> List[str]:
+
+    def _expand_query(self, query: str) -> list[str]:
         """
         Expand query with related terms for better coverage.
-        
+
         Args:
             query: Preprocessed query
-        
+
         Returns:
             List of query variations (original + expansions)
         """
         if not config.QUERY_EXPANSION_ENABLED:
             return [query]
-        
+
         queries = [query]
-        
+
         # Common domain-specific expansions
         expansions = {
             'revenue': ['income', 'earnings', 'sales'],
@@ -107,10 +107,10 @@ class RetrievalMixin:
             'total': ['sum', 'aggregate', 'combined'],
             'average': ['mean', 'typical', 'standard'],
         }
-        
+
         query_words = query.lower().split()
         added_expansions = 0
-        
+
         for word in query_words:
             if word in expansions and added_expansions < config.MAX_QUERY_EXPANSIONS:
                 for synonym in expansions[word][:1]:  # Add first synonym only
@@ -119,9 +119,9 @@ class RetrievalMixin:
                         queries.append(expanded)
                         added_expansions += 1
                         logger.debug(f"Expanded query with synonym: {expanded}")
-        
+
         return queries
-    
+
     def _apply_hybrid_scoring(
         self,
         all_results: dict,
@@ -143,7 +143,7 @@ class RetrievalMixin:
 
     def _deduplicate_results(self, sorted_results: list) -> list:
         """Remove exact duplicates and adjacent chunks (within 2 positions)."""
-        seen: Dict[str, set] = {}  # filename -> set of seen chunk indices
+        seen: dict[str, set] = {}  # filename -> set of seen chunk indices
         deduped: list = []
         for r in sorted_results:
             fname, cidx = r['filename'], r['chunk_index']
@@ -154,7 +154,7 @@ class RetrievalMixin:
                 deduped.append(r)
         return deduped
 
-    def _get_app_cache(self, attr_name: str) -> Optional[Any]:
+    def _get_app_cache(self, attr_name: str) -> Any | None:
         """Return a named cache from the Flask app, or None outside a request context."""
         try:
             from flask import current_app as _cur_app
@@ -163,7 +163,7 @@ class RetrievalMixin:
             return None
 
     def _log_similarity_miss(
-        self, all_results: Dict[str, Dict[str, Any]], min_similarity: float
+        self, all_results: dict[str, dict[str, Any]], min_similarity: float
     ) -> None:
         """Warn that no chunks passed the similarity threshold and log the best score."""
         logger.warning(f"[RAG] No chunks passed similarity threshold {min_similarity}")
@@ -189,12 +189,12 @@ class RetrievalMixin:
     def retrieve_context(
         self,
         query: str,
-        top_k: Optional[int] = None,
-        min_similarity: Optional[float] = None,
-        file_type_filter: Optional[str] = None,
+        top_k: int | None = None,
+        min_similarity: float | None = None,
+        file_type_filter: str | None = None,
         use_hybrid_search: bool = True,
         expand_context: bool = True  # NOSONAR — reserved public API parameter
-    ) -> List[Tuple[str, str, int, float, Dict[str, Any]]]:
+    ) -> list[tuple[str, str, int, float, dict[str, Any]]]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
 
@@ -266,7 +266,7 @@ class RetrievalMixin:
             return []
 
         # Step 6: Hybrid search - combine with BM25 (if enabled)
-        all_results: Dict[str, Dict[str, Any]] = {}
+        all_results: dict[str, dict[str, Any]] = {}
         for chunk_text, filename, chunk_index, similarity, metadata in semantic_results:
             chunk_id = f"{filename}:{chunk_index}"
             all_results[chunk_id] = {
@@ -331,7 +331,7 @@ class RetrievalMixin:
 
         return output
 
-    def _get_cached_embedding(self, text: str, model: str, app_cache=None) -> Optional[List[float]]:
+    def _get_cached_embedding(self, text: str, model: str, app_cache=None) -> list[float] | None:
         """
         Get embedding with caching support.
 
@@ -373,7 +373,7 @@ class RetrievalMixin:
             embedding_cache.put(text, model, emb)
             return emb
         return None
-    
+
     def _compute_simple_bm25(self, query: str, document: str) -> float:
         """
         Compute a simple normalized BM25 score for a single query-document pair.
@@ -392,64 +392,67 @@ class RetrievalMixin:
         raw_score = scorer.score(query, document, 0)
         return raw_score / (raw_score + 1.0) if raw_score > 0 else 0.0
 
+    def _normalize_bm25_scores(self, scores: dict[str, float]) -> dict[str, float]:
+        """Normalize BM25 scores to [0, 1] range."""
+        max_score = max(scores.values())
+        min_score = min(scores.values())
+        score_range = max_score - min_score
+        if score_range > 0:
+            normalized = {k: (v - min_score) / score_range for k, v in scores.items()}
+            logger.debug(f"[BM25] Normalized {len(normalized)} scores (range was {score_range:.3f})")
+            return normalized
+        if max_score > 0:
+            logger.debug(f"[BM25] All scores equal ({max_score:.3f}), using 0.5 for all")
+            return dict.fromkeys(scores, 0.5)
+        logger.info("[BM25] No keyword matches found (query terms not in documents)")
+        logger.info("[BM25] Falling back to semantic similarity only - this is expected for abstract/conceptual queries")
+        return dict.fromkeys(scores, 0.0)
+
     def _compute_bm25_scores(
-        self, 
-        query: str, 
-        results: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, float]:
+        self,
+        query: str,
+        results: dict[str, dict[str, Any]]
+    ) -> dict[str, float]:
         """
         Compute normalized BM25 scores for result chunks.
-        
+
         Args:
             query: Query text
             results: Dictionary of chunk_id -> result data
-        
+
         Returns:
             Dictionary of chunk_id -> normalized BM25 score
         """
         if not results:
             return {}
-        
+
         # Create mini-corpus from results
         corpus = [data['chunk_text'] for data in results.values()]
 
         # Fit BM25 on this corpus
         scorer = BM25Scorer()
         scorer.fit(corpus)
-        
+
         # Score each document
         scores = {}
         for i, (chunk_id, data) in enumerate(results.items()):
             score = scorer.score(query, data['chunk_text'], i)
             scores[chunk_id] = score
         logger.debug("[BM25] Scored %d chunks", len(scores))
-        
+
         # Normalize scores to [0, 1]
-        max_score = max(scores.values()) if scores else 0.0
-        min_score = min(scores.values()) if scores else 0.0
-        avg_score = sum(scores.values())/len(scores) if scores else 0.0
-        non_zero_count = sum(1 for s in scores.values() if s > 0)
-        
-        logger.debug(f"[BM25] Raw scores: min={min_score:.3f}, max={max_score:.3f}, avg={avg_score:.3f}")
-        logger.debug(f"[BM25] Non-zero scores: {non_zero_count}/{len(scores)}")
-        
         if scores:
-            score_range = max_score - min_score
-            
-            if score_range > 0:
-                scores = {k: (v - min_score) / score_range for k, v in scores.items()}
-                logger.debug(f"[BM25] Normalized {len(scores)} scores (range was {score_range:.3f})")
-            elif max_score > 0:
-                scores = dict.fromkeys(scores, 0.5)
-                logger.debug(f"[BM25] All scores equal ({max_score:.3f}), using 0.5 for all")
-            else:
-                scores = dict.fromkeys(scores, 0.0)
-                logger.info("[BM25] No keyword matches found (query terms not in documents)")
-                logger.info("[BM25] Falling back to semantic similarity only - this is expected for abstract/conceptual queries")
-        
+            max_score = max(scores.values())
+            min_score = min(scores.values())
+            avg_score = sum(scores.values()) / len(scores)
+            non_zero_count = sum(1 for s in scores.values() if s > 0)
+            logger.debug(f"[BM25] Raw scores: min={min_score:.3f}, max={max_score:.3f}, avg={avg_score:.3f}")
+            logger.debug(f"[BM25] Non-zero scores: {non_zero_count}/{len(scores)}")
+            scores = self._normalize_bm25_scores(scores)
+
         return scores
-    
-    def _is_diverse(self, chunk_words: Set[str], selected_words: List[Set[str]]) -> bool:
+
+    def _is_diverse(self, chunk_words: set[str], selected_words: list[set[str]]) -> bool:
         """Return True when chunk_words is sufficiently different from every selected chunk."""
         for selected in selected_words:
             union = chunk_words | selected
@@ -459,8 +462,8 @@ class RetrievalMixin:
 
     def _apply_diversity_filter_dict(
         self,
-        results: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Dict[str, Any]]:
+        results: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
         """
         Remove near-duplicate chunks to increase diversity.
 
@@ -479,8 +482,8 @@ class RetrievalMixin:
             reverse=True
         )
 
-        diverse_results: Dict[str, Dict[str, Any]] = {}
-        selected_words: List[Set[str]] = []
+        diverse_results: dict[str, dict[str, Any]] = {}
+        selected_words: list[set[str]] = []
 
         for chunk_id, data in sorted_items:
             chunk_words = set(data['chunk_text'].lower().split())
@@ -492,59 +495,62 @@ class RetrievalMixin:
                     break
 
         return diverse_results
-    
+
+    def _score_term_coverage(self, query_terms: set[str], chunk_words: set[str]) -> float:
+        """Query term coverage bonus: up to 5% for overlapping terms."""
+        if not query_terms:
+            return 0.0
+        return len(query_terms & chunk_words) / len(query_terms) * 0.05
+
+    def _score_position_bonus(self, chunk_index: int) -> float:
+        """Position bonus: early chunks are more likely to contain key info."""
+        return max(0, 0.03 - (chunk_index * 0.002))
+
+    def _score_length_bonus(self, chunk_len: int) -> float:
+        """Length preference: prefer 200-800 char chunks."""
+        if 200 <= chunk_len <= 800:
+            return 0.02
+        if chunk_len < 100:
+            return -0.02
+        return 0.0
+
     def _rerank_with_signals(
-        self, 
-        query: str, 
-        results: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Dict[str, Any]]:
+        self,
+        query: str,
+        results: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
         """
         Re-rank results using multiple relevance signals.
-        
+
         Args:
             query: Query text
             results: Dictionary of chunk_id -> result data
-        
+
         Returns:
             Re-ranked results dictionary
         """
         if not results:
             return results
-        
+
         query_terms = set(query.lower().split())
-        
+
         for chunk_id, data in results.items():
             chunk_text = data['chunk_text']
             chunk_words = set(chunk_text.lower().split())
-            
-            # Signal 1: Base combined score (already calculated)
-            score = data['combined_score']
-            
-            # Signal 2: Query term coverage bonus
-            if query_terms:
-                term_coverage = len(query_terms & chunk_words) / len(query_terms)
-                score += term_coverage * 0.05  # Up to 5% bonus
-            
-            # Signal 3: Position bonus (early chunks often have key info)
-            chunk_index = data['chunk_index']
-            position_bonus = max(0, 0.03 - (chunk_index * 0.002))  # Decay
-            score += position_bonus
-            
-            # Signal 4: Length preference (prefer 200-800 chars)
-            chunk_len = len(chunk_text)
-            if 200 <= chunk_len <= 800:
-                score += 0.02  # Ideal length bonus
-            elif chunk_len < 100:
-                score -= 0.02  # Too short penalty
-            
+            score = (
+                data['combined_score']
+                + self._score_term_coverage(query_terms, chunk_words)
+                + self._score_position_bonus(data['chunk_index'])
+                + self._score_length_bonus(len(chunk_text))
+            )
             data['combined_score'] = score
-        
+
         return results
-    
+
     def _expand_context_windows(
         self,
-        results: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Dict[str, Any]]:
+        results: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
         """
         Expand context by including adjacent chunks.
 
@@ -559,27 +565,27 @@ class RetrievalMixin:
             Results unchanged (pending implementation)
         """
         return results
-    
-    def test_retrieval(self, query: str, top_k: Optional[int] = None) -> Tuple[bool, List[Dict[str, Any]]]:
+
+    def test_retrieval(self, query: str, top_k: int | None = None) -> tuple[bool, list[dict[str, Any]]]:
         """
         Test RAG retrieval system with a query.
-        
+
         Args:
             query: Test query string
             top_k: Number of results to retrieve (default from config)
-        
+
         Returns:
             Tuple of (success: bool, results: List[Dict])
         """
         try:
             logger.info(f"Testing retrieval with query: {query[:100]}...")
-            
+
             results = self.retrieve_context(query, top_k=top_k)
-            
+
             if not results:
                 logger.warning("No results retrieved")
                 return True, []
-            
+
             formatted_results = []
             for chunk_text, filename, chunk_index, similarity, metadata in results:
                 result_dict = {
@@ -589,40 +595,40 @@ class RetrievalMixin:
                     'preview': chunk_text[:200] + '...' if len(chunk_text) > 200 else chunk_text,
                     'length': len(chunk_text)
                 }
-                
+
                 if metadata.get('page_number'):
                     result_dict['page_number'] = metadata['page_number']
                 if metadata.get('section_title'):
                     result_dict['section_title'] = metadata['section_title']
-                
+
                 formatted_results.append(result_dict)
-            
+
             logger.info(f"Retrieved {len(formatted_results)} results")
             return True, formatted_results
-            
+
         except Exception as e:
             error_msg = f"Error testing retrieval: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return False, []
-    
+
     def format_context_for_llm(
         self,
-        results: List[Tuple[str, str, int, float, Dict[str, Any]]],
+        results: list[tuple[str, str, int, float, dict[str, Any]]],
         max_length: int = 30000
     ) -> str:
         """
         Format retrieved context with rich presentation for LLM prompts.
-        
+
         Args:
             results: List of (chunk_text, filename, chunk_index, similarity, metadata) tuples
             max_length: Maximum context length in characters (default: 30000)
-        
+
         Returns:
             Formatted context string ready for LLM prompt
         """
         if not results:
             return ""
-        
+
         logger.debug(f"Formatting {len(results)} chunks for LLM (max length: {max_length})")
 
         doc_chunks = defaultdict(list)
@@ -663,27 +669,27 @@ class RetrievalMixin:
             citation_parts.append(section[:47] + "..." if len(section) > 50 else section)
         citation = f" ({', '.join(citation_parts)})" if citation_parts else ""
         return f"[Passage{citation}]\n" + self._format_chunk_text_rich(chunk_text) + "\n\n"
-    
+
     def _format_chunk_text_rich(self, chunk_text: str) -> str:
         """
         Clean and format chunk text for rich professional presentation.
-        
+
         Args:
             chunk_text: Raw text chunk
-        
+
         Returns:
             Richly formatted text chunk
         """
         text = chunk_text.strip()
-        
+
         # Check if this is a table (has | separators and multiple lines)
         if '|' in text and text.count('\n') > 1:
             return self._format_table_markdown_clean(text)
-        
+
         # For regular text, enhance formatting for readability
         text = re.sub(r' +', ' ', text)
         text = re.sub(r'\n\n+', '\n\n', text)
-        
+
         # Add some structure: detect lists and enhance
         lines = text.split('\n')
         formatted_lines = []
@@ -695,29 +701,29 @@ class RetrievalMixin:
                 formatted_lines.append(f"\n**{stripped}**")
             else:
                 formatted_lines.append(line)
-        
+
         text = '\n'.join(formatted_lines)
-        
+
         return text
-    
+
     def _format_table_markdown_clean(self, table_text: str) -> str:
         """
         Format table text as clean markdown.
-        
+
         Args:
             table_text: Text containing table with pipe separators
-        
+
         Returns:
             Clean markdown formatted table
         """
         lines = table_text.strip().split('\n')
         if not lines:
             return table_text
-        
+
         formatted_lines = []
         for line in lines:
             line = line.strip()
             if line:
                 formatted_lines.append(line)
-        
+
         return '\n'.join(formatted_lines)

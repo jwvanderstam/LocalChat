@@ -50,7 +50,7 @@ class VectorDumper(Dumper):
         if hasattr(obj, 'tolist'):
             obj = obj.tolist()
         values_str = ','.join(f'{float(v):.6g}' for v in obj)
-        return f'[{values_str}]'.encode('utf-8')
+        return f'[{values_str}]'.encode()
 
 
 class VectorLoader(Loader):
@@ -101,12 +101,12 @@ class DatabaseConnection:
     """
 
     def __init__(self) -> None:
-        self.connection_pool: Optional[ConnectionPool] = None
+        self.connection_pool: ConnectionPool | None = None
         self.is_connected: bool = False
         logger.info("Database manager initialized")
 
     @staticmethod
-    def check_server_availability(host: str, port: int, timeout: float = 2.0) -> Tuple[bool, str]:
+    def check_server_availability(host: str, port: int, timeout: float = 2.0) -> tuple[bool, str]:
         """Fast TCP check that PostgreSQL is reachable before attempting a full connection."""
         logger.debug(f"Checking if PostgreSQL server is available at {host}:{port}")
         sock = None
@@ -139,7 +139,7 @@ class DatabaseConnection:
             )
             logger.error(error_msg)
             return False, error_msg
-        except socket.timeout:
+        except TimeoutError:
             error_msg = (
                 f"Connection to PostgreSQL at {host}:{port} timed out\n"
                 "  Server may be unresponsive or firewalled\n"
@@ -159,14 +159,14 @@ class DatabaseConnection:
                     pass
 
     @staticmethod
-    def _embedding_to_pg_array(embedding: Union[List[float], 'np.ndarray']) -> str:
+    def _embedding_to_pg_array(embedding: Union[list[float], 'np.ndarray']) -> str:
         """Convert a Python list/numpy array to a PostgreSQL vector literal."""
         if isinstance(embedding, np.ndarray):
             embedding = embedding.tolist()
         values_str = ','.join(f'{float(v):.6g}' for v in embedding)
         return f'[{values_str}]'
 
-    def initialize(self) -> Tuple[bool, str]:
+    def initialize(self) -> tuple[bool, str]:
         """
         Initialise the connection pool and create the database/schema if needed.
 
@@ -208,6 +208,7 @@ class DatabaseConnection:
 
             try:
                 logger.debug("Creating connection pool")
+                self._ensure_vector_extension(_conn_kwargs)
                 self.connection_pool = ConnectionPool(
                     kwargs=_conn_kwargs,
                     min_size=config.DB_POOL_MIN_CONN,
@@ -225,7 +226,7 @@ class DatabaseConnection:
                 if "database" in error_msg and "does not exist" in error_msg:
                     logger.warning(f"Database {config.PG_DB} doesn't exist, creating...")
                     self._create_database()
-
+                    self._ensure_vector_extension(_conn_kwargs)
                     self.connection_pool = ConnectionPool(
                         kwargs=_conn_kwargs,
                         min_size=config.DB_POOL_MIN_CONN,
@@ -252,6 +253,20 @@ class DatabaseConnection:
             error_msg = f"Database connection failed: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return False, error_msg
+
+    def _ensure_vector_extension(self, conn_kwargs: dict) -> None:
+        """Install the pgvector extension before the pool is created.
+
+        The connection pool fires ``configure_connection`` → ``register_vector_types``
+        on every connection it opens at startup.  ``register_vector_types`` queries
+        ``pg_type`` for the vector OID, so the extension must already exist at that
+        point.  Using a direct one-shot connection here guarantees the extension is
+        in place before the pool is instantiated.
+        """
+        with psycopg.connect(**conn_kwargs, autocommit=True) as conn:
+            with conn.cursor() as cur:
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        logger.debug("pgvector extension ensured before pool creation")
 
     def _create_database(self) -> None:
         """Create the target database if it does not exist."""

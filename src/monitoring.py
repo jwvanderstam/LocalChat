@@ -1,4 +1,3 @@
-                # -*- coding: utf-8 -*-
 
 """
 Monitoring and Metrics Module
@@ -27,14 +26,15 @@ Author: LocalChat Team
 Last Updated: 2026-03-19
 """
 
-from functools import wraps
-from time import time
-from typing import Callable, Dict, Any, Optional
+import threading
 from collections import defaultdict
 from datetime import datetime
-import threading
+from functools import wraps
+from time import time
+from typing import Any, Callable, Dict, Optional
 
-from flask import Flask, request, g, jsonify
+from flask import Flask, g, jsonify, request
+
 from .utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -43,24 +43,24 @@ logger = get_logger(__name__)
 class MetricsCollector:
     """
     Collects and aggregates application metrics.
-    
+
     Thread-safe metrics collection with aggregation support.
     """
-    
+
     def __init__(self):
         """Initialize metrics collector."""
         self._lock = threading.Lock()
-        self._counters: Dict[str, int] = defaultdict(int)
-        self._histograms: Dict[str, list] = defaultdict(list)
-        self._gauges: Dict[str, float] = {}
+        self._counters: dict[str, int] = defaultdict(int)
+        self._histograms: dict[str, list] = defaultdict(list)
+        self._gauges: dict[str, float] = {}
         self._start_time = datetime.now()
-        
+
         logger.info("MetricsCollector initialized")
-    
-    def increment(self, name: str, value: int = 1, labels: Optional[Dict] = None):
+
+    def increment(self, name: str, value: int = 1, labels: dict | None = None):
         """
         Increment a counter.
-        
+
         Args:
             name: Metric name
             value: Increment value
@@ -69,11 +69,11 @@ class MetricsCollector:
         with self._lock:
             key = self._make_key(name, labels)
             self._counters[key] += value
-    
-    def record(self, name: str, value: float, labels: Optional[Dict] = None):
+
+    def record(self, name: str, value: float, labels: dict | None = None):
         """
         Record a histogram value.
-        
+
         Args:
             name: Metric name
             value: Value to record
@@ -82,15 +82,15 @@ class MetricsCollector:
         with self._lock:
             key = self._make_key(name, labels)
             self._histograms[key].append(value)
-            
+
             # Keep last 1000 values
             if len(self._histograms[key]) > 1000:
                 self._histograms[key] = self._histograms[key][-1000:]
-    
-    def set_gauge(self, name: str, value: float, labels: Optional[Dict] = None):
+
+    def set_gauge(self, name: str, value: float, labels: dict | None = None):
         """
         Set a gauge value.
-        
+
         Args:
             name: Metric name
             value: Gauge value
@@ -99,11 +99,11 @@ class MetricsCollector:
         with self._lock:
             key = self._make_key(name, labels)
             self._gauges[key] = value
-    
-    def get_metrics(self) -> Dict[str, Any]:
+
+    def get_metrics(self) -> dict[str, Any]:
         """
         Get all metrics in Prometheus format.
-        
+
         Returns:
             Dictionary of metrics
         """
@@ -114,7 +114,7 @@ class MetricsCollector:
                 'gauges': dict(self._gauges),
                 'uptime_seconds': (datetime.now() - self._start_time).total_seconds()
             }
-            
+
             # Calculate histogram statistics
             for key, values in self._histograms.items():
                 if values:
@@ -128,23 +128,23 @@ class MetricsCollector:
                         'p95': self._percentile(values, 95),
                         'p99': self._percentile(values, 99),
                     }
-            
+
             return metrics
-    
-    def _make_key(self, name: str, labels: Optional[Dict]) -> str:
+
+    def _make_key(self, name: str, labels: dict | None) -> str:
         """Create metric key with labels."""
         if not labels:
             return name
-        
+
         label_str = ','.join(f'{k}="{v}"' for k, v in sorted(labels.items()))
         return f'{name}{{{label_str}}}'
-    
+
     def _percentile(self, values: list, percentile: int) -> float:
         """Calculate percentile."""
         sorted_values = sorted(values)
         index = int(len(sorted_values) * (percentile / 100.0))
         return sorted_values[min(index, len(sorted_values) - 1)]
-    
+
     def reset(self):
         """Reset all metrics."""
         with self._lock:
@@ -153,14 +153,14 @@ class MetricsCollector:
             self._gauges.clear()
             self._start_time = datetime.now()
 
-    def get_histogram_values(self) -> Dict[str, list]:
+    def get_histogram_values(self) -> dict[str, list]:
         """Return a snapshot of raw histogram value lists (for Prometheus bucket export)."""
         with self._lock:
             return {k: list(v) for k, v in self._histograms.items() if v}
 
 
 # Global metrics collector
-_metrics: Optional[MetricsCollector] = None
+_metrics: MetricsCollector | None = None
 
 
 def get_metrics() -> MetricsCollector:
@@ -174,10 +174,10 @@ def get_metrics() -> MetricsCollector:
 def timed(metric_name: str):
     """
     Decorator to time function execution.
-    
+
     Args:
         metric_name: Name for the timing metric
-    
+
     Example:
         >>> @timed('rag.retrieve')
         >>> def retrieve_context(query):
@@ -193,22 +193,22 @@ def timed(metric_name: str):
             finally:
                 duration = time() - start
                 get_metrics().record(metric_name, duration)
-                
+
                 if duration > 1.0:  # Log slow operations
                     logger.warning(f"Slow operation: {metric_name} took {duration:.2f}s")
-        
+
         return wrapper
     return decorator
 
 
-def counted(metric_name: str, labels: Optional[Dict] = None):
+def counted(metric_name: str, labels: dict | None = None):
     """
     Decorator to count function calls.
-    
+
     Args:
         metric_name: Name for the counter metric
         labels: Optional labels
-    
+
     Example:
         >>> @counted('api.requests', labels={'endpoint': 'chat'})
         >>> def chat():
@@ -219,7 +219,7 @@ def counted(metric_name: str, labels: Optional[Dict] = None):
         def wrapper(*args, **kwargs):
             get_metrics().increment(metric_name, labels=labels)
             return func(*args, **kwargs)
-        
+
         return wrapper
     return decorator
 
@@ -227,52 +227,52 @@ def counted(metric_name: str, labels: Optional[Dict] = None):
 class RequestTimingMiddleware:
     """
     Middleware to track request timing and metrics.
-    
+
     Automatically instruments all requests with timing data.
     """
-    
+
     def __init__(self, app: Flask):
         """
         Initialize middleware.
-        
+
         Args:
             app: Flask application
         """
         self.app = app
         app.before_request(self.before_request)
         app.after_request(self.after_request)
-        
+
         logger.info("RequestTimingMiddleware initialized")
-    
+
     def before_request(self):
         """Record request start time; request_id is already on g via RequestIdMiddleware."""
         g.start_time = time()
-    
+
     def after_request(self, response):
         """Record request metrics."""
         if hasattr(g, 'start_time'):
             duration = time() - g.start_time
-            
+
             # Record metrics
             metrics = get_metrics()
-            
+
             # Request duration
             metrics.record('http_request_duration_seconds', duration, labels={
                 'method': request.method,
                 'endpoint': request.endpoint or 'unknown',
                 'status': response.status_code
             })
-            
+
             # Request counter
             metrics.increment('http_requests_total', labels={
                 'method': request.method,
                 'endpoint': request.endpoint or 'unknown',
                 'status': response.status_code
             })
-            
+
             # Add timing header; request_id header is handled by RequestIdMiddleware
             response.headers['X-Request-Duration'] = f"{duration:.3f}s"
-        
+
         return response
 
 
@@ -407,7 +407,7 @@ def export_prometheus_metrics() -> str:
     lines = []
 
     # Counters — one TYPE declaration per base name, all label variants beneath it
-    counter_groups: Dict[str, Dict[str, int]] = {}
+    counter_groups: dict[str, dict[str, int]] = {}
     for key, value in metrics['counters'].items():
         counter_groups.setdefault(_base_metric_name(key), {})[key] = value
     for base_name, entries in counter_groups.items():
@@ -416,7 +416,7 @@ def export_prometheus_metrics() -> str:
             lines.append(f'{key} {value}')
 
     # Histograms
-    histogram_groups: Dict[str, Dict] = {}
+    histogram_groups: dict[str, dict] = {}
     for key, stats in metrics['histograms'].items():
         histogram_groups.setdefault(_base_metric_name(key), {})[key] = stats
     for base_name, entries in histogram_groups.items():
@@ -431,7 +431,7 @@ def export_prometheus_metrics() -> str:
             lines.append(f'{key}_bucket{{le="+Inf"}} {stats["count"]}')
 
     # Gauges
-    gauge_groups: Dict[str, Dict[str, float]] = {}
+    gauge_groups: dict[str, dict[str, float]] = {}
     for key, value in metrics['gauges'].items():
         gauge_groups.setdefault(_base_metric_name(key), {})[key] = value
     for base_name, entries in gauge_groups.items():

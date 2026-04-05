@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Document Routes Blueprint
@@ -11,14 +10,15 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from flask import Blueprint, jsonify, request, Response
-from flask import current_app as _current_app
-from typing import Generator, Dict, Any, TYPE_CHECKING
-from pathlib import Path
-import os
 import json
+import os
 import queue
 import threading
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Generator
+
+from flask import Blueprint, Response, jsonify, request
+from flask import current_app as _current_app
 
 if TYPE_CHECKING:
     from ..types import LocalChatApp
@@ -225,7 +225,7 @@ def api_upload_documents():
 def api_list_documents():
     """
     List all documents.
-    
+
     Retrieve a list of all documents in the system with metadata.
     ---
     tags:
@@ -299,17 +299,17 @@ def api_list_documents():
 def api_test_retrieval():
     """
     Test RAG retrieval with detailed diagnostic information.
-    
+
     Request Body:
         - query (str): Search query
         - use_hybrid_search (bool, optional): Enable/disable BM25
-    
+
     Returns:
         JSON response with retrieval results and diagnostics
     """
     try:
         data = request.get_json()
-        
+
         data = data or {}
         query = data.get('query', '').strip()
         if not query:
@@ -324,13 +324,11 @@ def api_test_retrieval():
             query = sanitize_query(query)
         except ImportError:
             pass
-        
         logger.info("Testing retrieval: query_len=%d hybrid=%s", len(query), use_hybrid)
-        
         # Test both modes
         results_hybrid = current_app.doc_processor.retrieve_context(query, use_hybrid_search=True)
         results_semantic = current_app.doc_processor.retrieve_context(query, use_hybrid_search=False)
-        
+
         # Format response
         response = {
             'success': True,
@@ -346,9 +344,9 @@ def api_test_retrieval():
                 'recommendation': _get_search_recommendation(results_hybrid, results_semantic)
             }
         }
-        
+
         return jsonify(response)
-        
+
     except Exception as e:
         logger.error(f"Error in test_retrieval: {e}", exc_info=True)
         return jsonify({
@@ -361,7 +359,7 @@ def api_test_retrieval():
 def api_document_stats():
     """
     Get document statistics including chunk analysis.
-    
+
     Retrieve comprehensive statistics about documents and chunks.
     ---
     tags:
@@ -404,7 +402,8 @@ def api_document_stats():
             'success': True,
             'document_count': doc_count,
             'chunk_count': chunk_count,
-            'chunk_statistics': chunk_stats
+            'chunk_statistics': chunk_stats,
+            'max_upload_size': current_app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024)
         })
     except DatabaseUnavailableError:
         raise
@@ -433,13 +432,13 @@ def api_search_text():
         data = request.get_json() or {}
         search_text = data.get('search_text', '').strip()
         limit = data.get('limit', 10)
-        
+
         if not search_text:
             return jsonify({
                 'success': False,
                 'message': 'search_text required'
             }), 400
-        
+
         logger.info(f"Searching chunks for text: {search_text}")
         results = current_app.db.search_chunks_by_text(search_text, limit)
 
@@ -497,11 +496,11 @@ def api_clear_documents():
 
 # Helper functions
 
-def _format_test_results(results, mode_name: str) -> Dict[str, Any]:
+def _format_test_results(results, mode_name: str) -> dict[str, Any]:
     """Format results for test API response."""
     if not results:
         return {'mode': mode_name, 'count': 0, 'chunks': []}
-    
+
     formatted = []
     for chunk_text, filename, chunk_index, similarity, metadata in results:
         chunk_data = {
@@ -511,15 +510,15 @@ def _format_test_results(results, mode_name: str) -> Dict[str, Any]:
             'preview': chunk_text[:200] + '...' if len(chunk_text) > 200 else chunk_text,
             'length': len(chunk_text)
         }
-        
+
         # Add metadata if available (Phase 1.1 enhancement)
         if metadata.get('page_number'):
             chunk_data['page_number'] = metadata['page_number']
         if metadata.get('section_title'):
             chunk_data['section_title'] = metadata['section_title']
-        
+
         formatted.append(chunk_data)
-    
+
     return {
         'mode': mode_name,
         'count': len(formatted),
@@ -537,3 +536,4 @@ def _get_search_recommendation(hybrid_results, semantic_results) -> str:
         return "Hybrid search found more results. BM25 keyword matching is helping improve retrieval."
     else:
         return "Both modes returned same number of results. Query works well with either mode."
+

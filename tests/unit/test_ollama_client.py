@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Unit Tests for Ollama Client
@@ -20,64 +19,65 @@ Author: LocalChat Team
 Created: January 2025
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 import requests
 
 
 class TestConnectionManagement:
     """Test Ollama connection management."""
-    
+
     def test_check_connection_success(self):
         """Test successful connection check."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {'status': 'ok'}
-        
+
         with patch.object(client._session, 'get', return_value=mock_response):
             success, message = client.check_connection()
-            
+
             assert success is True
             assert "ollama is running" in message.lower()
-    
+
     def test_check_connection_failure(self):
         """Test connection failure."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         with patch.object(client._session, 'get', side_effect=requests.exceptions.ConnectionError("Connection refused")):
             success, message = client.check_connection()
-            
+
             assert success is False
             assert len(message) > 0
-    
+
     def test_check_connection_timeout(self):
         """Test connection timeout."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         with patch.object(client._session, 'get', side_effect=requests.exceptions.Timeout("Timeout")):
             success, message = client.check_connection()
-            
+
             assert success is False
             assert "timeout" in message.lower()
 
 
 class TestModelListing:
     """Test model listing functionality."""
-    
+
     def test_list_models_returns_models(self):
         """Test listing available models."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -86,48 +86,48 @@ class TestModelListing:
                 {'name': 'nomic-embed-text', 'size': 274000000}
             ]
         }
-        
+
         with patch.object(client._session, 'get', return_value=mock_response):
             success, models = client.list_models()
-            
+
             assert success is True
             assert len(models) == 2
             assert models[0]['name'] == 'llama3.2'
-    
+
     def test_list_models_handles_empty_list(self):
         """Test handling of no models."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {'models': []}
-        
+
         with patch.object(client._session, 'get', return_value=mock_response):
             success, models = client.list_models()
-            
+
             assert success is True
             assert models == []
-    
+
     def test_list_models_handles_api_error(self):
         """Test handling of API error."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         with patch.object(client._session, 'get', side_effect=Exception("API Error")):
             success, models = client.list_models()
-            
+
             assert success is False
             assert isinstance(models, (list, str))
-    
+
     def test_get_first_available_model_returns_model(self):
         """Test getting first available model."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -135,37 +135,37 @@ class TestModelListing:
                 {'name': 'llama3.2', 'size': 4500000000}
             ]
         }
-        
+
         with patch.object(client._session, 'get', return_value=mock_response):
             model = client.get_first_available_model()
-            
+
             assert model == 'llama3.2'
-    
+
     def test_get_first_available_model_returns_none_when_empty(self):
         """Test getting model when none available."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {'models': []}
-        
+
         with patch.object(client._session, 'get', return_value=mock_response):
             model = client.get_first_available_model()
-            
+
             assert model is None
 
 
 class TestEmbeddingGeneration:
     """Test embedding generation."""
-    
+
     def test_generate_embedding_success(self):
         """Test successful embedding generation."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -178,36 +178,36 @@ class TestEmbeddingGeneration:
             assert success is True
             assert len(embedding) == 768
             assert all(isinstance(x, float) for x in embedding)
-    
+
     def test_generate_embedding_validates_input(self):
         """Test embedding validation."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         # Empty text should fail gracefully
         success, result = client.generate_embedding("nomic-embed-text", "")
-        
+
         # Either succeeds with empty result or fails gracefully
         assert isinstance(success, bool)
-    
+
     def test_generate_embedding_handles_api_error(self):
         """Test handling of embedding API error."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         with patch.object(client._session, 'post', side_effect=Exception("API Error")):
             success, result = client.generate_embedding("nomic-embed-text", "test")
-            
+
             assert success is False
-    
+
     def test_get_embedding_model_returns_model(self):
         """Test getting embedding model."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -216,18 +216,18 @@ class TestEmbeddingGeneration:
                 {'name': 'llama3.2', 'size': 4500000000}
             ]
         }
-        
+
         with patch.object(client._session, 'get', return_value=mock_response):
             model = client.get_embedding_model()
-            
+
             assert model == 'nomic-embed-text'
-    
+
     def test_get_embedding_model_returns_none_when_not_found(self):
         """Test embedding model when not available."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -235,23 +235,23 @@ class TestEmbeddingGeneration:
                 {'name': 'llama3.2', 'size': 4500000000}
             ]
         }
-        
+
         with patch.object(client._session, 'get', return_value=mock_response):
             model = client.get_embedding_model()
-            
+
             # Should return None or fallback model
             assert model is None or isinstance(model, str)
 
 
 class TestChatGeneration:
     """Test chat response generation."""
-    
+
     def test_generate_chat_response_success(self):
         """Test successful chat generation."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         # Mock streaming response
         mock_response = Mock()
         mock_response.status_code = 200
@@ -260,22 +260,22 @@ class TestChatGeneration:
             b'{"message": {"role": "assistant", "content": " world"}}',
             b'{"done": true}'
         ]
-        
+
         with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[{"role": "user", "content": "Hi"}]
             )
-            
+
             responses = list(response_gen)
             assert len(responses) > 0
-    
+
     def test_generate_chat_response_handles_streaming(self):
         """Test streaming response handling."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
@@ -283,54 +283,54 @@ class TestChatGeneration:
             b'{"message": {"role": "assistant", "content": "chunk2"}}',
             b'{"done": true}'
         ]
-        
+
         with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[]
             )
-            
+
             chunks = list(response_gen)
             # Should yield chunks
             assert isinstance(chunks, list)
-    
+
     def test_generate_chat_response_handles_error(self):
         """Test error handling in chat generation."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         with patch.object(client._session, 'post', side_effect=Exception("API Error")):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[]
             )
-            
+
             # Should not crash, may return empty or error message
             try:
                 list(response_gen)
             except:
                 pass  # Error expected
-    
+
     def test_generate_chat_response_with_context(self):
         """Test chat generation with RAG context."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
             b'{"response": "Based on context..."}',
             b'{"done": true}'
         ]
-        
+
         with patch.object(client._session, 'post', return_value=mock_response):
             response_gen = client.generate_chat_response(
                 model="llama3.2",
                 messages=[{"role": "user", "content": "Question?"}]
             )
-            
+
             responses = list(response_gen)
             # Should include responses
             assert len(responses) >= 0
@@ -338,13 +338,13 @@ class TestChatGeneration:
 
 class TestModelTesting:
     """Test model testing functionality."""
-    
+
     def test_test_model_success(self):
         """Test successful model testing."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.iter_lines.return_value = [
@@ -357,62 +357,62 @@ class TestModelTesting:
 
             assert success is True
             assert len(message) > 0
-    
+
     def test_test_model_failure(self):
         """Test model testing failure."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         with patch.object(client._session, 'post', side_effect=Exception("Model not found")):
             success, message = client.test_model("nonexistent")
-            
+
             assert success is False
             assert len(message) > 0
 
 
 class TestErrorHandling:
     """Test comprehensive error handling."""
-    
+
     def test_handles_connection_refused(self):
         """Test handling when Ollama is not running."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         with patch.object(client._session, 'get', side_effect=requests.exceptions.ConnectionError("Connection refused")):
             success, message = client.check_connection()
-            
+
             assert success is False
             assert "connection" in message.lower() or "refused" in message.lower()
-    
+
     def test_handles_timeout_gracefully(self):
         """Test timeout handling."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         with patch.object(client._session, 'post', side_effect=requests.exceptions.Timeout()):
             success, embedding = client.generate_embedding("model", "text")
-            
+
             assert success is False
-    
+
     def test_handles_malformed_response(self):
         """Test handling of malformed JSON response."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://localhost:11434")
-        
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.side_effect = ValueError("Invalid JSON")
-        
+
         with patch.object(client._session, 'post', return_value=mock_response):
             success, result = client.generate_embedding("model", "text")
-            
+
             # Should handle gracefully
             assert success is False or success is True
-    
+
     def test_handles_http_error_codes(self):
         """Test handling of HTTP error codes."""
         from src.ollama_client import OllamaClient
@@ -441,8 +441,9 @@ class TestGenerateEmbeddingsBatch:
         assert client.generate_embeddings_batch("nomic-embed-text", []) == []
 
     def test_successful_batch_returns_embeddings(self):
+        from unittest.mock import Mock, patch
+
         from src.ollama_client import OllamaClient
-        from unittest.mock import patch, Mock
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["hello", "world"]
         expected = [[0.1] * 768, [0.2] * 768]
@@ -454,8 +455,9 @@ class TestGenerateEmbeddingsBatch:
         assert result == expected
 
     def test_partial_response_pads_with_none(self):
+        from unittest.mock import Mock, patch
+
         from src.ollama_client import OllamaClient
-        from unittest.mock import patch, Mock
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["a", "b", "c"]
         partial = [[0.1] * 768, [0.2] * 768]  # only 2 out of 3
@@ -470,8 +472,9 @@ class TestGenerateEmbeddingsBatch:
         assert result[2] is None
 
     def test_http_error_falls_back_to_per_text(self):
+        from unittest.mock import Mock, patch
+
         from src.ollama_client import OllamaClient
-        from unittest.mock import patch, Mock
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["hello"]
         embedding = [0.5] * 768
@@ -483,8 +486,9 @@ class TestGenerateEmbeddingsBatch:
         assert result == [embedding]
 
     def test_exception_falls_back_to_per_text(self):
-        from src.ollama_client import OllamaClient
         from unittest.mock import patch
+
+        from src.ollama_client import OllamaClient
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["hello"]
         embedding = [0.5] * 768
@@ -494,8 +498,9 @@ class TestGenerateEmbeddingsBatch:
         assert result == [embedding]
 
     def test_fallback_yields_none_on_embedding_failure(self):
-        from src.ollama_client import OllamaClient
         from unittest.mock import patch
+
+        from src.ollama_client import OllamaClient
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["hello"]
         with patch.object(client._session, 'post', side_effect=Exception("Network error")):
@@ -516,6 +521,7 @@ class TestBackgroundRefresh:
 
     def test_idempotent_second_call_starts_no_extra_thread(self):
         import threading
+
         from src.ollama_client import OllamaClient
         client = OllamaClient(base_url="http://localhost:11434")
         client._start_background_refresh()
@@ -526,21 +532,21 @@ class TestBackgroundRefresh:
 
 class TestClientConfiguration:
     """Test client configuration."""
-    
+
     def test_client_initialization(self):
         """Test client initializes with correct URL."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient(base_url="http://custom:8080")
-        
+
         assert client.base_url == "http://custom:8080"
-    
+
     def test_client_default_url(self):
         """Test client uses default URL."""
         from src.ollama_client import OllamaClient
-        
+
         client = OllamaClient()
-        
+
         # Should have some default URL
         assert client.base_url is not None
         assert "http" in client.base_url.lower()

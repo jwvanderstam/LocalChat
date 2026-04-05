@@ -11,13 +11,13 @@ Example:
     >>> logger.info("Application started")
 """
 
-import logging
 import functools
 import json
+import logging
 import logging.handlers
 import os
 import sys
-from datetime import timezone, datetime
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -53,7 +53,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -91,7 +91,7 @@ class RequestIdFilter(logging.Filter):
 
 class ColoredFormatter(logging.Formatter):
     """Colored console formatter for better readability."""
-    
+
     # ANSI color codes
     COLORS = {
         'DEBUG': '\033[36m',      # Cyan
@@ -101,17 +101,17 @@ class ColoredFormatter(logging.Formatter):
         'CRITICAL': '\033[35m',   # Magenta
         'RESET': '\033[0m'        # Reset
     }
-    
+
     def format(self, record: logging.LogRecord) -> str:
         """Format log record with colors."""
         # Add color to level name
         levelname = record.levelname
         if levelname in self.COLORS:
             record.levelname = f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
-        
+
         # Format message
         formatted = super().format(record)
-        
+
         # Reset color at end
         return formatted
 
@@ -195,13 +195,13 @@ def setup_logging(
 def get_logger(name: str) -> logging.Logger:
     """
     Get a logger instance for a module.
-    
+
     Args:
         name: Logger name (typically __name__ of the module)
-    
+
     Returns:
         Logger instance
-    
+
     Example:
         >>> logger = get_logger(__name__)
         >>> logger.info("Module initialized")
@@ -212,13 +212,13 @@ def get_logger(name: str) -> logging.Logger:
 def log_function_call(func):
     """
     Decorator to log function calls with arguments and results.
-    
+
     Args:
         func: Function to decorate
-    
+
     Returns:
         Wrapped function
-    
+
     Example:
         >>> @log_function_call
         ... def my_function(x, y):
@@ -227,7 +227,7 @@ def log_function_call(func):
     logger = get_logger(func.__module__)
 
     @functools.wraps(func)
-    
+
     def wrapper(*args, **kwargs):
         logger.debug(f"Calling {func.__name__} with args={args}, kwargs={kwargs}")
         try:
@@ -237,7 +237,7 @@ def log_function_call(func):
         except Exception as e:
             logger.error(f"{func.__name__} raised {type(e).__name__}: {e}", exc_info=True)
             raise
-    
+
     return wrapper
 
 

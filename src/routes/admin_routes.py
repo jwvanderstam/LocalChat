@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Admin / Ops Dashboard Routes
@@ -35,11 +34,11 @@ Last Updated: 2026-03-19
 
 from datetime import datetime
 
-from flask import Blueprint, jsonify, render_template, current_app
+from flask import Blueprint, current_app, jsonify, render_template
 from flask.typing import ResponseReturnValue
 
 from .. import config
-from ..monitoring import get_metrics, _compute_health_status
+from ..monitoring import _compute_health_status, get_metrics
 from ..security import require_admin
 from ..utils.logging_config import get_logger
 

@@ -7,7 +7,7 @@ and metadata tracking for enhanced citations.
 """
 
 import re
-from typing import List, Optional, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .. import config
 from ..utils.logging_config import get_logger
@@ -25,18 +25,18 @@ except ImportError:
 class TextChunkerMixin:
     """
     Mixin providing text chunking methods for DocumentProcessor.
-    
+
     Supports recursive character splitting with table preservation
     and metadata tracking for enhanced citations.
     """
-    
+
     def _split_large_table(
         self, table_text: str, table_header: str, max_size: int
-    ) -> List[str]:
+    ) -> list[str]:
         """Split an oversized table into row-bounded chunks."""
         table_lines = table_text.split('\n')
-        chunks: List[str] = []
-        current: List[str] = [table_header]
+        chunks: list[str] = []
+        current: list[str] = [table_header]
         current_size = len(table_header)
         for line in table_lines[1:]:
             line_size = len(line) + 1
@@ -59,9 +59,9 @@ class TextChunkerMixin:
         overlap: int,
         keep_tables_intact: bool,
         table_chunk_size: int,
-    ) -> List[str]:
+    ) -> list[str]:
         """Process text that contains table markers, returning chunks with tables preserved."""
-        chunks: List[str] = []
+        chunks: list[str] = []
         current_pos = 0
         max_table_chunk = table_chunk_size if keep_tables_intact else chunk_size
 
@@ -91,14 +91,14 @@ class TextChunkerMixin:
         return chunks
 
     @staticmethod
-    def _filter_valid_chunks(chunks: List[str]) -> List[str]:
+    def _filter_valid_chunks(chunks: list[str]) -> list[str]:
         """Strip and drop chunks shorter than 10 characters."""
         return [c for raw in chunks if (c := raw.strip()) and len(c) >= 10]
 
     @timed('rag.chunk_text')
     def chunk_text(
-        self, text: str, chunk_size: Optional[int] = None, overlap: Optional[int] = None
-    ) -> List[str]:
+        self, text: str, chunk_size: int | None = None, overlap: int | None = None
+    ) -> list[str]:
         """
         Chunk text using recursive character splitting for better semantic preservation.
 
@@ -136,8 +136,8 @@ class TextChunkerMixin:
         valid_chunks = self._filter_valid_chunks(chunks)
         logger.info(f"Chunked text into {len(valid_chunks)} valid chunks (standard_size={chunk_size}, table_size={table_chunk_size})")
         return valid_chunks
-    
-    def _character_split(self, text: str, chunk_size: int, overlap: int) -> List[str]:
+
+    def _character_split(self, text: str, chunk_size: int, overlap: int) -> list[str]:
         """Split text at character level with overlap."""
         chunks = []
         start = 0
@@ -155,14 +155,14 @@ class TextChunkerMixin:
         self,
         split_with_sep: str,
         split_size: int,
-        chunks: List[str],
-        current_chunk: List[str],
+        chunks: list[str],
+        current_chunk: list[str],
         current_size: int,
-        separators: List[str],
+        separators: list[str],
         separator: str,
         chunk_size: int,
         overlap: int,
-    ) -> Tuple[List[str], int]:
+    ) -> tuple[list[str], int]:
         """Process one split token, returning updated (current_chunk, current_size)."""
         if split_size > chunk_size:
             if current_chunk:
@@ -182,8 +182,8 @@ class TextChunkerMixin:
         return current_chunk + [split_with_sep], current_size + split_size
 
     def _split_text_recursive(
-        self, text: str, separators: List[str], chunk_size: int, overlap: int
-    ) -> List[str]:
+        self, text: str, separators: list[str], chunk_size: int, overlap: int
+    ) -> list[str]:
         """Recursively split text using hierarchical separators."""
         if not text:
             return []
@@ -196,8 +196,8 @@ class TextChunkerMixin:
             if separator not in text:
                 continue
 
-            chunks: List[str] = []
-            current_chunk: List[str] = []
+            chunks: list[str] = []
+            current_chunk: list[str] = []
             current_size = 0
             splits = text.split(separator)
 
@@ -215,7 +215,7 @@ class TextChunkerMixin:
 
         return self._character_split(text, chunk_size, overlap)
 
-    def _chunk_text_standard(self, text: str, chunk_size: int, overlap: int) -> List[str]:
+    def _chunk_text_standard(self, text: str, chunk_size: int, overlap: int) -> list[str]:
         """
         Standard text chunking without table protection.
 
@@ -228,21 +228,21 @@ class TextChunkerMixin:
             List of chunks
         """
         return self._split_text_recursive(text, config.CHUNK_SEPARATORS, chunk_size, overlap)
-    
+
     def chunk_pages_with_metadata(
-        self, 
-        pages_data: List[Dict[str, Any]], 
-        chunk_size: Optional[int] = None, 
-        overlap: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self,
+        pages_data: list[dict[str, Any]],
+        chunk_size: int | None = None,
+        overlap: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         Chunk pages with metadata preservation for enhanced citations.
-        
+
         Args:
             pages_data: List of page dicts with keys: page_number, text, section_title
             chunk_size: Maximum size of each chunk (in characters)
             overlap: Overlap between chunks (in characters)
-        
+
         Returns:
             List of chunk dictionaries with keys:
                 - text: Chunk text content
@@ -253,18 +253,18 @@ class TextChunkerMixin:
         chunks_with_metadata = []
         current_section = None
         chunk_index = 0
-        
+
         for page_data in pages_data:
             page_num = page_data['page_number']
             page_text = page_data['text']
-            
+
             if page_data.get('section_title'):
                 current_section = page_data['section_title']
-            
+
             section = page_data.get('section_title') or current_section
-            
+
             page_chunks = self.chunk_text(page_text, chunk_size, overlap)
-            
+
             for chunk_text in page_chunks:
                 if len(chunk_text.strip()) >= 10:
                     chunks_with_metadata.append({
@@ -274,6 +274,6 @@ class TextChunkerMixin:
                         'chunk_index': chunk_index
                     })
                     chunk_index += 1
-        
+
         logger.info(f"Created {len(chunks_with_metadata)} chunks with metadata from {len(pages_data)} pages")
         return chunks_with_metadata

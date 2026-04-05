@@ -11,10 +11,15 @@ Submodules:
     conversations — persistent chat-memory (conversations and messages)
 """
 
-from .connection import DatabaseConnection, DatabaseUnavailableError, VectorLoader, register_vector_types
-from .documents import DocumentsMixin
-from .conversations import ConversationsMixin
 from ..utils.logging_config import get_logger
+from .connection import (
+    DatabaseConnection,
+    DatabaseUnavailableError,
+    VectorLoader,
+    register_vector_types,
+)
+from .conversations import ConversationsMixin
+from .documents import DocumentsMixin
 
 logger = get_logger(__name__)
 

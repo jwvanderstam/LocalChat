@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Performance Batch Processor
@@ -10,8 +9,8 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-from typing import List, Optional
 import time
+from typing import List, Optional
 
 from ..utils.logging_config import get_logger
 
@@ -21,14 +20,14 @@ logger = get_logger(__name__)
 class BatchEmbeddingProcessor:
     """
     Optimized batch processor for generating embeddings in parallel.
-    
+
     Features:
     - Parallel embedding generation
     - Configurable batch size (default: 64)
     - Progress tracking
     - Error handling with partial success
     """
-    
+
     def __init__(
         self,
         ollama_client,
@@ -37,7 +36,7 @@ class BatchEmbeddingProcessor:
     ):
         """
         Initialize batch processor.
-        
+
         Args:
             ollama_client: Ollama client instance
             batch_size: Number of texts per batch
@@ -46,14 +45,14 @@ class BatchEmbeddingProcessor:
         self.ollama_client = ollama_client
         self.batch_size = batch_size
         self.max_workers = max_workers
-        
+
         logger.info(f"BatchEmbeddingProcessor initialized (batch_size={batch_size}, workers={max_workers})")
-    
+
     def process_batch(
         self,
-        texts: List[str],
+        texts: list[str],
         model: str
-    ) -> List[Optional[List[float]]]:
+    ) -> list[list[float] | None]:
         """
         Process a batch of texts to generate embeddings.
 
@@ -73,7 +72,7 @@ class BatchEmbeddingProcessor:
 
         logger.info(f"Processing {total} embeddings in batches of {self.batch_size}")
 
-        results: List[Optional[List[float]]] = [None] * total
+        results: list[list[float] | None] = [None] * total
         processed = 0
         failed = 0
 
@@ -101,12 +100,12 @@ class BatchEmbeddingProcessor:
         logger.info(f"Completed: {processed} successful, {failed} failed in {elapsed:.2f}s ({rate:.1f} emb/s)")
 
         return results
-    
+
     def _generate_single(
         self,
         text: str,
         model: str
-    ) -> Optional[List[float]]:
+    ) -> list[float] | None:
         """Generate embedding for single text."""
         try:
             success, embedding = self.ollama_client.generate_embedding(model, text)

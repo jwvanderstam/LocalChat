@@ -37,7 +37,7 @@ class WebSearchResult:
     title: str
     url: str
     snippet: str
-    page_text: Optional[str] = field(default=None, repr=False)
+    page_text: str | None = field(default=None, repr=False)
 
 
 class WebSearchProvider:
@@ -56,10 +56,10 @@ class WebSearchProvider:
 
     def __init__(
         self,
-        max_results: Optional[int] = None,
-        timeout: Optional[int] = None,
-        fetch_pages: Optional[bool] = None,
-        max_page_chars: Optional[int] = None,
+        max_results: int | None = None,
+        timeout: int | None = None,
+        fetch_pages: bool | None = None,
+        max_page_chars: int | None = None,
     ) -> None:
         self.max_results = max_results or config.WEB_SEARCH_MAX_RESULTS
         self.timeout = timeout or config.WEB_SEARCH_TIMEOUT
@@ -70,7 +70,7 @@ class WebSearchProvider:
     # Public API
     # ------------------------------------------------------------------
 
-    def search(self, query: str) -> List[WebSearchResult]:
+    def search(self, query: str) -> list[WebSearchResult]:
         """
         Search the web for *query* and return a list of results.
 
@@ -89,7 +89,7 @@ class WebSearchProvider:
 
         return results
 
-    def format_web_context(self, results: List[WebSearchResult], max_length: int = 4000) -> str:
+    def format_web_context(self, results: list[WebSearchResult], max_length: int = 4000) -> str:
         """
         Format search results into a context block for the LLM.
 
@@ -103,7 +103,7 @@ class WebSearchProvider:
         if not results:
             return ""
 
-        parts: List[str] = []
+        parts: list[str] = []
         current_length = 0
 
         for idx, r in enumerate(results, 1):
@@ -123,7 +123,7 @@ class WebSearchProvider:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _search_duckduckgo(self, query: str) -> List[WebSearchResult]:
+    def _search_duckduckgo(self, query: str) -> list[WebSearchResult]:
         """Search via the duckduckgo-search library."""
         try:
             from ddgs import DDGS
@@ -142,7 +142,7 @@ class WebSearchProvider:
             logger.warning(f"[WEB SEARCH] DuckDuckGo search failed: {exc}")
             return []
 
-        results: List[WebSearchResult] = []
+        results: list[WebSearchResult] = []
         for item in raw or []:
             title = item.get("title") or ""
             url = item.get("href") or item.get("url") or ""
@@ -152,7 +152,7 @@ class WebSearchProvider:
 
         return results
 
-    def _fetch_page_texts(self, results: List[WebSearchResult]) -> None:
+    def _fetch_page_texts(self, results: list[WebSearchResult]) -> None:
         """Fetch and extract plain text from each result URL."""
         session = requests.Session()
         session.max_redirects = 5

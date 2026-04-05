@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """Tests for input sanitization utilities."""
 
 import pytest
+
 from src.utils.sanitization import (
     sanitize_filename,
-    sanitize_query,
     sanitize_model_name,
+    sanitize_query,
     sanitize_text,
     validate_path,
 )

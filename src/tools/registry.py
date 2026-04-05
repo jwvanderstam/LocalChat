@@ -44,7 +44,7 @@ class ToolSpec:
 
     name: str
     description: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     handler: Callable[..., Any]
     source: str = "builtin"
 
@@ -62,7 +62,7 @@ class ToolRegistry:
     """
 
     def __init__(self) -> None:
-        self._tools: Dict[str, ToolSpec] = {}
+        self._tools: dict[str, ToolSpec] = {}
 
     # -- registration -------------------------------------------------------
 
@@ -70,7 +70,7 @@ class ToolRegistry:
         self,
         name: str,
         description: str,
-        parameters: Dict[str, Any],
+        parameters: dict[str, Any],
         source: str = "builtin",
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """
@@ -103,7 +103,7 @@ class ToolRegistry:
 
     # -- look-up / execution ------------------------------------------------
 
-    def get(self, name: str) -> Optional[ToolSpec]:
+    def get(self, name: str) -> ToolSpec | None:
         """Return the ``ToolSpec`` for *name*, or ``None``."""
         return self._tools.get(name)
 
@@ -123,11 +123,11 @@ class ToolRegistry:
             return True
         return False
 
-    def get_by_source(self, source: str) -> List["ToolSpec"]:
+    def get_by_source(self, source: str) -> list[ToolSpec]:
         """Return all tools whose ``source`` matches *source*."""
         return [s for s in self._tools.values() if s.source == source]
 
-    def execute(self, name: str, arguments: Dict[str, Any]) -> Any:
+    def execute(self, name: str, arguments: dict[str, Any]) -> Any:
         """
         Execute a tool by name.
 
@@ -161,7 +161,7 @@ class ToolRegistry:
 
     # -- Ollama schema export -----------------------------------------------
 
-    def get_ollama_schemas(self) -> List[Dict[str, Any]]:
+    def get_ollama_schemas(self) -> list[dict[str, Any]]:
         """Return all tool definitions in the Ollama ``tools`` format."""
         return [
             {
@@ -178,7 +178,7 @@ class ToolRegistry:
     # -- convenience --------------------------------------------------------
 
     @property
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         """List of registered tool names."""
         return list(self._tools.keys())
 

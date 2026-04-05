@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """Tests for model routes."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestModelRoutesList:

@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """Tests for ConversationsMixin (db/conversations.py)."""
 
+from unittest.mock import MagicMock, call, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, call
 
 
 def _make_db_with_conversations():

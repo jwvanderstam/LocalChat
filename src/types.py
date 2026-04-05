@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Custom Type Definitions
@@ -14,8 +13,9 @@ Author: LocalChat Team
 Created: 2025-01-27
 """
 
-from flask import Flask
 from typing import Any, Dict, Optional
+
+from flask import Flask
 
 
 class LocalChatApp(Flask):
@@ -24,9 +24,9 @@ class LocalChatApp(Flask):
     db: Any
     ollama_client: Any
     doc_processor: Any
-    startup_status: Dict[str, bool]
-    embedding_cache: Optional[Any]
-    query_cache: Optional[Any]
+    startup_status: dict[str, bool]
+    embedding_cache: Any | None
+    query_cache: Any | None
     security_enabled: bool
     swagger: Any
     plugin_loader: Any

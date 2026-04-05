@@ -17,12 +17,11 @@ Usage:
 Author: LocalChat Team
 """
 
-from .registry import tool_registry, ToolRegistry, ToolSpec
-from .executor import ToolExecutor
-from .plugin_loader import PluginLoader
-
 # Import built-in tools so their @register decorators run at import time.
 from . import builtin as _builtin  # noqa: F401
+from .executor import ToolExecutor
+from .plugin_loader import PluginLoader
+from .registry import ToolRegistry, ToolSpec, tool_registry
 
 # Module-level singleton — call plugin_loader.load_all(plugins_dir) at startup.
 plugin_loader = PluginLoader(registry=tool_registry)

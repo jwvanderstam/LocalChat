@@ -118,7 +118,7 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       MCP_PORT:        3001
     ports:
-      - "127.0.0.1:3001:3001"
+      - "0.0.0.0:3001:3001"
     networks:
       - backend
 
@@ -211,7 +211,6 @@ networks:
   # frontend: app ↔ reverse-proxy only
   frontend:
     driver: bridge
-  # backend: app ↔ db, redis, ollama (never directly exposed)
+  # backend: app ↔ db, redis, ollama
   backend:
     driver: bridge
-    internal: true

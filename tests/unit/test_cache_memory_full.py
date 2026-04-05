@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """Tests for in-memory cache backend and base classes."""
 
 import time
-import pytest
-from src.cache.backends.base import CacheStats, CacheBackend
-from src.cache.backends.memory import MemoryCache
 
+import pytest
+
+from src.cache.backends.base import CacheBackend, CacheStats
+from src.cache.backends.memory import MemoryCache
 
 # ---------------------------------------------------------------------------
 # CacheStats

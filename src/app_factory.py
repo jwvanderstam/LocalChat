@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Application Factory Module
@@ -24,63 +23,64 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from flask import Flask
-from pathlib import Path
-from typing import Optional, Dict, Any
 import os
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from flask import Flask
 
 from . import config
 from .types import LocalChatApp
-from .utils.logging_config import setup_logging, get_logger
+from .utils.logging_config import get_logger, setup_logging
 
 # Setup logger
 logger = get_logger(__name__)
 
 
 def create_app(
-    config_override: Optional[Dict[str, Any]] = None,
+    config_override: dict[str, Any] | None = None,
     testing: bool = False
 ) -> LocalChatApp:
     """
     Create and configure Flask application instance.
-    
+
     Implements the application factory pattern for better testability
     and separation of concerns. Allows dependency injection of services
     and configuration overrides for different environments.
-    
+
     Args:
         config_override: Dictionary of configuration values to override defaults
         testing: If True, configure app for testing mode
-    
+
     Returns:
         Configured Flask application instance
-    
+
     Example:
         >>> # Production
         >>> app = create_app()
-        >>> 
+        >>>
         >>> # Testing
         >>> test_config = {'TESTING': True, 'DATABASE_URL': 'sqlite:///:memory:'}
         >>> app = create_app(config_override=test_config, testing=True)
     """
     # Get root directory
     root_dir = Path(__file__).parent.parent
-    
+
     # Create Flask app
     app = LocalChatApp(
         __name__,
         template_folder=str(root_dir / 'templates'),
         static_folder=str(root_dir / 'static')
     )
-    
+
     # Load configuration
     _load_configuration(app, config_override, testing)
-    
+
     # Initialize logging
     if not testing:
         log_level = "DEBUG" if app.config.get('DEBUG', False) else "INFO"
         setup_logging(log_level=log_level, log_file=config.LOG_FILE, log_format=config.LOG_FORMAT)
-    
+
     # Initialize extensions and services
     _init_services(app, testing)
 
@@ -98,29 +98,29 @@ def create_app(
 
     # Register blueprints
     _register_blueprints(app)
-    
+
     # Register error handlers
     _register_error_handlers(app)
-    
+
     # Initialize security middleware
     _init_security(app, testing)
-    
+
     # Setup cleanup handlers
     _setup_cleanup_handlers(app)
-    
+
     logger.info(f"Flask application created (testing={testing})")
-    
+
     return app
 
 
 def _load_configuration(
     app: LocalChatApp,
-    config_override: Optional[Dict[str, Any]],
+    config_override: dict[str, Any] | None,
     testing: bool
 ) -> None:
     """
     Load application configuration.
-    
+
     Args:
         app: Flask application instance
         config_override: Configuration overrides
@@ -130,20 +130,20 @@ def _load_configuration(
     app.config['SECRET_KEY'] = config.SECRET_KEY
     app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
     app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER
-    
+
     # Testing configuration
     if testing:
         app.config['TESTING'] = True
         app.config['WTF_CSRF_ENABLED'] = False  # NOSONAR
         app.config['DEBUG'] = False
-    
+
     # Apply overrides
     if config_override:
         app.config.update(config_override)
-    
+
     # Ensure upload folder exists
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    
+
     logger.debug(f"Configuration loaded (testing={testing})")
 
 
@@ -159,22 +159,22 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
     from .db import db
     from .ollama_client import ollama_client
     from .rag import doc_processor
-    
+
     # Store services in app context for dependency injection
     app.db = db
     app.ollama_client = ollama_client
     app.doc_processor = doc_processor
-    
+
     # Initialize caching
     _init_caching(app)
-    
+
     # Initialize global startup status
     app.startup_status = {
         'ollama': False,
         'database': False,
         'ready': False
     }
-    
+
     # Don't initialize services in testing mode
     if not testing:
         _init_ollama_service(app, ollama_client)
@@ -228,6 +228,7 @@ def _warmup_embedding_model(ollama_client) -> None:
 def _init_database_service(app: LocalChatApp, db) -> None:
     """Initialise the database; abort if REQUIRE_DATABASE is set and DB is unavailable."""
     import sys
+
     from . import config
     logger.info("Checking PostgreSQL with pgvector...")
     db_success, db_message = db.initialize()
@@ -259,6 +260,7 @@ def _load_plugins(app: LocalChatApp) -> None:
         return
 
     from pathlib import Path
+
     from .tools import plugin_loader
 
     plugins_dir = Path(config.PLUGINS_DIR)
@@ -281,13 +283,14 @@ def _init_caching(app: LocalChatApp) -> None:
         app: Flask application instance
     """
     try:
+        import os
+
         from .cache import create_cache_backend
         from .cache.managers import init_caches
-        import os
-        
+
         # Check if Redis is enabled
         redis_enabled = os.environ.get('REDIS_ENABLED', 'False').lower() == 'true'
-        
+
         # Prepare backend configuration
         if redis_enabled:
             cache_backend_type = 'redis'
@@ -301,14 +304,14 @@ def _init_caching(app: LocalChatApp) -> None:
             backend_config = {
                 'max_size': 5000  # Only for memory cache
             }
-        
+
         # Create embedding backend
         embedding_backend = create_cache_backend(
             cache_backend_type,
             namespace='embeddings',
             **backend_config
         )
-        
+
         # Create query backend (different max_size for memory)
         query_backend_config = dict(backend_config)
         if cache_backend_type == 'memory':
@@ -319,7 +322,7 @@ def _init_caching(app: LocalChatApp) -> None:
             namespace='queries',
             **query_backend_config
         )
-        
+
         # Initialize cache managers
         embedding_cache, query_cache = init_caches(
             embedding_backend=embedding_backend,
@@ -327,14 +330,14 @@ def _init_caching(app: LocalChatApp) -> None:
             embedding_ttl=3600 * 24 * 7,  # 7 days
             query_ttl=3600  # 1 hour
         )
-        
+
         # Attach to app
         app.embedding_cache = embedding_cache
         app.query_cache = query_cache
-        
+
         backend_name = type(embedding_backend).__name__
         logger.info(f"Caching initialized ({backend_name})")
-        
+
     except Exception as e:
         logger.warning(f"[!] Caching initialization failed: {e}")
         logger.warning("[!] Running without cache (will impact performance)")
@@ -350,8 +353,14 @@ def _register_blueprints(app: LocalChatApp) -> None:
         app: Flask application instance
     """
     # Import blueprints
-    from .routes import web_routes, api_routes, document_routes, model_routes, memory_routes
-    from .routes import admin_routes
+    from .routes import (
+        admin_routes,
+        api_routes,
+        document_routes,
+        memory_routes,
+        model_routes,
+        web_routes,
+    )
 
     # Register blueprints
     app.register_blueprint(web_routes.bp)
@@ -372,10 +381,10 @@ def _register_error_handlers(app: LocalChatApp) -> None:
         app: Flask application instance
     """
     from .routes import error_handlers
-    
+
     # Register error handlers
     error_handlers.register_error_handlers(app)
-    
+
     logger.debug("Error handlers registered")
 
 
@@ -391,19 +400,19 @@ def _init_security(app: LocalChatApp, testing: bool) -> None:
     if testing:
         app.security_enabled = False
         return
-    
+
     try:
         from . import security
-        
+
         # Initialize security features
         security.init_security(app)
         security.setup_auth_routes(app)
         security.setup_health_check(app)
         security.setup_rate_limit_handler(app)
-        
+
         app.security_enabled = True
         logger.info("Security middleware initialized")
-        
+
     except ImportError as e:
         app.security_enabled = False
         logger.warning(f"[!] Security middleware not available: {e}")
@@ -418,14 +427,14 @@ def _setup_cleanup_handlers(app: LocalChatApp) -> None:
     """
     import atexit
     import signal
-    
+
     def cleanup() -> None:
         """Cleanup function to close database connections."""
         if hasattr(app, 'db') and app.db.is_connected:
             logger.info("Closing database connections...")
             app.db.close()
             logger.info("Cleanup complete")
-    
+
     def signal_handler(_sig: int, _frame: Any) -> None:
         """Handle interrupt signals gracefully."""
         logger.info("\nReceived interrupt signal, shutting down...")
@@ -433,12 +442,12 @@ def _setup_cleanup_handlers(app: LocalChatApp) -> None:
         logger.info("Goodbye!")
         import sys
         sys.exit(0)
-    
+
     # Register cleanup handlers
     atexit.register(cleanup)
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     logger.debug("Cleanup handlers registered")
 
 
@@ -451,12 +460,12 @@ def _init_api_docs(app: LocalChatApp) -> None:
     """
     try:
         from .api_docs import init_swagger
-        
+
         swagger = init_swagger(app)
         app.swagger = swagger
-        
+
         logger.info("API documentation initialized at /api/docs/")
-        
+
     except ImportError as e:
         logger.warning(f"[!] API documentation not available: {e}")
     except Exception as e:
@@ -472,11 +481,11 @@ def _init_monitoring(app: LocalChatApp) -> None:
     """
     try:
         from .monitoring import init_monitoring
-        
+
         init_monitoring(app)
-        
+
         logger.info("Monitoring initialized at /api/metrics and /api/health")
-        
+
     except Exception as e:
         logger.error(f"Error initializing monitoring: {e}", exc_info=True)
 

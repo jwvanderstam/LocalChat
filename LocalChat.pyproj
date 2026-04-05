@@ -30,6 +30,7 @@
   <ItemGroup>
     <Compile Include="app.py" />
     <Compile Include="install.py" />
+    <Compile Include="mcp_server\server.py" />
     <Compile Include="plugins\example_plugin.py" />
     <Compile Include="scripts\check_dependencies.py" />
     <Compile Include="src\cache\backends\base.py" />
@@ -80,6 +81,10 @@
     <Compile Include="src\utils\__init__.py" />
     <Compile Include="src\utils\logging_config.py" />
     <Compile Include="src\utils\sanitization.py" />
+    <Compile Include="tests\integration\test_auth_flow.py" />
+    <Compile Include="tests\integration\test_rag_flow.py" />
+    <Compile Include="tests\integration\test_ratelimit.py" />
+    <Compile Include="tests\integration\test_vision.py" />
     <Compile Include="tests\unit\test_admin_routes.py" />
     <Compile Include="tests\unit\test_api_routes_coverage.py" />
     <Compile Include="tests\unit\test_cache_backends_mock.py" />
@@ -88,9 +93,11 @@
     <Compile Include="tests\unit\test_chunking_coverage.py" />
     <Compile Include="tests\unit\test_conversations_full.py" />
     <Compile Include="tests\unit\test_coverage_boost.py" />
+    <Compile Include="tests\unit\test_database_cache.py" />
     <Compile Include="tests\unit\test_document_routes_full.py" />
     <Compile Include="tests\unit\test_final_coverage.py" />
     <Compile Include="tests\unit\test_five_lines.py" />
+    <Compile Include="tests\unit\test_gpu_monitor.py" />
     <Compile Include="tests\unit\test_init_coverage_recovery.py" />
     <Compile Include="tests\unit\test_loaders_coverage.py" />
     <Compile Include="tests\unit\test_memory_routes_full.py" />
@@ -148,6 +155,7 @@
     <Content Include=".github\workflows\sonarcloud.yml" />
     <Content Include=".github\workflows\tests.yml" />
     <Content Include=".gitignore" />
+    <Content Include=".vscode\mcp.json" />
     <Content Include=".vscode\settings.json" />
     <Content Include="config\.env.example" />
     <Content Include="docker-compose.yml" />
@@ -158,12 +166,16 @@
     <Content Include="k8s\ingress.yaml" />
     <Content Include="k8s\secret.yaml" />
     <Content Include="LICENSE" />
+    <Content Include="mcp_server\Dockerfile" />
+    <Content Include="mcp_server\requirements.txt" />
     <Content Include="plugins\README.md" />
     <Content Include="PrivateInfraPlan.md" />
     <Content Include="pyrightconfig.json" />
     <Content Include="pytest.ini" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />
+    <Content Include="ROADMAP.md" />
+    <Content Include="ruff.toml" />
     <Content Include="sonar-project.properties" />
     <Content Include="static\css\style.css" />
     <Content Include="static\js\chat.js" />
@@ -181,6 +193,7 @@
     <Folder Include=".vscode\" />
     <Folder Include="config\" />
     <Folder Include="k8s\" />
+    <Folder Include="mcp_server\" />
     <Folder Include="plugins\" />
     <Folder Include="scripts\" />
     <Folder Include="src\" />

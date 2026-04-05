@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Cache Backends
@@ -11,10 +10,10 @@ Provides all cache backend implementations:
 - database_cache — DatabaseCache (persistent, uses PostgreSQL)
 """
 
-from .base import CacheStats, CacheBackend
+from .base import CacheBackend, CacheStats
+from .database_cache import DatabaseCache, create_db_cache
 from .memory import MemoryCache
 from .redis_cache import RedisCache
-from .database_cache import DatabaseCache, create_db_cache
 
 __all__ = [
     'CacheStats',

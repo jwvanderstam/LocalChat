@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Cache Module - Base Classes and Interfaces
@@ -18,14 +17,14 @@ Author: LocalChat Team
 Created: 2025-01-15
 """
 
-from abc import ABC, abstractmethod
-from typing import Any, Optional, Dict, List, Tuple
-from collections import OrderedDict
-from datetime import datetime, timedelta
 import hashlib
 import json
 import pickle
+from abc import ABC, abstractmethod
+from collections import OrderedDict
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils.logging_config import get_logger
 
@@ -42,19 +41,19 @@ class CacheStats:
     evictions: int = 0
     size: int = 0
     max_size: int = 0
-    
+
     @property
     def hit_rate(self) -> float:
         """Calculate hit rate."""
         total = self.hits + self.misses
         return (self.hits / total * 100) if total > 0 else 0.0
-    
+
     @property
     def usage_percent(self) -> float:
         """Calculate cache usage percentage."""
         return (self.size / self.max_size * 100) if self.max_size > 0 else 0.0
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             'hits': self.hits,
@@ -72,69 +71,69 @@ class CacheStats:
 class CacheBackend(ABC):
     """
     Abstract base class for cache backends.
-    
+
     Defines the interface that all cache backends must implement.
     """
-    
+
     def __init__(self, namespace: str = "localchat"):
         """
         Initialize cache backend.
-        
+
         Args:
             namespace: Cache key namespace for isolation
         """
         self.namespace = namespace
         self.stats = CacheStats()
-    
+
     @abstractmethod
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get value from cache."""
         pass
-    
+
     @abstractmethod
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
         """Set value in cache with optional TTL."""
         pass
-    
+
     @abstractmethod
     def delete(self, key: str) -> bool:
         """Delete key from cache."""
         pass
-    
+
     @abstractmethod
     def exists(self, key: str) -> bool:
         """Check if key exists in cache."""
         pass
-    
+
     @abstractmethod
     def clear(self) -> bool:
         """Clear all keys in namespace."""
         pass
-    
+
     @abstractmethod
     def get_stats(self) -> CacheStats:
         """Get cache statistics."""
         pass
-    
+
     def make_key(self, *parts: str) -> str:
         """
         Create namespaced cache key.
-        
+
         Args:
             *parts: Key components
-        
+
         Returns:
             Namespaced cache key
         """
         return f"{self.namespace}:{':'.join(parts)}"
-    
+
     def hash_key(self, data: str) -> str:
         """
         Create hash of data for cache key.
-        
+
         Args:
             data: Data to hash
-        
+
         Returns:
             SHA256 hash hex string
         """
@@ -144,15 +143,15 @@ class CacheBackend(ABC):
 class MemoryCache(CacheBackend):
     """
     In-memory cache implementation.
-    
+
     Fast, simple cache with LRU eviction. No persistence.
     Good for testing and fallback when Redis unavailable.
     """
-    
+
     def __init__(self, namespace: str = "localchat", max_size: int = 1000):
         """
         Initialize memory cache.
-        
+
         Args:
             namespace: Cache namespace
             max_size: Maximum number of items
@@ -160,11 +159,11 @@ class MemoryCache(CacheBackend):
         super().__init__(namespace)
         self.max_size = max_size
         self.stats.max_size = max_size
-        self._cache: OrderedDict[str, Tuple[Any, Optional[datetime]]] = OrderedDict()
+        self._cache: OrderedDict[str, tuple[Any, datetime | None]] = OrderedDict()
 
         logger.info("MemoryCache initialized")
-    
-    def get(self, key: str) -> Optional[Any]:
+
+    def get(self, key: str) -> Any | None:
         """Get value from cache."""
         full_key = self.make_key(key)
 
@@ -186,7 +185,7 @@ class MemoryCache(CacheBackend):
         self.stats.hits += 1
         return value
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
         """Set value in cache with optional TTL."""
         full_key = self.make_key(key)
 
@@ -256,23 +255,23 @@ class MemoryCache(CacheBackend):
 class RedisCache(CacheBackend):
     """
     Redis cache implementation.
-    
+
     Production-grade cache with persistence, atomic operations,
     and distributed support.
     """
-    
+
     def __init__(
-        self, 
+        self,
         namespace: str = "localchat",
         host: str = "localhost",
         port: int = 6379,
         db: int = 0,
-        password: Optional[str] = None,
+        password: str | None = None,
         socket_timeout: float = 5.0
     ):
         """
         Initialize Redis cache.
-        
+
         Args:
             namespace: Cache namespace
             host: Redis host
@@ -282,11 +281,11 @@ class RedisCache(CacheBackend):
             socket_timeout: Socket timeout in seconds
         """
         super().__init__(namespace)
-        
+
         try:
             import redis
             self.redis = redis
-            
+
             self.client = redis.Redis(
                 host=host,
                 port=port,
@@ -296,120 +295,120 @@ class RedisCache(CacheBackend):
                 decode_responses=False,  # We'll handle encoding
                 socket_connect_timeout=socket_timeout
             )
-            
+
             # Test connection
             self.client.ping()
-            
+
             logger.info(f"RedisCache initialized (host={host}:{port}, db={db})")
-            
+
         except ImportError:
             logger.error("Redis library not installed. Install: pip install redis")
             raise
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
-    
-    def get(self, key: str) -> Optional[Any]:
+
+    def get(self, key: str) -> Any | None:
         """Get value from cache."""
         full_key = self.make_key(key)
-        
+
         try:
             data = self.client.get(full_key)
-            
+
             if data is None:
                 self.stats.misses += 1
                 return None
-            
+
             # Deserialize
             value = pickle.loads(data)
             self.stats.hits += 1
             return value
-            
+
         except Exception as e:
             logger.error(f"Redis get error: {e}")
             self.stats.misses += 1
             return None
-    
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+
+    def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
         """Set value in cache with optional TTL."""
         full_key = self.make_key(key)
-        
+
         try:
             # Serialize
             data = pickle.dumps(value)
-            
+
             # Set with TTL
             if ttl:
                 self.client.setex(full_key, ttl, data)
             else:
                 self.client.set(full_key, data)
-            
+
             self.stats.sets += 1
             return True
-            
+
         except Exception as e:
             logger.error(f"Redis set error: {e}")
             return False
-    
+
     def delete(self, key: str) -> bool:
         """Delete key from cache."""
         full_key = self.make_key(key)
-        
+
         try:
             result = self.client.delete(full_key)
             if int(result) > 0:  # type: ignore[arg-type]
                 self.stats.deletes += 1
                 return True
             return False
-            
+
         except Exception as e:
             logger.error(f"Redis delete error: {e}")
             return False
-    
+
     def exists(self, key: str) -> bool:
         """Check if key exists in cache."""
         full_key = self.make_key(key)
-        
+
         try:
             return bool(self.client.exists(full_key))
         except Exception as e:
             logger.error(f"Redis exists error: {e}")
             return False
-    
+
     def clear(self) -> bool:
         """Clear all keys in namespace."""
         try:
             # Find all keys in namespace
             pattern = f"{self.namespace}:*"
             keys = []
-            
+
             for key in self.client.scan_iter(match=pattern, count=100):
                 keys.append(key)
-            
+
             if keys:
                 self.client.delete(*keys)
                 logger.info(f"Cleared {len(keys)} keys from RedisCache")
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Redis clear error: {e}")
             return False
-    
+
     def get_stats(self) -> CacheStats:
         """Get cache statistics."""
         try:
             info: dict = self.client.info('stats')  # type: ignore[assignment]
             self.stats.size = info.get('keyspace_hits', 0) + info.get('keyspace_misses', 0)
-            
+
             # Get namespace key count
             pattern = f"{self.namespace}:*"
             count = sum(1 for _ in self.client.scan_iter(match=pattern, count=100))
             self.stats.size = count
-            
+
         except Exception as e:
             logger.error(f"Redis stats error: {e}")
-        
+
         return self.stats
 
 
@@ -420,19 +419,19 @@ def create_cache_backend(
 ) -> CacheBackend:
     """
     Factory function to create cache backend.
-    
+
     Args:
         backend: Backend type ('memory' or 'redis')
         namespace: Cache namespace
         **kwargs: Backend-specific arguments
-    
+
     Returns:
         Configured cache backend
-    
+
     Example:
         >>> # Memory cache
         >>> cache = create_cache_backend('memory', max_size=1000)
-        >>> 
+        >>>
         >>> # Redis cache
         >>> cache = create_cache_backend('redis', host='localhost', port=6379)
     """
@@ -444,9 +443,9 @@ def create_cache_backend(
         except Exception as e:
             logger.warning(f"Redis unavailable, falling back to memory cache: {e}")
             return MemoryCache(namespace=namespace, max_size=kwargs.get('max_size', 1000))
-    
+
     elif backend == "memory":
         return MemoryCache(namespace=namespace, **kwargs)
-    
+
     else:
         raise ValueError(f"Unknown cache backend: {backend}")

@@ -7,35 +7,36 @@ Provides common utilities for testing:
 - Common test patterns
 """
 
-from typing import List, Dict, Any
 import random
+from typing import Any, Dict, List
+
 from faker import Faker
 
 fake = Faker()
 
 
-def generate_mock_embedding(dimensions: int = 768) -> List[float]:
+def generate_mock_embedding(dimensions: int = 768) -> list[float]:
     """
     Generate a mock embedding vector.
-    
+
     Args:
         dimensions: Number of dimensions (default: 768)
-    
+
     Returns:
         List of floats representing embedding
     """
     return [random.random() for _ in range(dimensions)]
 
 
-def generate_mock_chunks(count: int = 5, min_length: int = 50, max_length: int = 200) -> List[str]:
+def generate_mock_chunks(count: int = 5, min_length: int = 50, max_length: int = 200) -> list[str]:
     """
     Generate mock text chunks.
-    
+
     Args:
         count: Number of chunks to generate
         min_length: Minimum chunk length
         max_length: Maximum chunk length
-    
+
     Returns:
         List of text chunks
     """
@@ -46,7 +47,7 @@ def generate_mock_chunks(count: int = 5, min_length: int = 50, max_length: int =
     return chunks
 
 
-def generate_mock_search_results(count: int = 5) -> List[tuple]:
+def generate_mock_search_results(count: int = 5) -> list[tuple]:
     """
     Generate mock search results.
 
@@ -71,11 +72,11 @@ def generate_mock_search_results(count: int = 5) -> List[tuple]:
 def assert_json_response(response, expected_status: int = 200):
     """
     Assert response is JSON with expected status.
-    
+
     Args:
         response: Flask response object
         expected_status: Expected HTTP status code
-    
+
     Raises:
         AssertionError: If response doesn't match expectations
     """
@@ -87,7 +88,7 @@ def assert_json_response(response, expected_status: int = 200):
 def assert_error_response(response, error_type: str = None):
     """
     Assert response is a valid error response.
-    
+
     Args:
         response: Flask response object
         error_type: Expected error type (optional)
@@ -96,15 +97,36 @@ def assert_error_response(response, error_type: str = None):
     data = response.get_json()
     assert data is not None, "Error response has no JSON body"
     assert 'error' in data or 'message' in data, "Error response missing error/message field"
-    
+
     if error_type:
         assert data.get('error') == error_type, f"Expected error type {error_type}, got {data.get('error')}"
+
+
+def generate_mock_search_results(count: int = 5) -> list[tuple]:
+    """
+    Generate mock search results.
+
+    Args:
+        count: Number of results
+
+    Returns:
+        List of (chunk_text, filename, chunk_index, similarity) tuples
+    """
+    results = []
+    for i in range(count):
+        results.append((
+            fake.paragraph(),
+            f"document_{i}.pdf",
+            i,
+            random.uniform(0.7, 1.0)
+        ))
+    return results
 
 
 def generate_mock_document_metadata() -> Dict[str, Any]:
     """
     Generate mock document metadata.
-    
+
     Returns:
         Dictionary with document metadata
     """
@@ -121,14 +143,14 @@ def generate_mock_document_metadata() -> Dict[str, Any]:
     }
 
 
-def assert_valid_embedding(embedding: List[float], dimensions: int = 768) -> None:
+def assert_valid_embedding(embedding: list[float], dimensions: int = 768) -> None:
     """
     Assert that an embedding vector is valid.
-    
+
     Args:
         embedding: Embedding vector to validate
         dimensions: Expected number of dimensions
-    
+
     Raises:
         AssertionError: If embedding is invalid
     """
@@ -140,10 +162,10 @@ def assert_valid_embedding(embedding: List[float], dimensions: int = 768) -> Non
 def assert_sanitized_filename(filename: str) -> None:
     """
     Assert that a filename is properly sanitized.
-    
+
     Args:
         filename: Filename to validate
-    
+
     Raises:
         AssertionError: If filename is not sanitized
     """
@@ -153,14 +175,14 @@ def assert_sanitized_filename(filename: str) -> None:
     assert all(c not in filename for c in ['<', '>', ':', '"', '|', '?', '*']), "Filename contains special characters"
 
 
-def create_mock_response(status_code: int = 200, json_data: Dict[str, Any] = None) -> Dict[str, Any]:
+def create_mock_response(status_code: int = 200, json_data: dict[str, Any] = None) -> dict[str, Any]:
     """
     Create a mock HTTP response.
-    
+
     Args:
         status_code: HTTP status code
         json_data: JSON response data
-    
+
     Returns:
         Mock response dictionary
     """

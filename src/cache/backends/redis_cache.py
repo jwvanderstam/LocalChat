@@ -29,7 +29,7 @@ class RedisCache(CacheBackend):
         host: str = "localhost",
         port: int = 6379,
         db: int = 0,
-        password: Optional[str] = None,
+        password: str | None = None,
         socket_timeout: float = 5.0,
     ) -> None:
         super().__init__(namespace)
@@ -54,7 +54,7 @@ class RedisCache(CacheBackend):
             logger.error(f"Failed to connect to Redis: {e}")
             raise
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         full_key = self.make_key(key)
         try:
             data = self.client.get(full_key)
@@ -68,7 +68,7 @@ class RedisCache(CacheBackend):
             self.stats.misses += 1
             return None
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
         full_key = self.make_key(key)
         try:
             data = pickle.dumps(value)

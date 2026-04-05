@@ -42,8 +42,10 @@ Last Updated: 2026-03-19
 import json
 import threading
 import time
+from typing import Any, Dict, Generator, List, NoReturn, Optional, Tuple
+
 import requests
-from typing import Tuple, List, Dict, Any, Optional, Generator, NoReturn
+
 from . import config
 from .gpu_monitor import GpuMonitor
 from .utils.logging_config import get_logger
@@ -79,12 +81,12 @@ class OllamaClient:
         ...     gpus = client.get_gpu_info()
         ...     models = client.get_running_models()
     """
-    
+
     # How long (seconds) to serve cached results before re-querying.
     _RUNNING_MODELS_TTL: float = 5.0   # loaded models can change at any time
     _LIST_MODELS_TTL: float = 60.0     # installed models list; rarely changes
 
-    def __init__(self, base_url: Optional[str] = None) -> None:
+    def __init__(self, base_url: str | None = None) -> None:
         """
         Initialize Ollama client.
 
@@ -93,28 +95,28 @@ class OllamaClient:
         """
         self.base_url: str = base_url or config.OLLAMA_BASE_URL
         self.is_available: bool = False
-        self.available_models: List[str] = []
+        self.available_models: list[str] = []
         self._session = requests.Session()  # reuse TCP connections across calls
-        self._embedding_model_cache: Optional[str] = None  # resolved once, reused
+        self._embedding_model_cache: str | None = None  # resolved once, reused
         # TTL caches — avoids /api/ps on every admin page load
-        self._running_models_cache: Optional[List[Dict[str, Any]]] = None
+        self._running_models_cache: list[dict[str, Any]] | None = None
         self._running_models_cache_time: float = 0.0
-        self._list_models_cache: Optional[List[Dict[str, Any]]] = None
+        self._list_models_cache: list[dict[str, Any]] | None = None
         self._list_models_cache_time: float = 0.0
         self._gpu_monitor = GpuMonitor()
         logger.info(f"OllamaClient initialized with base_url: {self.base_url}")
-    
-    def check_connection(self) -> Tuple[bool, str]:
+
+    def check_connection(self) -> tuple[bool, str]:
         """
         Check if Ollama is running and accessible.
-        
+
         Tests connectivity to the Ollama server and retrieves available models.
-        
+
         Returns:
             Tuple of (success: bool, message: str)
             - success: True if connection successful
             - message: Status message or error description
-        
+
         Example:
             >>> success, msg = ollama_client.check_connection()
             >>> print(msg)
@@ -123,7 +125,7 @@ class OllamaClient:
         try:
             logger.debug(f"Checking connection to {self.base_url}")
             response = self._session.get(f"{self.base_url}/api/tags", timeout=5)
-            
+
             if response.status_code == 200:
                 self.is_available = True
                 data = response.json()
@@ -137,24 +139,24 @@ class OllamaClient:
                 message = f"Ollama returned status code {response.status_code}"
                 logger.warning(message)
                 return False, message
-                
+
         except requests.exceptions.RequestException as e:
             self.is_available = False
             message = f"Cannot connect to Ollama: {str(e)}"
             logger.error(message, exc_info=True)
             return False, message
-    
-    def list_models(self) -> Tuple[bool, List[Dict[str, Any]]]:
+
+    def list_models(self) -> tuple[bool, list[dict[str, Any]]]:
         """
         List all available models.
-        
+
         Queries Ollama for installed models and their metadata.
-        
+
         Returns:
             Tuple of (success: bool, models: List[Dict])
             - success: True if request successful
             - models: List of model dictionaries with name, size, etc.
-        
+
         Example:
             >>> success, models = ollama_client.list_models()
             >>> for model in models:
@@ -191,14 +193,14 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"Error listing models: {e}", exc_info=True)
             return False, self._list_models_cache if self._list_models_cache is not None else []
-    
-    def get_first_available_model(self) -> Optional[str]:
+
+    def get_first_available_model(self) -> str | None:
         """
         Get the first available model name.
-        
+
         Returns:
             Name of first available model, or None if no models available
-        
+
         Example:
             >>> model = ollama_client.get_first_available_model()
             >>> if model:
@@ -211,19 +213,19 @@ class OllamaClient:
             return model_name
         logger.warning("No models available")
         return None
-    
-    def pull_model(self, model_name: str) -> Generator[Dict[str, Any], None, None]:
+
+    def pull_model(self, model_name: str) -> Generator[dict[str, Any], None, None]:
         """
         Pull a model from Ollama registry.
-        
+
         Downloads a model from the Ollama registry with streaming progress updates.
-        
+
         Args:
             model_name: Name of model to pull (e.g., "llama3.2")
-        
+
         Yields:
             Progress updates as dictionaries with status/completion info
-        
+
         Example:
             >>> for progress in ollama_client.pull_model("llama3.2"):
             ...     print(progress.get('status'))
@@ -236,7 +238,7 @@ class OllamaClient:
                 stream=True,
                 timeout=300
             )
-            
+
             if response.status_code == 200:
                 for line in response.iter_lines():
                     if line:
@@ -247,22 +249,22 @@ class OllamaClient:
                 error_msg = f"Failed to pull model: {response.status_code}"
                 logger.error(error_msg)
                 yield {"error": error_msg}
-                
+
         except Exception as e:
             error_msg = f"Error pulling model: {str(e)}"
             logger.error(error_msg, exc_info=True)
             yield {"error": error_msg}
-    
-    def delete_model(self, model_name: str) -> Tuple[bool, str]:
+
+    def delete_model(self, model_name: str) -> tuple[bool, str]:
         """
         Delete a model from Ollama.
-        
+
         Args:
             model_name: Name of model to delete
-        
+
         Returns:
             Tuple of (success: bool, message: str)
-        
+
         Example:
             >>> success, msg = ollama_client.delete_model("old-model")
             >>> print(msg)
@@ -274,23 +276,23 @@ class OllamaClient:
                 json={"name": model_name},
                 timeout=30
             )
-            
+
             success = response.status_code == 200
             message = "Model deleted successfully" if success else "Failed to delete model"
-            
+
             if success:
                 logger.info(f"Deleted model: {model_name}")
                 self._list_models_cache = None  # invalidate after delete
             else:
                 logger.warning(f"Failed to delete model: {model_name}")
-            
+
             return success, message
-            
+
         except Exception as e:
             logger.error(f"Error deleting model: {e}", exc_info=True)
             return False, str(e)
-    
-    def get_vision_model(self) -> Optional[str]:
+
+    def get_vision_model(self) -> str | None:
         """
         Get a vision-capable model for image processing.
 
@@ -329,8 +331,8 @@ class OllamaClient:
         self,
         model: str,
         image_b64: str,
-        prompt: Optional[str] = None
-    ) -> Tuple[bool, str]:
+        prompt: str | None = None
+    ) -> tuple[bool, str]:
         """
         Generate a text description of an image using a vision model.
 
@@ -353,7 +355,7 @@ class OllamaClient:
 
         try:
             logger.info(f"Describing image with model: {model}")
-            messages: List[Dict[str, Any]] = [
+            messages: list[dict[str, Any]] = [
                 {"role": "user", "content": prompt, "images": [image_b64]}
             ]
             description = ""
@@ -411,12 +413,25 @@ class OllamaClient:
         logger.error(f"Ollama API error {response.status_code}: {body}")
         raise RuntimeError(f"Ollama returned HTTP {response.status_code}")
 
+    def _build_chat_options(
+        self, temperature: float = 0.7, max_tokens: int | None = None
+    ) -> dict[str, Any]:
+        """Build the options dict for /api/chat requests."""
+        options: dict[str, Any] = {
+            "num_gpu": config.OLLAMA_NUM_GPU,
+            "num_ctx": config.MAX_CONTEXT_LENGTH,
+            "temperature": temperature,
+        }
+        if max_tokens is not None:
+            options["num_predict"] = max_tokens
+        return options
+
     def generate_chat_response(
         self,
         model: str,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         stream: bool = True,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         temperature: float = 0.7,
     ) -> Generator[str, None, None]:
         """
@@ -441,14 +456,8 @@ class OllamaClient:
             ...     print(chunk, end='')
         """
         logger.debug(f"Generating chat response with model: {model}")
-        options: Dict[str, Any] = {
-            "num_gpu": config.OLLAMA_NUM_GPU,
-            "num_ctx": config.MAX_CONTEXT_LENGTH,
-            "temperature": temperature,
-        }
-        if max_tokens is not None:
-            options["num_predict"] = max_tokens
-        payload: Dict[str, Any] = {
+        options = self._build_chat_options(temperature, max_tokens)
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": stream,
@@ -472,12 +481,32 @@ class OllamaClient:
         else:
             self._raise_for_ollama_error(response, model)
 
+    def _build_tool_payload(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Build the request payload for non-streaming /api/chat completions."""
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "num_gpu": config.OLLAMA_NUM_GPU,
+                "num_ctx": config.MAX_CONTEXT_LENGTH,
+            },
+        }
+        if tools:
+            payload["tools"] = tools
+        return payload
+
     def generate_chat_completion(
         self,
         model: str,
-        messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """
         Non-streaming chat completion that returns the full response.
 
@@ -502,17 +531,7 @@ class OllamaClient:
             >>> if resp["message"].get("tool_calls"):
             ...     print("Model wants to call tools")
         """
-        payload: Dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "options": {
-                "num_gpu": config.OLLAMA_NUM_GPU,
-                "num_ctx": config.MAX_CONTEXT_LENGTH,
-            },
-        }
-        if tools:
-            payload["tools"] = tools
+        payload = self._build_tool_payload(model, messages, tools)
 
         logger.debug(f"Chat completion (non-stream) with model: {model}")
         response = self._session.post(
@@ -534,7 +553,7 @@ class OllamaClient:
         self,
         model: str,
         text: str
-    ) -> Tuple[bool, List[float]]:
+    ) -> tuple[bool, list[float]]:
         """
         Generate embedding vector for text.
 
@@ -600,8 +619,8 @@ class OllamaClient:
     def generate_embeddings_batch(
         self,
         model: str,
-        texts: List[str],
-    ) -> List[Optional[List[float]]]:
+        texts: list[str],
+    ) -> list[list[float] | None]:
         """
         Generate embeddings for multiple texts in a single API call.
 
@@ -642,7 +661,7 @@ class OllamaClient:
                 logger.warning(
                     f"Batch embed returned {len(embeddings)} results for {len(texts)} texts; padding"
                 )
-                result: List[Optional[List[float]]] = list(embeddings)
+                result: list[list[float] | None] = list(embeddings)
                 result += [None] * (len(texts) - len(embeddings))
                 return result
             logger.warning(
@@ -658,7 +677,7 @@ class OllamaClient:
             fallback_results.append(embedding if success else None)
         return fallback_results
 
-    def get_running_models(self) -> List[Dict[str, Any]]:
+    def get_running_models(self) -> list[dict[str, Any]]:
         """
         Return models currently loaded in Ollama (from ``/api/ps``).
 
@@ -689,7 +708,7 @@ class OllamaClient:
         # Return stale data rather than an empty list when the query fails
         return self._running_models_cache if self._running_models_cache is not None else []
 
-    def get_gpu_info(self) -> List[Dict[str, Any]]:
+    def get_gpu_info(self) -> list[dict[str, Any]]:
         """
         Detect all available GPUs and return per-GPU hardware stats.
 
@@ -705,7 +724,7 @@ class OllamaClient:
         """
         return self._gpu_monitor.get_gpu_info()
 
-    def _find_model_in_list(self, model_names: list, preferred: list) -> Optional[str]:
+    def _find_model_in_list(self, model_names: list, preferred: list) -> str | None:
         """Return first model from preferred list found (by substring) in model_names."""
         for embed_model in preferred:
             for model_name in model_names:
@@ -714,7 +733,7 @@ class OllamaClient:
         return model_names[0] if model_names else None
 
     def _log_embedding_model_selection(
-        self, found: Optional[str], model_names: List[str], embedding_models: List[str]
+        self, found: str | None, model_names: list[str], embedding_models: list[str]
     ) -> None:
         """Log which embedding model was selected and whether it is a fallback."""
         if not found:
@@ -725,7 +744,21 @@ class OllamaClient:
         else:
             logger.info(f"Using embedding model: {found}")
 
-    def get_embedding_model(self, preferred_model: Optional[str] = None) -> Optional[str]:
+    def _resolve_model(
+        self,
+        preferred: str | None,
+        fallback_families: list[str],
+    ) -> tuple[str | None, list[str]]:
+        """Find an installed model; returns (model_name, all_model_names)."""
+        success, models = self.list_models()
+        if not success or not models:
+            return None, []
+        model_names = [m['name'] for m in models]
+        if preferred and preferred in model_names:
+            return preferred, model_names
+        return self._find_model_in_list(model_names, fallback_families), model_names
+
+    def get_embedding_model(self, preferred_model: str | None = None) -> str | None:
         """
         Get the best available embedding model.
 
@@ -741,31 +774,19 @@ class OllamaClient:
             >>> model = ollama_client.get_embedding_model("nomic-embed-text")
             >>> print(f"Using embedding model: {model}")
         """
-        # Return cached value if already resolved and no override requested
         if not preferred_model and self._embedding_model_cache is not None:
             return self._embedding_model_cache
 
         logger.debug(f"Finding best embedding model (preferred: {preferred_model})")
-
-        if preferred_model:
-            success, models = self.list_models()
-            if success:
-                model_names = [m['name'] for m in models]
-                if preferred_model in model_names:
-                    logger.info(f"Using preferred embedding model: {preferred_model}")
-                    self._embedding_model_cache = preferred_model
-                    return preferred_model
-
-        embedding_models = [
+        embedding_families = [
             'nomic-embed-text', 'mxbai-embed-large', 'all-minilm', 'llama2', 'mistral'
         ]
-        success, models = self.list_models()
-        if not success:
+        found, model_names = self._resolve_model(preferred_model, embedding_families)
+        if not found:
             logger.error("No embedding model available")
             return None
-        model_names = [m['name'] for m in models]
-        found = self._find_model_in_list(model_names, embedding_models)
-        self._log_embedding_model_selection(found, model_names, embedding_models)
+
+        self._log_embedding_model_selection(found, model_names, embedding_families)
         self._embedding_model_cache = found
         return found
 
@@ -802,16 +823,16 @@ class OllamaClient:
         t.start()
         logger.debug("Background cache refresh thread started")
 
-    def test_model(self, model_name: str) -> Tuple[bool, str]:
+    def test_model(self, model_name: str) -> tuple[bool, str]:
         """
         Test a model with a simple prompt.
-        
+
         Args:
             model_name: Name of model to test
-        
+
         Returns:
             Tuple of (success: bool, response: str)
-        
+
         Example:
             >>> success, response = ollama_client.test_model("llama3.2")
             >>> if success:
@@ -821,7 +842,7 @@ class OllamaClient:
             logger.info(f"Testing model: {model_name}")
             messages = [{"role": "user", "content": "Say 'Hello, I am working!' and nothing else."}]
             response_text = ""
-            
+
             for chunk in self.generate_chat_response(model_name, messages, stream=True):
                 response_text += chunk
 
@@ -830,7 +851,7 @@ class OllamaClient:
                 return False, response_text
             logger.info(f"Model test successful: {model_name}")
             return True, response_text.strip()
-            
+
         except Exception as e:
             logger.error(f"Model test failed: {e}", exc_info=True)
             return False, str(e)

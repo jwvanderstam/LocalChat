@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 OpenAPI Documentation Configuration
@@ -16,8 +15,9 @@ Author: LocalChat Team
 Last Updated: 2026-03-19
 """
 
-from flask import Flask
 from typing import Optional
+
+from flask import Flask
 
 # OpenAPI configuration
 SWAGGER_CONFIG = {
@@ -266,36 +266,36 @@ Maximum file size: 16 MB
 }
 
 
-def init_swagger(app: Flask) -> Optional[object]:
+def init_swagger(app: Flask) -> object | None:
     """
     Initialize Swagger/OpenAPI documentation.
-    
+
     Configures Flasgger with custom configuration and template.
     Provides interactive API documentation at /api/docs
-    
+
     Args:
         app: Flask application instance
-    
+
     Returns:
         Configured Swagger instance or None if flasgger is not available
-    
+
     Example:
         >>> from src.app_factory import create_app
         >>> from src.api_docs import init_swagger
-        >>> 
+        >>>
         >>> app = create_app()
         >>> swagger = init_swagger(app)
         >>> # Visit http://localhost:5000/api/docs/
     """
     try:
         from flasgger import Swagger
-        
+
         swagger = Swagger(
             app,
             config=SWAGGER_CONFIG,
             template=SWAGGER_TEMPLATE,
         )
-        
+
         return swagger
     except ImportError as e:
         # Flasgger not installed - fail gracefully
@@ -312,7 +312,7 @@ summary: Upload and ingest documents
 description: |
   Upload one or more documents for RAG processing.
   Supported formats: PDF, DOCX, TXT, MD
-  
+
   Maximum file size: 16 MB
 consumes:
   - multipart/form-data

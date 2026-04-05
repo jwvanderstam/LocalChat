@@ -36,7 +36,7 @@ class DocumentsMixin:
         self,
         filename: str,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> int:
         """
         Insert a new document and return its ID.
@@ -73,7 +73,7 @@ class DocumentsMixin:
 
     def insert_chunks_batch(
         self,
-        chunks_data: List[Union[Tuple[int, str, int, Union[List[float], 'np.ndarray']], Dict[str, Any]]],
+        chunks_data: list[tuple[int, str, int, list[float] | np.ndarray] | dict[str, Any]],
     ) -> None:
         """
         Insert multiple chunks in a single transaction.
@@ -92,39 +92,48 @@ class DocumentsMixin:
             raise DatabaseUnavailableError("Cannot insert chunks: Database is not connected")
 
         logger.debug(f"Inserting batch of {len(chunks_data)} chunks")
+
+        # Pre-process all rows outside the DB connection to keep CPU work
+        # separate from network I/O.
+        insert_sql = (
+            "INSERT INTO document_chunks"
+            " (document_id, chunk_text, chunk_index, embedding, metadata)"
+            " VALUES (%s, %s, %s, %s::vector, %s)"
+        )
+        rows = []
+        for chunk in chunks_data:
+            if isinstance(chunk, dict):
+                doc_id = chunk['doc_id']
+                chunk_text = chunk['chunk_text']
+                chunk_index = chunk['chunk_index']
+                embedding = chunk['embedding']
+                metadata = chunk.get('metadata', {})
+            else:
+                doc_id, chunk_text, chunk_index, embedding = chunk
+                metadata = {}
+            rows.append((
+                doc_id,
+                chunk_text.replace('\x00', ''),
+                chunk_index,
+                self._embedding_to_pg_array(embedding),
+                Jsonb(metadata),
+            ))
+
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                for chunk in chunks_data:
-                    if isinstance(chunk, dict):
-                        doc_id = chunk['doc_id']
-                        chunk_text = chunk['chunk_text']
-                        chunk_index = chunk['chunk_index']
-                        embedding = chunk['embedding']
-                        metadata = chunk.get('metadata', {})
-                    else:
-                        doc_id, chunk_text, chunk_index, embedding = chunk
-                        metadata = {}
-
-                    # PostgreSQL text columns reject NUL (0x00) bytes.
-                    chunk_text = chunk_text.replace('\x00', '')
-
-                    embedding_str = self._embedding_to_pg_array(embedding)
-                    cursor.execute(
-                        """INSERT INTO document_chunks
-                           (document_id, chunk_text, chunk_index, embedding, metadata)
-                           VALUES (%s, %s, %s, %s::vector, %s)""",
-                        (doc_id, chunk_text, chunk_index, embedding_str, Jsonb(metadata)),
-                    )
-                conn.commit()
+                with conn.pipeline():
+                    for row in rows:
+                        cursor.execute(insert_sql, row)
+            conn.commit()
         logger.info(f"Successfully inserted {len(chunks_data)} chunks")
 
     def search_similar_chunks(
         self,
-        query_embedding: Union[List[float], 'np.ndarray'],
+        query_embedding: list[float] | np.ndarray,
         top_k: int = 5,
         min_similarity: float = 0.0,
-        file_type_filter: Optional[str] = None,
-    ) -> List[Tuple[str, str, int, float, Dict[str, Any]]]:
+        file_type_filter: str | None = None,
+    ) -> list[tuple[str, str, int, float, dict[str, Any]]]:
         """
         Search for similar chunks using cosine similarity via pgvector HNSW.
 
@@ -194,11 +203,11 @@ class DocumentsMixin:
 
     def search_similar_chunks_with_scores(
         self,
-        query_embedding: Union[List[float], 'np.ndarray'],
+        query_embedding: list[float] | np.ndarray,
         top_k: int = 5,
         min_similarity: float = 0.0,
-        file_type_filter: Optional[str] = None,
-    ) -> List[Tuple[str, str, int, float, int]]:
+        file_type_filter: str | None = None,
+    ) -> list[tuple[str, str, int, float, int]]:
         """
         Search for similar chunks, applying a similarity threshold at DB level.
 
@@ -259,7 +268,7 @@ class DocumentsMixin:
 
     def get_adjacent_chunks(
         self, document_id: int, chunk_index: int, window_size: int = 1
-    ) -> List[Tuple[str, int]]:
+    ) -> list[tuple[str, int]]:
         """
         Get chunks immediately before and after a given chunk.
 
@@ -320,7 +329,7 @@ class DocumentsMixin:
                 logger.debug(f"Chunk count: {count}")
                 return count
 
-    def get_all_documents(self) -> List[Dict[str, Any]]:
+    def get_all_documents(self) -> list[dict[str, Any]]:
         """
         List all documents with metadata.
 
@@ -356,7 +365,7 @@ class DocumentsMixin:
                 logger.debug(f"Retrieved {len(documents)} documents")
                 return documents
 
-    def document_exists(self, filename: str) -> Tuple[bool, Dict[str, Any]]:
+    def document_exists(self, filename: str) -> tuple[bool, dict[str, Any]]:
         """
         Check whether a document with the given filename already exists.
 
@@ -392,7 +401,7 @@ class DocumentsMixin:
                 logger.debug(f"Document does not exist: {filename}")
                 return False, {}
 
-    def get_chunk_statistics(self) -> Dict[str, Any]:
+    def get_chunk_statistics(self) -> dict[str, Any]:
         """
         Return statistics about chunks (totals, embedding coverage, samples).
 
@@ -447,7 +456,7 @@ class DocumentsMixin:
 
     def search_chunks_by_text(
         self, search_text: str, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Case-insensitive text search over chunk content (for debugging).
 

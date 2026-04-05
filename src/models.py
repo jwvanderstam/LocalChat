@@ -25,9 +25,10 @@ Last Updated: 2024-12-27
 # Python 3.14 compatibility: Use string annotations to avoid __annotate__ issues
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _MODEL_NAME_EMPTY = 'Model name cannot be empty'
 _MODEL_NAME_INVALID_CHARS = 'Model name contains invalid characters'
@@ -71,16 +72,16 @@ class ChatRequest(BaseModel):
         default=False,
         description="Whether to enrich RAG context with web search results"
     )
-    history: List[Dict[str, str]] = Field(
+    history: list[dict[str, str]] = Field(
         default_factory=list,
         max_length=50,
         description="Chat conversation history"
     )
-    conversation_id: Optional[str] = Field(
+    conversation_id: str | None = Field(
         default=None,
         description="Conversation UUID for persistent memory (omit to start a new conversation)"
     )
-    images: Optional[List[str]] = Field(
+    images: list[str] | None = Field(
         default=None,
         description="Optional list of base64-encoded images for vision-capable models"
     )
@@ -93,7 +94,7 @@ class ChatRequest(BaseModel):
 
     @field_validator('conversation_id')
     @classmethod
-    def valid_uuid(cls, v: Optional[str]) -> Optional[str]:
+    def valid_uuid(cls, v: str | None) -> str | None:
         """Validate conversation_id is a well-formed UUID if provided."""
         import uuid as _uuid
         if v is not None:
@@ -113,7 +114,7 @@ class ChatRequest(BaseModel):
 
     @field_validator('history')
     @classmethod
-    def validate_history(cls, v: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def validate_history(cls, v: list[dict[str, str]]) -> list[dict[str, str]]:
         """Validate chat history format."""
         for msg in v:
             if 'role' not in msg or 'content' not in msg:
@@ -121,7 +122,7 @@ class ChatRequest(BaseModel):
             if msg['role'] not in ['user', 'assistant']:
                 raise ValueError('Role must be "user" or "assistant"')
         return v
-    
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -141,20 +142,20 @@ class ChatRequest(BaseModel):
 class DocumentUploadRequest(BaseModel):
     """
     Validation model for document uploads.
-    
+
     Validates filename and file size constraints.
-    
+
     Attributes:
         filename: Document filename
         file_size: File size in bytes
-    
+
     Example:
         >>> request = DocumentUploadRequest(
         ...     filename="document.pdf",
         ...     file_size=1024000
         ... )
     """
-    
+
     filename: str = Field(
         ...,
         min_length=1,
@@ -167,7 +168,7 @@ class DocumentUploadRequest(BaseModel):
         lt=16 * 1024 * 1024,  # 16MB
         description="File size in bytes"
     )
-    
+
     @field_validator('filename')
     @classmethod
     def valid_extension(cls, v: str) -> str:
@@ -177,7 +178,7 @@ class DocumentUploadRequest(BaseModel):
                 f'File type not supported. Allowed: {", ".join(config.SUPPORTED_EXTENSIONS)}'
             )
         return v
-    
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -193,23 +194,23 @@ class DocumentUploadRequest(BaseModel):
 class ModelRequest(BaseModel):
     """
     Validation model for model selection.
-    
+
     Validates model name format and constraints.
-    
+
     Attributes:
         model: Model name
-    
+
     Example:
         >>> request = ModelRequest(model="llama3.2:latest")
     """
-    
+
     model: str = Field(
         ...,
         min_length=1,
         max_length=100,
         description="Model name"
     )
-    
+
     @field_validator('model')
     @classmethod
     def model_not_empty(cls, v: str) -> str:
@@ -220,7 +221,7 @@ class ModelRequest(BaseModel):
         if any(char in v for char in ['/', '\\', '..', '<', '>', '|', '&']):
             raise ValueError(_MODEL_NAME_INVALID_CHARS)
         return v.strip()
-    
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -234,15 +235,15 @@ class ModelRequest(BaseModel):
 class RetrievalRequest(BaseModel):
     """
     Validation model for RAG retrieval requests.
-    
+
     Validates query parameters for document retrieval.
-    
+
     Attributes:
         query: Search query
         top_k: Number of results to retrieve
         min_similarity: Minimum similarity threshold
         file_type_filter: Optional file type filter
-    
+
     Example:
         >>> request = RetrievalRequest(
         ...     query="What is this about?",
@@ -250,30 +251,30 @@ class RetrievalRequest(BaseModel):
         ...     min_similarity=0.25
         ... )
     """
-    
+
     query: str = Field(
         ...,
         min_length=1,
         max_length=1000,
         description="Search query"
     )
-    top_k: Optional[int] = Field(
+    top_k: int | None = Field(
         default=10,
         ge=1,
         le=50,
         description="Number of results to retrieve"
     )
-    min_similarity: Optional[float] = Field(
+    min_similarity: float | None = Field(
         default=0.25,
         ge=0.0,
         le=1.0,
         description="Minimum similarity threshold"
     )
-    file_type_filter: Optional[str] = Field(
+    file_type_filter: str | None = Field(
         default=None,
         description="File type filter (e.g., '.pdf')"
     )
-    
+
     @field_validator('query')
     @classmethod
     def query_not_empty(cls, v: str) -> str:
@@ -281,10 +282,10 @@ class RetrievalRequest(BaseModel):
         if not v.strip():
             raise ValueError('Query cannot be empty')
         return v.strip()
-    
+
     @field_validator('file_type_filter')
     @classmethod
-    def valid_file_type(cls, v: Optional[str]) -> Optional[str]:
+    def valid_file_type(cls, v: str | None) -> str | None:
         """Validate file type filter if provided."""
         if v is not None:
             if not v.startswith('.'):
@@ -294,7 +295,7 @@ class RetrievalRequest(BaseModel):
                     f'Unsupported file type. Allowed: {", ".join(config.SUPPORTED_EXTENSIONS)}'
                 )
         return v
-    
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -312,23 +313,23 @@ class RetrievalRequest(BaseModel):
 class ModelPullRequest(BaseModel):
     """
     Validation model for model pull requests.
-    
+
     Validates model name for pulling from Ollama registry.
-    
+
     Attributes:
         model: Model name to pull
-    
+
     Example:
         >>> request = ModelPullRequest(model="llama3.2")
     """
-    
+
     model: str = Field(
         ...,
         min_length=1,
         max_length=100,
         description="Model name to pull"
     )
-    
+
     @field_validator('model')
     @classmethod
     def valid_model_name(cls, v: str) -> str:
@@ -339,7 +340,7 @@ class ModelPullRequest(BaseModel):
         if not all(c.isalnum() or c in ['-', '_', '.', ':'] for c in v):
             raise ValueError(_MODEL_NAME_INVALID_CHARS)
         return v.strip()
-    
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -353,23 +354,23 @@ class ModelPullRequest(BaseModel):
 class ModelDeleteRequest(BaseModel):
     """
     Validation model for model deletion requests.
-    
+
     Validates model name for deletion.
-    
+
     Attributes:
         model: Model name to delete
-    
+
     Example:
         >>> request = ModelDeleteRequest(model="old-model:latest")
     """
-    
+
     model: str = Field(
         ...,
         min_length=1,
         max_length=100,
         description="Model name to delete"
     )
-    
+
     @field_validator('model')
     @classmethod
     def model_not_empty(cls, v: str) -> str:
@@ -382,20 +383,20 @@ class ModelDeleteRequest(BaseModel):
 class ChunkingParameters(BaseModel):
     """
     Validation model for chunking parameters.
-    
+
     Validates text chunking configuration.
-    
+
     Attributes:
         chunk_size: Size of each chunk in characters
         chunk_overlap: Overlap between chunks
-    
+
     Example:
         >>> params = ChunkingParameters(
         ...     chunk_size=768,
         ...     chunk_overlap=128
         ... )
     """
-    
+
     chunk_size: int = Field(
         default=768,
         ge=100,
@@ -408,9 +409,9 @@ class ChunkingParameters(BaseModel):
         le=500,
         description="Overlap between chunks"
     )
-    
+
     @model_validator(mode='after')
-    def validate_overlap_less_than_size(self) -> 'ChunkingParameters':
+    def validate_overlap_less_than_size(self) -> ChunkingParameters:
         """Validate overlap is less than chunk size."""
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError('Chunk overlap must be less than chunk size')
@@ -420,16 +421,16 @@ class ChunkingParameters(BaseModel):
 class ErrorResponse(BaseModel):
     """
     Standard error response model.
-    
+
     Provides consistent error response format across the API.
-    
+
     Attributes:
         success: Always False for errors
         error: Error type/name
         message: Human-readable error message
         details: Additional error details
         timestamp: Error timestamp
-    
+
     Example:
         >>> error = ErrorResponse(
         ...     error="ValidationError",
@@ -437,11 +438,11 @@ class ErrorResponse(BaseModel):
         ...     details={"field": "message"}
         ... )
     """
-    
+
     success: bool = Field(default=False, description="Success status")
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")
-    details: Optional[Dict[str, Any]] = Field(
+    details: dict[str, Any] | None = Field(
         default_factory=dict,
         description="Additional error details"
     )
@@ -449,7 +450,7 @@ class ErrorResponse(BaseModel):
         default_factory=lambda: datetime.now().isoformat(),
         description="Error timestamp in ISO format"
     )
-    
+
     model_config = {
         "json_schema_extra": {
             "examples": [

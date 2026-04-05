@@ -9,7 +9,7 @@ base class that all concrete backends must implement.
 import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
 from ...utils.logging_config import get_logger
 
@@ -37,7 +37,7 @@ class CacheStats:
     def usage_percent(self) -> float:
         return (self.size / self.max_size * 100) if self.max_size > 0 else 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'hits': self.hits,
             'misses': self.misses,
@@ -59,11 +59,11 @@ class CacheBackend(ABC):
         self.stats = CacheStats()
 
     @abstractmethod
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Return a cached value, or ``None`` if absent / expired."""
 
     @abstractmethod
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
         """Store ``value`` under ``key`` with an optional TTL in seconds."""
 
     @abstractmethod

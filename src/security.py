@@ -15,18 +15,25 @@ Author: LocalChat Team
 Last Updated: 2025-01-27
 """
 
-from flask import Flask, request, jsonify, Response
-from flask.typing import ResponseReturnValue
 import hashlib
 import hmac
 import os
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from datetime import timedelta
+from functools import wraps
+from typing import Any, Callable
+
+from flask import Flask, Response, jsonify, request
+from flask.typing import ResponseReturnValue
+from flask_cors import CORS
+from flask_jwt_extended import (
+    JWTManager,
+    create_access_token,
+    get_jwt_identity,
+    jwt_required,
+)
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_cors import CORS
-from functools import wraps
-from typing import Callable, Any
-from datetime import timedelta
+
 from . import config
 from .utils.logging_config import get_logger
 
@@ -38,6 +45,35 @@ logger = get_logger(__name__)
 
 jwt_manager = None
 limiter = None
+
+
+def _resolve_ratelimit_storage(desired_uri: str) -> str:
+    """Return *desired_uri* if Redis is reachable, otherwise fall back to ``memory://``.
+
+    Performed once at startup so every worker process knows its storage backend
+    before the first request arrives.
+    """
+    if not desired_uri.startswith("redis://"):
+        return desired_uri
+    try:
+        from urllib.parse import urlparse
+
+        import redis as redis_lib
+        parsed = urlparse(desired_uri)
+        r = redis_lib.Redis(
+            host=parsed.hostname,
+            port=parsed.port or 6379,
+            password=parsed.password,
+            socket_timeout=2,
+            socket_connect_timeout=2,
+        )
+        r.ping()
+        return desired_uri
+    except Exception as exc:
+        logger.warning(
+            f"Redis unreachable for rate limiting ({exc}), falling back to memory://"
+        )
+        return "memory://"
 
 # ============================================================================
 # AUTHENTICATION
@@ -62,10 +98,10 @@ USERS = {
 def init_security(app: Flask) -> None:
     """
     Initialize security features for Flask application.
-    
+
     Args:
         app: Flask application instance
-    
+
     Sets up:
         - JWT authentication
         - Rate limiting
@@ -73,7 +109,7 @@ def init_security(app: Flask) -> None:
         - Request logging
     """
     global jwt_manager, limiter
-    
+
     logger.info("Initializing security features...")
 
     # Skip JWT and rate-limiting in demo mode — auth is intentionally off.
@@ -97,16 +133,18 @@ def init_security(app: Flask) -> None:
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=config.JWT_ACCESS_TOKEN_EXPIRES)
     jwt_manager = JWTManager(app)
     logger.info("JWT authentication configured")
-    
+
     # Rate Limiting Configuration
     if config.RATELIMIT_ENABLED:
+        storage_uri = _resolve_ratelimit_storage(config.RATELIMIT_STORAGE_URI)
         limiter = Limiter(
             app=app,
             key_func=get_remote_address,
             default_limits=[config.RATELIMIT_GENERAL],
-            storage_uri="memory://"
+            storage_uri=storage_uri,
         )
-        logger.info("Rate limiting enabled")
+        backend = "Redis" if storage_uri.startswith("redis://") else "memory"
+        logger.info(f"Rate limiting enabled (storage: {backend})")
     else:
         # Create a dummy limiter that doesn't actually limit
         limiter = Limiter(
@@ -115,26 +153,26 @@ def init_security(app: Flask) -> None:
             enabled=False
         )
         logger.info("Rate limiting disabled")
-    
+
     # CORS Configuration
     if config.CORS_ENABLED:
         CORS(app, origins=config.CORS_ORIGINS)
         logger.info(f"CORS enabled for origins: {config.CORS_ORIGINS}")
     else:
         logger.info("CORS disabled")
-    
+
     # Request Logging Middleware
     @app.before_request
     def log_request():
         """Log incoming requests."""
         logger.info(f"{request.method} {request.path} from {request.remote_addr}")
-    
+
     @app.after_request
     def log_response(response):
         """Log outgoing responses."""
         logger.debug(f"{request.method} {request.path} -> {response.status_code}")
         return response
-    
+
     logger.info("Security initialization complete")
 
 
@@ -145,24 +183,24 @@ def init_security(app: Flask) -> None:
 def setup_auth_routes(app: Flask) -> None:
     """
     Setup authentication routes.
-    
+
     Args:
         app: Flask application instance
     """
-    
+
     @app.route('/api/auth/login', methods=['POST'])
     @limiter.limit(config.RATELIMIT_GENERAL)
     def login() -> ResponseReturnValue:
         """
         Authenticate user and return JWT token.
-        
+
         Request Body:
             username (str): Username
             password (str): Password
-        
+
         Returns:
             JSON with access_token on success, error message on failure
-        
+
         Example:
             >>> POST /api/auth/login
             >>> {"username": "admin", "password": "<password>"}
@@ -173,16 +211,16 @@ def setup_auth_routes(app: Flask) -> None:
             }
         """
         data = request.get_json()
-        
+
         if not data:
             return jsonify({'message': 'Missing JSON body'}), 400
-        
+
         username = data.get('username')
         password = data.get('password')
-        
+
         if not username or not password:
             return jsonify({'message': 'Username and password required'}), 400
-        
+
         # Verify credentials
         user = USERS.get(username)
         if not user or not _ADMIN_PASSWORD_RAW:
@@ -195,30 +233,30 @@ def setup_auth_routes(app: Flask) -> None:
         if not hmac.compare_digest(provided_hash, _ADMIN_PASSWORD_HASH):
             logger.warning(f"Failed login attempt for user: {username}")
             return jsonify({'message': 'Invalid credentials'}), 401
-        
+
         # Create access token
         access_token = create_access_token(
             identity=username,
             additional_claims={'role': user['role']}
         )
-        
+
         logger.info(f"User {username} logged in successfully")
-        
+
         return jsonify({
             'access_token': access_token,
             'token_type': 'Bearer',
             'expires_in': config.JWT_ACCESS_TOKEN_EXPIRES
         }), 200
-    
+
     @app.route('/api/auth/verify', methods=['GET'])
     @jwt_required()
     def verify_token() -> ResponseReturnValue:
         """
         Verify JWT token is valid.
-        
+
         Returns:
             JSON with current user info
-        
+
         Example:
             >>> GET /api/auth/verify
             >>> Authorization: Bearer <token>
@@ -232,7 +270,7 @@ def setup_auth_routes(app: Flask) -> None:
             'username': current_user,
             'valid': True
         }), 200
-    
+
     logger.info("Authentication routes registered")
 
 
@@ -243,13 +281,13 @@ def setup_auth_routes(app: Flask) -> None:
 def require_auth_optional(f: Callable) -> Callable:
     """
     Optional authentication decorator.
-    
+
     Allows both authenticated and unauthenticated access,
     but provides user info if authenticated.
-    
+
     Args:
         f: Function to decorate
-    
+
     Returns:
         Decorated function
     """
@@ -313,7 +351,7 @@ def require_admin(f: Callable) -> Callable:
         # in DEMO_MODE, or during automated tests.
         if not _ADMIN_PASSWORD_RAW or config.DEMO_MODE or current_app.config.get('TESTING', False):
             return f(*args, **kwargs)
-        from flask_jwt_extended import verify_jwt_in_request, get_jwt
+        from flask_jwt_extended import get_jwt, verify_jwt_in_request
         try:
             verify_jwt_in_request()
         except Exception:
@@ -333,10 +371,10 @@ def require_admin(f: Callable) -> Callable:
 def setup_health_check(_app: Flask) -> None:
     """
     Setup health check endpoint.
-    
+
     NOTE: Health check is now provided by the monitoring module at /api/health
     This function is kept for backwards compatibility but does nothing.
-    
+
     Args:
         app: Flask application instance
     """
@@ -352,19 +390,19 @@ def setup_health_check(_app: Flask) -> None:
 def setup_rate_limit_handler(app: Flask) -> None:
     """
     Setup custom rate limit error handler.
-    
+
     Args:
         app: Flask application instance
     """
-    
+
     @app.errorhandler(429)
     def ratelimit_handler(e) -> ResponseReturnValue:
         """
         Handle rate limit exceeded errors.
-        
+
         Args:
             e: Rate limit error
-        
+
         Returns:
             JSON error response
         """
@@ -375,7 +413,7 @@ def setup_rate_limit_handler(app: Flask) -> None:
             'message': 'Too many requests. Please slow down and try again later.',
             'retry_after': e.description
         }), 429
-    
+
     logger.info("Rate limit error handler registered")
 
 

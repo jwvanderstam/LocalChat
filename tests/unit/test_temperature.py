@@ -8,9 +8,10 @@ Unit tests covering the temperature parameter added to:
   - _parse_chat_request / _stream_chat_response in api_routes (src/routes/api_routes.py)
 """
 
-import pytest
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 pytestmark = [pytest.mark.unit]
 
@@ -54,14 +55,16 @@ class TestChatRequestTemperature:
         assert req.temperature == pytest.approx(1.3)
 
     def test_temperature_below_zero_rejected(self):
-        from src.models import ChatRequest
         from pydantic import ValidationError
+
+        from src.models import ChatRequest
         with pytest.raises(ValidationError):
             ChatRequest(message="hello", temperature=-0.1)
 
     def test_temperature_above_two_rejected(self):
-        from src.models import ChatRequest
         from pydantic import ValidationError
+
+        from src.models import ChatRequest
         with pytest.raises(ValidationError):
             ChatRequest(message="hello", temperature=2.1)
 
@@ -103,15 +106,17 @@ class TestChatRequestTemperature:
         assert req.temperature == pytest.approx(0.0)
 
     def test_large_negative_rejected(self):
-        from src.models import ChatRequest
         from pydantic import ValidationError
+
+        from src.models import ChatRequest
         with pytest.raises(ValidationError):
             ChatRequest(message="hello", temperature=-100.0)
 
     def test_just_above_max_rejected(self):
         """2.0000001 exceeds the upper bound."""
-        from src.models import ChatRequest
         from pydantic import ValidationError
+
+        from src.models import ChatRequest
         with pytest.raises(ValidationError):
             ChatRequest(message="hello", temperature=2.0000001)
 
@@ -283,14 +288,16 @@ class TestParseChatRequest:
 
     def test_temperature_out_of_range_raises(self):
         """Out-of-range temperature must bubble up as a validation error."""
-        from src.routes.api_routes import _parse_chat_request
         from pydantic import ValidationError
+
+        from src.routes.api_routes import _parse_chat_request
         with pytest.raises(ValidationError):
             _parse_chat_request({'message': 'hi', 'temperature': 3.0})
 
     def test_temperature_negative_raises(self):
-        from src.routes.api_routes import _parse_chat_request
         from pydantic import ValidationError
+
+        from src.routes.api_routes import _parse_chat_request
         with pytest.raises(ValidationError):
             _parse_chat_request({'message': 'hi', 'temperature': -1.0})
 
@@ -355,6 +362,7 @@ class TestStreamChatResponseTemperature:
     def test_sse_output_contains_content(self):
         """Streamed SSE lines must carry the content chunks."""
         import json
+
         from src.routes.api_routes import _stream_chat_response
 
         app = self._make_app(["Hello", " world"])
@@ -369,6 +377,7 @@ class TestStreamChatResponseTemperature:
     def test_temperature_zero_produces_deterministic_label_in_sse(self):
         """At temperature=0 the stream still completes and emits a done payload."""
         import json
+
         from src.routes.api_routes import _stream_chat_response
 
         app = self._make_app(["answer"])

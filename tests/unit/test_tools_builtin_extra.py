@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """Coverage for built-in tools (search_documents, list_documents)."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestSearchDocumentsTool:
