@@ -21,11 +21,14 @@ Usage::
 Author: LocalChat Team
 """
 
+import logging
+import time
 import uuid
 
 from flask import Flask, g, request
 
 _HEADER = "X-Request-ID"
+_access_logger = logging.getLogger("access")
 
 
 def _get_or_generate() -> str:
@@ -51,8 +54,24 @@ def init_request_id(app: Flask) -> None:
     @app.before_request
     def _assign_request_id() -> None:
         g.request_id = _get_or_generate()
+        g.request_start_time = time.perf_counter()
 
     @app.after_request
     def _echo_request_id(response):
         response.headers[_HEADER] = getattr(g, "request_id", "")
+        duration_ms = round(
+            (time.perf_counter() - getattr(g, "request_start_time", time.perf_counter())) * 1000, 1
+        )
+        _access_logger.info(
+            "%s %s %d",
+            request.method, request.path, response.status_code,
+            extra={
+                "method": request.method,
+                "path": request.path,
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+                "model": getattr(g, "model", None),
+                "chunks_retrieved": getattr(g, "chunks_retrieved", None),
+            },
+        )
         return response

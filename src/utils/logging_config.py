@@ -51,8 +51,16 @@ class JsonFormatter(logging.Formatter):
     Elasticsearch, CloudWatch, etc.).
     """
 
+    # Standard LogRecord attributes that should not be re-emitted as extras.
+    _STANDARD_ATTRS: frozenset[str] = frozenset({
+        "name", "msg", "args", "created", "filename", "funcName", "levelname",
+        "levelno", "lineno", "module", "msecs", "message", "pathname",
+        "process", "processName", "relativeCreated", "stack_info", "thread",
+        "threadName", "exc_info", "exc_text", "request_id", "user_agent",
+    })
+
     def format(self, record: logging.LogRecord) -> str:
-        payload = {
+        payload: dict[str, object] = {
             "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
@@ -61,12 +69,18 @@ class JsonFormatter(logging.Formatter):
             "funcName": record.funcName,
             "lineno": record.lineno,
         }
-        # Inject request_id when present (set by RequestIdMiddleware via flask.g)
         request_id = getattr(record, "request_id", None)
         if request_id:
             payload["request_id"] = request_id
+        user_agent = getattr(record, "user_agent", None)
+        if user_agent:
+            payload["user_agent"] = user_agent
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
+        # Emit any caller-supplied extra fields (e.g. duration_ms, model, chunks_retrieved)
+        for key, value in record.__dict__.items():
+            if key not in self._STANDARD_ATTRS and not key.startswith("_") and value is not None:
+                payload[key] = value
         return json.dumps(payload, ensure_ascii=False)
 
 
@@ -81,11 +95,13 @@ class RequestIdFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
-            from flask import g
+            from flask import g, request
             record.request_id = getattr(g, "request_id", "")
+            record.user_agent = request.user_agent.string
         except RuntimeError:
             # No application/request context — e.g. tests or worker threads.
             record.request_id = ""
+            record.user_agent = ""
         return True
 
 
