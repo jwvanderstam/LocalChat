@@ -203,6 +203,66 @@ class ConversationsMixin:
                 conn.commit()
         return updated
 
+    def get_conversation_document_filter(self, conversation_id: str) -> list[str]:
+        """
+        Return the filename filter list stored for a conversation.
+
+        Args:
+            conversation_id: UUID of the conversation
+
+        Returns:
+            List of filenames to restrict retrieval to (empty list = all documents)
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot get document filter: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT document_ids FROM conversations WHERE id = %s",
+                    (conversation_id,),
+                )
+                row = cursor.fetchone()
+        if row is None:
+            return []
+        return list(row[0]) if row[0] else []
+
+    def set_conversation_document_filter(
+        self, conversation_id: str, filenames: list[str]
+    ) -> bool:
+        """
+        Store a document filename filter for a conversation.
+
+        Args:
+            conversation_id: UUID of the conversation
+            filenames: List of filenames to restrict retrieval to.
+                Pass an empty list to clear the filter (all documents).
+
+        Returns:
+            bool: True if updated, False if conversation not found
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot set document filter: Database is not connected")
+
+        import json as _json
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE conversations SET document_ids = %s::jsonb WHERE id = %s",
+                    (_json.dumps(filenames), conversation_id),
+                )
+                updated = cursor.rowcount > 0
+                conn.commit()
+        if updated:
+            logger.debug(f"Set document filter for {conversation_id}: {filenames}")
+        return updated
+
     def delete_conversation(self, conversation_id: str) -> bool:
         """
         Delete a conversation and all its messages (via CASCADE).

@@ -6,19 +6,23 @@ Memory Routes Blueprint
 API endpoints for persistent conversation memory management.
 
 Endpoints:
-    GET    /api/conversations           - List all conversations
-    POST   /api/conversations           - Create a new conversation
-    GET    /api/conversations/<id>      - Get conversation with messages
-    PATCH  /api/conversations/<id>      - Rename a conversation
-    DELETE /api/conversations/<id>      - Delete a conversation
+    GET    /api/conversations                    - List all conversations
+    POST   /api/conversations                    - Create a new conversation
+    GET    /api/conversations/<id>               - Get conversation with messages
+    GET    /api/conversations/<id>/export        - Export conversation (JSON or Markdown)
+    GET    /api/conversations/<id>/documents     - Get document filter for a conversation
+    PUT    /api/conversations/<id>/documents     - Set document filter for a conversation
+    PATCH  /api/conversations/<id>               - Rename a conversation
+    DELETE /api/conversations/<id>               - Delete a conversation
 
 Author: LocalChat Team
 Created: 2025-01-27
 """
 
+import json
 from typing import TYPE_CHECKING
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from flask import current_app as _current_app
 
 if TYPE_CHECKING:
@@ -111,6 +115,141 @@ def get_conversation(conversation_id: str):
     if messages is None:
         return jsonify({'error': _CONVERSATION_NOT_FOUND}), 404
     return jsonify({'id': conversation_id, 'messages': messages})
+
+
+@bp.route('/conversations/<conversation_id>/export', methods=['GET'])
+def export_conversation(conversation_id: str):
+    """
+    Export a conversation as JSON or Markdown.
+    ---
+    tags:
+      - Memory
+    summary: Export conversation
+    parameters:
+      - name: conversation_id
+        in: path
+        type: string
+        required: true
+      - name: format
+        in: query
+        type: string
+        enum: [json, markdown]
+        default: json
+    responses:
+      200:
+        description: Conversation exported
+      400:
+        description: Invalid format parameter
+      404:
+        description: Conversation not found
+      503:
+        description: Database unavailable
+    """
+    fmt = request.args.get('format', 'json').lower()
+    if fmt not in ('json', 'markdown'):
+        return jsonify({'error': 'Invalid format. Use json or markdown.'}), 400
+
+    messages = current_app.db.get_conversation_messages(conversation_id)
+    if messages is None:
+        return jsonify({'error': _CONVERSATION_NOT_FOUND}), 404
+
+    if fmt == 'json':
+        payload = {'id': conversation_id, 'messages': messages}
+        return Response(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            mimetype='application/json',
+            headers={'Content-Disposition': f'attachment; filename="conversation-{conversation_id}.json"'},
+        )
+
+    # Markdown export
+    lines = [f'# Conversation {conversation_id}', '']
+    for msg in messages:
+        role_label = 'You' if msg['role'] == 'user' else 'Assistant'
+        ts = msg.get('timestamp') or ''
+        lines.append(f'### {role_label}{" — " + ts if ts else ""}')
+        lines.append('')
+        lines.append(msg['content'])
+        lines.append('')
+    return Response(
+        '\n'.join(lines),
+        mimetype='text/markdown',
+        headers={'Content-Disposition': f'attachment; filename="conversation-{conversation_id}.md"'},
+    )
+
+
+@bp.route('/conversations/<conversation_id>/documents', methods=['GET'])
+def get_conversation_documents(conversation_id: str):
+    """
+    Get the document filter for a conversation.
+    ---
+    tags:
+      - Memory
+    summary: Get conversation document filter
+    parameters:
+      - name: conversation_id
+        in: path
+        type: string
+        required: true
+    responses:
+      200:
+        description: Document filter list
+      404:
+        description: Conversation not found
+      503:
+        description: Database unavailable
+    """
+    filenames = current_app.db.get_conversation_document_filter(conversation_id)
+    if filenames is None:
+        return jsonify({'error': _CONVERSATION_NOT_FOUND}), 404
+    return jsonify({'conversation_id': conversation_id, 'document_filter': filenames})
+
+
+@bp.route('/conversations/<conversation_id>/documents', methods=['PUT'])
+def set_conversation_documents(conversation_id: str):
+    """
+    Set (or clear) the document filter for a conversation.
+    ---
+    tags:
+      - Memory
+    summary: Set conversation document filter
+    parameters:
+      - name: conversation_id
+        in: path
+        type: string
+        required: true
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            filenames:
+              type: array
+              items:
+                type: string
+              description: List of filenames to restrict retrieval to.
+                Pass an empty array to clear the filter.
+    responses:
+      200:
+        description: Document filter updated
+      400:
+        description: Invalid request body
+      404:
+        description: Conversation not found
+      503:
+        description: Database unavailable
+    """
+    data = request.get_json() or {}
+    filenames = data.get('filenames')
+    if not isinstance(filenames, list):
+        return jsonify({'error': '"filenames" must be an array of strings'}), 400
+    if not all(isinstance(f, str) for f in filenames):
+        return jsonify({'error': '"filenames" must be an array of strings'}), 400
+
+    updated = current_app.db.set_conversation_document_filter(conversation_id, filenames)
+    if not updated:
+        return jsonify({'error': _CONVERSATION_NOT_FOUND}), 404
+    return jsonify({'conversation_id': conversation_id, 'document_filter': filenames})
 
 
 @bp.route('/conversations/<conversation_id>', methods=['PATCH'])

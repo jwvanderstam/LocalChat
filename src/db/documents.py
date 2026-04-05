@@ -133,6 +133,7 @@ class DocumentsMixin:
         top_k: int = 5,
         min_similarity: float = 0.0,
         file_type_filter: str | None = None,
+        filename_filter: list[str] | None = None,
     ) -> list[tuple[str, str, int, float, dict[str, Any]]]:
         """
         Search for similar chunks using cosine similarity via pgvector HNSW.
@@ -144,6 +145,7 @@ class DocumentsMixin:
                 Filtering at the database level avoids transferring chunks that
                 would be discarded by the Python-side threshold check anyway.
             file_type_filter: Optional file extension filter (e.g. '.pdf')
+            filename_filter: Optional list of exact filenames to restrict search to.
 
         Returns:
             List of ``(chunk_text, filename, chunk_index, similarity, metadata)``
@@ -160,42 +162,34 @@ class DocumentsMixin:
                 embedding_str = self._embedding_to_pg_array(query_embedding)
                 max_distance = 1.0 - min_similarity  # cosine distance = 1 - similarity
 
+                where_extra = ""
+                params: list = [embedding_str]
                 if file_type_filter:
-                    cursor.execute(
-                        """
-                        WITH q AS (SELECT %s::vector AS emb)
-                        SELECT dc.chunk_text, d.filename, dc.chunk_index,
-                               1 - (dc.embedding <=> q.emb) AS similarity,
-                               dc.metadata
-                        FROM document_chunks dc
-                        JOIN documents d ON dc.document_id = d.id
-                        CROSS JOIN q
-                        WHERE dc.embedding IS NOT NULL
-                          AND d.filename LIKE %s
-                          AND (dc.embedding <=> q.emb) <= %s
-                        ORDER BY dc.embedding <=> q.emb
-                        LIMIT %s
-                        """,
-                        (embedding_str, f'%{file_type_filter}', max_distance, top_k),
-                    )
+                    where_extra += "  AND d.filename LIKE %s\n"
+                    params.append(f'%{file_type_filter}')
                     logger.debug(f"Searching with file type filter: {file_type_filter}")
-                else:
-                    cursor.execute(
-                        """
-                        WITH q AS (SELECT %s::vector AS emb)
-                        SELECT dc.chunk_text, d.filename, dc.chunk_index,
-                               1 - (dc.embedding <=> q.emb) AS similarity,
-                               dc.metadata
-                        FROM document_chunks dc
-                        JOIN documents d ON dc.document_id = d.id
-                        CROSS JOIN q
-                        WHERE dc.embedding IS NOT NULL
-                          AND (dc.embedding <=> q.emb) <= %s
-                        ORDER BY dc.embedding <=> q.emb
-                        LIMIT %s
-                        """,
-                        (embedding_str, max_distance, top_k),
-                    )
+                if filename_filter:
+                    where_extra += "  AND d.filename = ANY(%s)\n"
+                    params.append(filename_filter)
+                    logger.debug(f"Searching with filename filter: {len(filename_filter)} file(s)")
+                params.extend([max_distance, top_k])
+
+                cursor.execute(
+                    f"""
+                    WITH q AS (SELECT %s::vector AS emb)
+                    SELECT dc.chunk_text, d.filename, dc.chunk_index,
+                           1 - (dc.embedding <=> q.emb) AS similarity,
+                           dc.metadata
+                    FROM document_chunks dc
+                    JOIN documents d ON dc.document_id = d.id
+                    CROSS JOIN q
+                    WHERE dc.embedding IS NOT NULL
+                    {where_extra}  AND (dc.embedding <=> q.emb) <= %s
+                    ORDER BY dc.embedding <=> q.emb
+                    LIMIT %s
+                    """,
+                    params,
+                )
 
                 results = cursor.fetchall()
                 logger.debug(f"Found {len(results)} similar chunks")

@@ -192,6 +192,7 @@ class RetrievalMixin:
         min_similarity: float,
         file_type_filter: str | None,
         use_hybrid_search: bool,
+        filename_filter: list[str] | None = None,
     ) -> dict[str, dict[str, Any]]:
         """Run semantic search, hybrid scoring, and similarity filtering.
 
@@ -203,7 +204,8 @@ class RetrievalMixin:
             query_embedding,
             top_k=top_k * 2,
             min_similarity=min_similarity,
-            file_type_filter=file_type_filter
+            file_type_filter=file_type_filter,
+            filename_filter=filename_filter or [],
         )
         logger.debug(f"[RAG] Semantic search returned {len(semantic_results)} results")
         if not semantic_results:
@@ -264,7 +266,8 @@ class RetrievalMixin:
         min_similarity: float | None = None,
         file_type_filter: str | None = None,
         use_hybrid_search: bool = True,
-        expand_context: bool = True  # NOSONAR — reserved public API parameter
+        expand_context: bool = True,  # NOSONAR — reserved public API parameter
+        filename_filter: list[str] | None = None,
     ) -> list[tuple[str, str, int, float, dict[str, Any]]]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
@@ -313,7 +316,8 @@ class RetrievalMixin:
         logger.debug(f"[RAG] Embedding generated in {time.time() - start_time:.3f}s")
 
         filtered_results = self._run_retrieval_pipeline(
-            query_clean, query_embedding, top_k, min_similarity, file_type_filter, use_hybrid_search
+            query_clean, query_embedding, top_k, min_similarity, file_type_filter, use_hybrid_search,
+            filename_filter=filename_filter,
         )
         if not filtered_results:
             return []

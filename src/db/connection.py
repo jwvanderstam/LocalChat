@@ -354,6 +354,10 @@ class DatabaseConnection:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+                cursor.execute("""
+                    ALTER TABLE conversations
+                    ADD COLUMN IF NOT EXISTS document_ids JSONB DEFAULT '[]'::jsonb
+                """)
                 logger.debug("Conversations table ensured")
 
                 cursor.execute("""

@@ -15,7 +15,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any, Dict, Generator
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, g, jsonify, request
 from flask import current_app as _current_app
 
 if TYPE_CHECKING:
@@ -81,13 +81,14 @@ def _parse_chat_request(data: dict) -> dict:
     }
 
 
-def _get_rag_context(message: str, doc_processor) -> str:
-    """Retrieve and format RAG context. Returns formatted context block."""
-    results = doc_processor.retrieve_context(message)
+def _get_rag_context(message: str, doc_processor, filename_filter: list | None = None) -> tuple[str, list[dict]]:
+    """Retrieve and format RAG context. Returns (formatted context block, source list)."""
+    results = doc_processor.retrieve_context(message, filename_filter=filename_filter or [])
     logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
+    g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(results)
     if not results:
         logger.warning("[RAG] No chunks retrieved from documents")
-        return ""
+        return "", []
     for idx, (_, filename, chunk_index, similarity, metadata) in enumerate(results, 1):
         parts = [f"[RAG] Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}"]
         if metadata.get('page_number'):
@@ -95,7 +96,16 @@ def _get_rag_context(message: str, doc_processor) -> str:
         if metadata.get('section_title'):
             parts.append(f"section: {metadata['section_title'][:30]}")
         logger.debug(" ".join(parts))
-    return doc_processor.format_context_for_llm(results, max_length=6000)
+    sources = [
+        {
+            "filename": filename,
+            "chunk_index": chunk_index,
+            "page_number": metadata.get("page_number"),
+            "section_title": metadata.get("section_title"),
+        }
+        for _, filename, chunk_index, _, metadata in results
+    ]
+    return doc_processor.format_context_for_llm(results, max_length=6000), sources
 
 
 def _get_web_context(message: str) -> str:
@@ -239,10 +249,20 @@ def _retrieve_contexts(fields: dict, doc_processor) -> tuple:
     """Retrieve local RAG context and web search context based on request flags."""
     local_context = ""
     web_context = ""
+    sources: list[dict] = []
 
     if fields['use_rag']:
         try:
-            local_context = _get_rag_context(fields['message'], doc_processor)
+            filename_filter: list[str] = []
+            conversation_id = fields.get('conversation_id')
+            if conversation_id:
+                try:
+                    filename_filter = current_app.db.get_conversation_document_filter(conversation_id)
+                except Exception as filter_err:
+                    logger.warning(f"[RAG] Could not read document filter: {filter_err}")
+            local_context, sources = _get_rag_context(
+                fields['message'], doc_processor, filename_filter=filename_filter
+            )
         except Exception as e:
             raise exceptions.SearchError(
                 f"Failed to retrieve context: {e}", details={"error": str(e)}
@@ -254,7 +274,7 @@ def _retrieve_contexts(fields: dict, doc_processor) -> tuple:
         except Exception as web_err:
             logger.warning(f"[ENHANCED] Web search failed, continuing without: {web_err}")
 
-    return local_context, web_context
+    return local_context, web_context, sources
 
 
 def _build_user_message(message: str, images: list) -> dict[str, Any]:
@@ -304,7 +324,7 @@ def _get_tool_executor(app):
     return None
 
 
-def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7):
+def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None):
     """Build and return an SSE Response that streams the chat completion."""
     def generate() -> Generator[str, None, None]:
         full_response: list = []
@@ -323,6 +343,8 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
             done_payload: dict = {'done': True}
             if conversation_id:
                 done_payload['conversation_id'] = conversation_id
+            if sources:
+                done_payload['sources'] = sources
             yield f"data: {json.dumps(done_payload)}\n\n"
         except exceptions.LocalChatException as e:
             # Expected application error (e.g. model not found) — already logged
@@ -417,10 +439,11 @@ def api_chat():
         if not active_model:
             return jsonify({'error': 'NoModelConfigured', 'message': 'No active model set. Please select a model first.'}), 400
 
+        g.model = active_model
         logger.info(f"[CHAT API] Request - RAG Mode: {fields['use_rag']}, Enhanced: {fields['enhance']}, Query: {fields['message'][:50]}...")
 
         messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in fields['chat_history']]
-        local_ctx, web_ctx = _retrieve_contexts(fields, current_app.doc_processor)
+        local_ctx, web_ctx, sources = _retrieve_contexts(fields, current_app.doc_processor)
         messages, final_message = _build_context_prompt(
             fields['message'], local_ctx, web_ctx, messages, fields['use_rag'], fields['enhance']
         )
@@ -432,7 +455,7 @@ def api_chat():
         # would try to call retrieval tools it doesn't need, causing confusion.
         tool_executor = None if (local_ctx or web_ctx) else _get_tool_executor(app)
 
-        return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, fields['temperature'])
+        return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, fields['temperature'], sources=sources)
 
     except (PydanticValidationError, exceptions.LocalChatException):
         raise

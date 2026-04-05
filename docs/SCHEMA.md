@@ -27,6 +27,7 @@ erDiagram
     conversations {
         UUID      id         PK
         VARCHAR(255) title
+        JSONB     document_ids
         TIMESTAMP created_at
         TIMESTAMP updated_at
     }
@@ -80,6 +81,7 @@ One row per chat session.
 |--------|------|-------|
 | `id` | `UUID` | Primary key (client-generated) |
 | `title` | `VARCHAR(255)` | Auto-generated or user-set title |
+| `document_ids` | `JSONB` | Array of filenames to restrict RAG retrieval to (default `[]` = all documents) |
 | `created_at` | `TIMESTAMP` | Session start (UTC) |
 | `updated_at` | `TIMESTAMP` | Last message timestamp (UTC) |
 
