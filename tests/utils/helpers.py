@@ -110,7 +110,7 @@ def generate_mock_search_results(count: int = 5) -> list[tuple]:
         count: Number of results
 
     Returns:
-        List of (chunk_text, filename, chunk_index, similarity) tuples
+        List of (chunk_text, filename, chunk_index, similarity, metadata) tuples
     """
     results = []
     for i in range(count):
@@ -118,7 +118,8 @@ def generate_mock_search_results(count: int = 5) -> list[tuple]:
             fake.paragraph(),
             f"document_{i}.pdf",
             i,
-            random.uniform(0.7, 1.0)
+            random.uniform(0.7, 1.0),
+            {}
         ))
     return results
 

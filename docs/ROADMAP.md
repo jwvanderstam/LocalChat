@@ -1,6 +1,6 @@
 # LocalChat — Roadmap & Implementation Plan
 
-> Last updated: 2026-04-05
+> Last updated: 2026-04-06
 > Current version: v0.6.0
 
 ---
@@ -21,7 +21,7 @@
 | Architecture | ✅ 100% | All documented services implemented |
 | Security | ✅ 98% | _(cookie Secure ✅, file validation ✅, distributed rate limiting ✅)_ |
 | Test coverage | ✅ 95% | 9 integration tests + 47 unit test files; GPU monitor ✅, vision ✅, rate limit ✅ |
-| Code quality | ⚠️ 85% | S3776 complexity remaining in `ollama_client.py`, `api_routes.py`, `retrieval.py`, `processor.py` |
+| Code quality | ✅ 100% | All S3776 complexity violations resolved |
 | Documentation | ✅ 95% | Architecture diagram ✅, DB schema ✅, troubleshooting ✅, CONTRIBUTING.md ✅ |
 | Feature completeness | ⚠️ 85% | L3 cache (`database_cache.py`) status unclear; no multi-document conversation context |
 
@@ -31,16 +31,16 @@
 
 **Goal:** Eliminate known quality and security issues before adding features.
 
-### 1.1 Resolve SonarCloud issues — _partially complete_
+### ~~1.1 Resolve SonarCloud issues~~ ✅
 
-20 open issues, prioritised by severity:
+20 open issues — all resolved:
 
 | Issue | File | Action |
 |-------|------|--------|
 | ~~S5754 — Cookie missing Secure flag~~ ✅ | ~~`src/security.py`~~ | ~~Set `SESSION_COOKIE_SECURE = True`; add `Secure` to JWT cookie config~~ |
-| S3776 — Cognitive complexity ×8 | `src/ollama_client.py` | Extract `_resolve_model()`, `_build_tool_payload()` into private helpers _(`generate_embedding` → `_embed_new_api` + `_embed_legacy_api` ✅)_ |
-| S3776 — Cognitive complexity ×5 | `src/routes/api_routes.py` | Split chat handler into `_prepare_context()`, `_run_tool_loop()`, `_stream_response()` |
-| S3776 — Cognitive complexity ×2 | `src/rag/retrieval.py`, `src/rag/processor.py` | Extract scoring and reranking into named functions |
+| ~~S3776 — Cognitive complexity ×8~~ ✅ | ~~`src/ollama_client.py`~~ | ~~Extracted `_resolve_model()`, `_build_tool_payload()`, `_embed_new_api()`, `_embed_legacy_api()`~~ |
+| ~~S3776 — Cognitive complexity ×5~~ ✅ | ~~`src/routes/api_routes.py`~~ | ~~Split into `_retrieve_contexts()`, `_build_context_prompt()`, `_stream_chat_response()`~~ |
+| ~~S3776 — Cognitive complexity ×2~~ ✅ | ~~`src/rag/retrieval.py`~~ | ~~Extracted `_run_retrieval_pipeline()`, `_rank_and_finalize()`, `_append_chunks_for_doc()`~~ |
 | ~~S1192 — String literals ×2~~ ✅ | ~~`src/rag/loaders.py`~~ | ~~Extract repeated strings to module-level constants~~ |
 
 **Tests to add:** For each refactored method, verify existing unit tests still pass (no new tests needed — behaviour unchanged).

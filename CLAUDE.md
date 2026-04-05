@@ -8,17 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**As of 2026-04-05 (commit `739d264`):**
+**As of 2026-04-06 (commit after `c3d0d37`):**
 
 | Phase | Status | Remaining work |
 |-------|--------|---------------|
-| 1 — Code Quality & Security | ⚠️ 90% | S3776 cognitive complexity in `src/ollama_client.py` (~7 methods), `src/routes/api_routes.py` (5), `src/rag/retrieval.py` (2), `src/rag/processor.py` (2) |
+| 1 — Code Quality & Security | ✅ 100% | Complete — all S3776 violations resolved |
 | 2 — Test Coverage | ✅ 95% | 2.5 L3 cache audit (`src/cache/backends/database_cache.py`) low priority |
 | 3 — Documentation | ✅ complete | — |
 | 4 — Feature Evolution | ❌ not started | Multi-doc context, conversation export, chunk provenance |
 | 5 — Observability | ❌ not started | JSON logs, Grafana dashboard |
 
-**Next priority:** Finish Phase 1.1 — refactor the remaining high-complexity methods to pass SonarCloud S3776 checks.  Start with `src/routes/api_routes.py` (most impactful: split `api_chat` into `_prepare_context()`, `_run_tool_loop()`, `_stream_response()`).
+**Next priority:** Phase 4 — Feature Evolution.  Start with multi-document conversation context (track which documents were cited per turn).
 
 ---
 
