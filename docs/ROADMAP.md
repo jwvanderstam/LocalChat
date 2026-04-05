@@ -23,7 +23,7 @@
 | Test coverage | ✅ 95% | 9 integration tests + 47 unit test files; GPU monitor ✅, vision ✅, rate limit ✅ |
 | Code quality | ✅ 100% | All S3776 complexity violations resolved |
 | Documentation | ✅ 95% | Architecture diagram ✅, DB schema ✅, troubleshooting ✅, CONTRIBUTING.md ✅ |
-| Feature completeness | ⚠️ 90% | 4.1 Pyright strict, 4.5 doc re-ingestion dedup, 2.5 L3 cache audit remaining |
+| Feature completeness | ✅ 95% | 4.1 Pyright strict, 2.5 L3 cache audit remaining |
 
 ---
 
@@ -177,13 +177,17 @@ _`src/security.py` auto-detects Redis at startup (`_resolve_ratelimit_storage`);
 - ~~Return chunk index and page number (where available from metadata)~~
 - ~~`sources` array included in SSE `done` event: `[{filename, chunk_index, page_number, section_title}]`~~
 
-### 4.5 Document re-ingestion
+### ~~4.5 Document re-ingestion~~ ✅
 
-Currently: re-uploading a document creates a duplicate.
+~~Currently: re-uploading a document creates a duplicate.~~
 
-- Detect duplicate by filename + file hash
-- Offer: replace existing (re-chunk) or keep both versions
-- Clean up orphaned chunks when replacing
+- ~~Detect duplicate by filename + file hash~~
+- ~~Same filename + same hash → skip (already up to date)~~
+- ~~Same filename + different hash → delete old document + chunks, re-ingest (replace)~~
+- ~~`content_hash VARCHAR(64)` column added to `documents` via additive migration~~
+- ~~`db.delete_document(id)` added; `insert_document` accepts `content_hash` kwarg~~
+- ~~`_compute_file_hash()` in `processor.py` (SHA-256, 64 KiB blocks)~~
+- ~~8 unit tests in `tests/unit/test_document_dedup.py`~~
 
 ---
 
@@ -205,12 +209,13 @@ Currently: re-uploading a document creates a duplicate.
 - ~~`docs/grafana-dashboard.json` — importable dashboard, uid `localchat-rag-v1`~~
 - ~~Panels: requests/s, P50/P95 retrieval latency, embedding cache hit rate, query cache hit rate, chunks retrieved histogram, embedding queue depth, active model stat~~
 
-### 5.3 Backup and restore documentation
+### ~~5.3 Backup and restore documentation~~ ✅
 
-Add `docs/OPERATIONS.md`:
-- PostgreSQL backup strategy (pg_dump + pgvector-safe restore)
-- Redis persistence settings
-- Volume backup for Docker Compose deployments
+~~`docs/OPERATIONS.md`:~~
+~~- PostgreSQL backup/restore (pg_dump, pgvector-safe restore, cron example)~~
+~~- Redis persistence (RDB snapshots, AOF)~~
+~~- Docker volume backup/restore~~
+~~- Routine maintenance (VACUUM, JWT rotation, index health)~~
 
 ---
 

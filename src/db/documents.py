@@ -37,6 +37,7 @@ class DocumentsMixin:
         filename: str,
         content: str,
         metadata: dict[str, Any] | None = None,
+        content_hash: str | None = None,
     ) -> int:
         """
         Insert a new document and return its ID.
@@ -45,6 +46,7 @@ class DocumentsMixin:
             filename: Name of the document file
             content: Text content of the document
             metadata: Optional metadata dictionary
+            content_hash: SHA-256 hex digest of the original file bytes (optional)
 
         Returns:
             int: ID of inserted document
@@ -63,13 +65,34 @@ class DocumentsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO documents (filename, content, metadata) VALUES (%s, %s, %s) RETURNING id",
-                    (filename, content, Jsonb(metadata or {})),
+                    "INSERT INTO documents (filename, content, metadata, content_hash)"
+                    " VALUES (%s, %s, %s, %s) RETURNING id",
+                    (filename, content, Jsonb(metadata or {}), content_hash),
                 )
                 doc_id = cursor.fetchone()[0]
                 conn.commit()
         logger.info(f"Document inserted with ID: {doc_id}")
         return doc_id
+
+    def delete_document(self, doc_id: int) -> None:
+        """
+        Delete a single document and all its chunks (cascades via FK).
+
+        Args:
+            doc_id: ID of the document to delete
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot delete document: Database is not connected")
+
+        logger.debug(f"Deleting document ID: {doc_id}")
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM documents WHERE id = %s", (doc_id,))
+                conn.commit()
+        logger.info(f"Document {doc_id} deleted")
 
     def insert_chunks_batch(
         self,
@@ -377,11 +400,11 @@ class DocumentsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT d.id, d.created_at, COUNT(dc.id) AS chunk_count
+                    SELECT d.id, d.created_at, COUNT(dc.id) AS chunk_count, d.content_hash
                     FROM documents d
                     LEFT JOIN document_chunks dc ON d.id = dc.document_id
                     WHERE d.filename = %s
-                    GROUP BY d.id, d.created_at
+                    GROUP BY d.id, d.created_at, d.content_hash
                 """, (filename,))
                 row = cursor.fetchone()
                 if row:
@@ -389,6 +412,7 @@ class DocumentsMixin:
                         'id': row[0],
                         'created_at': row[1].isoformat() if row[1] else None,
                         'chunk_count': row[2],
+                        'content_hash': row[3],
                     }
                     logger.debug(f"Document exists: {filename} (ID: {row[0]})")
                     return True, doc_info

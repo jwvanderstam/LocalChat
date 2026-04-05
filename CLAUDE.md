@@ -8,24 +8,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**As of 2026-04-07 (post feature-evolution commits):**
+**As of 2026-04-06 (commit feat: 4.5 dedup + 5.3 ops guide):**
 
 | Phase | Status | Remaining work |
 |-------|--------|---------------|
 | 1 — Code Quality & Security | ✅ 100% | Complete |
 | 2 — Test Coverage | ✅ 95% | 2.5 L3 cache audit (`src/cache/backends/database_cache.py`) — low priority |
 | 3 — Documentation | ✅ 100% | Complete |
-| 4 — Feature Evolution | ✅ 75% | 4.1 Pyright strict, 4.5 doc re-ingestion dedup |
+| 4 — Feature Evolution | ✅ 95% | 4.1 Pyright strict mode only |
 | 5 — Observability | ✅ 100% | Complete |
 
-**Completed this session:**
-- **Phase 5.1** — Structured JSON logs: `JsonFormatter` extra-field passthrough, `RequestIdFilter` + `user_agent`, per-request access log in `request_id.py` (`after_request`), `g.model` / `g.chunks_retrieved` set in `api_routes.py`.
-- **Phase 4.4** — Chunk provenance: `sources` list `[{filename, chunk_index, page_number, section_title}]` threaded from `_get_rag_context` → SSE `done` event.
-- **Phase 5.2** — Grafana dashboard: `docs/grafana-dashboard.json` (7 panels, uid `localchat-rag-v1`).
-- **Phase 4.3** — Conversation export: `GET /api/conversations/<id>/export?format=json|markdown`.
-- **Phase 4.2** — Multi-document context: `conversations.document_ids JSONB` column; `get/set_conversation_document_filter`; `search_similar_chunks` `filename_filter` param; `PUT /api/conversations/<id>/documents`.
+**Recently completed:**
+- **4.5** — Document re-ingestion dedup: SHA-256 hash stored in `documents.content_hash`; same hash → skip; different hash → replace (delete + re-ingest); `db.delete_document()` added; 8 unit tests.
+- **5.3** — `docs/OPERATIONS.md`: pg_dump, pgvector restore, Redis persistence, Docker volume backup, VACUUM, JWT rotation.
+- **4.2–4.4, 5.1–5.2** — Done by Copilot (multi-doc context, export, provenance, JSON logs, Grafana dashboard).
 
-**Next priority:** Phase 4.1 Pyright strict, then Phase 4.5 document re-ingestion dedup.
+**Next priority:** Phase 4.1 Pyright strict — start with `src/db/` and `src/models.py`.
 
 ---
 

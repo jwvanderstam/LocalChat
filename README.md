@@ -253,6 +253,7 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 |----------|---------|
 | [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema, ER diagram, index rationale |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore, and maintenance procedures |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Evolution roadmap and completion status |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup, test commands, PR conventions |
 

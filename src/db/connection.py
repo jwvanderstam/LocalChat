@@ -361,6 +361,12 @@ class DatabaseConnection:
                 logger.debug("Conversations table ensured")
 
                 cursor.execute("""
+                    ALTER TABLE documents
+                    ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64)
+                """)
+                logger.debug("documents.content_hash column ensured")
+
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS conversation_messages (
                         id SERIAL PRIMARY KEY,
                         conversation_id UUID NOT NULL

@@ -7,6 +7,7 @@ embedding generation, and delegates to mixins for loading, chunking,
 and retrieval.
 """
 
+import hashlib
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -21,6 +22,15 @@ from .loaders import DocumentLoaderMixin
 
 _NO_EMBEDDING_MODEL = "No embedding model available"
 from .retrieval import RetrievalMixin
+
+
+def _compute_file_hash(file_path: str) -> str:
+    """Return the SHA-256 hex digest of a file's raw bytes."""
+    h = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        for block in iter(lambda: f.read(65536), b''):
+            h.update(block)
+    return h.hexdigest()
 
 logger = get_logger(__name__)
 
@@ -289,16 +299,29 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             filename = os.path.basename(file_path)
             logger.info(f"Starting ingestion for: {filename}")
 
+            file_hash = _compute_file_hash(file_path)
+
             exists, doc_info = db.document_exists(filename)
             if exists:
-                message = (
-                    f"Document '{filename}' already exists (ID: {doc_info['id']}, "
-                    f"{doc_info['chunk_count']} chunks). Skipping ingestion."
+                if doc_info.get('content_hash') == file_hash:
+                    message = (
+                        f"Document '{filename}' is already up to date "
+                        f"(ID: {doc_info['id']}, {doc_info['chunk_count']} chunks). "
+                        f"Skipping ingestion."
+                    )
+                    logger.info(message)
+                    if progress_callback:
+                        progress_callback(message)
+                    return True, message, doc_info['id']
+
+                # Same filename, different content — replace.
+                logger.info(
+                    f"Document '{filename}' has changed (hash mismatch). "
+                    f"Replacing ID {doc_info['id']}."
                 )
-                logger.info(message)
                 if progress_callback:
-                    progress_callback(message)
-                return True, message, doc_info['id']
+                    progress_callback(f"Replacing existing document '{filename}'...")
+                db.delete_document(doc_info['id'])
 
             if not os.path.exists(file_path):
                 error_msg = f"File not found: {file_path}"
@@ -320,7 +343,8 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             doc_id = db.insert_document(
                 filename=filename,
                 content=content_preview,
-                metadata={'total_chunks': len(chunks_with_metadata), 'file_path': file_path}
+                metadata={'total_chunks': len(chunks_with_metadata), 'file_path': file_path},
+                content_hash=file_hash,
             )
             logger.debug(f"Document ID: {doc_id}")
 
