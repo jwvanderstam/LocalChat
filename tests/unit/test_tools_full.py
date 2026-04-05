@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """Tests for ToolRegistry, ToolExecutor, and built-in tools."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # ToolRegistry
@@ -218,6 +217,88 @@ class TestToolExecutorExecute:
 
 
 # ---------------------------------------------------------------------------
+# PluginLoader edge cases
+# ---------------------------------------------------------------------------
+
+class TestPluginLoaderEdgeCases:
+    """Edge cases for PluginLoader discovered from real plugin files."""
+
+    def _make_loader(self):
+        from src.tools.plugin_loader import PluginLoader
+        from src.tools.registry import ToolRegistry
+
+        registry = ToolRegistry()
+        return PluginLoader(registry=registry), registry
+
+    def test_load_all_nonexistent_dir_returns_zero(self, tmp_path):
+        loader, _ = self._make_loader()
+        assert loader.load_all(tmp_path / "does_not_exist") == 0
+
+    def test_underscore_prefixed_files_are_skipped(self, tmp_path):
+        (tmp_path / "_private.py").write_text("X = 1\n")
+        loader, _ = self._make_loader()
+        assert loader.load_all(tmp_path) == 0
+
+    def test_syntax_error_plugin_recorded_with_error(self, tmp_path):
+        (tmp_path / "bad_plugin.py").write_text("def missing_colon()\n    pass\n")
+        loader, _ = self._make_loader()
+        loader.load_all(tmp_path)
+        plugins = loader.list_plugins()
+        assert len(plugins) == 1
+        assert plugins[0]["error"] is not None
+
+    def test_plugin_defining_no_tools_loads_with_empty_tool_list(self, tmp_path):
+        (tmp_path / "empty_plugin.py").write_text("X = 1\n")
+        loader, _ = self._make_loader()
+        count = loader.load_all(tmp_path)
+        assert count == 1
+        assert loader.list_plugins()[0]["tools"] == []
+
+    def test_plugin_meta_is_read(self, tmp_path):
+        (tmp_path / "meta_plugin.py").write_text(
+            'PLUGIN_META = {"name": "Test Plugin", "version": "2.0"}\nX = 1\n'
+        )
+        loader, _ = self._make_loader()
+        loader.load_all(tmp_path)
+        p = loader.list_plugins()[0]
+        assert p["meta"]["name"] == "Test Plugin"
+        assert p["meta"]["version"] == "2.0"
+
+    def test_unload_removes_plugin_record(self, tmp_path):
+        (tmp_path / "removable.py").write_text("X = 1\n")
+        loader, _ = self._make_loader()
+        loader.load_all(tmp_path)
+        assert loader.loaded_count == 1
+        assert loader.unload("removable") is True
+        assert loader.loaded_count == 0
+
+    def test_unload_unknown_plugin_returns_false(self):
+        loader, _ = self._make_loader()
+        assert loader.unload("nonexistent") is False
+
+    def test_reload_unknown_plugin_raises_key_error(self):
+        loader, _ = self._make_loader()
+        with pytest.raises(KeyError):
+            loader.reload("unknown_plugin")
+
+    def test_reload_is_idempotent(self, tmp_path):
+        (tmp_path / "stable.py").write_text("X = 1\n")
+        loader, _ = self._make_loader()
+        loader.load_all(tmp_path)
+        loader.reload("stable")
+        loader.reload("stable")
+        assert loader.loaded_count == 1
+
+    def test_list_plugins_returns_expected_keys(self, tmp_path):
+        (tmp_path / "listed.py").write_text("X = 1\n")
+        loader, _ = self._make_loader()
+        loader.load_all(tmp_path)
+        p = loader.list_plugins()[0]
+        for key in ("name", "path", "tools", "tool_count", "meta", "error"):
+            assert key in p
+
+
+# ---------------------------------------------------------------------------
 # Built-in tools (importable, registered on module load)
 # ---------------------------------------------------------------------------
 
@@ -268,7 +349,7 @@ class TestBuiltinToolsRegistration:
 
 class TestToolsPackageInit:
     def test_tools_init_exports_registry(self):
-        from src.tools import tool_registry, ToolRegistry, ToolExecutor
+        from src.tools import ToolExecutor, ToolRegistry, tool_registry
         assert tool_registry is not None
         assert ToolRegistry is not None
         assert ToolExecutor is not None
