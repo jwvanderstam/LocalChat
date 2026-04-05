@@ -108,7 +108,7 @@ services:
       db:
         condition: service_healthy
       ollama:
-        condition: service_started
+        condition: service_healthy
     environment:
       PG_HOST:         db
       PG_PORT:         5432
@@ -121,6 +121,12 @@ services:
       - "0.0.0.0:3001:3001"
     networks:
       - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3001/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # ----------------------------------------------------------
   # LocalChat application

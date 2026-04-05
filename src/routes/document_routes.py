@@ -28,23 +28,31 @@ else:
 
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import sanitize_filename
+from ..utils.file_validation import validate_file_content
 
 bp = Blueprint('documents', __name__)
 logger = get_logger(__name__)
 
 
 def _save_uploaded_files(files) -> list:
-    """Filter by supported extension, save to the upload folder, return saved paths."""
+    """Filter by supported extension, validate content, save to the upload folder, return saved paths."""
     from .. import config
     saved = []
     for file in files:
-        if file.filename:
-            ext = Path(file.filename).suffix.lower()
-            if ext in config.SUPPORTED_EXTENSIONS:
-                safe_name = sanitize_filename(file.filename)
-                file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
-                file.save(file_path)
-                saved.append(file_path)
+        if not file.filename:
+            continue
+        ext = Path(file.filename).suffix.lower()
+        if ext not in config.SUPPORTED_EXTENSIONS:
+            continue
+        safe_name = sanitize_filename(file.filename)
+        file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
+        file.save(file_path)
+        ok, err = validate_file_content(file_path, ext)
+        if not ok:
+            os.remove(file_path)
+            logger.warning(f"Rejected upload '{safe_name}': {err}")
+            continue
+        saved.append(file_path)
     return saved
 
 

@@ -131,6 +131,10 @@ def init_security(app: Flask) -> None:
 
     app.config['JWT_SECRET_KEY'] = config.JWT_SECRET_KEY
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=config.JWT_ACCESS_TOKEN_EXPIRES)
+    app.config['JWT_COOKIE_SECURE'] = not config.DEMO_MODE
+    app.config['SESSION_COOKIE_SECURE'] = not config.DEMO_MODE
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     jwt_manager = JWTManager(app)
     logger.info("JWT authentication configured")
 

@@ -21,36 +21,57 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
-import psycopg
-from mcp.server.fastmcp import FastMCP
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+from mcp.server.fastmcp import FastMCP
+
+
+# ---------------------------------------------------------------------------
+# Connection pool
+# ---------------------------------------------------------------------------
+
+def _conninfo() -> str:
+    host     = os.environ.get("PG_HOST", "db")
+    port     = os.environ.get("PG_PORT", "5432")
+    dbname   = os.environ.get("PG_DB", "rag_db")
+    user     = os.environ.get("PG_USER", "postgres")
+    password = os.environ.get("PG_PASSWORD", "")
+    return f"host={host} port={port} dbname={dbname} user={user} password={password}"
+
+
+_pool: ConnectionPool | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: Any):
+    global _pool
+    _pool = ConnectionPool(conninfo=_conninfo(), min_size=2, max_size=10, open=True)
+    try:
+        yield
+    finally:
+        _pool.close()
+
 
 mcp = FastMCP(
     "localchat",
     host="0.0.0.0",
     port=int(os.environ.get("MCP_PORT", "3001")),
+    lifespan=lifespan,
 )
 
 
 # ---------------------------------------------------------------------------
-# Database helpers
+# Database helper
 # ---------------------------------------------------------------------------
 
-def _conn_kwargs() -> dict[str, Any]:
-    return {
-        "host":     os.environ.get("PG_HOST", "db"),
-        "port":     int(os.environ.get("PG_PORT", "5432")),
-        "dbname":   os.environ.get("PG_DB", "rag_db"),
-        "user":     os.environ.get("PG_USER", "postgres"),
-        "password": os.environ.get("PG_PASSWORD", ""),
-    }
-
-
 def _query(sql: str, params: tuple = ()) -> list[dict[str, Any]]:
-    with psycopg.connect(**_conn_kwargs()) as conn:
+    assert _pool is not None
+    with _pool.connection() as conn:
+        conn.execute("SET TRANSACTION READ ONLY")
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(sql, params)
             return cur.fetchall()
@@ -103,13 +124,13 @@ def get_stats() -> str:
       - total chunks
       - chunks that already have an embedding vector
     """
-    docs     = _query("SELECT COUNT(*) AS n FROM documents")[0]["n"]
-    chunks   = _query("SELECT COUNT(*) AS n FROM document_chunks")[0]["n"]
-    embedded = _query("SELECT COUNT(*) AS n FROM document_chunks WHERE embedding IS NOT NULL")[0]["n"]
-    return json.dumps(
-        {"documents": docs, "chunks": chunks, "chunks_with_embeddings": embedded},
-        indent=2,
-    )
+    row = _query("""
+        SELECT
+            (SELECT COUNT(*) FROM documents)                                    AS documents,
+            (SELECT COUNT(*) FROM document_chunks)                              AS chunks,
+            (SELECT COUNT(*) FROM document_chunks WHERE embedding IS NOT NULL)  AS chunks_with_embeddings
+    """)[0]
+    return json.dumps(dict(row), indent=2)
 
 
 @mcp.tool()
@@ -159,15 +180,13 @@ def run_select_query(sql: str) -> str:
     """
     Execute a read-only SQL SELECT query and return the results as JSON.
 
-    Only SELECT statements are accepted — any other statement type is
-    rejected with an error message.  Use get_schema() first to confirm
+    The query runs inside a READ ONLY transaction — any attempt to modify
+    data is rejected by PostgreSQL.  Use get_schema() first to confirm
     table and column names before writing the query.
 
     Args:
         sql: A valid PostgreSQL SELECT statement.
     """
-    if not sql.strip().upper().startswith("SELECT"):
-        return json.dumps({"error": "Only SELECT statements are permitted."})
     rows = _query(sql)
     return json.dumps(rows, indent=2, default=str)
 

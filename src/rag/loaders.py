@@ -50,6 +50,7 @@ except ImportError:
 
 _PDF_NOT_INSTALLED = "PyPDF2 not installed"
 _DOCX_NOT_INSTALLED = "python-docx not installed"
+_DOCX_LOAD_ERROR = "Error loading DOCX: "
 _EXTRACTOR_PDFPLUMBER = "pdfplumber"
 _EXTRACTOR_PYPDF2 = "PyPDF2"
 
@@ -344,8 +345,8 @@ class DocumentLoaderMixin:
             return True, text
 
         except Exception as e:
-            logger.error(f"Error loading DOCX: {e}", exc_info=True)
-            return False, f"Error loading DOCX: {str(e)}"
+            logger.error(f"{_DOCX_LOAD_ERROR}{e}", exc_info=True)
+            return False, f"{_DOCX_LOAD_ERROR}{e}"
 
     def _line_looks_like_title(self, line: str) -> str | None:
         """Return title text if line looks like a section header, else None."""

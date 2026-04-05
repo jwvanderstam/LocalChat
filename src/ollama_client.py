@@ -549,6 +549,59 @@ class OllamaClient:
 
         self._raise_for_ollama_error(response, model)
 
+    def _embed_new_api(self, model: str, text: str) -> Tuple[bool, List[float], bool]:
+        """
+        Try the newer ``/api/embed`` endpoint (Ollama ≥ 0.1.32).
+
+        Returns:
+            (success, embedding, should_fallback) — should_fallback is True only
+            when the server returned 404 (endpoint not available on this build).
+        """
+        response = self._session.post(
+            f"{self.base_url}/api/embed",
+            json={
+                "model": model,
+                "input": text,
+                "keep_alive": "30m",
+                "options": {"num_gpu": config.OLLAMA_NUM_GPU},
+            },
+            timeout=60,
+        )
+        if response.status_code == 200:
+            embeddings = response.json().get("embeddings", [])
+            if embeddings:
+                logger.debug(f"Generated embedding with {len(embeddings[0])} dimensions")
+                return True, embeddings[0], False
+        if response.status_code == 404:
+            return False, [], True  # caller should try legacy endpoint
+        logger.warning(f"Failed to generate embedding: {response.status_code}")
+        return False, [], False
+
+    def _embed_legacy_api(self, model: str, text: str) -> Tuple[bool, List[float]]:
+        """
+        Fallback to the legacy ``/api/embeddings`` endpoint (older Ollama builds).
+
+        Returns:
+            (success, embedding)
+        """
+        logger.debug("Falling back to legacy /api/embeddings endpoint")
+        response = self._session.post(
+            f"{self.base_url}/api/embeddings",
+            json={
+                "model": model,
+                "prompt": text,
+                "keep_alive": "30m",
+                "options": {"num_gpu": config.OLLAMA_NUM_GPU},
+            },
+            timeout=60,
+        )
+        if response.status_code == 200:
+            embedding = response.json().get("embedding", [])
+            logger.debug(f"Generated embedding with {len(embedding)} dimensions")
+            return True, embedding
+        logger.warning(f"Failed to generate embedding (legacy): {response.status_code}")
+        return False, []
+
     def generate_embedding(
         self,
         model: str,
@@ -570,48 +623,12 @@ class OllamaClient:
         """
         try:
             logger.debug(f"Generating embedding with model: {model}")
-            # ── Prefer the newer /api/embed endpoint (Ollama ≥ 0.1.32) ────────
-            response = self._session.post(
-                f"{self.base_url}/api/embed",
-                json={
-                    "model": model,
-                    "input": text,
-                    "keep_alive": "30m",
-                    "options": {"num_gpu": config.OLLAMA_NUM_GPU},
-                },
-                timeout=60
-            )
-            if response.status_code == 200:
-                embeddings = response.json().get('embeddings', [])
-                if embeddings:
-                    embedding = embeddings[0]
-                    logger.debug(f"Generated embedding with {len(embedding)} dimensions")
-                    return True, embedding
-
-            if response.status_code != 404:
-                logger.warning(f"Failed to generate embedding: {response.status_code}")
-                return False, []
-
-            # ── Fallback: legacy /api/embeddings endpoint ────────────────────
-            logger.debug("Falling back to legacy /api/embeddings endpoint")
-            response = self._session.post(
-                f"{self.base_url}/api/embeddings",
-                json={
-                    "model": model,
-                    "prompt": text,
-                    "keep_alive": "30m",
-                    "options": {"num_gpu": config.OLLAMA_NUM_GPU},
-                },
-                timeout=60
-            )
-            if response.status_code == 200:
-                embedding = response.json().get('embedding', [])
-                logger.debug(f"Generated embedding with {len(embedding)} dimensions")
+            success, embedding, should_fallback = self._embed_new_api(model, text)
+            if success:
                 return True, embedding
-
-            logger.warning(f"Failed to generate embedding (legacy): {response.status_code}")
+            if should_fallback:
+                return self._embed_legacy_api(model, text)
             return False, []
-
         except Exception as e:
             logger.error(f"Error generating embedding: {e}", exc_info=True)
             return False, []
