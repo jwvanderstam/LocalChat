@@ -13,7 +13,7 @@ success, query_embedding = ollama_client.generate_embedding(embedding_model, "te
 
 if success:
     print(f"Generated embedding with {len(query_embedding)} dimensions")
-    
+
     # Test the search
     with db.get_connection() as conn:
         with conn.cursor() as cursor:
@@ -21,13 +21,13 @@ if success:
             cursor.execute("SELECT COUNT(*) FROM document_chunks WHERE embedding IS NOT NULL")
             count = cursor.fetchone()[0]
             print(f"Chunks with embeddings: {count}")
-            
+
             # Try the actual search query
             embedding_str = '[' + ','.join(map(str, query_embedding)) + ']'
-            
+
             try:
                 cursor.execute("""
-                    SELECT 
+                    SELECT
                         dc.chunk_text,
                         d.filename,
                         dc.chunk_index,
@@ -37,13 +37,13 @@ if success:
                     ORDER BY dc.embedding <=> %s::vector
                     LIMIT 3
                 """, (embedding_str, embedding_str))
-                
+
                 results = cursor.fetchall()
                 print(f"\nSearch returned {len(results)} results:")
                 for i, (text, filename, idx, sim) in enumerate(results):
                     print(f"{i+1}. {filename} chunk {idx}: similarity {sim:.4f}")
                     print(f"   Text: {text[:100]}...")
-                    
+
             except Exception as e:
                 print(f"Search error: {e}")
                 import traceback

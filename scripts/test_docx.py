@@ -2,8 +2,9 @@
 Test DOCX ingestion for Astrid Nientker CV
 """
 import os
-from src.rag import doc_processor
 from pathlib import Path
+
+from src.rag import doc_processor
 
 # Find the document
 doc_name = "Astrid Nientker_CV_NL_2025_12.docx"
@@ -15,12 +16,12 @@ file_path = os.path.join(upload_folder, doc_name)
 if not os.path.exists(file_path):
     print(f"ERROR: File not found: {file_path}")
     print(f"Current directory: {os.getcwd()}")
-    print(f"Files in uploads folder:")
+    print("Files in uploads folder:")
     if os.path.exists(upload_folder):
         for f in os.listdir(upload_folder):
             print(f"  - {f}")
     else:
-        print(f"  Upload folder doesn't exist")
+        print("  Upload folder doesn't exist")
     exit(1)
 
 print(f"Testing DOCX ingestion for: {doc_name}")

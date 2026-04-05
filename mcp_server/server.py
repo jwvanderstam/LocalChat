@@ -25,10 +25,9 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
+from mcp.server.fastmcp import FastMCP
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
-from mcp.server.fastmcp import FastMCP
-
 
 # ---------------------------------------------------------------------------
 # Connection pool

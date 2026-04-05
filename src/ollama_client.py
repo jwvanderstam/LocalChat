@@ -549,7 +549,7 @@ class OllamaClient:
 
         self._raise_for_ollama_error(response, model)
 
-    def _embed_new_api(self, model: str, text: str) -> Tuple[bool, List[float], bool]:
+    def _embed_new_api(self, model: str, text: str) -> tuple[bool, list[float], bool]:
         """
         Try the newer ``/api/embed`` endpoint (Ollama ≥ 0.1.32).
 
@@ -577,7 +577,7 @@ class OllamaClient:
         logger.warning(f"Failed to generate embedding: {response.status_code}")
         return False, [], False
 
-    def _embed_legacy_api(self, model: str, text: str) -> Tuple[bool, List[float]]:
+    def _embed_legacy_api(self, model: str, text: str) -> tuple[bool, list[float]]:
         """
         Fallback to the legacy ``/api/embeddings`` endpoint (older Ollama builds).
 

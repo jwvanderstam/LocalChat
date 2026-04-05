@@ -124,7 +124,7 @@ def generate_mock_search_results(count: int = 5) -> list[tuple]:
     return results
 
 
-def generate_mock_document_metadata() -> Dict[str, Any]:
+def generate_mock_document_metadata() -> dict[str, Any]:
     """
     Generate mock document metadata.
 

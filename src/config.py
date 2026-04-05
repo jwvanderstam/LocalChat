@@ -91,7 +91,7 @@ else:
 
 # CORS settings
 CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
-CORS_ORIGINS: List[str] = [o.strip() for o in os.environ.get('CORS_ORIGINS', 'localhost,127.0.0.1').split(',')]
+CORS_ORIGINS: list[str] = [o.strip() for o in os.environ.get('CORS_ORIGINS', 'localhost,127.0.0.1').split(',')]
 
 # ============================================================================
 # DATABASE CONFIGURATION

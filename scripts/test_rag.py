@@ -43,7 +43,7 @@ if success:
     print(f"   Generated embedding with dimension: {len(embedding)}")
     print(f"   First 5 values: {embedding[:5]}")
 else:
-    print(f"   ERROR: Failed to generate embedding")
+    print("   ERROR: Failed to generate embedding")
     exit(1)
 
 # 4. Test document retrieval
@@ -51,10 +51,10 @@ print("\n4. Testing document retrieval...")
 if chunk_count > 0:
     test_query = "What is this document about?"
     print(f"   Query: {test_query}")
-    
+
     results = doc_processor.retrieve_context(test_query, top_k=3)
     print(f"   Retrieved {len(results)} chunks")
-    
+
     if results:
         for i, (chunk_text, filename, chunk_index, similarity) in enumerate(results):
             print(f"\n   Result {i+1}:")

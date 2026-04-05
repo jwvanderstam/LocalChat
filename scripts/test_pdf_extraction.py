@@ -2,9 +2,9 @@
 Quick test to verify pdfplumber table extraction is working.
 """
 
+import os
 import sys
 import tempfile
-import os
 
 # Test 1: Check if pdfplumber is installed
 print("=" * 60)
@@ -38,16 +38,16 @@ print("=" * 60)
 
 # Create a test PDF with pdfplumber (ironically)
 try:
-    from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-    from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib import colors
-    
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
+
     # Create a simple PDF with a table
     with tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False) as f:
         test_pdf = f.name
         doc = SimpleDocTemplate(f.name, pagesize=letter)
-        
+
         # Create table data
         data = [
             ['Name', 'Age', 'City'],
@@ -55,7 +55,7 @@ try:
             ['Bob', '35', 'Boston'],
             ['Charlie', '42', 'Chicago']
         ]
-        
+
         # Create table
         table = Table(data)
         table.setStyle(TableStyle([
@@ -68,31 +68,31 @@ try:
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
-        
+
         # Build PDF
         story = [table]
         doc.build(story)
-    
+
     print(f"? Test PDF created: {test_pdf}")
-    
+
     # Now test extraction
     print("\n?? Testing PDF extraction...")
     success, content = processor.load_pdf_file(test_pdf)
-    
+
     if success:
         print("? PDF extraction successful!")
         print(f"\nExtracted content ({len(content)} characters):")
         print("-" * 60)
         print(content[:500])
         print("-" * 60)
-        
+
         # Check if table markers are present
         if "[Table" in content:
             print("\n??? TABLE EXTRACTION WORKING! Found table markers!")
         else:
             print("\n?? Table extraction may not be working - no table markers found")
             print("This might be because the test PDF is too simple")
-        
+
         # Check if pipe separators are present
         if " | " in content:
             print("? Pipe separators found - table structure preserved!")
@@ -100,11 +100,11 @@ try:
             print("?? No pipe separators - table might not have structure")
     else:
         print(f"? PDF extraction failed: {content}")
-    
+
     # Cleanup
     os.unlink(test_pdf)
-    print(f"\n?? Cleaned up test PDF")
-    
+    print("\n?? Cleaned up test PDF")
+
 except ImportError:
     print("?? reportlab not installed - skipping PDF creation test")
     print("   (This is OK - just can't create test PDFs automatically)")

@@ -26,9 +26,9 @@ if TYPE_CHECKING:
 else:
     current_app = _current_app
 
+from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import sanitize_filename
-from ..utils.file_validation import validate_file_content
 
 bp = Blueprint('documents', __name__)
 logger = get_logger(__name__)

@@ -12,7 +12,7 @@ test_embedding = [1.5, 2.3, -0.5, 4.2, 0.0]
 result = db._embedding_to_pg_array(test_embedding)
 print(f"Test embedding: {test_embedding}")
 print(f"PostgreSQL format: {result}")
-print(f"Expected: {{1.5,2.3,-0.5,4.2,0.0}}")
+print("Expected: {1.5,2.3,-0.5,4.2,0.0}")
 print()
 
 # Test with real embedding

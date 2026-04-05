@@ -13,9 +13,10 @@ TEST_PASSWORD = "integration-test-password-abc123"
 @pytest.fixture(scope="module")
 def auth_app():
     """Minimal Flask app with security middleware using known test credentials."""
+    from flask import Flask
+
     import src.config as cfg
     import src.security as sec_mod
-    from flask import Flask
 
     salt = os.urandom(32)
     pw_hash = hashlib.pbkdf2_hmac("sha256", TEST_PASSWORD.encode(), salt, 100_000)
