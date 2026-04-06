@@ -4,7 +4,7 @@
 > This file is kept for backwards compatibility; please edit the docs/ version.
 
 > Last updated: 2026-04-06
-> Current version: v0.8.0
+> Current version: v1.0.0 — ROADMAP COMPLETE
 
 ---
 

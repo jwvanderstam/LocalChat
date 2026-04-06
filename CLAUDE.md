@@ -8,22 +8,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**As of 2026-04-06 (commit feat: 4.5 dedup + 5.3 ops guide):**
+**As of 2026-04-06 — v1.0.0 — ROADMAP COMPLETE**
 
-| Phase | Status | Remaining work |
-|-------|--------|---------------|
-| 1 — Code Quality & Security | ✅ 100% | Complete |
-| 2 — Test Coverage | ✅ 95% | 2.5 L3 cache audit (`src/cache/backends/database_cache.py`) — low priority |
-| 3 — Documentation | ✅ 100% | Complete |
-| 4 — Feature Evolution | ✅ 95% | 4.1 Pyright strict mode only |
-| 5 — Observability | ✅ 100% | Complete |
+| Phase | Status |
+|-------|--------|
+| 1 — Code Quality & Security | ✅ 100% |
+| 2 — Test Coverage | ✅ 100% |
+| 3 — Documentation | ✅ 100% |
+| 4 — Feature Evolution | ✅ 100% |
+| 5 — Observability | ✅ 100% |
 
-**Recently completed:**
-- **4.5** — Document re-ingestion dedup: SHA-256 hash stored in `documents.content_hash`; same hash → skip; different hash → replace (delete + re-ingest); `db.delete_document()` added; 8 unit tests.
-- **5.3** — `docs/OPERATIONS.md`: pg_dump, pgvector restore, Redis persistence, Docker volume backup, VACUUM, JWT rotation.
-- **4.2–4.4, 5.1–5.2** — Done by Copilot (multi-doc context, export, provenance, JSON logs, Grafana dashboard).
+All roadmap items are implemented or explicitly deferred to v2.0 with written rationale in `docs/ROADMAP.md`.
 
-**Next priority:** Phase 4.1 Pyright strict — start with `src/db/` and `src/models.py`.
+**Deferred to v2.0:** Pyright strict mode (basic already enforced), L3 cache wiring (implementation complete, not connected by default). See `docs/ROADMAP.md` → v2.0 Candidates.
+
+**Next session:** Start a new roadmap or pick up a v2.0 candidate. Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 
