@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
@@ -7,8 +8,7 @@
     <ProjectHome>.</ProjectHome>
     <ProjectTypeGuids>{789894c7-04a9-4a11-a6b5-3f4435165112};{1b580a1a-fdb3-4b32-83e1-6407eb2722e6};{349c5851-65df-11da-9384-00065b846f21};{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
     <StartupFile>app.py</StartupFile>
-    <SearchPath>
-    </SearchPath>
+    <SearchPath></SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <LaunchProvider>Web launcher</LaunchProvider>
     <WebBrowserUrl>http://localhost</WebBrowserUrl>
@@ -147,6 +147,29 @@
     <Compile Include="tests\utils\helpers.py" />
     <Compile Include="tests\utils\mocks.py" />
     <Compile Include="_scan.py" />
+    <Compile Include="scripts\test_docx.py" />
+    <Compile Include="scripts\test_pdf_extraction.py" />
+    <Compile Include="scripts\test_pg_format.py" />
+    <Compile Include="scripts\test_rag.py" />
+    <Compile Include="scripts\test_search.py" />
+    <Compile Include="scripts\test_vector.py" />
+    <Compile Include="src\gpu_monitor.py" />
+    <Compile Include="src\utils\file_validation.py" />
+    <Compile Include="tests\integration\test_integration.py" />
+    <Compile Include="tests\unit\test_cache_behavior.py" />
+    <Compile Include="tests\unit\test_chunking_behavior.py" />
+    <Compile Include="tests\unit\test_config.py" />
+    <Compile Include="tests\unit\test_db.py" />
+    <Compile Include="tests\unit\test_document_dedup.py" />
+    <Compile Include="tests\unit\test_exceptions.py" />
+    <Compile Include="tests\unit\test_file_validation.py" />
+    <Compile Include="tests\unit\test_logging.py" />
+    <Compile Include="tests\unit\test_models.py" />
+    <Compile Include="tests\unit\test_pdf_tables.py" />
+    <Compile Include="tests\unit\test_rag.py" />
+    <Compile Include="tests\unit\test_retrieval_behavior.py" />
+    <Compile Include="tests\unit\test_sanitization.py" />
+    <Compile Include="tests\unit\test_temperature.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include=".coveragerc" />
@@ -160,7 +183,7 @@
     <Content Include="config\.env.example" />
     <Content Include="docker-compose.yml" />
     <Content Include="Dockerfile" />
-    <Content Include="IaCplan.md" />
+    <Content Include="docs\IaCplan.md" />
     <Content Include="k8s\configmap.yaml" />
     <Content Include="k8s\deployment.yaml" />
     <Content Include="k8s\ingress.yaml" />
@@ -169,7 +192,7 @@
     <Content Include="mcp_server\Dockerfile" />
     <Content Include="mcp_server\requirements.txt" />
     <Content Include="plugins\README.md" />
-    <Content Include="PrivateInfraPlan.md" />
+    <Content Include="docs\PrivateInfraPlan.md" />
     <Content Include="pyrightconfig.json" />
     <Content Include="pytest.ini" />
     <Content Include="README.md" />
@@ -186,6 +209,14 @@
     <Content Include="templates\documents.html" />
     <Content Include="templates\models.html" />
     <Content Include="templates\overview.html" />
+    <Content Include="CLAUDE.md" />
+    <Content Include="CONTRIBUTING.md" />
+    <Content Include=".pre-commit-config.yaml" />
+    <Content Include="docs\grafana-dashboard.json" />
+    <Content Include="docs\OPERATIONS.md" />
+    <Content Include="docs\ROADMAP.md" />
+    <Content Include="docs\SCHEMA.md" />
+    <Content Include="docs\TROUBLESHOOTING.md" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include=".github\" />
@@ -213,6 +244,7 @@
     <Folder Include="tests\integration\" />
     <Folder Include="tests\unit\" />
     <Folder Include="tests\utils\" />
+    <Folder Include="docs\" />
   </ItemGroup>
   <ItemGroup>
     <Interpreter Include="env\">
@@ -228,10 +260,8 @@
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.Web.targets" />
   <!-- Specify pre- and post-build commands in the BeforeBuild and 
        AfterBuild targets below. -->
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
+  <Target Name="BeforeBuild"></Target>
+  <Target Name="AfterBuild"></Target>
   <ProjectExtensions>
     <VisualStudio>
       <FlavorProperties GUID="{349c5851-65df-11da-9384-00065b846f21}">
@@ -244,21 +274,16 @@
       </FlavorProperties>
       <FlavorProperties GUID="{349c5851-65df-11da-9384-00065b846f21}" User="">
         <WebProjectProperties>
-          <StartPageUrl>
-          </StartPageUrl>
+          <StartPageUrl></StartPageUrl>
           <StartAction>CurrentPage</StartAction>
           <AspNetDebugging>True</AspNetDebugging>
           <SilverlightDebugging>False</SilverlightDebugging>
           <NativeDebugging>False</NativeDebugging>
           <SQLDebugging>False</SQLDebugging>
-          <ExternalProgram>
-          </ExternalProgram>
-          <StartExternalURL>
-          </StartExternalURL>
-          <StartCmdLineArguments>
-          </StartCmdLineArguments>
-          <StartWorkingDirectory>
-          </StartWorkingDirectory>
+          <ExternalProgram></ExternalProgram>
+          <StartExternalURL></StartExternalURL>
+          <StartCmdLineArguments></StartCmdLineArguments>
+          <StartWorkingDirectory></StartWorkingDirectory>
           <EnableENC>False</EnableENC>
           <AlwaysStartWebServerOnDebug>False</AlwaysStartWebServerOnDebug>
         </WebProjectProperties>
