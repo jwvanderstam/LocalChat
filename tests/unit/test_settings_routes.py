@@ -1,4 +1,4 @@
-"""Unit tests for src/routes/admin_routes.py helper functions and endpoints."""
+"""Unit tests for src/routes/settings_routes.py helper functions and endpoints."""
 
 from unittest.mock import Mock, patch
 
@@ -13,7 +13,7 @@ class TestCollectDocumentStats:
 
     def test_returns_zeros_when_no_db(self):
         """Returns safe zeros when app has no db attribute."""
-        from src.routes.admin_routes import _collect_document_stats
+        from src.routes.settings_routes import _collect_document_stats
 
         app = Mock(spec=[])  # no attributes
         result = _collect_document_stats(app)
@@ -22,7 +22,7 @@ class TestCollectDocumentStats:
 
     def test_returns_zeros_when_db_is_none(self):
         """Returns safe zeros when app.db is None."""
-        from src.routes.admin_routes import _collect_document_stats
+        from src.routes.settings_routes import _collect_document_stats
 
         app = Mock()
         app.db = None
@@ -33,7 +33,7 @@ class TestCollectDocumentStats:
 
     def test_returns_counts_from_db(self):
         """Returns document and chunk counts from the database."""
-        from src.routes.admin_routes import _collect_document_stats
+        from src.routes.settings_routes import _collect_document_stats
 
         app = Mock()
         app.db = Mock()
@@ -48,7 +48,7 @@ class TestCollectDocumentStats:
 
     def test_returns_zeros_when_db_raises(self):
         """Returns safe zeros when the DB call raises an exception."""
-        from src.routes.admin_routes import _collect_document_stats
+        from src.routes.settings_routes import _collect_document_stats
 
         app = Mock()
         app.db = Mock()
@@ -69,7 +69,7 @@ class TestCollectCacheStats:
 
     def test_returns_unavailable_when_no_caches(self):
         """Both caches report unavailable when absent from app."""
-        from src.routes.admin_routes import _collect_cache_stats
+        from src.routes.settings_routes import _collect_cache_stats
 
         app = Mock(spec=[])
         result = _collect_cache_stats(app)
@@ -79,7 +79,7 @@ class TestCollectCacheStats:
 
     def test_returns_unavailable_when_cache_is_none(self):
         """Reports unavailable when cache attributes are explicitly None."""
-        from src.routes.admin_routes import _collect_cache_stats
+        from src.routes.settings_routes import _collect_cache_stats
 
         app = Mock()
         app.embedding_cache = None
@@ -92,7 +92,7 @@ class TestCollectCacheStats:
 
     def test_returns_stats_when_cache_available(self):
         """Returns hit_rate, usage_percent and counts when cache is present."""
-        from src.routes.admin_routes import _collect_cache_stats
+        from src.routes.settings_routes import _collect_cache_stats
 
         mock_stats = Mock()
         mock_stats.hit_rate = 75.0
@@ -116,7 +116,7 @@ class TestCollectCacheStats:
 
     def test_returns_unavailable_when_cache_raises(self):
         """Handles exception from get_stats gracefully."""
-        from src.routes.admin_routes import _collect_cache_stats
+        from src.routes.settings_routes import _collect_cache_stats
 
         app = Mock()
         app.embedding_cache = Mock()
@@ -136,7 +136,7 @@ class TestCollectSystemInfo:
 
     def test_returns_required_keys(self):
         """Result always contains all expected keys including loaded_models and gpu_info."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         app = Mock(spec=[])
         result = _collect_system_info(app)
@@ -151,7 +151,7 @@ class TestCollectSystemInfo:
 
     def test_loaded_models_empty_when_no_ollama_client(self):
         """loaded_models is an empty list when ollama_client is absent."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         app = Mock(spec=[])
         result = _collect_system_info(app)
@@ -159,7 +159,7 @@ class TestCollectSystemInfo:
 
     def test_loaded_models_populated_from_running_models(self):
         """loaded_models reflects GPU stats from ollama_client.get_running_models()."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         mock_client = Mock()
         mock_client.get_running_models.return_value = [
@@ -180,7 +180,7 @@ class TestCollectSystemInfo:
 
     def test_loaded_models_gpu_percent_partial(self):
         """gpu_percent is computed correctly for partial GPU offload."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         mock_client = Mock()
         mock_client.get_running_models.return_value = [
@@ -195,7 +195,7 @@ class TestCollectSystemInfo:
 
     def test_loaded_models_empty_on_zero_size(self):
         """gpu_percent is 0 when size is zero (avoids ZeroDivisionError)."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         mock_client = Mock()
         mock_client.get_running_models.return_value = [
@@ -209,7 +209,7 @@ class TestCollectSystemInfo:
 
     def test_loaded_models_empty_on_get_running_models_exception(self):
         """loaded_models is [] when get_running_models raises."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         mock_client = Mock()
         mock_client.get_running_models.side_effect = RuntimeError("ps error")
@@ -221,10 +221,10 @@ class TestCollectSystemInfo:
 
     def test_active_model_fallback_on_error(self):
         """Falls back to '—' when get_active_model raises."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         app = Mock(spec=[])
-        with patch("src.routes.admin_routes.config") as mock_cfg:
+        with patch("src.routes.settings_routes.config") as mock_cfg:
             mock_cfg.app_state.get_active_model.side_effect = Exception("fail")
             mock_cfg.APP_VERSION = "1.0"
             mock_cfg.DEMO_MODE = False
@@ -235,10 +235,10 @@ class TestCollectSystemInfo:
 
     def test_reads_active_model_from_app_state(self):
         """Returns model name from config.app_state."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         app = Mock(spec=[])
-        with patch("src.routes.admin_routes.config") as mock_cfg:
+        with patch("src.routes.settings_routes.config") as mock_cfg:
             mock_cfg.app_state.get_active_model.return_value = "llama3"
             mock_cfg.APP_VERSION = "2.0"
             mock_cfg.DEMO_MODE = True
@@ -249,7 +249,7 @@ class TestCollectSystemInfo:
 
     def test_ollama_available_from_startup_status(self):
         """Reads ollama_available from app.startup_status."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         app = Mock()
         app.startup_status = {"ollama": True}
@@ -259,7 +259,7 @@ class TestCollectSystemInfo:
 
     def test_gpu_info_empty_when_no_ollama_client(self):
         """gpu_info is [] when ollama_client is absent."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         app = Mock(spec=[])
         result = _collect_system_info(app)
@@ -267,7 +267,7 @@ class TestCollectSystemInfo:
 
     def test_gpu_info_populated_from_get_gpu_info(self):
         """gpu_info reflects data from ollama_client.get_gpu_info()."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         mock_client = Mock()
         mock_client.get_running_models.return_value = []
@@ -291,7 +291,7 @@ class TestCollectSystemInfo:
 
     def test_gpu_info_empty_on_get_gpu_info_exception(self):
         """gpu_info is [] when get_gpu_info raises."""
-        from src.routes.admin_routes import _collect_system_info
+        from src.routes.settings_routes import _collect_system_info
 
         mock_client = Mock()
         mock_client.get_running_models.return_value = []
@@ -485,7 +485,7 @@ class TestGatherAdminStats:
 
     def test_returns_all_top_level_keys(self):
         """Result contains documents, cache, health, system, metrics."""
-        from src.routes.admin_routes import gather_admin_stats
+        from src.routes.settings_routes import gather_admin_stats
 
         app = Mock(spec=[])
         result = gather_admin_stats(app)
@@ -499,7 +499,7 @@ class TestGatherAdminStats:
     def test_metrics_contains_uptime_and_request_count(self):
         """metrics sub-dict has uptime_seconds and request_count."""
         from src.monitoring import get_metrics
-        from src.routes.admin_routes import gather_admin_stats
+        from src.routes.settings_routes import gather_admin_stats
 
         get_metrics().reset()
         get_metrics().increment("http_requests_total", labels={"method": "GET"})
@@ -515,12 +515,12 @@ class TestGatherAdminStats:
 # Route endpoints
 # ---------------------------------------------------------------------------
 
-class TestAdminRouteEndpoints:
-    """Test /admin and /api/admin/stats via the test client."""
+class TestSettingsRouteEndpoints:
+    """Test /settings and /api/settings/stats via the test client."""
 
-    def test_admin_stats_api_returns_200(self, client):
-        """/api/admin/stats returns 200 and valid JSON."""
-        response = client.get("/api/admin/stats")
+    def test_settings_stats_api_returns_200(self, client):
+        """/api/settings/stats returns 200 and valid JSON."""
+        response = client.get("/api/settings/stats")
         assert response.status_code == 200
         data = response.get_json()
         assert "documents" in data
@@ -529,8 +529,8 @@ class TestAdminRouteEndpoints:
         assert "system" in data
         assert "metrics" in data
 
-    def test_admin_dashboard_returns_html(self, client):
-        """/admin renders an HTML page."""
-        response = client.get("/admin")
+    def test_settings_dashboard_returns_html(self, client):
+        """/settings renders an HTML page."""
+        response = client.get("/settings")
         assert response.status_code == 200
         assert b"html" in response.data.lower()

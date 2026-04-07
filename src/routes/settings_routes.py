@@ -1,22 +1,19 @@
 
 """
-Admin / Ops Dashboard Routes
-=============================
+Settings / Ops Dashboard Routes
+=================================
 
-Provides a read-only operator dashboard that surfaces:
+Provides the Settings page with two sections:
 
-  * Document statistics (total count, chunk count, last indexed)
-  * Cache health (hit/miss ratios, Redis availability)
-  * Database health (connectivity, migration readiness)
-  * System information (app version, active model, demo mode flag)
-  * GPU hardware statistics (per-GPU VRAM, utilisation %, temperature via
-    ``OllamaClient.get_gpu_info()`` with 30 s TTL caching; supports NVIDIA
-    via ``nvidia-smi`` and AMD via ``rocm-smi``)
-  * Loaded model breakdown (VRAM usage and GPU offload % per running model
-    via ``OllamaClient.get_running_models()`` with 5 s TTL caching)
+  * **Observability** — read-only operator dashboard surfacing document
+    statistics, cache health, database health, system information, GPU
+    hardware statistics, loaded model breakdown, and request metrics.
 
-The dashboard page is rendered at ``GET /admin`` and its backing data is
-exposed as JSON at ``GET /api/admin/stats`` so the page can refresh without
+  * **Appearance** — client-side theme picker (rendered in the template;
+    no server-side state required).
+
+The Settings page is rendered at ``GET /settings`` and its backing data is
+exposed as JSON at ``GET /api/settings/stats`` so the page can refresh without
 a full reload.
 
 Security notes
@@ -29,7 +26,7 @@ Both endpoints respect ``DEMO_MODE``:
     ``src.security``.
 
 Author: LocalChat Team
-Last Updated: 2026-03-19
+Last Updated: 2026-04-07
 """
 
 from datetime import datetime
@@ -44,7 +41,7 @@ from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-bp = Blueprint("admin", __name__)
+bp = Blueprint("settings", __name__)
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +66,7 @@ def _collect_document_stats(app) -> dict:
             "db_available": True,
         }
     except Exception as exc:
-        logger.warning("Admin: could not fetch document stats: %s", exc)
+        logger.warning("Settings: could not fetch document stats: %s", exc)
         return {"document_count": 0, "chunk_count": 0, "db_available": False}
 
 
@@ -101,7 +98,7 @@ def _collect_cache_stats(app) -> dict:
                 "max_size": stats.max_size,
             }
         except Exception as exc:
-            logger.warning("Admin: could not fetch %s stats: %s", key, exc)
+            logger.warning("Settings: could not fetch %s stats: %s", key, exc)
     return result
 
 
@@ -136,14 +133,14 @@ def _collect_system_info(app) -> dict:
                     "processor": m.get("processor", "unknown"),
                 })
     except Exception as exc:
-        logger.debug("Admin: could not fetch running model GPU stats: %s", exc)
+        logger.debug("Settings: could not fetch running model GPU stats: %s", exc)
 
     gpu_info = []
     try:
         if ollama_client:
             gpu_info = ollama_client.get_gpu_info()
     except Exception as exc:
-        logger.debug("Admin: could not fetch GPU hardware info: %s", exc)
+        logger.debug("Settings: could not fetch GPU hardware info: %s", exc)
 
     return {
         "app_version": config.APP_VERSION,
@@ -158,7 +155,7 @@ def _collect_system_info(app) -> dict:
 
 def gather_admin_stats(app) -> dict:
     """
-    Aggregate all admin statistics into a single dictionary.
+    Aggregate all settings statistics into a single dictionary.
 
     This is the single entry-point called by both the JSON API and the
     template renderer.  Keeping it separate makes it trivial to unit-test.
@@ -192,23 +189,23 @@ def gather_admin_stats(app) -> dict:
 # Routes
 # ---------------------------------------------------------------------------
 
-@bp.route("/admin", methods=["GET"])
-def admin_dashboard() -> ResponseReturnValue:
+@bp.route("/settings", methods=["GET"])
+def settings_dashboard() -> ResponseReturnValue:
     """
-    Render the operator admin dashboard.
+    Render the Settings page (Observability + Appearance tabs).
 
     The page is intentionally read-only and references no user data, so it
     is safe to show to any authenticated operator.
     """
     app = current_app._get_current_object()  # type: ignore[attr-defined]
     stats = gather_admin_stats(app)
-    return render_template("admin.html", stats=stats)
+    return render_template("settings.html", stats=stats)
 
 
-@bp.route("/api/admin/stats", methods=["GET"])
-def admin_stats_api() -> ResponseReturnValue:
+@bp.route("/api/settings/stats", methods=["GET"])
+def settings_stats_api() -> ResponseReturnValue:
     """
-    Return admin statistics as JSON.
+    Return settings statistics as JSON.
 
     Used by the dashboard page for background refresh and available for
     external monitoring tools.

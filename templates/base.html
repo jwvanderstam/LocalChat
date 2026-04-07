@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LocalChat - RAG Application</title>
     
+    <!-- Theme: apply saved choice before CSS loads to prevent flash -->
+    <script>(function(){var t=localStorage.getItem('lc-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+
     <!-- Bootstrap 5 CSS -->
     <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
 
@@ -75,9 +78,9 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if request.path == '/admin' %}active{% endif %}" href="/admin">
-                                <i class="bi bi-speedometer2 me-2"></i>
-                                Admin
+                            <a class="nav-link {% if request.path == '/settings' %}active{% endif %}" href="/settings">
+                                <i class="bi bi-sliders me-2"></i>
+                                Settings
                             </a>
                         </li>
                     </ul>
@@ -95,6 +98,9 @@
 
     <!-- Bootstrap 5 JS Bundle -->
     <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+
+    <!-- Theme picker -->
+    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
     
     <!-- Common JavaScript -->
     <script>

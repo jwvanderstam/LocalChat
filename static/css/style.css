@@ -1,10 +1,62 @@
 /* Custom styles for LocalChat */
 
+/* ── Theme variables ───────────────────────────────────────────────────────── */
+:root {
+    --color-primary:     #667eea;
+    --color-primary-end: #764ba2;
+    --color-primary-rgb: 102, 126, 234;
+    --color-accent:      #667eea;
+    --sidebar-active-bg: #f0f2ff;
+}
+
+[data-theme="ocean"] {
+    --color-primary:     #0ea5e9;
+    --color-primary-end: #0369a1;
+    --color-primary-rgb: 14, 165, 233;
+    --color-accent:      #0ea5e9;
+    --sidebar-active-bg: #f0f8ff;
+}
+
+[data-theme="forest"] {
+    --color-primary:     #10b981;
+    --color-primary-end: #065f46;
+    --color-primary-rgb: 16, 185, 129;
+    --color-accent:      #10b981;
+    --sidebar-active-bg: #f0fdf4;
+}
+
+[data-theme="rose"] {
+    --color-primary:     #f43f5e;
+    --color-primary-end: #be123c;
+    --color-primary-rgb: 244, 63, 94;
+    --color-accent:      #f43f5e;
+    --sidebar-active-bg: #fff1f2;
+}
+
+[data-theme="slate"] {
+    --color-primary:     #6366f1;
+    --color-primary-end: #312e81;
+    --color-primary-rgb: 99, 102, 241;
+    --color-accent:      #6366f1;
+    --sidebar-active-bg: #eef2ff;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Sidebar */
+/* ── Navbar ────────────────────────────────────────────────────────────────── */
+.navbar-brand {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.navbar.bg-dark {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────────── */
 .sidebar {
     position: fixed;
     top: 56px; /* Height of navbar */
@@ -12,38 +64,39 @@ body {
     left: 0;
     z-index: 100;
     padding: 0;
-    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .08);
 }
 
 .sidebar .nav-link {
     font-weight: 500;
-    color: #333;
-    padding: 1rem 1.5rem;
+    color: #444;
+    padding: 0.85rem 1.5rem;
     border-left: 3px solid transparent;
+    transition: color 0.15s, background-color 0.15s, border-left-color 0.15s;
 }
 
 .sidebar .nav-link:hover {
-    color: #007bff;
-    background-color: #f8f9fa;
+    color: var(--color-accent);
+    background-color: var(--sidebar-active-bg);
 }
 
 .sidebar .nav-link.active {
-    color: #007bff;
-    border-left-color: #007bff;
-    background-color: #f8f9fa;
+    color: var(--color-accent);
+    border-left-color: var(--color-accent);
+    background-color: var(--sidebar-active-bg);
 }
 
 .sidebar .nav-link i {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
 }
 
-/* Main content */
+/* ── Main content ──────────────────────────────────────────────────────────── */
 main {
     margin-top: 0;
     padding-top: 1rem;
 }
 
-/* Chat messages */
+/* ── Chat messages ─────────────────────────────────────────────────────────── */
 #chat-messages {
     background-color: #f8f9fa;
     min-height: 400px;
@@ -65,59 +118,56 @@ main {
 }
 
 .user-message .message-content {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-end) 100%);
+    box-shadow: 0 2px 6px rgba(var(--color-primary-rgb), 0.25);
 }
 
 .assistant-message .message-content {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .message-text {
     word-wrap: break-word;
     white-space: pre-wrap;
-    line-height: 1.5;
+    line-height: 1.55;
 }
 
 .message-text code {
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: rgba(0, 0, 0, 0.08);
     padding: 2px 6px;
     border-radius: 3px;
     font-size: 0.9em;
 }
 
-/* Loading animation */
+/* ── Loading animation ─────────────────────────────────────────────────────── */
 .loading-message {
     animation: pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
 }
 
-/* Cards */
+/* ── Cards ─────────────────────────────────────────────────────────────────── */
 .card {
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07), 0 4px 12px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.07);
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.09), 0 8px 20px rgba(0, 0, 0, 0.06);
 }
 
 .card-header {
     font-weight: 600;
-    border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
 }
 
-/* Progress bars */
+/* ── Progress bars ─────────────────────────────────────────────────────────── */
 .progress {
     height: 25px;
     border-radius: 8px;
@@ -129,20 +179,21 @@ main {
     font-weight: 500;
 }
 
-/* Buttons */
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
 .btn {
     border-radius: 6px;
     font-weight: 500;
+    letter-spacing: 0.01em;
     transition: all 0.2s;
 }
 
 .btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-end) 100%);
     border: none;
 }
 
@@ -152,13 +203,13 @@ main {
     color: #333;
 }
 
-/* Badges */
+/* ── Badges ────────────────────────────────────────────────────────────────── */
 .badge {
     font-weight: 500;
     padding: 0.5em 0.75em;
 }
 
-/* Top bar status indicators */
+/* ── Top bar status indicators ─────────────────────────────────────────────── */
 #system-status .badge {
     font-size: 0.85rem;
 }
@@ -167,31 +218,31 @@ main {
     font-size: 0.5rem;
 }
 
-/* Form controls */
+/* ── Form controls ─────────────────────────────────────────────────────────── */
 .form-control:focus,
 .form-select:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--color-primary-rgb), 0.22);
 }
 
-/* List groups */
+/* ── List groups ───────────────────────────────────────────────────────────── */
 .list-group-item {
     border-left: 3px solid transparent;
     transition: all 0.2s;
 }
 
 .list-group-item:hover {
-    border-left-color: #667eea;
+    border-left-color: var(--color-primary);
     background-color: #f8f9fa;
 }
 
-/* Alerts */
+/* ── Alerts ────────────────────────────────────────────────────────────────── */
 .alert {
     border-radius: 8px;
     border: none;
 }
 
-/* Scrollbar */
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 #chat-messages::-webkit-scrollbar {
     width: 8px;
 }
@@ -202,44 +253,44 @@ main {
 }
 
 #chat-messages::-webkit-scrollbar-thumb {
-    background: #888;
+    background: #bbb;
     border-radius: 10px;
 }
 
 #chat-messages::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    background: #888;
 }
 
-/* Model cards */
+/* ── Model cards ───────────────────────────────────────────────────────────── */
 .model-card {
     transition: all 0.2s;
 }
 
 .model-card:hover {
-    border-color: #667eea !important;
+    border-color: var(--color-primary) !important;
 }
 
 .model-card.border-success {
     border-width: 2px !important;
 }
 
-/* Responsive adjustments */
+/* ── Responsive adjustments ────────────────────────────────────────────────── */
 @media (max-width: 768px) {
     .sidebar {
         position: static;
         height: auto;
     }
-    
+
     main {
         margin-left: 0 !important;
     }
-    
+
     .card {
         margin-bottom: 1rem;
     }
 }
 
-/* Utility classes */
+/* ── Utility classes ───────────────────────────────────────────────────────── */
 .fs-7 {
     font-size: 0.875rem;
 }
@@ -248,7 +299,42 @@ main {
     cursor: pointer;
 }
 
-/* SVG Architecture Diagram */
+/* ── SVG Architecture Diagram ──────────────────────────────────────────────── */
 svg text {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ── Theme swatches (Settings → Appearance) ────────────────────────────────── */
+.theme-swatch-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+
+.theme-swatch {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition: border-color 0.2s, outline-color 0.2s, transform 0.2s;
+}
+
+.theme-swatch:hover {
+    transform: scale(1.1);
+    outline-color: #aaa;
+}
+
+.theme-swatch.active {
+    outline-color: #333;
+    transform: scale(1.08);
+}
+
+.theme-swatch-wrap span {
+    font-size: 0.72rem;
+    color: #666;
+    font-weight: 500;
 }

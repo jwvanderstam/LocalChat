@@ -541,7 +541,7 @@
                                             </div>
                                             <div class="list-group-item px-0">
                                                 <code>routes/</code>
-                                                <small class="text-muted d-block">api, documents, models, memory, web, admin_routes, error_handlers</small>
+                                                <small class="text-muted d-block">api, documents, models, memory, web, settings_routes, error_handlers</small>
                                             </div>
                                             <div class="list-group-item px-0">
                                                 <code>cache/</code>
@@ -577,7 +577,7 @@
                                     <div class="list-group-item px-0"><code>chat.html</code> <small class="text-muted">— Interactive chat with RAG toggle, streaming display</small></div>
                                     <div class="list-group-item px-0"><code>documents.html</code> <small class="text-muted">— Multi-file upload, document list, test retrieval</small></div>
                                     <div class="list-group-item px-0"><code>models.html</code> <small class="text-muted">— Ollama model list, pull, delete, set active</small></div>
-                                    <div class="list-group-item px-0"><code>admin.html</code> <small class="text-muted">— Admin dashboard: live metrics, system control (JWT protected)</small></div>
+                                    <div class="list-group-item px-0"><code>settings.html</code> <small class="text-muted">— Settings: Observability dashboard + Appearance (theme picker)</small></div>
                                     <div class="list-group-item px-0"><code>overview.html</code> <small class="text-muted">— System overview (this page)</small></div>
                                 </div>
                             </div>
@@ -798,9 +798,9 @@
                         </a>
                     </div>
                     <div class="col-6 col-md-2">
-                        <a href="/admin" class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                            <i class="bi bi-speedometer2 fs-3 mb-1"></i>
-                            <span>Admin</span>
+                        <a href="/settings" class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                            <i class="bi bi-sliders fs-3 mb-1"></i>
+                            <span>Settings</span>
                         </a>
                     </div>
                     <div class="col-6 col-md-2">
@@ -843,7 +843,7 @@
                             <li><strong>Ollama Client:</strong> <code>src/ollama_client.py</code></li>
                             <li><strong>Monitoring:</strong> <code>src/monitoring.py</code> (Prometheus, health, request timing)</li>
                             <li><strong>Security:</strong> <code>src/security.py</code> (JWT, rate limiting, CORS)</li>
-                            <li><strong>Admin Routes:</strong> <code>src/routes/admin_routes.py</code></li>
+                            <li><strong>Settings Routes:</strong> <code>src/routes/settings_routes.py</code></li>
                             <li><strong>Tool System:</strong> <code>src/tools/</code> (registry, executor, builtins)</li>
                             <li><strong>Cache:</strong> <code>src/cache/</code> (memory / Redis / database backends)</li>
                             <li><strong>Validation:</strong> <code>src/models.py</code> (8 Pydantic models)</li>
@@ -946,7 +946,7 @@
                         <tr><td>Handle new error type</td><td><code>src/exceptions.py</code></td></tr>
                         <tr><td>Add monitoring metric</td><td><code>src/monitoring.py</code></td></tr>
                         <tr><td>Change UI layout</td><td><code>templates/base.html</code></td></tr>
-                        <tr><td>Add admin feature</td><td><code>src/routes/admin_routes.py</code>, <code>templates/admin.html</code></td></tr>
+                        <tr><td>Add settings feature</td><td><code>src/routes/settings_routes.py</code>, <code>templates/settings.html</code></td></tr>
                         <tr><td>Add JavaScript feature</td><td><code>static/js/*.js</code></td></tr>
                         <tr><td>Write new test</td><td><code>tests/unit/*.py</code></td></tr>
                     </tbody>

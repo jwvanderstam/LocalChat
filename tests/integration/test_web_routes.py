@@ -116,12 +116,43 @@ class TestOverviewRoute:
         assert response.content_type.startswith('text/html')
 
 
+class TestSettingsRoute:
+    """Test settings page route."""
+
+    def test_settings_renders_template(self, client):
+        """Test settings route renders template."""
+        response = client.get('/settings')
+
+        assert response.status_code == 200
+
+    def test_settings_returns_html(self, client):
+        """Test settings returns HTML content."""
+        response = client.get('/settings')
+
+        assert response.content_type.startswith('text/html')
+
+    def test_settings_observability_tab_present(self, client):
+        """Test settings page includes the Observability tab."""
+        response = client.get('/settings')
+
+        assert response.status_code == 200
+        assert b'Observability' in response.data
+
+    def test_settings_appearance_tab_present(self, client):
+        """Test settings page includes the Appearance tab and theme swatches container."""
+        response = client.get('/settings')
+
+        assert response.status_code == 200
+        assert b'Appearance' in response.data
+        assert b'theme-swatches' in response.data
+
+
 class TestWebRoutesGeneral:
     """Test general web route behavior."""
 
     def test_all_routes_accessible(self, client):
         """Test all web routes are accessible."""
-        routes = ['/', '/chat', '/documents', '/models', '/overview']
+        routes = ['/', '/chat', '/documents', '/models', '/overview', '/settings']
 
         for route in routes:
             response = client.get(route)
