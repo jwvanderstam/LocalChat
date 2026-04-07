@@ -495,3 +495,23 @@ class TestModelsEdgeCases:
             details=details
         )
         assert error.details["count"] == 2
+
+
+# ============================================================================
+# DEFAULT_TEMPERATURE consistency
+# ============================================================================
+
+@pytest.mark.unit
+class TestChatRequestTemperatureDefault:
+    """Ensure ChatRequest temperature default matches config.DEFAULT_TEMPERATURE."""
+
+    def test_default_temperature_matches_config(self):
+        """ChatRequest().temperature must equal config.DEFAULT_TEMPERATURE."""
+        from src import config
+        request = ChatRequest(message="hello")
+        assert request.temperature == config.DEFAULT_TEMPERATURE
+
+    def test_explicit_temperature_overrides_default(self):
+        """An explicitly provided temperature is not clamped to the config default."""
+        request = ChatRequest(message="hello", temperature=0.9)
+        assert request.temperature == 0.9

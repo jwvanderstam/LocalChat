@@ -94,7 +94,8 @@ class RetrievalMixin:
 
         queries = [query]
 
-        # Common domain-specific expansions
+        # English business-domain synonyms only. Does nothing for other domains.
+        # Disable entirely via QUERY_EXPANSION_ENABLED=false in .env (default off).
         expansions = {
             'revenue': ['income', 'earnings', 'sales'],
             'profit': ['earnings', 'net income', 'margin'],

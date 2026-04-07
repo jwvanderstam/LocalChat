@@ -35,9 +35,10 @@ class TestChatRequestTemperature:
     """Temperature field validation on ChatRequest."""
 
     def test_default_temperature(self):
+        from src import config
         from src.models import ChatRequest
         req = ChatRequest(message="hello")
-        assert req.temperature == 0.7
+        assert req.temperature == config.DEFAULT_TEMPERATURE
 
     def test_temperature_zero(self):
         from src.models import ChatRequest
@@ -266,10 +267,11 @@ class TestParseChatRequest:
     """_parse_chat_request returns temperature in the field dict."""
 
     def test_temperature_included_with_default(self):
+        from src import config
         from src.routes.api_routes import _parse_chat_request
         fields = _parse_chat_request({'message': 'hi', 'use_rag': False})
         assert 'temperature' in fields
-        assert fields['temperature'] == pytest.approx(0.7)
+        assert fields['temperature'] == pytest.approx(config.DEFAULT_TEMPERATURE)
 
     def test_temperature_included_when_provided(self):
         from src.routes.api_routes import _parse_chat_request

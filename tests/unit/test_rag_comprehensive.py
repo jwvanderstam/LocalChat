@@ -309,7 +309,7 @@ class TestEmbeddingGeneration:
     """Test embedding generation functionality."""
 
     def test_generate_embeddings_batch(self, doc_processor, sample_chunks, mock_ollama):
-        """Should generate embeddings for batch of texts."""
+        """Should generate embeddings via batch API call (not per-text)."""
         embeddings = doc_processor.generate_embeddings_batch(
             sample_chunks,
             model="nomic-embed-text"
@@ -317,26 +317,24 @@ class TestEmbeddingGeneration:
 
         assert len(embeddings) == len(sample_chunks)
         assert all(emb is not None for emb in embeddings)
-        assert mock_ollama.generate_embedding.call_count == len(sample_chunks)
+        # Batch client method must be called, NOT per-text generate_embedding
+        assert mock_ollama.generate_embeddings_batch.call_count >= 1
 
     def test_generate_embeddings_batch_custom_size(self, doc_processor, mock_ollama):
-        """Should respect custom batch size."""
+        """Should respect custom batch size — each batch triggers one batch API call."""
         texts = ["text"] * 100
 
         embeddings = doc_processor.generate_embeddings_batch(texts, batch_size=25)
 
         assert len(embeddings) == 100
-        # Should process in batches of 25 (4 batches total)
-        assert mock_ollama.generate_embedding.call_count == 100
+        # 4 batches of 25 → 4 calls to generate_embeddings_batch on the client
+        assert mock_ollama.generate_embeddings_batch.call_count == 4
 
     def test_generate_embeddings_handles_failures(self, doc_processor, mock_ollama):
-        """Should handle embedding failures gracefully."""
-        # Mock some failures
-        mock_ollama.generate_embedding.side_effect = [
-            (True, [0.1] * 768),
-            (False, []),  # Failure
-            (True, [0.2] * 768)
-        ]
+        """Should handle embedding failures gracefully (None for failed items)."""
+        mock_ollama.generate_embeddings_batch.side_effect = (
+            lambda model, texts: [[0.1] * 768, None, [0.2] * 768]
+        )
 
         texts = ["text1", "text2", "text3"]
         embeddings = doc_processor.generate_embeddings_batch(texts)

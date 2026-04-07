@@ -96,13 +96,11 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
             logger.debug(f"Processing embedding batch {i//batch_size_int + 1}: texts {i+1}-{batch_end} of {total}")
 
-            for text in batch:
-                success, embedding = ollama_client.generate_embedding(model, text)
-                if success:
-                    embeddings.append(embedding)
-                else:
-                    embeddings.append(None)
-                    logger.warning(f"Failed to generate embedding for text at index {len(embeddings)-1}")
+            batch_results = ollama_client.generate_embeddings_batch(model, batch)
+            embeddings.extend(batch_results)
+            failed = sum(1 for e in batch_results if e is None)
+            if failed:
+                logger.warning(f"Failed to generate {failed} embedding(s) in batch {i//batch_size_int + 1}")
 
         logger.info(f"Generated embeddings for {len(texts)} texts using model {model} ({sum(1 for e in embeddings if e is not None)} successful)")
         return embeddings

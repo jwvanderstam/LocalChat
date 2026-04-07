@@ -12,6 +12,7 @@ Last Updated: 2025-01-27
 """
 
 import json
+import threading
 import time
 from typing import TYPE_CHECKING, Any, Dict, Generator
 
@@ -42,6 +43,7 @@ logger = get_logger(__name__)
 # avoid a DB round-trip on every poll by caching for 5 s.
 _status_doc_count_cache: list = [0, 0.0]  # [count, last_refresh_monotonic]
 _STATUS_CACHE_TTL: float = 5.0
+_status_cache_lock = threading.Lock()
 
 # ── System prompts (module-level to avoid re-creation per request) ──────────
 _RAG_SYSTEM_PROMPT = """You are a helpful assistant that answers questions based strictly on the provided context passages.
@@ -214,14 +216,15 @@ def api_status():
     db_available = current_app.startup_status.get('database', False)
 
     if db_available:
-        now = time.monotonic()
-        if now - _status_doc_count_cache[1] > _STATUS_CACHE_TTL:
-            try:
-                _status_doc_count_cache[:] = [current_app.db.get_document_count(), now]
-            except Exception as e:
-                logger.warning(f"Could not get document count: {e}")
-                db_available = False
-        doc_count = _status_doc_count_cache[0]
+        with _status_cache_lock:
+            now = time.monotonic()
+            if now - _status_doc_count_cache[1] > _STATUS_CACHE_TTL:
+                try:
+                    _status_doc_count_cache[:] = [current_app.db.get_document_count(), now]
+                except Exception as e:
+                    logger.warning(f"Could not get document count: {e}")
+                    db_available = False
+            doc_count = _status_doc_count_cache[0]
 
     # Get cache stats if available
     cache_stats = {}

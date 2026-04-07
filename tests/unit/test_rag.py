@@ -163,7 +163,8 @@ class TestEmbeddingGeneration:
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
 
-        mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
+        mock_vec = generate_mock_embedding()
+        mock_ollama.generate_embeddings_batch.return_value = [mock_vec, mock_vec, mock_vec]
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
 
         texts = ["text 1", "text 2", "text 3"]
@@ -174,16 +175,13 @@ class TestEmbeddingGeneration:
 
     @patch('src.rag.processor.ollama_client')
     def test_generate_embeddings_handles_failures(self, mock_ollama):
-        """Should handle embedding failures."""
+        """Should handle embedding failures gracefully (None for failed items)."""
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
 
-        # Mock alternating success/failure
-        mock_ollama.generate_embedding.side_effect = [
-            (True, generate_mock_embedding()),
-            (False, None),
-            (True, generate_mock_embedding()),
-        ]
+        mock_vec = generate_mock_embedding()
+        # generate_embeddings_batch returns None for failed items
+        mock_ollama.generate_embeddings_batch.return_value = [mock_vec, None, mock_vec]
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
 
         texts = ["text 1", "text 2", "text 3"]

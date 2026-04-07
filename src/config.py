@@ -137,8 +137,8 @@ OLLAMA_NUM_CTX: int = int(os.environ.get('OLLAMA_NUM_CTX', '8192'))
 # ============================================================================
 
 # Chunking - OPTIMIZED (prevents repetition)
-CHUNK_SIZE: int = 1200             # Large chunks for context
-CHUNK_OVERLAP: int = 150           # 12.5% overlap - industry standard (was 300/25%)
+CHUNK_SIZE: int = int(os.environ.get("CHUNK_SIZE", "1200"))       # Large chunks for context
+CHUNK_OVERLAP: int = int(os.environ.get("CHUNK_OVERLAP", "150"))  # 12.5% overlap - industry standard (was 300/25%)
 CHUNK_SEPARATORS: list[str] = [
     '\n\n\n',      # Major section breaks
     '\n\n',        # Paragraph breaks (primary)
@@ -159,18 +159,18 @@ KEEP_TABLES_INTACT: bool = True    # Always try to keep tables together
 MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 
 # Retrieval Configuration - OPTIMIZED FOR SYNTHESIS
-TOP_K_RESULTS: int = 20                      # Retrieve focused candidates (reduced from 30)
+TOP_K_RESULTS: int = int(os.environ.get("TOP_K_RESULTS", "20"))  # Retrieve focused candidates (reduced from 30)
 MIN_SIMILARITY_THRESHOLD: float = 0.30       # Slightly higher for quality (was 0.25)
 RERANK_RESULTS: bool = True                  # Always re-rank for precision
 RERANK_TOP_K: int = 4                        # Return 4 best chunks - better for synthesis (was 6)
 
 # Hybrid Search Configuration
 HYBRID_SEARCH_ENABLED: bool = True           # Enable semantic + BM25 hybrid search
-SEMANTIC_WEIGHT: float = 0.70                # Semantic similarity weight in hybrid
+SEMANTIC_WEIGHT: float = float(os.environ.get("SEMANTIC_WEIGHT", "0.70"))  # Semantic similarity weight in hybrid
 BM25_ENABLED: bool = True                    # Enable BM25 keyword matching
 
 # Query Enhancement
-QUERY_EXPANSION_ENABLED: bool = True         # Expand queries with synonyms
+QUERY_EXPANSION_ENABLED: bool = False        # Expand queries with synonyms (opt-in; English business-domain only)
 MAX_QUERY_EXPANSIONS: int = 2                # Add up to 2 related terms
 QUERY_MIN_LENGTH: int = 10                   # Minimum chars for meaningful query
 

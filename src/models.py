@@ -86,7 +86,7 @@ class ChatRequest(BaseModel):
         description="Optional list of base64-encoded images for vision-capable models"
     )
     temperature: float = Field(
-        default=0.7,
+        default=config.DEFAULT_TEMPERATURE,
         ge=0.0,
         le=2.0,
         description="Sampling temperature (0 = deterministic, 2 = very creative)"

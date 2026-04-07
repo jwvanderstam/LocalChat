@@ -4,6 +4,25 @@ Backup, restore, and maintenance procedures for a production LocalChat deploymen
 
 ---
 
+## Plugin Security
+
+LocalChat supports custom tool plugins loaded from the `plugins/` directory at startup
+(`src/tools/plugin_loader.py`). Plugins are plain `.py` files imported with full Python
+interpreter access — they can import any module, open files, make network requests, or
+modify application state.
+
+**Only load plugins from trusted sources.** There is no sandboxing, signature
+verification, or capability restriction. Treat a plugin file with the same level of
+trust as any other Python source code running in your production environment.
+
+Operational checklist before adding a plugin:
+- Review the source code manually before deploying.
+- Run it in a staging environment first.
+- Restrict filesystem permissions on the `plugins/` directory so only authorised
+  operators can write to it.
+
+---
+
 ## PostgreSQL Backup
 
 ### Full database dump

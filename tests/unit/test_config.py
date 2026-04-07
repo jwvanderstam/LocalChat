@@ -441,3 +441,56 @@ class TestEnvironmentVariables:
 
         assert TOP_K_RESULTS > 0
         assert TOP_K_RESULTS < 1000  # Reasonable upper bound
+
+
+# ============================================================================
+# Env-configurable RAG params
+# ============================================================================
+
+class TestEnvConfigurableRagParams:
+    """
+    Verify that CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_RESULTS, and SEMANTIC_WEIGHT
+    are read from environment variables when present.
+
+    Because config.py is loaded at import time, we use importlib.reload()
+    inside a patched os.environ to observe the effect.
+    """
+
+    def _reload_config_with_env(self, overrides: dict):
+        import importlib
+        import src.config as cfg_module
+        with patch.dict(os.environ, overrides, clear=False):
+            importlib.reload(cfg_module)
+            return cfg_module
+
+    def test_chunk_size_from_env(self):
+        cfg = self._reload_config_with_env({"CHUNK_SIZE": "800"})
+        assert cfg.CHUNK_SIZE == 800
+
+    def test_chunk_overlap_from_env(self):
+        cfg = self._reload_config_with_env({"CHUNK_OVERLAP": "100"})
+        assert cfg.CHUNK_OVERLAP == 100
+
+    def test_top_k_results_from_env(self):
+        cfg = self._reload_config_with_env({"TOP_K_RESULTS": "10"})
+        assert cfg.TOP_K_RESULTS == 10
+
+    def test_semantic_weight_from_env(self):
+        cfg = self._reload_config_with_env({"SEMANTIC_WEIGHT": "0.55"})
+        assert abs(cfg.SEMANTIC_WEIGHT - 0.55) < 1e-9
+
+    def test_defaults_used_when_env_absent(self):
+        """Without env overrides, defaults must be the documented values."""
+        # Strip the keys in case the test runner has them set
+        stripped = {k: "" for k in ("CHUNK_SIZE", "CHUNK_OVERLAP", "TOP_K_RESULTS", "SEMANTIC_WEIGHT")}
+        import importlib
+        import src.config as cfg_module
+        env = {k: v for k, v in os.environ.items() if k not in stripped}
+        with patch.dict(os.environ, {}, clear=True):
+            # Re-apply everything except the stripped keys
+            os.environ.update(env)
+            importlib.reload(cfg_module)
+            assert cfg_module.CHUNK_SIZE == 1200
+            assert cfg_module.CHUNK_OVERLAP == 150
+            assert cfg_module.TOP_K_RESULTS == 20
+            assert abs(cfg_module.SEMANTIC_WEIGHT - 0.70) < 1e-9
