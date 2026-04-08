@@ -139,7 +139,13 @@ class ConversationsMixin:
                     for row in rows
                 ]
 
-    def save_message(self, conversation_id: str, role: str, content: str) -> int:
+    def save_message(
+        self,
+        conversation_id: str,
+        role: str,
+        content: str,
+        plan_json: dict | None = None,
+    ) -> int:
         """
         Append a message to a conversation and update its timestamp.
 
@@ -147,6 +153,7 @@ class ConversationsMixin:
             conversation_id: UUID of the conversation
             role: 'user' or 'assistant'
             content: Message text
+            plan_json: Optional query plan dict (stored for the user turn)
 
         Returns:
             int: ID of the inserted message row
@@ -157,19 +164,21 @@ class ConversationsMixin:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot save message: Database is not connected")
 
+        from psycopg.types.json import Jsonb
+
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
                     WITH ins AS (
-                        INSERT INTO conversation_messages (conversation_id, role, content)
-                        VALUES (%s, %s, %s) RETURNING id
+                        INSERT INTO conversation_messages (conversation_id, role, content, plan_json)
+                        VALUES (%s, %s, %s, %s) RETURNING id
                     ), upd AS (
                         UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = %s
                     )
                     SELECT id FROM ins
                     """,
-                    (conversation_id, role, content, conversation_id),
+                    (conversation_id, role, content, Jsonb(plan_json) if plan_json else None, conversation_id),
                 )
                 message_id = cursor.fetchone()[0]
                 conn.commit()

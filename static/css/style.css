@@ -555,3 +555,38 @@ svg text {
     max-height: 260px;
     overflow-y: auto;
 }
+
+/* ── Query plan trace panel ────────────────────────────────────────────────── */
+.plan-trace summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 2px 0;
+    border-top: 1px solid #e9ecef;
+    margin-bottom: 2px;
+}
+
+.plan-trace summary::-webkit-details-marker { display: none; }
+
+.plan-trace summary::before {
+    content: '▶ ';
+    font-size: 0.6rem;
+    opacity: 0.6;
+}
+
+.plan-trace[open] summary::before {
+    content: '▼ ';
+}
+
+.plan-trace-body {
+    border-left: 2px solid #dee2e6;
+    padding-left: 0.5rem !important;
+}
+
+[data-bs-theme="dark"] .plan-trace summary {
+    border-top-color: #2d3748;
+}
+
+[data-bs-theme="dark"] .plan-trace-body {
+    border-left-color: #2d3748;
+}

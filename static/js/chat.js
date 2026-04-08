@@ -438,6 +438,16 @@ async function sendMessage() {
                     break;
                 }
 
+                if (data.plan) {
+                    const messageContent = chatMessages.querySelector('.assistant-message:last-child .message-content');
+                    if (messageContent) {
+                        const planPanel = buildPlanTrace(data.plan);
+                        const msgText = messageContent.querySelector('.message-text');
+                        messageContent.insertBefore(planPanel, msgText);
+                        scrollToBottom();
+                    }
+                }
+
                 if (data.content) {
                     assistantResponse += data.content;
                     if (messageTextElement) {
@@ -604,6 +614,54 @@ function buildSourcesPanel(sources) {
     });
 
     details.appendChild(list);
+    return details;
+}
+
+function buildPlanTrace(plan) {
+    const INTENT_COLORS = {
+        factual_lookup: 'bg-primary',
+        comparison:     'bg-info text-dark',
+        synthesis:      'bg-warning text-dark',
+        general:        'bg-secondary',
+    };
+    const intentColor = INTENT_COLORS[plan.intent] || 'bg-secondary';
+
+    const details = document.createElement('details');
+    details.className = 'plan-trace mb-2';
+
+    const summary = document.createElement('summary');
+    summary.className = 'text-muted small d-flex align-items-center gap-2';
+    summary.innerHTML =
+        `<span class="badge ${intentColor}" style="font-size:0.65rem">${escapeHtml(plan.intent)}</span>` +
+        `<span>Reasoning trace</span>` +
+        (plan.estimated_hops > 1 ? `<span class="badge bg-light text-dark border" style="font-size:0.65rem">${plan.estimated_hops}-hop</span>` : '');
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'plan-trace-body mt-1 ps-2';
+
+    if (plan.sub_questions && plan.sub_questions.length > 0) {
+        const ql = document.createElement('ul');
+        ql.className = 'list-unstyled mb-1';
+        plan.sub_questions.forEach(q => {
+            const li = document.createElement('li');
+            li.className = 'small text-muted';
+            li.innerHTML = `<span class="me-1">→</span>${escapeHtml(q)}`;
+            ql.appendChild(li);
+        });
+        body.appendChild(ql);
+    }
+
+    if (plan.tools && plan.tools.length > 0) {
+        const toolsDiv = document.createElement('div');
+        toolsDiv.className = 'small text-muted';
+        toolsDiv.innerHTML = plan.tools.map(t =>
+            `<span class="badge bg-light text-dark border me-1" style="font-size:0.6rem">${escapeHtml(t)}</span>`
+        ).join('');
+        body.appendChild(toolsDiv);
+    }
+
+    details.appendChild(body);
     return details;
 }
 

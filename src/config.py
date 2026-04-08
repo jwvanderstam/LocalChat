@@ -235,6 +235,13 @@ TOOL_CALLING_ENABLED: bool = os.environ.get('TOOL_CALLING_ENABLED', 'True').lowe
 TOOL_MAX_ROUNDS: int = int(os.environ.get('TOOL_MAX_ROUNDS', '5'))
 
 # ============================================================================
+# QUERY PLANNER CONFIGURATION (Feature 2.1)
+# ============================================================================
+
+# Set QUERY_PLANNER_ENABLED=false to skip the planning step entirely.
+QUERY_PLANNER_ENABLED: bool = os.environ.get('QUERY_PLANNER_ENABLED', 'True').lower() == 'true'
+
+# ============================================================================
 # CLOUD MODEL FALLBACK CONFIGURATION (Feature 1.3)
 # ============================================================================
 

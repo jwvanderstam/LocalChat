@@ -249,24 +249,39 @@ def api_status():
     return jsonify(response)
 
 
-def _retrieve_contexts(fields: dict, doc_processor) -> tuple:
-    """Retrieve local RAG context and web search context based on request flags."""
+def _get_filename_filter(fields: dict) -> list[str]:
+    """Return the active document filter for this conversation (or empty list)."""
+    conversation_id = fields.get('conversation_id')
+    if not conversation_id:
+        return []
+    try:
+        return current_app.db.get_conversation_document_filter(conversation_id)
+    except Exception as filter_err:
+        logger.warning(f"[RAG] Could not read document filter: {filter_err}")
+        return []
+
+
+def _retrieve_contexts(fields: dict, doc_processor, plan=None) -> tuple:
+    """Retrieve local RAG context and web search context based on request flags.
+
+    When *plan* is provided and is multi-hop, runs parallel retrievals for
+    each sub-question, merges results, and deduplicates by chunk_id.
+    """
     local_context = ""
     web_context = ""
     sources: list[dict] = []
 
     if fields['use_rag']:
         try:
-            filename_filter: list[str] = []
-            conversation_id = fields.get('conversation_id')
-            if conversation_id:
-                try:
-                    filename_filter = current_app.db.get_conversation_document_filter(conversation_id)
-                except Exception as filter_err:
-                    logger.warning(f"[RAG] Could not read document filter: {filter_err}")
-            local_context, sources = _get_rag_context(
-                fields['message'], doc_processor, filename_filter=filename_filter
-            )
+            filename_filter = _get_filename_filter(fields)
+            if plan is not None and plan.is_multi_hop:
+                local_context, sources = _get_rag_context_multi_hop(
+                    plan.sub_questions, doc_processor, filename_filter
+                )
+            else:
+                local_context, sources = _get_rag_context(
+                    fields['message'], doc_processor, filename_filter=filename_filter
+                )
         except Exception as e:
             raise exceptions.SearchError(
                 f"Failed to retrieve context: {e}", details={"error": str(e)}
@@ -281,6 +296,54 @@ def _retrieve_contexts(fields: dict, doc_processor) -> tuple:
     return local_context, web_context, sources
 
 
+def _get_rag_context_multi_hop(
+    sub_questions: list[str],
+    doc_processor,
+    filename_filter: list[str],
+) -> tuple[str, list[dict]]:
+    """Parallel retrieval per sub-question, merged and deduplicated by chunk_id."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    all_results: list = []
+    with ThreadPoolExecutor(max_workers=min(len(sub_questions), 4)) as executor:
+        futures = {
+            executor.submit(doc_processor.retrieve_context, q, filename_filter=filename_filter): q
+            for q in sub_questions
+        }
+        for future in as_completed(futures):
+            try:
+                all_results.extend(future.result())
+            except Exception as exc:
+                logger.warning(f"[Planner] Sub-question retrieval failed: {exc}")
+
+    # Deduplicate by chunk_id, keep highest similarity score per chunk
+    seen: dict[int, tuple] = {}
+    for r in all_results:
+        chunk_id = r[5]
+        if chunk_id not in seen or r[3] > seen[chunk_id][3]:
+            seen[chunk_id] = r
+
+    merged = sorted(seen.values(), key=lambda r: r[3], reverse=True)
+    merged = merged[:config.TOP_K_RESULTS]
+
+    if not merged:
+        return "", []
+
+    g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(merged)
+    local_context = doc_processor.format_context_for_llm(merged, max_length=6000)
+    sources = [
+        {
+            "filename": r[1],
+            "chunk_index": r[2],
+            "page_number": r[4].get("page_number"),
+            "section_title": r[4].get("section_title"),
+            "chunk_id": r[5],
+        }
+        for r in merged
+    ]
+    return local_context, sources
+
+
 def _build_user_message(message: str, images: list) -> dict[str, Any]:
     """Construct the user message dict, optionally attaching images."""
     msg: dict[str, Any] = {'role': 'user', 'content': message}
@@ -290,15 +353,16 @@ def _build_user_message(message: str, images: list) -> dict[str, Any]:
     return msg
 
 
-def _persist_user_message(app, conversation_id, message: str):
-    """Save the user message to the database if available. Returns conversation_id."""
+def _persist_user_message(app, conversation_id, message: str, plan=None):
+    """Save the user message (+ optional plan) to the database. Returns conversation_id."""
     if not app.startup_status.get('database', False):
         return conversation_id
     try:
         if not conversation_id:
             title = message[:60] + ('...' if len(message) > 60 else '')
             conversation_id = app.db.create_conversation(title)
-        app.db.save_message(conversation_id, 'user', message)
+        plan_json = plan.to_dict() if plan is not None else None
+        app.db.save_message(conversation_id, 'user', message, plan_json=plan_json)
     except Exception as mem_err:
         logger.warning(f"[MEMORY] Could not persist user message: {mem_err}")
         conversation_id = None
@@ -342,7 +406,7 @@ def _any_local_only_sources(sources: list[dict] | None, app) -> bool:
         return True  # Conservative fallback
 
 
-def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None):
+def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None, plan=None):
     """Build and return an SSE Response that streams the chat completion.
 
     When cloud fallback is enabled the local response is buffered first.
@@ -358,6 +422,11 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
         full_response: list[str] = []
         model_used = 'local'
         try:
+            # Emit the query plan as the very first SSE event so the frontend
+            # can render the reasoning trace before the answer starts streaming.
+            if plan is not None:
+                yield f"data: {json.dumps({'plan': plan.to_dict()})}\n\n"
+
             local_stream = (
                 tool_executor.execute(active_model, messages, stream=True)
                 if tool_executor is not None
@@ -494,20 +563,31 @@ def api_chat():
         g.model = active_model
         logger.info(f"[CHAT API] Request - RAG Mode: {fields['use_rag']}, Enhanced: {fields['enhance']}, Query: {fields['message'][:50]}...")
 
+        # ── Query planning (optional, non-blocking) ──────────────────────
+        plan = None
+        if config.QUERY_PLANNER_ENABLED and fields['use_rag']:
+            try:
+                from ..rag.planner import QueryPlanner
+                plan = QueryPlanner().plan(
+                    fields['message'], active_model, current_app.ollama_client
+                )
+            except Exception as plan_err:
+                logger.warning(f"[Planner] Unexpected error (skipped): {plan_err}")
+
         messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in fields['chat_history']]
-        local_ctx, web_ctx, sources = _retrieve_contexts(fields, current_app.doc_processor)
+        local_ctx, web_ctx, sources = _retrieve_contexts(fields, current_app.doc_processor, plan=plan)
         messages, final_message = _build_context_prompt(
             fields['message'], local_ctx, web_ctx, messages, fields['use_rag'], fields['enhance']
         )
         messages.append(_build_user_message(final_message, fields['images']))
 
         app = current_app._get_current_object()  # type: ignore[attr-defined]
-        conversation_id = _persist_user_message(app, fields['conversation_id'], fields['message'])
+        conversation_id = _persist_user_message(app, fields['conversation_id'], fields['message'], plan=plan)
         # Don't use tool calling when context is already embedded — the model
         # would try to call retrieval tools it doesn't need, causing confusion.
         tool_executor = None if (local_ctx or web_ctx) else _get_tool_executor(app)
 
-        return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, fields['temperature'], sources=sources)
+        return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, fields['temperature'], sources=sources, plan=plan)
 
     except (PydanticValidationError, exceptions.LocalChatException):
         raise

@@ -383,6 +383,12 @@ class DatabaseConnection:
                 logger.debug("documents.local_only column ensured")
 
                 cursor.execute("""
+                    ALTER TABLE conversation_messages
+                    ADD COLUMN IF NOT EXISTS plan_json JSONB
+                """)
+                logger.debug("conversation_messages.plan_json column ensured")
+
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS conversation_messages (
                         id SERIAL PRIMARY KEY,
                         conversation_id UUID NOT NULL
