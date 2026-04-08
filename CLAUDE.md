@@ -12,14 +12,14 @@ Always run `git log --oneline -5` and `git fetch origin` before starting work.  
 
 | Phase | Status |
 |-------|--------|
-| 1 — Foundation (Answer attribution, adaptive chunking, cloud fallback) | 🔲 Not started |
-| 2 — Intelligence (Query planner, long-term memory, GraphRAG) | 🔲 Not started |
+| 1 — Foundation (Answer attribution, adaptive chunking, cloud fallback) | ✅ Complete |
+| 2 — Intelligence (Query planner, long-term memory, GraphRAG) | ✅ Complete |
 | 3 — Architecture (MCP split, aggregator agent, multi-model router) | 🔲 Not started |
 | 4 — Platform (Feedback loop, workspaces, live connectors) | 🔲 Not started |
 
 New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.md` for full feature specs and acceptance criteria.
 
-**Next session:** Pick up Phase 1, Feature 1.1 (Answer Attribution + Source Viewer) — lowest effort, highest trust impact. Check `git log --oneline -5` and `git fetch origin` first.
+**Next session:** Pick up Phase 3, Feature 3.1 (MCP Server Split per Domain). Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 

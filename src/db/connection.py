@@ -389,6 +389,36 @@ class DatabaseConnection:
                 logger.debug("conversation_messages.plan_json column ensured")
 
                 cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS entities (
+                        id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name      TEXT NOT NULL,
+                        type      VARCHAR(50) NOT NULL,
+                        doc_count INTEGER DEFAULT 1,
+                        UNIQUE(name, type)
+                    )
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS entity_relations (
+                        source_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                        target_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+                        doc_id    INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+                        chunk_id  INTEGER REFERENCES document_chunks(id) ON DELETE CASCADE,
+                        relation  VARCHAR(50) DEFAULT 'mentioned_with',
+                        weight    FLOAT DEFAULT 1.0,
+                        PRIMARY KEY (source_id, target_id, chunk_id)
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS entity_relations_source_idx
+                    ON entity_relations (source_id)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS entity_relations_doc_idx
+                    ON entity_relations (doc_id)
+                """)
+                logger.debug("entities and entity_relations tables ensured")
+
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS memories (
                         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         content     TEXT NOT NULL,

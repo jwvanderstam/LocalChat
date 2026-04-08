@@ -293,6 +293,18 @@ class RetrievalMixin:
         logger.debug(f"[RAG] Parameters: top_k={top_k}, min_sim={min_similarity}, hybrid={use_hybrid_search}")
 
         query_clean = self._preprocess_query(query)
+
+        # ── GraphRAG query expansion (optional) ──────────────────────────────
+        if config.GRAPH_RAG_ENABLED:
+            try:
+                from ..graph.expander import QueryExpander
+                extra_terms = QueryExpander().expand(query_clean, db)
+                if extra_terms:
+                    query_clean = query_clean + " " + " ".join(extra_terms)
+                    logger.debug(f"[GraphRAG] Expanded query with: {extra_terms}")
+            except Exception as graph_exc:
+                logger.debug(f"[GraphRAG] Expansion skipped: {graph_exc}")
+
         _app_query_cache = self._get_app_cache('query_cache')
         _app_emb_cache = self._get_app_cache('embedding_cache')
 

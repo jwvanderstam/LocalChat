@@ -241,6 +241,11 @@ TOOL_MAX_ROUNDS: int = int(os.environ.get('TOOL_MAX_ROUNDS', '5'))
 # Set QUERY_PLANNER_ENABLED=false to skip the planning step entirely.
 QUERY_PLANNER_ENABLED: bool = os.environ.get('QUERY_PLANNER_ENABLED', 'True').lower() == 'true'
 
+# Set GRAPH_RAG_ENABLED=true to extract named entities on ingest and use graph
+# expansion to broaden BM25 query terms. Requires: pip install 'spacy>=3.7.0'
+# and: python -m spacy download en_core_web_sm
+GRAPH_RAG_ENABLED: bool = os.environ.get('GRAPH_RAG_ENABLED', 'False').lower() == 'true'
+
 # Set LONG_TERM_MEMORY_ENABLED=true to retrieve past memories at query time
 # and inject them into the system prompt. Extraction is triggered manually via
 # POST /api/memory/extract (or a cron job pointing at that endpoint).

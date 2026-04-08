@@ -106,6 +106,23 @@ class DocumentsMixin:
             logger.warning(f"any_local_only_sources query failed: {e}")
             return True  # Conservative: treat as local-only on error
 
+    def get_chunks_with_ids(self, doc_id: int) -> list[dict[str, Any]]:
+        """
+        Return chunk_text and id for all chunks of a document.
+
+        Used by the GraphRAG entity extractor after ingest.
+        """
+        if not self.is_connected:
+            return []
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, chunk_text FROM document_chunks WHERE document_id = %s",
+                    (doc_id,),
+                )
+                rows = cursor.fetchall()
+        return [{"chunk_id": r[0], "chunk_text": r[1]} for r in rows]
+
     def delete_document(self, doc_id: int) -> None:
         """
         Delete a single document and all its chunks (cascades via FK).

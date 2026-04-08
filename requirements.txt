@@ -28,6 +28,7 @@ pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this versio
 python-docx==1.2.0
 python-pptx>=1.0.2  # PPTX adaptive chunking (Feature 1.2)
 litellm>=1.67.0    # Cloud model fallback (Feature 1.3) — optional, only needed when CLOUD_FALLBACK_ENABLED=true
+spacy>=3.7.0       # GraphRAG entity extraction (Feature 2.3) — optional; also run: python -m spacy download en_core_web_sm
 
 # HTTP Requests
 requests==2.32.5
