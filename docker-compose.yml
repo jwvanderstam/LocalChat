@@ -129,6 +129,107 @@ services:
       start_period: 10s
 
   # ----------------------------------------------------------
+  # LocalChat MCP Domain Servers (Feature 3.1)
+  #
+  # Each server is an independent process using the same base image.
+  # Enabled only when MCP_ENABLED=true in the app service.
+  # Start all three:  docker compose --profile mcp up -d
+  # ----------------------------------------------------------
+
+  mcp-local-docs:
+    profiles: ["mcp"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/jwvanderstam/localchat:latest
+    restart: unless-stopped
+    command: >
+      sh -c "gunicorn 'mcp_servers.local_docs.server:flask_app'
+        --bind 0.0.0.0:5001
+        --workers 2
+        --timeout 120
+        --access-logfile -
+        --error-logfile -
+        --log-level info"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PG_HOST:         db
+      PG_PORT:         5432
+      PG_USER:         ${PG_USER:-postgres}
+      PG_PASSWORD:     ${PG_PASSWORD}
+      PG_DB:           ${PG_DB:-rag_db}
+      OLLAMA_BASE_URL: http://ollama:11434
+      SECRET_KEY:      ${SECRET_KEY:-dev-mcp-key}
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:5001:5001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - backend
+
+  mcp-web-search:
+    profiles: ["mcp"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/jwvanderstam/localchat:latest
+    restart: unless-stopped
+    command: >
+      sh -c "gunicorn 'mcp_servers.web_search.server:flask_app'
+        --bind 0.0.0.0:5002
+        --workers 2
+        --timeout 60
+        --access-logfile -
+        --error-logfile -
+        --log-level info"
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-mcp-key}
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:5002:5002"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - backend
+
+  mcp-cloud-connectors:
+    profiles: ["mcp"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/jwvanderstam/localchat:latest
+    restart: unless-stopped
+    command: >
+      sh -c "gunicorn 'mcp_servers.cloud_connectors.server:flask_app'
+        --bind 0.0.0.0:5003
+        --workers 1
+        --timeout 30
+        --access-logfile -
+        --error-logfile -
+        --log-level info"
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-mcp-key}
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:5003:5003"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5003/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - backend
+
+  # ----------------------------------------------------------
   # LocalChat application
   # ----------------------------------------------------------
   app:
@@ -177,6 +278,14 @@ services:
 
       # ── Performance ──────────────────────────────────────
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+
+      # ── MCP Server Routing (Feature 3.1) ─────────────────
+      # Set to true when mcp-local-docs / mcp-web-search / mcp-cloud-connectors
+      # are running (docker compose --profile mcp up -d).
+      MCP_ENABLED:             ${MCP_ENABLED:-false}
+      MCP_LOCAL_DOCS_URL:      http://mcp-local-docs:5001
+      MCP_WEB_SEARCH_URL:      http://mcp-web-search:5002
+      MCP_CLOUD_CONNECTORS_URL: http://mcp-cloud-connectors:5003
     ports:
       # Bind to 127.0.0.1 so the app is NOT directly reachable from the
       # outside.  Let Nginx / Traefik forward traffic on port 443.

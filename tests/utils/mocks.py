@@ -68,7 +68,8 @@ class MockDatabase:
                 doc.get('filename', 'unknown'),
                 chunk['chunk_index'],
                 random.uniform(0.7, 1.0),
-                chunk.get('metadata', {})  # Phase 1.1: Include metadata
+                chunk.get('metadata', {}),
+                chunk['id'],  # chunk_id (6th element, Feature 1.1)
             ))
         return results
 

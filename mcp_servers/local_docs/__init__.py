@@ -1,0 +1,1 @@
+"""Local Documents MCP Server."""

@@ -278,6 +278,23 @@ CLOUD_REFUSAL_PATTERNS: list[str] = [
 ]
 
 # ============================================================================
+# MCP SERVER CONFIGURATION
+# ============================================================================
+# Set MCP_ENABLED=true to route retrieval and web search through separate
+# MCP servers instead of direct in-process imports.  Each server runs as its
+# own process/container (see docker-compose.yml and mcp_servers/).
+# When an MCP server is unreachable its circuit breaker opens and the core
+# app falls back to direct imports automatically — zero data loss.
+MCP_ENABLED: bool = os.environ.get('MCP_ENABLED', 'false').lower() == 'true'
+MCP_LOCAL_DOCS_URL: str = os.environ.get('MCP_LOCAL_DOCS_URL', 'http://localhost:5001')
+MCP_WEB_SEARCH_URL: str = os.environ.get('MCP_WEB_SEARCH_URL', 'http://localhost:5002')
+MCP_CLOUD_CONNECTORS_URL: str = os.environ.get('MCP_CLOUD_CONNECTORS_URL', 'http://localhost:5003')
+MCP_TIMEOUT: int = int(os.environ.get('MCP_TIMEOUT', '30'))
+# Circuit breaker: open after N consecutive failures, attempt recovery after M seconds
+MCP_CIRCUIT_FAILURE_THRESHOLD: int = int(os.environ.get('MCP_CIRCUIT_FAILURE_THRESHOLD', '5'))
+MCP_CIRCUIT_RECOVERY_TIMEOUT: int = int(os.environ.get('MCP_CIRCUIT_RECOVERY_TIMEOUT', '60'))
+
+# ============================================================================
 # PLUGIN SYSTEM CONFIGURATION
 # ============================================================================
 

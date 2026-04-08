@@ -84,7 +84,32 @@ def _parse_chat_request(data: dict) -> dict:
 
 
 def _get_rag_context(message: str, doc_processor, filename_filter: list | None = None) -> tuple[str, list[dict]]:
-    """Retrieve and format RAG context. Returns (formatted context block, source list)."""
+    """Retrieve and format RAG context. Returns (formatted context block, source list).
+
+    When MCP_ENABLED is True, delegates to the local-docs MCP server.
+    Falls back to direct retrieval if the MCP server is unreachable.
+    """
+    if config.MCP_ENABLED:
+        try:
+            from ..mcp_client import mcp_registry
+            result = mcp_registry.local_docs.call_tool("search", {
+                "query": message,
+                "filters": {"filenames": filename_filter or []},
+                "top_k": config.TOP_K_RESULTS,
+            })
+            if isinstance(result, dict) and "context" in result:
+                context = result["context"]
+                sources = result.get("sources") or []
+                chunk_count = len(sources)
+                logger.info(f"[RAG/MCP] Retrieved {chunk_count} chunks via local-docs server")
+                g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + chunk_count
+                if not context:
+                    logger.warning("[RAG/MCP] No chunks retrieved from local-docs server")
+                return context, sources
+        except Exception as mcp_err:
+            logger.warning(f"[RAG/MCP] local-docs call failed, falling back to direct: {mcp_err}")
+
+    # Direct retrieval path (default when MCP disabled, or MCP fallback)
     results = doc_processor.retrieve_context(message, filename_filter=filename_filter or [])
     logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
     g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(results)
@@ -112,7 +137,27 @@ def _get_rag_context(message: str, doc_processor, filename_filter: list | None =
 
 
 def _get_web_context(message: str) -> str:
-    """Run web search and return formatted context block."""
+    """Run web search and return formatted context block.
+
+    When MCP_ENABLED is True, delegates to the web-search MCP server.
+    Falls back to direct search if the MCP server is unreachable.
+    """
+    if config.MCP_ENABLED:
+        try:
+            from ..mcp_client import mcp_registry
+            result = mcp_registry.web_search.call_tool("search", {"query": message})
+            if isinstance(result, dict):
+                context = result.get("context", "")
+                count = result.get("result_count", 0)
+                if context:
+                    logger.info(f"[ENHANCED/MCP] Got {count} web result(s) via web-search server")
+                    return context
+                logger.warning("[ENHANCED/MCP] Web search server returned no results")
+                return ""
+        except Exception as mcp_err:
+            logger.warning(f"[ENHANCED/MCP] web-search call failed, falling back to direct: {mcp_err}")
+
+    # Direct search path
     from ..rag.web_search import WebSearchProvider
     searcher = WebSearchProvider()
     web_results = searcher.search(message)
@@ -252,6 +297,14 @@ def api_status():
 
     if cache_stats:
         response['cache'] = cache_stats
+
+    if config.MCP_ENABLED:
+        try:
+            from ..mcp_client import mcp_registry
+            response['mcp_servers'] = mcp_registry.health_summary()
+        except Exception as mcp_err:
+            logger.warning(f"[MCP] health_summary failed: {mcp_err}")
+            response['mcp_servers'] = {'error': str(mcp_err)}
 
     return jsonify(response)
 

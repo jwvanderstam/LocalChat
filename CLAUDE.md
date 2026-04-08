@@ -14,12 +14,12 @@ Always run `git log --oneline -5` and `git fetch origin` before starting work.  
 |-------|--------|
 | 1 — Foundation (Answer attribution, adaptive chunking, cloud fallback) | ✅ Complete |
 | 2 — Intelligence (Query planner, long-term memory, GraphRAG) | ✅ Complete |
-| 3 — Architecture (MCP split, aggregator agent, multi-model router) | 🔲 Not started |
+| 3 — Architecture (MCP split, aggregator agent, multi-model router) | 🔄 In progress (3.1 done) |
 | 4 — Platform (Feedback loop, workspaces, live connectors) | 🔲 Not started |
 
 New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.md` for full feature specs and acceptance criteria.
 
-**Next session:** Pick up Phase 3, Feature 3.1 (MCP Server Split per Domain). Check `git log --oneline -5` and `git fetch origin` first.
+**Next session:** Pick up Phase 3, Feature 3.2 (Aggregator Agent + Tool Routing). Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 
@@ -126,8 +126,13 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `src/utils/request_id.py` | X-Request-ID middleware; per-request access log via `_access_logger` |
 | `src/security.py` | JWT, rate limiting, CORS |
 | `src/models.py` | Pydantic request/response models |
+| `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
+| `mcp_servers/base.py` | `MCPServer` base class — JSON-RPC 2.0 dispatcher (tools/list, tools/call, health) |
+| `mcp_servers/local_docs/server.py` | Local-docs MCP server — wraps retrieval + `format_context_for_llm`; gunicorn port 5001 |
+| `mcp_servers/web_search/server.py` | Web-search MCP server — wraps `WebSearchProvider`; gunicorn port 5002 |
+| `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server — Phase 4 stub; gunicorn port 5003 |
 | `tests/conftest.py` | Shared pytest fixtures |
-| `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama |
+| `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds 3 domain servers |
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 7 panels) |
 
 > **Maintenance rule:** When adding or removing a module, update the Key Files table above in the same PR. This is a checked item in PR review, not a best-effort afterthought.
