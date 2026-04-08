@@ -132,9 +132,13 @@ function applyDarkMode(enabled) {
 
 /**
  * Return true when dark mode is currently active.
+ * Defaults to true if the user has never set a preference.
  */
 function isDarkMode() {
-    try { return localStorage.getItem('lc-dark') === '1'; } catch (_) { return false; }
+    try {
+        const stored = localStorage.getItem('lc-dark');
+        return stored === null ? true : stored === '1';
+    } catch (_) { return true; }
 }
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────

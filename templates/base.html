@@ -6,7 +6,7 @@
     <title>LocalChat - RAG Application</title>
     
     <!-- Theme + dark mode: apply saved choices before CSS loads to prevent flash -->
-    <script>(function(){var t=localStorage.getItem('lc-theme');if(t)document.documentElement.setAttribute('data-theme',t);var d=localStorage.getItem('lc-dark');if(d==='1')document.documentElement.setAttribute('data-bs-theme','dark');})();</script>
+    <script>(function(){var t=localStorage.getItem('lc-theme');if(t)document.documentElement.setAttribute('data-theme',t);var d=localStorage.getItem('lc-dark');if(d!=='0')document.documentElement.setAttribute('data-bs-theme','dark');})();</script>
 
     <!-- Bootstrap 5 CSS -->
     <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
@@ -50,7 +50,7 @@
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar Navigation -->
-            <nav class="col-md-2 d-md-block bg-light sidebar">
+            <nav class="col-md-2 d-md-block sidebar">
                 <div class="position-sticky pt-3">
                     <ul class="nav flex-column">
                         <li class="nav-item">
