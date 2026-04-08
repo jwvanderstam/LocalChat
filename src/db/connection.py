@@ -389,6 +389,30 @@ class DatabaseConnection:
                 logger.debug("conversation_messages.plan_json column ensured")
 
                 cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS memories (
+                        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        content     TEXT NOT NULL,
+                        embedding   vector(768),
+                        source_conv UUID REFERENCES conversations(id) ON DELETE SET NULL,
+                        memory_type VARCHAR(20) DEFAULT 'fact',
+                        confidence  FLOAT DEFAULT 1.0,
+                        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_used   TIMESTAMP,
+                        use_count   INTEGER DEFAULT 0
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS memories_embedding_hnsw_idx
+                    ON memories USING hnsw (embedding vector_cosine_ops)
+                    WITH (m = 16, ef_construction = 64)
+                """)
+                cursor.execute("""
+                    ALTER TABLE conversations
+                    ADD COLUMN IF NOT EXISTS memory_extracted_at TIMESTAMP
+                """)
+                logger.debug("memories table and indexes ensured")
+
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS conversation_messages (
                         id SERIAL PRIMARY KEY,
                         conversation_id UUID NOT NULL

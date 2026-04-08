@@ -146,26 +146,33 @@ def _build_context_prompt(
     messages: list,
     use_rag: bool,
     enhance: bool,
+    memory_context: str = "",
 ) -> tuple:
     """Inject context into messages list and return (updated_messages, final_message)."""
     has_local = bool(local_context)
     has_web = bool(web_context)
 
     if has_local or has_web:
-        _insert_system_prompt(messages, _ENHANCED_SYSTEM_PROMPT if enhance else _RAG_SYSTEM_PROMPT)
+        system = _ENHANCED_SYSTEM_PROMPT if enhance else _RAG_SYSTEM_PROMPT
+        if memory_context:
+            system = memory_context + "\n\n" + system
+        _insert_system_prompt(messages, system)
         combined = _build_context_sections(local_context, web_context)
         final_message = (
             f"{combined}\n\n---\n\nQuestion: {original_message}\n\n"
             "Answer the question directly using the information above. "
             "Synthesize the relevant content into a clear response."
         )
-        logger.info(f"[CHAT API] Context ready - local: {has_local}, web: {has_web}")
+        logger.info(f"[CHAT API] Context ready - local: {has_local}, web: {has_web}, memory: {bool(memory_context)}")
     elif use_rag:
-        _insert_system_prompt(
-            messages, "You are a helpful AI assistant. No relevant documents or web results were found."
-        )
+        system = "You are a helpful AI assistant. No relevant documents or web results were found."
+        if memory_context:
+            system = memory_context + "\n\n" + system
+        _insert_system_prompt(messages, system)
         final_message = original_message
     else:
+        if memory_context:
+            _insert_system_prompt(messages, memory_context)
         final_message = original_message
 
     return messages, final_message
@@ -574,10 +581,23 @@ def api_chat():
             except Exception as plan_err:
                 logger.warning(f"[Planner] Unexpected error (skipped): {plan_err}")
 
+        # ── Long-term memory retrieval (optional, non-blocking) ───────────
+        memory_context = ""
+        if config.LONG_TERM_MEMORY_ENABLED:
+            try:
+                from ..memory.retriever import MemoryRetriever
+                memories = MemoryRetriever().retrieve(
+                    fields['message'], current_app.ollama_client, current_app.db
+                )
+                memory_context = MemoryRetriever.format_for_prompt(memories)
+            except Exception as mem_err:
+                logger.debug(f"[Memory] Retrieval skipped: {mem_err}")
+
         messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in fields['chat_history']]
         local_ctx, web_ctx, sources = _retrieve_contexts(fields, current_app.doc_processor, plan=plan)
         messages, final_message = _build_context_prompt(
-            fields['message'], local_ctx, web_ctx, messages, fields['use_rag'], fields['enhance']
+            fields['message'], local_ctx, web_ctx, messages, fields['use_rag'], fields['enhance'],
+            memory_context=memory_context,
         )
         messages.append(_build_user_message(final_message, fields['images']))
 

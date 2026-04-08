@@ -241,6 +241,11 @@ TOOL_MAX_ROUNDS: int = int(os.environ.get('TOOL_MAX_ROUNDS', '5'))
 # Set QUERY_PLANNER_ENABLED=false to skip the planning step entirely.
 QUERY_PLANNER_ENABLED: bool = os.environ.get('QUERY_PLANNER_ENABLED', 'True').lower() == 'true'
 
+# Set LONG_TERM_MEMORY_ENABLED=true to retrieve past memories at query time
+# and inject them into the system prompt. Extraction is triggered manually via
+# POST /api/memory/extract (or a cron job pointing at that endpoint).
+LONG_TERM_MEMORY_ENABLED: bool = os.environ.get('LONG_TERM_MEMORY_ENABLED', 'False').lower() == 'true'
+
 # ============================================================================
 # CLOUD MODEL FALLBACK CONFIGURATION (Feature 1.3)
 # ============================================================================

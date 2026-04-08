@@ -20,11 +20,12 @@ from .connection import (
 )
 from .conversations import ConversationsMixin
 from .documents import DocumentsMixin
+from .memories import MemoriesMixin
 
 logger = get_logger(__name__)
 
 
-class Database(DocumentsMixin, ConversationsMixin, DatabaseConnection):
+class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 

@@ -19,6 +19,12 @@
             <i class="bi bi-palette me-1"></i>Appearance
         </a>
     </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" id="memory-tab" data-bs-toggle="tab" href="#memory" role="tab"
+           aria-controls="memory" aria-selected="false">
+            <i class="bi bi-brain me-1"></i>Memory
+        </a>
+    </li>
 </ul>
 
 <div class="tab-content" id="settingsTabContent">
@@ -387,6 +393,48 @@
 
     </div><!-- /appearance tab-pane -->
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         MEMORY TAB
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div class="tab-pane fade" id="memory" role="tabpanel" aria-labelledby="memory-tab">
+        <div class="row g-4">
+
+            <!-- Actions card -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-lightning me-2"></i>Memory Actions
+                    </div>
+                    <div class="card-body d-flex gap-2 flex-wrap align-items-center">
+                        <button class="btn btn-primary btn-sm" onclick="extractMemories()">
+                            <i class="bi bi-arrow-repeat me-1"></i>Extract from conversations
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="clearAllMemories()">
+                            <i class="bi bi-trash me-1"></i>Clear all memories
+                        </button>
+                        <span class="text-muted small ms-2" id="memory-action-status"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory list card -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-list-ul me-2"></i>Stored Memories</span>
+                        <span class="badge bg-secondary" id="memory-count">0</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="memory-list" style="max-height:480px; overflow-y:auto;">
+                            <p class="text-muted p-3 mb-0">Loading…</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div><!-- /memory tab-pane -->
+
 </div><!-- /tab-content -->
 {% endblock %}
 
@@ -514,5 +562,82 @@ function renderMetricsTable(data) {
 // Load on page open, refresh every 30 s
 loadMetrics();
 setInterval(() => { refreshStats(); loadMetrics(); }, 30000);
+
+// ── Memory tab ────────────────────────────────────────────────────────────────
+
+const TYPE_COLORS = {
+    fact:       'bg-primary',
+    preference: 'bg-success',
+    decision:   'bg-warning text-dark',
+    entity:     'bg-info text-dark',
+};
+
+async function loadMemories() {
+    try {
+        const res = await fetch('/api/memory/');
+        const data = await res.json();
+        const list = document.getElementById('memory-list');
+        const count = document.getElementById('memory-count');
+        if (!data.success) { list.innerHTML = `<p class="text-danger p-3">${data.message}</p>`; return; }
+        count.textContent = data.count;
+        if (!data.memories.length) {
+            list.innerHTML = '<p class="text-muted p-3 mb-0">No memories stored yet. Click "Extract from conversations" to get started.</p>';
+            return;
+        }
+        list.innerHTML = data.memories.map(m => {
+            const badge = TYPE_COLORS[m.memory_type] || 'bg-secondary';
+            const date = m.created_at ? new Date(m.created_at).toLocaleDateString() : '';
+            return `<div class="d-flex align-items-start gap-2 px-3 py-2 border-bottom">
+                <span class="badge ${badge} flex-shrink-0 mt-1" style="font-size:0.65rem">${m.memory_type}</span>
+                <span class="flex-grow-1 small">${escapeHtml(m.content)}</span>
+                <span class="text-muted" style="font-size:0.7rem;white-space:nowrap">${date}</span>
+                <button class="btn btn-link btn-sm p-0 text-danger flex-shrink-0" onclick="deleteMemory('${m.id}')" title="Delete">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        document.getElementById('memory-list').innerHTML = `<p class="text-danger p-3">${e.message}</p>`;
+    }
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/[<>&"']/g, c =>
+        ({  '<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+async function extractMemories() {
+    const status = document.getElementById('memory-action-status');
+    status.textContent = 'Extracting…';
+    try {
+        const res = await fetch('/api/memory/extract', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+        const data = await res.json();
+        if (data.success) {
+            status.textContent = `Done — ${data.new_memories} new memories from ${data.conversations_processed} conversations.`;
+        } else {
+            status.textContent = 'Error: ' + data.message;
+        }
+        loadMemories();
+    } catch (e) { status.textContent = 'Error: ' + e.message; }
+}
+
+async function deleteMemory(id) {
+    if (!confirm('Delete this memory?')) return;
+    await fetch(`/api/memory/${id}`, { method: 'DELETE' });
+    loadMemories();
+}
+
+async function clearAllMemories() {
+    if (!confirm('Delete ALL stored memories? This cannot be undone.')) return;
+    const status = document.getElementById('memory-action-status');
+    status.textContent = 'Clearing…';
+    const res = await fetch('/api/memory/', { method: 'DELETE' });
+    const data = await res.json();
+    status.textContent = data.success ? `Cleared ${data.deleted} memories.` : 'Error: ' + data.message;
+    loadMemories();
+}
+
+// Load memories when the tab is shown
+document.getElementById('memory-tab').addEventListener('shown.bs.tab', loadMemories);
 </script>
 {% endblock %}
