@@ -277,3 +277,151 @@ class TextChunkerMixin:
 
         logger.info(f"Created {len(chunks_with_metadata)} chunks with metadata from {len(pages_data)} pages")
         return chunks_with_metadata
+
+    def chunk_slides(self, slides: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Chunk a PPTX presentation — one chunk per slide.
+
+        Args:
+            slides: List of slide dicts with keys: slide_number, text, title
+
+        Returns:
+            List of chunk dicts with keys: text, page_number, section_title, chunk_index
+        """
+        chunks = []
+        for chunk_index, slide in enumerate(slides):
+            text = slide.get('text', '').strip()
+            if len(text) < 10:
+                continue
+            chunks.append({
+                'text': text,
+                'page_number': slide.get('slide_number'),
+                'section_title': slide.get('title'),
+                'chunk_index': chunk_index,
+            })
+        logger.info(f"chunk_slides: {len(chunks)} chunks from {len(slides)} slides")
+        return chunks
+
+    def chunk_code_python(self, text: str) -> list[dict[str, Any]]:
+        """
+        Chunk Python source code by top-level function and class definitions.
+
+        Uses ``ast.parse`` to find boundaries; falls back to ``chunk_text``
+        on SyntaxError.
+
+        Returns:
+            List of chunk dicts with keys: text, page_number, section_title, chunk_index
+        """
+        import ast as _ast
+
+        lines = text.splitlines(keepends=True)
+
+        try:
+            tree = _ast.parse(text)
+        except SyntaxError:
+            logger.debug("chunk_code_python: SyntaxError — falling back to chunk_text")
+            return [
+                {'text': c, 'page_number': None, 'section_title': None, 'chunk_index': i}
+                for i, c in enumerate(self.chunk_text(text))
+            ]
+
+        # Collect (start_line, end_line, name) for top-level defs (1-indexed)
+        boundaries: list[tuple[int, int, str]] = []
+        for node in _ast.iter_child_nodes(tree):
+            if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+                end_line = getattr(node, 'end_lineno', None) or node.lineno
+                boundaries.append((node.lineno, end_line, node.name))
+
+        if not boundaries:
+            return [
+                {'text': c, 'page_number': None, 'section_title': None, 'chunk_index': i}
+                for i, c in enumerate(self.chunk_text(text))
+            ]
+
+        chunks = []
+        chunk_index = 0
+
+        # Text before first definition
+        first_start = boundaries[0][0]
+        preamble = "".join(lines[:first_start - 1]).strip()
+        if len(preamble) >= 10:
+            chunks.append({'text': preamble, 'page_number': None, 'section_title': None, 'chunk_index': chunk_index})
+            chunk_index += 1
+
+        for start_line, end_line, name in boundaries:
+            block = "".join(lines[start_line - 1:end_line]).strip()
+            if len(block) < 10:
+                continue
+            chunks.append({'text': block, 'page_number': None, 'section_title': name, 'chunk_index': chunk_index})
+            chunk_index += 1
+
+        logger.info(f"chunk_code_python: {len(chunks)} chunks")
+        return chunks
+
+    def chunk_code_js_ts(self, text: str) -> list[dict[str, Any]]:
+        """
+        Chunk JavaScript/TypeScript source code by function and class boundaries.
+
+        Uses regex on ``function NAME``, ``class NAME``, and
+        ``const NAME = (`` patterns; no tree-sitter dependency.
+
+        Returns:
+            List of chunk dicts with keys: text, page_number, section_title, chunk_index
+        """
+        _BOUNDARY_RE = re.compile(
+            r'^(?:export\s+)?(?:async\s+)?(?:function\s+(\w+)|class\s+(\w+)|const\s+(\w+)\s*=\s*(?:async\s*)?\()',
+            re.MULTILINE,
+        )
+
+        matches = list(_BOUNDARY_RE.finditer(text))
+        if not matches:
+            return [
+                {'text': c, 'page_number': None, 'section_title': None, 'chunk_index': i}
+                for i, c in enumerate(self.chunk_text(text))
+            ]
+
+        chunks = []
+        chunk_index = 0
+        lines = text.splitlines(keepends=True)
+
+        def _line_of(pos: int) -> int:
+            return text[:pos].count('\n')
+
+        # Preamble before first match
+        preamble = text[:matches[0].start()].strip()
+        if len(preamble) >= 10:
+            chunks.append({'text': preamble, 'page_number': None, 'section_title': None, 'chunk_index': chunk_index})
+            chunk_index += 1
+
+        for i, match in enumerate(matches):
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            block = text[match.start():end].strip()
+            if len(block) < 10:
+                continue
+            name = match.group(1) or match.group(2) or match.group(3)
+            chunks.append({'text': block, 'page_number': None, 'section_title': name, 'chunk_index': chunk_index})
+            chunk_index += 1
+
+        logger.info(f"chunk_code_js_ts: {len(chunks)} chunks")
+        return chunks
+
+    def chunk_email(self, text: str) -> list[dict[str, Any]]:
+        """
+        Chunk an email as a single unit.
+
+        Multi-message threads are a future enhancement; for now one email
+        → one chunk (or standard chunked if the body is very long).
+
+        Returns:
+            List of chunk dicts with keys: text, page_number, section_title, chunk_index
+        """
+        text = text.strip()
+        if not text:
+            return []
+        if len(text) <= (config.CHUNK_SIZE * 2):
+            return [{'text': text, 'page_number': None, 'section_title': None, 'chunk_index': 0}]
+        # Very long email: fall back to standard chunking
+        return [
+            {'text': c, 'page_number': None, 'section_title': None, 'chunk_index': i}
+            for i, c in enumerate(self.chunk_text(text))
+        ]

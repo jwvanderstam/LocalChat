@@ -26,6 +26,7 @@ PyPDF2==3.0.1
 pdfplumber==0.11.9  # Enhanced PDF extraction with table support
 pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this version
 python-docx==1.2.0
+python-pptx>=1.0.2  # PPTX adaptive chunking (Feature 1.2)
 
 # HTTP Requests
 requests==2.32.5

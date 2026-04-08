@@ -99,7 +99,7 @@ class TestIngestDocumentDedup:
             patch("src.rag.processor.ollama_client") as mock_ollama,
             patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
             patch.object(processor, "_load_document_chunks",
-                         return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content")),
+                         return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content", "TXT", "text-v1")),
             patch.object(processor, "_run_embedding_pipeline",
                          return_value=([{"chunk_text": "chunk"}], 0)),
         ):
@@ -143,7 +143,7 @@ class TestIngestDocumentDedup:
             patch("src.rag.processor.ollama_client") as mock_ollama,
             patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
             patch.object(processor, "_load_document_chunks",
-                         return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content")),
+                         return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content", "TXT", "text-v1")),
             patch.object(processor, "_run_embedding_pipeline",
                          return_value=([{"chunk_text": "chunk"}], 0)),
         ):
@@ -170,7 +170,7 @@ class TestIngestDocumentDedup:
             patch("src.rag.processor.ollama_client") as mock_ollama,
             patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
             patch.object(processor, "_load_document_chunks",
-                         return_value=(True, None, [{"text": "c", "metadata": {}}], "c")),
+                         return_value=(True, None, [{"text": "c", "metadata": {}}], "c", "TXT", "text-v1")),
             patch.object(processor, "_run_embedding_pipeline",
                          return_value=([{"chunk_text": "c"}], 0)),
         ):

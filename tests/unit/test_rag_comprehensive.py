@@ -385,7 +385,7 @@ class TestContextRetrieval:
         results = doc_processor.retrieve_context("test query", top_k=3)
 
         assert len(results) <= 3
-        assert all(len(r) == 5 for r in results)  # (text, filename, idx, sim, metadata)
+        assert all(len(r) == 6 for r in results)  # (text, filename, idx, sim, metadata, chunk_id)
 
     def test_retrieve_context_no_results(self, doc_processor, mock_db, mock_ollama):
         """Should handle no results."""

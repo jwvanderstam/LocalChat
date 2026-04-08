@@ -38,6 +38,8 @@ class DocumentsMixin:
         content: str,
         metadata: dict[str, Any] | None = None,
         content_hash: str | None = None,
+        doc_type: str | None = None,
+        chunker_version: str | None = None,
     ) -> int:
         """
         Insert a new document and return its ID.
@@ -47,6 +49,8 @@ class DocumentsMixin:
             content: Text content of the document
             metadata: Optional metadata dictionary
             content_hash: SHA-256 hex digest of the original file bytes (optional)
+            doc_type: Document type string from DocType enum (optional)
+            chunker_version: Version string of the chunker used (optional)
 
         Returns:
             int: ID of inserted document
@@ -65,9 +69,9 @@ class DocumentsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO documents (filename, content, metadata, content_hash)"
-                    " VALUES (%s, %s, %s, %s) RETURNING id",
-                    (filename, content, Jsonb(metadata or {}), content_hash),
+                    "INSERT INTO documents (filename, content, metadata, content_hash, doc_type, chunker_version)"
+                    " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                    (filename, content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version),
                 )
                 doc_id = cursor.fetchone()[0]
                 conn.commit()

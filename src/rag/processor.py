@@ -18,6 +18,7 @@ from ..db import db
 from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
 from .chunking import TextChunkerMixin
+from .doc_type import ChunkerRegistry, DocTypeClassifier
 from .loaders import DocumentLoaderMixin
 
 _NO_EMBEDDING_MODEL = "No embedding model available"
@@ -136,42 +137,17 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         filename: str,
         ext: str,
         progress_callback: Callable[[str], None] | None,
-    ) -> tuple[bool, str, list[dict[str, Any]] | None, str | None]:
-        """Load a document and return (success, error_msg, chunks_with_metadata, raw_content)."""
-        if progress_callback:
-            progress_callback(f"Loading {filename}...")
-
-        if ext == '.pdf':
-            success, pages_or_error = self._load_pdf_with_pages(file_path)
-            if not success:
-                return False, f"Failed to load {filename}: {pages_or_error}", None, None
-            pages_data = pages_or_error
-            logger.info(f"Successfully loaded {len(pages_data)} pages with metadata")
-            if progress_callback:
-                progress_callback(f"Chunking {filename}...")
-            chunks_with_metadata = self.chunk_pages_with_metadata(pages_data)
-            if not chunks_with_metadata:
-                return False, f"No chunks generated from {filename}", None, None
-            logger.info(f"Generated {len(chunks_with_metadata)} chunks with metadata")
-            return True, "", chunks_with_metadata, None
-
-        success, content = self.load_document(file_path)
-        if not success:
-            return False, f"Failed to load {filename}: {content}", None, None
-        logger.info(f"Successfully loaded {len(content)} characters")
-        if not content or len(content.strip()) < 10:
-            return False, f"Document {filename} has insufficient content ({len(content)} chars)", None, None
-        if progress_callback:
-            progress_callback(f"Chunking {filename}...")
-        chunk_texts = self.chunk_text(content)
-        if not chunk_texts:
-            return False, f"No chunks generated from {filename}", None, None
-        chunks_with_metadata = [
-            {'text': c, 'page_number': None, 'section_title': None, 'chunk_index': i}
-            for i, c in enumerate(chunk_texts)
-        ]
-        logger.info(f"Generated {len(chunks_with_metadata)} chunks")
-        return True, "", chunks_with_metadata, content
+    ) -> tuple[bool, str, list[dict[str, Any]] | None, str | None, str, str]:
+        """
+        Load a document and return
+        (success, error_msg, chunks_with_metadata, raw_content, doc_type_str, chunker_version).
+        """
+        doc_type = DocTypeClassifier.classify(ext)
+        chunker_fn, chunker_version = ChunkerRegistry.get_chunker(doc_type)
+        ok, err, chunks, raw = chunker_fn(self, file_path, filename, progress_callback)
+        if ok:
+            logger.info(f"Generated {len(chunks)} chunks via {chunker_version}")
+        return ok, err, chunks, raw, doc_type.value, chunker_version
 
     def _build_embeddings_batch(
         self,
@@ -327,22 +303,22 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 return False, error_msg, None
 
             ext = Path(file_path).suffix.lower()
-            ok, err, chunks_with_metadata, raw_content = self._load_document_chunks(file_path, filename, ext, progress_callback)
+            ok, err, chunks_with_metadata, raw_content, doc_type_str, chunker_version = \
+                self._load_document_chunks(file_path, filename, ext, progress_callback)
             if not ok:
                 logger.error(err)
                 return False, err, None
 
             # Build content preview — reuse already-loaded data; no second file read.
-            if ext == '.pdf':
-                content_preview = chunks_with_metadata[0]['text'][:1000] if chunks_with_metadata else ""
-            else:
-                content_preview = (raw_content or '')[:1000]
+            content_preview = (raw_content or (chunks_with_metadata[0]['text'] if chunks_with_metadata else ''))[:1000]
 
             doc_id = db.insert_document(
                 filename=filename,
                 content=content_preview,
                 metadata={'total_chunks': len(chunks_with_metadata), 'file_path': file_path},
                 content_hash=file_hash,
+                doc_type=doc_type_str,
+                chunker_version=chunker_version,
             )
             logger.debug(f"Document ID: {doc_id}")
 

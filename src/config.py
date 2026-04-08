@@ -259,7 +259,10 @@ APP_VERSION: str = os.environ.get('APP_VERSION', '0.5.0')
 
 # Supported file types
 SUPPORTED_IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
-SUPPORTED_EXTENSIONS: list[str] = ['.pdf', '.txt', '.docx', '.md'] + SUPPORTED_IMAGE_EXTENSIONS
+SUPPORTED_EXTENSIONS: list[str] = (
+    ['.pdf', '.txt', '.docx', '.md', '.pptx', '.py', '.js', '.ts', '.eml']
+    + SUPPORTED_IMAGE_EXTENSIONS
+)
 
 # Vision / multimodal configuration
 VISION_DESCRIBE_PROMPT: str = (
