@@ -1,252 +1,759 @@
-# LocalChat — Roadmap & Implementation Plan
+# LocalChat Roadmap
+## Path to the Greatest Local RAG Application
 
-> Last updated: 2026-04-06
-> Current version: v1.0.0
-> **Status: ROADMAP COMPLETE** — all phases resolved (implemented or explicitly deferred)
-
----
-
-## Principles
-
-1. **Maintainability first** — every change must leave the codebase easier to understand than it found it.
-2. **Security is non-negotiable** — no phase ships with known security regressions.
-3. **Docs stay in sync** — README, CLAUDE.md, and this file are updated in the same PR as the code they describe.
-4. **Tests where they add value** — integration tests for multi-service flows, edge-case unit tests for complex logic; not for trivial wrappers.
+> Last updated: 2026-04-08
+> Current version: v1.0.1
+> **Status: NEW ROADMAP STARTED**
 
 ---
 
-## Current State (baseline assessment)
+## Table of Contents
 
-| Area | Score | Key gaps |
-|------|-------|---------|
-| Architecture | ✅ 100% | All documented services implemented |
-| Security | ✅ 98% | _(cookie Secure ✅, file validation ✅, distributed rate limiting ✅)_ |
-| Test coverage | ✅ 100% | 1273 unit + 9 integration tests; all features covered |
-| Code quality | ✅ 100% | All S3776 violations resolved; ruff clean; Pyright basic enforced |
-| Documentation | ✅ 100% | Architecture ✅, schema ✅, troubleshooting ✅, operations ✅, CONTRIBUTING ✅ |
-| Feature completeness | ✅ 100% | All roadmap features shipped; Pyright strict + L3 wiring deferred to v2.0 |
-
----
-
-## Phase 1 — Code Quality & Security Hardening
-
-**Goal:** Eliminate known quality and security issues before adding features.
-
-### ~~1.1 Resolve SonarCloud issues~~ ✅
-
-20 open issues — all resolved:
-
-| Issue | File | Action |
-|-------|------|--------|
-| ~~S5754 — Cookie missing Secure flag~~ ✅ | ~~`src/security.py`~~ | ~~Set `SESSION_COOKIE_SECURE = True`; add `Secure` to JWT cookie config~~ |
-| ~~S3776 — Cognitive complexity ×8~~ ✅ | ~~`src/ollama_client.py`~~ | ~~Extracted `_resolve_model()`, `_build_tool_payload()`, `_embed_new_api()`, `_embed_legacy_api()`~~ |
-| ~~S3776 — Cognitive complexity ×5~~ ✅ | ~~`src/routes/api_routes.py`~~ | ~~Split into `_retrieve_contexts()`, `_build_context_prompt()`, `_stream_chat_response()`~~ |
-| ~~S3776 — Cognitive complexity ×2~~ ✅ | ~~`src/rag/retrieval.py`~~ | ~~Extracted `_run_retrieval_pipeline()`, `_rank_and_finalize()`, `_append_chunks_for_doc()`~~ |
-| ~~S1192 — String literals ×2~~ ✅ | ~~`src/rag/loaders.py`~~ | ~~Extract repeated strings to module-level constants~~ |
-
-**Tests to add:** For each refactored method, verify existing unit tests still pass (no new tests needed — behaviour unchanged).
-
-### ~~1.2 Add ruff linter~~ ✅
-
-~~- Add `ruff.toml` with `select = ["E", "F", "W", "I", "UP", "B", "SIM"]`~~
-- ~~TODO: Add ruff check to `tests.yml` CI step~~ ✅
-- Fix all violations before merging
-
-### ~~1.3 Pre-commit hooks~~ ✅
-
-~~Add `.pre-commit-config.yaml`:~~
-~~- `ruff --fix`~~
-~~- `pyright` (basic, non-blocking on new violations)~~
-~~- `pytest -m "not (slow or ollama or db)"` (fast unit tests only)~~
-
-### ~~1.4 Distributed rate limiting~~ ✅
-
-~~Current in-memory rate limiter breaks in multi-instance deployments.~~
-
-~~- Replace `FlaskLimiter` memory storage with Redis backend when `REDIS_URL` is set~~
-~~- Fallback to memory storage when Redis is unavailable (development mode)~~
-~~- Add integration test: two simulated requests that share the same Redis counter~~
-
-_`src/security.py` auto-detects Redis at startup (`_resolve_ratelimit_storage`); `config.py` sets `RATELIMIT_STORAGE_URI` from env; `tests/integration/test_ratelimit.py` covers memory + Redis + shared-counter scenarios._
-
-### ~~1.5 File content validation on upload~~ ✅
-
-~~Current validation: filename sanitization only.~~
-
-~~- Add magic-byte check for PDF, DOCX, TXT, MD before processing~~
-~~- Reject files whose content-type contradicts their extension~~
-~~- Add unit tests for each rejected/accepted case~~
+1. [Vision](#vision)
+2. [Current State](#current-state)
+3. [Gap Analysis](#gap-analysis)
+4. [Phase 1 — Foundation (M1–M2)](#phase-1--foundation-m1m2)
+5. [Phase 2 — Intelligence (M3–M5)](#phase-2--intelligence-m3m5)
+6. [Phase 3 — Architecture (M6–M9)](#phase-3--architecture-m6m9)
+7. [Phase 4 — Platform (M10–M12)](#phase-4--platform-m10m12)
+8. [Target Architecture](#target-architecture)
+9. [Effort vs. Impact Matrix](#effort-vs-impact-matrix)
+10. [Design Principles](#design-principles)
+11. [Dependencies & Stack Decisions](#dependencies--stack-decisions)
 
 ---
 
-## Phase 2 — Test Coverage
+## Vision
 
-**Goal:** Meaningful integration tests for multi-service flows; edge-case coverage for complex logic.
+LocalChat exists to be the gold standard for local, privacy-preserving knowledge management. The target state is an **agentic RAG system** with:
 
-### ~~2.1 Integration test: full RAG flow~~ ✅
+- An explicit **Aggregator Agent** that plans, reasons, and orchestrates specialist sub-agents
+- A **knowledge layer** that learns from each interaction and improves its own retrieval quality
+- **MCP-based composability** so every data domain — local files, web, cloud — is independently deployable
+- A **transparent UX** where every answer shows its sources and every plan can be inspected
 
-~~`tests/integration/test_rag_flow.py`~~
-
-### ~~2.2 Integration test: authentication flow~~ ✅
-
-~~`tests/integration/test_auth_flow.py`~~
-
-### ~~2.3 Vision feature — complete and test~~ ✅
-
-~~`tests/integration/test_vision.py`~~
-
-### ~~2.4 GPU monitor test~~ ✅
-
-~~`tests/unit/test_gpu_monitor.py`~~
-
-### ~~2.5 L3 cache — audited~~ ✅
-
-**Decision:** Complete implementation — kept, activation deferred.
-
-- `src/cache/backends/database_cache.py` — full `DatabaseCache` class (400 lines, 20 unit tests in `tests/unit/test_database_cache.py`)
-- Not wired into `CacheManager` by default; `L3_CACHE_ENABLED` config exists but is unused
-- No action required: the code is sound and tested; wiring it up is a future feature decision, not a quality issue
-
-### ~~2.6 Plugin loader edge cases~~ ✅
-
-~~`tests/unit/test_tools_full.py` — syntax error, no-tools, reload-idempotent~~
+Unlike cloud RAG tools, LocalChat's advantage compounds over time: domain-adapted retrieval, workspace-scoped memory, and a feedback loop that builds a moat no generic product can replicate.
 
 ---
 
-## Phase 3 — Documentation
+## Current State
 
-**Goal:** All documentation accurate, navigable, and maintained alongside code.
+LocalChat today is a well-structured Flask monolith with a solid retrieval foundation:
 
-### ~~3.1 CONTRIBUTING.md~~ ✅
-
-~~- Development setup (venv, `.env`, Docker services)~~
-~~- Branching and PR conventions~~
-~~- How to run tests locally (fast / full / integration)~~
-~~- SonarCloud quality gate requirements~~
-~~- Commit message format~~
-
-### ~~3.2 Architecture diagram (Mermaid)~~ ✅
-
-~~Add to README.md — Mermaid request flow diagram showing Flask → RAG → Ollama → SSE.~~
-
-### ~~3.3 Database schema documentation~~ ✅
-
-~~`docs/SCHEMA.md` — ER diagram, table descriptions, HNSW index parameters.~~
-
-### ~~3.4 Troubleshooting guide~~ ✅
-
-~~`docs/TROUBLESHOOTING.md` — Ollama, pgvector, Redis, JWT, file upload issues.~~
-
-### ~~3.5 CLAUDE.md maintenance rule~~ ✅
-
-~~Add to CLAUDE.md: "When adding or removing a module, update the Key Files table in the same PR."~~
+| Component | Status |
+|---|---|
+| RAG pipeline | ✅ Chunking, retrieval, reranking, Ollama calls |
+| Vector store | ✅ PostgreSQL + pgvector (HNSW indexing) |
+| Hybrid search | ✅ Semantic + BM25 |
+| Web search | ✅ DuckDuckGo (in-process module) |
+| Plugin system | ✅ Exists, but co-located (not routable agents) |
+| MCP server | ✅ Directory exists, not yet primary interface |
+| Admin dashboard | ✅ Prometheus metrics, GPU monitoring, cache stats |
+| Security | ✅ JWT, rate limiting, XSS mitigations |
+| Model layer | ⚠️ Single active Ollama model, no router |
+| Agent layer | ❌ No explicit planner or aggregator |
+| Memory | ❌ Conversation history only, no long-term store |
+| Source attribution | ❌ Chunks retrieved but not surfaced in UI |
+| Feedback loop | ❌ No user signal collection |
+| Multi-model | ❌ No routing between model families |
 
 ---
 
-## Phase 4 — Feature Evolution
+## Gap Analysis
 
-**Goal:** Extend capability without sacrificing the quality baseline established in Phases 1–3.
+Five structural gaps separate LocalChat from the agentic RAG vision:
 
-### ~~4.1 Pyright strict mode~~ ✅ (basic enforced; strict deferred)
+### 1. Agentic Orchestration
+The RAG pipeline executes as a monolithic sequence. There is no explicit planner that decomposes queries, no aggregator that routes to specialist agents, and no observable reasoning trace. All tool calls (web search, docs, plugins) happen in the same process via Python imports rather than as independently addressable agents.
 
-**Decision:** `pyrightconfig.json` already enforces `typeCheckingMode: basic` across all of `src/`, `tests/`, `scripts/`. Strict mode deferred — upgrading to strict requires adding return-type and parameter annotations to ~30 functions across `src/routes/` and `src/rag/`, which is a standalone refactor beyond this roadmap's scope. Tracked as a future v2.0 item.
+### 2. Memory & Planning
+Conversation history is persisted in Postgres, but there is no long-term memory layer that distills history into reusable facts. There is also no explicit query planner — planning is implicit in prompt construction and retrieval logic.
 
-### ~~4.2 Multi-document conversation context~~ ✅
+### 3. Retrieval Ceiling
+The hybrid retrieval (semantic + BM25) is good for passage-level similarity but cannot answer multi-hop questions that require reasoning over entity relationships. There is also no per-document-type chunking strategy — all documents go through the same pipeline regardless of structure.
 
-~~Currently: each chat session uses all documents equally.~~
+### 4. Model Layer
+A single Ollama model handles all query types. There is no routing logic to direct simple lookups to a fast/cheap model, complex synthesis to a larger model, or image-heavy documents to a vision model.
 
-- ~~Add per-conversation document filter: user selects which documents are in scope~~
-- ~~Store filter in `conversations.document_ids` JSONB column (additive `ALTER TABLE … ADD COLUMN IF NOT EXISTS`)~~
-- ~~`GET /api/conversations/<id>/documents` — read filter~~
-- ~~`PUT /api/conversations/<id>/documents` — set/clear filter (body: `{"filenames": [...]}`)~~
-- ~~`search_similar_chunks` extended with `filename_filter: list[str] | None` param~~
-- ~~`retrieve_context` extended with `filename_filter`; threaded through `_run_retrieval_pipeline`~~
-- ~~`_retrieve_contexts` in `api_routes.py` reads filter from DB before each retrieval call~~
-
-### ~~4.3 Conversation export~~ ✅
-
-- ~~`GET /api/conversations/{id}/export?format=markdown|json`~~
-- ~~JSON returns `application/json` attachment; Markdown returns `text/markdown` attachment~~
-- ~~Includes: messages, role labels, timestamps~~
-
-### ~~4.4 Chunk provenance in responses~~ ✅
-
-~~Currently: sources listed by filename only.~~
-
-- ~~Return chunk index and page number (where available from metadata)~~
-- ~~`sources` array included in SSE `done` event: `[{filename, chunk_index, page_number, section_title}]`~~
-
-### ~~4.5 Document re-ingestion~~ ✅
-
-~~Currently: re-uploading a document creates a duplicate.~~
-
-- ~~Detect duplicate by filename + file hash~~
-- ~~Same filename + same hash → skip (already up to date)~~
-- ~~Same filename + different hash → delete old document + chunks, re-ingest (replace)~~
-- ~~`content_hash VARCHAR(64)` column added to `documents` via additive migration~~
-- ~~`db.delete_document(id)` added; `insert_document` accepts `content_hash` kwarg~~
-- ~~`_compute_file_hash()` in `processor.py` (SHA-256, 64 KiB blocks)~~
-- ~~8 unit tests in `tests/unit/test_document_dedup.py`~~
+### 5. UX Trust & Feedback
+Answers do not show their sources in the UI, making it impossible for users to verify claims. There is no mechanism for users to signal whether an answer was good, and no pipeline for those signals to improve retrieval quality.
 
 ---
 
-## Phase 5 — Observability & Operations
+## Phase 1 — Foundation (M1–M2)
 
-**Goal:** Make production deployments easier to monitor and diagnose.
+**Theme:** Ship the highest-trust, lowest-effort improvements immediately. Establish the feedback infrastructure and fix the most visible UX gaps before touching architecture.
 
-### ~~5.1 Structured log output~~ ✅
+### Feature 1.1 — Answer Attribution + Source Viewer
 
-~~Current logging is human-readable. Add JSON mode for log aggregation:~~
-- ~~`LOG_FORMAT=json` env var switches to structured JSON output~~
-- ~~`RequestIdFilter` injects `request_id` + `user_agent` onto every record~~
-- ~~`JsonFormatter` passes through all extra fields (`duration_ms`, `model`, `chunks_retrieved`, `status_code`, etc.)~~
-- ~~Per-request access log emitted in `after_request` via `_access_logger` in `request_id.py`~~
-- ~~`g.model` and `g.chunks_retrieved` set in `api_routes.py` for access log pickup~~
+**Effort:** Low | **Impact:** High
 
-### ~~5.2 Grafana dashboard definition~~ ✅
+**What:** Every generated answer shows inline citations — document name, chunk ID, page or section. Users can click through to the exact source passage highlighted in context.
 
-- ~~`docs/grafana-dashboard.json` — importable dashboard, uid `localchat-rag-v1`~~
-- ~~Panels: requests/s, P50/P95 retrieval latency, embedding cache hit rate, query cache hit rate, chunks retrieved histogram, embedding queue depth, active model stat~~
+**Why:** The single biggest trust signal for knowledge-worker users. Without it, LocalChat is a black box. Enterprise users will not adopt a system whose answers they cannot verify. This is a UI feature, not a model feature — it is fast to ship and immediately changes the user relationship with the system.
 
-### ~~5.3 Backup and restore documentation~~ ✅
+**How:**
+1. The RAG pipeline already returns chunk metadata alongside generated text. Expose `chunk_id`, `document_name`, `page_number`, and `section` in the API response alongside the answer.
+2. Add a citation rendering component to the chat frontend. Each cited sentence gets a superscript reference (`[1]`, `[2]`) that opens a side panel.
+3. Build a document viewer panel that loads the source document and highlights the relevant passage. Use the existing chunk boundary coordinates for highlight positioning.
+4. Add a `GET /api/chunks/{chunk_id}/context` endpoint that returns the chunk plus N surrounding chunks for reading context.
 
-~~`docs/OPERATIONS.md`:~~
-~~- PostgreSQL backup/restore (pg_dump, pgvector-safe restore, cron example)~~
-~~- Redis persistence (RDB snapshots, AOF)~~
-~~- Docker volume backup/restore~~
-~~- Routine maintenance (VACUUM, JWT rotation, index health)~~
+**Acceptance criteria:**
+- Every RAG answer includes at least one citation
+- Clicking a citation opens the source document at the correct passage
+- Citation panel shows: document name, page/section, date ingested
 
 ---
 
-## Delivery order
+### Feature 1.2 — Adaptive Chunking per Document Type
+
+**Effort:** Low | **Impact:** High
+
+**What:** Detect document type on ingest and apply a type-specific chunking strategy rather than applying one universal chunker to all content.
+
+**Why:** A slide deck, a legal contract, a Python file, and an email thread have completely different structural semantics. Applying sentence-boundary chunking to a slide deck destroys slide-level context. Applying it to code destroys function-level context. Type-aware chunking directly improves retrieval precision with no model changes and no infrastructure work.
+
+**How:**
+
+| Document type | Detection | Chunking strategy |
+|---|---|---|
+| Slide deck (.pptx, .ppt) | Extension | One chunk per slide (title + body) |
+| Source code (.py, .js, .ts, .java…) | Extension + content | One chunk per function/class (AST-based) |
+| Email thread (.eml, .msg) | MIME type | One chunk per message |
+| Legal/contract document | Keyword heuristics | One chunk per numbered clause |
+| Markdown / plain prose | Default | Sentence-boundary with overlap |
+| Spreadsheet (.xlsx, .csv) | Extension | One chunk per logical table with header context |
+
+Implementation:
+1. Add a `DocTypeClassifier` that maps file extension + content heuristics to a document type enum.
+2. Add a `ChunkerRegistry` that maps document types to chunker implementations.
+3. Store `doc_type` and `chunker_version` on the `documents` table to support re-chunking on strategy upgrades.
+4. Expose a bulk re-chunk endpoint for existing documents.
+
+**Acceptance criteria:**
+- Python files are chunked at function boundaries
+- PPTX files produce one chunk per slide
+- Email threads produce one chunk per message
+- All existing document types continue to work via the default chunker
+
+---
+
+### Feature 1.3 — Cloud Model Fallback (Local-First Policy)
+
+**Effort:** Low | **Impact:** Medium
+
+**What:** Add optional API key configuration for OpenAI, Anthropic, and Gemini. When the local model fails a confidence check or the query is flagged as requiring stronger reasoning, fall back to a cloud model — with a clear UI indicator and user consent.
+
+**Why:** Some queries genuinely exceed what a local model can handle well, especially complex multi-document synthesis or queries requiring broad world knowledge. A cloud fallback gives users a practical escape hatch without abandoning the local-first ethos. Sensitive documents remain local; hard reasoning gets cloud horsepower. This is configurable and off by default.
+
+**How:**
+1. Add a `LiteLLM` adapter layer. All Ollama calls go through a unified `ModelClient` interface.
+2. Add cloud provider configs to `settings.py`: `CLOUD_PROVIDER`, `CLOUD_API_KEY`, `CLOUD_MODEL`.
+3. After local generation, compute a confidence proxy (e.g. response perplexity, refusal detection, or answer length heuristic for "I don't know" patterns). If below threshold, retry with cloud model.
+4. Add a privacy flag on documents: `local_only: bool`. Documents marked `local_only` never send chunks to cloud providers, even in fallback mode.
+5. Show a `⚡ cloud` badge in the chat UI when a cloud model was used.
+
+**Acceptance criteria:**
+- Cloud fallback is disabled by default
+- `local_only` documents never reach cloud APIs regardless of settings
+- UI clearly distinguishes local vs cloud responses
+- Fallback adds < 500ms of latency overhead (confidence check is synchronous)
+
+---
+
+## Phase 2 — Intelligence (M3–M5)
+
+**Theme:** Make LocalChat smarter about how it reasons and what it remembers. Add the planning and memory layers that let the system handle complex, multi-session knowledge work.
+
+### Feature 2.1 — Query Planner + Chain-of-Thought Trace UI
+
+**Effort:** Medium | **Impact:** High
+
+**What:** Add an explicit planning step before retrieval. Given a user query, the planner emits a structured plan: sub-questions to answer, tools to invoke, order of operations, and whether the query requires synthesis across multiple sources. Surface this plan as a collapsible "reasoning" panel in the chat UI.
+
+**Why:** Without a planner, multi-hop questions fail silently — the retriever fetches passages that are individually relevant but collectively insufficient. With a planner, the system decomposes "Compare the security postures of system A and system B with respect to our compliance requirements" into three retrievals and a synthesis step. Users who can see the plan can also correct it, turning a black box into a collaborative reasoning partner.
+
+**How:**
 
 ```
-Phase 1 (Quality & Security)   ← start here; unblocks everything else
-Phase 2 (Tests)                ← in parallel with Phase 1 where possible
-Phase 3 (Docs)                 ← ongoing; each Phase 1/2 PR updates relevant docs
-Phase 4 (Features)             ← only after Phase 1 complete
-Phase 5 (Observability)        ← can run in parallel with Phase 4
+User query
+    │
+    ▼
+┌─────────────────────┐
+│    Query Planner    │  ← lightweight LLM call with structured output
+└─────────────────────┘
+    │  Emits: Plan JSON
+    ▼
+{
+  "intent": "comparison",
+  "sub_questions": ["What is A's auth model?", "What is B's auth model?"],
+  "tools": ["local_docs", "local_docs"],
+  "synthesis_required": true,
+  "estimated_hops": 2
+}
+    │
+    ▼
+Parallel retrieval per sub-question
+    │
+    ▼
+Synthesis prompt with all retrieved contexts
+    │
+    ▼
+Answer + cited sources
+```
+
+Implementation:
+1. Add `rag/planner.py`. Use a structured output prompt (JSON mode) against the active model. The planner prompt is short and fast — it does not retrieve, only classifies and decomposes.
+2. Store `plan_json` alongside each conversation turn in `conversation_history`.
+3. Add a `PlanTrace` component to the frontend. Collapsed by default, expandable with a chevron. Shows intent, sub-questions, tools used, and hop count.
+4. Use the plan's `tools` array to dispatch parallel retrieval calls. Merge results before synthesis.
+5. Add a `plan_feedback` signal: thumbs up/down on the plan itself (separate from answer quality).
+
+**Acceptance criteria:**
+- All queries go through the planner (< 200ms overhead on fast models)
+- Multi-hop queries produce measurably better answers (eval on held-out test set)
+- Plan trace is visible and collapsible in UI
+- Single-hop simple queries produce minimal plans without overhead
+
+---
+
+### Feature 2.2 — Long-Term Memory Store
+
+**Effort:** Medium | **Impact:** High
+
+**What:** Distill conversation history into a persistent, structured memory layer. Rather than only retrieving document chunks, the system also retrieves relevant memories — user preferences, domain facts, past decisions, recurring entities — and incorporates them into each response.
+
+**Why:** The single biggest UX gap between LocalChat and commercial tools like Perplexity or Copilot. Users feel heard when the system remembers that they prefer concise answers, that "NMBS" refers to a specific client, or that a decision was made two weeks ago. Memory is what makes a RAG system feel like a knowledge partner rather than a search engine.
+
+**How:**
+
+**Data model:**
+```sql
+CREATE TABLE memories (
+  id          UUID PRIMARY KEY,
+  user_id     UUID REFERENCES users(id),
+  workspace_id UUID REFERENCES workspaces(id),  -- added in Phase 4
+  content     TEXT NOT NULL,
+  embedding   vector(1536),
+  source_conv UUID REFERENCES conversations(id),
+  memory_type TEXT,   -- 'preference', 'entity', 'decision', 'fact'
+  confidence  FLOAT,
+  created_at  TIMESTAMPTZ,
+  last_used   TIMESTAMPTZ,
+  use_count   INT DEFAULT 0
+);
+```
+
+**Extraction pipeline:**
+1. Nightly background job: for each conversation since last run, call a summarization prompt that extracts structured memories. Prompt: *"Extract user preferences, named entities, decisions made, and factual assertions from this conversation. Output JSON array."*
+2. Embed each extracted memory and upsert into `memories` table via pgvector.
+3. Deduplicate against existing memories using cosine similarity (threshold: 0.92).
+
+**Retrieval integration:**
+1. At query time, retrieve top-K memories alongside document chunks.
+2. Inject relevant memories into the system prompt under a `<memory>` section.
+3. Update `last_used` and `use_count` on retrieval.
+
+**Memory management UI:**
+- `Settings → Memory` panel showing all stored memories
+- Users can delete individual memories or clear all
+- Show memory source conversation link
+
+**Acceptance criteria:**
+- Memory extraction runs nightly without blocking the main app
+- Relevant memories surface in responses within 24h of a conversation
+- Users can view and delete their memories
+- Memory retrieval adds < 50ms to query latency (pgvector ANN search)
+
+---
+
+### Feature 2.3 — GraphRAG / Entity-Based Retrieval Layer
+
+**Effort:** High | **Impact:** High
+
+**What:** Extract named entities from documents on ingest and build a knowledge graph alongside the vector index. At query time, use graph traversal to expand retrieval context for entity-heavy, multi-hop questions.
+
+**Why:** Vector + BM25 hybrid retrieval is excellent for passage-level similarity. It is weak for questions like "How does project X relate to team Y" or "What decisions involved both system A and system B" — questions that require reasoning over entity relationships rather than semantic proximity. A knowledge graph turns a document corpus into a navigable knowledge base.
+
+**How:**
+
+**Ingest pipeline addition:**
+```
+Document ingested
+    │
+    ├─► Chunker (existing)
+    │       └─► pgvector
+    │
+    └─► Entity Extractor (new)
+            └─► spaCy NER (en_core_web_trf)
+            └─► Entity graph → Postgres JSONB or NetworkX persisted as adjacency list
+```
+
+**Graph schema (stored in Postgres):**
+```sql
+CREATE TABLE entities (
+  id       UUID PRIMARY KEY,
+  name     TEXT,
+  type     TEXT,   -- PERSON, ORG, SYSTEM, PROJECT, LOCATION…
+  aliases  TEXT[]
+);
+
+CREATE TABLE entity_relations (
+  source_id UUID REFERENCES entities(id),
+  target_id UUID REFERENCES entities(id),
+  relation  TEXT,  -- 'mentioned_with', 'depends_on', 'owned_by'…
+  doc_id    UUID REFERENCES documents(id),
+  chunk_id  UUID REFERENCES chunks(id),
+  weight    FLOAT  -- co-occurrence frequency
+);
+```
+
+**Query-time expansion:**
+1. Extract entities from the user query using the same NER model.
+2. For each query entity, fetch related entities (1-hop) from `entity_relations`.
+3. Use related entity names to construct additional BM25 queries.
+4. Merge graph-expanded results with standard vector retrieval. Re-rank the combined set.
+
+**Acceptance criteria:**
+- Entity extraction runs synchronously during ingest (< 2s per document)
+- Graph-expanded retrieval measurably improves precision on multi-entity test queries
+- Entity graph is browsable via admin UI (basic entity list with relation counts)
+- Graph and vector indices stay in sync on document deletion
+
+---
+
+## Phase 3 — Architecture (M6–M9)
+
+**Theme:** Refactor the monolith into a composable agentic architecture. This is the largest structural change — it unlocks everything that follows and makes the platform extensible without core modifications.
+
+### Feature 3.1 — MCP Server Split per Domain
+
+**Effort:** High | **Impact:** High
+
+**What:** Extract the three data-domain capabilities — local document retrieval, web search, and cloud platform connectors — into independently deployable MCP servers. The core application communicates with them exclusively via the MCP protocol.
+
+**Why:** Currently all three capabilities are Python modules imported into the same process. This means a crash in the web search module can affect document retrieval, a new connector requires a core app restart, and horizontal scaling is all-or-nothing. MCP server separation gives each domain its own process, its own scaling policy, its own dependency graph, and its own failure boundary. Adding a new connector (SharePoint, Confluence, S3) becomes a matter of writing a new MCP server, not modifying the core.
+
+**Target topology:**
+```
+LocalChat Core (Flask)
+    │
+    ├─── MCP ──► local-docs-server
+    │                └─► pgvector, chunker, reranker
+    │
+    ├─── MCP ──► web-search-server
+    │                └─► DuckDuckGo, Brave Search, Jina Reader
+    │
+    └─── MCP ──► cloud-connectors-server
+                     └─► SharePoint, OneDrive, S3, Confluence
+```
+
+**How:**
+1. Define the MCP tool schema for each server. Each exposes a `search(query, filters, top_k)` tool and a `list_sources()` tool.
+2. Extract `rag/retrieval.py` into `mcp_server/local_docs/`. Wrap existing retrieval logic as MCP tool handlers.
+3. Extract `rag/web_search.py` into `mcp_server/web_search/`. Add Brave Search as a second provider with automatic fallback.
+4. Create `mcp_server/cloud_connectors/` as a new server. Start with a no-op stub that returns empty results — actual connectors land in Phase 4.
+5. Update the core app to call MCP servers via `mcp_client.py` instead of direct imports. Use connection pooling and circuit breakers.
+6. Add health checks per MCP server. Admin dashboard shows per-server status.
+7. Update `docker-compose.yml` and `k8s/` manifests to deploy each server as a separate container.
+
+**Migration path:** Run both old and new code paths in parallel behind a feature flag during transition. Validate output equivalence before cutting over.
+
+**Acceptance criteria:**
+- All three MCP servers deploy and run independently
+- Core app retrieval results are identical before/after migration (verified via shadow mode)
+- One MCP server can be restarted without affecting the others
+- New MCP server can be added without modifying core app code
+
+---
+
+### Feature 3.2 — Aggregator Agent + Tool Routing
+
+**Effort:** High | **Impact:** High
+
+**What:** Add an explicit Aggregator Agent that sits between user input and tool execution. The agent receives the user query and planner output, dispatches tool calls to the appropriate MCP servers, handles retries and fallbacks, and synthesizes results before returning to the user.
+
+**Why:** This is the keystone feature. Without it, tool dispatch is hardcoded in the RAG pipeline. With it, new tools are registered with the agent and automatically become available to any query type. It enables parallel tool calls, tool-level retries, and transparent orchestration that can be observed and debugged. Everything else — multi-model routing, memory integration, feedback — coordinates through this layer.
+
+**How:**
+
+```
+User query + plan
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│           Aggregator Agent              │
+│                                         │
+│  1. Parse plan → tool_calls list        │
+│  2. Dispatch in parallel via MCP        │
+│  3. Handle failures / retries           │
+│  4. Merge + deduplicate results         │
+│  5. Select synthesis model              │
+│  6. Generate answer                     │
+│  7. Attach citations                    │
+└─────────────────────────────────────────┘
+    │              │              │
+    ▼              ▼              ▼
+local-docs    web-search    cloud-connectors
+  (MCP)         (MCP)           (MCP)
+```
+
+**Implementation options:**
+
+| Option | Pros | Cons |
+|---|---|---|
+| LangGraph | Mature, debuggable, stateful | External dependency, abstractions can obscure |
+| Custom ReAct loop | Full control, minimal deps | More code to maintain |
+| LlamaIndex AgentWorker | Good MCP integration | Another large dependency |
+
+**Recommendation:** Custom lightweight ReAct loop in `agent/aggregator.py` (~300 lines). Avoids heavy framework dependencies while staying fully auditable. Migrate to LangGraph if complexity grows beyond what the custom loop handles cleanly.
+
+**Agent interface:**
+```python
+class AggregatorAgent:
+    def __init__(self, mcp_clients: dict[str, MCPClient], model_router: ModelRouter):
+        ...
+
+    async def run(self, query: str, plan: Plan, session: Session) -> AgentResult:
+        # Returns: answer, citations, tool_trace, model_used
+        ...
+```
+
+**Acceptance criteria:**
+- All retrieval goes through the agent; no direct MCP calls from Flask routes
+- Parallel tool calls reduce multi-source query latency by ≥ 30%
+- Tool trace is stored per conversation turn
+- Agent handles MCP server downtime gracefully (returns partial results + warning)
+
+---
+
+### Feature 3.3 — Multi-Model Router
+
+**Effort:** Medium | **Impact:** High
+
+**What:** Add a routing layer that selects the optimal model for each query based on intent, complexity, and document type — rather than binding all queries to a single active Ollama model.
+
+**Why:** A simple factual lookup ("what is the deadline for project X?") should not burn the same compute as a complex synthesis ("write a comparative analysis of all three vendor proposals"). Routing fast queries to a small fast model and complex queries to a large capable model makes the system both faster and cheaper without sacrificing output quality where it matters.
+
+**How:**
+
+**Routing taxonomy:**
+
+| Query type | Signal | Model class |
+|---|---|---|
+| Simple factual lookup | Short query, single entity, no synthesis | Fast (e.g. `llama3.2:3b`) |
+| Multi-document synthesis | Plan hops ≥ 2, synthesis_required: true | Large (e.g. `llama3.1:70b`) |
+| Code generation / review | Query contains code, doc_type == code | Code (e.g. `qwen2.5-coder:14b`) |
+| Image-heavy document | doc_type == image, PDF with figures | Vision (e.g. `llava:13b`) |
+| Default | Anything else | Base (e.g. `llama3.1:8b`) |
+
+**Implementation:**
+1. Add `ModelRegistry` to `config/models.py`: maps model class → Ollama model ID + max_tokens + timeout.
+2. Add `ModelRouter` to `agent/router.py`. Inputs: query text, plan JSON, retrieved doc types. Output: model class selection + rationale.
+3. Router runs as a fast synchronous classification (rule-based first, optionally a tiny classifier model later).
+4. The Aggregator Agent calls `model_router.select(query, plan, context)` before the synthesis step.
+5. Add `model_used` to the API response and display it as a small badge in the chat UI.
+6. Admin dashboard: per-model usage breakdown, latency distribution, fallback rates.
+
+**Acceptance criteria:**
+- Simple queries route to fast model (verified via response metadata)
+- Code-focused queries route to code model
+- Users can override model selection via a chat UI selector
+- Model routing adds < 10ms to query latency (rule-based path)
+
+---
+
+## Phase 4 — Platform (M10–M12)
+
+**Theme:** Turn LocalChat from a personal RAG tool into team-ready knowledge infrastructure. Add the self-improvement loop, multi-user support, and live data connectors that give it permanent competitive advantage.
+
+### Feature 4.1 — Retrieval Feedback Loop + Adaptive Reranker
+
+**Effort:** Medium | **Impact:** High
+
+**What:** Collect explicit user feedback on answers and retrieval quality. Use collected signal to fine-tune the reranker on domain-specific relevance. Surface aggregate quality metrics in the admin dashboard.
+
+**Why:** After a few months of usage, LocalChat's reranker becomes domain-adapted in a way no out-of-the-box tool can match. A medical team's LocalChat learns what "relevant" means for clinical documents. An engineering team's LocalChat learns to surface architecture decision records over generic documentation. This is a durable moat — it compounds with use and cannot be replicated by a generic product.
+
+**How:**
+
+**Signal collection:**
+```sql
+CREATE TABLE answer_feedback (
+  id           UUID PRIMARY KEY,
+  conv_turn_id UUID REFERENCES conversation_turns(id),
+  rating       SMALLINT,          -- 1 (thumbs up) / -1 (thumbs down)
+  feedback_type TEXT,             -- 'answer_quality' | 'wrong_sources' | 'missing_source'
+  correct_doc_ids UUID[],         -- user-indicated correct documents (optional)
+  created_at   TIMESTAMPTZ
+);
+```
+
+**Reranker fine-tuning pipeline:**
+1. Weekly job: export feedback pairs from the past 7 days.
+2. Construct training pairs: `(query, retrieved_chunk, label)` where label = 1 if chunk was in a positively-rated answer, 0 if in a negatively-rated one.
+3. Fine-tune the cross-encoder reranker (e.g. `cross-encoder/ms-marco-MiniLM-L-6-v2`) on domain pairs using sentence-transformers trainer.
+4. Run evaluation on held-out pairs. If NDCG improves, swap the active reranker model.
+5. Keep previous reranker versions. Rollback is one config change.
+
+**Stale chunk detection:**
+- Track retrieval frequency per chunk (`chunk_stats` table: retrieved_count, positive_feedback_count).
+- Flag chunks with high retrieval frequency but zero positive feedback as potentially stale or noisy.
+- Surface flagged chunks in admin dashboard for manual review or re-ingestion.
+
+**Admin dashboard additions:**
+- Answer quality trend (rolling 7-day thumbs up rate)
+- Top-retrieved documents by positive/negative ratio
+- Reranker version history + NDCG delta per version
+- Stale chunk list with last-modified date
+
+**Acceptance criteria:**
+- Feedback UI present on all RAG answers (thumbs up/down + optional "wrong sources" flag)
+- Reranker fine-tuning runs weekly without manual intervention
+- Admin dashboard shows quality metrics within 24h of feedback collection
+- Rollback to previous reranker takes < 1 minute
+
+---
+
+### Feature 4.2 — Workspace / Persona Mode
+
+**Effort:** Medium | **Impact:** High
+
+**What:** Users can create named workspaces, each with its own document collection, system prompt, model selection, memory scope, and tool configuration. Switching workspaces is a single click.
+
+**Why:** A single shared knowledge base is limiting for users who work across multiple projects or domains. A "NMBS project" workspace and a "Legal research" workspace should have completely separate document sets, different system prompts (tone, domain vocabulary, output format), and isolated memory. Workspaces also make LocalChat a viable team tool — shared workspaces can have their own members, documents, and quality metrics.
+
+**How:**
+
+**Data model additions:**
+```sql
+CREATE TABLE workspaces (
+  id           UUID PRIMARY KEY,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  system_prompt TEXT,
+  model_class  TEXT,   -- override default model routing
+  owner_id     UUID REFERENCES users(id),
+  created_at   TIMESTAMPTZ
+);
+
+-- FK additions to existing tables
+ALTER TABLE documents         ADD COLUMN workspace_id UUID REFERENCES workspaces(id);
+ALTER TABLE conversations     ADD COLUMN workspace_id UUID REFERENCES workspaces(id);
+ALTER TABLE memories          ADD COLUMN workspace_id UUID REFERENCES workspaces(id);
+ALTER TABLE answer_feedback   ADD COLUMN workspace_id UUID REFERENCES workspaces(id);
+
+CREATE TABLE workspace_members (
+  workspace_id UUID REFERENCES workspaces(id),
+  user_id      UUID REFERENCES users(id),
+  role         TEXT,   -- 'owner' | 'editor' | 'viewer'
+  PRIMARY KEY (workspace_id, user_id)
+);
+```
+
+**API changes:**
+- All document, conversation, and retrieval endpoints accept an optional `workspace_id` param.
+- Default workspace is auto-created per user on registration.
+- Workspace-scoped retrieval: queries only search documents within the active workspace.
+
+**UI:**
+- Workspace selector in the top nav (dropdown with workspace name + member count).
+- "New workspace" flow: name, description, system prompt, initial document upload.
+- Workspace settings: members, model override, system prompt editor.
+- Per-workspace quality metrics in admin dashboard.
+
+**Acceptance criteria:**
+- Documents are strictly scoped to their workspace (no cross-workspace retrieval)
+- Workspace switch takes < 200ms (no full page reload)
+- Shared workspaces support viewer/editor/owner roles
+- Memory is scoped per workspace
+
+---
+
+### Feature 4.3 — Live Connector Framework
+
+**Effort:** High | **Impact:** High
+
+**What:** A connector framework that keeps the LocalChat knowledge base current automatically. Connectors watch external sources — local folders, SharePoint, OneDrive, S3, webhook endpoints — and trigger ingest when documents are added, modified, or deleted.
+
+**Why:** Manual document upload is the biggest friction point in enterprise RAG adoption. If the knowledge base is stale, users stop trusting it. A connector to a team's shared drive or intranet turns LocalChat from "a tool I have to maintain" into ambient knowledge infrastructure that stays current without manual effort.
+
+**How:**
+
+**Connector interface:**
+```python
+class BaseConnector(ABC):
+    """All connectors implement this interface."""
+
+    connector_id: str
+    display_name: str
+    workspace_id: UUID
+
+    @abstractmethod
+    async def list_sources(self) -> list[DocumentSource]:
+        """Return all documents visible to this connector."""
+        ...
+
+    @abstractmethod
+    async def poll(self) -> list[DocumentEvent]:
+        """Return new/modified/deleted events since last poll."""
+        ...
+
+    @abstractmethod
+    async def fetch(self, source: DocumentSource) -> bytes:
+        """Fetch raw document content."""
+        ...
+```
+
+**Built-in connectors (Phase 4):**
+
+| Connector | Mechanism | Notes |
+|---|---|---|
+| Local folder watcher | inotify (Linux) / FSEvents (macOS) / polling fallback | Watches a configured directory tree |
+| SharePoint / OneDrive | Microsoft Graph API delta queries | Requires OAuth2 app registration |
+| S3 / compatible | S3 ListObjectsV2 with `LastModified` polling | Works with MinIO, Cloudflare R2, etc. |
+| Webhook receiver | HTTP POST endpoint | Generic; any system can push document events |
+
+**Sync worker:**
+1. Per-connector sync worker runs on a configurable interval (default: every 15 minutes for poll-based, real-time for inotify/webhook).
+2. On `DOCUMENT_ADDED` / `DOCUMENT_MODIFIED`: download → run through type-aware chunker → upsert in pgvector + entity graph.
+3. On `DOCUMENT_DELETED`: remove chunks, entities, and memory references. Mark conversations that cited the document.
+4. Per-connector sync status shown in admin dashboard: last sync time, document count, error rate.
+
+**Connector configuration (stored in Postgres):**
+```sql
+CREATE TABLE connectors (
+  id            UUID PRIMARY KEY,
+  workspace_id  UUID REFERENCES workspaces(id),
+  connector_type TEXT,   -- 'local_folder' | 'sharepoint' | 'onedrive' | 's3' | 'webhook'
+  config        JSONB,   -- connector-specific config (path, credentials ref, etc.)
+  enabled       BOOLEAN DEFAULT true,
+  sync_interval INT,     -- seconds
+  last_sync_at  TIMESTAMPTZ,
+  last_error    TEXT
+);
+```
+
+**Credential handling:** Connector credentials (OAuth tokens, API keys) are never stored in `config`. They reference entries in a separate `secrets` table that is encrypted at rest.
+
+**Acceptance criteria:**
+- Local folder watcher detects and ingests new files within 30 seconds
+- SharePoint connector syncs delta changes without full re-ingest
+- Deleted documents are removed from the vector index within one sync cycle
+- Connector sync failures do not affect the main application
+- Admin dashboard shows sync status per connector
+
+---
+
+## Target Architecture
+
+End-state architecture after all four phases:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                        Frontend                          │
+│  Chat UI │ Citation viewer │ CoT trace │ Workspace nav  │
+└──────────────────────────┬──────────────────────────────┘
+                           │ HTTP / WebSocket
+┌──────────────────────────▼──────────────────────────────┐
+│                    Flask Core + API                      │
+│              JWT auth │ Rate limiting │ Admin            │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────┐
+│                   Aggregator Agent                       │
+│   Query planner │ Tool dispatcher │ Multi-model router   │
+│   Memory retrieval │ Result synthesis │ Citation builder │
+└──────┬───────────────────┬────────────────────┬─────────┘
+       │ MCP               │ MCP                │ MCP
+┌──────▼──────┐   ┌────────▼────────┐   ┌───────▼──────────┐
+│ local-docs  │   │  web-search     │   │ cloud-connectors  │
+│   server    │   │    server       │   │     server        │
+│             │   │                 │   │                   │
+│ Chunker     │   │ DuckDuckGo      │   │ SharePoint        │
+│ Reranker    │   │ Brave Search    │   │ OneDrive / S3     │
+│ GraphRAG    │   │ Jina Reader     │   │ Webhook receiver  │
+└──────┬──────┘   └─────────────────┘   └───────────────────┘
+       │
+┌──────▼──────────────────────────────────────────────────┐
+│                      Data Layer                          │
+│  pgvector (HNSW) │ Knowledge graph │ Memory store        │
+│  Feedback signals │ Conversation history │ Connector sync│
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Definition of done (per phase)
+## Effort vs. Impact Matrix
 
-- SonarCloud quality gate passes (0 new issues introduced)
-- All new code covered by tests at the level described in this document
-- README and CLAUDE.md updated if public-facing behaviour changed
-- This roadmap updated to mark items complete
+All 12 features plotted by implementation effort and user impact:
+
+| Feature | Phase | Effort | Impact | Quadrant |
+|---|---|---|---|---|
+| Answer attribution + source viewer | 1 | Low | High | Quick win |
+| Adaptive chunking per document type | 1 | Low | High | Quick win |
+| Cloud model fallback | 1 | Low | Medium | Quick win |
+| Query planner + CoT trace UI | 2 | Medium | High | Strategic bet |
+| Long-term memory store | 2 | Medium | High | Strategic bet |
+| GraphRAG / entity retrieval | 2 | High | High | Strategic bet |
+| MCP server split | 3 | High | High | Strategic bet |
+| Aggregator agent | 3 | High | High | Strategic bet |
+| Multi-model router | 3 | Medium | High | Strategic bet |
+| Retrieval feedback loop | 4 | Medium | High | Strategic bet |
+| Workspace / persona mode | 4 | Medium | High | Strategic bet |
+| Live connector framework | 4 | High | High | Strategic bet |
 
 ---
 
-## v2.0 Candidates (future work)
+## Design Principles
 
-Items explicitly deferred from this roadmap. Start a new roadmap file when picking these up.
+These four principles govern every architectural and UX decision in this roadmap.
 
-| Item | Effort | Notes |
-|------|--------|-------|
-| Pyright strict mode | Medium | ~30 functions need return/param annotations in `src/routes/` and `src/rag/`; start with `src/db/` and `src/models.py` |
-| Wire up L3 cache | Small | Instantiate `DatabaseCache` in `src/cache/managers.py`; read `L3_CACHE_ENABLED` from config |
-| Document re-ingestion UI | Small | Frontend button to replace an existing document; backend already supports it via hash detection |
-| Multi-GPU Ollama routing | Large | Route requests across multiple Ollama instances based on GPU availability |
-| User accounts | Large | Multi-user support with per-user conversation isolation |
+### 01 — Privacy-First by Default
+Your data never leaves your infrastructure unless you explicitly configure a cloud fallback and explicitly mark a document as non-sensitive. All processing — chunking, embedding, retrieval, generation — runs locally. Cloud fallback is opt-in, per-document-type, and surfaced clearly in the UI.
+
+### 02 — Transparent Intelligence
+Every answer shows its sources. Every plan can be inspected. No black boxes. Users who understand what the system is doing can correct it when it is wrong, which makes the system more useful over time. The CoT trace panel, citation viewer, and connector sync status all serve this principle.
+
+### 03 — Domain-Adapted Over Time
+The feedback loop is not a nice-to-have — it is the mechanism by which LocalChat becomes permanently superior to any generic RAG tool for your specific corpus. After three months of use on an engineering team's documentation, the reranker has learned what "relevant" means for that team's queries in a way that cannot be replicated by a product trained on generic data.
+
+### 04 — Composable Architecture
+MCP boundaries exist so that every domain agent can be swapped, scaled, or extended without touching the core. A new cloud connector is a new MCP server, not a pull request to the main application. A new model provider is a new `ModelClient` implementation, not a change to the agent. Composability is what makes the platform extensible beyond this roadmap.
+
+---
+
+## Dependencies & Stack Decisions
+
+### Core additions by phase
+
+| Phase | Addition | Replaces / augments |
+|---|---|---|
+| 1 | LiteLLM | Direct Ollama client calls |
+| 2 | spaCy `en_core_web_trf` | No prior NER |
+| 2 | NetworkX (or Postgres JSONB graph) | No prior entity graph |
+| 3 | MCP Python SDK | Direct Python imports between modules |
+| 3 | LangGraph (optional) | Custom ReAct loop |
+| 4 | `sentence-transformers` trainer | Static reranker model |
+| 4 | Microsoft Graph SDK | No prior SharePoint/OneDrive |
+| 4 | `watchdog` (Python) | No prior folder watching |
+
+### Decisions to make before Phase 3
+
+**Graph backend:** NetworkX is fast to prototype but does not persist across restarts without serialization. A Postgres JSONB adjacency list scales better for large corpora. Neo4j is the most capable but adds operational complexity. **Recommendation:** Postgres JSONB for Phase 2 prototype, revisit if graph query patterns become complex.
+
+**Agent framework:** A custom ReAct loop (~300 lines) keeps dependencies minimal and the code fully auditable. LangGraph adds visual debugging and better state management at the cost of abstraction. **Recommendation:** Start custom, migrate to LangGraph when the agent exceeds 3 tool types or requires branching control flow.
+
+**Reranker model:** `cross-encoder/ms-marco-MiniLM-L-6-v2` is fast (< 10ms per pair on CPU) and fine-tunable. `cross-encoder/ms-marco-electra-base` is more accurate but 4× slower. **Recommendation:** Start with MiniLM-L-6; benchmark on your corpus before upgrading.
+
+### What this roadmap does not include
+
+- **Multi-tenancy / SaaS mode:** Workspace mode in Phase 4 provides team support, but this roadmap assumes a self-hosted deployment. Multi-tenant SaaS would require a separate pricing, billing, and isolation layer.
+- **Mobile client:** Out of scope. The web UI is responsive but a native mobile app is a separate workstream.
+- **Fine-tuning base LLMs:** The feedback loop fine-tunes the reranker only. Fine-tuning the generative model on your corpus is a significant additional undertaking that would require GPU infrastructure beyond what a typical local deployment provides.
+- **Real-time collaboration:** Workspaces support shared access but not simultaneous real-time editing of documents or conversations.
+
+---
+
+*Last updated: April 2026*
+*Repository: https://github.com/jwvanderstam/LocalChat*

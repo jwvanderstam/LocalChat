@@ -8,21 +8,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**As of 2026-04-06 — v1.0.0 — ROADMAP COMPLETE**
+**As of 2026-04-08 — v1.0.1 — NEW ROADMAP STARTED**
 
 | Phase | Status |
 |-------|--------|
-| 1 — Code Quality & Security | ✅ 100% |
-| 2 — Test Coverage | ✅ 100% |
-| 3 — Documentation | ✅ 100% |
-| 4 — Feature Evolution | ✅ 100% |
-| 5 — Observability | ✅ 100% |
+| 1 — Foundation (Answer attribution, adaptive chunking, cloud fallback) | 🔲 Not started |
+| 2 — Intelligence (Query planner, long-term memory, GraphRAG) | 🔲 Not started |
+| 3 — Architecture (MCP split, aggregator agent, multi-model router) | 🔲 Not started |
+| 4 — Platform (Feedback loop, workspaces, live connectors) | 🔲 Not started |
 
-All roadmap items are implemented or explicitly deferred to v2.0 with written rationale in `docs/ROADMAP.md`.
+New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.md` for full feature specs and acceptance criteria.
 
-**Deferred to v2.0:** Pyright strict mode (basic already enforced), L3 cache wiring (implementation complete, not connected by default). See `docs/ROADMAP.md` → v2.0 Candidates.
-
-**Next session:** Start a new roadmap or pick up a v2.0 candidate. Check `git log --oneline -5` and `git fetch origin` first.
+**Next session:** Pick up Phase 1, Feature 1.1 (Answer Attribution + Source Viewer) — lowest effort, highest trust impact. Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 
