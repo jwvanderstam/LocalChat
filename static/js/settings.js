@@ -108,6 +108,35 @@ function renderSwatches(containerId) {
     `).join('');
 }
 
+/**
+ * Apply or remove dark mode.
+ *
+ * Uses Bootstrap 5.3's built-in data-bs-theme="dark" attribute plus a small
+ * set of custom overrides in style.css for LocalChat-specific elements.
+ *
+ * @param {boolean} enabled
+ */
+function applyDarkMode(enabled) {
+    const root = document.documentElement;
+    if (enabled) {
+        root.setAttribute('data-bs-theme', 'dark');
+    } else {
+        root.removeAttribute('data-bs-theme');
+    }
+    try { localStorage.setItem('lc-dark', enabled ? '1' : '0'); } catch (_) {}
+
+    // Keep the toggle button in sync if it exists on the page
+    const toggle = document.getElementById('dark-mode-toggle');
+    if (toggle) toggle.checked = enabled;
+}
+
+/**
+ * Return true when dark mode is currently active.
+ */
+function isDarkMode() {
+    try { return localStorage.getItem('lc-dark') === '1'; } catch (_) { return false; }
+}
+
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -115,6 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // in base.html, but we still need to set the CSS variables at runtime)
     const saved = (() => { try { return localStorage.getItem('lc-theme'); } catch (_) { return null; } })();
     applyTheme(saved || 'default');
+
+    // Restore dark mode
+    applyDarkMode(isDarkMode());
 
     // Render swatches on the Appearance tab (only present on /settings)
     renderSwatches('theme-swatches');

@@ -157,7 +157,7 @@ class DocumentsMixin:
         min_similarity: float = 0.0,
         file_type_filter: str | None = None,
         filename_filter: list[str] | None = None,
-    ) -> list[tuple[str, str, int, float, dict[str, Any]]]:
+    ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """
         Search for similar chunks using cosine similarity via pgvector HNSW.
 
@@ -171,7 +171,7 @@ class DocumentsMixin:
             filename_filter: Optional list of exact filenames to restrict search to.
 
         Returns:
-            List of ``(chunk_text, filename, chunk_index, similarity, metadata)``
+            List of ``(chunk_text, filename, chunk_index, similarity, metadata, chunk_id)``
 
         Raises:
             DatabaseUnavailableError: If database is not connected
@@ -202,7 +202,7 @@ class DocumentsMixin:
                     WITH q AS (SELECT %s::vector AS emb)
                     SELECT dc.chunk_text, d.filename, dc.chunk_index,
                            1 - (dc.embedding <=> q.emb) AS similarity,
-                           dc.metadata
+                           dc.metadata, dc.id
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
                     CROSS JOIN q
@@ -216,7 +216,7 @@ class DocumentsMixin:
 
                 results = cursor.fetchall()
                 logger.debug(f"Found {len(results)} similar chunks")
-                return [(r[0], r[1], r[2], r[3], r[4] or {}) for r in results]
+                return [(r[0], r[1], r[2], r[3], r[4] or {}, r[5]) for r in results]
 
     def search_similar_chunks_with_scores(
         self,
@@ -321,6 +321,41 @@ class DocumentsMixin:
                 results = cursor.fetchall()
                 logger.debug(f"Retrieved {len(results)} adjacent chunks")
                 return results
+
+    def get_chunk_by_id(self, chunk_id: int) -> dict[str, Any] | None:
+        """
+        Fetch a single chunk row by its primary key.
+
+        Args:
+            chunk_id: Primary key of the chunk
+
+        Returns:
+            Dict with keys ``id, document_id, chunk_index, chunk_text, metadata``,
+            or ``None`` if not found.
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot get chunk: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, document_id, chunk_index, chunk_text, metadata"
+                    " FROM document_chunks WHERE id = %s",
+                    (chunk_id,),
+                )
+                row = cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            'id': row[0],
+            'document_id': row[1],
+            'chunk_index': row[2],
+            'chunk_text': row[3],
+            'metadata': row[4] or {},
+        }
 
     def get_document_count(self) -> int:
         """Return the total number of documents in the database."""

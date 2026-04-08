@@ -20,7 +20,7 @@ class TestSearchDocumentsTool:
         from src.tools.registry import tool_registry
 
         with patch('src.rag.doc_processor.retrieve_context',
-                   return_value=[("chunk text", "doc.pdf", 0, 0.9, {})]), \
+                   return_value=[("chunk text", "doc.pdf", 0, 0.9, {}, 1)]), \
              patch('src.rag.doc_processor.format_context_for_llm',
                    return_value="Formatted chunk text"):
             result = tool_registry.execute("search_documents", {"query": "python"})

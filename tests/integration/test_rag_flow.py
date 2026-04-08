@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 # Representative chunks that retrieve_context would return:
-# (chunk_text, filename, chunk_index, similarity_score, metadata)
+# (chunk_text, filename, chunk_index, similarity_score, metadata, chunk_id)
 SAMPLE_CHUNKS = [
     (
         "LocalChat supports pgvector for semantic similarity search.",
@@ -14,6 +14,7 @@ SAMPLE_CHUNKS = [
         0,
         0.92,
         {"page_number": None, "section_title": "Overview"},
+        1,
     ),
     (
         "Documents are split into overlapping chunks and embedded with nomic-embed-text.",
@@ -21,6 +22,7 @@ SAMPLE_CHUNKS = [
         1,
         0.88,
         {"page_number": None, "section_title": "Overview"},
+        2,
     ),
 ]
 

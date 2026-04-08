@@ -87,7 +87,7 @@ class TestContextRetrieval:
 
             with patch('src.rag.retrieval.db') as mock_db:
                 mock_db.search_similar_chunks.return_value = [
-                    ("chunk text", "file.txt", 1, 0.9, {})
+                    ("chunk text", "file.txt", 1, 0.9, {}, 1)
                 ]
                 mock_db.search_by_keyword.return_value = []
 

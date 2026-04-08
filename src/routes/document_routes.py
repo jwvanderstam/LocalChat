@@ -467,6 +467,49 @@ def api_search_text():
         }), 500
 
 
+@bp.route('/chunks/<int:chunk_id>/context', methods=['GET'])
+def api_get_chunk_context(chunk_id: int):
+    """
+    Return a chunk and its surrounding neighbours for source attribution.
+
+    Query params:
+        window (int, optional): Chunks before/after to include (default 1, max 5)
+
+    Returns:
+        JSON with the target chunk plus adjacent chunks ordered by chunk_index.
+    """
+    from ..db import DatabaseUnavailableError
+    try:
+        window = min(int(request.args.get('window', 1)), 5)
+    except (TypeError, ValueError):
+        window = 1
+
+    try:
+        chunk = current_app.db.get_chunk_by_id(chunk_id)
+        if chunk is None:
+            return jsonify({'success': False, 'message': 'Chunk not found'}), 404
+
+        adjacent = current_app.db.get_adjacent_chunks(
+            chunk['document_id'], chunk['chunk_index'], window_size=window
+        )
+        return jsonify({
+            'success': True,
+            'chunk_id': chunk_id,
+            'document_id': chunk['document_id'],
+            'chunk_index': chunk['chunk_index'],
+            'window': window,
+            'chunks': [
+                {'chunk_text': text, 'chunk_index': idx}
+                for text, idx in adjacent
+            ],
+        })
+    except DatabaseUnavailableError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching chunk context for {chunk_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to fetch chunk context'}), 500
+
+
 @bp.route('/clear', methods=['DELETE'])
 def api_clear_documents():
     """
@@ -510,7 +553,7 @@ def _format_test_results(results, mode_name: str) -> dict[str, Any]:
         return {'mode': mode_name, 'count': 0, 'chunks': []}
 
     formatted = []
-    for chunk_text, filename, chunk_index, similarity, metadata in results:
+    for chunk_text, filename, chunk_index, similarity, metadata, *_ in results:
         chunk_data = {
             'filename': filename,
             'chunk_index': chunk_index,

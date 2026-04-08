@@ -262,8 +262,8 @@ class TestVectorSimilaritySearch:
 
         if results:
             result = results[0]
-            assert len(result) == 5  # (chunk_text, filename, chunk_index, similarity, metadata)
-            chunk_text, filename, chunk_index, similarity, metadata = result
+            assert len(result) == 6  # (chunk_text, filename, chunk_index, similarity, metadata, chunk_id)
+            chunk_text, filename, chunk_index, similarity, metadata, chunk_id = result
             assert isinstance(chunk_text, str)
             assert isinstance(filename, str)
             assert isinstance(chunk_index, int)

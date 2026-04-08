@@ -338,3 +338,63 @@ svg text {
     color: #666;
     font-weight: 500;
 }
+
+/* ── Dark mode overrides ───────────────────────────────────────────────────── */
+[data-bs-theme="dark"] .sidebar {
+    background-color: var(--bs-body-bg) !important;
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07);
+}
+
+[data-bs-theme="dark"] .sidebar .nav-link {
+    color: #ccc;
+}
+
+[data-bs-theme="dark"] .sidebar .nav-link:hover,
+[data-bs-theme="dark"] .sidebar .nav-link.active {
+    color: var(--color-accent);
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Chat message bubbles */
+[data-bs-theme="dark"] .message-content.bg-white {
+    background-color: #2a2d35 !important;
+    border-color: #3a3d45 !important;
+    color: #e0e0e0;
+}
+
+[data-bs-theme="dark"] .chunk-context-text {
+    background: #1e2029;
+    border-color: #3a3d45;
+    color: #cdd;
+}
+
+/* ── Source attribution panel ──────────────────────────────────────────────── */
+.sources-panel summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 2px 0;
+    border-top: 1px solid #e9ecef;
+    margin-top: 6px;
+}
+
+.sources-panel summary::-webkit-details-marker { display: none; }
+
+.sources-panel summary::before {
+    content: '▶ ';
+    font-size: 0.65rem;
+}
+
+.sources-panel[open] summary::before {
+    content: '▼ ';
+}
+
+.chunk-context-text {
+    font-size: 0.78rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 260px;
+    overflow-y: auto;
+}

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LocalChat - RAG Application</title>
     
-    <!-- Theme: apply saved choice before CSS loads to prevent flash -->
-    <script>(function(){var t=localStorage.getItem('lc-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <!-- Theme + dark mode: apply saved choices before CSS loads to prevent flash -->
+    <script>(function(){var t=localStorage.getItem('lc-theme');if(t)document.documentElement.setAttribute('data-theme',t);var d=localStorage.getItem('lc-dark');if(d==='1')document.documentElement.setAttribute('data-bs-theme','dark');})();</script>
 
     <!-- Bootstrap 5 CSS -->
     <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">

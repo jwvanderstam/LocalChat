@@ -91,7 +91,7 @@ def _get_rag_context(message: str, doc_processor, filename_filter: list | None =
     if not results:
         logger.warning("[RAG] No chunks retrieved from documents")
         return "", []
-    for idx, (_, filename, chunk_index, similarity, metadata) in enumerate(results, 1):
+    for idx, (_, filename, chunk_index, similarity, metadata, *_) in enumerate(results, 1):
         parts = [f"[RAG] Result {idx}: {filename} chunk {chunk_index}: similarity {similarity:.3f}"]
         if metadata.get('page_number'):
             parts.append(f"page {metadata['page_number']}")
@@ -104,8 +104,9 @@ def _get_rag_context(message: str, doc_processor, filename_filter: list | None =
             "chunk_index": chunk_index,
             "page_number": metadata.get("page_number"),
             "section_title": metadata.get("section_title"),
+            "chunk_id": chunk_id,
         }
-        for _, filename, chunk_index, _, metadata in results
+        for _, filename, chunk_index, _, metadata, chunk_id in results
     ]
     return doc_processor.format_context_for_llm(results, max_length=6000), sources
 

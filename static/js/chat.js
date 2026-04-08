@@ -458,6 +458,13 @@ async function sendMessage() {
                         }
                     }
 
+                    if (data.sources && data.sources.length > 0) {
+                        const messageContent = chatMessages.querySelector('.assistant-message:last-child .message-content');
+                        if (messageContent) {
+                            messageContent.appendChild(buildSourcesPanel(data.sources));
+                        }
+                    }
+
                     chatHistory.push({
                         role: 'assistant',
                         content: assistantResponse,
@@ -517,6 +524,76 @@ function formatTime(timestamp) {
 
 function scrollToBottom() {
     chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function buildSourcesPanel(sources) {
+    const details = document.createElement('details');
+    details.className = 'sources-panel mt-2';
+
+    const summary = document.createElement('summary');
+    summary.className = 'text-muted small';
+    summary.textContent = `${sources.length} source${sources.length !== 1 ? 's' : ''}`;
+    details.appendChild(summary);
+
+    const list = document.createElement('ul');
+    list.className = 'list-unstyled mb-0 mt-1';
+
+    sources.forEach((src, i) => {
+        const li = document.createElement('li');
+        li.className = 'small text-muted mb-1';
+
+        const parts = [escapeHtml(src.filename)];
+        if (src.page_number) parts.push(`p.${src.page_number}`);
+        if (src.section_title) parts.push(escapeHtml(src.section_title));
+
+        li.innerHTML = `<span class="me-1">📄</span>${parts.join(' · ')}`;
+
+        if (src.chunk_id) {
+            const link = document.createElement('a');
+            link.href = '#';
+            link.className = 'ms-2 text-decoration-none';
+            link.textContent = 'View context';
+            link.dataset.chunkId = src.chunk_id;
+
+            const contextDiv = document.createElement('div');
+            contextDiv.className = 'chunk-context mt-1 d-none';
+
+            link.addEventListener('click', async (e) => {
+                e.preventDefault();
+                if (!contextDiv.classList.contains('d-none')) {
+                    contextDiv.classList.add('d-none');
+                    link.textContent = 'View context';
+                    return;
+                }
+                link.textContent = 'Loading…';
+                try {
+                    const resp = await fetch(`/api/documents/chunks/${src.chunk_id}/context?window=1`);
+                    const data = await resp.json();
+                    if (data.success && data.chunks.length > 0) {
+                        const pre = document.createElement('pre');
+                        pre.className = 'chunk-context-text p-2 rounded';
+                        pre.textContent = data.chunks.map(c => c.chunk_text).join('\n\n---\n\n');
+                        contextDiv.innerHTML = '';
+                        contextDiv.appendChild(pre);
+                        contextDiv.classList.remove('d-none');
+                        link.textContent = 'Hide context';
+                    } else {
+                        link.textContent = 'View context';
+                    }
+                } catch (_) {
+                    link.textContent = 'View context';
+                }
+            });
+
+            li.appendChild(link);
+            li.appendChild(contextDiv);
+        }
+
+        list.appendChild(li);
+    });
+
+    details.appendChild(list);
+    return details;
 }
 
 function copyChatToClipboard() {

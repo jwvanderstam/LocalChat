@@ -217,9 +217,9 @@ class RetrievalMixin:
                 'chunk_text': chunk_text, 'filename': filename,
                 'chunk_index': chunk_index, 'semantic_score': similarity,
                 'bm25_score': 0.0, 'combined_score': similarity,
-                'metadata': metadata or {}
+                'metadata': metadata or {}, 'chunk_id': chunk_id,
             }
-            for chunk_text, filename, chunk_index, similarity, metadata in semantic_results
+            for chunk_text, filename, chunk_index, similarity, metadata, chunk_id in semantic_results
         }
         logger.debug(f"[RAG] Collected {len(all_results)} results for hybrid scoring")
         self._apply_hybrid_scoring(all_results, query_clean, use_hybrid_search)
@@ -232,11 +232,11 @@ class RetrievalMixin:
         self,
         query_clean: str,
         filtered_results: dict[str, dict[str, Any]],
-    ) -> list[tuple[str, str, int, float, dict[str, Any]]]:
+    ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """Apply diversity filter, re-ranking, deduplication, and convert to output tuples.
 
         Returns:
-            Final list of (chunk_text, filename, chunk_index, similarity, metadata) tuples.
+            Final list of (chunk_text, filename, chunk_index, similarity, metadata, chunk_id) tuples.
         """
         if config.ENABLE_DIVERSITY_FILTER:
             filtered_results = self._apply_diversity_filter_dict(filtered_results)
@@ -254,7 +254,7 @@ class RetrievalMixin:
         logger.debug(f"[RAG] After dedup: {len(deduped)} chunks")
         deduped = sorted(deduped, key=lambda x: (x['filename'], x['chunk_index']))
         return [
-            (r['chunk_text'], r['filename'], r['chunk_index'], r['semantic_score'], r.get('metadata', {}))
+            (r['chunk_text'], r['filename'], r['chunk_index'], r['semantic_score'], r.get('metadata', {}), r.get('chunk_id', 0))
             for r in deduped
         ]
 
@@ -269,7 +269,7 @@ class RetrievalMixin:
         use_hybrid_search: bool = True,
         expand_context: bool = True,  # NOSONAR — reserved public API parameter
         filename_filter: list[str] | None = None,
-    ) -> list[tuple[str, str, int, float, dict[str, Any]]]:
+    ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
 
@@ -282,7 +282,7 @@ class RetrievalMixin:
             expand_context: Enable context window expansion
 
         Returns:
-            List of (chunk_text, filename, chunk_index, similarity, metadata) tuples, sorted by relevance
+            List of (chunk_text, filename, chunk_index, similarity, metadata, chunk_id) tuples, sorted by relevance
             metadata dict contains page_number, section_title when available
         """
         start_time = time.time()
@@ -587,7 +587,7 @@ class RetrievalMixin:
                 return True, []
 
             formatted_results = []
-            for chunk_text, filename, chunk_index, similarity, metadata in results:
+            for chunk_text, filename, chunk_index, similarity, metadata, *_ in results:
                 result_dict = {
                     'filename': filename,
                     'chunk_index': chunk_index,
@@ -656,7 +656,7 @@ class RetrievalMixin:
         logger.debug(f"Formatting {len(results)} chunks for LLM (max length: {max_length})")
 
         doc_chunks = defaultdict(list)
-        for chunk_text, filename, chunk_index, similarity, metadata in results:
+        for chunk_text, filename, chunk_index, similarity, metadata, *_ in results:
             doc_chunks[filename].append((chunk_text, chunk_index, similarity, metadata))
 
         formatted_parts = []

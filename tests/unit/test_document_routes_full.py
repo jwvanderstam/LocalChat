@@ -123,7 +123,7 @@ class TestDocumentStatsRoute:
 class TestDocumentSearchRoute:
     def test_search_returns_results(self, client, app):
         app.doc_processor.retrieve_context = MagicMock(return_value=[
-            ("chunk text", "doc.pdf", 0, 0.9, {})
+            ("chunk text", "doc.pdf", 0, 0.9, {}, 1)
         ])
         response = client.post('/api/documents/search-text',
                                data=json.dumps({'query': 'test query'}),

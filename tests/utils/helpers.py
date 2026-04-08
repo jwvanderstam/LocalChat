@@ -55,7 +55,7 @@ def generate_mock_search_results(count: int = 5) -> list[tuple]:
         count: Number of results
 
     Returns:
-        List of (chunk_text, filename, chunk_index, similarity, metadata) tuples
+        List of (chunk_text, filename, chunk_index, similarity, metadata, chunk_id) tuples
     """
     results = []
     for i in range(count):
@@ -64,7 +64,8 @@ def generate_mock_search_results(count: int = 5) -> list[tuple]:
             f"document_{i}.pdf",
             i,
             random.uniform(0.7, 0.99),
-            {}
+            {},
+            i + 1,
         ))
     return results
 
@@ -110,7 +111,7 @@ def generate_mock_search_results(count: int = 5) -> list[tuple]:
         count: Number of results
 
     Returns:
-        List of (chunk_text, filename, chunk_index, similarity, metadata) tuples
+        List of (chunk_text, filename, chunk_index, similarity, metadata, chunk_id) tuples
     """
     results = []
     for i in range(count):
@@ -119,7 +120,8 @@ def generate_mock_search_results(count: int = 5) -> list[tuple]:
             f"document_{i}.pdf",
             i,
             random.uniform(0.7, 1.0),
-            {}
+            {},
+            i + 1,
         ))
     return results
 

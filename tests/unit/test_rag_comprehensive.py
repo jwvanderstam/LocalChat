@@ -88,9 +88,9 @@ def mock_db():
             mock_database.insert_document.return_value = 1
             mock_database.insert_chunks_batch.return_value = None
             mock_database.search_similar_chunks.return_value = [
-                ("chunk text 1", "doc1.pdf", 0, 0.95, {}),
-                ("chunk text 2", "doc1.pdf", 1, 0.87, {}),
-                ("chunk text 3", "doc2.pdf", 0, 0.82, {})
+                ("chunk text 1", "doc1.pdf", 0, 0.95, {}, 1),
+                ("chunk text 2", "doc1.pdf", 1, 0.87, {}, 2),
+                ("chunk text 3", "doc2.pdf", 0, 0.82, {}, 3)
             ]
             mock_database.document_exists.return_value = (False, {})
             mock_database.is_connected = True
@@ -400,7 +400,7 @@ class TestContextRetrieval:
         """Should apply file type filter."""
         with patch('src.rag.retrieval.db') as mock_ret_db:
             mock_ret_db.search_similar_chunks.return_value = [
-                ("chunk text 1", "report.pdf", 0, 0.95, {}),
+                ("chunk text 1", "report.pdf", 0, 0.95, {}, 1),
             ]
             results = doc_processor.retrieve_context(
                 "test query",
@@ -415,9 +415,9 @@ class TestContextRetrieval:
     def test_retrieve_context_with_reranking(self, doc_processor, mock_db, mock_ollama):
         """Should apply re-ranking when enabled."""
         mock_db.search_similar_chunks.return_value = [
-            ("chunk 1", "doc.pdf", 0, 0.85, {}),  # Added metadata
-            ("chunk 2", "doc.pdf", 1, 0.90, {}),
-            ("chunk 3", "doc.pdf", 2, 0.80, {})
+            ("chunk 1", "doc.pdf", 0, 0.85, {}, 1),
+            ("chunk 2", "doc.pdf", 1, 0.90, {}, 2),
+            ("chunk 3", "doc.pdf", 2, 0.80, {}, 3),
         ]
 
         results = doc_processor.retrieve_context("test query")
@@ -428,9 +428,9 @@ class TestContextRetrieval:
     def test_retrieve_context_min_similarity(self, doc_processor, mock_db, mock_ollama):
         """Should filter by minimum similarity."""
         mock_db.search_similar_chunks.return_value = [
-            ("chunk 1", "doc.pdf", 0, 0.95, {}),  # Added metadata
-            ("chunk 2", "doc.pdf", 1, 0.50, {}),  # Below threshold
-            ("chunk 3", "doc.pdf", 2, 0.85, {})  # Added metadata
+            ("chunk 1", "doc.pdf", 0, 0.95, {}, 1),
+            ("chunk 2", "doc.pdf", 1, 0.50, {}, 2),
+            ("chunk 3", "doc.pdf", 2, 0.85, {}, 3),
         ]
 
         results = doc_processor.retrieve_context("test query", min_similarity=0.70)
