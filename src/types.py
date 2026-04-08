@@ -24,6 +24,7 @@ class LocalChatApp(Flask):
     db: Any
     ollama_client: Any
     doc_processor: Any
+    cloud_client: Any | None
     startup_status: dict[str, bool]
     embedding_cache: Any | None
     query_cache: Any | None

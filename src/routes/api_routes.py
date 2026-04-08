@@ -328,19 +328,66 @@ def _get_tool_executor(app):
     return None
 
 
+def _any_local_only_sources(sources: list[dict] | None, app) -> bool:
+    """Return True if any source doc has local_only=TRUE in the DB."""
+    if not sources or not app.startup_status.get('database', False):
+        return False
+    filenames = list({s['filename'] for s in sources if s.get('filename')})
+    if not filenames:
+        return False
+    try:
+        return app.db.any_local_only_sources(filenames)
+    except Exception as e:
+        logger.warning(f"[CloudFallback] local_only check failed: {e}")
+        return True  # Conservative fallback
+
+
 def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None):
-    """Build and return an SSE Response that streams the chat completion."""
+    """Build and return an SSE Response that streams the chat completion.
+
+    When cloud fallback is enabled the local response is buffered first.
+    If the buffer looks like a refusal *and* no source docs are local-only,
+    the cloud model responds instead and a 'model_used: cloud' flag is set
+    in the done payload.
+    """
+    from ..llm_client import is_refusal
+
+    cloud_client = getattr(app, 'cloud_client', None)
+
     def generate() -> Generator[str, None, None]:
-        full_response: list = []
+        full_response: list[str] = []
+        model_used = 'local'
         try:
-            stream = (
+            local_stream = (
                 tool_executor.execute(active_model, messages, stream=True)
                 if tool_executor is not None
                 else app.ollama_client.generate_chat_response(active_model, messages, stream=True, temperature=temperature)
             )
-            for chunk in stream:
-                full_response.append(chunk)
-                yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+            if cloud_client is None:
+                # ── Standard streaming path (no cloud client) ────────────────
+                for chunk in local_stream:
+                    full_response.append(chunk)
+                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+            else:
+                # ── Buffer local response, check for refusal ─────────────────
+                for chunk in local_stream:
+                    full_response.append(chunk)
+                buffered = ''.join(full_response)
+
+                if is_refusal(buffered) and not _any_local_only_sources(sources, app):
+                    logger.info("[CloudFallback] Local refusal detected — routing to cloud")
+                    full_response = []
+                    cloud_model = config.CLOUD_MODEL
+                    for chunk in cloud_client.generate_chat_response(
+                        cloud_model, messages, stream=True, temperature=temperature
+                    ):
+                        full_response.append(chunk)
+                        yield f"data: {json.dumps({'content': chunk})}\n\n"
+                    model_used = 'cloud'
+                else:
+                    # Forward buffered local response as a single content event
+                    yield f"data: {json.dumps({'content': buffered})}\n\n"
 
             _persist_assistant_message(app, conversation_id, ''.join(full_response))
 
@@ -349,16 +396,17 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
                 done_payload['conversation_id'] = conversation_id
             if sources:
                 done_payload['sources'] = sources
+            if cloud_client is not None:
+                done_payload['model_used'] = model_used
             yield f"data: {json.dumps(done_payload)}\n\n"
+
         except exceptions.LocalChatException as e:
             # Expected application error (e.g. model not found) — already logged
             # at WARNING level by the exception constructor; no traceback needed.
-            msg = e.message
-            yield f"data: {json.dumps({'error': 'GenerationError', 'message': msg, 'done': True})}\n\n"
+            yield f"data: {json.dumps({'error': 'GenerationError', 'message': e.message, 'done': True})}\n\n"
         except Exception as e:
             logger.error(f"[CHAT API] Unexpected error generating response: {e}", exc_info=True)
-            msg = "Failed to generate response"
-            yield f"data: {json.dumps({'error': 'GenerationError', 'message': msg, 'done': True})}\n\n"
+            yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
 
     response = Response(generate(), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'

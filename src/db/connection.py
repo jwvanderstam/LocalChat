@@ -377,6 +377,12 @@ class DatabaseConnection:
                 logger.debug("documents.doc_type and chunker_version columns ensured")
 
                 cursor.execute("""
+                    ALTER TABLE documents
+                    ADD COLUMN IF NOT EXISTS local_only BOOLEAN DEFAULT TRUE
+                """)
+                logger.debug("documents.local_only column ensured")
+
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS conversation_messages (
                         id SERIAL PRIMARY KEY,
                         conversation_id UUID NOT NULL

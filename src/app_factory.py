@@ -165,6 +165,9 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
     app.ollama_client = ollama_client
     app.doc_processor = doc_processor
 
+    # Cloud fallback client (None when disabled or litellm not installed)
+    app.cloud_client = _init_cloud_client()
+
     # Initialize caching
     _init_caching(app)
 
@@ -185,6 +188,28 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
         _load_plugins(app)
 
     logger.debug("Services initialized")
+
+
+def _init_cloud_client():
+    """Return a LiteLLMClient if CLOUD_FALLBACK_ENABLED, else None."""
+    if not config.CLOUD_FALLBACK_ENABLED:
+        return None
+    if not config.CLOUD_MODEL:
+        logger.warning("[CloudFallback] CLOUD_FALLBACK_ENABLED=true but CLOUD_MODEL is not set — disabled")
+        return None
+    try:
+        from .llm_client import LiteLLMClient
+        return LiteLLMClient(
+            provider=config.CLOUD_PROVIDER,
+            api_key=config.CLOUD_API_KEY,
+            model=config.CLOUD_MODEL,
+        )
+    except ImportError as e:
+        logger.warning(f"[CloudFallback] {e} — cloud fallback disabled")
+        return None
+    except Exception as e:
+        logger.error(f"[CloudFallback] Failed to initialise LiteLLMClient: {e}", exc_info=True)
+        return None
 
 
 def _init_ollama_service(app: LocalChatApp, ollama_client) -> None:

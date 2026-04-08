@@ -78,6 +78,34 @@ class DocumentsMixin:
         logger.info(f"Document inserted with ID: {doc_id}")
         return doc_id
 
+    def any_local_only_sources(self, filenames: list[str]) -> bool:
+        """
+        Return True if any of the given filenames have local_only = TRUE.
+
+        Used by the cloud fallback logic to prevent cloud calls when the
+        context includes documents the user marked as local-only.
+
+        Args:
+            filenames: List of document filenames to check
+
+        Returns:
+            bool: True if at least one document is local-only
+        """
+        if not filenames or not self.is_connected:
+            return False
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT 1 FROM documents WHERE filename = ANY(%s)"
+                        " AND local_only = TRUE LIMIT 1",
+                        (filenames,),
+                    )
+                    return cursor.fetchone() is not None
+        except Exception as e:
+            logger.warning(f"any_local_only_sources query failed: {e}")
+            return True  # Conservative: treat as local-only on error
+
     def delete_document(self, doc_id: int) -> None:
         """
         Delete a single document and all its chunks (cascades via FK).

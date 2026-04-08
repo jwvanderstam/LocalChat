@@ -314,6 +314,7 @@ class TestStreamChatResponseTemperature:
     def _make_app(self, chunks=None):
         app = Mock()
         app.ollama_client.generate_chat_response.return_value = iter(chunks or ["hi"])
+        app.cloud_client = None  # disable cloud fallback in unit tests
         app.db = Mock()
         app.db.save_message = Mock(return_value=None)
         app.db.create_conversation = Mock(return_value="conv-123")

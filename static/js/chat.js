@@ -465,6 +465,17 @@ async function sendMessage() {
                         }
                     }
 
+                    if (data.model_used === 'cloud') {
+                        const msgText = chatMessages.querySelector('.assistant-message:last-child .message-text');
+                        if (msgText) {
+                            const badge = document.createElement('span');
+                            badge.className = 'badge bg-warning text-dark me-1 align-middle';
+                            badge.style.fontSize = '0.7rem';
+                            badge.textContent = '⚡ cloud';
+                            msgText.insertBefore(badge, msgText.firstChild);
+                        }
+                    }
+
                     chatHistory.push({
                         role: 'assistant',
                         content: assistantResponse,

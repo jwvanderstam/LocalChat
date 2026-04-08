@@ -235,6 +235,32 @@ TOOL_CALLING_ENABLED: bool = os.environ.get('TOOL_CALLING_ENABLED', 'True').lowe
 TOOL_MAX_ROUNDS: int = int(os.environ.get('TOOL_MAX_ROUNDS', '5'))
 
 # ============================================================================
+# CLOUD MODEL FALLBACK CONFIGURATION (Feature 1.3)
+# ============================================================================
+
+# Set CLOUD_FALLBACK_ENABLED=true to enable cloud fallback when the local
+# model refuses to answer (e.g. "I don't know" responses).
+# Requires litellm: pip install 'litellm>=1.67.0'
+CLOUD_FALLBACK_ENABLED: bool = os.environ.get('CLOUD_FALLBACK_ENABLED', 'false').lower() == 'true'
+CLOUD_PROVIDER: str = os.environ.get('CLOUD_PROVIDER', '')   # e.g. "openai", "anthropic"
+CLOUD_API_KEY: str | None = os.environ.get('CLOUD_API_KEY') or None
+CLOUD_MODEL: str = os.environ.get('CLOUD_MODEL', '')         # e.g. "gpt-4o", "claude-3-5-haiku"
+
+# Phrases that indicate a local refusal (case-insensitive regex alternation).
+# Only checked on responses shorter than 500 chars to avoid false positives.
+CLOUD_REFUSAL_PATTERNS: list[str] = [
+    r"I don't know",
+    r"I cannot",
+    r"I'm not sure",
+    r"I don't have information",
+    r"I don't have access",
+    r"I'm unable to",
+    r"no information",
+    r"not mentioned in",
+    r"not provided in",
+]
+
+# ============================================================================
 # PLUGIN SYSTEM CONFIGURATION
 # ============================================================================
 
