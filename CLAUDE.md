@@ -15,11 +15,11 @@ Always run `git log --oneline -5` and `git fetch origin` before starting work.  
 | 1 — Foundation (Answer attribution, adaptive chunking, cloud fallback) | ✅ Complete |
 | 2 — Intelligence (Query planner, long-term memory, GraphRAG) | ✅ Complete |
 | 3 — Architecture (MCP split, aggregator agent, multi-model router) | ✅ Complete |
-| 4 — Platform (Feedback loop, workspaces, live connectors) | 🔲 Not started |
+| 4 — Platform (Feedback loop, workspaces, live connectors) | 🚧 In progress |
 
 New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.md` for full feature specs and acceptance criteria.
 
-**Next session:** Pick up Phase 4, Feature 4.1 (Retrieval Feedback Loop + Adaptive Reranker). Check `git log --oneline -5` and `git fetch origin` first.
+**Next session:** Pick up Phase 4, Feature 4.2 (Workspace / Persona Mode). Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 
@@ -131,6 +131,9 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `src/agent/result.py` | `AgentResult`, `ToolCall` dataclasses; `to_trace_dict()` for SSE + DB storage |
 | `src/agent/models.py` | `ModelRegistry` — env-driven model class → Ollama ID mapping; `summary()` |
 | `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); < 1 ms |
+| `src/db/feedback.py` | `FeedbackMixin` — `answer_feedback` + `chunk_stats` CRUD; `get_feedback_stats()`, `export_feedback_pairs()` |
+| `src/routes/feedback_routes.py` | `POST /api/feedback` (submit rating), `GET /api/feedback/stats` (admin metrics) |
+| `src/rag/feedback_pipeline.py` | Weekly export + optional cross-encoder fine-tune; CLI entry point |
 | `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
 | `mcp_servers/base.py` | `MCPServer` base class — JSON-RPC 2.0 dispatcher (tools/list, tools/call, health) |
 | `mcp_servers/local_docs/server.py` | Local-docs MCP server — wraps retrieval + `format_context_for_llm`; gunicorn port 5001 |

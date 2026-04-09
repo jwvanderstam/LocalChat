@@ -495,14 +495,15 @@ def _persist_user_message(app, conversation_id, message: str, plan=None, agent_r
         return None, None
 
 
-def _persist_assistant_message(app, conversation_id, text: str) -> None:
-    """Save the assistant response to the database."""
+def _persist_assistant_message(app, conversation_id, text: str) -> int | None:
+    """Save the assistant response to the database.  Returns the message_id or None."""
     if not conversation_id:
-        return
+        return None
     try:
-        app.db.save_message(conversation_id, 'assistant', text)
+        return app.db.save_message(conversation_id, 'assistant', text)
     except Exception as mem_err:
         logger.warning(f"[MEMORY] Could not persist assistant message: {mem_err}")
+        return None
 
 
 def _get_tool_executor(app):
@@ -584,13 +585,27 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
                     # Forward buffered local response as a single content event
                     yield f"data: {json.dumps({'content': buffered})}\n\n"
 
-            _persist_assistant_message(app, conversation_id, ''.join(full_response))
+            asst_message_id = _persist_assistant_message(app, conversation_id, ''.join(full_response))
+
+            # Track which chunks were retrieved so feedback can update chunk_stats
+            if sources and app.startup_status.get('database', False):
+                chunk_ids = [s['chunk_id'] for s in sources if s.get('chunk_id')]
+                if chunk_ids:
+                    try:
+                        app.db.increment_chunk_retrieved(chunk_ids)
+                    except Exception as cs_err:
+                        logger.debug(f"[Feedback] chunk_stats update failed: {cs_err}")
 
             done_payload: dict = {'done': True}
             if conversation_id:
                 done_payload['conversation_id'] = conversation_id
+            if asst_message_id is not None:
+                done_payload['message_id'] = asst_message_id
             if sources:
                 done_payload['sources'] = sources
+                done_payload['source_chunk_ids'] = [
+                    s['chunk_id'] for s in sources if s.get('chunk_id')
+                ]
             if cloud_client is not None:
                 done_payload['model_used'] = model_used
             if agent_result is not None:

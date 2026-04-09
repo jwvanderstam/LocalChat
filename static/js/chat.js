@@ -501,6 +501,18 @@ async function sendMessage() {
                         }
                     }
 
+                    // Feedback buttons — only for RAG answers that have sources
+                    if (data.message_id && data.sources && data.sources.length > 0) {
+                        const messageContent = chatMessages.querySelector('.assistant-message:last-child .message-content');
+                        if (messageContent) {
+                            messageContent.appendChild(buildFeedbackBar(
+                                data.message_id,
+                                data.conversation_id || null,
+                                data.source_chunk_ids || []
+                            ));
+                        }
+                    }
+
                     chatHistory.push({
                         role: 'assistant',
                         content: assistantResponse,
@@ -630,6 +642,52 @@ function buildSourcesPanel(sources) {
 
     details.appendChild(list);
     return details;
+}
+
+function buildFeedbackBar(messageId, conversationId, sourceChunkIds) {
+    const bar = document.createElement('div');
+    bar.className = 'feedback-bar mt-2';
+
+    const label = document.createElement('span');
+    label.className = 'text-muted small me-2';
+    label.textContent = 'Helpful?';
+    bar.appendChild(label);
+
+    const makeBtn = (rating, icon, title) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm feedback-btn me-1';
+        btn.innerHTML = icon;
+        btn.title = title;
+        btn.dataset.rating = rating;
+        btn.addEventListener('click', async () => {
+            if (bar.dataset.voted) return;
+            bar.dataset.voted = '1';
+            btn.classList.add('active');
+
+            try {
+                await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        rating,
+                        message_id: messageId,
+                        conversation_id: conversationId,
+                        source_chunk_ids: sourceChunkIds,
+                    }),
+                });
+            } catch (_) { /* non-critical */ }
+
+            // Dim the unclicked button
+            bar.querySelectorAll('.feedback-btn').forEach(b => {
+                if (b !== btn) b.classList.add('dimmed');
+            });
+        });
+        return btn;
+    };
+
+    bar.appendChild(makeBtn(1,  '👍', 'Good answer'));
+    bar.appendChild(makeBtn(-1, '👎', 'Bad answer'));
+    return bar;
 }
 
 function buildPlanTrace(plan) {

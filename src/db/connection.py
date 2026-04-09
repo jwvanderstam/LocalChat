@@ -458,6 +458,42 @@ class DatabaseConnection:
                 """)
                 logger.debug("Conversation messages table and index ensured")
 
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS answer_feedback (
+                        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        message_id       INTEGER REFERENCES conversation_messages(id)
+                                             ON DELETE SET NULL,
+                        conversation_id  UUID REFERENCES conversations(id)
+                                             ON DELETE SET NULL,
+                        rating           SMALLINT NOT NULL,
+                        feedback_type    TEXT DEFAULT 'answer_quality',
+                        correct_doc_ids  TEXT[] DEFAULT '{}',
+                        created_at       TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS answer_feedback_created_idx
+                    ON answer_feedback (created_at)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS answer_feedback_message_idx
+                    ON answer_feedback (message_id)
+                """)
+                logger.debug("answer_feedback table ensured")
+
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS chunk_stats (
+                        chunk_id                 INTEGER PRIMARY KEY
+                                                     REFERENCES document_chunks(id)
+                                                     ON DELETE CASCADE,
+                        retrieved_count          INTEGER DEFAULT 0,
+                        positive_feedback_count  INTEGER DEFAULT 0,
+                        negative_feedback_count  INTEGER DEFAULT 0,
+                        last_retrieved_at        TIMESTAMPTZ
+                    )
+                """)
+                logger.debug("chunk_stats table ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
 

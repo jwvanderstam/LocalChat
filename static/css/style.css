@@ -607,3 +607,47 @@ svg text {
 [data-bs-theme="dark"] .model-routed-badge {
     background-color: #7952b3;
 }
+
+/* Feedback bar — thumbs up/down below RAG answers */
+.feedback-bar {
+    display: flex;
+    align-items: center;
+}
+
+.feedback-btn {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.85rem;
+    border: 1px solid transparent;
+    border-radius: 0.4rem;
+    background: none;
+    transition: background-color 0.15s, border-color 0.15s;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.feedback-btn:hover {
+    background-color: rgba(0, 0, 0, 0.07);
+    border-color: rgba(0, 0, 0, 0.12);
+    opacity: 1;
+}
+
+.feedback-btn.active {
+    background-color: rgba(var(--color-primary-rgb), 0.12);
+    border-color: var(--color-primary);
+    opacity: 1;
+}
+
+.feedback-btn.dimmed {
+    opacity: 0.25;
+    cursor: default;
+}
+
+[data-bs-theme="dark"] .feedback-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-bs-theme="dark"] .feedback-btn.active {
+    background-color: rgba(var(--color-primary-rgb), 0.2);
+    border-color: var(--color-primary);
+}

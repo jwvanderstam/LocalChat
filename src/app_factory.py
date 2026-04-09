@@ -381,6 +381,7 @@ def _register_blueprints(app: LocalChatApp) -> None:
     from .routes import (
         api_routes,
         document_routes,
+        feedback_routes,
         longterm_memory_routes,
         memory_routes,
         model_routes,
@@ -395,6 +396,7 @@ def _register_blueprints(app: LocalChatApp) -> None:
     app.register_blueprint(model_routes.bp, url_prefix='/api/models')
     app.register_blueprint(memory_routes.bp, url_prefix='/api')
     app.register_blueprint(longterm_memory_routes.bp, url_prefix='/api/memory')
+    app.register_blueprint(feedback_routes.bp, url_prefix='/api')
     app.register_blueprint(settings_routes.bp)
 
     logger.debug("Blueprints registered")
