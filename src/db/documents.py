@@ -40,6 +40,7 @@ class DocumentsMixin:
         content_hash: str | None = None,
         doc_type: str | None = None,
         chunker_version: str | None = None,
+        workspace_id: str | None = None,
     ) -> int:
         """
         Insert a new document and return its ID.
@@ -69,9 +70,10 @@ class DocumentsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO documents (filename, content, metadata, content_hash, doc_type, chunker_version)"
-                    " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-                    (filename, content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version),
+                    "INSERT INTO documents"
+                    " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                    (filename, content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id),
                 )
                 doc_id = cursor.fetchone()[0]
                 conn.commit()
@@ -206,6 +208,7 @@ class DocumentsMixin:
         min_similarity: float = 0.0,
         file_type_filter: str | None = None,
         filename_filter: list[str] | None = None,
+        workspace_id: str | None = None,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """
         Search for similar chunks using cosine similarity via pgvector HNSW.
@@ -244,6 +247,9 @@ class DocumentsMixin:
                     where_extra += "  AND d.filename = ANY(%s)\n"
                     params.append(filename_filter)
                     logger.debug(f"Searching with filename filter: {len(filename_filter)} file(s)")
+                if workspace_id:
+                    where_extra += "  AND d.workspace_id = %s\n"
+                    params.append(workspace_id)
                 params.extend([max_distance, top_k])
 
                 cursor.execute(

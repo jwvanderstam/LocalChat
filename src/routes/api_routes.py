@@ -110,7 +110,12 @@ def _try_mcp_rag(message: str, filename_filter: list | None) -> tuple[str, list[
     return None
 
 
-def _get_rag_context(message: str, doc_processor, filename_filter: list | None = None) -> tuple[str, list[dict]]:
+def _get_rag_context(
+    message: str,
+    doc_processor,
+    filename_filter: list | None = None,
+    workspace_id: str | None = None,
+) -> tuple[str, list[dict]]:
     """Retrieve and format RAG context. Returns (formatted context block, source list).
 
     When MCP_ENABLED is True, delegates to the local-docs MCP server.
@@ -122,7 +127,9 @@ def _get_rag_context(message: str, doc_processor, filename_filter: list | None =
             return mcp_result
 
     # Direct retrieval path (default when MCP disabled, or MCP fallback)
-    results = doc_processor.retrieve_context(message, filename_filter=filename_filter or [])
+    results = doc_processor.retrieve_context(
+        message, filename_filter=filename_filter or [], workspace_id=workspace_id
+    )
     logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
     g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(results)
     if not results:
@@ -351,7 +358,7 @@ def _get_filename_filter(fields: dict) -> list[str]:
         return []
 
 
-def _retrieve_contexts(fields: dict, doc_processor, plan=None) -> tuple:
+def _retrieve_contexts(fields: dict, doc_processor, plan=None, workspace_id: str | None = None) -> tuple:
     """Retrieve local RAG context and web search context based on request flags.
 
     When AGGREGATOR_AGENT_ENABLED is true, dispatches all tools through
@@ -366,7 +373,7 @@ def _retrieve_contexts(fields: dict, doc_processor, plan=None) -> tuple:
         if result is not None:
             return result
 
-    return _retrieve_direct(fields, doc_processor, plan)
+    return _retrieve_direct(fields, doc_processor, plan, workspace_id=workspace_id)
 
 
 def _retrieve_via_aggregator(fields: dict, doc_processor, plan) -> tuple | None:
@@ -407,7 +414,7 @@ def _retrieve_via_aggregator(fields: dict, doc_processor, plan) -> tuple | None:
         return None
 
 
-def _retrieve_direct(fields: dict, doc_processor, plan) -> tuple:
+def _retrieve_direct(fields: dict, doc_processor, plan, workspace_id: str | None = None) -> tuple:
     """Direct retrieval path (default, or aggregator fallback)."""
     local_context = ""
     web_context = ""
@@ -418,11 +425,12 @@ def _retrieve_direct(fields: dict, doc_processor, plan) -> tuple:
             filename_filter = _get_filename_filter(fields)
             if plan is not None and plan.is_multi_hop:
                 local_context, sources = _get_rag_context_multi_hop(
-                    plan.sub_questions, doc_processor, filename_filter
+                    plan.sub_questions, doc_processor, filename_filter, workspace_id=workspace_id
                 )
             else:
                 local_context, sources = _get_rag_context(
-                    fields['message'], doc_processor, filename_filter=filename_filter
+                    fields['message'], doc_processor,
+                    filename_filter=filename_filter, workspace_id=workspace_id
                 )
         except Exception as e:
             raise exceptions.SearchError(
@@ -442,6 +450,7 @@ def _get_rag_context_multi_hop(
     sub_questions: list[str],
     doc_processor,
     filename_filter: list[str],
+    workspace_id: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Parallel retrieval per sub-question, merged and deduplicated by chunk_id."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -449,7 +458,10 @@ def _get_rag_context_multi_hop(
     all_results: list = []
     with ThreadPoolExecutor(max_workers=min(len(sub_questions), 4)) as executor:
         futures = {
-            executor.submit(doc_processor.retrieve_context, q, filename_filter=filename_filter): q
+            executor.submit(
+                doc_processor.retrieve_context, q,
+                filename_filter=filename_filter, workspace_id=workspace_id
+            ): q
             for q in sub_questions
         }
         for future in as_completed(futures):
@@ -495,7 +507,10 @@ def _build_user_message(message: str, images: list) -> dict[str, Any]:
     return msg
 
 
-def _persist_user_message(app, conversation_id, message: str, plan=None, agent_result=None):
+def _persist_user_message(
+    app, conversation_id, message: str,
+    plan=None, agent_result=None, workspace_id: str | None = None,
+):
     """Save the user message (+ optional plan + agent tool trace) to the database.
 
     Returns (conversation_id, message_id).  message_id is None when DB is
@@ -506,7 +521,7 @@ def _persist_user_message(app, conversation_id, message: str, plan=None, agent_r
     try:
         if not conversation_id:
             title = message[:60] + ('...' if len(message) > 60 else '')
-            conversation_id = app.db.create_conversation(title)
+            conversation_id = app.db.create_conversation(title, workspace_id=workspace_id)
         plan_json: dict | None = plan.to_dict() if plan is not None else None
         if agent_result is not None:
             plan_json = plan_json or {}
@@ -795,8 +810,12 @@ def api_chat():
             except Exception as mem_err:
                 logger.debug(f"[Memory] Retrieval skipped: {mem_err}")
 
+        workspace_id = config.app_state.get_active_workspace_id()
+
         messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in fields['chat_history']]
-        local_ctx, web_ctx, sources = _retrieve_contexts(fields, current_app.doc_processor, plan=plan)
+        local_ctx, web_ctx, sources = _retrieve_contexts(
+            fields, current_app.doc_processor, plan=plan, workspace_id=workspace_id
+        )
         # Capture agent result if the aggregator ran (stored in g by _retrieve_contexts)
         agent_result = getattr(g, 'agent_result', None)
 
@@ -815,7 +834,7 @@ def api_chat():
         app = current_app._get_current_object()  # type: ignore[attr-defined]
         conversation_id, _msg_id = _persist_user_message(
             app, fields['conversation_id'], fields['message'],
-            plan=plan, agent_result=agent_result,
+            plan=plan, agent_result=agent_result, workspace_id=workspace_id,
         )
         # Don't use tool calling when context is already embedded — the model
         # would try to call retrieval tools it doesn't need, causing confusion.

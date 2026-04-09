@@ -458,6 +458,48 @@ class DatabaseConnection:
                 """)
                 logger.debug("Conversation messages table and index ensured")
 
+                # ── Workspaces (Feature 4.2) ──────────────────────────────
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS workspaces (
+                        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name          TEXT NOT NULL,
+                        description   TEXT DEFAULT '',
+                        system_prompt TEXT DEFAULT '',
+                        model_class   TEXT,
+                        created_at    TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                # Auto-create a Default workspace so every installation has one
+                cursor.execute("""
+                    INSERT INTO workspaces (name, description)
+                    SELECT 'Default', 'Default workspace'
+                    WHERE NOT EXISTS (SELECT 1 FROM workspaces)
+                """)
+                cursor.execute("""
+                    ALTER TABLE documents
+                        ADD COLUMN IF NOT EXISTS workspace_id UUID
+                            REFERENCES workspaces(id) ON DELETE SET NULL
+                """)
+                cursor.execute("""
+                    ALTER TABLE conversations
+                        ADD COLUMN IF NOT EXISTS workspace_id UUID
+                            REFERENCES workspaces(id) ON DELETE SET NULL
+                """)
+                cursor.execute("""
+                    ALTER TABLE memories
+                        ADD COLUMN IF NOT EXISTS workspace_id UUID
+                            REFERENCES workspaces(id) ON DELETE SET NULL
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS documents_workspace_idx
+                        ON documents (workspace_id)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS conversations_workspace_idx
+                        ON conversations (workspace_id)
+                """)
+                logger.debug("workspaces schema ensured")
+
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS answer_feedback (
                         id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -468,6 +510,7 @@ class DatabaseConnection:
                         rating           SMALLINT NOT NULL,
                         feedback_type    TEXT DEFAULT 'answer_quality',
                         correct_doc_ids  TEXT[] DEFAULT '{}',
+                        workspace_id     UUID REFERENCES workspaces(id) ON DELETE SET NULL,
                         created_at       TIMESTAMPTZ DEFAULT NOW()
                     )
                 """)
@@ -493,6 +536,13 @@ class DatabaseConnection:
                     )
                 """)
                 logger.debug("chunk_stats table ensured")
+
+                # Additive: add workspace_id to answer_feedback if not present
+                cursor.execute("""
+                    ALTER TABLE answer_feedback
+                        ADD COLUMN IF NOT EXISTS workspace_id UUID
+                            REFERENCES workspaces(id) ON DELETE SET NULL
+                """)
 
                 conn.commit()
                 logger.info("All database extensions and tables verified")

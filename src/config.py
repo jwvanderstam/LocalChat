@@ -450,6 +450,7 @@ class AppState:
         # Return default state
         default_state = {
             'active_model': None,
+            'active_workspace_id': None,
             'document_count': 0,
             'last_updated': None
         }
@@ -543,6 +544,16 @@ class AppState:
         self.state['document_count'] = current + increment
         self._save_state()
         logger.debug(f"Document count incremented by {increment} to {self.state['document_count']}")
+
+    def get_active_workspace_id(self) -> str | None:
+        """Return the UUID of the active workspace, or None if not yet set."""
+        return self.state.get('active_workspace_id')
+
+    def set_active_workspace_id(self, workspace_id: str) -> None:
+        """Persist the active workspace UUID."""
+        self.state['active_workspace_id'] = workspace_id
+        self._save_state()
+        logger.debug(f"Active workspace set to {workspace_id}")
 
 
 # ============================================================================

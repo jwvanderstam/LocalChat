@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**As of 2026-04-08 — v1.0.1 — NEW ROADMAP STARTED**
+**As of 2026-04-09 — v1.0.1 — Phase 4 in progress**
 
 | Phase | Status |
 |-------|--------|
@@ -19,7 +19,14 @@ Always run `git log --oneline -5` and `git fetch origin` before starting work.  
 
 New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.md` for full feature specs and acceptance criteria.
 
-**Next session:** Pick up Phase 4, Feature 4.2 (Workspace / Persona Mode). Check `git log --oneline -5` and `git fetch origin` first.
+**Feature 4.2 (Workspace / Persona Mode) — DONE**
+- `workspaces` table + additive FK columns on `documents`, `conversations`, `memories`, `answer_feedback`
+- `src/db/workspaces.py` — `WorkspacesMixin` (CRUD + list with counts)
+- `src/routes/workspace_routes.py` — REST API (`GET/POST /api/workspaces`, `GET/PUT/DELETE /api/workspaces/<id>`, `GET /api/workspaces/active`, `POST /api/workspaces/switch`)
+- `workspace_id` threaded through `retrieve_context`, `ingest_document`, `create_conversation` from `config.app_state.get_active_workspace_id()`
+- `static/js/workspace.js` + navbar dropdown in `base.html`
+
+**Next session:** Pick up Phase 4, Feature 4.3 (Live Connectors). Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 
@@ -133,6 +140,8 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); < 1 ms |
 | `src/db/feedback.py` | `FeedbackMixin` — `answer_feedback` + `chunk_stats` CRUD; `get_feedback_stats()`, `export_feedback_pairs()` |
 | `src/routes/feedback_routes.py` | `POST /api/feedback` (submit rating), `GET /api/feedback/stats` (admin metrics) |
+| `src/db/workspaces.py` | `WorkspacesMixin` — workspace CRUD, `list_workspaces()` with doc/conversation counts |
+| `src/routes/workspace_routes.py` | `GET/POST /api/workspaces`, `GET/PUT/DELETE /api/workspaces/<id>`, `GET /api/workspaces/active`, `POST /api/workspaces/switch` |
 | `src/rag/feedback_pipeline.py` | Weekly export + optional cross-encoder fine-tune; CLI entry point |
 | `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
 | `mcp_servers/base.py` | `MCPServer` base class — JSON-RPC 2.0 dispatcher (tools/list, tools/call, health) |

@@ -292,7 +292,8 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
     def ingest_document(
         self,
         file_path: str,
-        progress_callback: Callable[[str], None] | None = None
+        progress_callback: Callable[[str], None] | None = None,
+        workspace_id: str | None = None,
     ) -> tuple[bool, str, int | None]:
         """
         Ingest a single document with OPTIMIZED batch embedding processing.
@@ -336,6 +337,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 content_hash=file_hash,
                 doc_type=doc_type_str,
                 chunker_version=chunker_version,
+                workspace_id=workspace_id,
             )
             logger.debug(f"Document ID: {doc_id}")
 

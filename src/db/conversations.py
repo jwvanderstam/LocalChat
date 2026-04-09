@@ -26,7 +26,7 @@ class ConversationsMixin:
     is_connected: bool
     get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
 
-    def create_conversation(self, title: str = 'New Conversation') -> str:
+    def create_conversation(self, title: str = 'New Conversation', workspace_id: str | None = None) -> str:
         """
         Create a new conversation and return its UUID.
 
@@ -46,8 +46,8 @@ class ConversationsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO conversations (id, title) VALUES (%s, %s)",
-                    (conversation_id, title[:255]),
+                    "INSERT INTO conversations (id, title, workspace_id) VALUES (%s, %s, %s)",
+                    (conversation_id, title[:255], workspace_id),
                 )
                 conn.commit()
         logger.debug(f"Created conversation: {conversation_id}")

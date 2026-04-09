@@ -27,6 +27,19 @@
                 <i class="bi bi-chat-dots-fill me-2"></i>LocalChat
             </a>
             <div class="d-flex align-items-center">
+                <!-- Workspace switcher -->
+                <div class="dropdown me-3" id="workspace-switcher">
+                    <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button"
+                            id="workspaceDropdown" data-bs-toggle="dropdown" aria-expanded="false"
+                            title="Switch workspace">
+                        <i class="bi bi-layers me-1"></i>
+                        <span id="active-workspace-name">Workspace</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark" id="workspace-list" aria-labelledby="workspaceDropdown">
+                        <li><span class="dropdown-item-text text-muted small">Loading...</span></li>
+                    </ul>
+                </div>
+
                 <span class="badge bg-primary me-3" id="status-model">
                     <i class="bi bi-cpu me-1"></i>
                     Model: <span id="active-model">Loading...</span>
@@ -101,6 +114,9 @@
 
     <!-- Theme picker -->
     <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+
+    <!-- Workspace switcher -->
+    <script src="{{ url_for('static', filename='js/workspace.js') }}"></script>
     
     <!-- Common JavaScript -->
     <script>

@@ -76,10 +76,13 @@ def _stream_file_ingest(app, file_path: str) -> Generator[str, None, None]:
     result_container: dict = {}
 
     def _run_ingest(path=file_path, pq=progress_queue, rc=result_container):
+        from .. import config as _cfg
+        workspace_id = _cfg.app_state.get_active_workspace_id()
         try:
             s, m, d = app.doc_processor.ingest_document(
                 path,
-                lambda msg: pq.put(('progress', msg))
+                lambda msg: pq.put(('progress', msg)),
+                workspace_id=workspace_id,
             )
             rc.update({'success': s, 'message': m, 'doc_id': d})
         except Exception as exc:
