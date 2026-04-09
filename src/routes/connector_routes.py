@@ -35,7 +35,16 @@ bp = Blueprint('connectors', __name__)
 
 @bp.route('/api/connectors/types', methods=['GET'])
 def list_connector_types():
-    """Return the connector types supported by this build."""
+    """
+    List available connector types.
+    ---
+    tags:
+      - Connectors
+    summary: List connector types
+    responses:
+      200:
+        description: List of supported connector type strings
+    """
     return jsonify({'success': True, 'types': connector_registry.available_types()})
 
 
@@ -45,7 +54,16 @@ def list_connector_types():
 
 @bp.route('/api/connectors', methods=['GET'])
 def list_connectors():
-    """Return all connectors for the active workspace (or all if no workspace set)."""
+    """
+    List connectors.
+    ---
+    tags:
+      - Connectors
+    summary: List connectors for the active workspace
+    responses:
+      200:
+        description: List of connector objects
+    """
     workspace_id = config.app_state.get_active_workspace_id()
     try:
         connectors = current_app.db.list_connectors(workspace_id=workspace_id)
@@ -57,7 +75,29 @@ def list_connectors():
 
 @bp.route('/api/connectors', methods=['POST'])
 def create_connector():
-    """Create and register a new connector."""
+    """
+    Create a connector.
+    ---
+    tags:
+      - Connectors
+    summary: Create and register a new connector
+    parameters:
+      - in: body
+        name: body
+        schema:
+          type: object
+          required: [connector_type]
+          properties:
+            connector_type: {type: string, enum: [local_folder, s3, webhook]}
+            display_name:   {type: string}
+            config:         {type: object}
+            sync_interval:  {type: integer, description: Seconds between polls (default 900)}
+    responses:
+      201:
+        description: Connector created
+      400:
+        description: Invalid connector_type or config validation error
+    """
     data = request.get_json(silent=True) or {}
     connector_type = (data.get('connector_type') or '').strip()
     display_name = (data.get('display_name') or '').strip()
@@ -208,7 +248,45 @@ def sync_history(connector_id: str):
 
 @bp.route('/api/connectors/<connector_id>/webhook', methods=['POST'])
 def receive_webhook(connector_id: str):
-    """Accept a push event from an external system."""
+    """
+    Receive a webhook push event.
+    ---
+    tags:
+      - Connectors
+    summary: Receive document push event
+    parameters:
+      - in: path
+        name: connector_id
+        type: string
+        required: true
+      - in: header
+        name: X-LocalChat-Secret
+        type: string
+        description: Shared secret (required when connector.config.secret is set)
+      - in: body
+        name: body
+        schema:
+          type: object
+          required: [event_type, source_id]
+          properties:
+            event_type:   {type: string, enum: [added, modified, deleted]}
+            source_id:    {type: string}
+            filename:     {type: string}
+            fetch_url:    {type: string, description: Required for added/modified}
+            content_type: {type: string}
+            metadata:     {type: object}
+    responses:
+      200:
+        description: Event queued
+      400:
+        description: Payload validation error
+      403:
+        description: Bad secret
+      404:
+        description: Connector not found
+      503:
+        description: Connector not active
+    """
     # Validate shared secret if configured
     connector = current_app.db.get_connector(connector_id)
     if connector is None:

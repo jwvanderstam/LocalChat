@@ -23,7 +23,16 @@ bp = Blueprint('workspaces', __name__)
 
 @bp.route('/api/workspaces', methods=['GET'])
 def list_workspaces():
-    """Return all workspaces with document and conversation counts."""
+    """
+    List all workspaces.
+    ---
+    tags:
+      - Workspaces
+    summary: List workspaces
+    responses:
+      200:
+        description: List of workspaces with document and conversation counts
+    """
     try:
         workspaces = current_app.db.list_workspaces()
         active_id = config.app_state.get_active_workspace_id()
@@ -37,7 +46,29 @@ def list_workspaces():
 
 @bp.route('/api/workspaces', methods=['POST'])
 def create_workspace():
-    """Create a new workspace."""
+    """
+    Create a workspace.
+    ---
+    tags:
+      - Workspaces
+    summary: Create workspace
+    parameters:
+      - in: body
+        name: body
+        schema:
+          type: object
+          required: [name]
+          properties:
+            name:        {type: string}
+            description: {type: string}
+            system_prompt: {type: string}
+            model_class: {type: string}
+    responses:
+      201:
+        description: Workspace created
+      400:
+        description: name is required
+    """
     data = request.get_json(silent=True) or {}
     name = (data.get('name') or '').strip()
     if not name:
@@ -62,7 +93,23 @@ def create_workspace():
 
 @bp.route('/api/workspaces/<workspace_id>', methods=['GET'])
 def get_workspace(workspace_id: str):
-    """Return a single workspace by ID."""
+    """
+    Get a workspace.
+    ---
+    tags:
+      - Workspaces
+    summary: Get workspace by ID
+    parameters:
+      - in: path
+        name: workspace_id
+        type: string
+        required: true
+    responses:
+      200:
+        description: Workspace object
+      404:
+        description: Not found
+    """
     try:
         workspace = current_app.db.get_workspace(workspace_id)
         if workspace is None:
@@ -76,7 +123,34 @@ def get_workspace(workspace_id: str):
 
 @bp.route('/api/workspaces/<workspace_id>', methods=['PUT'])
 def update_workspace(workspace_id: str):
-    """Update workspace fields (name, description, system_prompt, model_class)."""
+    """
+    Update a workspace.
+    ---
+    tags:
+      - Workspaces
+    summary: Update workspace fields
+    parameters:
+      - in: path
+        name: workspace_id
+        type: string
+        required: true
+      - in: body
+        name: body
+        schema:
+          type: object
+          properties:
+            name:          {type: string}
+            description:   {type: string}
+            system_prompt: {type: string}
+            model_class:   {type: string}
+    responses:
+      200:
+        description: Updated workspace
+      400:
+        description: No valid fields provided
+      404:
+        description: Not found
+    """
     data = request.get_json(silent=True) or {}
     allowed = {'name', 'description', 'system_prompt', 'model_class'}
     fields = {k: v for k, v in data.items() if k in allowed}
@@ -95,7 +169,23 @@ def update_workspace(workspace_id: str):
 
 @bp.route('/api/workspaces/<workspace_id>', methods=['DELETE'])
 def delete_workspace(workspace_id: str):
-    """Delete a workspace. Clears the active workspace if it was the deleted one."""
+    """
+    Delete a workspace.
+    ---
+    tags:
+      - Workspaces
+    summary: Delete workspace
+    parameters:
+      - in: path
+        name: workspace_id
+        type: string
+        required: true
+    responses:
+      200:
+        description: Deleted
+      404:
+        description: Not found
+    """
     try:
         deleted = current_app.db.delete_workspace(workspace_id)
         if not deleted:
@@ -120,7 +210,16 @@ def delete_workspace(workspace_id: str):
 
 @bp.route('/api/workspaces/active', methods=['GET'])
 def get_active_workspace():
-    """Return the currently active workspace (or null if none set)."""
+    """
+    Get the active workspace.
+    ---
+    tags:
+      - Workspaces
+    summary: Get active workspace
+    responses:
+      200:
+        description: Active workspace object, or null
+    """
     active_id = config.app_state.get_active_workspace_id()
     if not active_id:
         return jsonify({'success': True, 'workspace': None})
@@ -134,7 +233,28 @@ def get_active_workspace():
 
 @bp.route('/api/workspaces/switch', methods=['POST'])
 def switch_workspace():
-    """Switch the active workspace.  POST body: {workspace_id: <uuid>}."""
+    """
+    Switch the active workspace.
+    ---
+    tags:
+      - Workspaces
+    summary: Switch active workspace
+    parameters:
+      - in: body
+        name: body
+        schema:
+          type: object
+          required: [workspace_id]
+          properties:
+            workspace_id: {type: string}
+    responses:
+      200:
+        description: Switched to workspace
+      400:
+        description: workspace_id is required
+      404:
+        description: Not found
+    """
     data = request.get_json(silent=True) or {}
     workspace_id = (data.get('workspace_id') or '').strip()
     if not workspace_id:

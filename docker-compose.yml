@@ -216,8 +216,17 @@ services:
         --access-logfile -
         --error-logfile -
         --log-level info"
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      SECRET_KEY: ${SECRET_KEY:-dev-mcp-key}
+      SECRET_KEY:      ${SECRET_KEY:-dev-mcp-key}
+      PG_HOST:         db
+      PG_PORT:         5432
+      PG_USER:         ${PG_USER:-postgres}
+      PG_PASSWORD:     ${PG_PASSWORD}
+      PG_DB:           ${PG_DB:-rag_db}
+      OLLAMA_BASE_URL: http://ollama:11434
     ports:
       - "${BIND_HOST:-127.0.0.1}:5003:5003"
     healthcheck:
