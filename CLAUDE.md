@@ -15,7 +15,7 @@ Always run `git log --oneline -5` and `git fetch origin` before starting work.  
 | 1 — Foundation (Answer attribution, adaptive chunking, cloud fallback) | ✅ Complete |
 | 2 — Intelligence (Query planner, long-term memory, GraphRAG) | ✅ Complete |
 | 3 — Architecture (MCP split, aggregator agent, multi-model router) | ✅ Complete |
-| 4 — Platform (Feedback loop, workspaces, live connectors) | 🚧 In progress |
+| 4 — Platform (Feedback loop, workspaces, live connectors) | ✅ Complete |
 
 New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.md` for full feature specs and acceptance criteria.
 
@@ -26,7 +26,15 @@ New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.
 - `workspace_id` threaded through `retrieve_context`, `ingest_document`, `create_conversation` from `config.app_state.get_active_workspace_id()`
 - `static/js/workspace.js` + navbar dropdown in `base.html`
 
-**Next session:** Pick up Phase 4, Feature 4.3 (Live Connectors). Check `git log --oneline -5` and `git fetch origin` first.
+**Feature 4.3 (Live Connector Framework) — DONE**
+- `connectors` + `connector_sync_log` tables in DB schema
+- `src/connectors/` package: `BaseConnector` ABC, `LocalFolderConnector`, `S3Connector`, `WebhookConnector`, `ConnectorRegistry`, `SyncWorker`
+- `src/db/connectors.py` — `ConnectorsMixin` (CRUD, sync log, status updates, `delete_document_by_filename`)
+- `src/routes/connector_routes.py` — REST API (list, create, get, update, delete, trigger sync, sync history, webhook receiver)
+- `SyncWorker` daemon thread started in `app_factory._init_connectors`; stopped in cleanup handler
+- `mcp_servers/cloud_connectors/server.py` — stub replaced with live registry + retrieval
+
+**Next session:** Phase 4 complete. Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 
@@ -142,6 +150,14 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `src/routes/feedback_routes.py` | `POST /api/feedback` (submit rating), `GET /api/feedback/stats` (admin metrics) |
 | `src/db/workspaces.py` | `WorkspacesMixin` — workspace CRUD, `list_workspaces()` with doc/conversation counts |
 | `src/routes/workspace_routes.py` | `GET/POST /api/workspaces`, `GET/PUT/DELETE /api/workspaces/<id>`, `GET /api/workspaces/active`, `POST /api/workspaces/switch` |
+| `src/connectors/base.py` | `BaseConnector` ABC + `DocumentSource`, `DocumentEvent`, `EventType` dataclasses |
+| `src/connectors/local_folder.py` | `LocalFolderConnector` — stat-based folder watcher, poll/fetch |
+| `src/connectors/s3_connector.py` | `S3Connector` — S3/MinIO/R2 via boto3 (optional dep) |
+| `src/connectors/webhook.py` | `WebhookConnector` — receives push events via HTTP POST |
+| `src/connectors/registry.py` | `ConnectorRegistry` singleton — maps types to classes, manages live instances |
+| `src/connectors/worker.py` | `SyncWorker` daemon thread — polls connectors, ingests changes, logs sync history |
+| `src/db/connectors.py` | `ConnectorsMixin` — connector CRUD, sync log, `delete_document_by_filename` |
+| `src/routes/connector_routes.py` | Connector REST API + webhook receiver endpoint |
 | `src/rag/feedback_pipeline.py` | Weekly export + optional cross-encoder fine-tune; CLI entry point |
 | `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
 | `mcp_servers/base.py` | `MCPServer` base class — JSON-RPC 2.0 dispatcher (tools/list, tools/call, health) |

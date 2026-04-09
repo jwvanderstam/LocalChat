@@ -544,6 +544,39 @@ class DatabaseConnection:
                             REFERENCES workspaces(id) ON DELETE SET NULL
                 """)
 
+                # ── Feature 4.3: Live Connector Framework ────────────────────
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS connectors (
+                        id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        workspace_id   UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+                        connector_type TEXT NOT NULL,
+                        display_name   TEXT NOT NULL,
+                        config         JSONB NOT NULL DEFAULT '{}',
+                        enabled        BOOLEAN NOT NULL DEFAULT true,
+                        sync_interval  INT NOT NULL DEFAULT 900,
+                        last_sync_at   TIMESTAMPTZ,
+                        last_error     TEXT,
+                        created_at     TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS connectors_workspace_idx
+                    ON connectors (workspace_id)
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS connector_sync_log (
+                        id             BIGSERIAL PRIMARY KEY,
+                        connector_id   UUID REFERENCES connectors(id) ON DELETE CASCADE,
+                        started_at     TIMESTAMPTZ DEFAULT NOW(),
+                        finished_at    TIMESTAMPTZ,
+                        files_added    INT DEFAULT 0,
+                        files_updated  INT DEFAULT 0,
+                        files_deleted  INT DEFAULT 0,
+                        error          TEXT
+                    )
+                """)
+                logger.debug("connectors tables ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
 

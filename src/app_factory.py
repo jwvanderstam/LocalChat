@@ -186,6 +186,7 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
             app.startup_status['ollama'] and app.startup_status['database']
         )
         _load_plugins(app)
+        _init_connectors(app, db, doc_processor)
 
     logger.debug("Services initialized")
 
@@ -300,6 +301,23 @@ def _load_plugins(app: LocalChatApp) -> None:
     app.plugin_loader = plugin_loader
 
 
+def _init_connectors(app: LocalChatApp, db, doc_processor) -> None:
+    """Load connector instances from DB and start the background sync worker."""
+    try:
+        from .connectors.registry import connector_registry
+        from .connectors.worker import SyncWorker
+        connector_registry.load_from_db(db)
+        worker = SyncWorker(connector_registry, db, doc_processor)
+        worker.start()
+        app.sync_worker = worker
+        app.connector_registry = connector_registry
+        logger.info("[Connectors] Sync worker started")
+    except Exception as exc:
+        logger.warning(f"[Connectors] Failed to start sync worker: {exc}", exc_info=True)
+        app.sync_worker = None
+        app.connector_registry = None
+
+
 def _init_caching(app: LocalChatApp) -> None:
     """
     Initialize caching layer.
@@ -380,6 +398,7 @@ def _register_blueprints(app: LocalChatApp) -> None:
     # Import blueprints
     from .routes import (
         api_routes,
+        connector_routes,
         document_routes,
         feedback_routes,
         longterm_memory_routes,
@@ -399,6 +418,7 @@ def _register_blueprints(app: LocalChatApp) -> None:
     app.register_blueprint(longterm_memory_routes.bp, url_prefix='/api/memory')
     app.register_blueprint(feedback_routes.bp, url_prefix='/api')
     app.register_blueprint(workspace_routes.bp)
+    app.register_blueprint(connector_routes.bp)
     app.register_blueprint(settings_routes.bp)
 
     logger.debug("Blueprints registered")
@@ -460,7 +480,10 @@ def _setup_cleanup_handlers(app: LocalChatApp) -> None:
     import signal
 
     def cleanup() -> None:
-        """Cleanup function to close database connections."""
+        """Cleanup function to close database connections and stop background workers."""
+        if hasattr(app, 'sync_worker') and app.sync_worker is not None:
+            logger.info("Stopping connector sync worker...")
+            app.sync_worker.stop()
         if hasattr(app, 'db') and app.db.is_connected:
             logger.info("Closing database connections...")
             app.db.close()

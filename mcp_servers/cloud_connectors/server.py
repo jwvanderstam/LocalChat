@@ -2,17 +2,11 @@
 Cloud Connectors MCP Server
 ============================
 
-Independently deployable MCP server for cloud document sources
-(SharePoint, OneDrive, S3, Confluence).  Phase 3 ships a no-op stub
-that returns empty results — actual connectors land in Phase 4.
-
-The stub is fully protocol-compliant so the core app can already treat
-it as a real MCP server: circuit breaker, health checks, and tool
-registration all work; the search tool just returns no results.
+Independently deployable MCP server for cloud and local document sources.
 
 Exposes tools:
-  - search(query, filters, top_k) — stub: always returns empty
-  - list_sources()                 — lists registered cloud connectors
+  - search(query, filters, top_k) — searches all enabled connectors' documents
+  - list_sources()                 — lists registered connectors and their status
 
 Run standalone:
     python -m mcp_servers.cloud_connectors [--port 5003]
@@ -30,33 +24,38 @@ logger = logging.getLogger(__name__)
 
 _server = MCPServer("cloud-connectors")
 
-# Registry of connectors — populated in Phase 4 when real connectors land.
-# Shape: {"name": str, "type": str, "enabled": bool, "description": str}
-_CONNECTOR_REGISTRY: list[dict] = [
-    {"name": "SharePoint", "type": "sharepoint", "enabled": False,
-     "description": "Microsoft SharePoint document library (Phase 4)"},
-    {"name": "OneDrive", "type": "onedrive", "enabled": False,
-     "description": "Microsoft OneDrive personal/business (Phase 4)"},
-    {"name": "S3", "type": "s3", "enabled": False,
-     "description": "AWS S3 bucket connector (Phase 4)"},
-    {"name": "Confluence", "type": "confluence", "enabled": False,
-     "description": "Atlassian Confluence pages (Phase 4)"},
-]
-
 
 # ---------------------------------------------------------------------------
 # Tool handlers
 # ---------------------------------------------------------------------------
 
 def search(query: str, filters: dict | None = None, top_k: int = 10) -> dict:
-    """Stub search — returns empty results until Phase 4 connectors are wired."""
-    logger.debug(f"[cloud-connectors] search stub called for: {query[:60]!r}")
-    return {"context": "", "sources": [], "stub": True}
+    """Search documents from all enabled connectors via the core retrieval pipeline."""
+    try:
+        from src.db import db
+        from src.rag import doc_processor
+        results = doc_processor.retrieve_context(query, top_k=top_k)
+        if not results:
+            return {"context": "", "sources": []}
+        context = doc_processor.format_context_for_llm(results, max_length=6000)
+        sources = [
+            {"filename": r[1], "chunk_index": r[2], "similarity": round(r[3], 4)}
+            for r in results
+        ]
+        return {"context": context, "sources": sources}
+    except Exception as exc:
+        logger.warning(f"[cloud-connectors] search error: {exc}")
+        return {"context": "", "sources": [], "error": str(exc)}
 
 
 def list_sources() -> list[dict]:
-    """Return the registry of cloud connectors and their enablement status."""
-    return _CONNECTOR_REGISTRY
+    """Return all configured connectors from the database."""
+    try:
+        from src.db import db
+        return db.list_connectors() if db.is_connected else []
+    except Exception as exc:
+        logger.warning(f"[cloud-connectors] list_sources error: {exc}")
+        return []
 
 
 # ---------------------------------------------------------------------------

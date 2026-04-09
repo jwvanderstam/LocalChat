@@ -18,6 +18,7 @@ from .connection import (
     VectorLoader,
     register_vector_types,
 )
+from .connectors import ConnectorsMixin
 from .conversations import ConversationsMixin
 from .documents import DocumentsMixin
 from .entities import EntitiesMixin
@@ -28,7 +29,7 @@ from .workspaces import WorkspacesMixin
 logger = get_logger(__name__)
 
 
-class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, WorkspacesMixin, DatabaseConnection):
+class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, WorkspacesMixin, ConnectorsMixin, DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 
