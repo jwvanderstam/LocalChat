@@ -12,9 +12,9 @@ Covers:
 """
 
 import itertools
-import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, call, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,6 +53,7 @@ class TestGetNlp:
         # Patch the module-level _nlp and force ImportError on import
         with patch.dict("sys.modules", {"spacy": None}):
             import importlib
+
             import src.graph.extractor as mod
             # Reset cached value
             original_nlp = mod._nlp
