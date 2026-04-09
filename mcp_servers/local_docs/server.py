@@ -34,8 +34,8 @@ _server = MCPServer("local-docs")
 
 def _get_services():
     """Import and return (doc_processor, db) on first use."""
-    from src.rag.processor import doc_processor  # noqa: PLC0415
     from src.db import db  # noqa: PLC0415
+    from src.rag.processor import doc_processor  # noqa: PLC0415
     return doc_processor, db
 
 

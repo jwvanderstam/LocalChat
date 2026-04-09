@@ -7,7 +7,6 @@ import pytest
 from src.tools.executor import ToolExecutor
 from src.tools.registry import ToolRegistry
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

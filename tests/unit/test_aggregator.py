@@ -10,9 +10,10 @@ Covers:
   - ToolRouter.dispatch() — unknown tool, direct paths, MCP paths, MCP fallback
 """
 
-import pytest
-from unittest.mock import MagicMock, patch, call
 from dataclasses import dataclass, field
+from unittest.mock import MagicMock, call, patch
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers / stubs
@@ -419,7 +420,7 @@ class TestToolRouterDispatch:
 
     def test_all_tool_names_route_without_error(self):
         """Each canonical tool name should be dispatched without ValueError."""
-        from src.agent.tool_router import ToolRouter, ALL_TOOLS
+        from src.agent.tool_router import ALL_TOOLS, ToolRouter
         router = ToolRouter()
         for tool in ALL_TOOLS:
             method_name = {

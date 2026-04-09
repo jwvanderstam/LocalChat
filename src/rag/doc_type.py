@@ -9,14 +9,14 @@ callable and a version string stored in the DB for cache invalidation.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from .processor import DocumentProcessor
 
 
-class DocType(str, Enum):
+class DocType(StrEnum):
     PDF          = "PDF"
     DOCX         = "DOCX"
     TXT          = "TXT"
@@ -63,7 +63,7 @@ _ChunkerFn = Callable[
 
 
 def _chunker_pdf(
-    proc: "DocumentProcessor",
+    proc: DocumentProcessor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -82,7 +82,7 @@ def _chunker_pdf(
 
 
 def _chunker_docx(
-    proc: "DocumentProcessor",
+    proc: DocumentProcessor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -91,7 +91,7 @@ def _chunker_docx(
 
 
 def _chunker_plain_text(
-    proc: "DocumentProcessor",
+    proc: DocumentProcessor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -116,7 +116,7 @@ def _chunker_plain_text(
 
 
 def _chunker_pptx(
-    proc: "DocumentProcessor",
+    proc: DocumentProcessor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -135,7 +135,7 @@ def _chunker_pptx(
 
 
 def _chunker_code_python(
-    proc: "DocumentProcessor",
+    proc: DocumentProcessor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -154,7 +154,7 @@ def _chunker_code_python(
 
 
 def _chunker_code_js_ts(
-    proc: "DocumentProcessor",
+    proc: DocumentProcessor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -173,7 +173,7 @@ def _chunker_code_js_ts(
 
 
 def _chunker_email(
-    proc: "DocumentProcessor",
+    proc: DocumentProcessor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -192,7 +192,7 @@ def _chunker_email(
 
 
 def _chunker_image(
-    proc: "DocumentProcessor",
+    proc: DocumentProcessor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,

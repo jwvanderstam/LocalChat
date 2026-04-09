@@ -85,7 +85,7 @@ class ModelRouter:
     def select(
         self,
         query: str,
-        plan: "QueryPlan | None" = None,
+        plan: QueryPlan | None = None,
         doc_types: list[str] | None = None,
         active_model: str = "",
     ) -> tuple[str, str]:
@@ -124,7 +124,7 @@ class ModelRouter:
     def _classify(
         self,
         query: str,
-        plan: "QueryPlan | None",
+        plan: QueryPlan | None,
         doc_types: list[str],
     ) -> tuple[ModelClass, str]:
         """Return (ModelClass, rationale_string) for the query."""
@@ -158,7 +158,7 @@ class ModelRouter:
         return ModelClass.BASE, "no specific routing signal matched"
 
     @staticmethod
-    def _is_fast(query: str, plan: "QueryPlan | None") -> bool:
+    def _is_fast(query: str, plan: QueryPlan | None) -> bool:
         """Return True for queries that qualify for the fast model."""
         if len(query) > _FAST_MAX_CHARS:
             return False

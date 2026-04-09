@@ -458,6 +458,7 @@ class TestEnvConfigurableRagParams:
 
     def _reload_config_with_env(self, overrides: dict):
         import importlib
+
         import src.config as cfg_module
         with patch.dict(os.environ, overrides, clear=False):
             importlib.reload(cfg_module)
@@ -484,6 +485,7 @@ class TestEnvConfigurableRagParams:
         # Strip the keys in case the test runner has them set
         stripped = {k: "" for k in ("CHUNK_SIZE", "CHUNK_OVERLAP", "TOP_K_RESULTS", "SEMANTIC_WEIGHT")}
         import importlib
+
         import src.config as cfg_module
         env = {k: v for k, v in os.environ.items() if k not in stripped}
         with patch.dict(os.environ, {}, clear=True):

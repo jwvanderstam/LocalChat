@@ -57,9 +57,8 @@ class CircuitBreaker:
     @property
     def state(self) -> str:
         with self._lock:
-            if self._state == self.OPEN:
-                if time.monotonic() - self._opened_at >= self.recovery_timeout:
-                    self._state = self.HALF_OPEN
+            if self._state == self.OPEN and time.monotonic() - self._opened_at >= self.recovery_timeout:
+                self._state = self.HALF_OPEN
             return self._state
 
     def is_available(self) -> bool:

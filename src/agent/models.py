@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class ModelClass(str, Enum):
+class ModelClass(StrEnum):
     """Logical routing categories for query classification."""
 
     FAST = "fast"       # Short factual lookups — speed over depth

@@ -73,7 +73,7 @@ class AggregatorAgent:
     def run(
         self,
         query: str,
-        plan: "QueryPlan | None" = None,
+        plan: QueryPlan | None = None,
         filename_filter: list[str] | None = None,
         tools: list[str] | None = None,
         top_k: int = 10,
@@ -182,7 +182,7 @@ class AggregatorAgent:
     @staticmethod
     def _resolve_tools(
         tools: list[str] | None,
-        plan: "QueryPlan | None",
+        plan: QueryPlan | None,
     ) -> list[str]:
         """Determine the effective tool list from explicit arg or plan."""
         if tools is not None:
@@ -194,7 +194,7 @@ class AggregatorAgent:
     @staticmethod
     def _resolve_queries(
         query: str,
-        plan: "QueryPlan | None",
+        plan: QueryPlan | None,
     ) -> list[str]:
         """Use sub-questions for multi-hop plans; otherwise the original query."""
         if plan is not None and plan.is_multi_hop and plan.sub_questions:

@@ -23,7 +23,7 @@ class EntitiesMixin:
     """Mixin that adds knowledge-graph entity operations to the Database class."""
 
     is_connected: bool
-    get_connection: "DatabaseConnection.get_connection"  # type: ignore[assignment]
+    get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
 
     # ── Write operations ───────────────────────────────────────────────────────
 

@@ -11,9 +11,9 @@ Covers:
 """
 
 import os
-import pytest
 from unittest.mock import patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -56,46 +56,46 @@ class TestModelRegistry:
                      if k not in ("MODEL_FAST", "MODEL_BASE", "MODEL_LARGE",
                                   "MODEL_CODE", "MODEL_VISION")}
         with patch.dict(os.environ, clean_env, clear=True):
-            from src.agent.models import ModelRegistry, ModelClass
+            from src.agent.models import ModelClass, ModelRegistry
             reg = ModelRegistry()
             for cls in ModelClass:
                 assert reg._registry[cls].model_id == ""
 
     def test_env_var_sets_model_id(self):
         with patch.dict(os.environ, {"MODEL_FAST": "llama3.2:3b"}, clear=False):
-            from src.agent.models import ModelRegistry, ModelClass
+            from src.agent.models import ModelClass, ModelRegistry
             reg = ModelRegistry()
             assert reg._registry[ModelClass.FAST].model_id == "llama3.2:3b"
 
     def test_resolve_returns_configured_id(self):
         with patch.dict(os.environ, {"MODEL_CODE": "qwen2.5-coder:7b"}, clear=False):
-            from src.agent.models import ModelRegistry, ModelClass
+            from src.agent.models import ModelClass, ModelRegistry
             reg = ModelRegistry()
             assert reg.resolve(ModelClass.CODE, fallback="active") == "qwen2.5-coder:7b"
 
     def test_resolve_falls_back_when_not_configured(self):
         clean_env = {k: v for k, v in os.environ.items() if k != "MODEL_LARGE"}
         with patch.dict(os.environ, clean_env, clear=True):
-            from src.agent.models import ModelRegistry, ModelClass
+            from src.agent.models import ModelClass, ModelRegistry
             reg = ModelRegistry()
             assert reg.resolve(ModelClass.LARGE, fallback="llama3.1:8b") == "llama3.1:8b"
 
     def test_summary_contains_all_classes(self):
-        from src.agent.models import ModelRegistry, ModelClass
+        from src.agent.models import ModelClass, ModelRegistry
         reg = ModelRegistry()
         summary = reg.summary()
         assert set(summary.keys()) == {cls.value for cls in ModelClass}
 
     def test_summary_shows_configured_true(self):
         with patch.dict(os.environ, {"MODEL_VISION": "llava:13b"}, clear=False):
-            from src.agent.models import ModelRegistry, ModelClass
+            from src.agent.models import ModelClass, ModelRegistry
             reg = ModelRegistry()
             assert reg.summary()[ModelClass.VISION.value]["configured"] is True
 
     def test_summary_shows_configured_false_for_empty(self):
         clean_env = {k: v for k, v in os.environ.items() if k != "MODEL_BASE"}
         with patch.dict(os.environ, clean_env, clear=True):
-            from src.agent.models import ModelRegistry, ModelClass
+            from src.agent.models import ModelClass, ModelRegistry
             reg = ModelRegistry()
             assert reg.summary()[ModelClass.BASE.value]["configured"] is False
 
@@ -135,8 +135,8 @@ class TestIsFast:
 
 class TestClassify:
     def _classify(self, query, plan=None, doc_types=None):
-        from src.agent.router import ModelRouter
         from src.agent.models import ModelRegistry
+        from src.agent.router import ModelRouter
         router = ModelRouter(registry=ModelRegistry())
         return router._classify(query, plan, doc_types or [])
 

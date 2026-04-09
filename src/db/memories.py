@@ -28,8 +28,8 @@ class MemoriesMixin:
     """Mixin that adds long-term memory operations to the Database class."""
 
     is_connected: bool
-    get_connection: "DatabaseConnection.get_connection"  # type: ignore[assignment]
-    _embedding_to_pg_array: "DatabaseConnection._embedding_to_pg_array"  # type: ignore[assignment]
+    get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
+    _embedding_to_pg_array: DatabaseConnection._embedding_to_pg_array  # type: ignore[assignment]
 
     # ── Write operations ───────────────────────────────────────────────────────
 
