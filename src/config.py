@@ -278,6 +278,18 @@ CLOUD_REFUSAL_PATTERNS: list[str] = [
 ]
 
 # ============================================================================
+# AGGREGATOR AGENT CONFIGURATION
+# ============================================================================
+# Set AGGREGATOR_AGENT_ENABLED=true to route all retrieval through the
+# AggregatorAgent instead of the direct pipeline.  The agent dispatches
+# tools in parallel, retries failures, and deduplicates results.
+# Safe to leave false during transition; falls back to the direct path on
+# any agent-level error.
+AGGREGATOR_AGENT_ENABLED: bool = os.environ.get('AGGREGATOR_AGENT_ENABLED', 'false').lower() == 'true'
+# Max retry attempts per tool call (1 = 2 total tries).
+AGENT_MAX_RETRIES: int = int(os.environ.get('AGENT_MAX_RETRIES', '1'))
+
+# ============================================================================
 # MCP SERVER CONFIGURATION
 # ============================================================================
 # Set MCP_ENABLED=true to route retrieval and web search through separate

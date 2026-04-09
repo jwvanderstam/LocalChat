@@ -324,13 +324,49 @@ def _get_filename_filter(fields: dict) -> list[str]:
 def _retrieve_contexts(fields: dict, doc_processor, plan=None) -> tuple:
     """Retrieve local RAG context and web search context based on request flags.
 
-    When *plan* is provided and is multi-hop, runs parallel retrievals for
-    each sub-question, merges results, and deduplicates by chunk_id.
+    When AGGREGATOR_AGENT_ENABLED is true, dispatches all tools through
+    AggregatorAgent (parallel, with retry) and stores the result in g.agent_result.
+
+    Falls back to direct retrieval on any agent-level error.
+    When *plan* is provided and is multi-hop (direct path), runs parallel
+    retrievals for each sub-question.
     """
     local_context = ""
     web_context = ""
     sources: list[dict] = []
 
+    # ── Aggregator Agent path ────────────────────────────────────────────
+    if config.AGGREGATOR_AGENT_ENABLED:
+        tools: list[str] = []
+        if fields['use_rag']:
+            tools.append("local_docs")
+        if fields['enhance']:
+            tools.append("web_search")
+        if tools:
+            try:
+                from ..agent.aggregator import AggregatorAgent
+                filename_filter = _get_filename_filter(fields)
+                agent_result = AggregatorAgent().run(
+                    fields['message'],
+                    plan=plan,
+                    filename_filter=filename_filter,
+                    tools=tools,
+                    top_k=config.TOP_K_RESULTS,
+                    max_retries=config.AGENT_MAX_RETRIES,
+                )
+                g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(agent_result.sources)
+                g.agent_result = agent_result
+                local_context = agent_result.contexts_by_tool.get("local_docs", "")
+                web_context = agent_result.contexts_by_tool.get("web_search", "")
+                sources = agent_result.sources
+                if agent_result.partial:
+                    logger.warning(f"[Agent] Partial results: {agent_result.warnings}")
+                return local_context, web_context, sources
+            except Exception as agent_err:
+                logger.warning(f"[Agent] Failed, falling back to direct retrieval: {agent_err}")
+                # Continue to direct path below
+
+    # ── Direct retrieval path (default or fallback) ──────────────────────
     if fields['use_rag']:
         try:
             filename_filter = _get_filename_filter(fields)
@@ -413,20 +449,33 @@ def _build_user_message(message: str, images: list) -> dict[str, Any]:
     return msg
 
 
-def _persist_user_message(app, conversation_id, message: str, plan=None):
-    """Save the user message (+ optional plan) to the database. Returns conversation_id."""
+def _persist_user_message(app, conversation_id, message: str, plan=None, agent_result=None):
+    """Save the user message (+ optional plan + agent tool trace) to the database.
+
+    Returns (conversation_id, message_id).  message_id is None when DB is
+    unavailable or the insert failed.
+    """
     if not app.startup_status.get('database', False):
-        return conversation_id
+        return conversation_id, None
     try:
         if not conversation_id:
             title = message[:60] + ('...' if len(message) > 60 else '')
             conversation_id = app.db.create_conversation(title)
-        plan_json = plan.to_dict() if plan is not None else None
-        app.db.save_message(conversation_id, 'user', message, plan_json=plan_json)
+        plan_json: dict | None = plan.to_dict() if plan is not None else None
+        if agent_result is not None:
+            plan_json = plan_json or {}
+            plan_json['tool_trace'] = agent_result.to_trace_dict()
+            if agent_result.warnings:
+                plan_json['agent_warnings'] = agent_result.warnings
+            if agent_result.partial:
+                plan_json['partial_results'] = True
+        message_id: int | None = app.db.save_message(
+            conversation_id, 'user', message, plan_json=plan_json
+        )
+        return conversation_id, message_id
     except Exception as mem_err:
         logger.warning(f"[MEMORY] Could not persist user message: {mem_err}")
-        conversation_id = None
-    return conversation_id
+        return None, None
 
 
 def _persist_assistant_message(app, conversation_id, text: str) -> None:
@@ -466,7 +515,7 @@ def _any_local_only_sources(sources: list[dict] | None, app) -> bool:
         return True  # Conservative fallback
 
 
-def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None, plan=None):
+def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None, plan=None, agent_result=None):
     """Build and return an SSE Response that streams the chat completion.
 
     When cloud fallback is enabled the local response is buffered first.
@@ -527,6 +576,10 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
                 done_payload['sources'] = sources
             if cloud_client is not None:
                 done_payload['model_used'] = model_used
+            if agent_result is not None:
+                done_payload['tool_trace'] = agent_result.to_trace_dict()
+                if agent_result.partial:
+                    done_payload['partial_results'] = True
             yield f"data: {json.dumps(done_payload)}\n\n"
 
         except exceptions.LocalChatException as e:
@@ -648,6 +701,8 @@ def api_chat():
 
         messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in fields['chat_history']]
         local_ctx, web_ctx, sources = _retrieve_contexts(fields, current_app.doc_processor, plan=plan)
+        # Capture agent result if the aggregator ran (stored in g by _retrieve_contexts)
+        agent_result = getattr(g, 'agent_result', None)
         messages, final_message = _build_context_prompt(
             fields['message'], local_ctx, web_ctx, messages, fields['use_rag'], fields['enhance'],
             memory_context=memory_context,
@@ -655,12 +710,18 @@ def api_chat():
         messages.append(_build_user_message(final_message, fields['images']))
 
         app = current_app._get_current_object()  # type: ignore[attr-defined]
-        conversation_id = _persist_user_message(app, fields['conversation_id'], fields['message'], plan=plan)
+        conversation_id, _msg_id = _persist_user_message(
+            app, fields['conversation_id'], fields['message'],
+            plan=plan, agent_result=agent_result,
+        )
         # Don't use tool calling when context is already embedded — the model
         # would try to call retrieval tools it doesn't need, causing confusion.
         tool_executor = None if (local_ctx or web_ctx) else _get_tool_executor(app)
 
-        return _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, fields['temperature'], sources=sources, plan=plan)
+        return _stream_chat_response(
+            app, active_model, messages, conversation_id, tool_executor,
+            fields['temperature'], sources=sources, plan=plan, agent_result=agent_result,
+        )
 
     except (PydanticValidationError, exceptions.LocalChatException):
         raise

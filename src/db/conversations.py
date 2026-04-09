@@ -185,6 +185,34 @@ class ConversationsMixin:
         logger.debug(f"Saved {role} message (id={message_id}) to conversation {conversation_id}")
         return message_id
 
+    def update_message_plan_json(self, message_id: int, plan_json: dict) -> None:
+        """
+        Update the plan_json of an existing message row.
+
+        Used to attach tool_trace and agent warnings to the user turn
+        after the AggregatorAgent finishes executing.
+
+        Args:
+            message_id: ID of the message row to update.
+            plan_json:  New plan dict (replaces existing value).
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected.
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot update message: Database is not connected")
+
+        from psycopg.types.json import Jsonb
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE conversation_messages SET plan_json = %s WHERE id = %s",
+                    (Jsonb(plan_json), message_id),
+                )
+                conn.commit()
+        logger.debug(f"Updated plan_json for message id={message_id}")
+
     def update_conversation_title(self, conversation_id: str, title: str) -> bool:
         """
         Update a conversation's title.
