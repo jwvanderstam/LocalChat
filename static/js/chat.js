@@ -376,6 +376,8 @@ async function sendMessage() {
         const useRag = ragToggle.checked;
         const useEnhance = enhanceToggle ? enhanceToggle.checked : false;
         const temperature = temperatureSlider ? parseFloat(temperatureSlider.value) : 0.7;
+        const modelOverrideInput = document.getElementById('model-override-input');
+        const modelOverride = modelOverrideInput ? modelOverrideInput.value.trim() : '';
         const body = {
             message,
             use_rag: useRag,
@@ -383,6 +385,7 @@ async function sendMessage() {
             history: historySnapshot,
             temperature,
         };
+        if (modelOverride) body.model_override = modelOverride;
         if (currentConversationId) body.conversation_id = currentConversationId;
 
         const response = await fetch('/api/chat', {
@@ -482,6 +485,18 @@ async function sendMessage() {
                             badge.className = 'badge bg-warning text-dark me-1 align-middle';
                             badge.style.fontSize = '0.7rem';
                             badge.textContent = '⚡ cloud';
+                            msgText.insertBefore(badge, msgText.firstChild);
+                        }
+                    }
+
+                    if (data.routed_model) {
+                        const msgText = chatMessages.querySelector('.assistant-message:last-child .message-text');
+                        if (msgText) {
+                            const badge = document.createElement('span');
+                            badge.className = 'badge model-routed-badge me-1 align-middle';
+                            badge.style.fontSize = '0.65rem';
+                            badge.title = data.routed_rationale || '';
+                            badge.textContent = data.routed_model;
                             msgText.insertBefore(badge, msgText.firstChild);
                         }
                     }

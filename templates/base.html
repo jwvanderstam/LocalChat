@@ -136,6 +136,13 @@
                         dbStatus.classList.remove('bg-success');
                         dbStatus.classList.add('bg-danger');
                     }
+
+                    // Show model override input when router is active
+                    const overrideContainer = document.getElementById('model-override-container');
+                    if (overrideContainer) {
+                        overrideContainer.style.display =
+                            data.features && data.features.model_router ? 'flex' : 'none';
+                    }
                 })
                 .catch(error => {
                     console.error('Error updating status:', error);

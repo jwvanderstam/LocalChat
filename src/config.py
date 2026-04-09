@@ -278,6 +278,20 @@ CLOUD_REFUSAL_PATTERNS: list[str] = [
 ]
 
 # ============================================================================
+# MULTI-MODEL ROUTER CONFIGURATION
+# ============================================================================
+# Set MODEL_ROUTER_ENABLED=true to activate rule-based model selection.
+# When a model class is not configured (empty env var) the router falls
+# back to the currently active model — zero-risk opt-in.
+MODEL_ROUTER_ENABLED: bool = os.environ.get('MODEL_ROUTER_ENABLED', 'false').lower() == 'true'
+# Model IDs per class — leave empty to use the active model for that class.
+MODEL_FAST: str = os.environ.get('MODEL_FAST', '')
+MODEL_BASE: str = os.environ.get('MODEL_BASE', '')
+MODEL_LARGE: str = os.environ.get('MODEL_LARGE', '')
+MODEL_CODE: str = os.environ.get('MODEL_CODE', '')
+MODEL_VISION: str = os.environ.get('MODEL_VISION', '')
+
+# ============================================================================
 # AGGREGATOR AGENT CONFIGURATION
 # ============================================================================
 # Set AGGREGATOR_AGENT_ENABLED=true to route all retrieval through the

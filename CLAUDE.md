@@ -14,12 +14,12 @@ Always run `git log --oneline -5` and `git fetch origin` before starting work.  
 |-------|--------|
 | 1 — Foundation (Answer attribution, adaptive chunking, cloud fallback) | ✅ Complete |
 | 2 — Intelligence (Query planner, long-term memory, GraphRAG) | ✅ Complete |
-| 3 — Architecture (MCP split, aggregator agent, multi-model router) | 🔄 In progress (3.1, 3.2 done) |
+| 3 — Architecture (MCP split, aggregator agent, multi-model router) | ✅ Complete |
 | 4 — Platform (Feedback loop, workspaces, live connectors) | 🔲 Not started |
 
 New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.md` for full feature specs and acceptance criteria.
 
-**Next session:** Pick up Phase 3, Feature 3.3 (Multi-Model Router). Check `git log --oneline -5` and `git fetch origin` first.
+**Next session:** Pick up Phase 4, Feature 4.1 (Retrieval Feedback Loop + Adaptive Reranker). Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 
@@ -129,6 +129,8 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `src/agent/aggregator.py` | `AggregatorAgent` — parallel tool dispatch, retry, dedup; `run(query, plan, tools)` |
 | `src/agent/tool_router.py` | `ToolRouter` — maps tool names to MCP or direct handlers; MCP-aware with fallback |
 | `src/agent/result.py` | `AgentResult`, `ToolCall` dataclasses; `to_trace_dict()` for SSE + DB storage |
+| `src/agent/models.py` | `ModelRegistry` — env-driven model class → Ollama ID mapping; `summary()` |
+| `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); < 1 ms |
 | `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
 | `mcp_servers/base.py` | `MCPServer` base class — JSON-RPC 2.0 dispatcher (tools/list, tools/call, health) |
 | `mcp_servers/local_docs/server.py` | Local-docs MCP server — wraps retrieval + `format_context_for_llm`; gunicorn port 5001 |

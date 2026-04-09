@@ -91,6 +91,11 @@ class ChatRequest(BaseModel):
         le=2.0,
         description="Sampling temperature (0 = deterministic, 2 = very creative)"
     )
+    model_override: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Override the model router selection — use this exact Ollama model ID"
+    )
 
     @field_validator('conversation_id')
     @classmethod

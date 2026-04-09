@@ -29,6 +29,12 @@
                        title="Temperature: controls randomness. Low = focused answers, High = creative responses.">
             </div>
         </div>
+        <div class="d-flex align-items-center me-2" id="model-override-container" style="display:none!important">
+            <i class="bi bi-cpu me-1 text-muted" title="Model override"></i>
+            <input type="text" class="form-control form-control-sm" id="model-override-input"
+                   placeholder="model override…" style="width:160px; font-size:0.75rem;"
+                   title="Override model router — type an Ollama model ID (e.g. llama3.2:3b). Leave blank to use automatic routing.">
+        </div>
         <button class="btn btn-sm btn-outline-primary me-2" id="copy-chat-btn" title="Copy chat to clipboard">
             <i class="bi bi-clipboard me-1"></i>Copy Chat
         </button>

@@ -80,6 +80,7 @@ def _parse_chat_request(data: dict) -> dict:
         'conversation_id': req.conversation_id,
         'images': req.images or [],
         'temperature': req.temperature,
+        'model_override': req.model_override or None,
     }
 
 
@@ -306,6 +307,22 @@ def api_status():
             logger.warning(f"[MCP] health_summary failed: {mcp_err}")
             response['mcp_servers'] = {'error': str(mcp_err)}
 
+    # Feature flags visible to the frontend
+    response['features'] = {
+        'model_router': config.MODEL_ROUTER_ENABLED,
+        'aggregator_agent': config.AGGREGATOR_AGENT_ENABLED,
+        'mcp': config.MCP_ENABLED,
+        'graph_rag': config.GRAPH_RAG_ENABLED,
+        'long_term_memory': config.LONG_TERM_MEMORY_ENABLED,
+    }
+
+    if config.MODEL_ROUTER_ENABLED:
+        try:
+            from ..agent.models import model_registry
+            response['model_routing'] = model_registry.summary()
+        except Exception:
+            pass
+
     return jsonify(response)
 
 
@@ -515,7 +532,7 @@ def _any_local_only_sources(sources: list[dict] | None, app) -> bool:
         return True  # Conservative fallback
 
 
-def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None, plan=None, agent_result=None):
+def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None, plan=None, agent_result=None, routed_model=None, routed_rationale=None):
     """Build and return an SSE Response that streams the chat completion.
 
     When cloud fallback is enabled the local response is buffered first.
@@ -580,6 +597,9 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
                 done_payload['tool_trace'] = agent_result.to_trace_dict()
                 if agent_result.partial:
                     done_payload['partial_results'] = True
+            if routed_model:
+                done_payload['routed_model'] = routed_model
+                done_payload['routed_rationale'] = routed_rationale
             yield f"data: {json.dumps(done_payload)}\n\n"
 
         except exceptions.LocalChatException as e:
@@ -703,6 +723,28 @@ def api_chat():
         local_ctx, web_ctx, sources = _retrieve_contexts(fields, current_app.doc_processor, plan=plan)
         # Capture agent result if the aggregator ran (stored in g by _retrieve_contexts)
         agent_result = getattr(g, 'agent_result', None)
+
+        # ── Model routing (optional, < 1 ms) ─────────────────────────────
+        routed_rationale: str | None = None
+        if fields.get('model_override'):
+            active_model = fields['model_override']
+            routed_rationale = "user override"
+            logger.info(f"[Router] User override → {active_model!r}")
+            g.model = active_model
+        elif config.MODEL_ROUTER_ENABLED:
+            try:
+                from ..agent.router import ModelRouter
+                doc_types = [s.get("doc_type") for s in sources if s.get("doc_type")]
+                active_model, routed_rationale = ModelRouter().select(
+                    fields['message'],
+                    plan=plan,
+                    doc_types=doc_types,
+                    active_model=active_model,
+                )
+                g.model = active_model
+            except Exception as router_err:
+                logger.warning(f"[Router] Selection failed, using active model: {router_err}")
+
         messages, final_message = _build_context_prompt(
             fields['message'], local_ctx, web_ctx, messages, fields['use_rag'], fields['enhance'],
             memory_context=memory_context,
@@ -721,6 +763,8 @@ def api_chat():
         return _stream_chat_response(
             app, active_model, messages, conversation_id, tool_executor,
             fields['temperature'], sources=sources, plan=plan, agent_result=agent_result,
+            routed_model=active_model if routed_rationale else None,
+            routed_rationale=routed_rationale,
         )
 
     except (PydanticValidationError, exceptions.LocalChatException):

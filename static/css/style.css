@@ -590,3 +590,20 @@ svg text {
 [data-bs-theme="dark"] .plan-trace-body {
     border-left-color: #2d3748;
 }
+
+/* Model router badge — shown when MODEL_ROUTER_ENABLED and model was routed */
+.model-routed-badge {
+    background-color: #6f42c1;
+    color: #fff;
+    font-family: monospace;
+    max-width: 14ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+    cursor: help;
+}
+
+[data-bs-theme="dark"] .model-routed-badge {
+    background-color: #7952b3;
+}
