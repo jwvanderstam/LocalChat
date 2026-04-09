@@ -13,9 +13,9 @@ Covers the full REST surface:
   POST /api/connectors/<id>/webhook
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -26,7 +26,7 @@ def _connector(id="conn-1", connector_type="local_folder", enabled=True):
         "id": id,
         "workspace_id": None,
         "connector_type": connector_type,
-        "display_name": f"Local folder: /tmp",
+        "display_name": "Local folder: /tmp",
         "config": {"path": "/tmp"},
         "enabled": enabled,
         "sync_interval": 900,

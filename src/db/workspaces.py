@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .connection import DatabaseUnavailableError
 from ..utils.logging_config import get_logger
+from .connection import DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
@@ -121,13 +121,17 @@ class WorkspacesMixin:
         sets: list[str] = []
         params: list = []
         if name is not None:
-            sets.append("name = %s"); params.append(name[:255])
+            sets.append("name = %s")
+            params.append(name[:255])
         if description is not None:
-            sets.append("description = %s"); params.append(description)
+            sets.append("description = %s")
+            params.append(description)
         if system_prompt is not None:
-            sets.append("system_prompt = %s"); params.append(system_prompt)
+            sets.append("system_prompt = %s")
+            params.append(system_prompt)
         if model_class is not None:
-            sets.append("model_class = %s"); params.append(model_class)
+            sets.append("model_class = %s")
+            params.append(model_class)
         if not sets:
             return False
         params.append(workspace_id)

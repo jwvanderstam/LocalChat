@@ -53,7 +53,7 @@ class SyncWorker:
         worker.stop()
     """
 
-    def __init__(self, registry, db, doc_processor: "DocumentProcessor") -> None:
+    def __init__(self, registry, db, doc_processor: DocumentProcessor) -> None:
         self._registry = registry
         self._db = db
         self._doc_processor = doc_processor

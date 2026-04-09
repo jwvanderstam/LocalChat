@@ -11,9 +11,9 @@ Covers the full REST surface:
   POST /api/workspaces/switch
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers

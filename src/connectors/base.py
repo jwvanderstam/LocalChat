@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Any
 
 
-class EventType(str, enum.Enum):
+class EventType(enum.StrEnum):
     ADDED = "added"
     MODIFIED = "modified"
     DELETED = "deleted"

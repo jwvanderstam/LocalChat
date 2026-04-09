@@ -9,11 +9,11 @@ plus the helpers called by ``SyncWorker`` during each sync cycle.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any
 
-from .connection import DatabaseUnavailableError
 from ..utils.logging_config import get_logger
+from .connection import DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
@@ -162,7 +162,7 @@ class ConnectorsMixin:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE connectors SET last_sync_at = %s, last_error = %s WHERE id = %s",
-                    (datetime.now(timezone.utc), error, connector_id),
+                    (datetime.now(UTC), error, connector_id),
                 )
                 conn.commit()
 
@@ -202,7 +202,7 @@ class ConnectorsMixin:
                      WHERE id = %s
                     """,
                     (
-                        datetime.now(timezone.utc),
+                        datetime.now(UTC),
                         counts.get("added", 0),
                         counts.get("updated", 0),
                         counts.get("deleted", 0),

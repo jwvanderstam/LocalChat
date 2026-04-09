@@ -22,7 +22,6 @@ from src.connectors.registry import ConnectorRegistry
 from src.connectors.webhook import WebhookConnector
 from src.connectors.worker import SyncWorker
 
-
 # ---------------------------------------------------------------------------
 # LocalFolderConnector
 # ---------------------------------------------------------------------------

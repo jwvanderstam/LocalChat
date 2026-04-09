@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -139,4 +140,4 @@ class LocalFolderConnector(BaseConnector):
 
 def _mtime_to_dt(mtime: float):
     from datetime import datetime, timezone
-    return datetime.fromtimestamp(mtime, tz=timezone.utc)
+    return datetime.fromtimestamp(mtime, tz=UTC)

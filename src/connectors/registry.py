@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_CONNECTOR_CLASSES: dict[str, Type[BaseConnector]] = {
+_CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
     "local_folder": LocalFolderConnector,
     "s3": S3Connector,
     "webhook": WebhookConnector,
@@ -51,7 +51,7 @@ class ConnectorRegistry:
         return list(_CONNECTOR_CLASSES.keys())
 
     @staticmethod
-    def get_class(connector_type: str) -> Type[BaseConnector] | None:
+    def get_class(connector_type: str) -> type[BaseConnector] | None:
         return _CONNECTOR_CLASSES.get(connector_type)
 
     # ------------------------------------------------------------------
