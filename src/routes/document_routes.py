@@ -332,7 +332,7 @@ def api_test_retrieval():
             query = sanitize_query(query)
         except ImportError:
             pass
-        logger.info("Testing retrieval: query_len=%d hybrid=%s", len(query), use_hybrid)
+        logger.info("Testing retrieval")
         # Test both modes
         results_hybrid = current_app.doc_processor.retrieve_context(query, use_hybrid_search=True)
         results_semantic = current_app.doc_processor.retrieve_context(query, use_hybrid_search=False)

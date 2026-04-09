@@ -13,7 +13,7 @@ is false (the default).
 from __future__ import annotations
 
 import re
-from typing import Generator, Protocol, runtime_checkable
+from typing import Any, Generator, Protocol, runtime_checkable
 
 from . import config
 from .utils.logging_config import get_logger
@@ -92,6 +92,14 @@ class LiteLLMClient:
 
         logger.info(f"[CloudFallback] LiteLLMClient ready — provider={provider}, model={model}")
 
+    @staticmethod
+    def _iter_stream_chunks(response: Any) -> Generator[str, None, None]:
+        """Yield non-empty content strings from a litellm streaming response."""
+        for chunk in response:
+            content = chunk.choices[0].delta.content if chunk.choices else ""
+            if content:
+                yield content
+
     def generate_chat_response(
         self,
         model: str,
@@ -113,10 +121,7 @@ class LiteLLMClient:
         try:
             response = self._litellm.completion(**kwargs)
             if stream:
-                for chunk in response:
-                    content = (chunk.choices[0].delta.content or "") if chunk.choices else ""
-                    if content:
-                        yield content
+                yield from self._iter_stream_chunks(response)
             else:
                 yield (response.choices[0].message.content or "") if response.choices else ""
         except Exception as e:

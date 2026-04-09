@@ -391,6 +391,23 @@ class DocumentLoaderMixin:
                 return title
         return None
 
+    def _process_pptx_slide(self, slide: Any) -> tuple[list[str], str | None]:
+        """Extract text parts and title from a single PowerPoint slide."""
+        title: str | None = None
+        parts: list[str] = []
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            text = shape.text_frame.text.strip()
+            if not text or shape.shape_type == 13:  # MSO_SHAPE_TYPE.PICTURE
+                continue
+            if (title is None and hasattr(shape, 'placeholder_format')
+                    and shape.placeholder_format is not None
+                    and shape.placeholder_format.idx == 0):
+                title = text
+            parts.append(text)
+        return parts, title
+
     def load_pptx_file(self, file_path: str) -> tuple[bool, list[dict[str, Any]] | str]:
         """
         Load a PowerPoint file and return a list of slide dicts.
@@ -409,21 +426,7 @@ class DocumentLoaderMixin:
             prs = Presentation(file_path)
             slides = []
             for slide_num, slide in enumerate(prs.slides, 1):
-                title: str | None = None
-                parts: list[str] = []
-                for shape in slide.shapes:
-                    if not shape.has_text_frame:
-                        continue
-                    text = shape.text_frame.text.strip()
-                    if not text:
-                        continue
-                    if shape.shape_type == 13:  # MSO_SHAPE_TYPE.PICTURE
-                        continue
-                    if title is None and hasattr(shape, 'placeholder_format') \
-                            and shape.placeholder_format is not None \
-                            and shape.placeholder_format.idx == 0:
-                        title = text
-                    parts.append(text)
+                parts, title = self._process_pptx_slide(slide)
                 combined = "\n".join(parts)
                 if combined.strip():
                     slides.append({
@@ -438,6 +441,20 @@ class DocumentLoaderMixin:
         except Exception as e:
             logger.error(f"Error loading PPTX: {e}", exc_info=True)
             return False, str(e)
+
+    @staticmethod
+    def _decode_email_part(part: Any) -> str | None:
+        """Decode a text/plain MIME part to a string, or return None."""
+        if part.get_content_type() != 'text/plain':
+            return None
+        charset = part.get_content_charset() or 'utf-8'
+        payload = part.get_payload(decode=True)
+        if not payload:
+            return None
+        try:
+            return payload.decode(charset, errors='replace')
+        except (LookupError, UnicodeDecodeError):
+            return payload.decode('utf-8', errors='replace')
 
     def load_eml_file(self, file_path: str) -> tuple[bool, str]:
         """
@@ -454,27 +471,16 @@ class DocumentLoaderMixin:
             with open(file_path, 'rb') as f:
                 msg = _email_mod.message_from_bytes(f.read())
 
-            subject = msg.get('Subject', '')
-            sender  = msg.get('From', '')
-            date    = msg.get('Date', '')
-
             parts: list[str] = []
-            if subject:
-                parts.append(f"Subject: {subject}")
-            if sender:
-                parts.append(f"From: {sender}")
-            if date:
-                parts.append(f"Date: {date}")
+            for header in ('Subject', 'From', 'Date'):
+                value = msg.get(header, '')
+                if value:
+                    parts.append(f"{header}: {value}")
 
             for part in msg.walk():
-                if part.get_content_type() == 'text/plain':
-                    charset = part.get_content_charset() or 'utf-8'
-                    payload = part.get_payload(decode=True)
-                    if payload:
-                        try:
-                            parts.append(payload.decode(charset, errors='replace'))
-                        except (LookupError, UnicodeDecodeError):
-                            parts.append(payload.decode('utf-8', errors='replace'))
+                decoded = self._decode_email_part(part)
+                if decoded:
+                    parts.append(decoded)
 
             content = "\n\n".join(parts).strip()
             if not content:

@@ -84,6 +84,32 @@ def _parse_chat_request(data: dict) -> dict:
     }
 
 
+def _try_mcp_rag(message: str, filename_filter: list | None) -> tuple[str, list[dict]] | None:
+    """Attempt retrieval via the local-docs MCP server.
+
+    Returns (context, sources) on success, or None if MCP is unavailable or fails.
+    """
+    try:
+        from ..mcp_client import mcp_registry
+        result = mcp_registry.local_docs.call_tool("search", {
+            "query": message,
+            "filters": {"filenames": filename_filter or []},
+            "top_k": config.TOP_K_RESULTS,
+        })
+        if isinstance(result, dict) and "context" in result:
+            context = result["context"]
+            sources = result.get("sources") or []
+            chunk_count = len(sources)
+            logger.info(f"[RAG/MCP] Retrieved {chunk_count} chunks via local-docs server")
+            g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + chunk_count
+            if not context:
+                logger.warning("[RAG/MCP] No chunks retrieved from local-docs server")
+            return context, sources
+    except Exception as mcp_err:
+        logger.warning(f"[RAG/MCP] local-docs call failed, falling back to direct: {mcp_err}")
+    return None
+
+
 def _get_rag_context(message: str, doc_processor, filename_filter: list | None = None) -> tuple[str, list[dict]]:
     """Retrieve and format RAG context. Returns (formatted context block, source list).
 
@@ -91,24 +117,9 @@ def _get_rag_context(message: str, doc_processor, filename_filter: list | None =
     Falls back to direct retrieval if the MCP server is unreachable.
     """
     if config.MCP_ENABLED:
-        try:
-            from ..mcp_client import mcp_registry
-            result = mcp_registry.local_docs.call_tool("search", {
-                "query": message,
-                "filters": {"filenames": filename_filter or []},
-                "top_k": config.TOP_K_RESULTS,
-            })
-            if isinstance(result, dict) and "context" in result:
-                context = result["context"]
-                sources = result.get("sources") or []
-                chunk_count = len(sources)
-                logger.info(f"[RAG/MCP] Retrieved {chunk_count} chunks via local-docs server")
-                g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + chunk_count
-                if not context:
-                    logger.warning("[RAG/MCP] No chunks retrieved from local-docs server")
-                return context, sources
-        except Exception as mcp_err:
-            logger.warning(f"[RAG/MCP] local-docs call failed, falling back to direct: {mcp_err}")
+        mcp_result = _try_mcp_rag(message, filename_filter)
+        if mcp_result is not None:
+            return mcp_result
 
     # Direct retrieval path (default when MCP disabled, or MCP fallback)
     results = doc_processor.retrieve_context(message, filename_filter=filename_filter or [])
@@ -224,6 +235,29 @@ def _build_context_prompt(
     return messages, final_message
 
 
+def _get_doc_count_cached(db) -> tuple[int, bool]:
+    """Return (doc_count, db_still_available) using a short TTL cache."""
+    with _status_cache_lock:
+        now = time.monotonic()
+        if now - _status_doc_count_cache[1] > _STATUS_CACHE_TTL:
+            try:
+                _status_doc_count_cache[:] = [db.get_document_count(), now]
+            except Exception as e:
+                logger.warning(f"Could not get document count: {e}")
+                return 0, False
+        return _status_doc_count_cache[0], True
+
+
+def _collect_cache_stats() -> dict:
+    """Return a cache-statistics dict (may be empty) from app caches."""
+    stats: dict = {}
+    if hasattr(current_app, 'embedding_cache') and current_app.embedding_cache:
+        stats['embedding'] = current_app.embedding_cache.get_stats().to_dict()
+    if hasattr(current_app, 'query_cache') and current_app.query_cache:
+        stats['query'] = current_app.query_cache.get_stats().to_dict()
+    return stats
+
+
 @bp.route('/status', methods=['GET'])
 def api_status():
     """
@@ -263,39 +297,27 @@ def api_status():
                 misses: 20
                 hit_rate: "80.00%"
     """
-    active_model = config.app_state.get_active_model()
-
-    # Get document count with error handling for closed pool
-    doc_count = 0
     db_available = current_app.startup_status.get('database', False)
-
+    doc_count = 0
     if db_available:
-        with _status_cache_lock:
-            now = time.monotonic()
-            if now - _status_doc_count_cache[1] > _STATUS_CACHE_TTL:
-                try:
-                    _status_doc_count_cache[:] = [current_app.db.get_document_count(), now]
-                except Exception as e:
-                    logger.warning(f"Could not get document count: {e}")
-                    db_available = False
-            doc_count = _status_doc_count_cache[0]
-
-    # Get cache stats if available
-    cache_stats = {}
-    if hasattr(current_app, 'embedding_cache') and current_app.embedding_cache:
-        cache_stats['embedding'] = current_app.embedding_cache.get_stats().to_dict()
-
-    if hasattr(current_app, 'query_cache') and current_app.query_cache:
-        cache_stats['query'] = current_app.query_cache.get_stats().to_dict()
+        doc_count, db_available = _get_doc_count_cached(current_app.db)
 
     response = {
         'ollama': current_app.startup_status['ollama'],
-        'database': db_available,  # Use checked availability
-        'ready': current_app.startup_status['ready'] and db_available,  # Ready only if DB is available
-        'active_model': active_model,
-        'document_count': doc_count
+        'database': db_available,
+        'ready': current_app.startup_status['ready'] and db_available,
+        'active_model': config.app_state.get_active_model(),
+        'document_count': doc_count,
+        'features': {
+            'model_router': config.MODEL_ROUTER_ENABLED,
+            'aggregator_agent': config.AGGREGATOR_AGENT_ENABLED,
+            'mcp': config.MCP_ENABLED,
+            'graph_rag': config.GRAPH_RAG_ENABLED,
+            'long_term_memory': config.LONG_TERM_MEMORY_ENABLED,
+        },
     }
 
+    cache_stats = _collect_cache_stats()
     if cache_stats:
         response['cache'] = cache_stats
 
@@ -306,15 +328,6 @@ def api_status():
         except Exception as mcp_err:
             logger.warning(f"[MCP] health_summary failed: {mcp_err}")
             response['mcp_servers'] = {'error': str(mcp_err)}
-
-    # Feature flags visible to the frontend
-    response['features'] = {
-        'model_router': config.MODEL_ROUTER_ENABLED,
-        'aggregator_agent': config.AGGREGATOR_AGENT_ENABLED,
-        'mcp': config.MCP_ENABLED,
-        'graph_rag': config.GRAPH_RAG_ENABLED,
-        'long_term_memory': config.LONG_TERM_MEMORY_ENABLED,
-    }
 
     if config.MODEL_ROUTER_ENABLED:
         try:
@@ -348,42 +361,58 @@ def _retrieve_contexts(fields: dict, doc_processor, plan=None) -> tuple:
     When *plan* is provided and is multi-hop (direct path), runs parallel
     retrievals for each sub-question.
     """
+    if config.AGGREGATOR_AGENT_ENABLED:
+        result = _retrieve_via_aggregator(fields, doc_processor, plan)
+        if result is not None:
+            return result
+
+    return _retrieve_direct(fields, doc_processor, plan)
+
+
+def _retrieve_via_aggregator(fields: dict, doc_processor, plan) -> tuple | None:
+    """Run the AggregatorAgent and return (local_ctx, web_ctx, sources).
+
+    Returns None when no tools are needed or the agent fails (caller falls back
+    to direct retrieval).
+    """
+    tools: list[str] = []
+    if fields['use_rag']:
+        tools.append("local_docs")
+    if fields['enhance']:
+        tools.append("web_search")
+    if not tools:
+        return None
+    try:
+        from ..agent.aggregator import AggregatorAgent
+        filename_filter = _get_filename_filter(fields)
+        agent_result = AggregatorAgent().run(
+            fields['message'],
+            plan=plan,
+            filename_filter=filename_filter,
+            tools=tools,
+            top_k=config.TOP_K_RESULTS,
+            max_retries=config.AGENT_MAX_RETRIES,
+        )
+        g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(agent_result.sources)
+        g.agent_result = agent_result
+        if agent_result.partial:
+            logger.warning(f"[Agent] Partial results: {agent_result.warnings}")
+        return (
+            agent_result.contexts_by_tool.get("local_docs", ""),
+            agent_result.contexts_by_tool.get("web_search", ""),
+            agent_result.sources,
+        )
+    except Exception as agent_err:
+        logger.warning(f"[Agent] Failed, falling back to direct retrieval: {agent_err}")
+        return None
+
+
+def _retrieve_direct(fields: dict, doc_processor, plan) -> tuple:
+    """Direct retrieval path (default, or aggregator fallback)."""
     local_context = ""
     web_context = ""
     sources: list[dict] = []
 
-    # ── Aggregator Agent path ────────────────────────────────────────────
-    if config.AGGREGATOR_AGENT_ENABLED:
-        tools: list[str] = []
-        if fields['use_rag']:
-            tools.append("local_docs")
-        if fields['enhance']:
-            tools.append("web_search")
-        if tools:
-            try:
-                from ..agent.aggregator import AggregatorAgent
-                filename_filter = _get_filename_filter(fields)
-                agent_result = AggregatorAgent().run(
-                    fields['message'],
-                    plan=plan,
-                    filename_filter=filename_filter,
-                    tools=tools,
-                    top_k=config.TOP_K_RESULTS,
-                    max_retries=config.AGENT_MAX_RETRIES,
-                )
-                g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(agent_result.sources)
-                g.agent_result = agent_result
-                local_context = agent_result.contexts_by_tool.get("local_docs", "")
-                web_context = agent_result.contexts_by_tool.get("web_search", "")
-                sources = agent_result.sources
-                if agent_result.partial:
-                    logger.warning(f"[Agent] Partial results: {agent_result.warnings}")
-                return local_context, web_context, sources
-            except Exception as agent_err:
-                logger.warning(f"[Agent] Failed, falling back to direct retrieval: {agent_err}")
-                # Continue to direct path below
-
-    # ── Direct retrieval path (default or fallback) ──────────────────────
     if fields['use_rag']:
         try:
             filename_filter = _get_filename_filter(fields)
@@ -533,102 +562,134 @@ def _any_local_only_sources(sources: list[dict] | None, app) -> bool:
         return True  # Conservative fallback
 
 
-def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None, plan=None, agent_result=None, routed_model=None, routed_rationale=None):
-    """Build and return an SSE Response that streams the chat completion.
+def _build_done_payload(
+    conversation_id, asst_message_id, sources, cloud_client, model_used,
+    agent_result, routed_model, routed_rationale,
+) -> dict:
+    """Assemble the SSE ``done`` payload dict."""
+    payload: dict = {'done': True}
+    if conversation_id:
+        payload['conversation_id'] = conversation_id
+    if asst_message_id is not None:
+        payload['message_id'] = asst_message_id
+    if sources:
+        payload['sources'] = sources
+        payload['source_chunk_ids'] = [s['chunk_id'] for s in sources if s.get('chunk_id')]
+    if cloud_client is not None:
+        payload['model_used'] = model_used
+    if agent_result is not None:
+        payload['tool_trace'] = agent_result.to_trace_dict()
+        if agent_result.partial:
+            payload['partial_results'] = True
+    if routed_model:
+        payload['routed_model'] = routed_model
+        payload['routed_rationale'] = routed_rationale
+    return payload
 
-    When cloud fallback is enabled the local response is buffered first.
-    If the buffer looks like a refusal *and* no source docs are local-only,
-    the cloud model responds instead and a 'model_used: cloud' flag is set
-    in the done payload.
-    """
+
+def _update_chunk_stats(app, sources: list[dict]) -> None:
+    """Increment retrieved-count for every source chunk (fire-and-forget)."""
+    if not sources or not app.startup_status.get('database', False):
+        return
+    chunk_ids = [s['chunk_id'] for s in sources if s.get('chunk_id')]
+    if chunk_ids:
+        try:
+            app.db.increment_chunk_retrieved(chunk_ids)
+        except Exception as cs_err:
+            logger.debug(f"[Feedback] chunk_stats update failed: {cs_err}")
+
+
+def _generate_chat_events(
+    app, active_model, messages, conversation_id, tool_executor, temperature,
+    sources, plan, agent_result, routed_model, routed_rationale, cloud_client,
+) -> Generator[str, None, None]:
+    """Core SSE generator — lifted out of _stream_chat_response to reduce nesting."""
     from ..llm_client import is_refusal
 
-    cloud_client = getattr(app, 'cloud_client', None)
+    full_response: list[str] = []
+    model_used = 'local'
+    try:
+        if plan is not None:
+            yield f"data: {json.dumps({'plan': plan.to_dict()})}\n\n"
 
-    def generate() -> Generator[str, None, None]:
-        full_response: list[str] = []
-        model_used = 'local'
-        try:
-            # Emit the query plan as the very first SSE event so the frontend
-            # can render the reasoning trace before the answer starts streaming.
-            if plan is not None:
-                yield f"data: {json.dumps({'plan': plan.to_dict()})}\n\n"
-
-            local_stream = (
-                tool_executor.execute(active_model, messages, stream=True)
-                if tool_executor is not None
-                else app.ollama_client.generate_chat_response(active_model, messages, stream=True, temperature=temperature)
+        local_stream = (
+            tool_executor.execute(active_model, messages, stream=True)
+            if tool_executor is not None
+            else app.ollama_client.generate_chat_response(
+                active_model, messages, stream=True, temperature=temperature
             )
+        )
 
-            if cloud_client is None:
-                # ── Standard streaming path (no cloud client) ────────────────
-                for chunk in local_stream:
+        if cloud_client is None:
+            for chunk in local_stream:
+                full_response.append(chunk)
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+        else:
+            # Buffer local response, check for refusal before deciding provider
+            for chunk in local_stream:
+                full_response.append(chunk)
+            buffered = ''.join(full_response)
+            if is_refusal(buffered) and not _any_local_only_sources(sources, app):
+                logger.info("[CloudFallback] Local refusal detected — routing to cloud")
+                full_response = []
+                for chunk in cloud_client.generate_chat_response(
+                    config.CLOUD_MODEL, messages, stream=True, temperature=temperature
+                ):
                     full_response.append(chunk)
                     yield f"data: {json.dumps({'content': chunk})}\n\n"
+                model_used = 'cloud'
             else:
-                # ── Buffer local response, check for refusal ─────────────────
-                for chunk in local_stream:
-                    full_response.append(chunk)
-                buffered = ''.join(full_response)
+                yield f"data: {json.dumps({'content': buffered})}\n\n"
 
-                if is_refusal(buffered) and not _any_local_only_sources(sources, app):
-                    logger.info("[CloudFallback] Local refusal detected — routing to cloud")
-                    full_response = []
-                    cloud_model = config.CLOUD_MODEL
-                    for chunk in cloud_client.generate_chat_response(
-                        cloud_model, messages, stream=True, temperature=temperature
-                    ):
-                        full_response.append(chunk)
-                        yield f"data: {json.dumps({'content': chunk})}\n\n"
-                    model_used = 'cloud'
-                else:
-                    # Forward buffered local response as a single content event
-                    yield f"data: {json.dumps({'content': buffered})}\n\n"
+        asst_message_id = _persist_assistant_message(app, conversation_id, ''.join(full_response))
+        _update_chunk_stats(app, sources or [])
+        yield f"data: {json.dumps(_build_done_payload(conversation_id, asst_message_id, sources, cloud_client, model_used, agent_result, routed_model, routed_rationale))}\n\n"
 
-            asst_message_id = _persist_assistant_message(app, conversation_id, ''.join(full_response))
+    except exceptions.LocalChatException as e:
+        yield f"data: {json.dumps({'error': 'GenerationError', 'message': e.message, 'done': True})}\n\n"
+    except Exception as e:
+        logger.error(f"[CHAT API] Unexpected error generating response: {e}", exc_info=True)
+        yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
 
-            # Track which chunks were retrieved so feedback can update chunk_stats
-            if sources and app.startup_status.get('database', False):
-                chunk_ids = [s['chunk_id'] for s in sources if s.get('chunk_id')]
-                if chunk_ids:
-                    try:
-                        app.db.increment_chunk_retrieved(chunk_ids)
-                    except Exception as cs_err:
-                        logger.debug(f"[Feedback] chunk_stats update failed: {cs_err}")
 
-            done_payload: dict = {'done': True}
-            if conversation_id:
-                done_payload['conversation_id'] = conversation_id
-            if asst_message_id is not None:
-                done_payload['message_id'] = asst_message_id
-            if sources:
-                done_payload['sources'] = sources
-                done_payload['source_chunk_ids'] = [
-                    s['chunk_id'] for s in sources if s.get('chunk_id')
-                ]
-            if cloud_client is not None:
-                done_payload['model_used'] = model_used
-            if agent_result is not None:
-                done_payload['tool_trace'] = agent_result.to_trace_dict()
-                if agent_result.partial:
-                    done_payload['partial_results'] = True
-            if routed_model:
-                done_payload['routed_model'] = routed_model
-                done_payload['routed_rationale'] = routed_rationale
-            yield f"data: {json.dumps(done_payload)}\n\n"
-
-        except exceptions.LocalChatException as e:
-            # Expected application error (e.g. model not found) — already logged
-            # at WARNING level by the exception constructor; no traceback needed.
-            yield f"data: {json.dumps({'error': 'GenerationError', 'message': e.message, 'done': True})}\n\n"
-        except Exception as e:
-            logger.error(f"[CHAT API] Unexpected error generating response: {e}", exc_info=True)
-            yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
-
-    response = Response(generate(), mimetype='text/event-stream')
+def _stream_chat_response(app, active_model, messages, conversation_id, tool_executor, temperature=0.7, sources=None, plan=None, agent_result=None, routed_model=None, routed_rationale=None):
+    """Build and return an SSE Response that streams the chat completion."""
+    cloud_client = getattr(app, 'cloud_client', None)
+    response = Response(
+        _generate_chat_events(
+            app, active_model, messages, conversation_id, tool_executor, temperature,
+            sources, plan, agent_result, routed_model, routed_rationale, cloud_client,
+        ),
+        mimetype='text/event-stream',
+    )
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['X-Accel-Buffering'] = 'no'
     return response
+
+
+def _apply_model_routing(
+    fields: dict,
+    active_model: str,
+    sources: list[dict],
+    plan,
+) -> tuple[str, str | None]:
+    """Return (model_name, rationale) after applying override or auto-routing."""
+    if fields.get('model_override'):
+        logger.info(f"[Router] User override → {fields['model_override']!r}")
+        return fields['model_override'], "user override"
+    if config.MODEL_ROUTER_ENABLED:
+        try:
+            from ..agent.router import ModelRouter
+            doc_types = [s.get("doc_type") for s in sources if s.get("doc_type")]
+            return ModelRouter().select(
+                fields['message'],
+                plan=plan,
+                doc_types=doc_types,
+                active_model=active_model,
+            )
+        except Exception as router_err:
+            logger.warning(f"[Router] Selection failed, using active model: {router_err}")
+    return active_model, None
 
 
 @bp.route('/chat', methods=['POST'])
@@ -740,25 +801,10 @@ def api_chat():
         agent_result = getattr(g, 'agent_result', None)
 
         # ── Model routing (optional, < 1 ms) ─────────────────────────────
-        routed_rationale: str | None = None
-        if fields.get('model_override'):
-            active_model = fields['model_override']
-            routed_rationale = "user override"
-            logger.info(f"[Router] User override → {active_model!r}")
-            g.model = active_model
-        elif config.MODEL_ROUTER_ENABLED:
-            try:
-                from ..agent.router import ModelRouter
-                doc_types = [s.get("doc_type") for s in sources if s.get("doc_type")]
-                active_model, routed_rationale = ModelRouter().select(
-                    fields['message'],
-                    plan=plan,
-                    doc_types=doc_types,
-                    active_model=active_model,
-                )
-                g.model = active_model
-            except Exception as router_err:
-                logger.warning(f"[Router] Selection failed, using active model: {router_err}")
+        active_model, routed_rationale = _apply_model_routing(
+            fields, active_model, sources, plan
+        )
+        g.model = active_model
 
         messages, final_message = _build_context_prompt(
             fields['message'], local_ctx, web_ctx, messages, fields['use_rag'], fields['enhance'],

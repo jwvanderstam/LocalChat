@@ -252,6 +252,41 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 chunks_with_metadata, doc_id, embedding_model, filename, progress_callback
             )
 
+    def _prepare_for_ingestion(
+        self,
+        filename: str,
+        file_hash: str,
+        progress_callback: Callable[[str], None] | None,
+    ) -> tuple[bool, str, int | None] | None:
+        """Check for an existing document with this filename.
+
+        Returns a finished result tuple if ingestion should be skipped,
+        or ``None`` if ingestion should continue (old copy already deleted
+        when content changed).
+        """
+        exists, doc_info = db.document_exists(filename)
+        if not exists:
+            return None
+        if doc_info.get('content_hash') == file_hash:
+            message = (
+                f"Document '{filename}' is already up to date "
+                f"(ID: {doc_info['id']}, {doc_info['chunk_count']} chunks). "
+                f"Skipping ingestion."
+            )
+            logger.info(message)
+            if progress_callback:
+                progress_callback(message)
+            return True, message, doc_info['id']
+        # Same filename, different content — replace.
+        logger.info(
+            f"Document '{filename}' has changed (hash mismatch). "
+            f"Replacing ID {doc_info['id']}."
+        )
+        if progress_callback:
+            progress_callback(f"Replacing existing document '{filename}'...")
+        db.delete_document(doc_info['id'])
+        return None
+
     @timed('rag.ingest_document')
     @counted('rag.document_ingestions')
     def ingest_document(
@@ -275,27 +310,9 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
             file_hash = _compute_file_hash(file_path)
 
-            exists, doc_info = db.document_exists(filename)
-            if exists:
-                if doc_info.get('content_hash') == file_hash:
-                    message = (
-                        f"Document '{filename}' is already up to date "
-                        f"(ID: {doc_info['id']}, {doc_info['chunk_count']} chunks). "
-                        f"Skipping ingestion."
-                    )
-                    logger.info(message)
-                    if progress_callback:
-                        progress_callback(message)
-                    return True, message, doc_info['id']
-
-                # Same filename, different content — replace.
-                logger.info(
-                    f"Document '{filename}' has changed (hash mismatch). "
-                    f"Replacing ID {doc_info['id']}."
-                )
-                if progress_callback:
-                    progress_callback(f"Replacing existing document '{filename}'...")
-                db.delete_document(doc_info['id'])
+            early = self._prepare_for_ingestion(filename, file_hash, progress_callback)
+            if early is not None:
+                return early
 
             if not os.path.exists(file_path):
                 error_msg = f"File not found: {file_path}"

@@ -89,34 +89,46 @@ class MemoryExtractor:
 
         inserted = 0
         for item in raw_memories:
-            content = str(item.get("content") or "").strip()
-            memory_type = str(item.get("memory_type") or "fact")
-            confidence = float(item.get("confidence") or 1.0)
-            if not content or len(content) < 5:
-                continue
-            try:
-                ok, embedding = ollama_client.generate_embedding(
-                    ollama_client.get_embedding_model(), content
-                )
-                if not ok or not embedding:
-                    continue
-                if db.is_duplicate_memory(embedding):
-                    logger.debug(f"[Memory] Skipping duplicate: {content[:60]}")
-                    continue
-                db.insert_memory(
-                    content=content,
-                    embedding=embedding,
-                    source_conv_id=conversation_id,
-                    memory_type=memory_type,
-                    confidence=confidence,
-                )
+            if self._try_persist_memory_item(item, conversation_id, ollama_client, db):
                 inserted += 1
-            except Exception as exc:
-                logger.warning(f"[Memory] Failed to store memory: {exc}")
 
         db.mark_conversation_extracted(conversation_id)
         logger.info(f"[Memory] Extracted {inserted} new memories from conv {conversation_id}")
         return inserted
+
+    def _try_persist_memory_item(
+        self,
+        item: dict,
+        conversation_id: str,
+        ollama_client: Any,
+        db: Any,
+    ) -> bool:
+        """Embed and store one memory item. Returns True if a new memory was inserted."""
+        content = str(item.get("content") or "").strip()
+        memory_type = str(item.get("memory_type") or "fact")
+        confidence = float(item.get("confidence") or 1.0)
+        if not content or len(content) < 5:
+            return False
+        try:
+            ok, embedding = ollama_client.generate_embedding(
+                ollama_client.get_embedding_model(), content
+            )
+            if not ok or not embedding:
+                return False
+            if db.is_duplicate_memory(embedding):
+                logger.debug(f"[Memory] Skipping duplicate: {content[:60]}")
+                return False
+            db.insert_memory(
+                content=content,
+                embedding=embedding,
+                source_conv_id=conversation_id,
+                memory_type=memory_type,
+                confidence=confidence,
+            )
+            return True
+        except Exception as exc:
+            logger.warning(f"[Memory] Failed to store memory: {exc}")
+            return False
 
     @staticmethod
     def _call_llm(transcript: str, model: str, ollama_client: Any) -> list[dict]:

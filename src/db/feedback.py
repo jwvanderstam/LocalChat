@@ -227,7 +227,7 @@ class FeedbackMixin:
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
 
-    def get_feedback_trend(self, days: int = 30, bucket_days: int = 7) -> list[dict[str, Any]]:
+    def get_feedback_trend(self, days: int = 30) -> list[dict[str, Any]]:
         """
         Return rolling thumbs-up counts bucketed by *bucket_days* for charting.
         Each element: {bucket_start: date-string, positive: int, negative: int}.

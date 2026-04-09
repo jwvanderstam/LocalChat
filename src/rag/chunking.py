@@ -358,6 +358,17 @@ class TextChunkerMixin:
         logger.info(f"chunk_code_python: {len(chunks)} chunks")
         return chunks
 
+    # Two focused patterns instead of one complex alternation — each stays under
+    # the S5843 regex-complexity threshold of 20.
+    _JS_FUNC_CLASS_RE = re.compile(
+        r'^(?:export\s+)?(?:async\s+)?(?:function|class)\s+(\w+)',
+        re.MULTILINE,
+    )
+    _JS_CONST_ARROW_RE = re.compile(
+        r'^(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s*)?\(',
+        re.MULTILINE,
+    )
+
     def chunk_code_js_ts(self, text: str) -> list[dict[str, Any]]:
         """
         Chunk JavaScript/TypeScript source code by function and class boundaries.
@@ -368,13 +379,15 @@ class TextChunkerMixin:
         Returns:
             List of chunk dicts with keys: text, page_number, section_title, chunk_index
         """
-        _BOUNDARY_RE = re.compile(
-            r'^(?:export\s+)?(?:async\s+)?(?:function\s+(\w+)|class\s+(\w+)|const\s+(\w+)\s*=\s*(?:async\s*)?\()',
-            re.MULTILINE,
-        )
+        # Collect (position, name) from both patterns, then sort by position
+        boundaries: list[tuple[int, str]] = []
+        for m in self._JS_FUNC_CLASS_RE.finditer(text):
+            boundaries.append((m.start(), m.group(1)))
+        for m in self._JS_CONST_ARROW_RE.finditer(text):
+            boundaries.append((m.start(), m.group(1)))
+        boundaries.sort(key=lambda x: x[0])
 
-        matches = list(_BOUNDARY_RE.finditer(text))
-        if not matches:
+        if not boundaries:
             return [
                 {'text': c, 'page_number': None, 'section_title': None, 'chunk_index': i}
                 for i, c in enumerate(self.chunk_text(text))
@@ -382,23 +395,18 @@ class TextChunkerMixin:
 
         chunks = []
         chunk_index = 0
-        lines = text.splitlines(keepends=True)
-
-        def _line_of(pos: int) -> int:
-            return text[:pos].count('\n')
 
         # Preamble before first match
-        preamble = text[:matches[0].start()].strip()
+        preamble = text[:boundaries[0][0]].strip()
         if len(preamble) >= 10:
             chunks.append({'text': preamble, 'page_number': None, 'section_title': None, 'chunk_index': chunk_index})
             chunk_index += 1
 
-        for i, match in enumerate(matches):
-            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-            block = text[match.start():end].strip()
+        for i, (pos, name) in enumerate(boundaries):
+            end = boundaries[i + 1][0] if i + 1 < len(boundaries) else len(text)
+            block = text[pos:end].strip()
             if len(block) < 10:
                 continue
-            name = match.group(1) or match.group(2) or match.group(3)
             chunks.append({'text': block, 'page_number': None, 'section_title': name, 'chunk_index': chunk_index})
             chunk_index += 1
 
