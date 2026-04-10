@@ -95,9 +95,8 @@ class RerankerModel:
         resolved = self._resolve_model_path(model_path)
         if resolved:
             try:
-                safe_path = str(Path(resolved).resolve())
-                self._model = CrossEncoder(safe_path)
-                self._model_path = safe_path
+                self._model = CrossEncoder(resolved)
+                self._model_path = resolved
                 logger.info("[Reranker] Loaded fine-tuned model")
                 return
             except Exception as exc:
@@ -119,15 +118,19 @@ class RerankerModel:
         cfg_path = config.RERANKER_MODEL_PATH
         if cfg_path:
             candidates.append(cfg_path)
-            # If the config path is a 'latest.txt' pointer, read its contents
-            latest_txt = Path(cfg_path).with_suffix('.txt')
-            if latest_txt.exists():
-                try:
-                    pointed = latest_txt.read_text().strip()
-                    if pointed:
-                        candidates.append(pointed)
-                except OSError:
-                    pass
+            # If the config path is a 'latest.txt' pointer, read its contents.
+            # Sanitize cfg_path with realpath before constructing any filesystem path.
+            safe_cfg = os.path.realpath(cfg_path) if cfg_path and '\x00' not in cfg_path else None
+            if safe_cfg:
+                latest_txt = os.path.join(os.path.splitext(safe_cfg)[0] + '.txt')
+                if os.path.isfile(latest_txt):
+                    try:
+                        with open(latest_txt, encoding="utf-8") as fh:
+                            pointed = fh.read().strip()
+                        if pointed:
+                            candidates.append(pointed)
+                    except OSError:
+                        pass
         for p in candidates:
             safe = _to_safe_path(p)
             if safe:
