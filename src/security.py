@@ -328,6 +328,46 @@ def get_current_user_id() -> str | None:
         return None
 
 
+def _workspace_role_check(f: Callable, min_role: str, args, kwargs):
+    """Perform JWT + workspace-role enforcement and call *f* or return an error response.
+
+    Extracted from ``require_workspace_role`` so Sonar measures it as an independent
+    function (avoids nested-function complexity bubbling).
+    """
+    from flask import current_app, request as _request
+    if _is_rbac_bypassed(current_app):
+        return f(*args, **kwargs)
+
+    from flask_jwt_extended import get_jwt, verify_jwt_in_request
+    try:
+        verify_jwt_in_request()
+    except Exception:
+        return jsonify({'message': _AUTH_REQUIRED}), 401
+
+    claims = get_jwt()
+    if claims.get('role') == 'admin':
+        return f(*args, **kwargs)
+
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({'message': _AUTH_REQUIRED}), 401
+
+    workspace_id = _resolve_workspace_id(kwargs, _request)
+    if not workspace_id:
+        return jsonify({'message': 'No workspace context'}), 400
+
+    if not (hasattr(current_app, 'db') and current_app.db.is_connected):
+        return jsonify({'message': 'Database unavailable'}), 503
+
+    role = current_app.db.get_workspace_member_role(workspace_id, user_id)
+    if role is None:
+        return jsonify({'message': 'Access denied: not a workspace member'}), 403
+    if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
+        return jsonify({'message': f'Requires {min_role} role or higher'}), 403
+
+    return f(*args, **kwargs)
+
+
 def require_workspace_role(min_role: str):
     """Decorator requiring the caller to hold at least *min_role* in the active workspace.
 
@@ -338,38 +378,7 @@ def require_workspace_role(min_role: str):
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            from flask import current_app, request as _request
-            if _is_rbac_bypassed(current_app):
-                return f(*args, **kwargs)
-
-            from flask_jwt_extended import get_jwt, verify_jwt_in_request
-            try:
-                verify_jwt_in_request()
-            except Exception:
-                return jsonify({'message': _AUTH_REQUIRED}), 401
-
-            claims = get_jwt()
-            if claims.get('role') == 'admin':
-                return f(*args, **kwargs)
-
-            user_id = get_jwt_identity()
-            if not user_id:
-                return jsonify({'message': _AUTH_REQUIRED}), 401
-
-            workspace_id = _resolve_workspace_id(kwargs, _request)
-            if not workspace_id:
-                return jsonify({'message': 'No workspace context'}), 400
-
-            if not (hasattr(current_app, 'db') and current_app.db.is_connected):
-                return jsonify({'message': 'Database unavailable'}), 503
-
-            role = current_app.db.get_workspace_member_role(workspace_id, user_id)
-            if role is None:
-                return jsonify({'message': 'Access denied: not a workspace member'}), 403
-            if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
-                return jsonify({'message': f'Requires {min_role} role or higher'}), 403
-
-            return f(*args, **kwargs)
+            return _workspace_role_check(f, min_role, args, kwargs)
         return decorated_function
     return decorator
 

@@ -117,8 +117,11 @@ class RerankerModel:
                 except OSError:
                     pass
         for p in candidates:
-            if p and Path(p).exists():
-                return str(Path(p).resolve())
+            if not p:
+                continue
+            resolved = Path(p).resolve()
+            if resolved.exists():
+                return str(resolved)
         return None
 
 
