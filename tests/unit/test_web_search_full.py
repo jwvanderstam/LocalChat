@@ -1,8 +1,43 @@
-"""Tests for WebSearchProvider."""
+"""Tests for WebSearchProvider and web search intent detection."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+class TestWebSearchIntentDetection:
+    """Tests for _has_web_search_intent auto-detection in api_routes."""
+
+    def _intent(self, msg):
+        from src.routes.api_routes import _has_web_search_intent
+        return _has_web_search_intent(msg)
+
+    def test_check_internet_phrase(self):
+        assert self._intent("what is UWV, check internet as well") is True
+
+    def test_search_online(self):
+        assert self._intent("search online for the latest news") is True
+
+    def test_check_the_web(self):
+        assert self._intent("Can you check the web for recent updates?") is True
+
+    def test_most_actual(self):
+        assert self._intent("what is the most actual development on this topic") is True
+
+    def test_zoek_internet_dutch(self):
+        assert self._intent("zoek internet voor het laatste nieuws") is True
+
+    def test_no_intent_plain_question(self):
+        assert self._intent("what is the capital of France?") is False
+
+    def test_no_intent_rag_question(self):
+        assert self._intent("summarise the uploaded document") is False
+
+    def test_case_insensitive(self):
+        assert self._intent("SEARCH ONLINE please") is True
+
+    def test_latest_news(self):
+        assert self._intent("what is the latest news about AI?") is True
 
 
 class TestWebSearchResult:

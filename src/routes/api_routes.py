@@ -67,15 +67,38 @@ Rules:
 6. Only use bullet points or tables when the content genuinely benefits from that structure."""
 
 
+_WEB_INTENT_PHRASES = (
+    "check internet", "search internet", "search the internet",
+    "search online", "search the web", "look online", "look it up online",
+    "check online", "check the web", "find online", "find on internet",
+    "search web", "google it", "browse the web", "current news",
+    "latest news", "recent news", "what's happening", "what is happening",
+    "up to date", "most recent", "most current", "most actual",
+    "zoek internet", "zoek het op", "check internet",
+)
+
+
+def _has_web_search_intent(message: str) -> bool:
+    """Return True if the message contains natural-language web search intent."""
+    lower = message.lower()
+    return any(phrase in lower for phrase in _WEB_INTENT_PHRASES)
+
+
 def _parse_chat_request(data: dict) -> dict:
     """Validate and sanitise chat request data. Returns cleaned field dict."""
     from ..models import ChatRequest
     from ..utils.sanitization import sanitize_query
     req = ChatRequest(**data)
+    message = sanitize_query(req.message)
+    # Auto-enable web search when message clearly signals intent,
+    # even if the toggle wasn't flipped manually.
+    enhance = (req.enhance or _has_web_search_intent(message)) and config.WEB_SEARCH_ENABLED
+    if enhance and not req.enhance:
+        logger.info("[ENHANCED] Auto-enabled web search from message intent")
     return {
-        'message': sanitize_query(req.message),
+        'message': message,
         'use_rag': req.use_rag,
-        'enhance': req.enhance and config.WEB_SEARCH_ENABLED,
+        'enhance': enhance,
         'chat_history': req.history,
         'conversation_id': req.conversation_id,
         'images': req.images or [],
