@@ -350,12 +350,12 @@ LocalChat Core (Flask)
 
 **How:**
 1. Define the MCP tool schema for each server. Each exposes a `search(query, filters, top_k)` tool and a `list_sources()` tool.
-2. Extract `rag/retrieval.py` into `mcp_server/local_docs/`. Wrap existing retrieval logic as MCP tool handlers.
-3. Extract `rag/web_search.py` into `mcp_server/web_search/`. Add Brave Search as a second provider with automatic fallback.
-4. Create `mcp_server/cloud_connectors/` as a new server. Start with a no-op stub that returns empty results — actual connectors land in Phase 4.
+2. Extract `rag/retrieval.py` into `mcp_servers/local_docs/`. Wrap existing retrieval logic as MCP tool handlers.
+3. Extract `rag/web_search.py` into `mcp_servers/web_search/`. Add Brave Search as a second provider with automatic fallback.
+4. Create `mcp_servers/cloud_connectors/` as a new server. Start with a no-op stub that returns empty results — actual connectors land in Phase 4.
 5. Update the core app to call MCP servers via `mcp_client.py` instead of direct imports. Use connection pooling and circuit breakers.
 6. Add health checks per MCP server. Admin dashboard shows per-server status.
-7. Update `docker-compose.yml` and `k8s/` manifests to deploy each server as a separate container.
+7. Update `docker-compose.yml` and Helm chart to deploy each server as a separate container.
 
 **Migration path:** Run both old and new code paths in parallel behind a feature flag during transition. Validate output equivalence before cutting over.
 

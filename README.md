@@ -353,8 +353,6 @@ LocalChat/
 │   ├── integration/            # Integration tests
 │   ├── unit/                   # Unit tests
 │   └── utils/                  # Test helpers & mocks
-└── scripts/
-    └── check_dependencies.py   # Dependency checker and auto-installer
 plugins/                        # Drop-in tool plugins (auto-loaded at startup)
     ├── README.md               # Plugin authoring guide
     └── example_plugin.py       # Annotated starter template
@@ -745,7 +743,7 @@ The `coverage.xml` file is produced in the project root and is picked up automat
 - **Security (CodeQL)**: Replaced `str(e)` in all API error responses with generic messages to prevent information exposure (CWE-209) — affects `document_routes`, `api_routes`, `model_routes`
 - **Security (CodeQL)**: Fixed incomplete URL substring sanitization in web-search test assertion (CWE-20)
 - **Security (CodeQL)**: Removed `max_size` from `MemoryCache` init log to cut CodeQL taint chain from Redis password kwargs (CWE-312)
-- **Supply chain**: Pinned `python:3.12-slim` Docker base image to SHA-256 digest in `Dockerfile`; updated `k8s/deployment.yaml` comment to use versioned image tags
+- **Supply chain**: Pinned `python:3.12-slim` Docker base image to SHA-256 digest in `Dockerfile`
 - **CI hardening**: Added explicit `permissions: contents: read` to both GitHub Actions workflows (`tests.yml`, `sonarcloud.yml`)
 - **SonarCloud (S1172)**: Prefixed all unused monitoring-stub parameters (`metric_name`, `labels`) with `_` across `rag/__init__.py`, `chunking.py`, `loaders.py`, `processor.py`, `retrieval.py`
 - **Types**: Added `plugin_loader: Any` to `LocalChatApp` type definition in `src/types.py`
