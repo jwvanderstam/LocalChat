@@ -31,6 +31,8 @@ bp = Blueprint('connectors', __name__)
 
 # ---------------------------------------------------------------------------
 # Types
+_NOT_FOUND = 'Connector not found'
+
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/connectors/types', methods=['GET'])
@@ -154,7 +156,7 @@ def get_connector(connector_id: str):
     try:
         connector = current_app.db.get_connector(connector_id)
         if connector is None:
-            return jsonify({'success': False, 'message': 'Connector not found'}), 404
+            return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         return jsonify({'success': True, 'connector': connector})
     except Exception as e:
         logger.error(f"[Connectors] get error: {e}", exc_info=True)
@@ -172,7 +174,7 @@ def update_connector(connector_id: str):
     try:
         updated = current_app.db.update_connector(connector_id, **fields)
         if not updated:
-            return jsonify({'success': False, 'message': 'Connector not found'}), 404
+            return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         # Reload the live instance if config changed
         if 'config' in fields or 'enabled' in fields:
             row = current_app.db.get_connector(connector_id)
@@ -195,7 +197,7 @@ def delete_connector(connector_id: str):
     try:
         deleted = current_app.db.delete_connector(connector_id)
         if not deleted:
-            return jsonify({'success': False, 'message': 'Connector not found'}), 404
+            return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         connector_registry.remove(connector_id)
         return jsonify({'success': True})
     except Exception as e:
@@ -290,7 +292,7 @@ def receive_webhook(connector_id: str):
     # Validate shared secret if configured
     connector = current_app.db.get_connector(connector_id)
     if connector is None:
-        return jsonify({'success': False, 'message': 'Connector not found'}), 404
+        return jsonify({'success': False, 'message': _NOT_FOUND}), 404
     if connector.get('connector_type') != 'webhook':
         return jsonify({'success': False, 'message': 'Not a webhook connector'}), 400
 
@@ -298,7 +300,7 @@ def receive_webhook(connector_id: str):
     if secret:
         provided = request.headers.get('X-LocalChat-Secret', '')
         if provided != secret:
-            logger.warning(f"[Webhook] Bad secret for connector {connector_id}")
+            logger.warning("[Webhook] Bad secret for connector")
             return jsonify({'success': False, 'message': 'Forbidden'}), 403
 
     instance = connector_registry.get(connector_id)

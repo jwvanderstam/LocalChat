@@ -359,7 +359,7 @@ class TestSyncWorker:
         mock_db.delete_document_by_filename.return_value = True
         w = self._make_worker(db=mock_db)
         source = DocumentSource(source_id="/path/file.txt", filename="file.txt")
-        w._handle_delete(MagicMock(), source)
+        w._handle_delete(source)
         mock_db.delete_document_by_filename.assert_called_once_with("file.txt")
 
     def test_handle_event_added_calls_ingest(self, tmp_path):

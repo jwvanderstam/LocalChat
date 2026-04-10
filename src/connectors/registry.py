@@ -14,16 +14,13 @@ which connectors are currently active.
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any, Type
+from typing import Any, Type
 
 from ..utils.logging_config import get_logger
 from .base import BaseConnector
 from .local_folder import LocalFolderConnector
 from .s3_connector import S3Connector
 from .webhook import WebhookConnector
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 

@@ -17,6 +17,8 @@ logger = get_logger(__name__)
 bp = Blueprint('workspaces', __name__)
 
 
+_NOT_FOUND = 'Workspace not found'
+
 # ---------------------------------------------------------------------------
 # List / Create
 # ---------------------------------------------------------------------------
@@ -113,7 +115,7 @@ def get_workspace(workspace_id: str):
     try:
         workspace = current_app.db.get_workspace(workspace_id)
         if workspace is None:
-            return jsonify({'success': False, 'message': 'Workspace not found'}), 404
+            return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         workspace['active'] = workspace_id == config.app_state.get_active_workspace_id()
         return jsonify({'success': True, 'workspace': workspace})
     except Exception as e:
@@ -159,7 +161,7 @@ def update_workspace(workspace_id: str):
     try:
         updated = current_app.db.update_workspace(workspace_id, **fields)
         if not updated:
-            return jsonify({'success': False, 'message': 'Workspace not found'}), 404
+            return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         workspace = current_app.db.get_workspace(workspace_id)
         return jsonify({'success': True, 'workspace': workspace})
     except Exception as e:
@@ -189,7 +191,7 @@ def delete_workspace(workspace_id: str):
     try:
         deleted = current_app.db.delete_workspace(workspace_id)
         if not deleted:
-            return jsonify({'success': False, 'message': 'Workspace not found'}), 404
+            return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         if config.app_state.get_active_workspace_id() == workspace_id:
             # Fall back to the default workspace (or None = all docs)
             default_id = current_app.db.get_default_workspace_id()
@@ -262,7 +264,7 @@ def switch_workspace():
     try:
         workspace = current_app.db.get_workspace(workspace_id)
         if workspace is None:
-            return jsonify({'success': False, 'message': 'Workspace not found'}), 404
+            return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         config.app_state.set_active_workspace_id(workspace_id)
         logger.info(f"[Workspaces] Switched to workspace: {workspace['name']} ({workspace_id})")
         return jsonify({'success': True, 'workspace': workspace})

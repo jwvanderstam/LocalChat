@@ -369,14 +369,14 @@ def _retrieve_contexts(fields: dict, doc_processor, plan=None, workspace_id: str
     retrievals for each sub-question.
     """
     if config.AGGREGATOR_AGENT_ENABLED:
-        result = _retrieve_via_aggregator(fields, doc_processor, plan)
+        result = _retrieve_via_aggregator(fields, plan)
         if result is not None:
             return result
 
     return _retrieve_direct(fields, doc_processor, plan, workspace_id=workspace_id)
 
 
-def _retrieve_via_aggregator(fields: dict, doc_processor, plan) -> tuple | None:
+def _retrieve_via_aggregator(fields: dict, plan) -> tuple | None:
     """Run the AggregatorAgent and return (local_ctx, web_ctx, sources).
 
     Returns None when no tools are needed or the agent fails (caller falls back
@@ -614,13 +614,38 @@ def _update_chunk_stats(app, sources: list[dict]) -> None:
             logger.debug(f"[Feedback] chunk_stats update failed: {cs_err}")
 
 
+def _stream_chunks_with_fallback(
+    local_stream, cloud_client, sources, app, messages, temperature,
+) -> Generator[tuple[str, str], None, None]:
+    """Yield (text_chunk, model_used) pairs, falling back to cloud on refusal."""
+    from ..llm_client import is_refusal
+
+    if cloud_client is None:
+        for chunk in local_stream:
+            yield chunk, 'local'
+        return
+
+    # Cloud fallback: buffer the local response first, then decide
+    buffered_chunks: list[str] = []
+    for chunk in local_stream:
+        buffered_chunks.append(chunk)
+    buffered = ''.join(buffered_chunks)
+
+    if is_refusal(buffered) and not _any_local_only_sources(sources, app):
+        logger.info("[CloudFallback] Local refusal detected — routing to cloud")
+        for chunk in cloud_client.generate_chat_response(
+            config.CLOUD_MODEL, messages, stream=True, temperature=temperature
+        ):
+            yield chunk, 'cloud'
+    else:
+        yield buffered, 'local'
+
+
 def _generate_chat_events(
     app, active_model, messages, conversation_id, tool_executor, temperature,
     sources, plan, agent_result, routed_model, routed_rationale, cloud_client,
 ) -> Generator[str, None, None]:
     """Core SSE generator — lifted out of _stream_chat_response to reduce nesting."""
-    from ..llm_client import is_refusal
-
     full_response: list[str] = []
     model_used = 'local'
     try:
@@ -635,26 +660,12 @@ def _generate_chat_events(
             )
         )
 
-        if cloud_client is None:
-            for chunk in local_stream:
-                full_response.append(chunk)
-                yield f"data: {json.dumps({'content': chunk})}\n\n"
-        else:
-            # Buffer local response, check for refusal before deciding provider
-            for chunk in local_stream:
-                full_response.append(chunk)
-            buffered = ''.join(full_response)
-            if is_refusal(buffered) and not _any_local_only_sources(sources, app):
-                logger.info("[CloudFallback] Local refusal detected — routing to cloud")
-                full_response = []
-                for chunk in cloud_client.generate_chat_response(
-                    config.CLOUD_MODEL, messages, stream=True, temperature=temperature
-                ):
-                    full_response.append(chunk)
-                    yield f"data: {json.dumps({'content': chunk})}\n\n"
-                model_used = 'cloud'
-            else:
-                yield f"data: {json.dumps({'content': buffered})}\n\n"
+        for chunk, chunk_model in _stream_chunks_with_fallback(
+            local_stream, cloud_client, sources, app, messages, temperature
+        ):
+            full_response.append(chunk)
+            model_used = chunk_model
+            yield f"data: {json.dumps({'content': chunk})}\n\n"
 
         asst_message_id = _persist_assistant_message(app, conversation_id, ''.join(full_response))
         _update_chunk_stats(app, sources or [])
@@ -680,6 +691,30 @@ def _stream_chat_response(app, active_model, messages, conversation_id, tool_exe
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['X-Accel-Buffering'] = 'no'
     return response
+
+
+def _retrieve_plan_and_memory(
+    fields: dict, active_model: str, ollama_client, db,
+) -> tuple:
+    """Return (plan, memory_context) — either may be None/'' on error or when disabled."""
+    plan = None
+    if config.QUERY_PLANNER_ENABLED and fields['use_rag']:
+        try:
+            from ..rag.planner import QueryPlanner
+            plan = QueryPlanner().plan(fields['message'], active_model, ollama_client)
+        except Exception as plan_err:
+            logger.warning(f"[Planner] Unexpected error (skipped): {plan_err}")
+
+    memory_context = ""
+    if config.LONG_TERM_MEMORY_ENABLED:
+        try:
+            from ..memory.retriever import MemoryRetriever
+            memories = MemoryRetriever().retrieve(fields['message'], ollama_client, db)
+            memory_context = MemoryRetriever.format_for_prompt(memories)
+        except Exception as mem_err:
+            logger.debug(f"[Memory] Retrieval skipped: {mem_err}")
+
+    return plan, memory_context
 
 
 def _apply_model_routing(
@@ -787,28 +822,10 @@ def api_chat():
         g.model = active_model
         logger.info(f"[CHAT API] Request - RAG Mode: {fields['use_rag']}, Enhanced: {fields['enhance']}, Query: {fields['message'][:50]}...")
 
-        # ── Query planning (optional, non-blocking) ──────────────────────
-        plan = None
-        if config.QUERY_PLANNER_ENABLED and fields['use_rag']:
-            try:
-                from ..rag.planner import QueryPlanner
-                plan = QueryPlanner().plan(
-                    fields['message'], active_model, current_app.ollama_client
-                )
-            except Exception as plan_err:
-                logger.warning(f"[Planner] Unexpected error (skipped): {plan_err}")
-
-        # ── Long-term memory retrieval (optional, non-blocking) ───────────
-        memory_context = ""
-        if config.LONG_TERM_MEMORY_ENABLED:
-            try:
-                from ..memory.retriever import MemoryRetriever
-                memories = MemoryRetriever().retrieve(
-                    fields['message'], current_app.ollama_client, current_app.db
-                )
-                memory_context = MemoryRetriever.format_for_prompt(memories)
-            except Exception as mem_err:
-                logger.debug(f"[Memory] Retrieval skipped: {mem_err}")
+        # ── Query planning + long-term memory (optional, non-blocking) ──────
+        plan, memory_context = _retrieve_plan_and_memory(
+            fields, active_model, current_app.ollama_client, current_app.db
+        )
 
         workspace_id = config.app_state.get_active_workspace_id()
 

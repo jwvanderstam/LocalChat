@@ -78,23 +78,31 @@ class LocalFolderConnector(BaseConnector):
         )
 
     def _scan(self) -> _Snapshot:
-        """Recursively scan the watched folder and return {path: mtime}."""
+        """Scan the watched folder and return {path: mtime}."""
         root = self.config.get("path", "")
         recursive = self.config.get("recursive", True)
-        snapshot: _Snapshot = {}
         try:
             if recursive:
-                for dirpath, _dirs, filenames in os.walk(root):
-                    for fname in filenames:
-                        full = os.path.join(dirpath, fname)
-                        if self._is_watched(full):
-                            snapshot[full] = os.stat(full).st_mtime
-            else:
-                for entry in os.scandir(root):
-                    if entry.is_file() and self._is_watched(entry.path):
-                        snapshot[entry.path] = entry.stat().st_mtime
+                return self._scan_recursive(root)
+            return self._scan_flat(root)
         except OSError as e:
             logger.warning(f"[LocalFolder] Scan error: {e}")
+            return {}
+
+    def _scan_recursive(self, root: str) -> _Snapshot:
+        snapshot: _Snapshot = {}
+        for dirpath, _dirs, filenames in os.walk(root):
+            for fname in filenames:
+                full = os.path.join(dirpath, fname)
+                if self._is_watched(full):
+                    snapshot[full] = os.stat(full).st_mtime
+        return snapshot
+
+    def _scan_flat(self, root: str) -> _Snapshot:
+        snapshot: _Snapshot = {}
+        for entry in os.scandir(root):
+            if entry.is_file() and self._is_watched(entry.path):
+                snapshot[entry.path] = entry.stat().st_mtime
         return snapshot
 
     # ------------------------------------------------------------------

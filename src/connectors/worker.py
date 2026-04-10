@@ -90,7 +90,6 @@ class SyncWorker:
 
     def _is_due(self, connector) -> bool:
         now = time.monotonic()
-        interval = float(self._db.get_connector_interval(connector.connector_id) or 900)
         return now >= self._next_run.get(connector.connector_id, 0)
 
     def _sync_one(self, connector) -> None:
@@ -123,7 +122,7 @@ class SyncWorker:
 
     def _handle_event(self, connector, event, counts: dict[str, int]) -> None:
         if event.event_type == EventType.DELETED:
-            self._handle_delete(connector, event.source)
+            self._handle_delete(event.source)
             counts["deleted"] += 1
             return
 
@@ -166,7 +165,7 @@ class SyncWorker:
             except OSError:
                 pass
 
-    def _handle_delete(self, connector, source) -> None:
+    def _handle_delete(self, source) -> None:
         try:
             deleted = self._db.delete_document_by_filename(source.filename)
             if deleted:

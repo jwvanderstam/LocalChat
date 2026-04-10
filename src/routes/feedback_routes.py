@@ -62,7 +62,7 @@ def submit_feedback():
             else:
                 app.db.increment_chunk_negative(source_chunk_ids)
 
-        logger.info("[Feedback] Recorded rating=%s id=%s", rating, feedback_id)
+        logger.info("[Feedback] Recorded rating and id")
         return jsonify({"ok": True, "id": feedback_id}), 201
 
     except Exception as exc:
