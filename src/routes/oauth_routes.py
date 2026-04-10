@@ -86,7 +86,7 @@ def microsoft_callback():
     error = request.args.get('error')
     if error:
         desc = request.args.get('error_description', error)
-        logger.warning(f"[OAuth] Microsoft returned error: {error}")
+        logger.warning("[OAuth] Microsoft returned an error during authorization")
         return jsonify({'success': False, 'message': desc}), 400
 
     code = request.args.get('code')

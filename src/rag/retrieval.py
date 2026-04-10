@@ -230,6 +230,24 @@ class RetrievalMixin:
             self._log_similarity_miss(all_results, min_similarity)
         return filtered
 
+    def _apply_cross_encoder(self, query_clean: str, deduped: list) -> list:
+        """Re-score *deduped* chunks with the cross-encoder and return re-sorted list."""
+        try:
+            from .reranker import get_reranker
+            reranker = get_reranker()
+            if reranker.is_available():
+                passages = [r['chunk_text'] for r in deduped]
+                ce_scores = reranker.score(query_clean, passages)
+                if ce_scores:
+                    w = config.RERANKER_WEIGHT
+                    for r, ce in zip(deduped, ce_scores):
+                        r['combined_score'] = (1.0 - w) * r['combined_score'] + w * ce
+                    deduped = sorted(deduped, key=lambda x: x['combined_score'], reverse=True)
+                    logger.debug("[RAG] Cross-encoder reranking applied")
+        except Exception as ce_exc:
+            logger.debug(f"[RAG] Cross-encoder reranking skipped: {ce_exc}")
+        return deduped
+
     def _rank_and_finalize(
         self,
         query_clean: str,
@@ -255,24 +273,8 @@ class RetrievalMixin:
         deduped = self._deduplicate_results(sorted_results[:final_top_k])
         logger.debug(f"[RAG] After dedup: {len(deduped)} chunks")
 
-        # ── Optional cross-encoder reranking ─────────────────────────────────
         if config.RERANKER_ENABLED and deduped:
-            try:
-                from .reranker import get_reranker
-                reranker = get_reranker()
-                if reranker.is_available():
-                    passages = [r['chunk_text'] for r in deduped]
-                    ce_scores = reranker.score(query_clean, passages)
-                    if ce_scores:
-                        w = config.RERANKER_WEIGHT
-                        for r, ce in zip(deduped, ce_scores):
-                            r['combined_score'] = (
-                                (1.0 - w) * r['combined_score'] + w * ce
-                            )
-                        deduped = sorted(deduped, key=lambda x: x['combined_score'], reverse=True)
-                        logger.debug("[RAG] Cross-encoder reranking applied")
-            except Exception as ce_exc:
-                logger.debug(f"[RAG] Cross-encoder reranking skipped: {ce_exc}")
+            deduped = self._apply_cross_encoder(query_clean, deduped)
 
         deduped = sorted(deduped, key=lambda x: (x['filename'], x['chunk_index']))
         return [

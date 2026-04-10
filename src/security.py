@@ -95,6 +95,49 @@ USERS = {
     }
 }
 
+# Shared string constants (S1192 — avoid repetition)
+_AUTH_REQUIRED = 'Authentication required'
+_ROLE_LEVELS: dict[str, int] = {'viewer': 0, 'editor': 1, 'owner': 2}
+
+
+def _verify_credentials(username: str, password: str) -> tuple[str, str] | None:
+    """Return ``(user_sub, user_role)`` on success, ``None`` on failure.
+
+    Tries DB-backed users first; falls back to the legacy env-var admin account.
+    """
+    from flask import current_app
+    if hasattr(current_app, 'db') and current_app.db.is_connected:
+        db_user = current_app.db.verify_user_password(username, password)
+        if db_user:
+            return str(db_user['id']), db_user.get('role', 'user')
+    # Legacy: hardcoded admin account validated against env-var hash
+    if username != 'admin' or not _ADMIN_PASSWORD_RAW:
+        return None
+    provided_hash = hashlib.pbkdf2_hmac(
+        'sha256', password.encode('utf-8'), _ADMIN_PASSWORD_SALT, 100_000
+    )
+    if not hmac.compare_digest(provided_hash, _ADMIN_PASSWORD_HASH):
+        return None
+    return 'admin', 'admin'
+
+
+def _is_rbac_bypassed(app) -> bool:
+    """Return True when RBAC enforcement should be skipped (dev / test modes)."""
+    return (
+        not _ADMIN_PASSWORD_RAW
+        or config.DEMO_MODE
+        or app.config.get('TESTING', False)
+    )
+
+
+def _resolve_workspace_id(kwargs: dict, req) -> str | None:
+    """Extract workspace_id from URL params, request JSON, or active state."""
+    return (
+        kwargs.get('workspace_id')
+        or (req.get_json(silent=True) or {}).get('workspace_id')
+        or config.app_state.get_active_workspace_id()
+    )
+
 def init_security(app: Flask) -> None:
     """
     Initialize security features for Flask application.
@@ -225,32 +268,12 @@ def setup_auth_routes(app: Flask) -> None:
         if not username or not password:
             return jsonify({'message': 'Username and password required'}), 400
 
-        # Try DB-backed authentication first; fall back to legacy hardcoded admin
-        from flask import current_app
-        user_record = None
-        user_role = 'user'
-        user_sub = username
+        result = _verify_credentials(username, password)
+        if result is None:
+            logger.warning("Failed login attempt")
+            return jsonify({'message': 'Invalid credentials'}), 401
 
-        if hasattr(current_app, 'db') and current_app.db.is_connected:
-            db_user = current_app.db.verify_user_password(username, password)
-            if db_user:
-                user_record = db_user
-                user_role = db_user.get('role', 'user')
-                user_sub = str(db_user['id'])
-
-        if user_record is None:
-            # Legacy: hardcoded admin account (env-var password)
-            if username != 'admin' or not _ADMIN_PASSWORD_RAW:
-                logger.warning("Failed login attempt")
-                return jsonify({'message': 'Invalid credentials'}), 401
-            provided_hash = hashlib.pbkdf2_hmac(
-                'sha256', password.encode('utf-8'), _ADMIN_PASSWORD_SALT, 100_000
-            )
-            if not hmac.compare_digest(provided_hash, _ADMIN_PASSWORD_HASH):
-                logger.warning("Failed login attempt")
-                return jsonify({'message': 'Invalid credentials'}), 401
-            user_role = 'admin'
-            user_sub = 'admin'
+        user_sub, user_role = result
 
         # Create access token
         access_token = create_access_token(
@@ -312,39 +335,28 @@ def require_workspace_role(min_role: str):
     Admin JWT role bypasses the check.
     Bypassed entirely in DEMO_MODE, testing, and when ADMIN_PASSWORD is not set.
     """
-    _ROLE_LEVELS = {'viewer': 0, 'editor': 1, 'owner': 2}
-
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         def decorated_function(*args, **kwargs):
             from flask import current_app, request as _request
-            # Bypass in permissive modes
-            if (not _ADMIN_PASSWORD_RAW
-                    or config.DEMO_MODE
-                    or current_app.config.get('TESTING', False)):
+            if _is_rbac_bypassed(current_app):
                 return f(*args, **kwargs)
 
             from flask_jwt_extended import get_jwt, verify_jwt_in_request
             try:
                 verify_jwt_in_request()
             except Exception:
-                return jsonify({'message': 'Authentication required'}), 401
+                return jsonify({'message': _AUTH_REQUIRED}), 401
 
             claims = get_jwt()
-            # Admins bypass workspace-level checks
             if claims.get('role') == 'admin':
                 return f(*args, **kwargs)
 
             user_id = get_jwt_identity()
             if not user_id:
-                return jsonify({'message': 'Authentication required'}), 401
+                return jsonify({'message': _AUTH_REQUIRED}), 401
 
-            # Resolve workspace_id: URL param → JSON body → active state
-            workspace_id = (
-                kwargs.get('workspace_id')
-                or (_request.get_json(silent=True) or {}).get('workspace_id')
-                or config.app_state.get_active_workspace_id()
-            )
+            workspace_id = _resolve_workspace_id(kwargs, _request)
             if not workspace_id:
                 return jsonify({'message': 'No workspace context'}), 400
 
@@ -354,7 +366,6 @@ def require_workspace_role(min_role: str):
             role = current_app.db.get_workspace_member_role(workspace_id, user_id)
             if role is None:
                 return jsonify({'message': 'Access denied: not a workspace member'}), 403
-
             if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
                 return jsonify({'message': f'Requires {min_role} role or higher'}), 403
 
@@ -440,7 +451,7 @@ def require_admin(f: Callable) -> Callable:
         try:
             verify_jwt_in_request()
         except Exception:
-            return jsonify({'message': 'Authentication required'}), 401
+            return jsonify({'message': _AUTH_REQUIRED}), 401
         claims = get_jwt()
         if claims.get('role') != 'admin':
             logger.warning(f"Non-admin user attempted to access admin endpoint: {request.path}")

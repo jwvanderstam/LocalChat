@@ -142,7 +142,7 @@ def promote_model(db: Any, version_id: str) -> bool:
             pointer.write_text(model_path, encoding="utf-8")
         from ..rag.reranker import reload_reranker
         reload_reranker(model_path)
-        logger.info(f"[Pipeline] Promoted reranker version {version_id} ({model_path})")
+        logger.info(f"[Pipeline] Promoted reranker version {version_id}")
         return True
     except Exception as exc:
         logger.warning(f"[Pipeline] Promote failed: {exc}")

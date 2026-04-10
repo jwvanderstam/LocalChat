@@ -20,13 +20,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from .. import config
 from ..utils.logging_config import get_logger
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -87,9 +83,10 @@ class RerankerModel:
         resolved = self._resolve_model_path(model_path)
         if resolved:
             try:
-                self._model = CrossEncoder(resolved)
-                self._model_path = resolved
-                logger.info(f"[Reranker] Loaded fine-tuned model from {resolved}")
+                safe_path = str(Path(resolved).resolve())
+                self._model = CrossEncoder(safe_path)
+                self._model_path = safe_path
+                logger.info("[Reranker] Loaded fine-tuned model")
                 return
             except Exception as exc:
                 logger.warning(f"[Reranker] Could not load fine-tuned model ({exc}), falling back to base")
@@ -121,7 +118,7 @@ class RerankerModel:
                     pass
         for p in candidates:
             if p and Path(p).exists():
-                return p
+                return str(Path(p).resolve())
         return None
 
 

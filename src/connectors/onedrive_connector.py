@@ -130,6 +130,19 @@ class OneDriveConnector(BaseConnector):
             url = data.get('@odata.nextLink')
         return sources
 
+    def _item_to_event(self, item: dict, delta_token: str | None) -> DocumentEvent | None:
+        """Convert a Graph delta item to a DocumentEvent, or None if it should be skipped."""
+        if 'folder' in item:
+            return None
+        name = item.get('name', '')
+        if not self._is_watched(name):
+            return None
+        if item.get('deleted'):
+            return DocumentEvent(EventType.DELETED, DocumentSource(source_id=item['id'], filename=name))
+        if delta_token is None:
+            return DocumentEvent(EventType.ADDED, self._item_to_source(item))
+        return DocumentEvent(EventType.MODIFIED, self._item_to_source(item))
+
     def _delta_poll(self, token: str) -> list[DocumentEvent]:
         delta_token = getattr(self, '_delta_token', None)
         folder_path = self.config.get('folder_path', '').strip('/')
@@ -146,20 +159,9 @@ class OneDriveConnector(BaseConnector):
             resp.raise_for_status()
             data = resp.json()
             for item in data.get('value', []):
-                if 'folder' in item:
-                    continue
-                name = item.get('name', '')
-                if not self._is_watched(name):
-                    continue
-                if item.get('deleted'):
-                    events.append(DocumentEvent(
-                        EventType.DELETED,
-                        DocumentSource(source_id=item['id'], filename=name),
-                    ))
-                elif delta_token is None:
-                    events.append(DocumentEvent(EventType.ADDED, self._item_to_source(item)))
-                else:
-                    events.append(DocumentEvent(EventType.MODIFIED, self._item_to_source(item)))
+                event = self._item_to_event(item, delta_token)
+                if event is not None:
+                    events.append(event)
             url = data.get('@odata.nextLink')
             if '@odata.deltaLink' in data:
                 self._delta_token = data['@odata.deltaLink'].split('token=')[-1]
