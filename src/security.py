@@ -328,6 +328,34 @@ def get_current_user_id() -> str | None:
         return None
 
 
+def _get_authenticated_user():
+    """Verify JWT and return ``(user_id, is_admin)`` or ``(None, False)`` on failure.
+
+    Returns a Flask response tuple instead of the pair when verification fails.
+    """
+    from flask_jwt_extended import get_jwt, verify_jwt_in_request
+    try:
+        verify_jwt_in_request()
+    except Exception:
+        return None, False
+    claims = get_jwt()
+    user_id = get_jwt_identity()
+    return user_id, claims.get('role') == 'admin'
+
+
+def _check_workspace_membership(workspace_id: str, user_id: str, min_role: str):
+    """Return None on success or a (response, status) error tuple on failure."""
+    from flask import current_app
+    if not (hasattr(current_app, 'db') and current_app.db.is_connected):
+        return jsonify({'message': 'Database unavailable'}), 503
+    role = current_app.db.get_workspace_member_role(workspace_id, user_id)
+    if role is None:
+        return jsonify({'message': 'Access denied: not a workspace member'}), 403
+    if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
+        return jsonify({'message': f'Requires {min_role} role or higher'}), 403
+    return None
+
+
 def _workspace_role_check(f: Callable, min_role: str, args, kwargs):
     """Perform JWT + workspace-role enforcement and call *f* or return an error response.
 
@@ -338,33 +366,19 @@ def _workspace_role_check(f: Callable, min_role: str, args, kwargs):
     if _is_rbac_bypassed(current_app):
         return f(*args, **kwargs)
 
-    from flask_jwt_extended import get_jwt, verify_jwt_in_request
-    try:
-        verify_jwt_in_request()
-    except Exception:
+    user_id, is_admin = _get_authenticated_user()
+    if user_id is None and not is_admin:
         return jsonify({'message': _AUTH_REQUIRED}), 401
-
-    claims = get_jwt()
-    if claims.get('role') == 'admin':
+    if is_admin:
         return f(*args, **kwargs)
-
-    user_id = get_jwt_identity()
-    if not user_id:
-        return jsonify({'message': _AUTH_REQUIRED}), 401
 
     workspace_id = _resolve_workspace_id(kwargs, _request)
     if not workspace_id:
         return jsonify({'message': 'No workspace context'}), 400
 
-    if not (hasattr(current_app, 'db') and current_app.db.is_connected):
-        return jsonify({'message': 'Database unavailable'}), 503
-
-    role = current_app.db.get_workspace_member_role(workspace_id, user_id)
-    if role is None:
-        return jsonify({'message': 'Access denied: not a workspace member'}), 403
-    if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
-        return jsonify({'message': f'Requires {min_role} role or higher'}), 403
-
+    err = _check_workspace_membership(workspace_id, user_id, min_role)
+    if err is not None:
+        return err
     return f(*args, **kwargs)
 
 

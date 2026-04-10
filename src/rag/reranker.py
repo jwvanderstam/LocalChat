@@ -26,6 +26,18 @@ from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+
+def _to_safe_path(raw: str) -> str | None:
+    """Resolve *raw* to a real filesystem path and return it only if it exists.
+
+    Using ``os.path.realpath`` as the explicit sanitizer (resolves symlinks and
+    ``..`` components) before any filesystem operation — satisfies S6549.
+    """
+    if not raw or '\x00' in raw:
+        return None
+    real = os.path.realpath(raw)
+    return real if os.path.exists(real) else None
+
 _BASE_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 
@@ -117,11 +129,9 @@ class RerankerModel:
                 except OSError:
                     pass
         for p in candidates:
-            if not p:
-                continue
-            resolved = Path(p).resolve()
-            if resolved.exists():
-                return str(resolved)
+            safe = _to_safe_path(p)
+            if safe:
+                return safe
         return None
 
 

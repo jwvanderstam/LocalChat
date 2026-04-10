@@ -135,6 +135,7 @@ def promote_model(db: Any, version_id: str) -> bool:
                 cur.execute(
                     "UPDATE reranker_versions SET active = TRUE WHERE id = %s", (version_id,)
                 )
+        logger.info("[Pipeline] Promoted reranker version")
         # Update latest.txt
         if model_path:
             pointer = Path(model_path).parent / "latest.txt"
@@ -142,7 +143,6 @@ def promote_model(db: Any, version_id: str) -> bool:
             pointer.write_text(model_path, encoding="utf-8")
         from ..rag.reranker import reload_reranker
         reload_reranker(model_path)
-        logger.info("[Pipeline] Promoted reranker version")
         return True
     except Exception as exc:
         logger.warning(f"[Pipeline] Promote failed: {exc}")
