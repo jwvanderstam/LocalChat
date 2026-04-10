@@ -193,10 +193,10 @@ def change_own_password():
       400: {description: Missing fields}
       401: {description: Wrong current password}
     """
+    from flask_jwt_extended import verify_jwt_in_request
+
     from ..db.users import hash_user_password
     from ..security import get_current_user_id
-
-    from flask_jwt_extended import verify_jwt_in_request
     try:
         verify_jwt_in_request()
     except Exception:

@@ -16,7 +16,7 @@ not** be used in production.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any
 
 from ..utils.logging_config import get_logger
@@ -140,8 +140,8 @@ class OAuthTokensMixin:
         try:
             expires_at = datetime.fromisoformat(expires_at_str)
             if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=timezone.utc)
-            return datetime.now(timezone.utc) >= expires_at
+                expires_at = expires_at.replace(tzinfo=UTC)
+            return datetime.now(UTC) >= expires_at
         except Exception:
             return True
 

@@ -13,7 +13,7 @@ Endpoints:
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import requests
@@ -124,7 +124,7 @@ def microsoft_callback():
         return jsonify({'success': False, 'message': 'No access_token in response'}), 500
 
     expires_in = int(data.get('expires_in', 3600))
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
 
     # Resolve current user — fall back to 'admin' for single-user installs
     user_id = get_current_user_id() or 'admin'

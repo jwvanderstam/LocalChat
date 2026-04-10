@@ -7,7 +7,7 @@ token, refreshing via the OAuth2 token endpoint if the stored token has expired.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -39,8 +39,8 @@ def get_valid_access_token(user_id: str, db: Any) -> str:
         try:
             expires_at = datetime.fromisoformat(expires_at_str)
             if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=timezone.utc)
-            needs_refresh = datetime.now(timezone.utc) >= (expires_at - timedelta(seconds=60))
+                expires_at = expires_at.replace(tzinfo=UTC)
+            needs_refresh = datetime.now(UTC) >= (expires_at - timedelta(seconds=60))
         except Exception:
             needs_refresh = True
 
@@ -74,7 +74,7 @@ def _refresh_token(user_id: str, refresh_token: str, db: Any) -> str:
     access_token = data['access_token']
     new_refresh = data.get('refresh_token', refresh_token)
     expires_in = int(data.get('expires_in', 3600))
-    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+    expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
 
     db.upsert_oauth_token(
         user_id=user_id,

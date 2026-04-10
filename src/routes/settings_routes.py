@@ -255,6 +255,7 @@ def reranker_status() -> ResponseReturnValue:
 def reranker_train() -> ResponseReturnValue:
     """Trigger an immediate reranker fine-tune in a background thread."""
     import threading
+
     from .. import config as _cfg
 
     if not current_app.startup_status.get('database'):

@@ -362,7 +362,8 @@ def _workspace_role_check(f: Callable, min_role: str, args, kwargs):
     Extracted from ``require_workspace_role`` so Sonar measures it as an independent
     function (avoids nested-function complexity bubbling).
     """
-    from flask import current_app, request as _request
+    from flask import current_app
+    from flask import request as _request
     if _is_rbac_bypassed(current_app):
         return f(*args, **kwargs)
 
