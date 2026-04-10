@@ -27,6 +27,23 @@ from ..utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def _read_latest_pointer(safe_cfg_path: str) -> str | None:
+    """Read the path stored in ``<safe_cfg_path>.txt`` and return it, or None.
+
+    The .txt file is a Windows-safe alternative to a symlink written by the
+    fine-tune pipeline to point at the most recently promoted model version.
+    """
+    latest_txt = os.path.realpath(os.path.splitext(safe_cfg_path)[0] + '.txt')
+    if not os.path.isfile(latest_txt):
+        return None
+    try:
+        with open(latest_txt, encoding="utf-8") as fh:
+            pointed = fh.read().strip()
+        return pointed or None
+    except OSError:
+        return None
+
+
 def _to_safe_path(raw: str) -> str | None:
     """Resolve *raw* to a real filesystem path and return it only if it exists.
 
@@ -118,21 +135,11 @@ class RerankerModel:
         cfg_path = config.RERANKER_MODEL_PATH
         if cfg_path:
             candidates.append(cfg_path)
-            # If the config path is a 'latest.txt' pointer, read its contents.
-            # Sanitize cfg_path with realpath before constructing any filesystem path.
-            safe_cfg = os.path.realpath(cfg_path) if cfg_path and '\x00' not in cfg_path else None
+            safe_cfg = os.path.realpath(cfg_path) if '\x00' not in cfg_path else None
             if safe_cfg:
-                # Build the .txt pointer path and re-sanitize with realpath so
-                # the value passed to open() is itself the sanitizer output.
-                latest_txt = os.path.realpath(os.path.splitext(safe_cfg)[0] + '.txt')
-                if os.path.isfile(latest_txt):
-                    try:
-                        with open(latest_txt, encoding="utf-8") as fh:
-                            pointed = fh.read().strip()
-                        if pointed:
-                            candidates.append(pointed)
-                    except OSError:
-                        pass
+                pointed = _read_latest_pointer(safe_cfg)
+                if pointed:
+                    candidates.append(pointed)
         for p in candidates:
             safe = _to_safe_path(p)
             if safe:

@@ -8,7 +8,7 @@ and database/schema initialisation.
 
 import socket
 from contextlib import contextmanager
-from typing import Generator, List, Optional, Tuple, Union
+from typing import Generator, List, Optional, Tuple
 
 import numpy as np
 import psycopg
@@ -159,7 +159,7 @@ class DatabaseConnection:
                     pass
 
     @staticmethod
-    def _embedding_to_pg_array(embedding: Union[list[float], 'np.ndarray']) -> str:
+    def _embedding_to_pg_array(embedding: list[float] | np.ndarray) -> str:
         """Convert a Python list/numpy array to a PostgreSQL vector literal."""
         if isinstance(embedding, np.ndarray):
             embedding = embedding.tolist()
