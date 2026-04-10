@@ -225,23 +225,37 @@ def setup_auth_routes(app: Flask) -> None:
         if not username or not password:
             return jsonify({'message': 'Username and password required'}), 400
 
-        # Verify credentials
-        user = USERS.get(username)
-        if not user or not _ADMIN_PASSWORD_RAW:
-            logger.warning(f"Failed login attempt for user: {username}")
-            return jsonify({'message': 'Invalid credentials'}), 401
+        # Try DB-backed authentication first; fall back to legacy hardcoded admin
+        from flask import current_app
+        user_record = None
+        user_role = 'user'
+        user_sub = username
 
-        provided_hash = hashlib.pbkdf2_hmac(
-            'sha256', password.encode('utf-8'), _ADMIN_PASSWORD_SALT, 100_000
-        )
-        if not hmac.compare_digest(provided_hash, _ADMIN_PASSWORD_HASH):
-            logger.warning(f"Failed login attempt for user: {username}")
-            return jsonify({'message': 'Invalid credentials'}), 401
+        if hasattr(current_app, 'db') and current_app.db.is_connected:
+            db_user = current_app.db.verify_user_password(username, password)
+            if db_user:
+                user_record = db_user
+                user_role = db_user.get('role', 'user')
+                user_sub = str(db_user['id'])
+
+        if user_record is None:
+            # Legacy: hardcoded admin account (env-var password)
+            if username != 'admin' or not _ADMIN_PASSWORD_RAW:
+                logger.warning("Failed login attempt")
+                return jsonify({'message': 'Invalid credentials'}), 401
+            provided_hash = hashlib.pbkdf2_hmac(
+                'sha256', password.encode('utf-8'), _ADMIN_PASSWORD_SALT, 100_000
+            )
+            if not hmac.compare_digest(provided_hash, _ADMIN_PASSWORD_HASH):
+                logger.warning("Failed login attempt")
+                return jsonify({'message': 'Invalid credentials'}), 401
+            user_role = 'admin'
+            user_sub = 'admin'
 
         # Create access token
         access_token = create_access_token(
-            identity=username,
-            additional_claims={'role': user['role']}
+            identity=user_sub,
+            additional_claims={'role': user_role, 'username': username}
         )
 
         logger.info(f"User {username} logged in successfully")
@@ -281,6 +295,73 @@ def setup_auth_routes(app: Flask) -> None:
 # ============================================================================
 # AUTHORIZATION DECORATORS
 # ============================================================================
+
+def get_current_user_id() -> str | None:
+    """Return the JWT ``sub`` claim (user UUID or 'admin') if a token is present."""
+    try:
+        from flask_jwt_extended import get_jwt_identity
+        return get_jwt_identity()
+    except Exception:
+        return None
+
+
+def require_workspace_role(min_role: str):
+    """Decorator requiring the caller to hold at least *min_role* in the active workspace.
+
+    Role hierarchy (lowest → highest): viewer → editor → owner.
+    Admin JWT role bypasses the check.
+    Bypassed entirely in DEMO_MODE, testing, and when ADMIN_PASSWORD is not set.
+    """
+    _ROLE_LEVELS = {'viewer': 0, 'editor': 1, 'owner': 2}
+
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            from flask import current_app, request as _request
+            # Bypass in permissive modes
+            if (not _ADMIN_PASSWORD_RAW
+                    or config.DEMO_MODE
+                    or current_app.config.get('TESTING', False)):
+                return f(*args, **kwargs)
+
+            from flask_jwt_extended import get_jwt, verify_jwt_in_request
+            try:
+                verify_jwt_in_request()
+            except Exception:
+                return jsonify({'message': 'Authentication required'}), 401
+
+            claims = get_jwt()
+            # Admins bypass workspace-level checks
+            if claims.get('role') == 'admin':
+                return f(*args, **kwargs)
+
+            user_id = get_jwt_identity()
+            if not user_id:
+                return jsonify({'message': 'Authentication required'}), 401
+
+            # Resolve workspace_id: URL param → JSON body → active state
+            workspace_id = (
+                kwargs.get('workspace_id')
+                or (_request.get_json(silent=True) or {}).get('workspace_id')
+                or config.app_state.get_active_workspace_id()
+            )
+            if not workspace_id:
+                return jsonify({'message': 'No workspace context'}), 400
+
+            if not (hasattr(current_app, 'db') and current_app.db.is_connected):
+                return jsonify({'message': 'Database unavailable'}), 503
+
+            role = current_app.db.get_workspace_member_role(workspace_id, user_id)
+            if role is None:
+                return jsonify({'message': 'Access denied: not a workspace member'}), 403
+
+            if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
+                return jsonify({'message': f'Requires {min_role} role or higher'}), 403
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 
 def require_auth_optional(f: Callable) -> Callable:
     """

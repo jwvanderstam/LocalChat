@@ -577,6 +577,68 @@ class DatabaseConnection:
                 """)
                 logger.debug("connectors tables ensured")
 
+                # ── Feature 5.1: Multi-User + RBAC ───────────────────────────
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        username        TEXT UNIQUE NOT NULL,
+                        email           TEXT UNIQUE,
+                        hashed_password TEXT NOT NULL,
+                        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+                        role            TEXT NOT NULL DEFAULT 'user',
+                        created_at      TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS users_username_idx ON users (username)
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS workspace_members (
+                        workspace_id  UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+                        user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+                        role          TEXT NOT NULL DEFAULT 'viewer',
+                        created_at    TIMESTAMPTZ DEFAULT NOW(),
+                        PRIMARY KEY (workspace_id, user_id)
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_workspace_members_user
+                    ON workspace_members (user_id)
+                """)
+                logger.debug("users and workspace_members tables ensured")
+
+                # ── Feature 5.2: Reranker versioning ─────────────────────────
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS reranker_versions (
+                        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        trained_at  TIMESTAMPTZ DEFAULT NOW(),
+                        base_model  TEXT,
+                        ndcg_before FLOAT,
+                        ndcg_after  FLOAT,
+                        pair_count  INT,
+                        model_path  TEXT,
+                        active      BOOLEAN NOT NULL DEFAULT FALSE
+                    )
+                """)
+                logger.debug("reranker_versions table ensured")
+
+                # ── Feature 5.3: OAuth token storage ─────────────────────────
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS oauth_tokens (
+                        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
+                        provider      TEXT NOT NULL,
+                        access_token  TEXT NOT NULL,
+                        refresh_token TEXT,
+                        expires_at    TIMESTAMPTZ,
+                        scopes        TEXT[],
+                        created_at    TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at    TIMESTAMPTZ DEFAULT NOW(),
+                        UNIQUE (user_id, provider)
+                    )
+                """)
+                logger.debug("oauth_tokens table ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
 

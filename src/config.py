@@ -208,12 +208,12 @@ BATCH_MAX_WORKERS: int = 8                   # Batch processor workers
 # to balance recall and query latency based on the configured TOP_K_RESULTS.
 DB_INDEX_TYPE: str = 'hnsw'                  # Use HNSW index
 
-# L3 Database Cache Configuration (NEW - Phase 4)
+# L3 Database Cache Configuration
 L3_CACHE_ENABLED: bool = True                # Enable DB cache
 L3_CACHE_TTL: int = 86400                   # 24 hours default
 L3_CACHE_TABLE: str = "query_cache"          # Cache table name
 
-# Performance Monitoring (NEW - Phase 4)
+# Performance Monitoring
 ENABLE_PERF_METRICS: bool = True             # Enable metrics collection
 SLOW_QUERY_THRESHOLD: float = 1.0            # Log queries > 1s
 
@@ -368,6 +368,32 @@ LOG_FORMAT: str = os.environ.get('LOG_FORMAT', 'text')
 
 # State persistence file
 STATE_FILE: str = 'app_state.json'
+
+# ============================================================================
+# RERANKER CONFIGURATION (Feature 5.2)
+# ============================================================================
+# Set RERANKER_ENABLED=true to activate cross-encoder re-ranking of retrieved
+# chunks.  Requires sentence-transformers to be installed.
+# If no fine-tuned model exists at RERANKER_MODEL_PATH, falls back to the base
+# cross-encoder/ms-marco-MiniLM-L-6-v2 model.
+RERANKER_ENABLED: bool = os.environ.get('RERANKER_ENABLED', 'false').lower() == 'true'
+RERANKER_MODEL_PATH: str = os.environ.get('RERANKER_MODEL_PATH', './models/reranker/latest')
+RERANKER_WEIGHT: float = float(os.environ.get('RERANKER_WEIGHT', '0.3'))
+FEEDBACK_FINETUNE_MIN_PAIRS: int = int(os.environ.get('FEEDBACK_FINETUNE_MIN_PAIRS', '50'))
+
+# ============================================================================
+# MICROSOFT GRAPH / OAUTH CONFIGURATION (Feature 5.3)
+# ============================================================================
+MICROSOFT_CLIENT_ID: str = os.environ.get('MICROSOFT_CLIENT_ID', '')
+MICROSOFT_CLIENT_SECRET: str = os.environ.get('MICROSOFT_CLIENT_SECRET', '')
+MICROSOFT_TENANT_ID: str = os.environ.get('MICROSOFT_TENANT_ID', 'common')
+MICROSOFT_REDIRECT_URI: str = os.environ.get(
+    'MICROSOFT_REDIRECT_URI',
+    'http://localhost:5000/api/oauth/microsoft/callback',
+)
+# Fernet key for encrypting stored OAuth tokens.  Generate with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+TOKEN_ENCRYPTION_KEY: str = os.environ.get('TOKEN_ENCRYPTION_KEY', '')
 
 # ============================================================================
 # DEMO MODE

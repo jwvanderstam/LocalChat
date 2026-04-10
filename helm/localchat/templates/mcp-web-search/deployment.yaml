@@ -1,0 +1,51 @@
+{{- if .Values.mcp.webSearch.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "localchat.fullname" . }}-mcp-web-search
+  labels:
+    {{- include "localchat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-web-search
+spec:
+  replicas: {{ .Values.mcp.webSearch.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "localchat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mcp-web-search
+  template:
+    metadata:
+      labels:
+        {{- include "localchat.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mcp-web-search
+    spec:
+      containers:
+        - name: mcp-web-search
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - gunicorn
+            - --bind=0.0.0.0:{{ .Values.mcp.webSearch.port }}
+            - --workers=2
+            - "mcp_servers.web_search.server:create_app()"
+          ports:
+            - name: http
+              containerPort: {{ .Values.mcp.webSearch.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "localchat.fullname" . }}-config
+            - secretRef:
+                name: {{ include "localchat.fullname" . }}-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+{{- end }}

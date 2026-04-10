@@ -202,6 +202,102 @@ def settings_dashboard() -> ResponseReturnValue:
     return render_template("settings.html", stats=stats)
 
 
+# ---------------------------------------------------------------------------
+# Reranker management (Feature 5.2)
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/reranker/status", methods=["GET"])
+@require_admin
+def reranker_status() -> ResponseReturnValue:
+    """Return reranker availability and version history."""
+    from ..rag.reranker import get_reranker
+    reranker = get_reranker()
+    versions: list[dict] = []
+    if current_app.startup_status.get('database'):
+        try:
+            with current_app.db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id, trained_at, base_model, ndcg_before, ndcg_after, "
+                        "pair_count, model_path, active FROM reranker_versions ORDER BY trained_at DESC"
+                    )
+                    rows = cur.fetchall()
+            versions = [
+                {
+                    'id': str(r[0]), 'trained_at': r[1].isoformat() if r[1] else None,
+                    'base_model': r[2], 'ndcg_before': r[3], 'ndcg_after': r[4],
+                    'pair_count': r[5], 'model_path': r[6], 'active': r[7],
+                }
+                for r in rows
+            ]
+        except Exception as exc:
+            logger.warning(f"[Reranker] status query failed: {exc}")
+    return jsonify({
+        'available': reranker.is_available(),
+        'model_path': reranker.model_path,
+        'enabled': config.RERANKER_ENABLED,
+        'versions': versions,
+    })
+
+
+@bp.route("/api/reranker/train", methods=["POST"])
+@require_admin
+def reranker_train() -> ResponseReturnValue:
+    """Trigger an immediate reranker fine-tune in a background thread."""
+    import threading
+    from .. import config as _cfg
+
+    if not current_app.startup_status.get('database'):
+        return jsonify({'success': False, 'message': 'Database unavailable'}), 503
+
+    app = current_app._get_current_object()  # type: ignore[attr-defined]
+
+    def _train():
+        try:
+            from ..rag.feedback_pipeline import (
+                export_training_pairs,
+                finetune_reranker,
+                persist_reranker_version,
+                promote_model,
+            )
+            pairs = export_training_pairs(app.db, days=30)
+            if len(pairs) < _cfg.FEEDBACK_FINETUNE_MIN_PAIRS:
+                logger.info(f"[Reranker] Only {len(pairs)} pairs — skipping fine-tune")
+                return
+            result = finetune_reranker(pairs)
+            if not result.get('skipped'):
+                version_id = persist_reranker_version(app.db, result)
+                if version_id and result.get('ndcg_after', 0) > result.get('ndcg_before', 0):
+                    promote_model(app.db, version_id)
+        except Exception as exc:
+            logger.error(f"[Reranker] Background training failed: {exc}", exc_info=True)
+
+    threading.Thread(target=_train, daemon=True, name="reranker-train").start()
+    return jsonify({'success': True, 'message': 'Fine-tune started in background'})
+
+
+@bp.route("/api/reranker/promote/<version_id>", methods=["POST"])
+@require_admin
+def reranker_promote(version_id: str) -> ResponseReturnValue:
+    """Promote a reranker version to active."""
+    from ..rag.feedback_pipeline import promote_model
+    ok = promote_model(current_app.db, version_id)
+    if not ok:
+        return jsonify({'success': False, 'message': 'Version not found'}), 404
+    return jsonify({'success': True})
+
+
+@bp.route("/api/reranker/rollback/<version_id>", methods=["POST"])
+@require_admin
+def reranker_rollback(version_id: str) -> ResponseReturnValue:
+    """Roll back to a previous reranker version."""
+    from ..rag.feedback_pipeline import rollback_model
+    ok = rollback_model(current_app.db, version_id)
+    if not ok:
+        return jsonify({'success': False, 'message': 'Version not found'}), 404
+    return jsonify({'success': True})
+
+
 @bp.route("/api/settings/stats", methods=["GET"])
 def settings_stats_api() -> ResponseReturnValue:
     """

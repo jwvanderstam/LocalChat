@@ -185,8 +185,11 @@ def _init_services(app: LocalChatApp, testing: bool) -> None:
         app.startup_status['ready'] = (
             app.startup_status['ollama'] and app.startup_status['database']
         )
+        if app.startup_status['database']:
+            _seed_admin_user(db)
         _load_plugins(app)
         _init_connectors(app, db, doc_processor)
+        _init_reranker_scheduler(app, db)
 
     logger.debug("Services initialized")
 
@@ -301,6 +304,74 @@ def _load_plugins(app: LocalChatApp) -> None:
     app.plugin_loader = plugin_loader
 
 
+def _init_reranker_scheduler(app: LocalChatApp, db) -> None:
+    """Start a weekly background thread for reranker fine-tuning (opt-in)."""
+    if not config.RERANKER_ENABLED:
+        return
+    try:
+        import sentence_transformers  # noqa: F401 — check availability
+    except ImportError:
+        logger.info("[Reranker] sentence-transformers not installed — scheduler skipped")
+        return
+
+    import threading
+
+    _WEEK_SECONDS = 7 * 24 * 3600
+
+    def _weekly_train():
+        try:
+            from .rag.feedback_pipeline import (
+                export_training_pairs,
+                finetune_reranker,
+                persist_reranker_version,
+                promote_model,
+            )
+            pairs = export_training_pairs(db, days=7)
+            if len(pairs) < config.FEEDBACK_FINETUNE_MIN_PAIRS:
+                logger.info(f"[Reranker] {len(pairs)} pairs < minimum — skipping weekly fine-tune")
+            else:
+                result = finetune_reranker(pairs)
+                if not result.get('skipped'):
+                    version_id = persist_reranker_version(db, result)
+                    if version_id and result.get('ndcg_after', 0) > result.get('ndcg_before', 0):
+                        promote_model(db, version_id)
+                        logger.info("[Reranker] Weekly fine-tune complete — model promoted")
+        except Exception as exc:
+            logger.error(f"[Reranker] Weekly fine-tune failed: {exc}", exc_info=True)
+        finally:
+            # Re-schedule
+            t = threading.Timer(_WEEK_SECONDS, _weekly_train)
+            t.daemon = True
+            t.start()
+            app._reranker_timer = t  # type: ignore[attr-defined]
+
+    t = threading.Timer(_WEEK_SECONDS, _weekly_train)
+    t.daemon = True
+    t.start()
+    app._reranker_timer = t  # type: ignore[attr-defined]
+    logger.info("[Reranker] Weekly fine-tune scheduler started")
+
+
+def _seed_admin_user(db) -> None:
+    """Auto-create the admin DB user on first startup if ADMIN_USERNAME is set."""
+    import os
+    admin_username = os.environ.get('ADMIN_USERNAME', 'admin').strip()
+    admin_password = os.environ.get('ADMIN_PASSWORD', '').strip()
+    if not admin_password:
+        return  # No password set; skip seeding
+    try:
+        if db.count_users() == 0:
+            from .db.users import hash_user_password
+            db.create_user(
+                username=admin_username,
+                hashed_password=hash_user_password(admin_password),
+                role='admin',
+            )
+            logger.info(f"[Auth] Admin user '{admin_username}' seeded in users table")
+    except Exception as exc:
+        logger.warning(f"[Auth] Admin seeding skipped: {exc}")
+
+
 def _init_connectors(app: LocalChatApp, db, doc_processor) -> None:
     """Load connector instances from DB and start the background sync worker."""
     try:
@@ -398,12 +469,14 @@ def _register_blueprints(app: LocalChatApp) -> None:
     # Import blueprints
     from .routes import (
         api_routes,
+        auth_routes,
         connector_routes,
         document_routes,
         feedback_routes,
         longterm_memory_routes,
         memory_routes,
         model_routes,
+        oauth_routes,
         settings_routes,
         web_routes,
         workspace_routes,
@@ -420,6 +493,8 @@ def _register_blueprints(app: LocalChatApp) -> None:
     app.register_blueprint(workspace_routes.bp)
     app.register_blueprint(connector_routes.bp)
     app.register_blueprint(settings_routes.bp)
+    app.register_blueprint(auth_routes.bp, url_prefix='/api')
+    app.register_blueprint(oauth_routes.bp, url_prefix='/api')
 
     logger.debug("Blueprints registered")
 

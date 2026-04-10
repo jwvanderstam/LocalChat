@@ -1,0 +1,19 @@
+{{- if .Values.mcp.localDocs.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "localchat.fullname" . }}-mcp-local-docs
+  labels:
+    {{- include "localchat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-local-docs
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.mcp.localDocs.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "localchat.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-local-docs
+{{- end }}

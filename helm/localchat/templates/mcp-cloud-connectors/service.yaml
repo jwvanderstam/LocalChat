@@ -1,0 +1,19 @@
+{{- if .Values.mcp.cloudConnectors.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "localchat.fullname" . }}-mcp-cloud-connectors
+  labels:
+    {{- include "localchat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-cloud-connectors
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.mcp.cloudConnectors.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "localchat.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-cloud-connectors
+{{- end }}

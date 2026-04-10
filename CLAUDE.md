@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**As of 2026-04-09 — v1.0.1 — Phase 4 in progress**
+**As of 2026-04-10 — v1.0.2 — Phase 5 in progress**
 
 | Phase | Status |
 |-------|--------|
@@ -16,25 +16,41 @@ Always run `git log --oneline -5` and `git fetch origin` before starting work.  
 | 2 — Intelligence (Query planner, long-term memory, GraphRAG) | ✅ Complete |
 | 3 — Architecture (MCP split, aggregator agent, multi-model router) | ✅ Complete |
 | 4 — Platform (Feedback loop, workspaces, live connectors) | ✅ Complete |
+| 5 — Production (Multi-user RBAC, reranker serving, SharePoint/OneDrive, Helm) | 🔄 In progress |
 
-New roadmap targets agentic RAG with MCP-based composability. See `docs/ROADMAP.md` for full feature specs and acceptance criteria.
+See `docs/ROADMAP.md` and the plan at `.claude/plans/` for Phase 5 feature specs and acceptance criteria.
 
-**Feature 4.2 (Workspace / Persona Mode) — DONE**
-- `workspaces` table + additive FK columns on `documents`, `conversations`, `memories`, `answer_feedback`
-- `src/db/workspaces.py` — `WorkspacesMixin` (CRUD + list with counts)
-- `src/routes/workspace_routes.py` — REST API (`GET/POST /api/workspaces`, `GET/PUT/DELETE /api/workspaces/<id>`, `GET /api/workspaces/active`, `POST /api/workspaces/switch`)
-- `workspace_id` threaded through `retrieve_context`, `ingest_document`, `create_conversation` from `config.app_state.get_active_workspace_id()`
-- `static/js/workspace.js` + navbar dropdown in `base.html`
+**Feature 5.1 (Multi-User + RBAC) — DONE**
+- `users` + `workspace_members` tables in DB schema
+- `src/db/users.py` — `UsersMixin` (CRUD, password hashing via Werkzeug PBKDF2)
+- `src/db/workspaces.py` — membership CRUD (`add_workspace_member`, `get_workspace_member_role`, etc.)
+- `src/security.py` — DB-backed login with legacy fallback; `get_current_user_id()`; `require_workspace_role(min_role)` decorator
+- `src/routes/auth_routes.py` — user management REST API + self-service password change
+- `src/routes/workspace_routes.py` — membership endpoints added (`GET/POST/PUT/DELETE /api/workspaces/<id>/members`)
+- Admin user auto-seeded from `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars on first startup
 
-**Feature 4.3 (Live Connector Framework) — DONE**
-- `connectors` + `connector_sync_log` tables in DB schema
-- `src/connectors/` package: `BaseConnector` ABC, `LocalFolderConnector`, `S3Connector`, `WebhookConnector`, `ConnectorRegistry`, `SyncWorker`
-- `src/db/connectors.py` — `ConnectorsMixin` (CRUD, sync log, status updates, `delete_document_by_filename`)
-- `src/routes/connector_routes.py` — REST API (list, create, get, update, delete, trigger sync, sync history, webhook receiver)
-- `SyncWorker` daemon thread started in `app_factory._init_connectors`; stopped in cleanup handler
-- `mcp_servers/cloud_connectors/server.py` — stub replaced with live registry + retrieval
+**Feature 5.2 (Fine-Tuned Reranker Serving + Scheduler) — DONE**
+- `reranker_versions` table in DB schema
+- `src/rag/reranker.py` — `RerankerModel` singleton; loads fine-tuned model with base-model fallback
+- `src/rag/retrieval.py` — cross-encoder re-ranking integrated after BM25 stage (`RERANKER_ENABLED`)
+- `src/rag/feedback_pipeline.py` — versioned model output (`v{timestamp}/`), `latest.txt` pointer, `persist_reranker_version`, `promote_model`, `rollback_model`
+- `src/routes/settings_routes.py` — reranker status/train/promote/rollback endpoints added
+- `src/app_factory.py` — weekly `threading.Timer` scheduler (`_init_reranker_scheduler`)
 
-**Next session:** Phase 4 complete. Check `git log --oneline -5` and `git fetch origin` first.
+**Feature 5.3 (SharePoint / OneDrive Connector) — DONE**
+- `oauth_tokens` table in DB schema (Fernet-encrypted at rest)
+- `src/db/oauth_tokens.py` — `OAuthTokensMixin` (upsert/get/delete with Fernet encryption)
+- `src/routes/oauth_routes.py` — Microsoft OAuth2 authorization-code flow (`/api/oauth/microsoft/*`)
+- `src/connectors/microsoft_auth.py` — token refresh helper (`get_valid_access_token`)
+- `src/connectors/sharepoint_connector.py` — SharePoint document library via Graph delta queries
+- `src/connectors/onedrive_connector.py` — OneDrive personal drive via Graph delta queries
+- `src/connectors/registry.py` — `sharepoint` and `onedrive` registered in `_CONNECTOR_CLASSES`
+
+**Feature 5.4 (Helm Chart + k8s Production) — DONE**
+- `helm/localchat/` — full Helm chart: app Deployment/Service/HPA/Ingress, PostgreSQL + Redis StatefulSets, MCP server Deployments (all conditional)
+- `docs/DEPLOYMENT.md` — Helm install/upgrade/rollback guide, secrets management
+
+**Next session:** Check `git log --oneline -5` and `git fetch origin` first.
 
 ---
 
@@ -158,12 +174,22 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `src/connectors/worker.py` | `SyncWorker` daemon thread — polls connectors, ingests changes, logs sync history |
 | `src/db/connectors.py` | `ConnectorsMixin` — connector CRUD, sync log, `delete_document_by_filename` |
 | `src/routes/connector_routes.py` | Connector REST API + webhook receiver endpoint |
-| `src/rag/feedback_pipeline.py` | Weekly export + optional cross-encoder fine-tune; CLI entry point |
+| `src/rag/feedback_pipeline.py` | Weekly export + cross-encoder fine-tune; versioned output, `promote_model`, `rollback_model` |
+| `src/rag/reranker.py` | `RerankerModel` singleton — loads fine-tuned cross-encoder, falls back to base model |
 | `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
 | `mcp_servers/base.py` | `MCPServer` base class — JSON-RPC 2.0 dispatcher (tools/list, tools/call, health) |
 | `mcp_servers/local_docs/server.py` | Local-docs MCP server — wraps retrieval + `format_context_for_llm`; gunicorn port 5001 |
 | `mcp_servers/web_search/server.py` | Web-search MCP server — wraps `WebSearchProvider`; gunicorn port 5002 |
-| `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server — Phase 4 stub; gunicorn port 5003 |
+| `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server — routes through live connector registry; gunicorn port 5003 |
+| `src/db/users.py` | `UsersMixin` — user CRUD, PBKDF2 password hashing |
+| `src/db/oauth_tokens.py` | `OAuthTokensMixin` — Fernet-encrypted OAuth token storage (upsert/get/delete) |
+| `src/routes/auth_routes.py` | User management REST API (admin) + self-service password change |
+| `src/routes/oauth_routes.py` | Microsoft OAuth2 authorization-code flow (`/api/oauth/microsoft/*`) |
+| `src/connectors/microsoft_auth.py` | `get_valid_access_token` — checks expiry, refreshes via Graph token endpoint |
+| `src/connectors/sharepoint_connector.py` | SharePoint document library connector — Graph API delta queries |
+| `src/connectors/onedrive_connector.py` | OneDrive personal drive connector — Graph API delta queries |
+| `helm/localchat/` | Full Helm chart: app + PostgreSQL + Redis StatefulSets + MCP server Deployments |
+| `docs/DEPLOYMENT.md` | Helm install/upgrade/rollback guide, secrets management |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds 3 domain servers |
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 7 panels) |

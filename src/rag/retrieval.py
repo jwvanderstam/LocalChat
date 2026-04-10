@@ -254,6 +254,26 @@ class RetrievalMixin:
         final_top_k = getattr(config, 'RERANK_TOP_K', 8)
         deduped = self._deduplicate_results(sorted_results[:final_top_k])
         logger.debug(f"[RAG] After dedup: {len(deduped)} chunks")
+
+        # ── Optional cross-encoder reranking ─────────────────────────────────
+        if config.RERANKER_ENABLED and deduped:
+            try:
+                from .reranker import get_reranker
+                reranker = get_reranker()
+                if reranker.is_available():
+                    passages = [r['chunk_text'] for r in deduped]
+                    ce_scores = reranker.score(query_clean, passages)
+                    if ce_scores:
+                        w = config.RERANKER_WEIGHT
+                        for r, ce in zip(deduped, ce_scores):
+                            r['combined_score'] = (
+                                (1.0 - w) * r['combined_score'] + w * ce
+                            )
+                        deduped = sorted(deduped, key=lambda x: x['combined_score'], reverse=True)
+                        logger.debug("[RAG] Cross-encoder reranking applied")
+            except Exception as ce_exc:
+                logger.debug(f"[RAG] Cross-encoder reranking skipped: {ce_exc}")
+
         deduped = sorted(deduped, key=lambda x: (x['filename'], x['chunk_index']))
         return [
             (r['chunk_text'], r['filename'], r['chunk_index'], r['semantic_score'], r.get('metadata', {}), r.get('chunk_id', 0))

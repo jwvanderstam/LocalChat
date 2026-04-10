@@ -151,5 +151,5 @@ class ToolRouter:
             except Exception as exc:
                 logger.warning(f"[ToolRouter] cloud_connectors MCP failed: {exc}")
 
-        # Stub — no direct path for cloud connectors (Phase 4)
+        # No direct path — cloud connectors route through the MCP server
         return {"context": "", "sources": []}

@@ -19,7 +19,9 @@ from typing import Any, Type
 from ..utils.logging_config import get_logger
 from .base import BaseConnector
 from .local_folder import LocalFolderConnector
+from .onedrive_connector import OneDriveConnector
 from .s3_connector import S3Connector
+from .sharepoint_connector import SharePointConnector
 from .webhook import WebhookConnector
 
 logger = get_logger(__name__)
@@ -28,6 +30,8 @@ _CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
     "local_folder": LocalFolderConnector,
     "s3": S3Connector,
     "webhook": WebhookConnector,
+    "sharepoint": SharePointConnector,
+    "onedrive": OneDriveConnector,
 }
 
 

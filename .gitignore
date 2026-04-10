@@ -117,3 +117,9 @@ temp.py
 
 # Test output artifacts (root-level)
 test_*.txt
+
+# SonarCloud analysis output
+sonar_issues.json
+
+# Coverage JSON (binary/XML already covered above)
+coverage.json

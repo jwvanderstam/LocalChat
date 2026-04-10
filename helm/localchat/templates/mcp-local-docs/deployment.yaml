@@ -1,0 +1,51 @@
+{{- if .Values.mcp.localDocs.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "localchat.fullname" . }}-mcp-local-docs
+  labels:
+    {{- include "localchat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-local-docs
+spec:
+  replicas: {{ .Values.mcp.localDocs.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "localchat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mcp-local-docs
+  template:
+    metadata:
+      labels:
+        {{- include "localchat.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mcp-local-docs
+    spec:
+      containers:
+        - name: mcp-local-docs
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - gunicorn
+            - --bind=0.0.0.0:{{ .Values.mcp.localDocs.port }}
+            - --workers=2
+            - "mcp_servers.local_docs.server:create_app()"
+          ports:
+            - name: http
+              containerPort: {{ .Values.mcp.localDocs.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "localchat.fullname" . }}-config
+            - secretRef:
+                name: {{ include "localchat.fullname" . }}-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+{{- end }}

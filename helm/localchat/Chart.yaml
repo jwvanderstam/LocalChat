@@ -1,0 +1,14 @@
+apiVersion: v2
+name: localchat
+description: LocalChat — Local RAG application with PostgreSQL/pgvector, Ollama, and MCP servers
+type: application
+version: 1.0.2
+appVersion: "1.0.2"
+keywords:
+  - rag
+  - llm
+  - ollama
+  - pgvector
+home: https://github.com/jwvanderstam/localchat
+maintainers:
+  - name: LocalChat Team

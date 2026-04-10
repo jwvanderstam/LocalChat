@@ -1,0 +1,109 @@
+replicaCount: 2
+
+image:
+  repository: localchat
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+# --------------------------------------------------------------------------
+# PostgreSQL — set enabled: false to use an external instance
+# --------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  external:
+    host: ""
+    port: 5432
+  auth:
+    username: localchat
+    password: ""
+    database: localchat
+  persistence:
+    size: 20Gi
+    storageClass: ""
+
+# --------------------------------------------------------------------------
+# Redis — set enabled: false to use an external instance
+# --------------------------------------------------------------------------
+redis:
+  enabled: true
+  external:
+    host: ""
+  auth:
+    password: ""
+  persistence:
+    size: 5Gi
+    storageClass: ""
+
+# --------------------------------------------------------------------------
+# Ollama — no in-cluster Ollama by default; point at an external instance
+# --------------------------------------------------------------------------
+ollama:
+  external:
+    baseUrl: "http://ollama:11434"
+
+# --------------------------------------------------------------------------
+# MCP servers
+# --------------------------------------------------------------------------
+mcp:
+  localDocs:
+    enabled: true
+    replicaCount: 1
+    port: 5001
+  webSearch:
+    enabled: true
+    replicaCount: 1
+    port: 5002
+  cloudConnectors:
+    enabled: false
+    replicaCount: 1
+    port: 5003
+
+# --------------------------------------------------------------------------
+# Ingress
+# --------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: nginx
+  host: localchat.example.com
+  tls: true
+  annotations: {}
+
+# --------------------------------------------------------------------------
+# Autoscaling / HPA
+# --------------------------------------------------------------------------
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+# --------------------------------------------------------------------------
+# Resource requests / limits
+# --------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# --------------------------------------------------------------------------
+# Application environment (non-sensitive; sensitive values go in secrets)
+# --------------------------------------------------------------------------
+env:
+  LOG_LEVEL: INFO
+  STREAM_RESPONSES: "true"
+  CHUNK_SIZE: "1200"
+  TOP_K_RESULTS: "20"
+  MIN_SIMILARITY_THRESHOLD: "0.30"
+
+# --------------------------------------------------------------------------
+# Service
+# --------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 5000

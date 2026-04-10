@@ -1,0 +1,19 @@
+{{- if .Values.mcp.webSearch.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "localchat.fullname" . }}-mcp-web-search
+  labels:
+    {{- include "localchat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-web-search
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.mcp.webSearch.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "localchat.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-web-search
+{{- end }}

@@ -565,7 +565,7 @@ def _format_test_results(results, mode_name: str) -> dict[str, Any]:
             'length': len(chunk_text)
         }
 
-        # Add metadata if available (Phase 1.1 enhancement)
+        # Add optional per-chunk metadata
         if metadata.get('page_number'):
             chunk_data['page_number'] = metadata['page_number']
         if metadata.get('section_title'):

@@ -2,8 +2,8 @@
 ## Path to the Greatest Local RAG Application
 
 > Last updated: 2026-04-10
-> Current version: v1.0.1
-> **Status: All four phases complete — agentic RAG with MCP composability delivered**
+> Current version: v1.0.2
+> **Status: Phases 1–4 complete. Phase 5 (Production) in progress — see below.**
 
 ---
 
@@ -752,6 +752,52 @@ MCP boundaries exist so that every domain agent can be swapped, scaled, or exten
 - **Mobile client:** Out of scope. The web UI is responsive but a native mobile app is a separate workstream.
 - **Fine-tuning base LLMs:** The feedback loop fine-tunes the reranker only. Fine-tuning the generative model on your corpus is a significant additional undertaking that would require GPU infrastructure beyond what a typical local deployment provides.
 - **Real-time collaboration:** Workspaces support shared access but not simultaneous real-time editing of documents or conversations.
+
+---
+
+## Phase 5 — Production (v1.0.2)
+
+> **Status: In progress — all four features implemented, pending final test pass and push.**
+
+Phase 5 delivers the four items deferred at the end of Phase 4:
+
+| Feature | Status | Summary |
+|---------|--------|---------|
+| 5.1 Multi-User + RBAC | ✅ Done | `users` + `workspace_members` tables; DB-backed login; `require_workspace_role` decorator; user management API |
+| 5.2 Fine-Tuned Reranker | ✅ Done | `RerankerModel` singleton; cross-encoder integrated into retrieval; versioned training + weekly scheduler |
+| 5.3 SharePoint / OneDrive | ✅ Done | Microsoft OAuth2 flow; Fernet-encrypted token storage; SharePoint + OneDrive connectors via Graph delta queries |
+| 5.4 Helm Chart + k8s | ✅ Done | Full Helm chart at `helm/localchat/`; PostgreSQL + Redis StatefulSets; MCP server Deployments; `docs/DEPLOYMENT.md` |
+
+### Key new files (Phase 5)
+
+| File | Role |
+|------|------|
+| `src/db/users.py` | `UsersMixin` — user CRUD, PBKDF2-SHA256 hashing |
+| `src/db/oauth_tokens.py` | `OAuthTokensMixin` — Fernet-encrypted OAuth token storage |
+| `src/routes/auth_routes.py` | User management API (admin) + self-service password change |
+| `src/routes/oauth_routes.py` | Microsoft OAuth2 authorization-code flow |
+| `src/connectors/microsoft_auth.py` | Token refresh helper (`get_valid_access_token`) |
+| `src/connectors/sharepoint_connector.py` | SharePoint connector via Graph delta queries |
+| `src/connectors/onedrive_connector.py` | OneDrive connector via Graph delta queries |
+| `src/rag/reranker.py` | `RerankerModel` singleton — fine-tuned or base cross-encoder |
+| `helm/localchat/` | Full Helm chart for production k8s deployment |
+| `docs/DEPLOYMENT.md` | Helm install, upgrade, rollback, and secrets guide |
+
+### New configuration variables (Phase 5)
+
+```
+RERANKER_ENABLED           bool    Enable cross-encoder re-ranking (default: false)
+RERANKER_MODEL_PATH        str     Path to fine-tuned model (default: ./models/reranker/latest)
+RERANKER_WEIGHT            float   Cross-encoder blend weight (default: 0.3)
+FEEDBACK_FINETUNE_MIN_PAIRS int    Min feedback pairs before weekly fine-tune (default: 50)
+MICROSOFT_CLIENT_ID        str     Azure AD application (client) ID
+MICROSOFT_CLIENT_SECRET    str     Azure AD client secret
+MICROSOFT_TENANT_ID        str     Azure AD tenant ID (default: common)
+MICROSOFT_REDIRECT_URI     str     OAuth2 callback URI
+TOKEN_ENCRYPTION_KEY       str     Fernet key for OAuth token at-rest encryption
+ADMIN_USERNAME             str     Auto-seed admin username on first startup
+ADMIN_PASSWORD             str     Auto-seed admin password on first startup
+```
 
 ---
 

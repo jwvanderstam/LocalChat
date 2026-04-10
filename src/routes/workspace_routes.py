@@ -233,6 +233,84 @@ def get_active_workspace():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Membership
+# ---------------------------------------------------------------------------
+
+@bp.route('/api/workspaces/<workspace_id>/members', methods=['GET'])
+def list_workspace_members(workspace_id: str):
+    """List members of a workspace."""
+    try:
+        members = current_app.db.list_workspace_members(workspace_id)
+        return jsonify({'success': True, 'members': members})
+    except Exception as e:
+        logger.error(f"[Workspaces] list members error: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/api/workspaces/<workspace_id>/members', methods=['POST'])
+def add_workspace_member(workspace_id: str):
+    """
+    Add or update a member's role in a workspace.
+    ---
+    tags: [Workspaces]
+    parameters:
+      - {in: path, name: workspace_id, type: string, required: true}
+      - in: body
+        name: body
+        schema:
+          type: object
+          required: [user_id]
+          properties:
+            user_id: {type: string}
+            role:    {type: string, enum: [viewer, editor, owner], default: viewer}
+    responses:
+      200: {description: Member added}
+      400: {description: user_id required}
+    """
+    data = request.get_json(silent=True) or {}
+    user_id = (data.get('user_id') or '').strip()
+    role = data.get('role', 'viewer')
+    if not user_id:
+        return jsonify({'success': False, 'message': 'user_id is required'}), 400
+    if role not in ('viewer', 'editor', 'owner'):
+        return jsonify({'success': False, 'message': "role must be viewer, editor, or owner"}), 400
+    try:
+        current_app.db.add_workspace_member(workspace_id, user_id, role)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"[Workspaces] add member error: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/api/workspaces/<workspace_id>/members/<user_id>', methods=['PUT'])
+def update_workspace_member(workspace_id: str, user_id: str):
+    """Change a member's role."""
+    data = request.get_json(silent=True) or {}
+    role = data.get('role', '')
+    if role not in ('viewer', 'editor', 'owner'):
+        return jsonify({'success': False, 'message': "role must be viewer, editor, or owner"}), 400
+    try:
+        current_app.db.add_workspace_member(workspace_id, user_id, role)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"[Workspaces] update member error: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/api/workspaces/<workspace_id>/members/<user_id>', methods=['DELETE'])
+def remove_workspace_member(workspace_id: str, user_id: str):
+    """Remove a member from a workspace."""
+    try:
+        removed = current_app.db.remove_workspace_member(workspace_id, user_id)
+        if not removed:
+            return jsonify({'success': False, 'message': 'Member not found'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"[Workspaces] remove member error: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/api/workspaces/switch', methods=['POST'])
 def switch_workspace():
     """

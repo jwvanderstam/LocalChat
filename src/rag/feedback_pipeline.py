@@ -78,6 +78,82 @@ def _ndcg_at_k(labels: list[int], k: int = 10) -> float:
 # Fine-tuning
 # ---------------------------------------------------------------------------
 
+def _versioned_output_dir(base_dir: str | Path) -> Path:
+    """Return a timestamped subdirectory under *base_dir* for the new model version."""
+    import time as _time
+    ts = int(_time.time())
+    versioned = Path(base_dir) / f"v{ts}"
+    versioned.mkdir(parents=True, exist_ok=True)
+    return versioned
+
+
+def _write_latest_pointer(versioned_dir: Path) -> None:
+    """Write a latest.txt file pointing at the versioned directory (Windows-safe)."""
+    pointer = versioned_dir.parent / "latest.txt"
+    pointer.write_text(str(versioned_dir), encoding="utf-8")
+
+
+def persist_reranker_version(db: Any, result: dict) -> str | None:
+    """Insert a reranker_versions row and return its UUID, or None on error."""
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO reranker_versions
+                        (base_model, ndcg_before, ndcg_after, pair_count, model_path, active)
+                    VALUES (%s, %s, %s, %s, %s, FALSE)
+                    RETURNING id
+                    """,
+                    (
+                        result.get("base_model", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+                        result.get("ndcg_before"),
+                        result.get("ndcg_after"),
+                        result.get("pair_count"),
+                        result.get("output_path"),
+                    ),
+                )
+                return str(cur.fetchone()[0])
+    except Exception as exc:
+        logger.warning(f"[Pipeline] Could not persist reranker version: {exc}")
+        return None
+
+
+def promote_model(db: Any, version_id: str) -> bool:
+    """Set *version_id* as active and update the latest.txt pointer. Returns success."""
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Fetch model path
+                cur.execute("SELECT model_path FROM reranker_versions WHERE id = %s", (version_id,))
+                row = cur.fetchone()
+                if not row:
+                    return False
+                model_path = row[0]
+                # Demote all, promote this one
+                cur.execute("UPDATE reranker_versions SET active = FALSE")
+                cur.execute(
+                    "UPDATE reranker_versions SET active = TRUE WHERE id = %s", (version_id,)
+                )
+        # Update latest.txt
+        if model_path:
+            pointer = Path(model_path).parent / "latest.txt"
+            pointer.parent.mkdir(parents=True, exist_ok=True)
+            pointer.write_text(model_path, encoding="utf-8")
+        from ..rag.reranker import reload_reranker
+        reload_reranker(model_path)
+        logger.info(f"[Pipeline] Promoted reranker version {version_id} ({model_path})")
+        return True
+    except Exception as exc:
+        logger.warning(f"[Pipeline] Promote failed: {exc}")
+        return False
+
+
+def rollback_model(db: Any, version_id: str) -> bool:
+    """Alias for promote_model — re-promotes any previously-trained version."""
+    return promote_model(db, version_id)
+
+
 def finetune_reranker(
     pairs: list[dict],
     base_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
@@ -114,8 +190,8 @@ def finetune_reranker(
         logger.info("[Pipeline] No training pairs — skipping fine-tune")
         return {"pair_count": 0, "skipped": True}
 
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Use a versioned subdirectory so previous models are preserved
+    versioned_dir = _versioned_output_dir(output_dir)
 
     # Build sentence-transformers InputExample format
     from sentence_transformers import InputExample
@@ -145,7 +221,7 @@ def finetune_reranker(
         epochs=epochs,
         batch_size=batch_size,
         warmup_steps=max(10, len(train_samples) // 10),
-        output_path=str(output_dir),
+        output_path=str(versioned_dir),
         show_progress_bar=False,
     )
 
@@ -154,15 +230,18 @@ def finetune_reranker(
     ranked = [label for _, label in sorted(zip(scores, eval_labels), reverse=True)]
     ndcg_after = _ndcg_at_k(ranked)
 
+    _write_latest_pointer(versioned_dir)
+
     logger.info(
         f"[Pipeline] Fine-tune complete: NDCG@10 {ndcg_before:.3f} → {ndcg_after:.3f}  "
-        f"pairs={len(train_samples)}  output={output_dir}"
+        f"pairs={len(train_samples)}  output={versioned_dir}"
     )
     return {
+        "base_model": base_model,
         "pair_count": len(train_samples),
         "ndcg_before": round(ndcg_before, 4),
         "ndcg_after": round(ndcg_after, 4),
-        "output_path": str(output_dir),
+        "output_path": str(versioned_dir),
         "skipped": False,
     }
 
