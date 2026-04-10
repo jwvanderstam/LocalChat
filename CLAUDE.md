@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-**As of 2026-04-10 — v1.0.2 — Phase 5 in progress**
+**As of 2026-04-10 — v1.0.2 — All phases complete**
 
 | Phase | Status |
 |-------|--------|
@@ -16,9 +16,9 @@ Always run `git log --oneline -5` and `git fetch origin` before starting work.  
 | 2 — Intelligence (Query planner, long-term memory, GraphRAG) | ✅ Complete |
 | 3 — Architecture (MCP split, aggregator agent, multi-model router) | ✅ Complete |
 | 4 — Platform (Feedback loop, workspaces, live connectors) | ✅ Complete |
-| 5 — Production (Multi-user RBAC, reranker serving, SharePoint/OneDrive, Helm) | 🔄 In progress |
+| 5 — Production (Multi-user RBAC, reranker serving, SharePoint/OneDrive, Helm) | ✅ Complete |
 
-See `docs/ROADMAP.md` and the plan at `.claude/plans/` for Phase 5 feature specs and acceptance criteria.
+See `docs/ROADMAP.md` for the full feature history.
 
 **Feature 5.1 (Multi-User + RBAC) — DONE**
 - `users` + `workspace_members` tables in DB schema

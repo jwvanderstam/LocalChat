@@ -3,7 +3,7 @@
 
 > Last updated: 2026-04-10
 > Current version: v1.0.2
-> **Status: Phases 1–4 complete. Phase 5 (Production) in progress — see below.**
+> **Status: All phases complete — v1.0.2 shipped.**
 
 ---
 
@@ -757,7 +757,7 @@ MCP boundaries exist so that every domain agent can be swapped, scaled, or exten
 
 ## Phase 5 — Production (v1.0.2)
 
-> **Status: In progress — all four features implemented, pending final test pass and push.**
+> **Status: Complete.**
 
 Phase 5 delivers the four items deferred at the end of Phase 4:
 
