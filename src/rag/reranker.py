@@ -122,7 +122,9 @@ class RerankerModel:
             # Sanitize cfg_path with realpath before constructing any filesystem path.
             safe_cfg = os.path.realpath(cfg_path) if cfg_path and '\x00' not in cfg_path else None
             if safe_cfg:
-                latest_txt = os.path.join(os.path.splitext(safe_cfg)[0] + '.txt')
+                # Build the .txt pointer path and re-sanitize with realpath so
+                # the value passed to open() is itself the sanitizer output.
+                latest_txt = os.path.realpath(os.path.splitext(safe_cfg)[0] + '.txt')
                 if os.path.isfile(latest_txt):
                     try:
                         with open(latest_txt, encoding="utf-8") as fh:
