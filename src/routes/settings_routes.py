@@ -102,6 +102,39 @@ def _collect_cache_stats(app) -> dict:
     return result
 
 
+def _get_loaded_models(ollama_client) -> list:
+    """Return per-model GPU/VRAM stats from the Ollama client, or [] on error."""
+    if not ollama_client:
+        return []
+    try:
+        result = []
+        for m in ollama_client.get_running_models():
+            total = m.get("size", 0)
+            vram = m.get("size_vram", 0)
+            result.append({
+                "name": m.get("name", ""),
+                "size_mb": round(total / 1024 / 1024),
+                "vram_mb": round(vram / 1024 / 1024),
+                "gpu_percent": round(vram / total * 100) if total > 0 else 0,
+                "processor": m.get("processor", "unknown"),
+            })
+        return result
+    except Exception as exc:
+        logger.debug("Settings: could not fetch running model GPU stats: %s", exc)
+        return []
+
+
+def _get_gpu_info(ollama_client) -> list:
+    """Return per-physical-GPU hardware stats, or [] on error."""
+    if not ollama_client:
+        return []
+    try:
+        return ollama_client.get_gpu_info()
+    except Exception as exc:
+        logger.debug("Settings: could not fetch GPU hardware info: %s", exc)
+        return []
+
+
 def _collect_system_info(app) -> dict:
     """
     Collect static / near-static system information.
@@ -119,37 +152,14 @@ def _collect_system_info(app) -> dict:
 
     ollama_client = getattr(app, "ollama_client", None)
 
-    loaded_models = []
-    try:
-        if ollama_client:
-            for m in ollama_client.get_running_models():
-                total = m.get("size", 0)
-                vram = m.get("size_vram", 0)
-                loaded_models.append({
-                    "name": m.get("name", ""),
-                    "size_mb": round(total / 1024 / 1024),
-                    "vram_mb": round(vram / 1024 / 1024),
-                    "gpu_percent": round(vram / total * 100) if total > 0 else 0,
-                    "processor": m.get("processor", "unknown"),
-                })
-    except Exception as exc:
-        logger.debug("Settings: could not fetch running model GPU stats: %s", exc)
-
-    gpu_info = []
-    try:
-        if ollama_client:
-            gpu_info = ollama_client.get_gpu_info()
-    except Exception as exc:
-        logger.debug("Settings: could not fetch GPU hardware info: %s", exc)
-
     return {
         "app_version": config.APP_VERSION,
         "active_model": active_model,
         "demo_mode": config.DEMO_MODE,
         "ollama_available": getattr(app, "startup_status", {}).get("ollama", False),
         "timestamp": datetime.now().isoformat(),
-        "loaded_models": loaded_models,
-        "gpu_info": gpu_info,
+        "loaded_models": _get_loaded_models(ollama_client),
+        "gpu_info": _get_gpu_info(ollama_client),
     }
 
 
