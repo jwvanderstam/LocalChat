@@ -1,7 +1,5 @@
 # LocalChat — Production Deployment (Helm)
 
-> The raw `k8s/*.yaml` manifests have been superseded by the Helm chart at `helm/localchat/`.
-
 ## Prerequisites
 
 - Kubernetes 1.25+
@@ -60,7 +58,7 @@ Create a `values.prod.yaml`:
 replicaCount: 4
 image:
   repository: registry.example.com/localchat
-  tag: 1.0.2
+  tag: 1.0.0
   pullPolicy: Always
 
 ingress:

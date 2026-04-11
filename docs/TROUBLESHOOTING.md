@@ -53,7 +53,7 @@ Set `OLLAMA_MODEL` and `OLLAMA_EMBED_MODEL` in `.env` to match what you pulled.
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
-Or use the official Docker image: `pgvector/pgvector:pg15`.  The `docker-compose.yml` already uses this image.
+Or use the official Docker image: `pgvector/pgvector:pg16`.  The `docker-compose.yml` already uses this image.
 
 ### Connection pool exhausted
 
