@@ -18,8 +18,6 @@ Example:
     >>> print(clean_name)
     malicious.pdf
 
-Author: LocalChat Team
-Last Updated: 2024-12-27
 """
 
 import os

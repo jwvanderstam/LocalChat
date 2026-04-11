@@ -34,7 +34,6 @@ The application creates a single ``plugin_loader`` singleton and calls
 Individual plugins can also be loaded, unloaded, or hot-reloaded at
 runtime (e.g. from an admin endpoint) without restarting the process.
 
-Author: LocalChat Team
 """
 
 from __future__ import annotations

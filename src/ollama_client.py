@@ -35,8 +35,6 @@ Example:
     ...     embedding = ollama_client.generate_embedding("nomic-embed-text", "Hello")
     ...     gpus = ollama_client.get_gpu_info()
 
-Author: LocalChat Team
-Last Updated: 2026-03-19
 """
 
 import json

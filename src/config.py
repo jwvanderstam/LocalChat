@@ -22,8 +22,6 @@ Example:
     >>> app_state.set_active_model("llama3.2")
     >>> print(f"Chunk size: {CHUNK_SIZE}, GPU layers: {OLLAMA_NUM_GPU}")
 
-Author: LocalChat Team
-Last Updated: 2026-03-19
 """
 
 import json
@@ -341,7 +339,7 @@ MAX_CONTEXT_LENGTH: int = OLLAMA_NUM_CTX  # Mirrors OLLAMA_NUM_CTX; override via
 # ============================================================================
 
 # Application version (override with APP_VERSION env var for CI-stamped builds)
-APP_VERSION: str = os.environ.get('APP_VERSION', '0.5.0')
+APP_VERSION: str = os.environ.get('APP_VERSION', '1.0.0')
 
 # Supported file types
 SUPPORTED_IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.webp']

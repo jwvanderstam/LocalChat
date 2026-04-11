@@ -6,8 +6,6 @@ Embedding Cache Manager
 Specialized cache for embedding vectors with intelligent key generation
 and size management.
 
-Author: LocalChat Team
-Created: 2025-01-15
 """
 
 import hashlib

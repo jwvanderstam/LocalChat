@@ -6,9 +6,6 @@ API Routes Blueprint
 Core API endpoints for LocalChat application.
 Handles status checks, chat (RAG and direct LLM), and core API functionality.
 
-Author: LocalChat Team
-Created: 2025-01-15
-Last Updated: 2025-01-27
 """
 
 import json

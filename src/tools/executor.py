@@ -15,7 +15,6 @@ Usage:
     >>> for chunk in executor.execute("llama3.2", messages):
     ...     print(chunk, end="")
 
-Author: LocalChat Team
 """
 
 from __future__ import annotations

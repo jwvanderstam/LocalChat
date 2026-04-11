@@ -11,8 +11,6 @@ The System tag covers health, metrics and observability endpoints:
   * ``GET /api/metrics``       — Prometheus text format v0.0.4 scrape endpoint
   * ``GET /api/metrics.json``  — JSON metrics snapshot for the admin dashboard
 
-Author: LocalChat Team
-Last Updated: 2026-03-19
 """
 
 from typing import Optional

@@ -6,8 +6,6 @@ Error Handlers Module
 Centralized error handling for LocalChat application.
 Provides user-friendly error responses and logging.
 
-Author: LocalChat Team
-Created: 2025-01-15
 """
 
 from typing import Any

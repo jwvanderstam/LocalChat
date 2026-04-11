@@ -5,8 +5,6 @@ Performance Batch Processor
 
 Optimized batch processing for embedding generation with parallel execution.
 
-Author: LocalChat Team
-Created: January 2025
 """
 
 import time

@@ -11,8 +11,6 @@ Features:
     - Health checks
     - Request logging
 
-Author: LocalChat Team
-Last Updated: 2025-01-27
 """
 
 import hashlib

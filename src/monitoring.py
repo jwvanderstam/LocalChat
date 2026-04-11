@@ -22,8 +22,6 @@ Features:
 - Thread-safe ``MetricsCollector`` with per-key label support
 - ``app_uptime_seconds`` gauge always present in Prometheus output
 
-Author: LocalChat Team
-Last Updated: 2026-03-19
 """
 
 import threading

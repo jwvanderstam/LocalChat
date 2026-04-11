@@ -19,8 +19,6 @@ Example:
     >>> app = create_app()
     >>> app.run()
 
-Author: LocalChat Team
-Created: 2025-01-15
 """
 
 import os

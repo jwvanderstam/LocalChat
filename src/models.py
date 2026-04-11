@@ -18,8 +18,6 @@ Example:
     >>> print(request.message)
     Hello
 
-Author: LocalChat Team
-Last Updated: 2024-12-27
 """
 
 # Python 3.14 compatibility: Use string annotations to avoid __annotate__ issues

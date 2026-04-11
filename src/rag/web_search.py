@@ -10,7 +10,6 @@ Classes:
     WebSearchResult: Data class for a single search result.
     WebSearchProvider: Performs web searches and optional page fetching.
 
-Author: LocalChat Team
 """
 
 from __future__ import annotations

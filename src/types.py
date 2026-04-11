@@ -9,8 +9,6 @@ using ``LocalChatApp`` instead of plain ``Flask`` in type annotations
 silences Pyright / Pylance ``reportAttributeAccessIssue`` warnings
 without adding ``# type: ignore`` comments everywhere.
 
-Author: LocalChat Team
-Created: 2025-01-27
 """
 
 from typing import Any, Dict, Optional

@@ -20,8 +20,6 @@ Example:
     >>> if not ollama_available:
     ...     raise OllamaConnectionError("Ollama service is not running")
 
-Author: LocalChat Team
-Last Updated: 2025-01-27
 """
 
 from typing import Any, Dict, Optional

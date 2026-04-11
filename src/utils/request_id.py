@@ -18,7 +18,6 @@ Usage::
     from src.utils.request_id import init_request_id
     init_request_id(app)
 
-Author: LocalChat Team
 """
 
 import logging

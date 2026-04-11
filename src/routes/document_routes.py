@@ -6,8 +6,6 @@ Document Routes Blueprint
 Document management API endpoints for LocalChat application.
 Handles upload, list, search, and testing operations.
 
-Author: LocalChat Team
-Created: 2025-01-15
 """
 
 import json

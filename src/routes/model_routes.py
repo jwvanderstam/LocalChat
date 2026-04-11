@@ -6,8 +6,6 @@ Model Routes Blueprint
 Model management API endpoints for LocalChat application.
 Handles model listing, activation, pulling, deletion, and testing.
 
-Author: LocalChat Team
-Created: 2025-01-15
 """
 
 import json

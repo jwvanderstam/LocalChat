@@ -15,8 +15,6 @@ Endpoints:
     PATCH  /api/conversations/<id>               - Rename a conversation
     DELETE /api/conversations/<id>               - Delete a conversation
 
-Author: LocalChat Team
-Created: 2025-01-27
 """
 
 import json

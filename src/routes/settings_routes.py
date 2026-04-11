@@ -25,8 +25,6 @@ Both endpoints respect ``DEMO_MODE``:
     cookie.  Enforcement is delegated to ``require_admin`` from
     ``src.security``.
 
-Author: LocalChat Team
-Last Updated: 2026-04-07
 """
 
 from datetime import datetime

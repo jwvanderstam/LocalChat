@@ -6,8 +6,6 @@ Web Routes Blueprint
 Web page routes for LocalChat application.
 Serves HTML templates for the web interface.
 
-Author: LocalChat Team
-Created: 2025-01-15
 """
 
 from pathlib import Path

@@ -11,7 +11,6 @@ Tools:
     get_current_datetime - Return the current date and time.
     calculate         - Evaluate a basic arithmetic expression.
 
-Author: LocalChat Team
 """
 
 from __future__ import annotations

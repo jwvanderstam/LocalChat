@@ -12,8 +12,6 @@ Features:
 - Automatic expiration
 - Cache warming strategies
 
-Author: LocalChat Team
-Created: January 2025
 """
 
 import hashlib

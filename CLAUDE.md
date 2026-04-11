@@ -2,63 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Development Status
-
-> **For any agent or coder starting a new session — read this first.**
-
-Always run `git log --oneline -5` and `git fetch origin` before starting work.  Another agent may have pushed changes since your last session.  The canonical task list lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
-
-**As of 2026-04-10 — v1.0.2 — All phases complete**
-
-| Phase | Status |
-|-------|--------|
-| 1 — Foundation (Answer attribution, adaptive chunking, cloud fallback) | ✅ Complete |
-| 2 — Intelligence (Query planner, long-term memory, GraphRAG) | ✅ Complete |
-| 3 — Architecture (MCP split, aggregator agent, multi-model router) | ✅ Complete |
-| 4 — Platform (Feedback loop, workspaces, live connectors) | ✅ Complete |
-| 5 — Production (Multi-user RBAC, reranker serving, SharePoint/OneDrive, Helm) | ✅ Complete |
-
-See `docs/ROADMAP.md` for the full feature history.
-
-**Feature 5.1 (Multi-User + RBAC) — DONE**
-- `users` + `workspace_members` tables in DB schema
-- `src/db/users.py` — `UsersMixin` (CRUD, password hashing via Werkzeug PBKDF2)
-- `src/db/workspaces.py` — membership CRUD (`add_workspace_member`, `get_workspace_member_role`, etc.)
-- `src/security.py` — DB-backed login with legacy fallback; `get_current_user_id()`; `require_workspace_role(min_role)` decorator
-- `src/routes/auth_routes.py` — user management REST API + self-service password change
-- `src/routes/workspace_routes.py` — membership endpoints added (`GET/POST/PUT/DELETE /api/workspaces/<id>/members`)
-- Admin user auto-seeded from `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars on first startup
-
-**Feature 5.2 (Fine-Tuned Reranker Serving + Scheduler) — DONE**
-- `reranker_versions` table in DB schema
-- `src/rag/reranker.py` — `RerankerModel` singleton; loads fine-tuned model with base-model fallback
-- `src/rag/retrieval.py` — cross-encoder re-ranking integrated after BM25 stage (`RERANKER_ENABLED`)
-- `src/rag/feedback_pipeline.py` — versioned model output (`v{timestamp}/`), `latest.txt` pointer, `persist_reranker_version`, `promote_model`, `rollback_model`
-- `src/routes/settings_routes.py` — reranker status/train/promote/rollback endpoints added
-- `src/app_factory.py` — weekly `threading.Timer` scheduler (`_init_reranker_scheduler`)
-
-**Feature 5.3 (SharePoint / OneDrive Connector) — DONE**
-- `oauth_tokens` table in DB schema (Fernet-encrypted at rest)
-- `src/db/oauth_tokens.py` — `OAuthTokensMixin` (upsert/get/delete with Fernet encryption)
-- `src/routes/oauth_routes.py` — Microsoft OAuth2 authorization-code flow (`/api/oauth/microsoft/*`)
-- `src/connectors/microsoft_auth.py` — token refresh helper (`get_valid_access_token`)
-- `src/connectors/sharepoint_connector.py` — SharePoint document library via Graph delta queries
-- `src/connectors/onedrive_connector.py` — OneDrive personal drive via Graph delta queries
-- `src/connectors/registry.py` — `sharepoint` and `onedrive` registered in `_CONNECTOR_CLASSES`
-
-**Feature 5.4 (Helm Chart + k8s Production) — DONE**
-- `helm/localchat/` — full Helm chart: app Deployment/Service/HPA/Ingress, PostgreSQL + Redis StatefulSets, MCP server Deployments (all conditional)
-- `docs/DEPLOYMENT.md` — Helm install/upgrade/rollback guide, secrets management
-
-**Next session:** Check `git log --oneline -5` and `git fetch origin` first.
+> **Starting a new session?** Run `git log --oneline -5` and `git fetch origin` first — another agent may have pushed since your last session.
 
 ---
 
 ## What This Project Is
 
-LocalChat is a local RAG (Retrieval-Augmented Generation) application built with Flask. Users upload documents (PDF, DOCX, TXT, MD), then chat with them using a locally-running LLM via Ollama. Documents are chunked, embedded, and stored in PostgreSQL with pgvector for hybrid semantic + BM25 search. The LLM can also call registered tools (function-calling) and perform live web search.
+LocalChat is a production RAG (Retrieval-Augmented Generation) application built with Flask. Users upload documents (PDF, DOCX, TXT, MD), then chat with them using a locally-running LLM via Ollama. Documents are chunked, embedded, and stored in PostgreSQL with pgvector for hybrid semantic + BM25 search. The LLM supports function-calling (tools) and optional live web search.
 
 **Runtime dependencies:** PostgreSQL with pgvector, Ollama (local LLM server), Redis (optional caching).
+
+---
 
 ## Commands
 
@@ -86,6 +40,8 @@ pytest tests/integration/
 pytest tests/unit/test_rag_comprehensive.py
 pytest tests/unit/test_app_factory.py::TestAppCreation::test_create_app_returns_flask_app
 ```
+
+---
 
 ## Architecture
 
@@ -126,6 +82,8 @@ pytest tests/unit/test_app_factory.py::TestAppCreation::test_create_app_returns_
 
 **Config** (`src/config.py`): all parameters loaded from `.env`. Key RAG defaults: `CHUNK_SIZE=1200`, `TOP_K_RESULTS=20`, `MIN_SIMILARITY_THRESHOLD=0.30`, `SEMANTIC_WEIGHT=0.70`, `STREAM_RESPONSES=True`.
 
+---
+
 ## Test Structure
 
 Tests use pytest with markers defined in `pytest.ini`:
@@ -136,6 +94,8 @@ Tests use pytest with markers defined in `pytest.ini`:
 - `slow`, `rag`, `api`, `validation`, `sanitization`, `exceptions`
 
 Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. All tests use `src/app_factory.py`'s `create_app(testing=True)` — never import from `src/app.py` directly (that file doesn't exist; the factory is the only app creation path).
+
+---
 
 ## Key Files
 
@@ -194,4 +154,4 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds 3 domain servers |
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 7 panels) |
 
-> **Maintenance rule:** When adding or removing a module, update the Key Files table above in the same PR. This is a checked item in PR review, not a best-effort afterthought.
+> **Maintenance rule:** When adding or removing a module, update the Key Files table above in the same PR.

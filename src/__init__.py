@@ -14,7 +14,6 @@ Modules:
     - exceptions: Custom exception classes (optional)
     - models: Pydantic data models (optional)
 
-Author: LocalChat Team
 Version: 1.0.0
 """
 

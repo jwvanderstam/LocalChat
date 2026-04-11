@@ -9,10 +9,6 @@
 
 A production-ready Retrieval-Augmented Generation (RAG) application built with Flask, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers.
 
-## Project Status
-
-**Current State:** Production Ready | **Last Updated:** March 2026
-
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
 ---
@@ -36,7 +32,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Observability**: Prometheus metrics endpoint, request timing middleware, detailed health checks, admin dashboard
 
 ### Quality Assurance
-- **1191 Tests**: Unit, integration, and comprehensive test suites
+- **Comprehensive Tests**: Unit, integration, and comprehensive test suites
 - **Type Safety**: Full type hints across codebase
 - **Modular Architecture**: Clean separation of concerns
 - **CI/CD Ready**: GitHub Actions configuration
@@ -739,34 +735,7 @@ The `coverage.xml` file is produced in the project root and is picked up automat
 
 ## Changelog
 
-### May 2026
-- **Security (CodeQL)**: Replaced `str(e)` in all API error responses with generic messages to prevent information exposure (CWE-209) — affects `document_routes`, `api_routes`, `model_routes`
-- **Security (CodeQL)**: Fixed incomplete URL substring sanitization in web-search test assertion (CWE-20)
-- **Security (CodeQL)**: Removed `max_size` from `MemoryCache` init log to cut CodeQL taint chain from Redis password kwargs (CWE-312)
-- **Supply chain**: Pinned `python:3.12-slim` Docker base image to SHA-256 digest in `Dockerfile`
-- **CI hardening**: Added explicit `permissions: contents: read` to both GitHub Actions workflows (`tests.yml`, `sonarcloud.yml`)
-- **SonarCloud (S1172)**: Prefixed all unused monitoring-stub parameters (`metric_name`, `labels`) with `_` across `rag/__init__.py`, `chunking.py`, `loaders.py`, `processor.py`, `retrieval.py`
-- **Types**: Added `plugin_loader: Any` to `LocalChatApp` type definition in `src/types.py`
-
-### March 2026
-- **GPU support**: Automatic NVIDIA/AMD GPU detection via `nvidia-smi`/`rocm-smi`; per-GPU VRAM, utilisation and temperature surfaced in the admin dashboard
-- **Multi-GPU**: `OLLAMA_NUM_GPU` config constant (default `-1`) forwarded in `options.num_gpu` on all `/api/chat` and `/api/embed` requests so Ollama distributes layers across all available GPUs
-- **Performance**: TTL caching on `get_gpu_info()` (30 s) and `get_running_models()` (5 s) — eliminates 2 s nvidia-smi cold-start penalty on every admin dashboard load; stale-on-error fallback keeps the models table visible during Ollama hiccups
-- **Monitoring**: Prometheus-compatible `/api/metrics` endpoint (text format v0.0.4); `/api/metrics.json` JSON snapshot; `/api/health` detailed component check; optional `METRICS_TOKEN` Bearer auth for the scrape endpoints
-- **Observability**: `RequestTimingMiddleware` adds `X-Request-Duration` header to every response; `@timed` decorator logs slow operations (>1 s) and records histogram; `@counted` decorator increments request counters
-- **Admin dashboard**: New GPU hardware cards row (per-GPU VRAM bar + utilisation bar + temperature); loaded models table with VRAM and GPU offload percentage
-- **Embedding endpoint**: Upgraded from legacy `/api/embeddings` to `/api/embed` (Ollama ≥ 0.1.32) with automatic fallback; embedding model name cached after first lookup
-- **Connection pooling**: All Ollama HTTP requests share a single `requests.Session` for TCP connection reuse
-- **Tests**: Suite expanded from 995 → 1191 passing tests; added `TestGetGpuInfo` (12 tests), `TestMetricsEndpoints` (8 tests), `TestMetricsAuth` (5 tests), `TestComputeHealthStatus` (5 tests), `TestExportPrometheusMetrics` (7 tests)
-
-### January 2026
-- **Security**: Fixed XSS vulnerability in conversation sidebar — replaced `innerHTML` template-literal interpolation with DOM API (`createElement` + `addEventListener`), eliminating injection surface for user-controlled `conv.id` and `conv.title` data
-- **Security**: Removed `eyJ…` JWT example placeholder from `security.py` docstring to suppress secret-scanner false positives
-- **Bug fix**: `DatabaseUnavailableError` now propagates as HTTP 503 from all document routes (`/stats`, `/list`, `/search-text`, `/clear`) instead of being swallowed as 500
-- **Bug fix**: Resolved "Working outside of application context" error on model-pull SSE stream — replaced `cast(current_app)` with `current_app._get_current_object()`
-- **Bug fix**: Ollama non-200 responses (e.g. 404 model-not-found) now raise `RuntimeError` instead of being forwarded as chat content; frontend handles `data.error` SSE events and shows them in the assistant bubble
-- **Refactor**: Reduced cognitive complexity in `api_chat` (43→~8) and `api_upload_documents` (19→~11) by extracting focused helper functions
-- **Tests**: Expanded unit suite from 970 → 995 passing tests (48 modules); fixed order-dependent fixture pollution caused by duplicate `app()` fixture calling `create_app(testing=False)`
+See [GitHub Releases](https://github.com/jwvanderstam/LocalChat/releases) for version history.
 
 ---
 
@@ -793,27 +762,6 @@ We welcome contributions!
 
 ---
 
-## Project Status (Detailed)
-
-### Current Version: 0.5.0
-
-**Phase**: Production Ready — Clean Architecture
-
-**Highlights**:
-- `src/db/` package split into `connection`, `documents`, `conversations` modules
-- `src/cache/backends/` subpackage with `base`, `memory`, `redis_cache`, `database_cache`
-- Modular `src/` package with clean separation of concerns
-- RAG pipeline split into dedicated modules (`rag/cache`, `chunking`, `loaders`, `processor`, `retrieval`, `scoring`)
-- Tool/function calling system (`tools/builtin`, `executor`, `registry`)
-- Flask blueprint architecture with typed routes
-- Comprehensive test suite: 628 passing tests (unit, integration, comprehensive)
-- Professional error handling with custom exception hierarchy
-- Swagger/OpenAPI docs at `/api/docs/`
-- Bootstrap 5 and Bootstrap Icons self-hosted (no CDN dependency)
-- SonarCloud static analysis integrated via GitHub Actions
-- Database connection pool resource-leak fixes (`connection.py`)
-
----
 
 ## Troubleshooting
 

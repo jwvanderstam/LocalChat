@@ -19,7 +19,6 @@ Example:
     ... def greet(name: str) -> str:
     ...     return f"Hello, {name}!"
 
-Author: LocalChat Team
 """
 
 from __future__ import annotations

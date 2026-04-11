@@ -14,7 +14,6 @@ Usage:
     >>> for chunk in executor.execute(model, messages):
     ...     print(chunk, end="")
 
-Author: LocalChat Team
 """
 
 # Import built-in tools so their @register decorators run at import time.
