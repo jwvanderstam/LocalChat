@@ -9,171 +9,168 @@ PostgreSQL 16+ with the [pgvector](https://github.com/pgvector/pgvector) extensi
 ```mermaid
 erDiagram
     documents {
-        SERIAL       id             PK
-        VARCHAR(255) filename
-        TEXT         content
-        JSONB        metadata
-        VARCHAR(64)  content_hash
-        VARCHAR(20)  doc_type
-        VARCHAR(50)  chunker_version
-        BOOLEAN      local_only
-        UUID         workspace_id   FK
-        TIMESTAMP    created_at
+        int     id           PK
+        string  filename
+        string  content
+        json    metadata
+        string  content_hash
+        string  doc_type
+        boolean local_only
+        uuid    workspace_id FK
+        timestamp created_at
     }
     document_chunks {
-        SERIAL    id           PK
-        INTEGER   document_id  FK
-        TEXT      chunk_text
-        INTEGER   chunk_index
+        int       id          PK
+        int       document_id FK
+        string    chunk_text
+        int       chunk_index
         vector    embedding
-        JSONB     metadata
-        TIMESTAMP created_at
+        json      metadata
+        timestamp created_at
     }
     chunk_stats {
-        INTEGER    chunk_id                PK_FK
-        INTEGER    retrieved_count
-        INTEGER    positive_feedback_count
-        INTEGER    negative_feedback_count
-        TIMESTAMPTZ last_retrieved_at
+        int       chunk_id                PK
+        int       retrieved_count
+        int       positive_feedback_count
+        int       negative_feedback_count
+        timestamp last_retrieved_at
     }
     entities {
-        UUID        id        PK
-        TEXT        name
-        VARCHAR(50) type
-        INTEGER     doc_count
+        uuid   id        PK
+        string name
+        string type
+        int    doc_count
     }
     entity_relations {
-        UUID        source_id  PK_FK
-        UUID        target_id  PK_FK
-        INTEGER     doc_id     FK
-        INTEGER     chunk_id   PK_FK
-        VARCHAR(50) relation
-        FLOAT       weight
+        uuid   source_id PK
+        uuid   target_id PK
+        int    doc_id    FK
+        int    chunk_id  PK
+        string relation
+        float  weight
     }
     conversations {
-        UUID        id                   PK
-        VARCHAR(255) title
-        JSONB       document_ids
-        UUID        workspace_id         FK
-        TIMESTAMP   created_at
-        TIMESTAMP   updated_at
-        TIMESTAMP   memory_extracted_at
+        uuid      id                  PK
+        string    title
+        json      document_ids
+        uuid      workspace_id        FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp memory_extracted_at
     }
     conversation_messages {
-        SERIAL      id              PK
-        UUID        conversation_id FK
-        VARCHAR(20) role
-        TEXT        content
-        JSONB       plan_json
-        TIMESTAMP   created_at
+        int       id              PK
+        uuid      conversation_id FK
+        string    role
+        string    content
+        json      plan_json
+        timestamp created_at
     }
     memories {
-        UUID        id           PK
-        TEXT        content
-        vector      embedding
-        UUID        source_conv  FK
-        VARCHAR(20) memory_type
-        FLOAT       confidence
-        UUID        workspace_id FK
-        TIMESTAMP   created_at
-        TIMESTAMP   last_used
-        INTEGER     use_count
+        uuid      id           PK
+        string    content
+        vector    embedding
+        uuid      source_conv  FK
+        string    memory_type
+        float     confidence
+        uuid      workspace_id FK
+        timestamp created_at
+        timestamp last_used
+        int       use_count
     }
     workspaces {
-        UUID        id            PK
-        TEXT        name
-        TEXT        description
-        TEXT        system_prompt
-        TEXT        model_class
-        TIMESTAMPTZ created_at
+        uuid   id            PK
+        string name
+        string description
+        string system_prompt
+        string model_class
+        timestamp created_at
     }
     users {
-        UUID        id              PK
-        TEXT        username
-        TEXT        email
-        TEXT        hashed_password
-        BOOLEAN     is_active
-        TEXT        role
-        TIMESTAMPTZ created_at
+        uuid    id              PK
+        string  username
+        string  email
+        string  hashed_password
+        boolean is_active
+        string  role
+        timestamp created_at
     }
     workspace_members {
-        UUID        workspace_id PK_FK
-        UUID        user_id      PK_FK
-        TEXT        role
-        TIMESTAMPTZ created_at
+        uuid  workspace_id PK
+        uuid  user_id      PK
+        string role
+        timestamp created_at
     }
     answer_feedback {
-        UUID        id              PK
-        INTEGER     message_id      FK
-        UUID        conversation_id FK
-        SMALLINT    rating
-        TEXT        feedback_type
-        TEXT[]      correct_doc_ids
-        UUID        workspace_id    FK
-        TIMESTAMPTZ created_at
+        uuid    id              PK
+        int     message_id      FK
+        uuid    conversation_id FK
+        int     rating
+        string  feedback_type
+        uuid    workspace_id    FK
+        timestamp created_at
     }
     connectors {
-        UUID        id             PK
-        UUID        workspace_id   FK
-        TEXT        connector_type
-        TEXT        display_name
-        JSONB       config
-        BOOLEAN     enabled
-        INT         sync_interval
-        TIMESTAMPTZ last_sync_at
-        TEXT        last_error
-        TIMESTAMPTZ created_at
+        uuid    id             PK
+        uuid    workspace_id   FK
+        string  connector_type
+        string  display_name
+        json    config
+        boolean enabled
+        int     sync_interval
+        timestamp last_sync_at
+        string  last_error
+        timestamp created_at
     }
     connector_sync_log {
-        BIGSERIAL   id            PK
-        UUID        connector_id  FK
-        TIMESTAMPTZ started_at
-        TIMESTAMPTZ finished_at
-        INT         files_added
-        INT         files_updated
-        INT         files_deleted
-        TEXT        error
+        int   id           PK
+        uuid  connector_id FK
+        timestamp started_at
+        timestamp finished_at
+        int   files_added
+        int   files_updated
+        int   files_deleted
+        string error
     }
     reranker_versions {
-        UUID        id         PK
-        TIMESTAMPTZ trained_at
-        TEXT        base_model
-        FLOAT       ndcg_before
-        FLOAT       ndcg_after
-        INT         pair_count
-        TEXT        model_path
-        BOOLEAN     active
+        uuid    id         PK
+        timestamp trained_at
+        string  base_model
+        float   ndcg_before
+        float   ndcg_after
+        int     pair_count
+        string  model_path
+        boolean active
     }
     oauth_tokens {
-        UUID        id            PK
-        UUID        user_id       FK
-        TEXT        provider
-        TEXT        access_token
-        TEXT        refresh_token
-        TIMESTAMPTZ expires_at
-        TEXT[]      scopes
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ updated_at
+        uuid   id            PK
+        uuid   user_id       FK
+        string provider
+        string access_token
+        string refresh_token
+        timestamp expires_at
+        timestamp created_at
+        timestamp updated_at
     }
 
-    documents            ||--o{ document_chunks       : "has"
-    documents            ||--o{ entity_relations      : "doc_id"
-    document_chunks      ||--|| chunk_stats           : "stats"
-    document_chunks      ||--o{ entity_relations      : "chunk_id"
-    entities             ||--o{ entity_relations      : "source"
-    entities             ||--o{ entity_relations      : "target"
-    conversations        ||--o{ conversation_messages : "has"
-    conversations        ||--o{ memories              : "source_conv"
-    workspaces           ||--o{ documents             : "scoped"
-    workspaces           ||--o{ conversations         : "scoped"
-    workspaces           ||--o{ memories              : "scoped"
-    workspaces           ||--o{ answer_feedback       : "scoped"
-    workspaces           ||--o{ connectors            : "has"
-    workspaces           ||--o{ workspace_members     : "has"
-    users                ||--o{ workspace_members     : "member"
-    users                ||--o{ oauth_tokens          : "has"
-    connectors           ||--o{ connector_sync_log    : "log"
-    conversation_messages ||--o{ answer_feedback      : "rated"
+    documents             ||--o{ document_chunks       : "has"
+    documents             ||--o{ entity_relations      : "doc_id"
+    document_chunks       ||--|| chunk_stats           : "stats"
+    document_chunks       ||--o{ entity_relations      : "chunk_id"
+    entities              ||--o{ entity_relations      : "source"
+    entities              ||--o{ entity_relations      : "target"
+    conversations         ||--o{ conversation_messages : "has"
+    conversations         ||--o{ memories              : "source_conv"
+    workspaces            ||--o{ documents             : "scoped"
+    workspaces            ||--o{ conversations         : "scoped"
+    workspaces            ||--o{ memories              : "scoped"
+    workspaces            ||--o{ answer_feedback       : "scoped"
+    workspaces            ||--o{ connectors            : "has"
+    workspaces            ||--o{ workspace_members     : "has"
+    users                 ||--o{ workspace_members     : "member"
+    users                 ||--o{ oauth_tokens          : "has"
+    connectors            ||--o{ connector_sync_log    : "log"
+    conversation_messages ||--o{ answer_feedback       : "rated"
 ```
 
 ---
