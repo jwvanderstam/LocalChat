@@ -18,6 +18,7 @@ Run via gunicorn:
 import argparse
 import logging
 
+from src import config
 from ..base import MCPServer
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ def search(query: str, filters: dict | None = None, top_k: int = 10) -> dict:
         results = doc_processor.retrieve_context(query, top_k=top_k)
         if not results:
             return {"context": "", "sources": []}
-        context = doc_processor.format_context_for_llm(results, max_length=6000)
+        context = doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH)
         sources = [
             {"filename": r[1], "chunk_index": r[2], "similarity": round(r[3], 4)}
             for r in results

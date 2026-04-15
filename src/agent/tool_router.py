@@ -96,7 +96,7 @@ class ToolRouter:
         results = results[:top_k]
         if not results:
             return {"context": "", "sources": []}
-        context = doc_processor.format_context_for_llm(results, max_length=6000)
+        context = doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH)
         sources = [
             {
                 "filename": r[1],

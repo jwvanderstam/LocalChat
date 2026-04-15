@@ -67,7 +67,7 @@ class TestRagFlow:
             patch.object(
                 app.ollama_client,
                 "generate_chat_response",
-                return_value=iter(["pgvector is used for semantic search."]),
+                side_effect=lambda *a, **k: iter(["pgvector is used for semantic search."]),
             ),
         ):
             return client.post("/api/chat", json={"message": message, "use_rag": True})
@@ -119,7 +119,9 @@ class TestRagFlow:
                 json={"message": "Tell me about pgvector", "use_rag": True},
             )
 
-        mock_retrieve.assert_called_once_with("Tell me about pgvector")
+        mock_retrieve.assert_called_once_with(
+            "Tell me about pgvector", filename_filter=[], workspace_id=None
+        )
 
     def test_context_text_forwarded_to_llm(self, app, client):
         """The formatted context must appear in the messages sent to the LLM."""

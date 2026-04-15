@@ -172,7 +172,7 @@ def _get_rag_context(
         }
         for _, filename, chunk_index, _, metadata, chunk_id in results
     ]
-    return doc_processor.format_context_for_llm(results, max_length=6000), sources
+    return doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH), sources
 
 
 def _get_web_context(message: str) -> str:
@@ -504,7 +504,7 @@ def _get_rag_context_multi_hop(
         return "", []
 
     g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(merged)
-    local_context = doc_processor.format_context_for_llm(merged, max_length=6000)
+    local_context = doc_processor.format_context_for_llm(merged, max_length=config.MAX_CONTEXT_LENGTH)
     sources = [
         {
             "filename": r[1],
