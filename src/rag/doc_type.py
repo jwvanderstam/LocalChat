@@ -10,10 +10,24 @@ callable and a version string stored in the DB for cache invalidation.
 from __future__ import annotations
 
 from enum import Enum, StrEnum
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable, Protocol, runtime_checkable
 
-if TYPE_CHECKING:
-    from .processor import DocumentProcessor
+
+@runtime_checkable
+class _Processor(Protocol):
+    """Structural interface that chunker functions require from DocumentProcessor."""
+
+    def _load_pdf_with_pages(self, file_path: str) -> tuple: ...
+    def chunk_pages_with_metadata(self, pages: Any) -> list[dict[str, Any]]: ...
+    def load_document(self, file_path: str) -> tuple[bool, str]: ...
+    def chunk_text(self, content: str) -> list[str]: ...
+    def load_pptx_file(self, file_path: str) -> tuple: ...
+    def chunk_slides(self, slides: Any) -> list[dict[str, Any]]: ...
+    def load_text_file(self, file_path: str) -> tuple[bool, str]: ...
+    def chunk_code_python(self, content: str) -> list[dict[str, Any]]: ...
+    def chunk_code_js_ts(self, content: str) -> list[dict[str, Any]]: ...
+    def load_eml_file(self, file_path: str) -> tuple: ...
+    def chunk_email(self, content: Any) -> list[dict[str, Any]]: ...
 
 
 class DocType(StrEnum):
@@ -57,13 +71,13 @@ class DocTypeClassifier:
 # Callable type: (processor, file_path, filename, progress_callback)
 #   -> (success, error_msg, chunks_with_metadata | None, raw_content | None)
 _ChunkerFn = Callable[
-    ["DocumentProcessor", str, str, Callable[[str], None] | None],
+    [_Processor, str, str, Callable[[str], None] | None],
     tuple[bool, str, list[dict[str, Any]] | None, str | None],
 ]
 
 
 def _chunker_pdf(
-    proc: DocumentProcessor,
+    proc: _Processor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -82,7 +96,7 @@ def _chunker_pdf(
 
 
 def _chunker_docx(
-    proc: DocumentProcessor,
+    proc: _Processor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -91,7 +105,7 @@ def _chunker_docx(
 
 
 def _chunker_plain_text(
-    proc: DocumentProcessor,
+    proc: _Processor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -116,7 +130,7 @@ def _chunker_plain_text(
 
 
 def _chunker_pptx(
-    proc: DocumentProcessor,
+    proc: _Processor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -135,7 +149,7 @@ def _chunker_pptx(
 
 
 def _chunker_code_python(
-    proc: DocumentProcessor,
+    proc: _Processor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -154,7 +168,7 @@ def _chunker_code_python(
 
 
 def _chunker_code_js_ts(
-    proc: DocumentProcessor,
+    proc: _Processor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -173,7 +187,7 @@ def _chunker_code_js_ts(
 
 
 def _chunker_email(
-    proc: DocumentProcessor,
+    proc: _Processor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
@@ -192,7 +206,7 @@ def _chunker_email(
 
 
 def _chunker_image(
-    proc: DocumentProcessor,
+    proc: _Processor,
     file_path: str,
     filename: str,
     progress_cb: Callable[[str], None] | None,
