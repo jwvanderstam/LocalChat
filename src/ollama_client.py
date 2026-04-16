@@ -192,25 +192,45 @@ class OllamaClient:
             logger.error(f"Error listing models: {e}", exc_info=True)
             return False, self._list_models_cache if self._list_models_cache is not None else []
 
-    def get_first_available_model(self) -> str | None:
+    def get_first_available_model(self, preferred: str | None = None) -> str | None:
         """
-        Get the first available model name.
+        Get the best available chat model name.
+
+        If *preferred* is given and an installed model whose name starts with
+        that string exists, it is returned first.  Otherwise falls back to the
+        first model in the list (Ollama orders by modification time).
+
+        Embedding-only models (nomic-embed-text, mxbai-embed, etc.) are skipped.
+
+        Args:
+            preferred: Preferred model name prefix (e.g. "llama3.1").
 
         Returns:
-            Name of first available model, or None if no models available
-
-        Example:
-            >>> model = ollama_client.get_first_available_model()
-            >>> if model:
-            ...     print(f"Using model: {model}")
+            Name of selected model, or None if no models available.
         """
         success, models = self.list_models()
-        if success and models:
-            model_name = models[0]['name']
-            logger.debug(f"First available model: {model_name}")
-            return model_name
-        logger.warning("No models available")
-        return None
+        if not success or not models:
+            logger.warning("No models available")
+            return None
+
+        embed_families = ('nomic-embed', 'mxbai-embed', 'all-minilm', 'embed')
+        chat_models = [
+            m for m in models
+            if not any(m['name'].lower().startswith(f) for f in embed_families)
+        ]
+        if not chat_models:
+            chat_models = models  # fall back if everything looks like an embed model
+
+        if preferred:
+            for m in chat_models:
+                if m['name'].startswith(preferred):
+                    logger.debug(f"Preferred model matched: {m['name']}")
+                    return m['name']
+            logger.debug(f"Preferred model {preferred!r} not found; using first available")
+
+        model_name = chat_models[0]['name']
+        logger.debug(f"First available model: {model_name}")
+        return model_name
 
     def pull_model(self, model_name: str) -> Generator[dict[str, Any], None, None]:
         """
@@ -461,6 +481,7 @@ class OllamaClient:
             "model": model,
             "messages": messages,
             "stream": stream,
+            "keep_alive": -1,
             "options": options,
         }
 
@@ -578,7 +599,7 @@ class OllamaClient:
             json={
                 "model": model,
                 "input": text,
-                "keep_alive": "30m",
+                "keep_alive": -1,
                 "options": {"num_gpu": config.OLLAMA_NUM_GPU},
             },
             timeout=config.OLLAMA_EMBED_TIMEOUT,
@@ -606,7 +627,7 @@ class OllamaClient:
             json={
                 "model": model,
                 "prompt": text,
-                "keep_alive": "30m",
+                "keep_alive": -1,
                 "options": {"num_gpu": config.OLLAMA_NUM_GPU},
             },
             timeout=config.OLLAMA_EMBED_TIMEOUT,
@@ -681,7 +702,7 @@ class OllamaClient:
                 json={
                     "model": model,
                     "input": texts,
-                    "keep_alive": "30m",
+                    "keep_alive": -1,
                     "options": {"num_gpu": config.OLLAMA_NUM_GPU},
                 },
                 timeout=config.OLLAMA_EMBED_TIMEOUT,

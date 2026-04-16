@@ -239,6 +239,22 @@ class ToolExecutor:
             logger.warning(f"[TOOLS] {error}")
             return error
 
+        # Guard: some small models (e.g. llama3.2 3B) echo the JSON Schema
+        # property dict as the argument value instead of an actual string.
+        spec = self._registry.get(name)
+        if spec is not None:
+            props = spec.parameters.get("properties", {})
+            for k, v in arguments.items():
+                if props.get(k, {}).get("type") == "string" and isinstance(v, dict):
+                    logger.warning(
+                        f"[TOOLS] Argument '{k}' for '{name}' received a schema "
+                        "dict instead of a string — model generated invalid tool call"
+                    )
+                    return (
+                        f"Error: argument '{k}' must be a plain string, not a schema "
+                        "object. Call the tool again with the actual value as a string."
+                    )
+
         try:
             result = self._registry.execute(name, arguments)
         except Exception as exc:

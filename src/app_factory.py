@@ -223,7 +223,9 @@ def _init_ollama_service(app: LocalChatApp, ollama_client) -> None:
     if ollama_success:
         logger.info(ollama_message)
         if not config.app_state.get_active_model():
-            first_model = ollama_client.get_first_available_model()
+            first_model = ollama_client.get_first_available_model(
+                preferred=config.DEFAULT_MODEL
+            )
             if first_model:
                 config.app_state.set_active_model(first_model)
                 logger.info(f"Active model set to: {first_model}")

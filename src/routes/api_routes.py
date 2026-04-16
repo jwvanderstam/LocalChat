@@ -753,7 +753,8 @@ def _retrieve_plan_and_memory(
 ) -> tuple:
     """Return (plan, memory_context) — either may be None/'' on error or when disabled."""
     plan = None
-    if config.QUERY_PLANNER_ENABLED and fields['use_rag']:
+    _query_words = len(fields['message'].split())
+    if config.QUERY_PLANNER_ENABLED and fields['use_rag'] and _query_words >= 10:
         try:
             from ..rag.planner import QueryPlanner
             plan = QueryPlanner().plan(fields['message'], active_model, ollama_client)

@@ -135,6 +135,9 @@ OLLAMA_EMBED_TIMEOUT: int = int(os.environ.get('OLLAMA_EMBED_TIMEOUT', '300'))
 # Gunicorn worker timeout (seconds). Must be >= OLLAMA_EMBED_TIMEOUT so a
 # worker is never killed mid-embed.
 GUNICORN_TIMEOUT: int = int(os.environ.get('GUNICORN_TIMEOUT', '300'))
+# Preferred chat model selected at startup when no model is already active.
+# Falls back to the first available model if this name is not installed.
+DEFAULT_MODEL: str = os.environ.get('DEFAULT_MODEL', 'llama3.1')
 
 # ============================================================================
 # RAG CONFIGURATION - OPTIMIZED FOR HIGH QUALITY RESPONSES

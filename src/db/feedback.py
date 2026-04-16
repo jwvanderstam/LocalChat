@@ -70,7 +70,7 @@ class FeedbackMixin:
                         conversation_id,
                         rating,
                         feedback_type,
-                        correct_doc_ids or [],
+                        correct_doc_ids or None,  # psycopg3 can't infer type from []
                     ),
                 )
             conn.commit()
