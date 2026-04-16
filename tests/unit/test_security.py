@@ -381,6 +381,7 @@ class TestVerifyCredentials:
     def test_legacy_correct_password_returns_admin_tuple(self, app):
         import hashlib
         import os as _os
+
         import src.security as sec_mod
         from src.security import _verify_credentials
 
@@ -402,6 +403,7 @@ class TestVerifyCredentials:
     def test_legacy_wrong_password_returns_none(self, app):
         import hashlib
         import os as _os
+
         import src.security as sec_mod
         from src.security import _verify_credentials
 
@@ -455,6 +457,7 @@ class TestRequireAdminDecorator:
 
     def test_testing_mode_bypasses_require_admin(self, app):
         from flask import jsonify
+
         from src.security import require_admin
 
         @require_admin
@@ -468,6 +471,7 @@ class TestRequireAdminDecorator:
 
     def test_no_token_returns_401(self):
         from flask import jsonify
+
         from src.security import require_admin
 
         mini = self._make_jwt_app()
@@ -484,6 +488,7 @@ class TestRequireAdminDecorator:
     def test_non_admin_role_returns_403(self):
         from flask import jsonify
         from flask_jwt_extended import create_access_token
+
         from src.security import require_admin
 
         mini = self._make_jwt_app()
@@ -503,6 +508,7 @@ class TestRequireAdminDecorator:
     def test_admin_role_passes_through(self):
         from flask import jsonify
         from flask_jwt_extended import create_access_token
+
         from src.security import require_admin
 
         mini = self._make_jwt_app()
@@ -538,6 +544,7 @@ class TestAdminRequiredDecorator:
     def test_no_token_returns_401(self):
         from flask import Flask, jsonify
         from flask_jwt_extended import JWTManager
+
         from src.security import admin_required
 
         mini = self._make_jwt_app()
@@ -554,6 +561,7 @@ class TestAdminRequiredDecorator:
     def test_non_admin_role_returns_403(self):
         from flask import Flask, jsonify
         from flask_jwt_extended import JWTManager, create_access_token
+
         from src.security import admin_required
 
         mini = self._make_jwt_app()
@@ -573,6 +581,7 @@ class TestAdminRequiredDecorator:
     def test_admin_role_passes_through(self):
         from flask import Flask, jsonify
         from flask_jwt_extended import JWTManager, create_access_token
+
         from src.security import admin_required
 
         mini = self._make_jwt_app()
