@@ -314,3 +314,281 @@ class TestModuleConstants:
         from src.security import USERS
 
         assert len(USERS) > 0
+
+
+# ===========================================================================
+# _resolve_ratelimit_storage
+# ===========================================================================
+
+class TestResolveRatelimitStorage:
+    """Targeted coverage for _resolve_ratelimit_storage (lines 48-74)."""
+
+    def test_non_redis_uri_returned_unchanged(self):
+        from src.security import _resolve_ratelimit_storage
+        assert _resolve_ratelimit_storage("memory://") == "memory://"
+
+    def test_sqlite_uri_returned_unchanged(self):
+        from src.security import _resolve_ratelimit_storage
+        assert _resolve_ratelimit_storage("sqlite:///tmp/limits.db") == "sqlite:///tmp/limits.db"
+
+    def test_redis_reachable_returns_original_uri(self):
+        from src.security import _resolve_ratelimit_storage
+        mock_r = MagicMock()
+        mock_r.ping.return_value = True
+        mock_redis_mod = MagicMock()
+        mock_redis_mod.Redis.return_value = mock_r
+        with patch.dict("sys.modules", {"redis": mock_redis_mod}):
+            result = _resolve_ratelimit_storage("redis://localhost:6379")
+        assert result == "redis://localhost:6379"
+
+    def test_redis_unreachable_falls_back_to_memory(self):
+        from src.security import _resolve_ratelimit_storage
+        mock_r = MagicMock()
+        mock_r.ping.side_effect = ConnectionError("connection refused")
+        mock_redis_mod = MagicMock()
+        mock_redis_mod.Redis.return_value = mock_r
+        with patch.dict("sys.modules", {"redis": mock_redis_mod}):
+            result = _resolve_ratelimit_storage("redis://localhost:6379")
+        assert result == "memory://"
+
+
+# ===========================================================================
+# _verify_credentials
+# ===========================================================================
+
+class TestVerifyCredentials:
+    """Targeted coverage for _verify_credentials (lines 101-119)."""
+
+    def test_db_user_success_returns_sub_and_role(self, app):
+        from src.security import _verify_credentials
+        app.db.is_connected = True
+        app.db.verify_user_password = Mock(return_value={'id': 42, 'role': 'editor'})
+        with app.app_context():
+            result = _verify_credentials('alice', 'secret')
+        assert result == ('42', 'editor')
+
+    def test_db_none_with_wrong_username_returns_none(self, app):
+        from src.security import _verify_credentials
+        app.db.is_connected = True
+        app.db.verify_user_password = Mock(return_value=None)
+        with app.app_context():
+            result = _verify_credentials('notadmin', 'whatever')
+        assert result is None
+
+    def test_db_not_connected_non_admin_returns_none(self, app):
+        from src.security import _verify_credentials
+        app.db.is_connected = False
+        with app.app_context():
+            result = _verify_credentials('bob', 'pass')
+        assert result is None
+
+    def test_legacy_correct_password_returns_admin_tuple(self, app):
+        import hashlib
+        import os as _os
+        import src.security as sec_mod
+        from src.security import _verify_credentials
+
+        original = (sec_mod._ADMIN_PASSWORD_RAW, sec_mod._ADMIN_PASSWORD_SALT, sec_mod._ADMIN_PASSWORD_HASH)
+        test_pw = 'supersecret!'
+        salt = _os.urandom(32)
+        expected_hash = hashlib.pbkdf2_hmac('sha256', test_pw.encode(), salt, 100_000)
+        sec_mod._ADMIN_PASSWORD_RAW = test_pw
+        sec_mod._ADMIN_PASSWORD_SALT = salt
+        sec_mod._ADMIN_PASSWORD_HASH = expected_hash
+        try:
+            app.db.is_connected = False
+            with app.app_context():
+                result = _verify_credentials('admin', test_pw)
+            assert result == ('admin', 'admin')
+        finally:
+            sec_mod._ADMIN_PASSWORD_RAW, sec_mod._ADMIN_PASSWORD_SALT, sec_mod._ADMIN_PASSWORD_HASH = original
+
+    def test_legacy_wrong_password_returns_none(self, app):
+        import hashlib
+        import os as _os
+        import src.security as sec_mod
+        from src.security import _verify_credentials
+
+        original = (sec_mod._ADMIN_PASSWORD_RAW, sec_mod._ADMIN_PASSWORD_SALT, sec_mod._ADMIN_PASSWORD_HASH)
+        test_pw = 'supersecret!'
+        salt = _os.urandom(32)
+        expected_hash = hashlib.pbkdf2_hmac('sha256', test_pw.encode(), salt, 100_000)
+        sec_mod._ADMIN_PASSWORD_RAW = test_pw
+        sec_mod._ADMIN_PASSWORD_SALT = salt
+        sec_mod._ADMIN_PASSWORD_HASH = expected_hash
+        try:
+            app.db.is_connected = False
+            with app.app_context():
+                result = _verify_credentials('admin', 'wrongpassword')
+            assert result is None
+        finally:
+            sec_mod._ADMIN_PASSWORD_RAW, sec_mod._ADMIN_PASSWORD_SALT, sec_mod._ADMIN_PASSWORD_HASH = original
+
+
+# ===========================================================================
+# _get_authenticated_user
+# ===========================================================================
+
+class TestGetAuthenticatedUser:
+    """Targeted coverage for _get_authenticated_user (lines 329-341)."""
+
+    def test_no_jwt_returns_none_false(self, app):
+        from src.security import _get_authenticated_user
+        with app.test_request_context('/'):
+            user_id, is_admin = _get_authenticated_user()
+        assert user_id is None
+        assert is_admin is False
+
+
+# ===========================================================================
+# require_admin decorator
+# ===========================================================================
+
+class TestRequireAdminDecorator:
+    """Targeted coverage for require_admin (lines 451-482)."""
+
+    def _make_jwt_app(self):
+        """Minimal Flask app with JWT, not in TESTING mode."""
+        from flask import Flask
+        from flask_jwt_extended import JWTManager
+        mini = Flask(__name__)
+        mini.config['JWT_SECRET_KEY'] = 'test-jwt-secret'
+        mini.config['TESTING'] = False
+        JWTManager(mini)
+        return mini
+
+    def test_testing_mode_bypasses_require_admin(self, app):
+        from flask import jsonify
+        from src.security import require_admin
+
+        @require_admin
+        def protected():
+            return jsonify({'ok': True}), 200
+
+        with app.app_context():
+            with app.test_request_context('/'):
+                result = protected()
+        assert result[1] == 200
+
+    def test_no_token_returns_401(self):
+        from flask import jsonify
+        from src.security import require_admin
+
+        mini = self._make_jwt_app()
+
+        @require_admin
+        def protected():
+            return jsonify({'ok': True}), 200
+
+        with patch('src.security._ADMIN_PASSWORD_RAW', 'nonempty'):
+            with mini.test_request_context('/'):
+                result = protected()
+        assert result[1] == 401
+
+    def test_non_admin_role_returns_403(self):
+        from flask import jsonify
+        from flask_jwt_extended import create_access_token
+        from src.security import require_admin
+
+        mini = self._make_jwt_app()
+
+        @require_admin
+        def protected():
+            return jsonify({'ok': True}), 200
+
+        with mini.app_context():
+            token = create_access_token(identity='user1', additional_claims={'role': 'user'})
+
+        with patch('src.security._ADMIN_PASSWORD_RAW', 'nonempty'):
+            with mini.test_request_context('/', headers={'Authorization': f'Bearer {token}'}):
+                result = protected()
+        assert result[1] == 403
+
+    def test_admin_role_passes_through(self):
+        from flask import jsonify
+        from flask_jwt_extended import create_access_token
+        from src.security import require_admin
+
+        mini = self._make_jwt_app()
+
+        @require_admin
+        def protected():
+            return jsonify({'ok': True}), 200
+
+        with mini.app_context():
+            token = create_access_token(identity='admin', additional_claims={'role': 'admin'})
+
+        with patch('src.security._ADMIN_PASSWORD_RAW', 'nonempty'):
+            with mini.test_request_context('/', headers={'Authorization': f'Bearer {token}'}):
+                result = protected()
+        assert result[1] == 200
+
+
+# ===========================================================================
+# admin_required decorator
+# ===========================================================================
+
+class TestAdminRequiredDecorator:
+    """Targeted coverage for admin_required (lines 424-448)."""
+
+    def _make_jwt_app(self):
+        from flask import Flask
+        from flask_jwt_extended import JWTManager
+        mini = Flask(__name__)
+        mini.config['JWT_SECRET_KEY'] = 'test-jwt-secret'
+        JWTManager(mini)
+        return mini
+
+    def test_no_token_returns_401(self):
+        from flask import Flask, jsonify
+        from flask_jwt_extended import JWTManager
+        from src.security import admin_required
+
+        mini = self._make_jwt_app()
+
+        @mini.route('/protected')
+        @admin_required
+        def protected():
+            return jsonify({'ok': True}), 200
+
+        with mini.test_client() as tc:
+            result = tc.get('/protected')
+        assert result.status_code == 401
+
+    def test_non_admin_role_returns_403(self):
+        from flask import Flask, jsonify
+        from flask_jwt_extended import JWTManager, create_access_token
+        from src.security import admin_required
+
+        mini = self._make_jwt_app()
+
+        @mini.route('/protected')
+        @admin_required
+        def protected():
+            return jsonify({'ok': True}), 200
+
+        with mini.app_context():
+            token = create_access_token(identity='u1', additional_claims={'role': 'viewer'})
+
+        with mini.test_client() as tc:
+            result = tc.get('/protected', headers={'Authorization': f'Bearer {token}'})
+        assert result.status_code == 403
+
+    def test_admin_role_passes_through(self):
+        from flask import Flask, jsonify
+        from flask_jwt_extended import JWTManager, create_access_token
+        from src.security import admin_required
+
+        mini = self._make_jwt_app()
+
+        @mini.route('/protected')
+        @admin_required
+        def protected():
+            return jsonify({'success': True}), 200
+
+        with mini.app_context():
+            token = create_access_token(identity='admin', additional_claims={'role': 'admin'})
+
+        with mini.test_client() as tc:
+            result = tc.get('/protected', headers={'Authorization': f'Bearer {token}'})
+        assert result.status_code == 200
