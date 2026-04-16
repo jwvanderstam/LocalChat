@@ -501,9 +501,17 @@ def generate_search_results(count: int = 5) -> list:
 
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    # Set required env vars before any src module is imported so config.py
-    # doesn't raise at collection time in unit tests without a real .env file.
+    # Load .env so integration tests connect with the real DB password.
+    # dotenv.load_dotenv uses override=False so already-set env vars win,
+    # and is a no-op when .env doesn't exist (CI without a secrets file).
     import os
+    from pathlib import Path
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).parent.parent / ".env", override=False)
+    except ImportError:
+        pass
+    # Fallback for CI / unit-only runs where .env is absent and no real DB exists.
     os.environ.setdefault('PG_PASSWORD', 'test_password')
 
     config.addinivalue_line("markers", "unit: Unit tests")
