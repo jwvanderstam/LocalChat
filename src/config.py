@@ -129,6 +129,12 @@ OLLAMA_NUM_GPU: int = int(os.environ.get('OLLAMA_NUM_GPU', '-1'))
 #  32768  → ~4.0 GB  (requires Q4 model ≤5 GB to avoid CPU offload on 12 GB GPU)
 # Override via OLLAMA_NUM_CTX env var to match your GPU + model combination.
 OLLAMA_NUM_CTX: int = int(os.environ.get('OLLAMA_NUM_CTX', '8192'))
+# HTTP timeout for embedding requests (seconds). Cold-start model reload on
+# CPU can exceed 60 s; 300 s gives Ollama room to swap models from disk.
+OLLAMA_EMBED_TIMEOUT: int = int(os.environ.get('OLLAMA_EMBED_TIMEOUT', '300'))
+# Gunicorn worker timeout (seconds). Must be >= OLLAMA_EMBED_TIMEOUT so a
+# worker is never killed mid-embed.
+GUNICORN_TIMEOUT: int = int(os.environ.get('GUNICORN_TIMEOUT', '300'))
 
 # ============================================================================
 # RAG CONFIGURATION - OPTIMIZED FOR HIGH QUALITY RESPONSES

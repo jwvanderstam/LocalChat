@@ -76,17 +76,18 @@ services:
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:
       - ollama_models:/root/.ollama
-    # GPU pass-through: uncomment the section below if you have an
-    # NVIDIA GPU and nvidia-container-toolkit installed.
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     networks:
       - backend
     healthcheck:
@@ -287,7 +288,9 @@ services:
       METRICS_TOKEN:     ${METRICS_TOKEN:-}
 
       # ── Performance ──────────────────────────────────────
-      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_WORKERS:     ${GUNICORN_WORKERS:-2}
+      GUNICORN_TIMEOUT:     ${GUNICORN_TIMEOUT:-300}
+      OLLAMA_EMBED_TIMEOUT: ${OLLAMA_EMBED_TIMEOUT:-300}
 
       # ── MCP Server Routing (Feature 3.1) ─────────────────
       # Set to true when mcp-local-docs / mcp-web-search / mcp-cloud-connectors

@@ -89,7 +89,7 @@ CMD ["sh", "-c", \
      "gunicorn 'app:create_gunicorn_app()' \
         --bind 0.0.0.0:${SERVER_PORT:-5000} \
         --workers ${GUNICORN_WORKERS:-2} \
-        --timeout 120 \
+        --timeout ${GUNICORN_TIMEOUT:-300} \
         --access-logfile - \
         --error-logfile - \
         --log-level info"]

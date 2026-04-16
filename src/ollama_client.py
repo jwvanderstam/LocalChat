@@ -581,7 +581,7 @@ class OllamaClient:
                 "keep_alive": "30m",
                 "options": {"num_gpu": config.OLLAMA_NUM_GPU},
             },
-            timeout=60,
+            timeout=config.OLLAMA_EMBED_TIMEOUT,
         )
         if response.status_code == 200:
             embeddings = response.json().get("embeddings", [])
@@ -609,7 +609,7 @@ class OllamaClient:
                 "keep_alive": "30m",
                 "options": {"num_gpu": config.OLLAMA_NUM_GPU},
             },
-            timeout=60,
+            timeout=config.OLLAMA_EMBED_TIMEOUT,
         )
         if response.status_code == 200:
             embedding = response.json().get("embedding", [])
@@ -684,7 +684,7 @@ class OllamaClient:
                     "keep_alive": "30m",
                     "options": {"num_gpu": config.OLLAMA_NUM_GPU},
                 },
-                timeout=120,
+                timeout=config.OLLAMA_EMBED_TIMEOUT,
             )
             if response.status_code == 200:
                 embeddings = response.json().get("embeddings", [])
