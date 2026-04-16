@@ -34,15 +34,13 @@ class TestSecurityInitialization:
         # In testing mode _init_security is skipped; JWT_SECRET_KEY is only
         # present after a full security init (create_app(testing=False)).
         # Verify the flag reflects that state rather than asserting presence.
-        if app.config.get('TESTING'):
-            assert app.config.get('JWT_SECRET_KEY') is None or True
-        else:
+        if not app.config.get('TESTING'):
             assert 'JWT_SECRET_KEY' in app.config
 
     def test_init_security_configures_rate_limiting(self, app):
         """Test init_security configures rate limiting."""
         # App already has security initialized
-        assert hasattr(app, 'extensions') or True
+        assert hasattr(app, 'extensions')
 
     def test_init_security_logs_initialization(self, app, caplog):
         """Test init_security logs its actions."""
@@ -59,8 +57,7 @@ class TestJWTAuthentication:
         """Test JWT manager is available."""
         from src.security import jwt_manager
 
-        # May be None if not initialized
-        assert jwt_manager is not None or jwt_manager is None
+        # Import succeeding is sufficient — jwt_manager may be None before init
 
     def test_users_dict_exists(self):
         """Test USERS dict is defined."""
@@ -104,8 +101,7 @@ class TestRateLimiting:
         """Test limiter instance is created."""
         from src.security import limiter
 
-        # May be None if not initialized
-        assert limiter is not None or limiter is None
+        # Import succeeding is sufficient — limiter may be None before init
 
     def test_rate_limit_decorator_exists(self):
         """Test rate limit decorator is available."""
