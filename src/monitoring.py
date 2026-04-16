@@ -363,25 +363,34 @@ def init_monitoring(app: Flask):
     logger.info("✓ Monitoring endpoints initialized")
 
 
+def _status(healthy: bool) -> str:
+    return 'up' if healthy else 'down'
+
+
+def _live_check_ollama(app, db_up: bool) -> bool:
+    """Live-check Ollama and update startup_status; returns whether Ollama is up."""
+    ollama_up = app.startup_status.get('ollama', False)
+    if not ollama_up and hasattr(app, 'ollama_client'):
+        try:
+            ollama_up, _ = app.ollama_client.check_connection()
+            app.startup_status['ollama'] = ollama_up
+            app.startup_status['ready'] = ollama_up and db_up
+        except Exception:
+            pass
+    return ollama_up
+
+
 def _compute_health_status(app) -> tuple:
     """Compute health status dict from app startup_status. Returns (status, code, checks)."""
     checks = {}
     overall_healthy = True
     if hasattr(app, 'startup_status'):
         db_up = app.startup_status.get('database', False)
-        checks['database'] = {'status': 'up' if db_up else 'down', 'healthy': db_up}
+        checks['database'] = {'status': _status(db_up), 'healthy': db_up}
         if not db_up:
             overall_healthy = False
-        # Live-check Ollama instead of relying on the stale boot-time flag.
-        ollama_up = app.startup_status.get('ollama', False)
-        if not ollama_up and hasattr(app, 'ollama_client'):
-            try:
-                ollama_up, _ = app.ollama_client.check_connection()
-                app.startup_status['ollama'] = ollama_up
-                app.startup_status['ready'] = ollama_up and db_up
-            except Exception:
-                pass
-        checks['ollama'] = {'status': 'up' if ollama_up else 'down', 'healthy': ollama_up}
+        ollama_up = _live_check_ollama(app, db_up)
+        checks['ollama'] = {'status': _status(ollama_up), 'healthy': ollama_up}
         if not ollama_up:
             checks['ollama']['message'] = 'Ollama unavailable - direct LLM mode disabled'
     if getattr(app, 'embedding_cache', None) is not None:
