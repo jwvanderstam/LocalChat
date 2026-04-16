@@ -20,24 +20,7 @@ Version: 1.0.0
 __version__ = "1.0.0"
 __author__ = "LocalChat Team"
 
-# ============================================================================
-# WARNING SUPPRESSIONS
-# ============================================================================
-
 import os
-import warnings
-
-# Suppress PyPDF2 deprecation warning
-# Note: PyPDF2 is deprecated in favor of pypdf, but still functional
-# Migration scheduled for next maintenance cycle
-warnings.filterwarnings('ignore', message='PyPDF2 is deprecated')
-warnings.filterwarnings('ignore', category=DeprecationWarning, module='PyPDF2')
-
-# Suppress security middleware warning in development
-# Security features are optional and application handles missing dependencies gracefully
-if os.environ.get('FLASK_ENV') == 'development' or os.environ.get('APP_ENV') == 'development':
-    # Only suppress in development - in production, we want to see security warnings
-    pass  # Handled gracefully in app.py already
 
 # Package namespace initialization
 # Relative imports will resolve correctly with this file present

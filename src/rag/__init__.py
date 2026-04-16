@@ -14,7 +14,8 @@ from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
 from .cache import EmbeddingCache
 from .cache import embedding_cache as _embedding_cache
-from .loaders import DOCX_AVAILABLE, PDF_AVAILABLE, Document, PyPDF2
+from .loaders import DOCX_AVAILABLE, PDF_AVAILABLE, Document
+from .loaders import _pypdf as pypdf
 from .processor import DocumentProcessor, doc_processor
 from .scoring import BM25Scorer
 
@@ -40,7 +41,7 @@ __all__ = [
     'EmbeddingCache',
     'PDF_AVAILABLE',
     'DOCX_AVAILABLE',
-    'PyPDF2',
+    'pypdf',
     'Document',
     'MONITORING_AVAILABLE',
     'logger',

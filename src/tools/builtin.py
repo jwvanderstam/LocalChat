@@ -15,10 +15,43 @@ Tools:
 
 from __future__ import annotations
 
+import ast as _ast
 import json
+import operator as _operator
 import re
 from datetime import datetime
 from typing import Any
+
+_AST_OPS: dict = {
+    _ast.Add: _operator.add,
+    _ast.Sub: _operator.sub,
+    _ast.Mult: _operator.mul,
+    _ast.Div: _operator.truediv,
+    _ast.FloorDiv: _operator.floordiv,
+    _ast.Pow: _operator.pow,
+    _ast.Mod: _operator.mod,
+    _ast.USub: _operator.neg,
+    _ast.UAdd: _operator.pos,
+}
+
+
+def _ast_eval(node: _ast.expr) -> float:
+    """Recursively evaluate a parsed arithmetic AST node — no eval() needed."""
+    if isinstance(node, _ast.Constant):
+        if isinstance(node.value, (int, float)):
+            return float(node.value)
+        raise ValueError(f"Unsupported literal: {node.value!r}")
+    if isinstance(node, _ast.BinOp):
+        op = _AST_OPS.get(type(node.op))
+        if op is None:
+            raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+        return op(_ast_eval(node.left), _ast_eval(node.right))
+    if isinstance(node, _ast.UnaryOp):
+        op = _AST_OPS.get(type(node.op))
+        if op is None:
+            raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+        return op(_ast_eval(node.operand))
+    raise ValueError(f"Unsupported expression: {type(node).__name__}")
 
 from ..utils.logging_config import get_logger
 from .registry import tool_registry
@@ -146,7 +179,8 @@ def calculate(expression: str) -> str:
         return "Invalid expression - only numbers and basic arithmetic operators (+, -, *, /, **, %, parentheses) are allowed."
 
     try:
-        result = eval(expression, {"__builtins__": {}}, {})  # noqa: S307
-        return str(result)
+        tree = _ast.parse(expression, mode='eval')
+        result = _ast_eval(tree.body)
+        return str(int(result) if result == int(result) else result)
     except Exception as exc:
         return f"Calculation error: {exc}"

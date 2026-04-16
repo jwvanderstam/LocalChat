@@ -19,15 +19,15 @@ from ..utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 # Document loaders with proper initialization
-PyPDF2 = None
+_pypdf = None
 PDF_AVAILABLE = False
 try:
-    import PyPDF2 as pypdf2_lib
-    PyPDF2 = pypdf2_lib
+    import pypdf as _pypdf_lib
+    _pypdf = _pypdf_lib
     PDF_AVAILABLE = True
-    logger.debug("PyPDF2 available for PDF processing")
+    logger.debug("pypdf available for PDF processing")
 except ImportError:
-    logger.warning("PyPDF2 not available - PDF support disabled")
+    logger.warning("pypdf not available - PDF support disabled")
 
 Document = None
 DOCX_AVAILABLE = False
@@ -58,12 +58,12 @@ except ImportError:
     def counted(_metric_name, _labels=None):  # noqa: E306
         return lambda func: func
 
-_PDF_NOT_INSTALLED = "PyPDF2 not installed"
+_PDF_NOT_INSTALLED = "pypdf not installed"
 _DOCX_NOT_INSTALLED = "python-docx not installed"
 _PPTX_NOT_INSTALLED = "python-pptx not installed — run: pip install python-pptx"
 _DOCX_LOAD_ERROR = "Error loading DOCX: "
 _EXTRACTOR_PDFPLUMBER = "pdfplumber"
-_EXTRACTOR_PYPDF2 = "PyPDF2"
+_EXTRACTOR_PYPDF = "pypdf"
 
 
 class DocumentLoaderMixin:
@@ -149,12 +149,12 @@ class DocumentLoaderMixin:
         return text
 
     def _extract_pypdf2_text(self, file_path: str) -> str:
-        """Extract full concatenated text from a PDF using PyPDF2."""
+        """Extract full concatenated text from a PDF using pypdf."""
         text = ""
         with open(file_path, 'rb') as f:
-            pdf_reader = PyPDF2.PdfReader(f)
+            pdf_reader = _pypdf.PdfReader(f)
             num_pages = len(pdf_reader.pages)
-            logger.info(f"PDF has {num_pages} pages (using PyPDF2)")
+            logger.info(f"PDF has {num_pages} pages (using pypdf)")
             for page_num, page in enumerate(pdf_reader.pages, 1):
                 try:
                     page_text = page.extract_text()
@@ -164,7 +164,7 @@ class DocumentLoaderMixin:
                         logger.warning(f"  Page {page_num}: no text extracted")
                 except Exception as e:
                     logger.error(f"  Page {page_num}: Error extracting text: {e}")
-        logger.info(f"PyPDF2 extraction complete: {len(text):,} characters")
+        logger.info(f"pypdf extraction complete: {len(text):,} characters")
         return text
 
     def _load_pages_pdfplumber(self, pdfplumber_module, file_path: str) -> list[dict[str, Any]]:
@@ -186,12 +186,12 @@ class DocumentLoaderMixin:
         return pages_data
 
     def _load_pages_pypdf2(self, file_path: str) -> list[dict[str, Any]]:
-        """Load per-page data with metadata using PyPDF2."""
+        """Load per-page data with metadata using pypdf."""
         pages_data = []
         with open(file_path, 'rb') as f:
-            pdf_reader = PyPDF2.PdfReader(f)
+            pdf_reader = _pypdf.PdfReader(f)
             num_pages = len(pdf_reader.pages)
-            logger.info(f"PDF has {num_pages} pages (PyPDF2)")
+            logger.info(f"PDF has {num_pages} pages (pypdf)")
             for page_num, page in enumerate(pdf_reader.pages, 1):
                 page_text = page.extract_text() or ""
                 if page_text.strip():
@@ -233,12 +233,12 @@ class DocumentLoaderMixin:
                     text = self._extract_pdfplumber_text(pdfplumber, file_path)
                     extraction_method = _EXTRACTOR_PDFPLUMBER
                 except Exception as plumber_error:
-                    logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF2}")
+                    logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF}")
                     text = ""
 
             if not text:
                 text = self._extract_pypdf2_text(file_path)
-                extraction_method = _EXTRACTOR_PYPDF2
+                extraction_method = _EXTRACTOR_PYPDF
 
             if not text.strip():
                 error_msg = (
@@ -281,7 +281,7 @@ class DocumentLoaderMixin:
             if pdfplumber is not None:
                 pages_data = self._load_pages_pdfplumber(pdfplumber, file_path)
             else:
-                logger.warning("pdfplumber not available, using PyPDF2")
+                logger.warning("pdfplumber not available, using pypdf")
                 pages_data = self._load_pages_pypdf2(file_path)
 
             logger.info(f"Extracted {len(pages_data)} pages with metadata")

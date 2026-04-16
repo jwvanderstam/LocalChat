@@ -135,7 +135,7 @@ class TestDocumentLoading:
         assert "error" in error.lower() or "no such file" in error.lower()
 
     @patch('src.rag.loaders.PDF_AVAILABLE', True)
-    @patch('src.rag.loaders.PyPDF2')
+    @patch('src.rag.loaders._pypdf')
     def test_load_pdf_file_success(self, mock_pypdf2, doc_processor, temp_file):
         """Should successfully load PDF file."""
         # Mock PDF reader
