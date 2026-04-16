@@ -42,6 +42,12 @@ _status_doc_count_cache: list = [0, 0.0]  # [count, last_refresh_monotonic]
 _STATUS_CACHE_TTL: float = 5.0
 _status_cache_lock = threading.Lock()
 
+# TTL cache for live Ollama connectivity — avoids hammering Ollama on every
+# /api/status poll while still recovering from startup race conditions.
+_ollama_status_cache: list = [False, 0.0]  # [available, last_check_monotonic]
+_OLLAMA_STATUS_TTL: float = 10.0
+_ollama_status_lock = threading.Lock()
+
 # ── System prompts (module-level to avoid re-creation per request) ──────────
 _RAG_SYSTEM_PROMPT = """You are a helpful assistant that answers questions based strictly on the provided context passages.
 
@@ -275,6 +281,32 @@ def _get_doc_count_cached(db) -> tuple[int, bool]:
         return _status_doc_count_cache[0], True
 
 
+def _check_ollama_live() -> bool:
+    """Return live Ollama availability with a short TTL cache.
+
+    The startup_status is set once during boot and never updated.  If Ollama
+    was unreachable during startup (common Docker race condition), the stale
+    flag stays False even after Ollama becomes available.  This function does
+    a real connectivity check every ``_OLLAMA_STATUS_TTL`` seconds and also
+    updates ``startup_status`` so the health endpoint stays consistent.
+    """
+    with _ollama_status_lock:
+        now = time.monotonic()
+        if now - _ollama_status_cache[1] < _OLLAMA_STATUS_TTL:
+            return _ollama_status_cache[0]
+        try:
+            available, _ = current_app.ollama_client.check_connection()
+        except Exception:
+            available = False
+        _ollama_status_cache[:] = [available, now]
+        # Keep startup_status in sync so /api/health also benefits.
+        current_app.startup_status['ollama'] = available
+        current_app.startup_status['ready'] = (
+            available and current_app.startup_status.get('database', False)
+        )
+        return available
+
+
 def _collect_cache_stats() -> dict:
     """Return a cache-statistics dict (may be empty) from app caches."""
     stats: dict = {}
@@ -329,10 +361,12 @@ def api_status():
     if db_available:
         doc_count, db_available = _get_doc_count_cached(current_app.db)
 
+    ollama_available = _check_ollama_live()
+
     response = {
-        'ollama': current_app.startup_status['ollama'],
+        'ollama': ollama_available,
         'database': db_available,
-        'ready': current_app.startup_status['ready'] and db_available,
+        'ready': ollama_available and db_available,
         'active_model': config.app_state.get_active_model(),
         'document_count': doc_count,
         'features': {

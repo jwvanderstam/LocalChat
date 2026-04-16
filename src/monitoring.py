@@ -372,7 +372,15 @@ def _compute_health_status(app) -> tuple:
         checks['database'] = {'status': 'up' if db_up else 'down', 'healthy': db_up}
         if not db_up:
             overall_healthy = False
+        # Live-check Ollama instead of relying on the stale boot-time flag.
         ollama_up = app.startup_status.get('ollama', False)
+        if not ollama_up and hasattr(app, 'ollama_client'):
+            try:
+                ollama_up, _ = app.ollama_client.check_connection()
+                app.startup_status['ollama'] = ollama_up
+                app.startup_status['ready'] = ollama_up and db_up
+            except Exception:
+                pass
         checks['ollama'] = {'status': 'up' if ollama_up else 'down', 'healthy': ollama_up}
         if not ollama_up:
             checks['ollama']['message'] = 'Ollama unavailable - direct LLM mode disabled'

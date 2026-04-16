@@ -90,7 +90,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -101,6 +101,7 @@ services:
   # GitHub Copilot via SSE on http://localhost:3001/sse
   # ----------------------------------------------------------
   mcp:
+    profiles: ["mcp"]
     build:
       context: ./mcp_server
     restart: unless-stopped
@@ -304,7 +305,7 @@ services:
       - app_uploads:/app/uploads
       - app_logs:/app/logs
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:5000/api/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3

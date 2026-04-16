@@ -85,7 +85,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 # Workers = 2 × CPU + 1  (override with GUNICORN_WORKERS env var).
 # Timeout = 120 s for slow RAG responses.
 CMD ["sh", "-c", \
-     "gunicorn app:create_gunicorn_app() \
+     "gunicorn 'app:create_gunicorn_app()' \
         --bind 0.0.0.0:${SERVER_PORT:-5000} \
         --workers ${GUNICORN_WORKERS:-2} \
         --timeout 120 \
