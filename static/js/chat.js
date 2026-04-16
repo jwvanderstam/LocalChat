@@ -591,7 +591,7 @@ function buildSourcesPanel(sources) {
         li.className = 'small text-muted mb-1';
 
         const parts = [escapeHtml(src.filename)];
-        if (src.page_number) parts.push(`p.${src.page_number}`);
+        if (src.page_number) parts.push(`p.${escapeHtml(String(src.page_number))}`);
         if (src.section_title) parts.push(escapeHtml(src.section_title));
 
         li.innerHTML = `<span class="me-1">📄</span>${parts.join(' · ')}`;
@@ -707,7 +707,7 @@ function buildPlanTrace(plan) {
     summary.innerHTML =
         `<span class="badge ${intentColor}" style="font-size:0.65rem">${escapeHtml(plan.intent)}</span>` +
         `<span>Reasoning trace</span>` +
-        (plan.estimated_hops > 1 ? `<span class="badge bg-light text-dark border" style="font-size:0.65rem">${plan.estimated_hops}-hop</span>` : '');
+        (plan.estimated_hops > 1 ? `<span class="badge bg-light text-dark border" style="font-size:0.65rem">${escapeHtml(String(plan.estimated_hops))}-hop</span>` : '');
     details.appendChild(summary);
 
     const body = document.createElement('div');

@@ -18,10 +18,20 @@ spec:
         {{- include "localchat.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: mcp-web-search
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: mcp-web-search
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - gunicorn
             - --bind=0.0.0.0:{{ .Values.mcp.webSearch.port }}

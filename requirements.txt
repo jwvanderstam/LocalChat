@@ -26,7 +26,8 @@ pdfplumber==0.11.9  # Enhanced PDF extraction with table support
 pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this version
 python-docx==1.2.0
 python-pptx>=1.0.2
-litellm>=1.67.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true
+litellm>=1.72.6    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.72.6 fixes auth bypass CVEs
+h11>=0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
 spacy>=3.7.0       # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
