@@ -60,7 +60,8 @@ COPY --chown=localchat:localchat . /app
 
 # Create runtime directories
 RUN mkdir -p /app/logs /app/uploads /app/htmlcov && \
-    chown -R localchat:localchat /app/logs /app/uploads
+    chown -R localchat:localchat /app/logs /app/uploads && \
+    chmod 755 /app/logs /app/uploads
 
 USER localchat
 
