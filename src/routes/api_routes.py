@@ -754,7 +754,7 @@ def _retrieve_plan_and_memory(
     """Return (plan, memory_context) — either may be None/'' on error or when disabled."""
     plan = None
     _query_words = len(fields['message'].split())
-    if config.QUERY_PLANNER_ENABLED and fields['use_rag'] and _query_words >= 10:
+    if config.QUERY_PLANNER_ENABLED and fields['use_rag'] and _query_words >= 7:
         try:
             from ..rag.planner import QueryPlanner
             plan = QueryPlanner().plan(fields['message'], active_model, ollama_client)
