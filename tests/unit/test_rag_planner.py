@@ -16,8 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.rag.planner import QueryPlan, QueryPlanner, _JSON_RE
-
+from src.rag.planner import _JSON_RE, QueryPlan, QueryPlanner
 
 # ===========================================================================
 # QueryPlan dataclass
