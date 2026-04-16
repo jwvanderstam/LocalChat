@@ -238,10 +238,10 @@ class TestDeleteModel:
             'model': 'nonexistent-model'
         })
 
-        # Should handle gracefully (500 or error message)
-        assert response.status_code in [200, 500]
+        # InvalidModelError propagates to the error handler → 404
+        assert response.status_code == 404
         data = response.get_json()
-        assert 'success' in data
+        assert data is not None
 
 
 class TestTestModel:

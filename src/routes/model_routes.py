@@ -269,6 +269,8 @@ def api_delete_model():
 
         return jsonify({'success': True, 'message': message})
 
+    except exceptions.LocalChatException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting model: {e}", exc_info=True)
         return jsonify({'success': False, 'message': 'Failed to delete model'}), 500

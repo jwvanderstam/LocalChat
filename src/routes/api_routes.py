@@ -692,7 +692,8 @@ def _stream_chunks_with_fallback(
         ):
             yield chunk, 'cloud'
     else:
-        yield buffered, 'local'
+        for chunk in buffered_chunks:
+            yield chunk, 'local'
 
 
 def _generate_chat_events(

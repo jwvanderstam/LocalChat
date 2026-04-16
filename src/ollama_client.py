@@ -373,7 +373,9 @@ class OllamaClient:
             if line:
                 data = json.loads(line)
                 if 'message' in data:
-                    yield data['message'].get('content', '')
+                    content = data['message'].get('content', '')
+                    if content:
+                        yield content
                 if data.get('done', False):
                     break
 
@@ -462,12 +464,20 @@ class OllamaClient:
             "options": options,
         }
 
-        response = self._session.post(
-            f"{self.base_url}/api/chat",
-            json=payload,
-            stream=stream,
-            timeout=120,
-        )
+        try:
+            response = self._session.post(
+                f"{self.base_url}/api/chat",
+                json=payload,
+                stream=stream,
+                timeout=120,
+            )
+        except requests.exceptions.Timeout:
+            raise RuntimeError(
+                f"Ollama did not respond within 120 s (model: {model}). "
+                "The model may still be loading — try again shortly."
+            )
+        except requests.exceptions.ConnectionError as exc:
+            raise RuntimeError(f"Cannot reach Ollama at {self.base_url}: {exc}") from exc
 
         if response.status_code == 200:
             if stream:
@@ -532,11 +542,19 @@ class OllamaClient:
         payload = self._build_tool_payload(model, messages, tools)
 
         logger.debug(f"Chat completion (non-stream) with model: {model}")
-        response = self._session.post(
-            f"{self.base_url}/api/chat",
-            json=payload,
-            timeout=120,
-        )
+        try:
+            response = self._session.post(
+                f"{self.base_url}/api/chat",
+                json=payload,
+                timeout=120,
+            )
+        except requests.exceptions.Timeout:
+            raise RuntimeError(
+                f"Ollama did not respond within 120 s (model: {model}). "
+                "The model may still be loading — try again shortly."
+            )
+        except requests.exceptions.ConnectionError as exc:
+            raise RuntimeError(f"Cannot reach Ollama at {self.base_url}: {exc}") from exc
 
         if response.status_code == 200:
             data = response.json()
