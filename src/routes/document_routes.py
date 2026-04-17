@@ -26,7 +26,7 @@ else:
 
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
-from ..utils.sanitization import sanitize_filename
+from ..utils.sanitization import sanitize_filename, validate_path
 
 bp = Blueprint('documents', __name__)
 logger = get_logger(__name__)
@@ -44,6 +44,9 @@ def _save_uploaded_files(files) -> list:
             continue
         safe_name = sanitize_filename(file.filename)
         file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
+        if not validate_path(file_path, config.UPLOAD_FOLDER):
+            logger.warning(f"Rejected upload: resolved path escapes upload folder: {safe_name!r}")
+            continue
         file.save(file_path)
         ok, err = validate_file_content(file_path, ext)
         if not ok:
