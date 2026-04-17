@@ -166,10 +166,10 @@ KEEP_TABLES_INTACT: bool = True    # Always try to keep tables together
 MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 
 # Retrieval Configuration - OPTIMIZED FOR SYNTHESIS
-TOP_K_RESULTS: int = int(os.environ.get("TOP_K_RESULTS", "20"))  # Retrieve focused candidates (reduced from 30)
+TOP_K_RESULTS: int = int(os.environ.get("TOP_K_RESULTS", "30"))  # Wider candidate pool for reranker
 MIN_SIMILARITY_THRESHOLD: float = 0.30       # Slightly higher for quality (was 0.25)
 RERANK_RESULTS: bool = True                  # Always re-rank for precision
-RERANK_TOP_K: int = 4                        # Return 4 best chunks - better for synthesis (was 6)
+RERANK_TOP_K: int = int(os.environ.get("RERANK_TOP_K", "12"))   # 12 chunks cover multi-chapter docs (was 4)
 
 # Hybrid Search Configuration
 HYBRID_SEARCH_ENABLED: bool = True           # Enable semantic + BM25 hybrid search
@@ -193,9 +193,10 @@ BM25_WEIGHT: float = 0.20                    # BM25 score
 POSITION_WEIGHT: float = 0.05                # Early chunks bonus
 LENGTH_WEIGHT: float = 0.05                  # Chunk length preference
 
-# Diversity filtering - STRENGTHENED to catch overlapping chunks
+# Diversity filtering
 ENABLE_DIVERSITY_FILTER: bool = True         # Remove near-duplicate chunks
-DIVERSITY_THRESHOLD: float = 0.50            # Jaccard similarity threshold (was 0.85 - too weak)
+DIVERSITY_THRESHOLD: float = 0.70            # Jaccard similarity threshold — 0.70 avoids pruning
+                                             # domain docs that share terminology across chapters (was 0.50 — too aggressive)
 
 # Context quality enhancement
 EMPHASIZE_HIGH_SIMILARITY: bool = True       # Mark highest similarity chunks
@@ -341,7 +342,9 @@ PLUGINS_DIR: str = os.environ.get('PLUGINS_DIR', 'plugins')
 # ============================================================================
 
 DEFAULT_TEMPERATURE: float = 0.0   # ZERO temperature for maximum factuality
-MAX_CONTEXT_LENGTH: int = OLLAMA_NUM_CTX  # Mirrors OLLAMA_NUM_CTX; override via env var
+MAX_CONTEXT_LENGTH: int = int(os.environ.get("MAX_CONTEXT_LENGTH", str(OLLAMA_NUM_CTX * 3)))
+# OLLAMA_NUM_CTX is tokens; multiply by 3 to approximate characters for format_context_for_llm.
+# Default leaves ~1/3 of the window for system prompt + history + response.
 
 # ============================================================================
 # APPLICATION SETTINGS

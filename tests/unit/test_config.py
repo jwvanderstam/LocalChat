@@ -473,8 +473,8 @@ class TestEnvConfigurableRagParams:
         assert cfg.CHUNK_OVERLAP == 100
 
     def test_top_k_results_from_env(self):
-        cfg = self._reload_config_with_env({"TOP_K_RESULTS": "10"})
-        assert cfg.TOP_K_RESULTS == 10
+        cfg = self._reload_config_with_env({"TOP_K_RESULTS": "20", "RERANK_TOP_K": "10"})
+        assert cfg.TOP_K_RESULTS == 20
 
     def test_semantic_weight_from_env(self):
         cfg = self._reload_config_with_env({"SEMANTIC_WEIGHT": "0.55"})
@@ -494,5 +494,5 @@ class TestEnvConfigurableRagParams:
             importlib.reload(cfg_module)
             assert cfg_module.CHUNK_SIZE == 1200
             assert cfg_module.CHUNK_OVERLAP == 150
-            assert cfg_module.TOP_K_RESULTS == 20
+            assert cfg_module.TOP_K_RESULTS == 30
             assert abs(cfg_module.SEMANTIC_WEIGHT - 0.70) < 1e-9
