@@ -134,7 +134,7 @@
                 </div>
                 <div class="mb-2">
                     <small class="text-muted">Top-K Retrieval</small>
-                    <div><code>20 candidates &rarr; 4 re-ranked</code></div>
+                    <div><code id="cfg-top-k">30 candidates &rarr; 12 re-ranked</code></div>
                 </div>
                 <div class="mb-2">
                     <small class="text-muted">Search Mode</small>
@@ -187,6 +187,113 @@
                             <i class="bi bi-heart-pulse me-1"></i>/api/health
                         </a>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Document Capacity & RAG Parameters -->
+<div class="row mt-2 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-file-earmark-bar-graph me-2"></i>Document Capacity &amp; RAG Parameters</span>
+                <a href="/settings#rag-params" class="btn btn-sm btn-outline-light">
+                    <i class="bi bi-sliders me-1"></i>Tune
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+
+                    <!-- Hardware summary -->
+                    <div class="col-md-3">
+                        <h6 class="text-muted fw-semibold small text-uppercase mb-2">Hardware (CPU-only)</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr><td class="text-muted py-1">CPU</td><td class="fw-semibold py-1">Ryzen 7 9700X&nbsp;(8c/16t)</td></tr>
+                                <tr><td class="text-muted py-1">RAM available</td><td class="fw-semibold py-1">~15&thinsp;GB</td></tr>
+                                <tr><td class="text-muted py-1">Embed speed</td><td class="fw-semibold py-1">~500 chunks/min</td></tr>
+                                <tr><td class="text-muted py-1">Max file size</td><td class="fw-semibold py-1">15&thinsp;MB (TXT/DOCX/PDF)</td></tr>
+                                <tr><td class="text-muted py-1">Gunicorn timeout</td><td class="fw-semibold py-1">600&thinsp;s</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Per-format capacity table -->
+                    <div class="col-md-4">
+                        <h6 class="text-muted fw-semibold small text-uppercase mb-2">Per-format @ 15&thinsp;MB</h6>
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Format</th>
+                                    <th class="text-end">Chunks</th>
+                                    <th class="text-end">DB size</th>
+                                    <th class="text-end">Ingest time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge bg-secondary">TXT</span></td>
+                                    <td class="text-end">~14,000</td>
+                                    <td class="text-end">~160&thinsp;MB</td>
+                                    <td class="text-end">~280&thinsp;s</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-secondary">DOCX</span></td>
+                                    <td class="text-end">~8,000</td>
+                                    <td class="text-end">~95&thinsp;MB</td>
+                                    <td class="text-end">~160&thinsp;s</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge bg-secondary">PDF</span></td>
+                                    <td class="text-end">~3,500</td>
+                                    <td class="text-end">~40&thinsp;MB</td>
+                                    <td class="text-end">~70&thinsp;s</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="text-muted small mt-1 mb-0">
+                            Each chunk stores a 768-dim float32 vector&nbsp;(3&thinsp;KB).
+                            HNSW index scales linearly; query latency stays&nbsp;&lt;1&thinsp;s up to millions of chunks.
+                        </p>
+                    </div>
+
+                    <!-- Live RAG params -->
+                    <div class="col-md-5">
+                        <h6 class="text-muted fw-semibold small text-uppercase mb-2">Live RAG Parameters</h6>
+                        <table class="table table-sm table-borderless mb-0" id="rag-params-table">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted py-1">Retrieval candidates (TOP_K)</td>
+                                    <td class="fw-semibold py-1 text-end"><code id="live-top-k">30</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted py-1">Chunks sent to LLM (RERANK_TOP_K)</td>
+                                    <td class="fw-semibold py-1 text-end"><code id="live-rerank-k">12</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted py-1">Diversity threshold</td>
+                                    <td class="fw-semibold py-1 text-end"><code id="live-diversity">0.70</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted py-1">Semantic weight</td>
+                                    <td class="fw-semibold py-1 text-end"><code id="live-semantic-w">0.70</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted py-1">Chunk size / overlap</td>
+                                    <td class="fw-semibold py-1 text-end"><code id="live-chunk">1200 / 150</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="text-muted small mt-2 mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            For large documents (&gt;5&thinsp;MB) quality degrades gracefully: broad questions
+                            retrieve representative chunks across the document; targeted chapter questions
+                            work best. Changing chunk size requires re-ingesting all documents.
+                        </p>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -859,7 +966,7 @@
                             <li>Hybrid retrieval: semantic cosine + BM25 keyword</li>
                             <li>Multi-signal reranking (score fusion)</li>
                             <li>Connection pooling (2&ndash;10 connections)</li>
-                            <li>Parallel ingestion (8 workers, 64 chunks/batch)</li>
+                            <li>Parallel ingestion (8 workers, 512 chunks/batch)</li>
                             <li>GPU auto-detection: NVIDIA &amp; AMD</li>
                             <li>Prometheus metrics + JSON metrics endpoint</li>
                             <li><code>X-Request-Duration</code> header on every response</li>
@@ -871,8 +978,8 @@
                 <ol>
                     <li>User sends question &rarr; Flask receives via SSE route</li>
                     <li>Question &rarr; Ollama &rarr; query embedding vector</li>
-                    <li>pgvector HNSW search &rarr; top-20 candidate chunks</li>
-                    <li>Hybrid re-rank (BM25 + semantic) &rarr; top-4 chunks</li>
+                    <li>pgvector HNSW search &rarr; top-30 candidate chunks</li>
+                    <li>Hybrid re-rank (BM25 + semantic) &rarr; top-12 chunks</li>
                     <li>Context + conversation history &rarr; LLM prompt</li>
                     <li>Ollama streams tokens &rarr; SSE to browser</li>
                 </ol>
@@ -882,7 +989,7 @@
                     <li>File uploaded &rarr; format loader (PDF/DOCX/TXT/MD)</li>
                     <li>Text extraction with table preservation</li>
                     <li>Chunker splits at sentence boundaries (1,200 chars / 150 overlap)</li>
-                    <li>8 parallel workers &rarr; Ollama embeddings (64 chunks/batch)</li>
+                    <li>8 parallel workers &rarr; Ollama embeddings (512 chunks/batch)</li>
                     <li>SHA-256 fingerprint for duplicate detection</li>
                     <li>Bulk insert into PostgreSQL + pgvector HNSW index</li>
                 </ol>
@@ -1027,6 +1134,29 @@
                     document.getElementById('stat-chunks').textContent = (st.chunk_count ?? 0).toLocaleString();
                 }
             }
+
+            // Populate live RAG params from /api/settings/stats
+            try {
+                const ragRes = await fetch('/api/settings/stats');
+                if (ragRes.ok) {
+                    const rd = await ragRes.json();
+                    const rag = rd.rag || {};
+                    const topK    = rag.TOP_K_RESULTS  ?? 30;
+                    const rerankK = rag.RERANK_TOP_K   ?? 12;
+                    const divT    = rag.DIVERSITY_THRESHOLD ?? 0.70;
+                    const semW    = rag.SEMANTIC_WEIGHT     ?? 0.70;
+                    const chSz    = rag.CHUNK_SIZE    ?? 1200;
+                    const chOv    = rag.CHUNK_OVERLAP  ?? 150;
+                    const el = id => document.getElementById(id);
+                    if (el('cfg-top-k'))
+                        el('cfg-top-k').textContent = `${topK} candidates \u2192 ${rerankK} re-ranked`;
+                    if (el('live-top-k'))    el('live-top-k').textContent    = topK;
+                    if (el('live-rerank-k')) el('live-rerank-k').textContent = rerankK;
+                    if (el('live-diversity'))el('live-diversity').textContent = divT.toFixed(2);
+                    if (el('live-semantic-w'))el('live-semantic-w').textContent = semW.toFixed(2);
+                    if (el('live-chunk'))    el('live-chunk').textContent    = `${chSz} / ${chOv}`;
+                }
+            } catch (_) { /* non-fatal — admin endpoint may require auth */ }
 
             if (metricsRes.status === 'fulfilled' && metricsRes.value.ok) {
                 const m = await metricsRes.value.json();

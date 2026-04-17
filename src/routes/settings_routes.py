@@ -29,7 +29,7 @@ Both endpoints respect ``DEMO_MODE``:
 
 from datetime import datetime
 
-from flask import Blueprint, current_app, jsonify, render_template
+from flask import Blueprint, current_app, jsonify, render_template, request
 from flask.typing import ResponseReturnValue
 
 from .. import config
@@ -190,6 +190,14 @@ def gather_admin_stats(app) -> dict:
                 if "http_requests_total" in k
             ),
         },
+        "rag": {
+            "TOP_K_RESULTS":       config.TOP_K_RESULTS,
+            "RERANK_TOP_K":        config.RERANK_TOP_K,
+            "DIVERSITY_THRESHOLD": config.DIVERSITY_THRESHOLD,
+            "SEMANTIC_WEIGHT":     config.SEMANTIC_WEIGHT,
+            "CHUNK_SIZE":          config.CHUNK_SIZE,
+            "CHUNK_OVERLAP":       config.CHUNK_OVERLAP,
+        },
     }
 
 
@@ -305,6 +313,88 @@ def reranker_rollback(version_id: str) -> ResponseReturnValue:
     if not ok:
         return jsonify({'success': False, 'message': 'Version not found'}), 404
     return jsonify({'success': True})
+
+
+# ---------------------------------------------------------------------------
+# RAG parameter limits — enforced on both GET and POST
+# ---------------------------------------------------------------------------
+
+_RAG_LIMITS: dict = {
+    "TOP_K_RESULTS":       {"min": 10,   "max": 50,   "type": int,   "default": 30},
+    "RERANK_TOP_K":        {"min": 4,    "max": 20,   "type": int,   "default": 12},
+    "DIVERSITY_THRESHOLD": {"min": 0.50, "max": 0.90, "type": float, "default": 0.70},
+    "SEMANTIC_WEIGHT":     {"min": 0.30, "max": 0.90, "type": float, "default": 0.70},
+}
+
+
+@bp.route("/api/settings/rag", methods=["GET"])
+@require_admin
+def rag_params_get() -> ResponseReturnValue:
+    """Return current live RAG parameter values and their allowed ranges."""
+    params = {}
+    for key, meta in _RAG_LIMITS.items():
+        params[key] = {
+            "value":   meta["type"](getattr(config, key, meta["default"])),
+            "min":     meta["min"],
+            "max":     meta["max"],
+            "type":    meta["type"].__name__,
+            "default": meta["default"],
+        }
+    return jsonify({"success": True, "params": params})
+
+
+@bp.route("/api/settings/rag", methods=["POST"])
+@require_admin
+def rag_params_set() -> ResponseReturnValue:
+    """
+    Update one or more RAG parameters at runtime.
+
+    Body: ``{"TOP_K_RESULTS": 25, "RERANK_TOP_K": 10, ...}``
+
+    Validation rules
+    ----------------
+    * Each value must be within the declared ``[min, max]`` range.
+    * ``RERANK_TOP_K`` must not exceed ``TOP_K_RESULTS`` (after both are
+      resolved, using the submitted value or the current live value).
+    """
+    body = request.get_json(silent=True) or {}
+    errors: list[str] = []
+    updates: dict = {}
+
+    for key, raw in body.items():
+        if key not in _RAG_LIMITS:
+            errors.append(f"Unknown parameter: {key!r}")
+            continue
+        meta = _RAG_LIMITS[key]
+        try:
+            value = meta["type"](raw)
+        except (TypeError, ValueError):
+            errors.append(f"{key}: cannot convert {raw!r} to {meta['type'].__name__}")
+            continue
+        if not (meta["min"] <= value <= meta["max"]):
+            errors.append(
+                f"{key}: {value} out of range [{meta['min']}, {meta['max']}]"
+            )
+            continue
+        updates[key] = value
+
+    if errors:
+        return jsonify({"success": False, "errors": errors}), 400
+
+    # Cross-parameter constraint: RERANK_TOP_K <= TOP_K_RESULTS
+    top_k    = updates.get("TOP_K_RESULTS",  config.TOP_K_RESULTS)
+    rerank_k = updates.get("RERANK_TOP_K",   config.RERANK_TOP_K)
+    if rerank_k > top_k:
+        return jsonify({
+            "success": False,
+            "errors": [f"RERANK_TOP_K ({rerank_k}) cannot exceed TOP_K_RESULTS ({top_k})"],
+        }), 400
+
+    for key, value in updates.items():
+        setattr(config, key, value)
+        logger.info("RAG param updated: %s = %s", key, value)
+
+    return jsonify({"success": True, "updated": updates})
 
 
 @bp.route("/api/settings/stats", methods=["GET"])

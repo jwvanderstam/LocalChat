@@ -25,6 +25,12 @@
             <i class="bi bi-brain me-1"></i>Memory
         </a>
     </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" id="rag-tab" data-bs-toggle="tab" href="#rag-params" role="tab"
+           aria-controls="rag-params" aria-selected="false">
+            <i class="bi bi-sliders me-1"></i>RAG Parameters
+        </a>
+    </li>
 </ul>
 
 <div class="tab-content" id="settingsTabContent">
@@ -435,6 +441,172 @@
         </div>
     </div><!-- /memory tab-pane -->
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         RAG PARAMETERS TAB
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div class="tab-pane fade" id="rag-params" role="tabpanel" aria-labelledby="rag-tab">
+
+        <div class="row g-3">
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-sliders me-2"></i>Retrieval &amp; Reranking</span>
+                        <span class="badge bg-secondary" id="rag-save-status"></span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Changes take effect immediately for all subsequent queries — no restart required.
+                            Chunk size and overlap affect ingestion only; changing them requires re-uploading documents.
+                        </p>
+
+                        <!-- TOP_K_RESULTS -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold" for="input-top-k">
+                                Retrieval candidates <code>TOP_K_RESULTS</code>
+                                <span class="badge bg-primary ms-1" id="badge-top-k">30</span>
+                            </label>
+                            <input type="range" class="form-range" id="input-top-k"
+                                   min="10" max="50" step="1" value="30"
+                                   oninput="document.getElementById('badge-top-k').textContent=this.value">
+                            <div class="d-flex justify-content-between text-muted small"><span>10 (fast)</span><span>50 (thorough)</span></div>
+                            <p class="text-muted small mt-1 mb-0">
+                                Initial number of chunks fetched from the vector index before reranking.
+                                Higher values improve recall but add a few ms of latency.
+                            </p>
+                        </div>
+
+                        <!-- RERANK_TOP_K -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold" for="input-rerank-k">
+                                Chunks sent to LLM <code>RERANK_TOP_K</code>
+                                <span class="badge bg-primary ms-1" id="badge-rerank-k">12</span>
+                            </label>
+                            <input type="range" class="form-range" id="input-rerank-k"
+                                   min="4" max="20" step="1" value="12"
+                                   oninput="document.getElementById('badge-rerank-k').textContent=this.value">
+                            <div class="d-flex justify-content-between text-muted small"><span>4 (concise)</span><span>20 (broad)</span></div>
+                            <p class="text-muted small mt-1 mb-0">
+                                Must be &le; TOP_K_RESULTS. Higher values give the LLM more evidence but consume
+                                more context window and slow generation slightly.
+                            </p>
+                        </div>
+
+                        <!-- DIVERSITY_THRESHOLD -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold" for="input-diversity">
+                                Diversity threshold <code>DIVERSITY_THRESHOLD</code>
+                                <span class="badge bg-primary ms-1" id="badge-diversity">0.70</span>
+                            </label>
+                            <input type="range" class="form-range" id="input-diversity"
+                                   min="0.50" max="0.90" step="0.05" value="0.70"
+                                   oninput="document.getElementById('badge-diversity').textContent=parseFloat(this.value).toFixed(2)">
+                            <div class="d-flex justify-content-between text-muted small"><span>0.50 (aggressive)</span><span>0.90 (permissive)</span></div>
+                            <p class="text-muted small mt-1 mb-0">
+                                Jaccard similarity threshold for duplicate-chunk filtering. Lower values prune
+                                more aggressively — can hurt domain docs where chapters share vocabulary.
+                            </p>
+                        </div>
+
+                        <!-- SEMANTIC_WEIGHT -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold" for="input-semantic-w">
+                                Semantic weight <code>SEMANTIC_WEIGHT</code>
+                                <span class="badge bg-primary ms-1" id="badge-semantic-w">0.70</span>
+                            </label>
+                            <input type="range" class="form-range" id="input-semantic-w"
+                                   min="0.30" max="0.90" step="0.05" value="0.70"
+                                   oninput="document.getElementById('badge-semantic-w').textContent=parseFloat(this.value).toFixed(2)">
+                            <div class="d-flex justify-content-between text-muted small"><span>0.30 (keyword-heavy)</span><span>0.90 (semantic-heavy)</span></div>
+                            <p class="text-muted small mt-1 mb-0">
+                                Blend of semantic cosine similarity vs. BM25 keyword score in hybrid search.
+                                Increase for conceptual queries; decrease for exact-term lookups.
+                            </p>
+                        </div>
+
+                        <div class="d-flex gap-2 align-items-center">
+                            <button class="btn btn-primary" onclick="saveRagParams()">
+                                <i class="bi bi-check-circle me-1"></i>Apply
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="loadRagParams()">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to live values
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card mb-3">
+                    <div class="card-header"><i class="bi bi-info-circle me-2"></i>Read-only parameters</div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted ps-3 py-2">Chunk size</td>
+                                    <td class="fw-semibold py-2" id="ro-chunk-size">{{ stats.rag.CHUNK_SIZE if stats.rag is defined else 1200 }}</td>
+                                    <td class="text-muted small py-2">chars</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-3 py-2">Chunk overlap</td>
+                                    <td class="fw-semibold py-2" id="ro-chunk-overlap">{{ stats.rag.CHUNK_OVERLAP if stats.rag is defined else 150 }}</td>
+                                    <td class="text-muted small py-2">chars</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-3 py-2">Min similarity</td>
+                                    <td class="fw-semibold py-2">0.30</td>
+                                    <td class="text-muted small py-2">cosine</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-3 py-2">Embed batch size</td>
+                                    <td class="fw-semibold py-2">512</td>
+                                    <td class="text-muted small py-2">chunks</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted ps-3 py-2">Parallel workers</td>
+                                    <td class="fw-semibold py-2">8</td>
+                                    <td class="text-muted small py-2">threads</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="text-muted small px-3 pb-2 mb-0">
+                            Change these via environment variables and restart the app.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><i class="bi bi-file-earmark-bar-graph me-2"></i>Document capacity @ 15&thinsp;MB</div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th class="ps-3">Format</th><th class="text-end">Chunks</th><th class="text-end pe-3">Ingest</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="ps-3"><span class="badge bg-secondary">TXT</span></td>
+                                    <td class="text-end">~14,000</td>
+                                    <td class="text-end pe-3">~280&thinsp;s</td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-3"><span class="badge bg-secondary">DOCX</span></td>
+                                    <td class="text-end">~8,000</td>
+                                    <td class="text-end pe-3">~160&thinsp;s</td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-3"><span class="badge bg-secondary">PDF</span></td>
+                                    <td class="text-end">~3,500</td>
+                                    <td class="text-end pe-3">~70&thinsp;s</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="text-muted small px-3 pb-2 mb-0">CPU-only (Ryzen 7 9700X). GPU embedding would be 5–10× faster.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /rag-params tab-pane -->
+
 </div><!-- /tab-content -->
 {% endblock %}
 
@@ -639,5 +811,68 @@ async function clearAllMemories() {
 
 // Load memories when the tab is shown
 document.getElementById('memory-tab').addEventListener('shown.bs.tab', loadMemories);
+
+// ── RAG Parameters tab ────────────────────────────────────────────────────────
+
+async function loadRagParams() {
+    try {
+        const res = await fetch('/api/settings/rag');
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!d.success) return;
+        const p = d.params;
+        const set = (id, badgeId, val, toFixed) => {
+            const el = document.getElementById(id);
+            const badge = document.getElementById(badgeId);
+            if (!el) return;
+            el.value = val;
+            if (badge) badge.textContent = toFixed != null ? parseFloat(val).toFixed(toFixed) : val;
+        };
+        set('input-top-k',      'badge-top-k',      p.TOP_K_RESULTS.value,       null);
+        set('input-rerank-k',   'badge-rerank-k',   p.RERANK_TOP_K.value,        null);
+        set('input-diversity',  'badge-diversity',  p.DIVERSITY_THRESHOLD.value,  2);
+        set('input-semantic-w', 'badge-semantic-w', p.SEMANTIC_WEIGHT.value,      2);
+    } catch (e) { console.warn('RAG params load failed', e); }
+}
+
+async function saveRagParams() {
+    const status = document.getElementById('rag-save-status');
+    status.className = 'badge bg-secondary';
+    status.textContent = 'Saving…';
+    try {
+        const body = {
+            TOP_K_RESULTS:       parseInt(document.getElementById('input-top-k').value),
+            RERANK_TOP_K:        parseInt(document.getElementById('input-rerank-k').value),
+            DIVERSITY_THRESHOLD: parseFloat(document.getElementById('input-diversity').value),
+            SEMANTIC_WEIGHT:     parseFloat(document.getElementById('input-semantic-w').value),
+        };
+        const res = await fetch('/api/settings/rag', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const d = await res.json();
+        if (d.success) {
+            status.className = 'badge bg-success';
+            status.textContent = 'Saved';
+            setTimeout(() => { status.textContent = ''; }, 3000);
+        } else {
+            status.className = 'badge bg-danger';
+            status.textContent = (d.errors || ['Error']).join('; ');
+        }
+    } catch (e) {
+        document.getElementById('rag-save-status').className = 'badge bg-danger';
+        document.getElementById('rag-save-status').textContent = e.message;
+    }
+}
+
+// Load RAG params when the tab is shown
+document.getElementById('rag-tab').addEventListener('shown.bs.tab', loadRagParams);
+
+// If arriving via /settings#rag-params, activate that tab immediately
+if (window.location.hash === '#rag-params') {
+    const tab = document.getElementById('rag-tab');
+    if (tab) { bootstrap.Tab.getOrCreateInstance(tab).show(); }
+}
 </script>
 {% endblock %}

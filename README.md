@@ -7,7 +7,7 @@
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 
-A production-ready Retrieval-Augmented Generation (RAG) application built with Flask, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers.
+A production-ready Retrieval-Augmented Generation (RAG) application built with Flask, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers. Supports documents up to 15 MB with tunable RAG parameters configurable at runtime from the Settings UI.
 
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
@@ -16,8 +16,8 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 ## Features
 
 ### Core Capabilities
-- **Document Processing**: PDF, DOCX, TXT, Markdown with advanced table extraction
-- **RAG Pipeline**: Intelligent retrieval with hybrid search (semantic + BM25)
+- **Document Processing**: PDF, DOCX, TXT, Markdown with advanced table extraction; supports files up to 15 MB
+- **RAG Pipeline**: High-quality retrieval — 30-candidate hybrid search, 12-chunk reranking, 0.70 diversity filter
 - **Chat Interface**: Real-time streaming responses with document context
 - **Enhanced Web Search**: Optional live DuckDuckGo integration for up-to-date answers
 - **Persistent Memory**: Conversation history stored in PostgreSQL
@@ -30,6 +30,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Security**: Rate limiting, CORS support, JWT authentication, XSS-safe frontend
 - **GPU Acceleration**: Automatic NVIDIA/AMD GPU detection; configurable multi-GPU layer offload via `OLLAMA_NUM_GPU`
 - **Observability**: Prometheus metrics endpoint, request timing middleware, detailed health checks, admin dashboard
+- **Runtime RAG Tuning**: `TOP_K_RESULTS`, `RERANK_TOP_K`, `DIVERSITY_THRESHOLD`, `SEMANTIC_WEIGHT` adjustable live from Settings UI without restart
 
 ### Quality Assurance
 - **Comprehensive Tests**: Unit, integration, and comprehensive test suites
@@ -39,11 +40,15 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Error Handling**: Professional exception system with context preservation
 
 ### Security
-- **XSS Prevention**: DOM-based conversation rendering (no innerHTML with user data)
+- **XSS Prevention**: DOM-based rendering; `escapeHtml()` wraps all server-controlled values injected into `innerHTML`
+- **Path Traversal Prevention**: `sanitize_filename()` + `validate_path()` belt-and-suspenders on every upload
+- **AST-Safe Calculator**: `eval()` replaced with a recursive AST evaluator; only arithmetic is permitted
 - **Rate Limiting**: Configurable per-endpoint via Flask-Limiter
 - **CORS Support**: Configurable allowed origins
 - **JWT Authentication**: Token-based auth for admin endpoints
 - **Input Sanitization**: Pydantic validation + server-side sanitization on all inputs
+- **Supply Chain**: Pinned Docker image SHA256 digest; `litellm>=1.72.6`, `h11>=0.16.0`
+- **Container Hardening**: Non-root user (UID 1000), `allowPrivilegeEscalation: false`, `drop: ALL` capabilities in Helm charts
 - **Secret Scanning**: No credentials in source; placeholder examples only
 
 ### Performance Features
@@ -485,35 +490,46 @@ docker run -d -p 6379:6379 redis:alpine
 
 ### RAG Configuration
 
-Edit `src/config.py` to customize RAG behavior:
+Core RAG parameters can be tuned **at runtime** in the Settings → RAG Parameters tab, or set via environment variables. Changes from the UI take effect immediately for all subsequent queries — no restart required.
 
-```python
-# Chunking Configuration
-CHUNK_SIZE = 1024              # Characters per chunk (increased for better context)
-CHUNK_OVERLAP = 200            # Overlap between chunks (20%)
-TABLE_CHUNK_SIZE = 3000        # Larger chunks for tables
+| Parameter | Default | Env var | Range | Description |
+|---|---|---|---|---|
+| `TOP_K_RESULTS` | 30 | `TOP_K_RESULTS` | 10–50 | Initial retrieval candidate pool |
+| `RERANK_TOP_K` | 12 | `RERANK_TOP_K` | 4–20 | Chunks passed to LLM after reranking |
+| `DIVERSITY_THRESHOLD` | 0.70 | *(UI only)* | 0.50–0.90 | Jaccard threshold for near-duplicate filtering |
+| `SEMANTIC_WEIGHT` | 0.70 | `SEMANTIC_WEIGHT` | 0.30–0.90 | Semantic vs. BM25 blend in hybrid search |
 
-# Retrieval Configuration
-TOP_K_RESULTS = 40             # Initial candidates
-MIN_SIMILARITY_THRESHOLD = 0.28  # Minimum similarity score
-RERANK_TOP_K = 12              # Final results after reranking
+Parameters that require re-ingesting documents (chunk size, overlap) are set via environment variables only:
 
-# Hybrid Search
-HYBRID_SEARCH_ENABLED = True   # Combine semantic + keyword search
-SEMANTIC_WEIGHT = 0.70         # Weight for semantic similarity
-BM25_ENABLED = True            # Enable BM25 keyword matching
+```bash
+# Chunking — changing these requires re-uploading all documents
+CHUNK_SIZE=1200          # Characters per chunk
+CHUNK_OVERLAP=150        # Overlap between chunks (12.5%)
 
-# LLM Configuration
-DEFAULT_TEMPERATURE = 0.0      # Zero temperature for factual responses
-MAX_CONTEXT_LENGTH = 20000     # Increased context window
-STREAM_RESPONSES = True        # Enable streaming
+# Retrieval
+TOP_K_RESULTS=30         # Initial candidates
+RERANK_TOP_K=12          # Chunks sent to LLM
 
-# Cache Configuration
-EMBEDDING_CACHE_SIZE = 5000    # Max cached embeddings
-EMBEDDING_CACHE_ENABLED = True # Enable embedding cache
-EMBEDDING_TTL = 604800         # 7 days
-QUERY_TTL = 3600              # 1 hour
+# Context window
+OLLAMA_NUM_CTX=8192      # Token context window sent to Ollama
+                         # MAX_CONTEXT_LENGTH defaults to OLLAMA_NUM_CTX × 3 chars
+
+# Ingestion timeouts (supports files up to 15 MB)
+OLLAMA_EMBED_TIMEOUT=600 # Seconds — worst-case 15 MB TXT ~280 s
+GUNICORN_TIMEOUT=600     # Must be >= OLLAMA_EMBED_TIMEOUT
 ```
+
+### Document Capacity
+
+LocalChat supports documents up to **15 MB** on CPU-only hardware:
+
+| Format | Chunks @ 15 MB | DB size | Ingest time |
+|--------|---------------|---------|-------------|
+| TXT    | ~14,000       | ~160 MB | ~280 s      |
+| DOCX   | ~8,000        | ~95 MB  | ~160 s      |
+| PDF    | ~3,500        | ~40 MB  | ~70 s       |
+
+Each chunk stores a 768-dim float32 embedding vector (~3 KB). The HNSW index scales to millions of chunks with sub-second query latency.
 
 ### Performance Tuning
 
@@ -522,7 +538,6 @@ QUERY_TTL = 3600              # 1 hour
 # Connection Pool
 DB_POOL_MIN_CONN = 2
 DB_POOL_MAX_CONN = 10
-DB_POOL_TIMEOUT = 5
 
 # HNSW Index Parameters
 # ef_search is computed dynamically as max(TOP_K_RESULTS * 2, 40)
@@ -533,7 +548,7 @@ DB_INDEX_TYPE = 'hnsw'        # Use HNSW for fast ANN search
 ```python
 # Parallel Processing
 MAX_WORKERS = 8               # Concurrent threads
-BATCH_SIZE = 32              # Embeddings batch size
+BATCH_SIZE = 512             # Embeddings batch size (512 chunks per call)
 
 # Table Extraction
 KEEP_TABLES_INTACT = True     # Don't split tables across chunks

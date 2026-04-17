@@ -534,3 +534,136 @@ class TestSettingsRouteEndpoints:
         response = client.get("/settings")
         assert response.status_code == 200
         assert b"html" in response.data.lower()
+
+    def test_settings_stats_includes_rag_key(self, client):
+        """/api/settings/stats response includes a 'rag' sub-dict."""
+        response = client.get("/api/settings/stats")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "rag" in data
+        rag = data["rag"]
+        assert "TOP_K_RESULTS" in rag
+        assert "RERANK_TOP_K" in rag
+        assert "DIVERSITY_THRESHOLD" in rag
+        assert "SEMANTIC_WEIGHT" in rag
+        assert "CHUNK_SIZE" in rag
+        assert "CHUNK_OVERLAP" in rag
+
+
+# ---------------------------------------------------------------------------
+# RAG parameter endpoints
+# ---------------------------------------------------------------------------
+
+class TestRagParamsEndpoints:
+    """Tests for GET/POST /api/settings/rag."""
+
+    @pytest.fixture(autouse=True)
+    def _restore_config(self):
+        """Restore config RAG params after each test so mutations don't bleed."""
+        from src import config
+        saved = {
+            "TOP_K_RESULTS":       config.TOP_K_RESULTS,
+            "RERANK_TOP_K":        config.RERANK_TOP_K,
+            "DIVERSITY_THRESHOLD": config.DIVERSITY_THRESHOLD,
+            "SEMANTIC_WEIGHT":     config.SEMANTIC_WEIGHT,
+        }
+        yield
+        for k, v in saved.items():
+            setattr(config, k, v)
+
+    def test_get_returns_current_values_and_ranges(self, client):
+        """GET /api/settings/rag returns success, params with value/min/max."""
+        response = client.get("/api/settings/rag")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        for key in ("TOP_K_RESULTS", "RERANK_TOP_K", "DIVERSITY_THRESHOLD", "SEMANTIC_WEIGHT"):
+            assert key in data["params"]
+            p = data["params"][key]
+            assert "value" in p
+            assert "min" in p
+            assert "max" in p
+            assert p["min"] <= p["value"] <= p["max"]
+
+    def test_post_valid_params_updates_config(self, client):
+        """POST with valid values returns success and 'updated' dict."""
+        response = client.post(
+            "/api/settings/rag",
+            json={"TOP_K_RESULTS": 25, "RERANK_TOP_K": 10},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data["updated"]["TOP_K_RESULTS"] == 25
+        assert data["updated"]["RERANK_TOP_K"] == 10
+
+    def test_post_float_params_updates_config(self, client):
+        """POST accepts float params like DIVERSITY_THRESHOLD."""
+        response = client.post(
+            "/api/settings/rag",
+            json={"DIVERSITY_THRESHOLD": 0.80},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert abs(data["updated"]["DIVERSITY_THRESHOLD"] - 0.80) < 1e-9
+
+    def test_post_rejects_out_of_range_value(self, client):
+        """POST with TOP_K_RESULTS > 50 returns 400 with error message."""
+        response = client.post(
+            "/api/settings/rag",
+            json={"TOP_K_RESULTS": 999},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["success"] is False
+        assert any("TOP_K_RESULTS" in e for e in data["errors"])
+
+    def test_post_rejects_rerank_exceeds_top_k(self, client):
+        """POST where RERANK_TOP_K > TOP_K_RESULTS returns 400."""
+        response = client.post(
+            "/api/settings/rag",
+            json={"TOP_K_RESULTS": 10, "RERANK_TOP_K": 15},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["success"] is False
+        assert any("RERANK_TOP_K" in e for e in data["errors"])
+
+    def test_post_rejects_unknown_key(self, client):
+        """POST with an unknown parameter key returns 400."""
+        response = client.post(
+            "/api/settings/rag",
+            json={"UNKNOWN_PARAM": 42},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["success"] is False
+
+    def test_post_empty_body_succeeds_with_no_updates(self, client):
+        """POST with an empty body succeeds (nothing to update)."""
+        response = client.post(
+            "/api/settings/rag",
+            json={},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data["updated"] == {}
+
+    def test_post_persists_change_visible_in_get(self, client):
+        """A POST update is immediately visible in subsequent GET."""
+        client.post(
+            "/api/settings/rag",
+            json={"TOP_K_RESULTS": 40},
+            content_type="application/json",
+        )
+        get_resp = client.get("/api/settings/rag")
+        data = get_resp.get_json()
+        assert data["params"]["TOP_K_RESULTS"]["value"] == 40
