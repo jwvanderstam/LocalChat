@@ -129,12 +129,13 @@ OLLAMA_NUM_GPU: int = int(os.environ.get('OLLAMA_NUM_GPU', '-1'))
 #  32768  → ~4.0 GB  (requires Q4 model ≤5 GB to avoid CPU offload on 12 GB GPU)
 # Override via OLLAMA_NUM_CTX env var to match your GPU + model combination.
 OLLAMA_NUM_CTX: int = int(os.environ.get('OLLAMA_NUM_CTX', '8192'))
-# HTTP timeout for embedding requests (seconds). Cold-start model reload on
-# CPU can exceed 60 s; 300 s gives Ollama room to swap models from disk.
-OLLAMA_EMBED_TIMEOUT: int = int(os.environ.get('OLLAMA_EMBED_TIMEOUT', '300'))
+# HTTP timeout for embedding requests (seconds). A 15MB plain-text file
+# produces ~14K chunks; at 512/batch that is ~28 embedding calls. 600 s
+# gives the CPU embedder safe headroom for the worst-case file size.
+OLLAMA_EMBED_TIMEOUT: int = int(os.environ.get('OLLAMA_EMBED_TIMEOUT', '600'))
 # Gunicorn worker timeout (seconds). Must be >= OLLAMA_EMBED_TIMEOUT so a
-# worker is never killed mid-embed.
-GUNICORN_TIMEOUT: int = int(os.environ.get('GUNICORN_TIMEOUT', '300'))
+# worker is never killed mid-embed. 600 s supports up to ~15MB TXT uploads.
+GUNICORN_TIMEOUT: int = int(os.environ.get('GUNICORN_TIMEOUT', '600'))
 # Preferred chat model selected at startup when no model is already active.
 # Falls back to the first available model if this name is not installed.
 DEFAULT_MODEL: str = os.environ.get('DEFAULT_MODEL', 'llama3.1')

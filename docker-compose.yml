@@ -290,8 +290,8 @@ services:
 
       # ── Performance ──────────────────────────────────────
       GUNICORN_WORKERS:     ${GUNICORN_WORKERS:-2}
-      GUNICORN_TIMEOUT:     ${GUNICORN_TIMEOUT:-300}
-      OLLAMA_EMBED_TIMEOUT: ${OLLAMA_EMBED_TIMEOUT:-300}
+      GUNICORN_TIMEOUT:     ${GUNICORN_TIMEOUT:-600}
+      OLLAMA_EMBED_TIMEOUT: ${OLLAMA_EMBED_TIMEOUT:-600}
       DEFAULT_MODEL:        ${DEFAULT_MODEL:-llama3.1}
 
       # ── MCP Server Routing (Feature 3.1) ─────────────────
