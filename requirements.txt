@@ -17,7 +17,7 @@ psycopg[binary]>=3.3.3
 psycopg-pool>=3.3.0
 
 # Validation
-pydantic==2.13.1
+pydantic==2.13.2
 email-validator==2.3.0
 
 # Document Processing
@@ -57,7 +57,7 @@ python-dotenv==1.2.2
 pytest==9.0.3
 pytest-cov==7.1.0
 pytest-mock==3.15.1
-faker==40.13.0
+faker==40.15.0
 responses==0.26.0
 freezegun==1.5.5
 coverage==7.13.5
