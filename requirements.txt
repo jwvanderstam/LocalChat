@@ -17,7 +17,7 @@ psycopg[binary]>=3.3.3
 psycopg-pool>=3.3.0
 
 # Validation
-pydantic==2.13.1
+pydantic==2.13.2
 email-validator==2.3.0
 
 # Document Processing
