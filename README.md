@@ -697,6 +697,7 @@ Two GitHub Actions workflows run on every push and pull request to `main`, plus 
 |---|---|---|
 | **Tests** | `.github/workflows/tests.yml` | Runs all unit tests on Python 3.11 |
 | **SonarCloud** | `.github/workflows/sonarcloud.yml` | Runs unit tests with coverage, then uploads results to SonarCloud |
+| **CodeQL** | `.github/workflows/codeql.yml` | Python `security-extended` static analysis on push/PR to main + weekly Monday scan |
 | **Dependabot** | `.github/dependabot.yml` | Weekly PRs for pip and GitHub Actions version bumps; auto-assigned to `jwvanderstam` with labels `dependencies` / `ci` |
 
 ### SonarCloud
