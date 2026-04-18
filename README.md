@@ -691,12 +691,13 @@ mypy src/
 
 ## CI/CD & Code Quality
 
-Two GitHub Actions workflows run on every push and pull request to `main`:
+Two GitHub Actions workflows run on every push and pull request to `main`, plus automated dependency updates via Dependabot:
 
-| Workflow | File | Purpose |
+| Workflow / Config | File | Purpose |
 |---|---|---|
 | **Tests** | `.github/workflows/tests.yml` | Runs all unit tests on Python 3.11 |
 | **SonarCloud** | `.github/workflows/sonarcloud.yml` | Runs unit tests with coverage, then uploads results to SonarCloud |
+| **Dependabot** | `.github/dependabot.yml` | Weekly PRs for pip and GitHub Actions version bumps; auto-assigned to `jwvanderstam` with labels `dependencies` / `ci` |
 
 ### SonarCloud
 

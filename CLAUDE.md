@@ -191,6 +191,7 @@ Shared fixtures are in `tests/conftest.py`. Test utilities in `tests/utils/`. Al
 | `docs/DEPLOYMENT.md` | Helm install/upgrade/rollback guide, secrets management |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds 3 domain servers |
+| `.github/dependabot.yml` | Dependabot: weekly pip + GitHub Actions updates, auto-assigned to `jwvanderstam`, labels `dependencies`/`ci` |
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 7 panels) |
 
 > **Maintenance rule:** When adding or removing a module, update the Key Files table above in the same PR.
