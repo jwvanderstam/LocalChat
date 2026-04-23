@@ -781,7 +781,7 @@ def _apply_model_routing(
 ) -> tuple[str, str | None]:
     """Return (model_name, rationale) after applying override or auto-routing."""
     if fields.get('model_override'):
-        logger.info(f"[Router] User override → {fields['model_override']!r}")
+        logger.info("[Router] User override → %s", str(fields['model_override']).replace('\r', '').replace('\n', ' '))
         return fields['model_override'], "user override"
     if config.MODEL_ROUTER_ENABLED:
         try:
@@ -876,7 +876,9 @@ def api_chat():
             return jsonify({'error': 'NoModelConfigured', 'message': 'No active model set. Please select a model first.'}), 400
 
         g.model = active_model
-        logger.info(f"[CHAT API] Request - RAG Mode: {fields['use_rag']}, Enhanced: {fields['enhance']}, Query: {fields['message'][:50]}...")
+        logger.info("[CHAT API] Request - RAG Mode: %s, Enhanced: %s, Query: %s...",
+                    fields['use_rag'], fields['enhance'],
+                    str(fields['message'])[:50].replace('\r', '').replace('\n', ' '))
 
         # ── Query planning + long-term memory (optional, non-blocking) ──────
         plan, memory_context = _retrieve_plan_and_memory(

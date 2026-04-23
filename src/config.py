@@ -536,7 +536,7 @@ class AppState:
         """
         self.state['active_model'] = model_name
         self._save_state()
-        logger.info(f"Active model set to: {model_name}")
+        logger.info("Active model set to: %s", str(model_name).replace('\r', '').replace('\n', ' '))
 
     def get_document_count(self) -> int:
         """

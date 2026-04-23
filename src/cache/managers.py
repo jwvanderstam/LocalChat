@@ -243,11 +243,11 @@ class QueryCache:
         # Try cache first
         results = self.get(query, top_k, min_similarity, use_hybrid)
         if results is not None:
-            logger.info(f"Query cache HIT for: {query[:50]}...")
+            logger.info("Query cache HIT for: %s...", str(query)[:50].replace('\r', '').replace('\n', ' '))
             return results, True
 
         # Retrieve and cache
-        logger.info(f"Query cache MISS for: {query[:50]}...")
+        logger.info("Query cache MISS for: %s...", str(query)[:50].replace('\r', '').replace('\n', ' '))
         results = retrieve_fn()
         self.set(query, top_k, min_similarity, use_hybrid, results)
 

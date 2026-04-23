@@ -581,7 +581,7 @@ class DocumentsMixin:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot search chunks by text: Database is not connected")
 
-        logger.debug(f"Searching chunks for text: {search_text}")
+        logger.debug("Searching chunks for text: %s", str(search_text)[:100].replace('\r', '').replace('\n', ' '))
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""

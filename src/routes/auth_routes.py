@@ -86,7 +86,7 @@ def create_user():
     except Exception as exc:
         if 'unique' in str(exc).lower():
             return jsonify({'success': False, 'message': 'Username or email already exists'}), 409
-        logger.error(f"[Users] create error: {exc}", exc_info=True)
+        logger.error("[Users] create error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
@@ -102,7 +102,7 @@ def list_users():
         users = current_app.db.list_users()
         return jsonify({'success': True, 'users': [_public(u) for u in users]})
     except Exception as exc:
-        logger.error(f"[Users] list error: {exc}", exc_info=True)
+        logger.error("[Users] list error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
@@ -116,7 +116,7 @@ def get_user(user_id: str):
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         return jsonify({'success': True, 'user': _public(user)})
     except Exception as exc:
-        logger.error(f"[Users] get error: {exc}", exc_info=True)
+        logger.error("[Users] get error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
@@ -147,7 +147,7 @@ def update_user(user_id: str):
         user = current_app.db.get_user_by_id(user_id)
         return jsonify({'success': True, 'user': _public(user)})
     except Exception as exc:
-        logger.error(f"[Users] update error: {exc}", exc_info=True)
+        logger.error("[Users] update error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
@@ -165,7 +165,7 @@ def delete_user(user_id: str):
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         return jsonify({'success': True})
     except Exception as exc:
-        logger.error(f"[Users] delete error: {exc}", exc_info=True)
+        logger.error("[Users] delete error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 

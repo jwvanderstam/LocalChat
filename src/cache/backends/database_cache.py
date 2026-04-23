@@ -16,7 +16,6 @@ Features:
 
 import hashlib
 import json
-import pickle
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -167,7 +166,8 @@ class DatabaseCache:
                         conn.commit()
 
                         # Deserialize
-                        result = pickle.loads(result_data)
+                        raw = bytes(result_data) if not isinstance(result_data, bytes) else result_data
+                        result = json.loads(raw.decode('utf-8'))
 
                         logger.debug(f"Cache HIT (L3): {cache_key[:16]}... (hits={hit_count + 1})")
                         return result
@@ -206,7 +206,7 @@ class DatabaseCache:
 
         try:
             # Serialize result
-            result_data = pickle.dumps(result)
+            result_data = json.dumps(result, default=str).encode('utf-8')
 
             sql = pg_sql.SQL("""
             INSERT INTO {table}
