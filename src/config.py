@@ -139,6 +139,7 @@ GUNICORN_TIMEOUT: int = int(os.environ.get('GUNICORN_TIMEOUT', '600'))
 # Preferred chat model selected at startup when no model is already active.
 # Falls back to the first available model if this name is not installed.
 DEFAULT_MODEL: str = os.environ.get('DEFAULT_MODEL', 'llama3.1')
+OLLAMA_EMBEDDING_MODEL: str = os.environ.get('OLLAMA_EMBEDDING_MODEL', '')
 
 # ============================================================================
 # RAG CONFIGURATION - OPTIMIZED FOR HIGH QUALITY RESPONSES
@@ -590,7 +591,7 @@ class AppState:
         """Persist the active workspace UUID."""
         self.state['active_workspace_id'] = workspace_id
         self._save_state()
-        logger.debug(f"Active workspace set to {workspace_id}")
+        logger.debug("Active workspace set to %s", str(workspace_id).replace('\r', '').replace('\n', ' '))
 
 
 # ============================================================================

@@ -210,12 +210,14 @@ def init_security(app: Flask) -> None:
     @app.before_request
     def log_request():
         """Log incoming requests."""
-        logger.info(f"{request.method} {request.path} from {request.remote_addr}")
+        from .utils.logging_config import sanitize_log_value as _slv
+        logger.info("%s %s from %s", request.method, _slv(request.path), _slv(request.remote_addr))
 
     @app.after_request
     def log_response(response):
         """Log outgoing responses."""
-        logger.debug(f"{request.method} {request.path} -> {response.status_code}")
+        from .utils.logging_config import sanitize_log_value as _slv
+        logger.debug("%s %s -> %s", request.method, _slv(request.path), response.status_code)
         return response
 
     logger.info("Security initialization complete")
@@ -279,7 +281,8 @@ def setup_auth_routes(app: Flask) -> None:
             additional_claims={'role': user_role, 'username': username}
         )
 
-        logger.info(f"User {username} logged in successfully")
+        from .utils.logging_config import sanitize_log_value as _slv
+        logger.info("User %s logged in successfully", _slv(username))
 
         return jsonify({
             'access_token': access_token,
@@ -441,7 +444,8 @@ def admin_required(f: Callable) -> Callable:
         claims = get_jwt()
 
         if claims.get('role') != 'admin':
-            logger.warning(f"Non-admin user attempted to access admin endpoint: {request.path}")
+            from .utils.logging_config import sanitize_log_value as _slv
+            logger.warning("Non-admin user attempted to access admin endpoint: %s", _slv(request.path))
             return jsonify({'message': 'Admin access required'}), 403
 
         return f(*args, **kwargs)
@@ -476,7 +480,8 @@ def require_admin(f: Callable) -> Callable:
             return jsonify({'message': _AUTH_REQUIRED}), 401
         claims = get_jwt()
         if claims.get('role') != 'admin':
-            logger.warning(f"Non-admin user attempted to access admin endpoint: {request.path}")
+            from .utils.logging_config import sanitize_log_value as _slv
+            logger.warning("Non-admin user attempted to access admin endpoint: %s", _slv(request.path))
             return jsonify({'message': 'Admin access required'}), 403
         return f(*args, **kwargs)
     return decorated_function
@@ -524,7 +529,8 @@ def setup_rate_limit_handler(app: Flask) -> None:
         Returns:
             JSON error response
         """
-        logger.warning(f"Rate limit exceeded for {request.remote_addr} on {request.path}")
+        from .utils.logging_config import sanitize_log_value as _slv
+        logger.warning("Rate limit exceeded for %s on %s", _slv(request.remote_addr), _slv(request.path))
         return jsonify({
             'success': False,
             'error': 'RateLimitExceeded',

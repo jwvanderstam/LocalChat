@@ -210,7 +210,8 @@ def api_pull_model():
             if not model_name:
                 return jsonify({'success': False, 'message': 'Model name required'}), 400
 
-        logger.info(f"Pulling model: {model_name}")
+        from ..utils.logging_config import sanitize_log_value as _slv
+        logger.info("Pulling model: %s", _slv(model_name))
 
         app = current_app._get_current_object()  # type: ignore[attr-defined]
 
@@ -305,7 +306,8 @@ def api_test_model():
             if not model_name:
                 return jsonify({'success': False, 'message': 'Model name required'}), 400
 
-        logger.info(f"Testing model: {model_name}")
+        from ..utils.logging_config import sanitize_log_value as _slv
+        logger.info("Testing model: %s", _slv(model_name))
 
         app = cast('LocalChatApp', current_app)
         success, result = app.ollama_client.test_model(model_name)

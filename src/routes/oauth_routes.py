@@ -116,7 +116,7 @@ def microsoft_callback():
         resp.raise_for_status()
     except requests.HTTPError as exc:
         logger.error(f"[OAuth] Token exchange failed: {exc}")
-        return jsonify({'success': False, 'message': f'Token exchange failed: {exc}'}), 500
+        return jsonify({'success': False, 'message': 'Token exchange failed'}), 500
 
     data = resp.json()
     access_token = data.get('access_token')

@@ -17,7 +17,6 @@ Supports:
 
 import hashlib
 import json
-import pickle
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -318,7 +317,7 @@ class RedisCache(CacheBackend):
                 return None
 
             # Deserialize
-            value = pickle.loads(data)
+            value = json.loads(data.decode("utf-8"))
             self.stats.hits += 1
             return value
 
@@ -333,7 +332,7 @@ class RedisCache(CacheBackend):
 
         try:
             # Serialize
-            data = pickle.dumps(value)
+            data = json.dumps(value).encode("utf-8")
 
             # Set with TTL
             if ttl:

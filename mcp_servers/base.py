@@ -68,8 +68,8 @@ class MCPServer:
                     content = [{"type": "text", "text": json.dumps(result)}]
                     return jsonify(_rpc_ok(id_, {"content": content}))
                 except Exception as exc:
-                    logger.error(f"[{self.name}] Tool '{tool_name}' raised: {exc}", exc_info=True)
-                    return jsonify(_rpc_error(id_, -32000, str(exc)))
+                    logger.error("[%s] Tool '%s' raised: %s", self.name, str(tool_name).replace('\r','').replace('\n',' '), exc, exc_info=True)
+                    return jsonify(_rpc_error(id_, -32000, "Tool execution failed"))
 
             return jsonify(_rpc_error(id_, -32601, f"Method not found: {method}"))
 

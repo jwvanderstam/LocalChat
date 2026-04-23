@@ -89,7 +89,8 @@ def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(405)
     def method_not_allowed_handler(_error: Any):
         """Handle 405 Method Not Allowed errors."""
-        logger.warning(f"Method not allowed: {request.method} {request.path}")
+        from ..utils.logging_config import sanitize_log_value as _slv
+        logger.warning("Method not allowed: %s %s", request.method, _slv(request.path))
 
         error_response = ErrorResponse(
             error="MethodNotAllowed",

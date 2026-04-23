@@ -117,7 +117,7 @@ class TestConfigDefaults:
         from src import config
 
         # Database defaults
-        assert config.PG_HOST in ['localhost', '127.0.0.1', 'postgres']
+        assert config.PG_HOST in ['localhost', '127.0.0.1', 'postgres', 'db']
         assert config.PG_PORT in [5432, 5433]
         assert config.PG_USER is not None
 

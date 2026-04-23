@@ -1,5 +1,17 @@
 {% extends "base.html" %}
 
+{% block extra_head %}
+<style>
+    .assistant-message .message-content:has(.table-responsive) {
+        max-width: 95%;
+    }
+    .message-text .table-responsive {
+        margin-left: -0.25rem;
+        margin-right: -0.25rem;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
     <h1 class="h2">Chat Interface</h1>

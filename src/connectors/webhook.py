@@ -26,14 +26,47 @@ Config keys:
 
 from __future__ import annotations
 
+import ipaddress
 import queue
 import threading
 from typing import Any
+from urllib.parse import urlparse
 
 from ..utils.logging_config import get_logger
 from .base import BaseConnector, DocumentEvent, DocumentSource, EventType
 
 logger = get_logger(__name__)
+
+_PRIVATE_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local / AWS metadata
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+]
+
+
+def _validate_fetch_url(url: str) -> None:
+    """Raise ValueError if url is not a safe public https URL."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"fetch_url must use https (got {parsed.scheme!r})")
+    hostname = parsed.hostname or ""
+    if not hostname:
+        raise ValueError("fetch_url has no hostname")
+    try:
+        addr = ipaddress.ip_address(hostname)
+        for net in _PRIVATE_NETWORKS:
+            if addr in net:
+                raise ValueError(f"fetch_url resolves to a private/reserved address: {addr}")
+    except ValueError as exc:
+        if "private" in str(exc) or "reserved" in str(exc):
+            raise
+        # hostname is a domain name — DNS resolution happens in urlopen;
+        # we can't block at this layer without a DNS lookup, but scheme
+        # and structural checks cover the most common SSRF vectors.
 
 
 class WebhookConnector(BaseConnector):
@@ -99,6 +132,7 @@ class WebhookConnector(BaseConnector):
         fetch_url = source.metadata.get("fetch_url", "")
         if not fetch_url:
             raise ValueError(f"No fetch_url in webhook event for {source.filename}")
+        _validate_fetch_url(fetch_url)
         import urllib.request
         with urllib.request.urlopen(fetch_url, timeout=30) as resp:  # noqa: S310
             return resp.read()
@@ -106,7 +140,7 @@ class WebhookConnector(BaseConnector):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _validate_payload(payload: dict[str, Any]) -> list[str]:
+    def _validate_payload(payload: dict[str, Any]) -> list[str]:  # noqa: C901
         errors: list[str] = []
         if not payload.get("source_id", "").strip():
             errors.append("'source_id' is required")

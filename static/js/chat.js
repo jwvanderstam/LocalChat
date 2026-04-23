@@ -537,6 +537,44 @@ async function sendMessage() {
 // ============================================================================
 
 function formatMessageText(text) {
+    const lines = text.split('\n');
+    const output = [];
+    let i = 0;
+
+    while (i < lines.length) {
+        // Detect markdown table: current line has |, next is a separator row (---|---), then more | rows
+        if (lines[i].includes('|') && i + 1 < lines.length && /^\s*\|?[\s\-:]+\|/.test(lines[i + 1])) {
+            const tableLines = [];
+            while (i < lines.length && lines[i].includes('|')) {
+                tableLines.push(lines[i]);
+                i++;
+            }
+            output.push(renderTable(tableLines));
+        } else {
+            output.push(formatInline(lines[i]));
+            i++;
+        }
+    }
+
+    return output.join('<br>');
+}
+
+function renderTable(lines) {
+    const rows = lines.map(l => l.replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+    // Second row is the separator — skip it
+    const header = rows[0];
+    const body = rows.slice(2);
+
+    const ths = header.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+    const trs = body.map(row => {
+        const tds = row.map(c => `<td>${escapeHtml(c)}</td>`).join('');
+        return `<tr>${tds}</tr>`;
+    }).join('');
+
+    return `<div class="table-responsive my-2"><table class="table table-sm table-bordered table-striped mb-0"><thead class="table-light"><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+}
+
+function formatInline(text) {
     text = text.replace(/[<>&]/g, (char) => {
         switch (char) {
             case '<': return '&lt;';
@@ -545,7 +583,6 @@ function formatMessageText(text) {
             default: return char;
         }
     });
-    text = text.replace(/\n/g, '<br>');
     text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
     text = text.replace(/`(.+?)`/g, '<code>$1</code>');

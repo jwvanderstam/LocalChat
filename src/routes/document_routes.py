@@ -451,7 +451,8 @@ def api_search_text():
                 'message': 'search_text required'
             }), 400
 
-        logger.info(f"Searching chunks for text: {search_text}")
+        from ..utils.logging_config import sanitize_log_value as _slv
+        logger.info("Searching chunks for text: %s", _slv(search_text))
         results = current_app.db.search_chunks_by_text(search_text, limit)
 
         return jsonify({

@@ -171,7 +171,7 @@ class TestWebhookConnector:
             "event_type": "added",
             "source_id": "doc-123",
             "filename": "report.pdf",
-            "fetch_url": "http://example.com/report.pdf",
+            "fetch_url": "https://example.com/report.pdf",
         })
         assert errors == []
         events = c.poll()
@@ -191,7 +191,7 @@ class TestWebhookConnector:
 
     def test_push_event_missing_source_id(self):
         c = self._make()
-        errors = c.push_event({"event_type": "added", "fetch_url": "http://x.com"})
+        errors = c.push_event({"event_type": "added", "fetch_url": "https://x.com"})
         assert any("source_id" in e for e in errors)
 
     def test_push_event_missing_fetch_url_for_added(self):
@@ -210,7 +210,7 @@ class TestWebhookConnector:
             c.push_event({
                 "event_type": "added",
                 "source_id": f"doc-{i}",
-                "fetch_url": "http://x.com",
+                "fetch_url": "https://x.com",
             })
         events = c.poll()
         assert len(events) == 3
@@ -220,7 +220,7 @@ class TestWebhookConnector:
         c = self._make()
         source = DocumentSource(
             source_id="doc-1", filename="f.txt",
-            metadata={"fetch_url": "http://example.com/f.txt"},
+            metadata={"fetch_url": "https://example.com/f.txt"},
         )
         mock_resp = MagicMock()
         mock_resp.__enter__ = lambda s: s

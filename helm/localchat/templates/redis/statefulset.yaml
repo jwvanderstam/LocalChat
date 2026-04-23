@@ -19,6 +19,11 @@ spec:
         {{- include "localchat.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: redis
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: redis
           image: redis:7-alpine
@@ -28,6 +33,11 @@ spec:
             - --requirepass
             - $(REDIS_PASSWORD)
             {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: redis
               containerPort: 6379

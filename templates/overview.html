@@ -839,34 +839,50 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <div class="card border-primary h-100">
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-success h-100">
                             <div class="card-body">
-                                <h5 class="card-title"><i class="bi bi-cloud me-2 text-primary"></i>Azure Cloud Deployment</h5>
-                                <p class="card-text small text-muted">Bicep IaC + Docker Compose + GitHub Actions OIDC. Fully automated CI/CD to Azure Container Instance / VM.</p>
+                                <h5 class="card-title"><i class="bi bi-box me-2 text-success"></i>Docker Compose</h5>
+                                <p class="card-text small text-muted">Full local stack — app, PostgreSQL, Redis, Ollama, and optional MCP servers.</p>
                                 <ul class="small mb-3">
-                                    <li>Bicep templates (<code>infra/main.bicep</code>)</li>
-                                    <li>GitHub Actions workflow with OIDC auth</li>
-                                    <li>Estimated cost: ~€380/month</li>
+                                    <li><code>docker compose up -d</code></li>
+                                    <li><code>--profile mcp</code> adds 3 MCP servers</li>
+                                    <li>All services pre-wired, zero config</li>
                                 </ul>
-                                <a href="https://github.com/jwvanderstam/LocalChat/blob/main/IaCplan.md" target="_blank" class="btn btn-outline-primary btn-sm">
-                                    <i class="bi bi-file-text me-1"></i>View IaCplan.md
+                                <a href="https://github.com/jwvanderstam/LocalChat/blob/main/docker-compose.yml" target="_blank" class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-file-code me-1"></i>docker-compose.yml
                                 </a>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="card border-success h-100">
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-primary h-100">
                             <div class="card-body">
-                                <h5 class="card-title"><i class="bi bi-server me-2 text-success"></i>Private Server Deployment</h5>
-                                <p class="card-text small text-muted">Self-hosted on bare-metal or VM. Nginx reverse proxy, Certbot TLS, SSH deploy via GitHub Actions.</p>
+                                <h5 class="card-title"><i class="bi bi-diagram-2 me-2 text-primary"></i>Kubernetes / Helm</h5>
+                                <p class="card-text small text-muted">Production-grade Helm chart with PostgreSQL + Redis StatefulSets and MCP server Deployments.</p>
                                 <ul class="small mb-3">
-                                    <li>Ubuntu 22.04 LTS + Docker Compose</li>
-                                    <li>Detailed GPU / RAM / storage requirements</li>
-                                    <li>Three tiers: Dev / Small Team / Production</li>
+                                    <li>Full Helm chart at <code>helm/localchat/</code></li>
+                                    <li>Secrets management, rolling updates</li>
+                                    <li>Install / upgrade / rollback guide</li>
                                 </ul>
-                                <a href="https://github.com/jwvanderstam/LocalChat/blob/main/PrivateInfraPlan.md" target="_blank" class="btn btn-outline-success btn-sm">
-                                    <i class="bi bi-file-text me-1"></i>View PrivateInfraPlan.md
+                                <a href="https://github.com/jwvanderstam/LocalChat/blob/main/docs/DEPLOYMENT.md" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-file-text me-1"></i>DEPLOYMENT.md
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-secondary h-100">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="bi bi-terminal me-2 text-secondary"></i>Local / Dev</h5>
+                                <p class="card-text small text-muted">Run directly with Python + Gunicorn. Requires PostgreSQL, Ollama, and optional Redis.</p>
+                                <ul class="small mb-3">
+                                    <li><code>python app.py</code> for dev</li>
+                                    <li><code>gunicorn "app:create_gunicorn_app()"</code> for prod</li>
+                                    <li>Configure via <code>.env</code> file</li>
+                                </ul>
+                                <a href="https://github.com/jwvanderstam/LocalChat/blob/main/README.md" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-file-text me-1"></i>README.md
                                 </a>
                             </div>
                         </div>

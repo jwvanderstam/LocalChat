@@ -72,7 +72,7 @@ def list_connectors():
         return jsonify({'success': True, 'connectors': connectors})
     except Exception as e:
         logger.error(f"[Connectors] list error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 @bp.route('/api/connectors', methods=['POST'])
@@ -144,7 +144,7 @@ def create_connector():
         return jsonify({'success': True, 'connector': connector}), 201
     except Exception as e:
         logger.error(f"[Connectors] create error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +160,7 @@ def get_connector(connector_id: str):
         return jsonify({'success': True, 'connector': connector})
     except Exception as e:
         logger.error(f"[Connectors] get error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 @bp.route('/api/connectors/<connector_id>', methods=['PUT'])
@@ -189,7 +189,7 @@ def update_connector(connector_id: str):
         return jsonify({'success': True, 'connector': connector})
     except Exception as e:
         logger.error(f"[Connectors] update error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 @bp.route('/api/connectors/<connector_id>', methods=['DELETE'])
@@ -202,7 +202,7 @@ def delete_connector(connector_id: str):
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"[Connectors] delete error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ def sync_history(connector_id: str):
         return jsonify({'success': True, 'history': history})
     except Exception as e:
         logger.error(f"[Connectors] history error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 # ---------------------------------------------------------------------------

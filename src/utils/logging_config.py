@@ -22,6 +22,11 @@ from pathlib import Path
 from typing import Optional
 
 
+def sanitize_log_value(value: object) -> str:
+    """Strip CR/LF from a user-supplied value before embedding in a log message."""
+    return str(value).replace('\r', '').replace('\n', ' ')
+
+
 class SafeStreamHandler(logging.StreamHandler):
     """
     StreamHandler that silently drops 'I/O operation on closed file' errors.

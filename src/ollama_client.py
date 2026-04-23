@@ -828,6 +828,8 @@ class OllamaClient:
             >>> model = ollama_client.get_embedding_model("nomic-embed-text")
             >>> print(f"Using embedding model: {model}")
         """
+        if not preferred_model:
+            preferred_model = config.OLLAMA_EMBEDDING_MODEL or None
         if not preferred_model and self._embedding_model_cache is not None:
             return self._embedding_model_cache
 

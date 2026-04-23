@@ -19,9 +19,19 @@ spec:
         {{- include "localchat.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: postgresql
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: postgresql
           image: pgvector/pgvector:pg16
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: postgresql
               containerPort: 5432
