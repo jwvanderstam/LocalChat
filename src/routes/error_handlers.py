@@ -133,7 +133,9 @@ def register_error_handlers(app: Flask) -> None:
         """Handle Pydantic validation errors with user-friendly messages."""
         errors = error.errors()
         user_message = _build_validation_message(errors)
-        logger.warning(f"Validation error ({len(errors)} issue(s)): {user_message[:80]}")
+        logger.warning("Validation error (%d issue(s)): %s",
+                       len(errors),
+                       user_message[:80].replace('\r', '').replace('\n', ' '))
         error_response = ErrorResponse(
             error="ValidationError",
             message=user_message,

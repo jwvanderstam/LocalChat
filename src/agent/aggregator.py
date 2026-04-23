@@ -148,7 +148,10 @@ class AggregatorAgent:
                     ))
                     msg = f"{tool}: {exc}"
                     warnings.append(msg)
-                    logger.warning(f"[Agent] FAIL {tool!r} '{q[:40]}' — {exc}")
+                    logger.warning("[Agent] FAIL %r '%s' — %s",
+                                   tool,
+                                   str(q)[:40].replace('\r', '').replace('\n', ' '),
+                                   exc)
 
         merged_by_tool: dict[str, str] = {
             t: "\n\n".join(ctxs)
