@@ -26,6 +26,8 @@ import uuid
 
 from flask import Flask, g, request
 
+from .logging_config import sanitize_log_value as _slv
+
 _HEADER = "X-Request-ID"
 _access_logger = logging.getLogger("access")
 
@@ -63,10 +65,10 @@ def init_request_id(app: Flask) -> None:
         )
         _access_logger.info(
             "%s %s %d",
-            request.method, request.path, response.status_code,
+            request.method, _slv(request.path), response.status_code,
             extra={
                 "method": request.method,
-                "path": request.path,
+                "path": _slv(request.path),
                 "status_code": response.status_code,
                 "duration_ms": duration_ms,
                 "model": getattr(g, "model", None),

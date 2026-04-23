@@ -121,7 +121,8 @@ def create_connector():
     try:
         tmp_instance = cls(connector_config)
     except Exception as exc:
-        return jsonify({'success': False, 'message': f"Invalid config: {exc}"}), 400
+        logger.warning("Connector config instantiation failed: %s", exc)
+        return jsonify({'success': False, 'message': 'Invalid connector configuration'}), 400
     errors = tmp_instance.validate_config()
     if errors:
         return jsonify({'success': False, 'message': '; '.join(errors)}), 400

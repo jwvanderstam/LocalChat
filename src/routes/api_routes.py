@@ -952,8 +952,8 @@ def list_plugins():
             "total_tools": len(tool_registry),
         })
     except Exception as exc:
-        logger.error(f"[PLUGINS] list_plugins error: {exc}", exc_info=True)
-        return jsonify({"success": False, "message": str(exc)}), 500
+        logger.error("[PLUGINS] list_plugins error", exc_info=True)
+        return jsonify({"success": False, "message": "Internal server error"}), 500
 
 
 @bp.route('/api/plugins/reload', methods=['POST'])
@@ -973,5 +973,5 @@ def reload_plugins():
             "plugins": plugin_loader.list_plugins(),
         })
     except Exception as exc:
-        logger.error(f"[PLUGINS] reload error: {exc}", exc_info=True)
-        return jsonify({"success": False, "message": str(exc)}), 500
+        logger.error("[PLUGINS] reload error", exc_info=True)
+        return jsonify({"success": False, "message": "Internal server error"}), 500

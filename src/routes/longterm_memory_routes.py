@@ -26,8 +26,8 @@ def list_memories():
         memories = _current_app.db.get_all_memories(limit=limit, offset=offset)
         return jsonify({'success': True, 'memories': memories, 'count': len(memories)})
     except Exception as exc:
-        logger.error(f"[Memory] list_memories error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': str(exc)}), 500
+        logger.error("[Memory] list_memories error", exc_info=True)
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 @bp.route('/extract', methods=['POST'])
@@ -85,8 +85,8 @@ def extract_memories():
             'new_memories': total_new,
         })
     except Exception as exc:
-        logger.error(f"[Memory] extract_memories error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': str(exc)}), 500
+        logger.error("[Memory] extract_memories error", exc_info=True)
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 @bp.route('/<memory_id>', methods=['DELETE'])
@@ -96,8 +96,8 @@ def delete_memory(memory_id: str):
         _current_app.db.delete_memory(memory_id)
         return jsonify({'success': True})
     except Exception as exc:
-        logger.error(f"[Memory] delete_memory error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': str(exc)}), 500
+        logger.error("[Memory] delete_memory error", exc_info=True)
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 
 @bp.route('/', methods=['DELETE'])
@@ -107,5 +107,5 @@ def delete_all_memories():
         count = _current_app.db.delete_all_memories()
         return jsonify({'success': True, 'deleted': count})
     except Exception as exc:
-        logger.error(f"[Memory] delete_all_memories error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': str(exc)}), 500
+        logger.error("[Memory] delete_all_memories error", exc_info=True)
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
