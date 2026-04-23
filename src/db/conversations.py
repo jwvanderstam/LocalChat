@@ -53,6 +53,60 @@ class ConversationsMixin:
         logger.debug(f"Created conversation: {conversation_id}")
         return conversation_id
 
+    def create_conversation_with_message(
+        self,
+        title: str,
+        role: str,
+        content: str,
+        workspace_id: str | None = None,
+        plan_json: dict | None = None,
+    ) -> tuple[str, int]:
+        """Create a conversation and save its first message in a single transaction.
+
+        Avoids an orphaned empty conversation if the message insert fails.
+
+        Returns:
+            (conversation_id, message_id)
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError(
+                "Cannot create conversation: Database is not connected"
+            )
+
+        from psycopg.types.json import Jsonb
+
+        conversation_id = str(uuid.uuid4())
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO conversations (id, title, workspace_id) VALUES (%s, %s, %s)",
+                    (conversation_id, title[:255], workspace_id),
+                )
+                cursor.execute(
+                    """
+                    WITH ins AS (
+                        INSERT INTO conversation_messages
+                            (conversation_id, role, content, plan_json)
+                        VALUES (%s, %s, %s, %s) RETURNING id
+                    ), upd AS (
+                        UPDATE conversations
+                        SET updated_at = CURRENT_TIMESTAMP WHERE id = %s
+                    )
+                    SELECT id FROM ins
+                    """,
+                    (
+                        conversation_id,
+                        role,
+                        content,
+                        Jsonb(plan_json) if plan_json else None,
+                        conversation_id,
+                    ),
+                )
+                message_id = cursor.fetchone()[0]
+                conn.commit()
+        logger.debug(f"Created conversation {conversation_id} with first message (id={message_id})")
+        return conversation_id, message_id
+
     def list_conversations(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         """
         List conversations ordered by most recently updated.
