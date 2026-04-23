@@ -951,7 +951,7 @@ def list_plugins():
             "builtin_tool_count": len(builtin_tools),
             "total_tools": len(tool_registry),
         })
-    except Exception as exc:
+    except Exception:
         logger.error("[PLUGINS] list_plugins error", exc_info=True)
         return jsonify({"success": False, "message": "Internal server error"}), 500
 
@@ -972,6 +972,6 @@ def reload_plugins():
             "reloaded": count,
             "plugins": plugin_loader.list_plugins(),
         })
-    except Exception as exc:
+    except Exception:
         logger.error("[PLUGINS] reload error", exc_info=True)
         return jsonify({"success": False, "message": "Internal server error"}), 500

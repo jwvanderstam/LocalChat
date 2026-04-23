@@ -18,6 +18,7 @@ bp = Blueprint('workspaces', __name__)
 
 
 _NOT_FOUND = 'Workspace not found'
+_ERR_INTERNAL = 'Internal server error'
 
 # ---------------------------------------------------------------------------
 # List / Create
@@ -43,7 +44,7 @@ def list_workspaces():
         return jsonify({'success': True, 'workspaces': workspaces})
     except Exception as e:
         logger.error(f"[Workspaces] list error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/api/workspaces', methods=['POST'])
@@ -86,7 +87,7 @@ def create_workspace():
         return jsonify({'success': True, 'workspace': workspace}), 201
     except Exception as e:
         logger.error(f"[Workspaces] create error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +121,7 @@ def get_workspace(workspace_id: str):
         return jsonify({'success': True, 'workspace': workspace})
     except Exception as e:
         logger.error(f"[Workspaces] get error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/api/workspaces/<workspace_id>', methods=['PUT'])
@@ -166,7 +167,7 @@ def update_workspace(workspace_id: str):
         return jsonify({'success': True, 'workspace': workspace})
     except Exception as e:
         logger.error(f"[Workspaces] update error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/api/workspaces/<workspace_id>', methods=['DELETE'])
@@ -203,7 +204,7 @@ def delete_workspace(workspace_id: str):
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"[Workspaces] delete error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +231,7 @@ def get_active_workspace():
         return jsonify({'success': True, 'workspace': workspace})
     except Exception as e:
         logger.error(f"[Workspaces] get active error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +246,7 @@ def list_workspace_members(workspace_id: str):
         return jsonify({'success': True, 'members': members})
     except Exception as e:
         logger.error(f"[Workspaces] list members error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/api/workspaces/<workspace_id>/members', methods=['POST'])
@@ -280,7 +281,7 @@ def add_workspace_member(workspace_id: str):
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"[Workspaces] add member error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/api/workspaces/<workspace_id>/members/<user_id>', methods=['PUT'])
@@ -295,7 +296,7 @@ def update_workspace_member(workspace_id: str, user_id: str):
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"[Workspaces] update member error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/api/workspaces/<workspace_id>/members/<user_id>', methods=['DELETE'])
@@ -308,7 +309,7 @@ def remove_workspace_member(workspace_id: str, user_id: str):
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"[Workspaces] remove member error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/api/workspaces/switch', methods=['POST'])
@@ -349,4 +350,4 @@ def switch_workspace():
         return jsonify({'success': True, 'workspace': workspace})
     except Exception as e:
         logger.error(f"[Workspaces] switch error: {e}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500

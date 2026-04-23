@@ -24,6 +24,7 @@ logger = get_logger(__name__)
 bp = Blueprint('auth_users', __name__)
 
 _NOT_FOUND = 'User not found'
+_ERR_INTERNAL = 'Internal server error'
 
 
 def _public(user: dict) -> dict:
@@ -86,7 +87,7 @@ def create_user():
         if 'unique' in str(exc).lower():
             return jsonify({'success': False, 'message': 'Username or email already exists'}), 409
         logger.error(f"[Users] create error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +103,7 @@ def list_users():
         return jsonify({'success': True, 'users': [_public(u) for u in users]})
     except Exception as exc:
         logger.error(f"[Users] list error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.get('/users/<user_id>')
@@ -116,7 +117,7 @@ def get_user(user_id: str):
         return jsonify({'success': True, 'user': _public(user)})
     except Exception as exc:
         logger.error(f"[Users] get error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +148,7 @@ def update_user(user_id: str):
         return jsonify({'success': True, 'user': _public(user)})
     except Exception as exc:
         logger.error(f"[Users] update error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +166,7 @@ def delete_user(user_id: str):
         return jsonify({'success': True})
     except Exception as exc:
         logger.error(f"[Users] delete error: {exc}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 # ---------------------------------------------------------------------------

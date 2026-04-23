@@ -16,6 +16,8 @@ from ..utils.logging_config import get_logger
 bp = Blueprint('longterm_memory', __name__)
 logger = get_logger(__name__)
 
+_ERR_INTERNAL = 'Internal server error'
+
 
 @bp.route('/', methods=['GET'])
 def list_memories():
@@ -25,9 +27,9 @@ def list_memories():
         offset = max(int(request.args.get('offset', 0)), 0)
         memories = _current_app.db.get_all_memories(limit=limit, offset=offset)
         return jsonify({'success': True, 'memories': memories, 'count': len(memories)})
-    except Exception as exc:
+    except Exception:
         logger.error("[Memory] list_memories error", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/extract', methods=['POST'])
@@ -76,17 +78,17 @@ def extract_memories():
                 )
                 total_new += new
                 processed += 1
-            except Exception as exc:
-                logger.warning(f"[Memory] Extraction failed for conv {conv['id']}: {exc}")
+            except Exception:
+                logger.warning("[Memory] Extraction failed for conv %s", conv['id'], exc_info=True)
 
         return jsonify({
             'success': True,
             'conversations_processed': processed,
             'new_memories': total_new,
         })
-    except Exception as exc:
+    except Exception:
         logger.error("[Memory] extract_memories error", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/<memory_id>', methods=['DELETE'])
@@ -95,9 +97,9 @@ def delete_memory(memory_id: str):
     try:
         _current_app.db.delete_memory(memory_id)
         return jsonify({'success': True})
-    except Exception as exc:
+    except Exception:
         logger.error("[Memory] delete_memory error", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
 
 @bp.route('/', methods=['DELETE'])
@@ -106,6 +108,6 @@ def delete_all_memories():
     try:
         count = _current_app.db.delete_all_memories()
         return jsonify({'success': True, 'deleted': count})
-    except Exception as exc:
+    except Exception:
         logger.error("[Memory] delete_all_memories error", exc_info=True)
-        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500

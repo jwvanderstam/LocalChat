@@ -510,7 +510,7 @@ def api_get_chunk_context(chunk_id: int):
         })
     except DatabaseUnavailableError:
         raise
-    except Exception as e:
+    except Exception:
         logger.error("Error fetching chunk context for %s", str(chunk_id).replace('\r', '').replace('\n', ' '), exc_info=True)
         return jsonify({'success': False, 'message': 'Failed to fetch chunk context'}), 500
 
