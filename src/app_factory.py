@@ -94,14 +94,15 @@ def create_app(
     if not testing:
         _init_monitoring(app)
 
+    # Security must be initialized before blueprints so the module-level
+    # limiter is bound to the app before @limiter.limit() decorators run.
+    _init_security(app, testing)
+
     # Register blueprints
     _register_blueprints(app)
 
     # Register error handlers
     _register_error_handlers(app)
-
-    # Initialize security middleware
-    _init_security(app, testing)
 
     # Setup cleanup handlers
     _setup_cleanup_handlers(app)

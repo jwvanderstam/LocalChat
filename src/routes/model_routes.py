@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING, Generator
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
-from .. import exceptions
+from .. import config, exceptions
+from ..security import limiter
 from ..utils.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -180,6 +181,7 @@ def api_active_model():
 
 
 @bp.route('/pull', methods=['POST'])
+@limiter.limit(config.RATELIMIT_MODELS)
 def api_pull_model():
     """
     Pull a new model from Ollama registry.
@@ -235,6 +237,7 @@ def api_pull_model():
 
 
 @bp.route('/delete', methods=['DELETE'])
+@limiter.limit(config.RATELIMIT_MODELS)
 def api_delete_model():
     """
     Delete a model.

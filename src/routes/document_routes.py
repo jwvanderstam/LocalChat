@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 else:
     current_app = _current_app
 
+from .. import config
+from ..security import limiter
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import sanitize_filename, validate_path
@@ -116,6 +118,7 @@ def _stream_file_ingest(app, file_path: str) -> Generator[str, None, None]:
 
 
 @bp.route('/upload', methods=['POST'])
+@limiter.limit(config.RATELIMIT_UPLOAD)
 def api_upload_documents():
     """
     Upload and ingest documents.
