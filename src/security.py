@@ -38,11 +38,14 @@ from .utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 # ============================================================================
-# GLOBAL INSTANCES (will be initialized by init_security)
+# GLOBAL INSTANCES
 # ============================================================================
 
 jwt_manager = None
-limiter = None
+# Limiter is created at module level so blueprint decorators (@limiter.limit)
+# can reference it at import time.  Storage, default limits, and enabled flag
+# are pushed via app.config before limiter.init_app(app) in init_security().
+limiter = Limiter(key_func=get_remote_address)
 
 
 def _resolve_ratelimit_storage(desired_uri: str) -> str:
@@ -149,7 +152,7 @@ def init_security(app: Flask) -> None:
         - CORS (if enabled)
         - Request logging
     """
-    global jwt_manager, limiter
+    global jwt_manager
 
     logger.info("Initializing security features...")
 
@@ -159,7 +162,8 @@ def init_security(app: Flask) -> None:
             raise RuntimeError("DEMO_MODE must not be enabled in production")
         logger.warning("DEMO_MODE: JWT authentication and rate limiting are disabled.")
         jwt_manager = JWTManager(app)
-        limiter = Limiter(app=app, key_func=get_remote_address, enabled=False)
+        app.config['RATELIMIT_ENABLED'] = False
+        limiter.init_app(app)
         if config.CORS_ENABLED:
             CORS(app, origins=config.CORS_ORIGINS)
         logger.info("Security initialization complete (demo mode)")
@@ -179,24 +183,19 @@ def init_security(app: Flask) -> None:
     jwt_manager = JWTManager(app)
     logger.info("JWT authentication configured")
 
-    # Rate Limiting Configuration
+    # Rate Limiting Configuration — push settings via app.config before init_app
+    # so that blueprint-level @limiter.limit() decorators pick them up correctly.
     if config.RATELIMIT_ENABLED:
         storage_uri = _resolve_ratelimit_storage(config.RATELIMIT_STORAGE_URI)
-        limiter = Limiter(
-            app=app,
-            key_func=get_remote_address,
-            default_limits=[config.RATELIMIT_GENERAL],
-            storage_uri=storage_uri,
-        )
+        app.config['RATELIMIT_STORAGE_URI'] = storage_uri
+        app.config['RATELIMIT_DEFAULT'] = config.RATELIMIT_GENERAL
+        app.config['RATELIMIT_ENABLED'] = True
+        limiter.init_app(app)
         backend = "Redis" if storage_uri.startswith("redis://") else "memory"
         logger.info(f"Rate limiting enabled (storage: {backend})")
     else:
-        # Create a dummy limiter that doesn't actually limit
-        limiter = Limiter(
-            app=app,
-            key_func=get_remote_address,
-            enabled=False
-        )
+        app.config['RATELIMIT_ENABLED'] = False
+        limiter.init_app(app)
         logger.info("Rate limiting disabled")
 
     # CORS Configuration

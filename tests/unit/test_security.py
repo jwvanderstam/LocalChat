@@ -24,6 +24,44 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 
+def _make_bare_app():
+    """Minimal Flask app for calling init_security directly."""
+    from flask import Flask
+    app = Flask(__name__)
+    app.config['TESTING'] = True
+    app.config['JWT_SECRET_KEY'] = 'test-secret'
+    return app
+
+
+class TestInitSecurityPaths:
+    """Cover the demo-mode and rate-limit-disabled branches of init_security."""
+
+    def test_demo_mode_sets_ratelimit_disabled(self):
+        from src.security import init_security
+        app = _make_bare_app()
+        with patch('src.security.config') as cfg:
+            cfg.DEMO_MODE = True
+            cfg.CORS_ENABLED = False
+            cfg.JWT_SECRET_KEY = 'secret'
+            cfg.JWT_ACCESS_TOKEN_EXPIRES = 3600
+            init_security(app)
+        assert app.config.get('RATELIMIT_ENABLED') is False
+
+    def test_ratelimit_disabled_path(self):
+        from src.security import init_security
+        app = _make_bare_app()
+        with patch('src.security.config') as cfg, \
+             patch('src.security._ADMIN_PASSWORD_RAW', 'pw'):
+            cfg.DEMO_MODE = False
+            cfg.RATELIMIT_ENABLED = False
+            cfg.CORS_ENABLED = False
+            cfg.JWT_SECRET_KEY = 'secret'
+            cfg.JWT_ACCESS_TOKEN_EXPIRES = 3600
+            cfg.JWT_COOKIE_SECURE = False
+            init_security(app)
+        assert app.config.get('RATELIMIT_ENABLED') is False
+
+
 class TestSecurityInitialization:
     """Test security initialization."""
 
