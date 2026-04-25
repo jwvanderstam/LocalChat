@@ -300,6 +300,7 @@ class TestCacheInitRedisCache:
 
         with patch.dict("sys.modules", {"redis": mock_redis_mod}):
             from importlib import reload
+
             import src.cache as cache_mod
             reload(cache_mod)
             cache = cache_mod.RedisCache(namespace="init_test")
