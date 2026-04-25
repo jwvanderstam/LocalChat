@@ -342,6 +342,60 @@ class TestBuiltinToolsRegistration:
         # Should return an error, not execute the import
         assert isinstance(result, str)
 
+    def test_calculate_negative_number(self):
+        import src.tools.builtin  # noqa: F401
+        from src.tools.registry import tool_registry
+        result = tool_registry.execute("calculate", {"expression": "-5"})
+        assert "-5" in result
+
+    def test_calculate_unary_plus(self):
+        import src.tools.builtin  # noqa: F401
+        from src.tools.registry import tool_registry
+        result = tool_registry.execute("calculate", {"expression": "2 + -3"})
+        assert "-1" in result
+
+
+# ---------------------------------------------------------------------------
+# _ast_eval — direct tests for error branches
+# ---------------------------------------------------------------------------
+
+class TestAstEvalEdgeCases:
+    def test_unsupported_unary_operator_raises(self):
+        import ast
+        import pytest
+        from src.tools.builtin import _ast_eval
+        node = ast.UnaryOp(op=ast.Invert(), operand=ast.Constant(value=5))
+        with pytest.raises(ValueError, match="Unsupported operator"):
+            _ast_eval(node)
+
+    def test_unsupported_binop_operator_raises(self):
+        import ast
+        import pytest
+        from src.tools.builtin import _ast_eval
+        node = ast.BinOp(
+            left=ast.Constant(value=4),
+            op=ast.LShift(),
+            right=ast.Constant(value=1),
+        )
+        with pytest.raises(ValueError, match="Unsupported operator"):
+            _ast_eval(node)
+
+    def test_unsupported_expression_type_raises(self):
+        import ast
+        import pytest
+        from src.tools.builtin import _ast_eval
+        node = ast.Name(id="x", ctx=ast.Load())
+        with pytest.raises(ValueError, match="Unsupported expression"):
+            _ast_eval(node)
+
+    def test_unsupported_literal_type_raises(self):
+        import ast
+        import pytest
+        from src.tools.builtin import _ast_eval
+        node = ast.Constant(value="not_a_number")
+        with pytest.raises(ValueError, match="Unsupported literal"):
+            _ast_eval(node)
+
 
 # ---------------------------------------------------------------------------
 # tools/__init__ imports
