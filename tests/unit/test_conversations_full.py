@@ -164,3 +164,68 @@ class TestDeleteConversation:
         db.is_connected = False
         with pytest.raises(DatabaseUnavailableError):
             db.delete_conversation('id')
+
+
+class TestCreateConversationWithMessage:
+    def test_raises_when_not_connected(self):
+        from src.db.connection import DatabaseUnavailableError
+        db = _make_db_with_conversations()
+        db.is_connected = False
+        with pytest.raises(DatabaseUnavailableError):
+            db.create_conversation_with_message("title", "user", "hello")
+
+    def test_returns_conversation_id_and_message_id(self):
+        db = _make_db_with_conversations()
+        db._cursor.fetchone.return_value = (42,)
+        conv_id, msg_id = db.create_conversation_with_message("Test", "user", "Hello")
+        assert isinstance(conv_id, str)
+        assert len(conv_id) == 36  # UUID
+        assert msg_id == 42
+
+    def test_executes_two_inserts(self):
+        db = _make_db_with_conversations()
+        db._cursor.fetchone.return_value = (1,)
+        db.create_conversation_with_message("Chat", "user", "Hi")
+        assert db._cursor.execute.call_count == 2
+
+    def test_commits_transaction(self):
+        db = _make_db_with_conversations()
+        db._cursor.fetchone.return_value = (7,)
+        db.create_conversation_with_message("Chat", "user", "Hi")
+        db._conn.commit.assert_called_once()
+
+    def test_with_plan_json_passes_jsonb(self):
+        db = _make_db_with_conversations()
+        db._cursor.fetchone.return_value = (5,)
+        plan = {"intent": "search", "steps": ["step1"]}
+        conv_id, msg_id = db.create_conversation_with_message(
+            "Chat", "user", "Hi", plan_json=plan
+        )
+        assert isinstance(conv_id, str)
+        assert msg_id == 5
+        # Second execute call should include a Jsonb-wrapped plan
+        second_call_args = db._cursor.execute.call_args_list[1][0][1]
+        from psycopg.types.json import Jsonb
+        assert isinstance(second_call_args[3], Jsonb)
+
+    def test_without_plan_json_passes_none(self):
+        db = _make_db_with_conversations()
+        db._cursor.fetchone.return_value = (3,)
+        db.create_conversation_with_message("Chat", "user", "Hi")
+        second_call_args = db._cursor.execute.call_args_list[1][0][1]
+        assert second_call_args[3] is None
+
+    def test_title_truncated_to_255_chars(self):
+        db = _make_db_with_conversations()
+        db._cursor.fetchone.return_value = (1,)
+        long_title = "x" * 300
+        db.create_conversation_with_message(long_title, "user", "Hi")
+        first_call_args = db._cursor.execute.call_args_list[0][0][1]
+        assert len(first_call_args[1]) == 255
+
+    def test_workspace_id_passed_through(self):
+        db = _make_db_with_conversations()
+        db._cursor.fetchone.return_value = (2,)
+        db.create_conversation_with_message("Chat", "user", "Hi", workspace_id="ws-123")
+        first_call_args = db._cursor.execute.call_args_list[0][0][1]
+        assert first_call_args[2] == "ws-123"
