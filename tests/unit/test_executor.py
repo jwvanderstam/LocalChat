@@ -217,6 +217,48 @@ class TestMaxRoundsExhaustion:
 
 
 # ---------------------------------------------------------------------------
+# Schema-dict guard — argument received as schema object instead of value
+# ---------------------------------------------------------------------------
+
+class TestSchemaDictGuard:
+    """When a model sends a schema dict as an argument value, the executor
+    should reject the tool call with an informative error message."""
+
+    def test_schema_dict_argument_returns_error_string(self):
+        client = MagicMock()
+        registry = ToolRegistry()
+
+        @registry.register(
+            name="greet",
+            description="Greet someone",
+            parameters={
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
+        )
+        def greet(name: str) -> str:
+            return f"Hello, {name}!"
+
+        executor = ToolExecutor(client=client, registry=registry, max_rounds=5)
+
+        # Simulate the model sending the schema dict as the argument value
+        schema_as_value = {"type": "string", "description": "The name to greet"}
+        tool_call = {
+            "function": {"name": "greet", "arguments": {"name": schema_as_value}}
+        }
+        client.generate_chat_completion.return_value = _chat_response(
+            tool_calls=[tool_call]
+        )
+        client.generate_chat_response.return_value = iter(["fallback"])
+
+        chunks = list(executor.execute("model", [{"role": "user", "content": "hi"}]))
+        combined = "".join(chunks)
+        # The guard returns an error; the executor continues to a final streamed response
+        assert combined  # something was yielded
+
+
+# ---------------------------------------------------------------------------
 # No-tools early-exit path
 # ---------------------------------------------------------------------------
 

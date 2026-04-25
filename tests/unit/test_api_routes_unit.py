@@ -15,6 +15,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -283,6 +284,7 @@ class TestApiStatus:
     def _get_status(self, active_model="llama3.2", db_ok=True, doc_count=5):
         from flask import Flask
 
+        from src.routes import api_routes
         from src.routes.api_routes import bp
 
         flask_app = Flask(__name__)
@@ -291,16 +293,20 @@ class TestApiStatus:
         flask_app.startup_status = {"database": db_ok, "ollama": True, "ready": db_ok}
         flask_app.db = MagicMock()
         flask_app.db.get_document_count.return_value = doc_count
+        flask_app.ollama_client = MagicMock()
+        flask_app.ollama_client.check_connection.return_value = (True, "OK")
 
-        with flask_app.test_client() as client:
-            with patch("src.routes.api_routes.config") as cfg:
-                cfg.app_state.get_active_model.return_value = active_model
-                cfg.MCP_ENABLED = False
-                cfg.MODEL_ROUTER_ENABLED = False
-                cfg.AGGREGATOR_AGENT_ENABLED = False
-                cfg.GRAPH_RAG_ENABLED = False
-                cfg.LONG_TERM_MEMORY_ENABLED = False
-                resp = client.get("/api/status")
+        # Force a cache miss so _check_ollama_live always does a live check.
+        with patch.object(api_routes, '_ollama_status_cache', [False, 0.0]):
+            with flask_app.test_client() as client:
+                with patch("src.routes.api_routes.config") as cfg:
+                    cfg.app_state.get_active_model.return_value = active_model
+                    cfg.MCP_ENABLED = False
+                    cfg.MODEL_ROUTER_ENABLED = False
+                    cfg.AGGREGATOR_AGENT_ENABLED = False
+                    cfg.GRAPH_RAG_ENABLED = False
+                    cfg.LONG_TERM_MEMORY_ENABLED = False
+                    resp = client.get("/api/status")
         return resp
 
     def test_returns_200(self):
@@ -322,6 +328,52 @@ class TestApiStatus:
         data = self._get_status(db_ok=False).get_json()
         assert data["database"] is False
         assert data["ready"] is False
+
+
+# ===========================================================================
+# _check_ollama_live — TTL cache + live check
+# ===========================================================================
+
+class TestCheckOllamaLive:
+    def _make_app(self, check_ok=True):
+        from flask import Flask
+        flask_app = Flask(__name__)
+        flask_app.startup_status = {"database": True, "ollama": False, "ready": False}
+        flask_app.ollama_client = MagicMock()
+        if check_ok:
+            flask_app.ollama_client.check_connection.return_value = (True, "OK")
+        else:
+            flask_app.ollama_client.check_connection.side_effect = ConnectionError("timeout")
+        return flask_app
+
+    def test_cache_hit_returns_cached_value(self):
+        from src.routes import api_routes
+        flask_app = self._make_app()
+        # Fresh timestamp ensures TTL has not expired.
+        fresh_time = time.monotonic()
+        with patch.object(api_routes, '_ollama_status_cache', [True, fresh_time]):
+            with flask_app.app_context():
+                result = api_routes._check_ollama_live()
+        assert result is True
+        flask_app.ollama_client.check_connection.assert_not_called()
+
+    def test_cache_miss_live_check_success(self):
+        from src.routes import api_routes
+        flask_app = self._make_app(check_ok=True)
+        with patch.object(api_routes, '_ollama_status_cache', [False, 0.0]):
+            with flask_app.app_context():
+                result = api_routes._check_ollama_live()
+        assert result is True
+        assert flask_app.startup_status['ollama'] is True
+
+    def test_cache_miss_live_check_failure(self):
+        from src.routes import api_routes
+        flask_app = self._make_app(check_ok=False)
+        with patch.object(api_routes, '_ollama_status_cache', [True, 0.0]):
+            with flask_app.app_context():
+                result = api_routes._check_ollama_live()
+        assert result is False
+        assert flask_app.startup_status['ollama'] is False
 
 
 # ===========================================================================

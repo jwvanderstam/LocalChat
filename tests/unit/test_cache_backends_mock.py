@@ -191,9 +191,9 @@ class TestDatabaseCache:
         assert result is None
 
     def test_get_hit(self):
-        import pickle as pk
+        import json
         db, conn, cursor = self._make_db()
-        cursor.fetchone.return_value = (pk.dumps({"answer": 42}), 0)
+        cursor.fetchone.return_value = (json.dumps({"answer": 42}).encode("utf-8"), 0)
         from src.cache.backends.database_cache import DatabaseCache
         cache = DatabaseCache(db)
         result = cache.get("my query")
@@ -283,3 +283,41 @@ class TestDatabaseCache:
         k1 = cache._make_cache_key("query one")
         k2 = cache._make_cache_key("query two")
         assert k1 != k2
+
+
+# ---------------------------------------------------------------------------
+# src/cache/__init__.py RedisCache (JSON serialization)
+# ---------------------------------------------------------------------------
+
+class TestCacheInitRedisCache:
+    """Tests for the RedisCache in src/cache/__init__.py, which uses JSON."""
+
+    def _make_cache(self):
+        mock_redis_mod = MagicMock()
+        mock_client = MagicMock()
+        mock_redis_mod.Redis.return_value = mock_client
+        mock_client.ping.return_value = True
+
+        with patch.dict("sys.modules", {"redis": mock_redis_mod}):
+            from importlib import reload
+            import src.cache as cache_mod
+            reload(cache_mod)
+            cache = cache_mod.RedisCache(namespace="init_test")
+            return cache, mock_client
+
+    def test_set_serializes_as_json(self):
+        import json
+        cache, client = self._make_cache()
+        client.set.return_value = True
+        result = cache.set("key", {"val": 42})
+        assert result is True
+        call_args = client.set.call_args[0]
+        assert json.loads(call_args[1].decode("utf-8")) == {"val": 42}
+
+    def test_get_deserializes_from_json(self):
+        import json
+        cache, client = self._make_cache()
+        client.get.return_value = json.dumps("hello").encode("utf-8")
+        result = cache.get("key")
+        assert result == "hello"
+        assert cache.stats.hits == 1

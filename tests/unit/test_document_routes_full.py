@@ -90,6 +90,17 @@ class TestDocumentUploadRoute:
         response = client.get('/api/documents/upload')
         assert response.status_code in (405, 404)
 
+    def test_upload_path_traversal_rejected(self, client):
+        """validate_path returning False should silently skip the file."""
+        import io
+        from unittest.mock import patch
+        data = {'files': (io.BytesIO(b"content"), 'test.txt')}
+        with patch('src.routes.document_routes.validate_path', return_value=False):
+            response = client.post('/api/documents/upload',
+                                   content_type='multipart/form-data',
+                                   data=data)
+        assert response.status_code in (200, 400)
+
 
 class TestDocumentStatsRoute:
     def test_stats_returns_counts(self, client, app):
