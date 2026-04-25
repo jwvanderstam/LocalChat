@@ -225,6 +225,7 @@ class TestPersistMessages:
         app.startup_status = {"database": db_ok}
         app.db = MagicMock()
         app.db.create_conversation.return_value = "conv-new"
+        app.db.create_conversation_with_message.return_value = ("conv-new", 99)
         app.db.save_message.return_value = 99
         return app
 
@@ -240,7 +241,8 @@ class TestPersistMessages:
         app = self._make_app()
         conv_id, msg_id = _persist_user_message(app, None, "first message")
         assert conv_id == "conv-new"
-        app.db.create_conversation.assert_called_once()
+        assert msg_id == 99
+        app.db.create_conversation_with_message.assert_called_once()
 
     def test_persist_user_returns_none_message_id_when_db_unavailable(self):
         from src.routes.api_routes import _persist_user_message
@@ -395,6 +397,7 @@ class TestApiChat:
         flask_app.db = MagicMock()
         flask_app.db.save_message.return_value = 1
         flask_app.db.create_conversation.return_value = "conv-1"
+        flask_app.db.create_conversation_with_message.return_value = ("conv-1", 1)
         flask_app.doc_processor = MagicMock()
         flask_app.doc_processor.retrieve_context.return_value = []
         flask_app.ollama_client = MagicMock()
