@@ -573,9 +573,6 @@ def _persist_user_message(
     if not app.startup_status.get('database', False):
         return conversation_id, None
     try:
-        if not conversation_id:
-            title = message[:60] + ('...' if len(message) > 60 else '')
-            conversation_id = app.db.create_conversation(title, workspace_id=workspace_id)
         plan_json: dict | None = plan.to_dict() if plan is not None else None
         if agent_result is not None:
             plan_json = plan_json or {}
@@ -584,9 +581,18 @@ def _persist_user_message(
                 plan_json['agent_warnings'] = agent_result.warnings
             if agent_result.partial:
                 plan_json['partial_results'] = True
-        message_id: int | None = app.db.save_message(
-            conversation_id, 'user', message, plan_json=plan_json
-        )
+
+        if not conversation_id:
+            # Create conversation + first message in one transaction so a
+            # failed message insert never leaves an orphaned empty conversation.
+            title = message[:60] + ('...' if len(message) > 60 else '')
+            conversation_id, message_id = app.db.create_conversation_with_message(
+                title, 'user', message, workspace_id=workspace_id, plan_json=plan_json
+            )
+        else:
+            message_id = app.db.save_message(
+                conversation_id, 'user', message, plan_json=plan_json
+            )
         return conversation_id, message_id
     except Exception as mem_err:
         logger.warning(f"[MEMORY] Could not persist user message: {mem_err}")
