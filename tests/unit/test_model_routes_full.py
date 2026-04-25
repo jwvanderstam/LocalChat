@@ -8,13 +8,13 @@ import pytest
 
 class TestModelRoutesList:
     def test_list_models_success(self, client):
-        response = client.get('/api/models/')
+        response = client.get('/api/models')
         assert response.status_code == 200
         data = response.get_json()
         assert 'models' in data
 
     def test_list_models_returns_success_flag(self, client):
-        response = client.get('/api/models/')
+        response = client.get('/api/models')
         data = response.get_json()
         assert 'success' in data
 
@@ -107,5 +107,5 @@ class TestModelRoutesOllamaDown:
     def test_list_models_when_ollama_fails(self, client, app):
         with patch.object(app.ollama_client, 'list_models',
                           return_value=(False, [])):
-            response = client.get('/api/models/')
+            response = client.get('/api/models')
             assert response.status_code in (200, 503)

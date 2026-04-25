@@ -41,7 +41,7 @@ async function uploadDocuments() {
     const files = fileInput.files;
     
     if (!files || files.length === 0) {
-        alert('Please select files to upload');
+        uploadResults.innerHTML = '<div class="alert alert-warning">Please select one or more files to upload.</div>';
         return;
     }
     
@@ -182,7 +182,7 @@ async function testRetrieval() {
     const query = testQuery.value.trim();
     
     if (!query) {
-        alert('Please enter a test query');
+        testResults.innerHTML = '<div class="alert alert-warning">Please enter a test query.</div>';
         return;
     }
     
@@ -349,21 +349,15 @@ async function clearDatabase() {
         const data = await response.json();
         
         if (data.success) {
-            // Show success message
-            alert('? Database cleared successfully!\n\nAll documents and chunks have been deleted.');
-            
-            // Reload documents and stats
             loadDocuments();
             loadStats();
-            
-            // Clear upload results
-            uploadResults.innerHTML = '';
+            uploadResults.innerHTML = '<div class="alert alert-success">Database cleared — all documents deleted.</div>';
             testResults.innerHTML = '';
         } else {
-            alert('Error: ' + data.message);
+            uploadResults.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(data.message)}</div>`;
         }
     } catch (error) {
-        alert('Error clearing database: ' + error.message);
+        uploadResults.innerHTML = `<div class="alert alert-danger">Error clearing database: ${escapeHtml(error.message)}</div>`;
     } finally {
         clearBtn.disabled = false;
         clearBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Clear Database';

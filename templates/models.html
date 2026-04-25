@@ -114,7 +114,7 @@
                 <div id="connection-info">
                     <p class="mb-2">
                         <strong>Ollama URL:</strong><br>
-                        <code>http://localhost:11434</code>
+                        <code id="ollama-url-display">loading...</code>
                     </p>
                     <p class="mb-0">
                         <strong>Status:</strong><br>
@@ -161,6 +161,20 @@
 {% block extra_scripts %}
 <script>
     let currentActiveModel = null;
+    let ollamaUrl = 'Ollama';
+
+    // Fetch actual Ollama URL from server config
+    fetch('/api/admin/stats')
+        .then(r => r.json())
+        .then(d => {
+            if (d.system?.ollama_url) {
+                ollamaUrl = d.system.ollama_url;
+                document.getElementById('ollama-url-display').textContent = ollamaUrl;
+            }
+        })
+        .catch(() => {
+            document.getElementById('ollama-url-display').textContent = 'unknown';
+        });
 
     // Show/hide custom model input based on selection
     document.getElementById('model-select').addEventListener('change', function() {
@@ -182,7 +196,7 @@
             const data = await response.json();
 
             if (!data.success) {
-                modelsList.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Cannot reach Ollama. Is it running at <code>localhost:11434</code>?</div>';
+                modelsList.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Cannot reach Ollama at <code>${ollamaUrl}</code>. Check that Ollama is running and <code>OLLAMA_BASE_URL</code> is set correctly on the server.</div>`;
                 return;
             }
 
