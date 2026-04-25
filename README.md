@@ -21,6 +21,13 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Chat Interface**: Real-time streaming responses with document context
 - **Enhanced Web Search**: Optional live DuckDuckGo integration for up-to-date answers
 - **Persistent Memory**: Conversation history stored in PostgreSQL
+- **Long-term Memory**: Cross-session fact extraction; top-K memories injected into every prompt
+- **Workspaces**: Isolated document + conversation namespaces per workspace
+- **GraphRAG**: spaCy entity extraction + 1-hop graph expansion of BM25 query terms
+- **Document Connectors**: Local folder, S3/MinIO/R2, SharePoint, OneDrive — daemon-synced
+- **Multi-model Agent Routing**: Rule-based classifier routes queries to VISION/CODE/LARGE/FAST/BASE models
+- **Function Calling**: Built-in tools (document search, calculator, datetime) + drop-in plugin system
+- **MCP Integration**: Three MCP servers (local-docs, web-search, cloud-connectors) over JSON-RPC 2.0
 - **Vector Search**: Lightning-fast similarity search using pgvector HNSW
 - **Table Extraction**: Advanced PDF table detection and preservation
 - **Duplicate Prevention**: Smart document fingerprinting
@@ -93,20 +100,16 @@ cd LocalChat
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Set up PostgreSQL with pgvector
-# See Configuration section below for details
+# 3. Configure environment
+cp .env.example .env   # edit with your DB / Ollama settings
 
-# 4. (Optional) Start Redis for caching
-redis-server
-# Or use memory cache (default)
+# 4. Start backing services (PostgreSQL + Redis + Ollama)
+docker compose up -d db redis ollama
 
-# 5. Start Ollama
-ollama serve
-
-# 6. Run application
+# 5. Run application
 python app.py
 
-# 7. Open browser
+# 6. Open browser
 # http://localhost:5000
 ```
 
@@ -263,11 +266,11 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 - **[`src/app_factory.py`](src/app_factory.py)** — Flask app factory with blueprint registration
 - **[`src/monitoring.py`](src/monitoring.py)** — Prometheus metrics, request timing, health checks (`/api/metrics`, `/api/health`)
 - **[`src/ollama_client.py`](src/ollama_client.py)** — Ollama LLM/embedding client with GPU detection and TTL caching
-- **[`src/routes/admin_routes.py`](src/routes/admin_routes.py)** — Admin dashboard with GPU stats and loaded-model breakdown
+- **[`src/routes/settings_routes.py`](src/routes/settings_routes.py)** — Settings UI + admin ops dashboard (`/api/settings`, `/api/admin/stats`)
 - **[`src/rag/web_search.py`](src/rag/web_search.py)** — DuckDuckGo web search provider (Enhanced mode)
 - **[`src/security.py`](src/security.py)** — Rate limiting, CORS, JWT authentication
 - **[`src/config.py`](src/config.py)** — All configuration (env vars, RAG tuning, GPU settings, cache settings)
-- **[`config/.env.example`](config/.env.example)** — Environment variable template
+- **[`.env.example`](.env.example)** — Environment variable template
 
 ### API Documentation
 - Interactive Swagger UI available at `/api/docs/` when the app is running
@@ -279,84 +282,111 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 
 ```
 LocalChat/
-├── app.py                      # Entry point
-├── requirements.txt            # Python dependencies
-├── config/
-│   └── .env.example            # Environment variable template
-├── src/                        # Application source code
-│   ├── app_factory.py          # Flask app factory (entry: create_app)
-│   ├── config.py               # Configuration (env vars, RAG settings)
-│   ├── db/                     # PostgreSQL + pgvector database layer
-│   │   ├── __init__.py         # Package: Database class + db singleton
-│   │   ├── connection.py       # Connection pool, pgvector adapters, schema
-│   │   ├── documents.py        # Document & chunk CRUD + vector search
-│   │   └── conversations.py    # Conversation & message persistence
-│   ├── exceptions.py           # Custom exception hierarchy
-│   ├── models.py               # Pydantic request/response models
-│   ├── monitoring.py           # Metrics, health checks, decorators
-│   ├── ollama_client.py        # Ollama LLM/embedding client
-│   ├── security.py             # Rate limiting, CORS, JWT
-│   ├── api_docs.py             # Swagger/OpenAPI configuration
-│   ├── types.py                # Type definitions
-│   ├── cache/                  # Caching layer
-│   │   ├── __init__.py         # Factory + re-exports
-│   │   ├── managers.py         # Cache manager (embedding, query)
+├── app.py                          # Entry point; create_gunicorn_app() for prod
+├── requirements.txt
+├── .env.example                    # Environment variable template
+├── src/
+│   ├── app_factory.py              # Flask factory — wires everything together
+│   ├── config.py                   # All configuration, loads .env
+│   ├── models.py                   # Pydantic request/response models
+│   ├── security.py                 # JWT, rate limiting, CORS
+│   ├── monitoring.py               # Prometheus metrics, health checks
+│   ├── ollama_client.py            # Ollama LLM/embedding client
+│   ├── llm_client.py               # LiteLLM cloud-fallback adapter
+│   ├── mcp_client.py               # MCP HTTP client + circuit breaker
+│   ├── gpu_monitor.py              # NVIDIA/AMD GPU detection, TTL-cached
+│   ├── api_docs.py                 # Swagger/OpenAPI at /api/docs/
+│   ├── exceptions.py               # Custom exception hierarchy
+│   ├── types.py                    # LocalChatApp typed Flask subclass
+│   ├── agent/                      # Multi-model agent dispatch
+│   │   ├── aggregator.py           # Parallel tool dispatch + retry
+│   │   ├── models.py               # ModelRegistry (env-driven model mapping)
+│   │   ├── result.py               # AgentResult, ToolCall dataclasses
+│   │   ├── router.py               # Rule-based model classifier (<1 ms)
+│   │   └── tool_router.py          # MCP + direct handler mapping
+│   ├── cache/
+│   │   ├── managers.py             # Embedding + query cache managers
 │   │   └── backends/
-│   │       ├── base.py         # CacheStats + CacheBackend ABC
-│   │       ├── memory.py       # In-memory LRU cache (OrderedDict)
-│   │       ├── redis_cache.py  # Redis-backed distributed cache
-│   │       └── database_cache.py # PostgreSQL-backed cache
+│   │       ├── base.py             # CacheBackend ABC
+│   │       ├── memory.py           # In-memory LRU (default)
+│   │       ├── redis_cache.py      # Redis-backed distributed cache
+│   │       └── database_cache.py   # PostgreSQL-backed cache
+│   ├── connectors/                 # Document source connectors
+│   │   ├── base.py                 # BaseConnector ABC, DocumentSource
+│   │   ├── local_folder.py         # Folder watcher (stat-based poll)
+│   │   ├── s3_connector.py         # S3/MinIO/R2 via boto3
+│   │   ├── webhook.py              # HTTP push connector
+│   │   ├── sharepoint_connector.py # SharePoint Graph API delta
+│   │   ├── onedrive_connector.py   # OneDrive Graph API delta
+│   │   ├── microsoft_auth.py       # OAuth2 token refresh helper
+│   │   ├── registry.py             # ConnectorRegistry singleton
+│   │   └── worker.py               # SyncWorker daemon thread
+│   ├── db/                         # PostgreSQL + pgvector layer
+│   │   ├── connection.py           # Connection pool, schema init, migrations
+│   │   ├── conversations.py        # Conversation + message CRUD
+│   │   ├── documents.py            # Document/chunk CRUD + vector search
+│   │   ├── entities.py             # GraphRAG entity/relation CRUD
+│   │   ├── feedback.py             # Answer feedback + chunk stats
+│   │   ├── memories.py             # Long-term memory CRUD + vector search
+│   │   ├── oauth_tokens.py         # Fernet-encrypted OAuth token storage
+│   │   ├── users.py                # User CRUD + PBKDF2 password hashing
+│   │   ├── workspaces.py           # Workspace CRUD
+│   │   └── connectors.py           # Connector config + sync log CRUD
+│   ├── graph/
+│   │   ├── extractor.py            # spaCy entity extraction
+│   │   └── expander.py             # 1-hop term expansion for BM25
+│   ├── memory/
+│   │   ├── extractor.py            # Extract memorable facts from turns
+│   │   └── retriever.py            # Vector-search memories into LLM prompt
 │   ├── performance/
-│   │   └── batch_processor.py  # Batch embedding processor
-│   ├── rag/                    # RAG pipeline
-│   │   ├── cache.py            # Embedding/query cache
-│   │   ├── chunking.py         # Smart text chunking
-│   │   ├── loaders.py          # PDF/DOCX/TXT file loaders
-│   │   ├── processor.py        # Document ingestion orchestrator
-│   │   ├── retrieval.py        # Hybrid search (semantic + BM25)
-│   │   ├── scoring.py          # Result reranking & fusion
-│   │   └── web_search.py       # DuckDuckGo web search provider
-│   ├── routes/                 # API endpoints
-│   │   ├── admin_routes.py     # Admin dashboard (/admin, /api/admin/stats)
-│   │   ├── api_routes.py       # Chat API (/api/chat)
-│   │   ├── document_routes.py  # Document management (/api/documents)
-│   │   ├── error_handlers.py   # Global error handlers
-│   │   ├── memory_routes.py    # Memory/conversation routes
-│   │   ├── model_routes.py     # Ollama model management
-│   │   └── web_routes.py       # HTML page routes
-│   ├── tools/                  # Tool/function calling
-│   │   ├── builtin.py          # Built-in tools
-│   │   ├── executor.py         # Tool execution engine
-│   │   ├── plugin_loader.py    # Plugin discovery & dynamic loading
-│   │   └── registry.py         # Tool registration
+│   │   └── batch_processor.py      # Parallel batch embedding processor
+│   ├── rag/
+│   │   ├── processor.py            # Ingest orchestrator
+│   │   ├── retrieval.py            # Hybrid search (semantic + BM25)
+│   │   ├── chunking.py             # Intelligent overlapping chunking
+│   │   ├── loaders.py              # PDF/DOCX/TXT/MD loaders
+│   │   ├── scoring.py              # BM25 implementation
+│   │   ├── reranker.py             # Cross-encoder reranking
+│   │   ├── planner.py              # QueryPlanner — intent decomposition
+│   │   ├── doc_type.py             # DocType enum, ChunkerRegistry
+│   │   ├── feedback_pipeline.py    # Fine-tune pipeline on feedback data
+│   │   ├── cache.py                # Embedding/query cache wrapper
+│   │   └── web_search.py           # DuckDuckGo web search provider
+│   ├── routes/
+│   │   ├── api_routes.py           # Chat SSE (/api/chat)
+│   │   ├── document_routes.py      # Document upload/delete/list
+│   │   ├── memory_routes.py        # Conversation CRUD + export
+│   │   ├── model_routes.py         # Ollama model management
+│   │   ├── settings_routes.py      # Settings UI + admin ops dashboard
+│   │   ├── auth_routes.py          # User management + password change
+│   │   ├── connector_routes.py     # Connector REST API + webhook receiver
+│   │   ├── feedback_routes.py      # Answer feedback submission + stats
+│   │   ├── longterm_memory_routes.py # Long-term memory CRUD + trigger
+│   │   ├── oauth_routes.py         # Microsoft OAuth2 flow
+│   │   ├── workspace_routes.py     # Workspace management
+│   │   ├── web_routes.py           # Frontend SPA + static assets
+│   │   └── error_handlers.py       # 4xx/5xx JSON error handlers
+│   ├── tools/
+│   │   ├── registry.py             # Tool registration + JSON schemas
+│   │   ├── executor.py             # Tool-call loop (multi-turn)
+│   │   ├── builtin.py              # Built-in tools (search, calc, datetime)
+│   │   └── plugin_loader.py        # Plugin discovery + dynamic loading
 │   └── utils/
-│       ├── logging_config.py   # Structured logging setup
-│       └── sanitization.py     # Input sanitization & validation
-├── static/                     # Frontend assets
-│   ├── css/
-│   │   ├── style.css               # Application styles
-│   │   ├── bootstrap.min.css       # Bootstrap 5.3.0 (self-hosted)
-│   │   ├── bootstrap-icons.css     # Bootstrap Icons 1.10.0 (self-hosted)
-│   │   └── fonts/                  # Bootstrap icon fonts (woff, woff2)
-│   └── js/
-│       ├── bootstrap.bundle.min.js # Bootstrap 5.3.0 JS (self-hosted)
-│       ├── chat.js                 # Chat interface logic
-│       └── ingestion.js            # Document upload logic
-├── templates/                  # Jinja2 HTML templates
-│   ├── admin.html              # Operator dashboard (GPU stats, metrics, cache)
-│   ├── base.html
-│   ├── chat.html
-│   ├── documents.html
-│   ├── models.html
-│   └── overview.html
-├── tests/                      # Test suite
-│   ├── conftest.py             # Shared fixtures
-│   ├── integration/            # Integration tests
-│   ├── unit/                   # Unit tests
-│   └── utils/                  # Test helpers & mocks
-plugins/                        # Drop-in tool plugins (auto-loaded at startup)
-    ├── README.md               # Plugin authoring guide
-    └── example_plugin.py       # Annotated starter template
+│       ├── logging_config.py       # JSON structured logging
+│       ├── sanitization.py         # Input sanitization
+│       └── request_id.py           # X-Request-ID middleware
+├── mcp_servers/
+│   ├── base.py                     # JSON-RPC 2.0 dispatcher base
+│   ├── local_docs/server.py        # Local docs MCP (port 5001)
+│   ├── web_search/server.py        # Web search MCP (port 5002)
+│   └── cloud_connectors/server.py  # Cloud connectors MCP (port 5003)
+├── plugins/                        # Drop-in tool plugins (auto-loaded at startup)
+│   └── example_plugin.py
+├── tests/
+│   ├── conftest.py                 # Shared fixtures
+│   ├── unit/                       # 68 modules, ~1800 tests
+│   └── integration/                # Requires running services
+└── helm/localchat/                 # Helm chart (app + PostgreSQL + Redis + MCP)
 ```
 
 ---
@@ -401,9 +431,9 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 48 test modules covering all core components
-- **Integration Tests**: `tests/integration/` — 4 modules covering all API route blueprints
-- **Total**: 1191 passing tests (9 integration failures require a live PostgreSQL instance)
+- **Unit Tests**: `tests/unit/` — 68 modules covering all core components (~1800 tests)
+- **Integration Tests**: `tests/integration/` — require a live PostgreSQL + Ollama instance
+- **Quality Gate**: SonarCloud enforces ≥ 80% coverage on new code, 0 unreviewed hotspots
 
 ---
 
@@ -411,7 +441,7 @@ pytest --cov=src --cov-report=term
 
 ### Environment Variables
 
-Create a `.env` file in the root directory (copy from `config/.env.example`):
+Create a `.env` file in the root directory (copy from `.env.example`):
 
 ```bash
 # Database Configuration
@@ -665,27 +695,24 @@ so Ollama distributes work across all detected GPUs automatically when multiple 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
+pip install pre-commit ruff
 
 # Install pre-commit hooks
 pre-commit install
 
-# Run code formatters
-black src/ tests/
-isort src/ tests/
+# Lint
+ruff check src/ tests/
 
-# Run linters
-pylint src/
-mypy src/
+# Run tests with coverage
+pytest tests/unit/ --cov=src --cov-report=term-missing
 ```
 
 ### Code Quality Standards
 
-- **Type Hints**: 100% (required)
-- **Docstrings**: Google-style (required)
-- **Test Coverage**: >=80% for new code
-- **Linting**: Pass pylint, mypy, black
-- **Static Analysis**: SonarCloud Quality Gate must pass
-- **Documentation**: Update relevant docs
+- **Test Coverage**: ≥ 80% on new code (SonarCloud gate)
+- **Linting**: `ruff check` must pass (CI blocks on failure)
+- **Static Analysis**: SonarCloud Quality Gate must pass before merge
+- **Documentation**: Update `README.md` and `CLAUDE.md` Key Files table in the same PR
 
 ---
 
