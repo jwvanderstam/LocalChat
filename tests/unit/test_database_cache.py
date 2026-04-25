@@ -78,9 +78,10 @@ class TestDatabaseCacheGet:
         assert cache.get("query text") is None
 
     def test_returns_deserialized_value_on_hit(self):
+        import json
         cache, _, _, mock_cur = _make_cache()
         payload = {"answer": 42}
-        mock_cur.fetchone.return_value = (pickle.dumps(payload), 5)
+        mock_cur.fetchone.return_value = (json.dumps(payload).encode("utf-8"), 5)
         assert cache.get("query text") == payload
 
     def test_returns_none_on_db_exception(self):

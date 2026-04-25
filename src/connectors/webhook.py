@@ -39,10 +39,10 @@ logger = get_logger(__name__)
 
 _PRIVATE_NETWORKS = [
     ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("169.254.0.0/16"),  # link-local / AWS metadata
+    ipaddress.ip_network("10.0.0.0/8"),  # NOSONAR — intentional SSRF block-list
+    ipaddress.ip_network("172.16.0.0/12"),  # NOSONAR
+    ipaddress.ip_network("192.168.0.0/16"),  # NOSONAR
+    ipaddress.ip_network("169.254.0.0/16"),  # NOSONAR — link-local / AWS metadata
     ipaddress.ip_network("::1/128"),
     ipaddress.ip_network("fc00::/7"),
 ]
