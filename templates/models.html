@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Toast container -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+    <div id="toast-container"></div>
+</div>
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
     <h1 class="h2">Model Management</h1>
     <button class="btn btn-sm btn-primary" id="test-connection-btn">
@@ -171,52 +176,52 @@
     async function loadModels() {
         const modelsList = document.getElementById('models-list');
         modelsList.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
-        
+
         try {
             const response = await fetch('/api/models');
             const data = await response.json();
-            
-            if (data.success && data.models.length > 0) {
-                modelsList.innerHTML = '';
-                
-                // Get active model
-                const activeResponse = await fetch('/api/models/active');
-                const activeData = await activeResponse.json();
-                currentActiveModel = activeData.model;
-                
-                // Render each model
-                data.models.forEach(model => {
-                    const template = document.getElementById('model-card-template');
-                    const card = template.content.cloneNode(true);
-                    
-                    card.querySelector('.model-name').textContent = model.name;
-                    card.querySelector('.model-size').textContent = formatBytes(model.size);
-                    card.querySelector('.model-modified').textContent = formatDate(model.modified_at);
-                    
-                    const cardElement = card.querySelector('.model-card');
-                    
-                    // Show active badge
-                    if (model.name === currentActiveModel) {
-                        card.querySelector('.active-badge').style.display = 'inline';
-                        cardElement.classList.add('border-success');
-                    }
-                    
-                    // Activate button
-                    card.querySelector('.activate-btn').onclick = () => activateModel(model.name);
-                    
-                    // Test button
-                    card.querySelector('.test-btn').onclick = () => testModel(model.name);
-                    
-                    // Delete button
-                    card.querySelector('.delete-btn').onclick = () => deleteModel(model.name);
-                    
-                    modelsList.appendChild(card);
-                });
-            } else {
-                modelsList.innerHTML = '<div class="alert alert-warning">No models found. Pull a model to get started.</div>';
+
+            if (!data.success) {
+                modelsList.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Cannot reach Ollama. Is it running at <code>localhost:11434</code>?</div>';
+                return;
             }
+
+            if (data.models.length === 0) {
+                modelsList.innerHTML = '<div class="alert alert-warning">No models installed. Pull a model to get started.</div>';
+                return;
+            }
+
+            modelsList.innerHTML = '';
+
+            // Get active model
+            const activeResponse = await fetch('/api/models/active');
+            const activeData = await activeResponse.json();
+            currentActiveModel = activeData.model;
+
+            // Render each model
+            data.models.forEach(model => {
+                const template = document.getElementById('model-card-template');
+                const card = template.content.cloneNode(true);
+
+                card.querySelector('.model-name').textContent = model.name;
+                card.querySelector('.model-size').textContent = formatBytes(model.size);
+                card.querySelector('.model-modified').textContent = formatDate(model.modified_at);
+
+                const cardElement = card.querySelector('.model-card');
+
+                if (model.name === currentActiveModel) {
+                    card.querySelector('.active-badge').style.display = 'inline';
+                    cardElement.classList.add('border-success');
+                }
+
+                card.querySelector('.activate-btn').onclick = () => activateModel(model.name);
+                card.querySelector('.test-btn').onclick = () => testModel(model.name);
+                card.querySelector('.delete-btn').onclick = () => deleteModel(model.name);
+
+                modelsList.appendChild(card);
+            });
         } catch (error) {
-            modelsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            modelsList.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Failed to load models: ${error.message}</div>`;
         }
     }
 
@@ -413,8 +418,19 @@
     }
 
     function showToast(title, message, type) {
-        // Simple alert for now
-        alert(`${title}: ${message}`);
+        const container = document.getElementById('toast-container');
+        const id = 'toast-' + Date.now();
+        const bgClass = type === 'success' ? 'text-bg-success' : type === 'danger' ? 'text-bg-danger' : type === 'info' ? 'text-bg-info' : 'text-bg-secondary';
+        container.insertAdjacentHTML('beforeend', `
+            <div id="${id}" class="toast align-items-center ${bgClass} border-0 mb-2" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body"><strong>${title}:</strong> ${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>`);
+        const toastEl = document.getElementById(id);
+        new bootstrap.Toast(toastEl, {delay: 4000}).show();
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
     }
 
     // Load on page load

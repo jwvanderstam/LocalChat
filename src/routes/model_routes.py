@@ -24,7 +24,7 @@ bp = Blueprint('models', __name__)
 logger = get_logger(__name__)
 
 
-@bp.route('/', methods=['GET'])
+@bp.route('', methods=['GET'])
 def api_list_models():
     """
     List all available Ollama models.
