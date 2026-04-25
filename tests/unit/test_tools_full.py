@@ -1,9 +1,12 @@
 """Tests for ToolRegistry, ToolExecutor, and built-in tools."""
 
+import ast
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from src.tools.builtin import _ast_eval
 
 # ---------------------------------------------------------------------------
 # ToolRegistry
@@ -361,17 +364,11 @@ class TestBuiltinToolsRegistration:
 
 class TestAstEvalEdgeCases:
     def test_unsupported_unary_operator_raises(self):
-        import ast
-        import pytest
-        from src.tools.builtin import _ast_eval
         node = ast.UnaryOp(op=ast.Invert(), operand=ast.Constant(value=5))
         with pytest.raises(ValueError, match="Unsupported operator"):
             _ast_eval(node)
 
     def test_unsupported_binop_operator_raises(self):
-        import ast
-        import pytest
-        from src.tools.builtin import _ast_eval
         node = ast.BinOp(
             left=ast.Constant(value=4),
             op=ast.LShift(),
@@ -381,17 +378,11 @@ class TestAstEvalEdgeCases:
             _ast_eval(node)
 
     def test_unsupported_expression_type_raises(self):
-        import ast
-        import pytest
-        from src.tools.builtin import _ast_eval
         node = ast.Name(id="x", ctx=ast.Load())
         with pytest.raises(ValueError, match="Unsupported expression"):
             _ast_eval(node)
 
     def test_unsupported_literal_type_raises(self):
-        import ast
-        import pytest
-        from src.tools.builtin import _ast_eval
         node = ast.Constant(value="not_a_number")
         with pytest.raises(ValueError, match="Unsupported literal"):
             _ast_eval(node)

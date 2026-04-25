@@ -45,8 +45,8 @@ class TestConnectorRoutesErrors:
 
     def test_create_connector_db_error_returns_500(self, client, app):
         """DB error after config validation should return 500."""
-        from unittest.mock import patch
         import json
+        from unittest.mock import patch
 
         app.db.create_connector = MagicMock(side_effect=Exception("db gone"))
         with patch('src.routes.connector_routes.connector_registry') as reg:
@@ -68,8 +68,8 @@ class TestConnectorRoutesErrors:
 
     def test_create_connector_instantiation_error_returns_400(self, client, app):
         """Constructor raising should return 400 via logger.warning path."""
-        from unittest.mock import patch
         import json
+        from unittest.mock import patch
 
         with patch('src.routes.connector_routes.connector_registry') as reg:
             mock_cls = MagicMock(side_effect=ValueError("bad config"))
