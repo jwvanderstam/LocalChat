@@ -160,7 +160,7 @@ class TestCustomExceptionHandling:
     def test_handles_ollama_connection_error(self, client):
         """Test handling of Ollama connection errors."""
         # Try to use a service that may not be available
-        response = client.get('/api/models/')
+        response = client.get('/api/models')
 
         # Should handle gracefully (200 with success:false or error)
         assert response.status_code in [200, 500, 503]
