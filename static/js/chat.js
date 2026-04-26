@@ -612,33 +612,43 @@ function scrollToBottom() {
 }
 
 function buildSourcesPanel(sources) {
+    // Deduplicate by filename; keep first chunk_id and collect page numbers
+    const byFile = new Map();
+    sources.forEach(src => {
+        if (!byFile.has(src.filename)) {
+            byFile.set(src.filename, { chunk_id: src.chunk_id, pages: new Set() });
+        }
+        if (src.page_number) byFile.get(src.filename).pages.add(src.page_number);
+    });
+
+    const fileCount = byFile.size;
     const details = document.createElement('details');
     details.className = 'sources-panel mt-2';
 
     const summary = document.createElement('summary');
     summary.className = 'text-muted small';
-    summary.textContent = `${sources.length} source${sources.length !== 1 ? 's' : ''}`;
+    summary.textContent = `${fileCount} source${fileCount !== 1 ? 's' : ''}`;
     details.appendChild(summary);
 
     const list = document.createElement('ul');
     list.className = 'list-unstyled mb-0 mt-1';
 
-    sources.forEach((src, i) => {
+    byFile.forEach(({ chunk_id, pages }, filename) => {
         const li = document.createElement('li');
         li.className = 'small text-muted mb-1';
 
-        const parts = [escapeHtml(src.filename)];
-        if (src.page_number) parts.push(`p.${escapeHtml(String(src.page_number))}`);
-        if (src.section_title) parts.push(escapeHtml(src.section_title));
+        let label = escapeHtml(filename);
+        if (pages.size > 0) {
+            const sorted = [...pages].sort((a, b) => a - b);
+            label += ` <span class="opacity-75">p.${sorted.join(', ')}</span>`;
+        }
+        li.innerHTML = label;
 
-        li.innerHTML = `<span class="me-1">📄</span>${parts.join(' · ')}`;
-
-        if (src.chunk_id) {
+        if (chunk_id) {
             const link = document.createElement('a');
             link.href = '#';
-            link.className = 'ms-2 text-decoration-none';
-            link.textContent = 'View context';
-            link.dataset.chunkId = src.chunk_id;
+            link.className = 'ms-2 text-decoration-none opacity-75';
+            link.textContent = 'view';
 
             const contextDiv = document.createElement('div');
             contextDiv.className = 'chunk-context mt-1 d-none';
@@ -647,12 +657,12 @@ function buildSourcesPanel(sources) {
                 e.preventDefault();
                 if (!contextDiv.classList.contains('d-none')) {
                     contextDiv.classList.add('d-none');
-                    link.textContent = 'View context';
+                    link.textContent = 'view';
                     return;
                 }
-                link.textContent = 'Loading…';
+                link.textContent = '…';
                 try {
-                    const resp = await fetch(`/api/documents/chunks/${src.chunk_id}/context?window=1`);
+                    const resp = await fetch(`/api/documents/chunks/${chunk_id}/context?window=1`);
                     const data = await resp.json();
                     if (data.success && data.chunks.length > 0) {
                         const pre = document.createElement('pre');
@@ -661,12 +671,12 @@ function buildSourcesPanel(sources) {
                         contextDiv.innerHTML = '';
                         contextDiv.appendChild(pre);
                         contextDiv.classList.remove('d-none');
-                        link.textContent = 'Hide context';
+                        link.textContent = 'hide';
                     } else {
-                        link.textContent = 'View context';
+                        link.textContent = 'view';
                     }
                 } catch (_) {
-                    link.textContent = 'View context';
+                    link.textContent = 'view';
                 }
             });
 
