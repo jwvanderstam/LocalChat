@@ -21,7 +21,7 @@ pydantic==2.13.2
 email-validator==2.3.0
 
 # Document Processing
-pypdf>=6.0.0
+pypdf>=6.10.2
 pdfplumber==0.11.9  # Enhanced PDF extraction with table support
 pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this version
 python-docx==1.2.0
