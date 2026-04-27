@@ -62,6 +62,21 @@ function init() {
         });
     }
 
+    // Model override — restore from localStorage and persist on change
+    const modelOverrideInput = document.getElementById('model-override-input');
+    if (modelOverrideInput) {
+        const saved = localStorage.getItem('lc-model-override');
+        if (saved) modelOverrideInput.value = saved;
+        modelOverrideInput.addEventListener('input', () => {
+            const val = modelOverrideInput.value.trim();
+            if (val) {
+                localStorage.setItem('lc-model-override', val);
+            } else {
+                localStorage.removeItem('lc-model-override');
+            }
+        });
+    }
+
     // RAG toggle
     ragToggle.addEventListener('change', () => updateModeBadge());
     if (enhanceToggle) {
