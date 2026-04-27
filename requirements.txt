@@ -28,7 +28,7 @@ python-docx==1.2.0
 python-pptx>=1.0.2
 litellm>=1.72.6    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.72.6 fixes auth bypass CVEs
 h11>=0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
-spacy>=3.7.0       # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
+spacy>=3.8.14       # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
 cryptography>=44.0.0
