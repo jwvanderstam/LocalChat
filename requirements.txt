@@ -1,6 +1,6 @@
 # Flask and Web Framework
 Flask==3.1.3
-Werkzeug>=3.1.6
+Werkzeug>=3.1.8
 flasgger==0.9.7.1  # OpenAPI/Swagger documentation
 gunicorn==25.3.0   # Production WSGI server
 
