@@ -28,10 +28,9 @@
             </a>
             <div class="d-flex align-items-center">
                 <!-- Workspace switcher -->
-                <div class="dropdown me-3" id="workspace-switcher">
+                <div class="dropdown me-1" id="workspace-switcher">
                     <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button"
-                            id="workspaceDropdown" data-bs-toggle="dropdown" aria-expanded="false"
-                            title="Switch workspace">
+                            id="workspaceDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-layers me-1"></i>
                         <span id="active-workspace-name">Workspace</span>
                     </button>
@@ -39,6 +38,10 @@
                         <li><span class="dropdown-item-text text-muted small">Loading...</span></li>
                     </ul>
                 </div>
+                <i class="bi bi-info-circle text-secondary me-3" id="workspace-info-tooltip"
+                   data-bs-toggle="tooltip" data-bs-placement="bottom"
+                   title="Workspaces isolate your documents, conversations and AI persona. Use them to separate different projects, clients or teams — each with their own uploaded files and chat history."
+                   style="cursor: help; font-size: 0.85rem;"></i>
 
                 <span class="badge bg-primary me-3" id="status-model">
                     <i class="bi bi-cpu me-1"></i>
@@ -106,6 +109,54 @@
                     {% block content %}{% endblock %}
                 </div>
             </main>
+        </div>
+    </div>
+
+    <!-- New Workspace Modal -->
+    <div class="modal fade" id="newWorkspaceModal" tabindex="-1" aria-labelledby="newWorkspaceModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="newWorkspaceModalLabel">
+                        <i class="bi bi-layers me-2"></i>New Workspace
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="newWorkspaceForm">
+                    <div class="modal-body">
+                        <p class="text-muted small mb-3">
+                            Workspaces isolate documents, conversations and AI persona — useful for separating projects, clients or teams.
+                        </p>
+                        <div id="ws-error" class="text-danger small mb-2"></div>
+                        <div class="mb-3">
+                            <label for="ws-name" class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="ws-name"
+                                   placeholder="e.g. Legal, Marketing, Personal" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ws-description" class="form-label">
+                                Description <span class="text-muted small">(optional)</span>
+                            </label>
+                            <input type="text" class="form-control" id="ws-description"
+                                   placeholder="Short description of this workspace">
+                        </div>
+                        <div class="mb-3">
+                            <label for="ws-system-prompt" class="form-label">
+                                System prompt <span class="text-muted small">(optional)</span>
+                            </label>
+                            <textarea class="form-control" id="ws-system-prompt" rows="3"
+                                      placeholder="e.g. You are a legal assistant. Always cite sources."></textarea>
+                            <div class="form-text">Customises how the AI behaves in this workspace.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-1"></i>Create workspace
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
