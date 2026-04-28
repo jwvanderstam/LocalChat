@@ -6,7 +6,7 @@ standalone unit tests — no database or Ollama required.
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

@@ -15,11 +15,11 @@ import functools
 import json
 import logging
 import logging.handlers
-import os
 import sys
-from datetime import UTC, datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 
 def sanitize_log_value(value: object) -> str:

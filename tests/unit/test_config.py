@@ -6,9 +6,7 @@ Tests configuration constants, AppState class, and state persistence.
 
 import json
 import os
-import tempfile
-from datetime import datetime
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -304,7 +302,7 @@ class TestStatePersistence:
         try:
             os.chmod(temp_dir, 0o444)
             state.set_active_model("test")  # Should not raise exception
-        except:
+        except Exception:
             pass  # Skip if chmod doesn't work
         finally:
             os.chmod(temp_dir, 0o755)  # Restore permissions

@@ -18,9 +18,7 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-import os
-from io import BytesIO
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

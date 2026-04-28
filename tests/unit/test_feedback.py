@@ -15,7 +15,7 @@ Covers:
 
 import json
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

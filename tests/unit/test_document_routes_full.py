@@ -1,12 +1,8 @@
 1# -*- coding: utf-8 -*-
 """Tests for document routes."""
 
-import io
 import json
-import os
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 
 class TestDocumentListRoute:

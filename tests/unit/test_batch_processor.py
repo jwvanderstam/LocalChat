@@ -11,9 +11,7 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-from unittest.mock import MagicMock, Mock
-
-import pytest
+from unittest.mock import Mock
 
 
 class TestBatchEmbeddingProcessor:

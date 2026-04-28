@@ -3,24 +3,20 @@ target-version = "py312"
 [lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 ignore = [
-    "E501",    # line-too-long — handled by reviewer judgment, not enforced
+    "E501",    # line-too-long — enforced by reviewer judgment, not tooling
     "E402",    # module-import-not-at-top — intentional in several modules
-    "F401",    # unused-import — many re-exports; fix separately
-    "F811",    # redefined-while-unused — conditional imports pattern
-    "F841",    # unused-variable — fix separately
-    "UP035",   # deprecated-import — large batch; fix separately
-    "UP028",   # yield-in-for-loop — fix separately
-    "SIM105",  # suppressible-exception — explicit pass is intentional in places
-    "SIM117",  # multiple-with-statements — readability preference
-    "SIM103",  # needless-bool — fix separately
-    "SIM222",  # expr-or-true — fix separately
-    "B007",    # unused-loop-control-variable — fix separately
-    "B017",    # assert-raises-exception — fix separately
-    "B023",    # function-uses-loop-variable — fix separately
-    "B904",    # raise-without-from — fix separately
-    "B905",    # zip-without-explicit-strict — fix separately
-    "B018",    # useless-expression — fix separately
-    "E722",    # bare-except — fix separately
+    "F401",    # unused-import — many re-exports throughout the codebase
+    "F811",    # redefined-while-unused — conditional import pattern (TYPE_CHECKING guards)
+    "SIM105",  # suppressible-exception — explicit `except/pass` is intentional in places
+    "SIM117",  # multiple-with-statements — readability preference; nested is clearer here
+    "SIM103",  # needless-bool — 2 remaining; deferred
+    "SIM222",  # expr-or-true — 1 remaining; deferred
+    "B007",    # unused-loop-control-variable — 5 remaining; deferred
+    "B017",    # assert-raises-exception — 4 remaining in tests; deferred
+    "B023",    # function-uses-loop-variable — deferred
+    "B904",    # raise-without-from — 5 remaining; deferred
+    "B905",    # zip-without-explicit-strict — 6 remaining; deferred
+    "B018",    # useless-expression — 1 remaining; deferred
 ]
 
 [lint.per-file-ignores]

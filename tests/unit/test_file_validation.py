@@ -10,8 +10,6 @@ Tests cover:
 import io
 import zipfile
 
-import pytest
-
 from src.utils.file_validation import validate_file_content
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,6 @@ Optimized batch processing for embedding generation with parallel execution.
 """
 
 import time
-from typing import List, Optional
 
 from ..utils.logging_config import get_logger
 

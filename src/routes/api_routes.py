@@ -11,7 +11,8 @@ Handles status checks, chat (RAG and direct LLM), and core API functionality.
 import json
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Dict, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING, Any
 
 from flask import Blueprint, Response, g, jsonify, request
 from flask import current_app as _current_app

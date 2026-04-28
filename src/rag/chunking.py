@@ -7,7 +7,8 @@ and metadata tracking for enhanced citations.
 """
 
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from .. import config
 from ..utils.logging_config import get_logger

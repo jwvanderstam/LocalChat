@@ -8,8 +8,8 @@ base class that all concrete backends must implement.
 
 import hashlib
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from ...utils.logging_config import get_logger
 

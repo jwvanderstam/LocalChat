@@ -7,7 +7,7 @@ Falls back gracefully to ``MemoryCache`` when Redis is unavailable.
 """
 
 import pickle
-from typing import Any, Optional
+from typing import Any
 
 from ...utils.logging_config import get_logger
 from .base import CacheBackend, CacheStats

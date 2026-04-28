@@ -11,10 +11,7 @@ Covers:
     successful expansion, DB failure silenced
 """
 
-import itertools
-from unittest.mock import MagicMock, call, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -52,7 +49,6 @@ class TestGetNlp:
     def test_returns_none_when_spacy_not_installed(self):
         # Patch the module-level _nlp and force ImportError on import
         with patch.dict("sys.modules", {"spacy": None}):
-            import importlib
 
             import src.graph.extractor as mod
             # Reset cached value

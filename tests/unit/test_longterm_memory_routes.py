@@ -15,8 +15,6 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # ---------------------------------------------------------------------------
 # Helper — build a real Flask test app with the blueprint
 # ---------------------------------------------------------------------------
@@ -188,7 +186,7 @@ class TestExtractMemories:
             instance = MockExtractor.return_value
             instance.extract.return_value = 0
             # Check that extract was called with normalized dicts
-            resp = self._post_extract(app)
+            self._post_extract(app)
             call_args = instance.extract.call_args
             msg_list = call_args.kwargs.get("messages") or call_args.args[1]
             assert all(isinstance(m, dict) for m in msg_list)

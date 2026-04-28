@@ -19,10 +19,7 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import patch
 
 
 class TestDocumentProcessingPipeline:
@@ -346,7 +343,6 @@ class TestDocumentStatistics:
 
     def test_get_document_stats(self):
         """Test getting document statistics."""
-        from src.rag import doc_processor
 
         with patch('src.rag.db') as mock_db:
             mock_db.get_document_count.return_value = 5

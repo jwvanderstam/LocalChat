@@ -18,9 +18,6 @@ Created: January 2025
 """
 
 import logging
-from pathlib import Path
-
-import pytest
 
 
 class TestColoredFormatter:
@@ -175,7 +172,7 @@ class TestLoggingEdgeCases:
         # Should not raise
         try:
             logger.info(None)
-        except:
+        except Exception:
             pass  # Some implementations may reject None
 
     def test_logging_with_unicode(self):
@@ -221,7 +218,6 @@ class TestSafeStreamHandler:
         try:
             raise ValueError("I/O operation on closed file")
         except ValueError:
-            import sys
             handler.handleError(record)  # should not raise or print
 
     def test_delegates_other_errors(self):

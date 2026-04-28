@@ -17,8 +17,7 @@ See GET /api/oauth/microsoft/authorize to connect.
 """
 from __future__ import annotations
 
-import os
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 

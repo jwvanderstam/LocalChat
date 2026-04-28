@@ -12,8 +12,6 @@ Scenarios tested:
 """
 
 import hashlib
-import os
-from pathlib import Path
 from unittest.mock import MagicMock, call, patch  # noqa: F401
 
 import pytest

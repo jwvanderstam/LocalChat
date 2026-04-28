@@ -10,9 +10,7 @@ Run: pytest tests/test_rag_comprehensive.py -v --cov=src.rag --cov-report=term-m
 
 import os
 import tempfile
-from pathlib import Path
-from typing import List, Tuple
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -55,7 +53,7 @@ def temp_file():
     # Cleanup
     try:
         os.unlink(temp_path)
-    except:
+    except Exception:
         pass
 
 
@@ -402,7 +400,7 @@ class TestContextRetrieval:
             mock_ret_db.search_similar_chunks.return_value = [
                 ("chunk text 1", "report.pdf", 0, 0.95, {}, 1),
             ]
-            results = doc_processor.retrieve_context(
+            doc_processor.retrieve_context(
                 "test query",
                 file_type_filter=".pdf"
             )
@@ -547,7 +545,7 @@ class TestDocumentIngestion:
         finally:
             try:
                 os.unlink(empty_file)
-            except:
+            except Exception:
                 pass
 
     def test_ingest_document_embedding_failures(self, doc_processor, temp_file, mock_db, mock_ollama):

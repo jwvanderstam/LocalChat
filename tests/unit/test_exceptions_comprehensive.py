@@ -9,8 +9,7 @@ Run: pytest tests/test_exceptions_comprehensive.py -v --cov=src.exceptions --cov
 """
 
 import os
-from typing import Any, Dict
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 

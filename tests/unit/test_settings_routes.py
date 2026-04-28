@@ -316,7 +316,6 @@ class TestGetGpuInfo:
 
     def test_returns_nvidia_when_available(self):
         """get_gpu_info returns NVIDIA results when nvidia-smi is found."""
-        import shutil
         client = self._make_client()
         nvidia_output = "0, NVIDIA RTX 5070, 12288, 595, 11693, 42, 65\n"
         with patch("shutil.which", return_value="/usr/bin/nvidia-smi"):
@@ -419,7 +418,6 @@ class TestGetGpuInfo:
 
     def test_gpu_info_cache_hit_skips_subprocess(self):
         """get_gpu_info returns cached data and does not call subprocess again."""
-        import subprocess as _sp
         client = self._make_client()
         nvidia_output = "0, NVIDIA RTX 5070, 12288, 595, 11693, 42, 65\n"
 

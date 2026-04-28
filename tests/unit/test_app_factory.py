@@ -21,8 +21,6 @@ Created: January 2025
 
 from pathlib import Path
 
-import pytest
-
 
 class TestAppCreation:
     """Test basic app creation."""

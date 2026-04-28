@@ -7,8 +7,9 @@ and database/schema initialisation.
 """
 
 import socket
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import psycopg

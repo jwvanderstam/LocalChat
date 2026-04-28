@@ -16,9 +16,10 @@ Features:
 import hashlib
 import hmac
 import os
+from collections.abc import Callable
 from datetime import timedelta
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 from flask import Flask, Response, jsonify, request
 from flask.typing import ResponseReturnValue

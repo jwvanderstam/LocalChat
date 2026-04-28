@@ -9,7 +9,8 @@ diversity filtering, and context formatting for LLM prompts.
 import re
 import time
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from .. import config
 from ..db import db

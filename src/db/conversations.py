@@ -8,7 +8,7 @@ Mixin providing persistent chat-memory operations (conversations and messages).
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError

@@ -67,7 +67,6 @@ class TestSecurityInitialization:
 
     def test_init_security_configures_jwt(self, app):
         """Test init_security configures JWT."""
-        from src.security import init_security
 
         # In testing mode _init_security is skipped; JWT_SECRET_KEY is only
         # present after a full security init (create_app(testing=False)).
@@ -82,7 +81,6 @@ class TestSecurityInitialization:
 
     def test_init_security_logs_initialization(self, app, caplog):
         """Test init_security logs its actions."""
-        import logging
 
         # Security already initialized, just check it worked
         assert app is not None
@@ -93,7 +91,6 @@ class TestJWTAuthentication:
 
     def test_jwt_manager_exists(self):
         """Test JWT manager is available."""
-        from src.security import jwt_manager
 
         # Import succeeding is sufficient — jwt_manager may be None before init
 
@@ -137,7 +134,6 @@ class TestRateLimiting:
 
     def test_limiter_instance_exists(self):
         """Test limiter instance is created."""
-        from src.security import limiter
 
         # Import succeeding is sufficient — limiter may be None before init
 
@@ -247,7 +243,7 @@ class TestRequestLogging:
         import logging
 
         with caplog.at_level(logging.INFO):
-            response = client.get('/')
+            client.get('/')
 
             # Logging may or may not occur depending on configuration
             assert isinstance(caplog.records, list)
@@ -299,7 +295,6 @@ class TestSecurityIntegration:
 
     def test_security_initializes_with_app(self, app):
         """Test security can initialize with Flask app."""
-        from src.security import init_security
 
         # Already initialized by fixture
         assert app is not None
@@ -580,8 +575,7 @@ class TestAdminRequiredDecorator:
         return mini
 
     def test_no_token_returns_401(self):
-        from flask import Flask, jsonify
-        from flask_jwt_extended import JWTManager
+        from flask import jsonify
 
         from src.security import admin_required
 
@@ -597,8 +591,8 @@ class TestAdminRequiredDecorator:
         assert result.status_code == 401
 
     def test_non_admin_role_returns_403(self):
-        from flask import Flask, jsonify
-        from flask_jwt_extended import JWTManager, create_access_token
+        from flask import jsonify
+        from flask_jwt_extended import create_access_token
 
         from src.security import admin_required
 
@@ -617,8 +611,8 @@ class TestAdminRequiredDecorator:
         assert result.status_code == 403
 
     def test_admin_role_passes_through(self):
-        from flask import Flask, jsonify
-        from flask_jwt_extended import JWTManager, create_access_token
+        from flask import jsonify
+        from flask_jwt_extended import create_access_token
 
         from src.security import admin_required
 

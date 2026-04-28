@@ -22,7 +22,7 @@ Example:
 
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .utils.logging_config import get_logger
 

@@ -11,7 +11,7 @@ without adding ``# type: ignore`` comments everywhere.
 
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from flask import Flask
 

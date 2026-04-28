@@ -11,9 +11,7 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-from pathlib import Path
 
-import pytest
 
 
 class TestFaviconRoute:

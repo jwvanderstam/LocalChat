@@ -2,9 +2,7 @@
 
 import time
 
-import pytest
-
-from src.cache.backends.base import CacheBackend, CacheStats
+from src.cache.backends.base import CacheStats
 from src.cache.backends.memory import MemoryCache
 
 # ---------------------------------------------------------------------------

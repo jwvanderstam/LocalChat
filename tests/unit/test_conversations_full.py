@@ -1,6 +1,6 @@
 """Tests for ConversationsMixin (db/conversations.py)."""
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
 

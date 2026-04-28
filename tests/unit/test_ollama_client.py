@@ -19,9 +19,8 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
-import pytest
 import requests
 
 
@@ -309,7 +308,7 @@ class TestChatGeneration:
             # Should not crash, may return empty or error message
             try:
                 list(response_gen)
-            except:
+            except Exception:
                 pass  # Error expected
 
     def test_generate_chat_response_with_context(self):

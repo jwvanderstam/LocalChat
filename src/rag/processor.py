@@ -9,9 +9,10 @@ and retrieval.
 
 import hashlib
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from .. import config
 from ..db import db

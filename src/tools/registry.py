@@ -24,9 +24,9 @@ Example:
 from __future__ import annotations
 
 import inspect
-import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from ..utils.logging_config import get_logger
 

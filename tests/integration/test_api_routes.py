@@ -11,7 +11,6 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-import json
 
 import pytest
 

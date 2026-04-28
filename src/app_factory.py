@@ -23,9 +23,7 @@ Example:
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
-
-from flask import Flask
+from typing import Any
 
 from . import config
 from .types import LocalChatApp

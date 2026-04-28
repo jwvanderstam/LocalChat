@@ -1,7 +1,7 @@
 """Tests for RedisCache and DatabaseCache backends (fully mocked)."""
 
 import pickle
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

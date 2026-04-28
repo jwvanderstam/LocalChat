@@ -9,12 +9,13 @@ Handles model listing, activation, pulling, deletion, and testing.
 """
 
 import json
-from typing import TYPE_CHECKING, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from flask import Blueprint, Response, current_app, jsonify, request
 from flask.typing import ResponseReturnValue
 
-from .. import config, exceptions
+from .. import config
 from ..security import limiter
 from ..utils.logging_config import get_logger
 
@@ -195,7 +196,6 @@ def api_pull_model() -> ResponseReturnValue:
     Returns:
         Server-Sent Events stream with pull progress
     """
-    from typing import cast
 
     try:
         data = request.get_json()

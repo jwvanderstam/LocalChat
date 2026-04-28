@@ -20,7 +20,8 @@ Usage:
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Generator, List, Optional
+from collections.abc import Generator
+from typing import Any
 
 from .. import config
 from ..ollama_client import OllamaClient

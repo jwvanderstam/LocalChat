@@ -5,7 +5,6 @@ Provides pre-configured mock objects for common dependencies.
 """
 
 import random
-from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, Mock
 
 
@@ -138,8 +137,7 @@ class MockOllamaClient:
                               stream: bool = True):
         """Generate chat response."""
         response_chunks = ["Hello", " from", " mock", " Ollama", "!"]
-        for chunk in response_chunks:
-            yield chunk
+        yield from response_chunks
 
     def test_model(self, model_name: str) -> tuple:
         """Test model."""

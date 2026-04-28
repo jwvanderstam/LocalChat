@@ -1,8 +1,6 @@
 """Unit tests for src/tools/executor.py — focusing on previously untested paths."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from src.tools.executor import ToolExecutor
 from src.tools.registry import ToolRegistry

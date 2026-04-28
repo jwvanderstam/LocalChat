@@ -9,7 +9,7 @@ and size management.
 """
 
 import hashlib
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 from ..utils.logging_config import get_logger
 from . import CacheBackend, CacheStats, create_cache_backend

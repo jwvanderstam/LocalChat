@@ -7,8 +7,6 @@ produce independent entries for different parameters, and correctly invalidate.
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from src.cache.managers import EmbeddingCache, QueryCache
 
 # ---------------------------------------------------------------------------

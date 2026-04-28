@@ -4,7 +4,6 @@ Unit tests for db.py
 Tests database operations, connection pooling, and vector similarity search.
 """
 
-from unittest.mock import MagicMock, Mock, call, patch
 
 import numpy as np
 import pytest
@@ -90,7 +89,7 @@ class TestDocumentOperations:
     def test_document_exists_returns_true_for_existing(self):
         """Should return True for existing document."""
         db = MockDatabase()
-        doc_id = db.insert_document("test.pdf", "content")
+        db.insert_document("test.pdf", "content")
 
         exists, info = db.document_exists("test.pdf")
         assert exists is True

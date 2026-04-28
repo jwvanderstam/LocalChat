@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
 
 class TestConnectorRoutesErrors:
     """Trigger the except-block paths that return 500 with _ERR_INTERNAL."""

@@ -8,10 +8,8 @@ Target: 30+ tests, 90%+ coverage on ollama_client.py
 Run: pytest tests/test_ollama_comprehensive.py -v --cov=src.ollama_client --cov-report=term-missing
 """
 
-import json
 import os
-from typing import Dict, List
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 

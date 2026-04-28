@@ -8,7 +8,7 @@ Fast and zero-dependency; suitable for single-process use and testing.
 
 from collections import OrderedDict
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from ...utils.logging_config import get_logger
 from .base import CacheBackend, CacheStats

@@ -23,7 +23,6 @@ Example:
 import os
 import re
 from pathlib import Path
-from typing import Optional
 
 from .logging_config import get_logger
 

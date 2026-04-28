@@ -7,7 +7,6 @@ Mixin providing entity and relation CRUD for the GraphRAG feature.
 
 from __future__ import annotations
 
-import uuid
 from typing import TYPE_CHECKING, Any
 
 from ..utils.logging_config import get_logger

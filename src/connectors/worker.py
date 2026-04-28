@@ -27,7 +27,7 @@ import os
 import tempfile
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ..utils.logging_config import get_logger
 from .base import EventType

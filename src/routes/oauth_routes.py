@@ -13,7 +13,7 @@ Endpoints:
 from __future__ import annotations
 
 import secrets
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import requests

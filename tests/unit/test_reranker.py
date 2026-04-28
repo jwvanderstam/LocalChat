@@ -16,8 +16,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.rag.reranker import (
     RerankerModel,
     _read_latest_pointer,

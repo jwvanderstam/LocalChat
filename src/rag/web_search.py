@@ -18,7 +18,6 @@ import ipaddress
 import re
 from dataclasses import dataclass, field
 from html import unescape
-from typing import List, Optional
 from urllib.parse import urlparse
 
 import requests

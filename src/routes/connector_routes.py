@@ -73,7 +73,7 @@ def list_connectors() -> ResponseReturnValue:
     try:
         connectors = current_app.db.list_connectors(workspace_id=workspace_id)
         return jsonify({'success': True, 'connectors': connectors})
-    except Exception as e:
+    except Exception:
         logger.error("[Connectors] list error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
@@ -146,7 +146,7 @@ def create_connector() -> ResponseReturnValue:
         )
         connector = current_app.db.get_connector(connector_id)
         return jsonify({'success': True, 'connector': connector}), 201
-    except Exception as e:
+    except Exception:
         logger.error("[Connectors] create error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
@@ -162,7 +162,7 @@ def get_connector(connector_id: str) -> ResponseReturnValue:
         if connector is None:
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         return jsonify({'success': True, 'connector': connector})
-    except Exception as e:
+    except Exception:
         logger.error("[Connectors] get error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
@@ -191,7 +191,7 @@ def update_connector(connector_id: str) -> ResponseReturnValue:
                 connector_registry.remove(connector_id)
         connector = current_app.db.get_connector(connector_id)
         return jsonify({'success': True, 'connector': connector})
-    except Exception as e:
+    except Exception:
         logger.error("[Connectors] update error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
@@ -204,7 +204,7 @@ def delete_connector(connector_id: str) -> ResponseReturnValue:
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         connector_registry.remove(connector_id)
         return jsonify({'success': True})
-    except Exception as e:
+    except Exception:
         logger.error("[Connectors] delete error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
@@ -243,7 +243,7 @@ def sync_history(connector_id: str) -> ResponseReturnValue:
     try:
         history = current_app.db.get_connector_sync_history(connector_id, limit=limit)
         return jsonify({'success': True, 'history': history})
-    except Exception as e:
+    except Exception:
         logger.error("[Connectors] history error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 

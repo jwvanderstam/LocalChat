@@ -88,7 +88,6 @@ class TestCacheBackend:
 
     def test_cache_backend_initialization(self):
         """Test CacheBackend base initialization."""
-        from src.cache import CacheBackend
 
         # Cannot instantiate abstract class directly
         # But can check via concrete implementation

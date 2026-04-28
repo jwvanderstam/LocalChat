@@ -16,7 +16,6 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-import pytest
 
 
 class TestSwaggerConfig:

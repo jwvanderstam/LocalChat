@@ -26,10 +26,11 @@ Features:
 
 import threading
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from time import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 from flask import Flask, Response, g, jsonify, request
 from flask.typing import ResponseReturnValue

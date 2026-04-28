@@ -9,7 +9,6 @@ used in combination with semantic search for hybrid retrieval.
 import math
 import re
 from collections import Counter
-from typing import Dict, List
 
 from ..utils.logging_config import get_logger
 

@@ -11,8 +11,6 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-import pytest
-from werkzeug.exceptions import BadRequest, MethodNotAllowed, NotFound
 
 
 class TestBadRequestHandler:
@@ -111,7 +109,6 @@ class TestValidationErrorHandler:
 
     def test_validation_error_caught(self, client):
         """Test that validation errors are caught."""
-        from src.exceptions import ValidationError
 
         # Try to trigger a validation error
         response = client.post('/api/chat',
@@ -147,7 +144,7 @@ class TestErrorLogging:
         import logging
 
         with caplog.at_level(logging.WARNING):
-            response = client.get('/nonexistent')
+            client.get('/nonexistent')
 
             # Logging may or may not happen depending on configuration
             assert isinstance(caplog.records, list)

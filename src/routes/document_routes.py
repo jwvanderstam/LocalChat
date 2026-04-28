@@ -12,8 +12,9 @@ import json
 import os
 import queue
 import threading
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator
+from typing import TYPE_CHECKING, Any
 
 from flask import Blueprint, Response, jsonify, request
 from flask import current_app as _current_app

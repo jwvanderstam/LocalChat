@@ -85,7 +85,7 @@ class TestLiteLLMClientInit:
 
             import src.llm_client as mod
             reload(mod)
-            client = mod.LiteLLMClient("openai", "sk-test-key", "gpt-4o")
+            mod.LiteLLMClient("openai", "sk-test-key", "gpt-4o")
             assert os.environ.get("OPENAI_API_KEY") == "sk-test-key"
 
     def test_no_env_var_when_no_api_key(self):

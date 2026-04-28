@@ -1,9 +1,6 @@
 """Unit tests for DatabaseCache (L3 persistent cache tier) with mocked db_client."""
 
-import pickle
 from unittest.mock import MagicMock
-
-import pytest
 
 
 def _make_cache():

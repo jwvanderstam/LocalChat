@@ -10,8 +10,7 @@ Covers:
   - ToolRouter.dispatch() — unknown tool, direct paths, MCP paths, MCP fallback
 """
 
-from dataclasses import dataclass, field
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

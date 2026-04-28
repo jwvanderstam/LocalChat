@@ -6,7 +6,7 @@ Verifies that tables in PDFs are properly extracted.
 
 import os
 import tempfile
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

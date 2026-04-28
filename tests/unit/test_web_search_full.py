@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestWebSearchIntentDetection:
     """Tests for _has_web_search_intent auto-detection in api_routes."""

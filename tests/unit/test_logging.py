@@ -6,7 +6,6 @@ Tests logging setup, logger creation, and formatting.
 
 import logging
 import os
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -250,7 +249,7 @@ class TestLoggerHierarchy:
         log_file = os.path.join(temp_dir, "test.log")
         setup_logging(log_level="WARNING", log_file=log_file)
 
-        parent_logger = get_logger("parent")
+        get_logger("parent")
         child_logger = get_logger("parent.child")
 
         # Child should inherit parent's effective level

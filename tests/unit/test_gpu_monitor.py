@@ -4,8 +4,6 @@ import json
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestNoToolsAvailable:
     def test_returns_empty_list_when_neither_tool_found(self):

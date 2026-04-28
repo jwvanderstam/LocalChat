@@ -7,7 +7,7 @@ LRU cache for query embeddings to avoid redundant API calls.
 
 import hashlib
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class EmbeddingCache:

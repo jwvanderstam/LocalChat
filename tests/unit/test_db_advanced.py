@@ -16,7 +16,7 @@ Created: January 2025
 """
 
 import socket
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

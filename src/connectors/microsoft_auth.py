@@ -7,7 +7,7 @@ token, refreshing via the OAuth2 token endpoint if the stored token has expired.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import requests

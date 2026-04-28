@@ -8,7 +8,8 @@ for the LocalChat RAG application.
 Re-exports all public symbols for backward compatibility with ``from src.rag import ...``.
 """
 
-from typing import Callable, NoReturn
+from collections.abc import Callable
+from typing import NoReturn
 
 from .. import config
 from ..db import db

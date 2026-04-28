@@ -14,7 +14,7 @@ which connectors are currently active.
 from __future__ import annotations
 
 import threading
-from typing import Any, Type
+from typing import Any
 
 from ..utils.logging_config import get_logger
 from .base import BaseConnector

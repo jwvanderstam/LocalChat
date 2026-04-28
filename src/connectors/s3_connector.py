@@ -108,7 +108,6 @@ class S3Connector(BaseConnector):
         return result
 
     def list_sources(self) -> list[DocumentSource]:
-        from datetime import timezone
         client = self._get_client()
         bucket = self.config["bucket"]
         prefix = self.config.get("prefix", "")

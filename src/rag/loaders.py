@@ -9,8 +9,9 @@ Extracted from DocumentProcessor for modularity.
 import base64
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from .. import config
 from ..ollama_client import ollama_client

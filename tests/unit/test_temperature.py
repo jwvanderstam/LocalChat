@@ -9,7 +9,7 @@ Unit tests covering the temperature parameter added to:
 """
 
 import os
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -212,7 +212,6 @@ class TestOllamaClientTemperature:
 
     def test_non_streaming_mode_includes_temperature(self):
         """Temperature must appear in the payload even when stream=False."""
-        import json
         client = self._make_client()
 
         mock_resp = Mock()

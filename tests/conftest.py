@@ -7,8 +7,9 @@ that can be used across all test files.
 
 import os
 import tempfile
-from typing import Any, Dict, Generator
-from unittest.mock import MagicMock, Mock
+from collections.abc import Generator
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from faker import Faker

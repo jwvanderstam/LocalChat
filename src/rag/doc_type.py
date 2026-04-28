@@ -9,8 +9,9 @@ callable and a version string stored in the DB for cache invalidation.
 
 from __future__ import annotations
 
-from enum import Enum, StrEnum
-from typing import Any, Callable, Protocol, runtime_checkable
+from collections.abc import Callable
+from enum import StrEnum
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable

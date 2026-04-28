@@ -13,8 +13,6 @@ Covers the full REST surface:
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -222,7 +220,7 @@ class TestSwitchWorkspace:
 
     def test_switches_successfully(self, client, app):
         app.db.get_workspace = MagicMock(return_value=_workspace(id="ws-2", name="Proj"))
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
+        with patch("src.routes.workspace_routes.config"):
             resp = client.post("/api/workspaces/switch", json={"workspace_id": "ws-2"})
         assert resp.status_code == 200
         data = resp.get_json()

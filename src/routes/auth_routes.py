@@ -102,7 +102,7 @@ def list_users() -> ResponseReturnValue:
     try:
         users = current_app.db.list_users()
         return jsonify({'success': True, 'users': [_public(u) for u in users]})
-    except Exception as exc:
+    except Exception:
         logger.error("[Users] list error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
@@ -116,7 +116,7 @@ def get_user(user_id: str) -> ResponseReturnValue:
         if user is None:
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         return jsonify({'success': True, 'user': _public(user)})
-    except Exception as exc:
+    except Exception:
         logger.error("[Users] get error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
@@ -147,7 +147,7 @@ def update_user(user_id: str) -> ResponseReturnValue:
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         user = current_app.db.get_user_by_id(user_id)
         return jsonify({'success': True, 'user': _public(user)})
-    except Exception as exc:
+    except Exception:
         logger.error("[Users] update error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 
@@ -165,7 +165,7 @@ def delete_user(user_id: str) -> ResponseReturnValue:
         if not deleted:
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
         return jsonify({'success': True})
-    except Exception as exc:
+    except Exception:
         logger.error("[Users] delete error", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
 

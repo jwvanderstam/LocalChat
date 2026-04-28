@@ -17,7 +17,6 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-import pytest
 
 
 class TestHTTPErrorHandlers:
@@ -253,7 +252,6 @@ class TestErrorHandlerRegistration:
     def test_all_http_codes_have_handlers(self, app):
         """Test common HTTP error codes have handlers."""
         # At minimum, should handle these codes
-        error_codes = [400, 404, 405, 413, 500]
 
         # Just verify app is configured
         assert app is not None

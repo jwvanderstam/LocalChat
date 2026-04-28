@@ -1,6 +1,5 @@
 """Tests for input sanitization utilities."""
 
-import pytest
 
 from src.utils.sanitization import (
     sanitize_filename,

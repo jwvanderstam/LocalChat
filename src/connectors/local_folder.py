@@ -18,10 +18,8 @@ Config keys:
 from __future__ import annotations
 
 import os
-import time
 from datetime import UTC
 from pathlib import Path
-from typing import Any
 
 from .. import config as app_config
 from ..utils.logging_config import get_logger
@@ -147,5 +145,5 @@ class LocalFolderConnector(BaseConnector):
 # ---------------------------------------------------------------------------
 
 def _mtime_to_dt(mtime: float):
-    from datetime import datetime, timezone
+    from datetime import datetime
     return datetime.fromtimestamp(mtime, tz=UTC)

@@ -6,8 +6,6 @@ and security against various attacks (XSS, path traversal, SQL injection, etc.)
 """
 
 import os
-import tempfile
-from pathlib import Path
 
 import pytest
 

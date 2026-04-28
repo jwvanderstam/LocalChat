@@ -12,7 +12,7 @@ Covers:
 
 import json
 import time
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

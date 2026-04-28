@@ -40,7 +40,8 @@ Example:
 import json
 import threading
 import time
-from typing import Any, Dict, Generator, List, NoReturn, Optional, Tuple
+from collections.abc import Generator
+from typing import Any, NoReturn
 
 import requests
 

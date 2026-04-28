@@ -13,7 +13,6 @@ The System tag covers health, metrics and observability endpoints:
 
 """
 
-from typing import Optional
 
 from flask import Flask
 

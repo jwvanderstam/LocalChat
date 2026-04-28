@@ -10,9 +10,7 @@ Covers:
   - MemoryExtractor._call_llm: JSON array found, no JSON array, LLM returns empty
 """
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
 # Helpers

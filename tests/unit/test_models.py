@@ -4,7 +4,6 @@ Unit tests for models.py (Pydantic validation models)
 Tests all Pydantic models and their validators.
 """
 
-from datetime import datetime
 
 import pytest
 from pydantic import ValidationError

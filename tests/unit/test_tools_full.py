@@ -1,8 +1,7 @@
 """Tests for ToolRegistry, ToolExecutor, and built-in tools."""
 
 import ast
-import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

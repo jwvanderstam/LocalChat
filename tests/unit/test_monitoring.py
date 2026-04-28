@@ -227,11 +227,9 @@ class TestHealthChecks:
         # Try common health check paths
         paths = ['/health', '/api/health', '/api/status']
 
-        found = False
         for path in paths:
             response = client.get(path)
             if response.status_code == 200:
-                found = True
                 break
 
         # At least one should work
@@ -258,7 +256,7 @@ class TestPerformanceTracking:
         """Test performance decorator can be used."""
         from src.monitoring import MetricsCollector
 
-        collector = MetricsCollector()
+        MetricsCollector()
 
         # Create a test function
         def test_func():
@@ -414,7 +412,7 @@ class TestTimedSlowOperation:
 
     def test_slow_operation_warning_logged(self):
         """Warning is emitted when mocked duration is 2 s."""
-        from unittest.mock import call, patch
+        from unittest.mock import patch
 
         from src.monitoring import timed
 
