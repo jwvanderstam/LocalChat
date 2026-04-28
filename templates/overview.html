@@ -527,8 +527,8 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <ul class="list-unstyled mb-0">
-                                            <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>1,094 Tests:</strong> Unit + integration + comprehensive coverage</li>
-                                            <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>81% Code Coverage:</strong> SonarCloud verified</li>
+                                            <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>2,014 Tests:</strong> 69 unit modules + 12 integration modules</li>
+                                            <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>82% Code Coverage:</strong> SonarCloud verified</li>
                                             <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>100% Exception Coverage:</strong> All 11 custom error types tested</li>
                                         </ul>
                                     </div>
@@ -536,7 +536,7 @@
                                         <ul class="list-unstyled mb-0">
                                             <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>SonarCloud Quality Gate:</strong> Passing — no blockers or criticals</li>
                                             <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>CI/CD:</strong> GitHub Actions on every push</li>
-                                            <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Fast Execution:</strong> ~18 s for full suite</li>
+                                            <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Fast Execution:</strong> ~56 s for full fast suite</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -565,7 +565,7 @@
                     <div class="col-6 col-md-3 mb-2">
                         <div class="card border-primary">
                             <div class="card-body py-2">
-                                <h3 class="text-primary mb-0">101+</h3>
+                                <h3 class="text-primary mb-0">91</h3>
                                 <small class="text-muted">Source Files</small>
                             </div>
                         </div>
@@ -581,7 +581,7 @@
                     <div class="col-6 col-md-3 mb-2">
                         <div class="card border-info">
                             <div class="card-body py-2">
-                                <h3 class="text-info mb-0">1,094</h3>
+                                <h3 class="text-info mb-0">2,014</h3>
                                 <small class="text-muted">Tests</small>
                             </div>
                         </div>
@@ -589,7 +589,7 @@
                     <div class="col-6 col-md-3 mb-2">
                         <div class="card border-warning">
                             <div class="card-body py-2">
-                                <h3 class="text-warning mb-0">81%</h3>
+                                <h3 class="text-warning mb-0">82%</h3>
                                 <small class="text-muted">Coverage</small>
                             </div>
                         </div>
@@ -602,13 +602,14 @@
                         <h2 class="accordion-header">
                             <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#coreFiles">
                                 <i class="bi bi-code-square me-2 text-primary"></i><strong>src/ &mdash; Core Application</strong>
-                                <span class="badge bg-primary ms-2">101 files</span>
+                                <span class="badge bg-primary ms-2">91 files</span>
                             </button>
                         </h2>
                         <div id="coreFiles" class="accordion-collapse collapse show" data-bs-parent="#fileStructureAccordion">
                             <div class="accordion-body">
                                 <div class="row">
                                     <div class="col-md-6">
+
                                         <div class="list-group list-group-flush">
                                             <div class="list-group-item px-0">
                                                 <div class="d-flex justify-content-between"><code>app_factory.py</code><small class="text-muted">~430 ln</small></div>
@@ -696,15 +697,15 @@
                         <h2 class="accordion-header">
                             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#testFiles">
                                 <i class="bi bi-check2-square me-2 text-info"></i><strong>tests/ &mdash; Test Suite</strong>
-                                <span class="badge bg-info ms-2">1,094 tests</span>
+                                <span class="badge bg-info ms-2">2,014 tests</span>
                             </button>
                         </h2>
                         <div id="testFiles" class="accordion-collapse collapse" data-bs-parent="#fileStructureAccordion">
                             <div class="accordion-body">
                                 <div class="list-group list-group-flush">
                                     <div class="list-group-item px-0"><code>conftest.py</code> <small class="text-muted">— Shared pytest fixtures, mocks, sample data</small></div>
-                                    <div class="list-group-item px-0"><code>unit/</code> <small class="text-muted">— 24+ modules: config, db, rag, ollama, cache, security, exceptions, validation, monitoring, logging</small></div>
-                                    <div class="list-group-item px-0"><code>integration/</code> <small class="text-muted">— 4 modules covering all API route blueprints</small></div>
+                                    <div class="list-group-item px-0"><code>unit/</code> <small class="text-muted">— 69 modules: config, db, rag, ollama, cache, security, exceptions, validation, monitoring, logging</small></div>
+                                    <div class="list-group-item px-0"><code>integration/</code> <small class="text-muted">— 12 modules covering all API route blueprints</small></div>
                                     <div class="list-group-item px-0"><code>utils/</code> <small class="text-muted">— helpers.py, mocks.py</small></div>
                                 </div>
                             </div>
@@ -976,7 +977,7 @@
                     <div class="col-md-6">
                         <h6 class="mt-3">Key Metrics</h6>
                         <ul>
-                            <li>1,094 tests &mdash; 81% coverage (SonarCloud verified)</li>
+                            <li>2,014 tests &mdash; 82% coverage (SonarCloud verified)</li>
                             <li>Streaming via Server-Sent Events</li>
                             <li>HNSW approximate nearest-neighbour search</li>
                             <li>Hybrid retrieval: semantic cosine + BM25 keyword</li>
@@ -1048,11 +1049,11 @@
                         <tr><th>Category</th><th>Count</th><th>Lines</th><th>Description</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td><strong>Source Code</strong></td><td>101 files</td><td>~15,000</td><td>Core modules + packages in <code>src/</code></td></tr>
-                        <tr><td><strong>Templates</strong></td><td>6 files</td><td>~3,500</td><td>Web interface HTML (incl. admin dashboard)</td></tr>
-                        <tr><td><strong>Tests</strong></td><td>35+ files</td><td>~8,000</td><td>24 unit + 4 integration modules &mdash; 1,094 tests</td></tr>
-                        <tr><td><strong>Config / Infra</strong></td><td>10+ files</td><td>~500</td><td>Dockerfile, docker-compose, Bicep, GitHub Actions</td></tr>
-                        <tr class="table-primary"><td><strong>Total</strong></td><td><strong>150+</strong></td><td><strong>~27,000</strong></td><td><strong>Complete application</strong></td></tr>
+                        <tr><td><strong>Source Code</strong></td><td>91 files</td><td>~22,000</td><td>Core modules + packages in <code>src/</code></td></tr>
+                        <tr><td><strong>Templates</strong></td><td>6 files</td><td>~3,000</td><td>Web interface HTML pages</td></tr>
+                        <tr><td><strong>Tests</strong></td><td>86 files</td><td>~25,000</td><td>69 unit + 12 integration modules &mdash; 2,014 tests</td></tr>
+                        <tr><td><strong>Config / Infra</strong></td><td>15+ files</td><td>~2,000</td><td>Dockerfile, docker-compose, Helm, GitHub Actions, docs</td></tr>
+                        <tr class="table-primary"><td><strong>Total</strong></td><td><strong>200+</strong></td><td><strong>~52,000</strong></td><td><strong>Complete application</strong></td></tr>
                     </tbody>
                 </table>
 

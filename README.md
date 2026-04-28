@@ -85,7 +85,6 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - [Monitoring & Observability](#monitoring--observability)
 - [CI/CD & Code Quality](#cicd--code-quality)
 - [Development](#development)
-- [Contributing](#contributing)
 - [License](#license)
 
 ---
@@ -259,7 +258,6 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and fixes |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore, and maintenance procedures |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Evolution roadmap and completion status |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev setup, test commands, PR conventions |
 
 ### Key Entry Points
 - **[`app.py`](app.py)** — Application entry point
@@ -384,8 +382,8 @@ LocalChat/
 │   └── example_plugin.py
 ├── tests/
 │   ├── conftest.py                 # Shared fixtures
-│   ├── unit/                       # 68 modules, ~1800 tests
-│   └── integration/                # Requires running services
+│   ├── unit/                       # 69 modules, ~1,900 tests
+│   └── integration/                # 12 modules, requires running services
 └── helm/localchat/                 # Helm chart (app + PostgreSQL + Redis + MCP)
 ```
 
@@ -431,8 +429,8 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 68 modules covering all core components (~1800 tests)
-- **Integration Tests**: `tests/integration/` — require a live PostgreSQL + Ollama instance
+- **Unit Tests**: `tests/unit/` — 69 modules covering all core components (~1,900 tests)
+- **Integration Tests**: `tests/integration/` — 12 modules; require a live PostgreSQL + Ollama instance
 - **Quality Gate**: SonarCloud enforces ≥ 80% coverage on new code, 0 unreviewed hotspots
 
 ---
@@ -695,15 +693,14 @@ so Ollama distributes work across all detected GPUs automatically when multiple 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
-pip install pre-commit ruff
 
-# Install pre-commit hooks
-pre-commit install
-
-# Lint
+# Lint (must be clean before every commit)
 ruff check src/ tests/
 
-# Run tests with coverage
+# Run fast tests with coverage
+pytest -m "not (slow or ollama or db)"
+
+# Run all unit tests with coverage report
 pytest tests/unit/ --cov=src --cov-report=term-missing
 ```
 
@@ -761,9 +758,8 @@ The `coverage.xml` file is produced in the project root and is picked up automat
 
 3. **Check code quality**
    ```bash
-   black src/ tests/
-   pylint src/
-   pytest --cov
+   ruff check src/ tests/
+   pytest -m "not (slow or ollama or db)"
    ```
 
 4. **Commit and push**
@@ -782,27 +778,6 @@ The `coverage.xml` file is produced in the project root and is picked up automat
 See [GitHub Releases](https://github.com/jwvanderstam/LocalChat/releases) for version history.
 
 ---
-
-## Contributing
-
-We welcome contributions!
-
-### Quick Contribution Guide
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Update documentation
-6. Submit a pull request
-
-### Code of Conduct
-
-- Be respectful and inclusive
-- Follow coding standards
-- Write clear commit messages
-- Add tests for new features
-- Update documentation
 
 ---
 
