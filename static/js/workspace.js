@@ -87,6 +87,10 @@
                     localStorage.setItem(ACTIVE_WS_KEY, workspaceName);
                     document.getElementById('active-workspace-name').textContent = workspaceName;
                     loadWorkspaces();
+                    // Notify other modules so they reload their workspace-scoped data.
+                    document.dispatchEvent(new CustomEvent('workspace-switched', {
+                        detail: { workspaceId: workspaceId, workspaceName: workspaceName },
+                    }));
                 } else {
                     console.warn('[Workspace] Switch failed:', data.message);
                 }

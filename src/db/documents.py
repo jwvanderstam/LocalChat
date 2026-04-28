@@ -435,9 +435,12 @@ class DocumentsMixin:
                 logger.debug(f"Chunk count: {count}")
                 return count
 
-    def get_all_documents(self) -> list[dict[str, Any]]:
+    def get_all_documents(self, workspace_id: str | None = None) -> list[dict[str, Any]]:
         """
-        List all documents with metadata.
+        List documents with metadata, optionally scoped to a workspace.
+
+        Args:
+            workspace_id: When provided, only return documents belonging to this workspace.
 
         Returns:
             List of dicts with keys: id, filename, created_at, chunk_count
@@ -451,13 +454,23 @@ class DocumentsMixin:
         logger.debug("Getting all documents")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
-                    FROM documents d
-                    LEFT JOIN document_chunks dc ON d.id = dc.document_id
-                    GROUP BY d.id, d.filename, d.created_at
-                    ORDER BY d.created_at DESC
-                """)
+                if workspace_id:
+                    cursor.execute("""
+                        SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
+                        FROM documents d
+                        LEFT JOIN document_chunks dc ON d.id = dc.document_id
+                        WHERE d.workspace_id = %s
+                        GROUP BY d.id, d.filename, d.created_at
+                        ORDER BY d.created_at DESC
+                    """, (workspace_id,))
+                else:
+                    cursor.execute("""
+                        SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
+                        FROM documents d
+                        LEFT JOIN document_chunks dc ON d.id = dc.document_id
+                        GROUP BY d.id, d.filename, d.created_at
+                        ORDER BY d.created_at DESC
+                    """)
                 rows = cursor.fetchall()
                 documents = [
                     {

@@ -118,6 +118,13 @@ function init() {
     if (currentConversationId) {
         loadConversation(currentConversationId);
     }
+
+    // Reload conversations when the user switches workspace
+    document.addEventListener('workspace-switched', function () {
+        currentConversationId = null;
+        chatMessages.innerHTML = '';
+        loadConversations();
+    });
 }
 
 // ============================================================================

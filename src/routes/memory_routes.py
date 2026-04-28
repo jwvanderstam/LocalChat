@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 else:
     current_app = _current_app
 
+from .. import config
 from ..utils.logging_config import get_logger
 
 bp = Blueprint('memory', __name__)
@@ -57,7 +58,8 @@ def list_conversations() -> ResponseReturnValue:
         offset = max(int(request.args.get('offset', 0)), 0)
     except (ValueError, TypeError):
         return jsonify({'success': False, 'message': 'limit and offset must be integers'}), 400
-    conversations = current_app.db.list_conversations(limit=limit, offset=offset)
+    workspace_id = config.app_state.get_active_workspace_id()
+    conversations = current_app.db.list_conversations(limit=limit, offset=offset, workspace_id=workspace_id)
     return jsonify({'conversations': conversations, 'limit': limit, 'offset': offset})
 
 

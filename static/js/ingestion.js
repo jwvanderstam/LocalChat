@@ -34,6 +34,12 @@ function init() {
     // Load documents on page load
     loadDocuments();
     loadStats();
+
+    // Reload documents when the user switches workspace
+    document.addEventListener('workspace-switched', function () {
+        loadDocuments();
+        loadStats();
+    });
 }
 
 // Upload documents

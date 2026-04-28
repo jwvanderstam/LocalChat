@@ -297,7 +297,8 @@ def api_list_documents() -> ResponseReturnValue:
     """
     from ..db import DatabaseUnavailableError
     try:
-        documents = current_app.db.get_all_documents()
+        workspace_id = config.app_state.get_active_workspace_id()
+        documents = current_app.db.get_all_documents(workspace_id=workspace_id)
         return jsonify({
             'success': True,
             'documents': documents
