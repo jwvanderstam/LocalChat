@@ -39,6 +39,9 @@ LocalChat exists to be the gold standard for local, privacy-preserving knowledge
 - Active learning loop: model suggests which documents to ingest next
 - Cross-workspace retrieval for shared knowledge bases
 
+### v1.4 — Security
+- Encryption at rest
+
 ---
 
 ## Design Principles
