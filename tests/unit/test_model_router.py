@@ -62,14 +62,14 @@ class TestModelRegistry:
                 assert reg._registry[cls].model_id == ""
 
     def test_env_var_sets_model_id(self):
-        with patch.dict(os.environ, {"MODEL_FAST": "llama3.2:3b"}, clear=False):
-            from src.agent.models import ModelClass, ModelRegistry
+        from src.agent.models import ModelClass, ModelRegistry
+        with patch("src.config.MODEL_FAST", "llama3.2:3b"):
             reg = ModelRegistry()
             assert reg._registry[ModelClass.FAST].model_id == "llama3.2:3b"
 
     def test_resolve_returns_configured_id(self):
-        with patch.dict(os.environ, {"MODEL_CODE": "qwen2.5-coder:7b"}, clear=False):
-            from src.agent.models import ModelClass, ModelRegistry
+        from src.agent.models import ModelClass, ModelRegistry
+        with patch("src.config.MODEL_CODE", "qwen2.5-coder:7b"):
             reg = ModelRegistry()
             assert reg.resolve(ModelClass.CODE, fallback="active") == "qwen2.5-coder:7b"
 
@@ -87,8 +87,8 @@ class TestModelRegistry:
         assert set(summary.keys()) == {cls.value for cls in ModelClass}
 
     def test_summary_shows_configured_true(self):
-        with patch.dict(os.environ, {"MODEL_VISION": "llava:13b"}, clear=False):
-            from src.agent.models import ModelClass, ModelRegistry
+        from src.agent.models import ModelClass, ModelRegistry
+        with patch("src.config.MODEL_VISION", "llava:13b"):
             reg = ModelRegistry()
             assert reg.summary()[ModelClass.VISION.value]["configured"] is True
 
@@ -230,9 +230,9 @@ class TestModelRouterSelect:
             assert "fast" in rationale.lower()
 
     def test_returns_configured_model_when_set(self):
-        with patch.dict(os.environ, {"MODEL_FAST": "llama3.2:3b"}, clear=False):
-            from src.agent.models import ModelRegistry
-            from src.agent.router import ModelRouter
+        from src.agent.models import ModelRegistry
+        from src.agent.router import ModelRouter
+        with patch("src.config.MODEL_FAST", "llama3.2:3b"):
             router = ModelRouter(registry=ModelRegistry())
             model_id, rationale = router.select("short query")
             assert model_id == "llama3.2:3b"
@@ -259,9 +259,9 @@ class TestModelRouterSelect:
                 assert model_id == active
 
     def test_vision_query_routes_to_vision_model(self):
-        with patch.dict(os.environ, {"MODEL_VISION": "llava:13b"}, clear=False):
-            from src.agent.models import ModelRegistry
-            from src.agent.router import ModelRouter
+        from src.agent.models import ModelRegistry
+        from src.agent.router import ModelRouter
+        with patch("src.config.MODEL_VISION", "llava:13b"):
             router = ModelRouter(registry=ModelRegistry())
             model_id, rationale = router.select(
                 "describe the chart", doc_types=["IMAGE"], active_model="base"
@@ -270,17 +270,17 @@ class TestModelRouterSelect:
             assert "vision" in rationale.lower()
 
     def test_code_query_routes_to_code_model(self):
-        with patch.dict(os.environ, {"MODEL_CODE": "qwen2.5-coder:7b"}, clear=False):
-            from src.agent.models import ModelRegistry
-            from src.agent.router import ModelRouter
+        from src.agent.models import ModelRegistry
+        from src.agent.router import ModelRouter
+        with patch("src.config.MODEL_CODE", "qwen2.5-coder:7b"):
             router = ModelRouter(registry=ModelRegistry())
             model_id, _ = router.select("import numpy as np; print(x)", active_model="base")
             assert model_id == "qwen2.5-coder:7b"
 
     def test_large_synthesis_routes_to_large_model(self):
-        with patch.dict(os.environ, {"MODEL_LARGE": "llama3.1:70b"}, clear=False):
-            from src.agent.models import ModelRegistry
-            from src.agent.router import ModelRouter
+        from src.agent.models import ModelRegistry
+        from src.agent.router import ModelRouter
+        with patch("src.config.MODEL_LARGE", "llama3.1:70b"):
             router = ModelRouter(registry=ModelRegistry())
             plan = _make_plan(hops=3, synthesis=True)
             model_id, _ = router.select(

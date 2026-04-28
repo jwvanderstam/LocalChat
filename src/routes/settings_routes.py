@@ -231,24 +231,7 @@ def reranker_status() -> ResponseReturnValue:
     reranker = get_reranker()
     versions: list[dict] = []
     if current_app.startup_status.get('database'):
-        try:
-            with current_app.db.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id, trained_at, base_model, ndcg_before, ndcg_after, "
-                        "pair_count, model_path, active FROM reranker_versions ORDER BY trained_at DESC"
-                    )
-                    rows = cur.fetchall()
-            versions = [
-                {
-                    'id': str(r[0]), 'trained_at': r[1].isoformat() if r[1] else None,
-                    'base_model': r[2], 'ndcg_before': r[3], 'ndcg_after': r[4],
-                    'pair_count': r[5], 'model_path': r[6], 'active': r[7],
-                }
-                for r in rows
-            ]
-        except Exception as exc:
-            logger.warning(f"[Reranker] status query failed: {exc}")
+        versions = current_app.db.get_reranker_versions()
     return jsonify({
         'available': reranker.is_available(),
         'model_path': reranker.model_path,

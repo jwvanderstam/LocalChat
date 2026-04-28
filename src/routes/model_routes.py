@@ -24,7 +24,7 @@ bp = Blueprint('models', __name__)
 logger = get_logger(__name__)
 
 
-@bp.route('', methods=['GET'])
+@bp.route('', methods=['GET'], strict_slashes=False)
 def api_list_models():
     """
     List all available Ollama models.
@@ -225,6 +225,8 @@ def api_pull_model():
                 logger.error(f"Error pulling model: {e}", exc_info=True)
                 error_msg = json.dumps({'error': 'Failed to pull model'})
                 yield f"data: {error_msg}\n\n"
+            finally:
+                logger.debug("Model pull stream closed: %s", model_name)
 
         response = Response(generate(), mimetype='text/event-stream')
         response.headers['Cache-Control'] = 'no-cache'

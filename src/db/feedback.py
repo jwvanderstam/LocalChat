@@ -297,3 +297,32 @@ class FeedbackMixin:
                 )
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def get_reranker_versions(self) -> list[dict[str, Any]]:
+        """Return all reranker version rows ordered by trained_at DESC."""
+        if not self.is_connected:
+            return []
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id, trained_at, base_model, ndcg_before, ndcg_after, "
+                        "pair_count, model_path, active FROM reranker_versions ORDER BY trained_at DESC"
+                    )
+                    rows = cur.fetchall()
+            return [
+                {
+                    'id': str(r[0]),
+                    'trained_at': r[1].isoformat() if r[1] else None,
+                    'base_model': r[2],
+                    'ndcg_before': r[3],
+                    'ndcg_after': r[4],
+                    'pair_count': r[5],
+                    'model_path': r[6],
+                    'active': r[7],
+                }
+                for r in rows
+            ]
+        except Exception as exc:
+            logger.warning(f"[Reranker] version query failed: {exc}")
+            return []

@@ -271,7 +271,7 @@ def _init_database_service(app: LocalChatApp, db) -> None:
         return
     logger.error(db_message)
     logger.error("WARNING: PostgreSQL database is not available! App will run in DEGRADED MODE.")
-    if os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true':
+    if config.REQUIRE_DATABASE:
         logger.critical("REQUIRE_DATABASE=true - cannot start without database")
         border = "=" * 60
         print(f"\n{border}", file=sys.stderr)
@@ -355,9 +355,8 @@ def _init_reranker_scheduler(app: LocalChatApp, db) -> None:
 
 def _seed_admin_user(db) -> None:
     """Auto-create the admin DB user on first startup if ADMIN_USERNAME is set."""
-    import os
-    admin_username = os.environ.get('ADMIN_USERNAME', 'admin').strip()
-    admin_password = os.environ.get('ADMIN_PASSWORD', '').strip()
+    admin_username = config.ADMIN_USERNAME
+    admin_password = config.ADMIN_PASSWORD
     if not admin_password:
         return  # No password set; skip seeding
     try:
@@ -398,21 +397,15 @@ def _init_caching(app: LocalChatApp) -> None:
         app: Flask application instance
     """
     try:
-        import os
-
         from .cache import create_cache_backend
         from .cache.managers import init_caches
 
-        # Check if Redis is enabled
-        redis_enabled = os.environ.get('REDIS_ENABLED', 'False').lower() == 'true'
-
-        # Prepare backend configuration
-        if redis_enabled:
+        if config.REDIS_ENABLED:
             cache_backend_type = 'redis'
             backend_config = {
-                'host': os.environ.get('REDIS_HOST', 'localhost'),
-                'port': int(os.environ.get('REDIS_PORT', 6379)),
-                'password': os.environ.get('REDIS_PASSWORD') or None
+                'host': config.REDIS_HOST,
+                'port': config.REDIS_PORT,
+                'password': config.REDIS_PASSWORD,
             }
         else:
             cache_backend_type = 'memory'

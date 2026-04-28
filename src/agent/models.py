@@ -19,9 +19,10 @@ Environment variables (all optional):
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from enum import StrEnum
+
+from .. import config
 
 
 class ModelClass(StrEnum):
@@ -67,18 +68,16 @@ class ModelRegistry:
         ModelClass.VISION: ModelConfig(description="Vision/multimodal model"),
     }
 
-    _ENV_MAP: dict[ModelClass, str] = {
-        ModelClass.FAST:   "MODEL_FAST",
-        ModelClass.BASE:   "MODEL_BASE",
-        ModelClass.LARGE:  "MODEL_LARGE",
-        ModelClass.CODE:   "MODEL_CODE",
-        ModelClass.VISION: "MODEL_VISION",
-    }
-
     def __init__(self) -> None:
         self._registry: dict[ModelClass, ModelConfig] = {}
-        for cls, env_key in self._ENV_MAP.items():
-            model_id = os.environ.get(env_key, "").strip()
+        config_map: dict[ModelClass, str] = {
+            ModelClass.FAST:   config.MODEL_FAST,
+            ModelClass.BASE:   config.MODEL_BASE,
+            ModelClass.LARGE:  config.MODEL_LARGE,
+            ModelClass.CODE:   config.MODEL_CODE,
+            ModelClass.VISION: config.MODEL_VISION,
+        }
+        for cls, model_id in config_map.items():
             default = self._DEFAULTS[cls]
             self._registry[cls] = ModelConfig(
                 model_id=model_id,

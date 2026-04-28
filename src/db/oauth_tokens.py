@@ -15,10 +15,10 @@ not** be used in production.
 """
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime, timezone
 from typing import Any
 
+from .. import config
 from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 def _get_fernet():
     """Return a Fernet instance or None if no key is configured."""
-    key = os.environ.get('TOKEN_ENCRYPTION_KEY', '').strip()
+    key = config.TOKEN_ENCRYPTION_KEY
     if not key:
         return None
     try:

@@ -519,3 +519,13 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "slow: Slow tests")
     config.addinivalue_line("markers", "db: Database tests")
     config.addinivalue_line("markers", "ollama: Ollama tests")
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Auto-apply unit/integration markers based on test file path."""
+    for item in items:
+        path = str(item.fspath)
+        if "/unit/" in path or "\\unit\\" in path:
+            item.add_marker(pytest.mark.unit)
+        elif "/integration/" in path or "\\integration\\" in path:
+            item.add_marker(pytest.mark.integration)

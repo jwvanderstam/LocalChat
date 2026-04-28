@@ -84,7 +84,7 @@ def _resolve_ratelimit_storage(desired_uri: str) -> str:
 # The password is hashed with PBKDF2-HMAC-SHA256 at startup so it is never
 # stored or compared in plaintext.  The salt is regenerated each time the
 # process starts; this is intentional (env-var secrets should not be stored).
-_ADMIN_PASSWORD_RAW: str = os.environ.get('ADMIN_PASSWORD', '')
+_ADMIN_PASSWORD_RAW: str = config.ADMIN_PASSWORD
 _ADMIN_PASSWORD_SALT: bytes = os.urandom(32)
 _ADMIN_PASSWORD_HASH: bytes = hashlib.pbkdf2_hmac(
     'sha256', _ADMIN_PASSWORD_RAW.encode('utf-8'), _ADMIN_PASSWORD_SALT, 100_000
@@ -158,7 +158,7 @@ def init_security(app: Flask) -> None:
 
     # Skip JWT and rate-limiting in demo mode — auth is intentionally off.
     if config.DEMO_MODE:
-        if os.environ.get('APP_ENV') == 'production':
+        if config.APP_ENV == 'production':
             raise RuntimeError("DEMO_MODE must not be enabled in production")
         logger.warning("DEMO_MODE: JWT authentication and rate limiting are disabled.")
         jwt_manager = JWTManager(app)
@@ -170,7 +170,7 @@ def init_security(app: Flask) -> None:
         return
 
     if not _ADMIN_PASSWORD_RAW:
-        if os.environ.get('APP_ENV') == 'production':
+        if config.APP_ENV == 'production':
             raise RuntimeError("ADMIN_PASSWORD must be set in production")
         logger.warning("ADMIN_PASSWORD is not set — admin login will be rejected until it is configured.")
 

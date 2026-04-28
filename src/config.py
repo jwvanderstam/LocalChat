@@ -44,10 +44,13 @@ logger = get_logger(__name__)
 # SECURITY CONFIGURATION
 # ============================================================================
 
+# Deployment environment — "production", "development", or "" for local
+APP_ENV: str = os.environ.get('APP_ENV', '')
+
 # Secret keys - MUST be set in production!
 _SECRET_KEY_RAW: str | None = os.environ.get('SECRET_KEY')
 if not _SECRET_KEY_RAW or _SECRET_KEY_RAW == 'change-this-to-a-random-secret-key-in-production':
-    if os.environ.get('APP_ENV') == 'production':
+    if APP_ENV == 'production':
         raise ValueError("SECRET_KEY must be set in production!")
     SECRET_KEY: str = secrets.token_hex(32)
     logger.warning("Using generated SECRET_KEY - set SECRET_KEY in .env for production")
@@ -56,7 +59,7 @@ else:
 
 _JWT_SECRET_KEY_RAW: str | None = os.environ.get('JWT_SECRET_KEY')
 if not _JWT_SECRET_KEY_RAW or _JWT_SECRET_KEY_RAW == 'change-this-to-a-random-jwt-secret-in-production':
-    if os.environ.get('APP_ENV') == 'production':
+    if APP_ENV == 'production':
         raise ValueError("JWT_SECRET_KEY must be set in production!")
     JWT_SECRET_KEY: str = secrets.token_hex(32)
     logger.warning("Using generated JWT_SECRET_KEY - set JWT_SECRET_KEY in .env for production")
@@ -90,6 +93,10 @@ else:
 # CORS settings
 CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
 CORS_ORIGINS: list[str] = [o.strip() for o in os.environ.get('CORS_ORIGINS', 'localhost,127.0.0.1').split(',')]
+
+# Admin credentials — legacy env-var admin account + first-start seeding
+ADMIN_USERNAME: str = os.environ.get('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD: str = os.environ.get('ADMIN_PASSWORD', '')
 
 # ============================================================================
 # DATABASE CONFIGURATION
@@ -372,6 +379,9 @@ VISION_DESCRIBE_PROMPT: str = (
 # Flask settings
 UPLOAD_FOLDER: str = 'uploads'
 MAX_CONTENT_LENGTH: int = int(os.environ.get('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))  # Default: 16MB
+
+# Abort startup when DB is unavailable — prevent silent degraded-mode starts in prod
+REQUIRE_DATABASE: bool = os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true'
 
 # Logging
 LOG_FILE: str = os.environ.get('LOG_FILE', 'logs/app.log')
