@@ -1,6 +1,6 @@
 # Flask and Web Framework
 Flask==3.1.3
-Werkzeug>=3.1.6
+Werkzeug>=3.1.8
 flasgger==0.9.7.1  # OpenAPI/Swagger documentation
 gunicorn==25.3.0   # Production WSGI server
 
@@ -17,21 +17,21 @@ psycopg[binary]>=3.3.3
 psycopg-pool>=3.3.0
 
 # Validation
-pydantic==2.13.2
+pydantic==2.13.3
 email-validator==2.3.0
 
 # Document Processing
-pypdf>=6.0.0
+pypdf>=6.10.2
 pdfplumber==0.11.9  # Enhanced PDF extraction with table support
 pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this version
 python-docx==1.2.0
 python-pptx>=1.0.2
-litellm>=1.72.6    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.72.6 fixes auth bypass CVEs
+litellm>=1.83.7    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
 h11>=0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
-spacy>=3.7.0       # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
+spacy>=3.8.14      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
-cryptography>=44.0.0
+cryptography>=47.0.0
 # Optional: Fine-tuned cross-encoder reranker — enable with RERANKER_ENABLED=true
 # sentence-transformers>=3.0
 # Optional: Microsoft Graph API auth helper
@@ -39,10 +39,10 @@ cryptography>=44.0.0
 
 # HTTP Requests
 requests==2.33.1
-ddgs>=9.0.0
+ddgs>=9.14.1
 
 # Numerical processing for vector operations
-numpy>=2.4.2
+numpy>=2.4.4
 
 # Multipart form handling
 python-multipart==0.0.26
