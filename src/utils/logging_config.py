@@ -19,7 +19,7 @@ import os
 import sys
 from datetime import UTC, datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
 
 def sanitize_log_value(value: object) -> str:
@@ -230,7 +230,7 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def log_function_call(func):
+def log_function_call(func: Callable) -> Callable:
     """
     Decorator to log function calls with arguments and results.
 
@@ -249,7 +249,7 @@ def log_function_call(func):
 
     @functools.wraps(func)
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         logger.debug(f"Calling {func.__name__} with args={args}, kwargs={kwargs}")
         try:
             result = func(*args, **kwargs)

@@ -11,6 +11,7 @@ Provides user-friendly error responses and logging.
 from typing import Any
 
 from flask import Flask, current_app, jsonify, request
+from flask.typing import ResponseReturnValue
 from pydantic import ValidationError as PydanticValidationError
 
 from .. import exceptions
@@ -63,7 +64,7 @@ def register_error_handlers(app: Flask) -> None:
 
     # Register HTTP error handlers
     @app.errorhandler(400)
-    def bad_request_handler(error: Any):
+    def bad_request_handler(error: Any) -> ResponseReturnValue:
         """Handle 400 Bad Request errors."""
         logger.warning(f"Bad request: {error}")
 
@@ -75,7 +76,7 @@ def register_error_handlers(app: Flask) -> None:
         return jsonify(error_response.model_dump()), 400
 
     @app.errorhandler(404)
-    def not_found_handler(error: Any):
+    def not_found_handler(error: Any) -> ResponseReturnValue:
         """Handle 404 Not Found errors."""
         logger.warning(f"Resource not found: {error}")
 
@@ -87,7 +88,7 @@ def register_error_handlers(app: Flask) -> None:
         return jsonify(error_response.model_dump()), 404
 
     @app.errorhandler(405)
-    def method_not_allowed_handler(_error: Any):
+    def method_not_allowed_handler(_error: Any) -> ResponseReturnValue:
         """Handle 405 Method Not Allowed errors."""
         from ..utils.logging_config import sanitize_log_value as _slv
         logger.warning("Method not allowed: %s %s", request.method, _slv(request.path))
@@ -100,7 +101,7 @@ def register_error_handlers(app: Flask) -> None:
         return jsonify(error_response.model_dump()), 405
 
     @app.errorhandler(413)
-    def request_entity_too_large_handler(error: Any):
+    def request_entity_too_large_handler(error: Any) -> ResponseReturnValue:
         """Handle 413 Request Entity Too Large errors."""
         logger.warning(f"File too large: {error}")
 
@@ -115,7 +116,7 @@ def register_error_handlers(app: Flask) -> None:
         return jsonify(error_response.model_dump()), 413
 
     @app.errorhandler(500)
-    def internal_server_error_handler(error: Any):
+    def internal_server_error_handler(error: Any) -> ResponseReturnValue:
         """Handle 500 Internal Server Error."""
         logger.error(f"Internal server error: {error}", exc_info=True)
 
@@ -129,7 +130,7 @@ def register_error_handlers(app: Flask) -> None:
 
     # Register Pydantic validation error handlers
     @app.errorhandler(PydanticValidationError)
-    def validation_error_handler(error: PydanticValidationError):
+    def validation_error_handler(error: PydanticValidationError) -> ResponseReturnValue:
         """Handle Pydantic validation errors with user-friendly messages."""
         errors = error.errors()
         user_message = _build_validation_message(errors)
@@ -144,7 +145,7 @@ def register_error_handlers(app: Flask) -> None:
         return jsonify(error_response.model_dump()), 400
 
     @app.errorhandler(exceptions.LocalChatException)
-    def localchat_exception_handler(error: exceptions.LocalChatException):
+    def localchat_exception_handler(error: exceptions.LocalChatException) -> ResponseReturnValue:
         """Handle custom LocalChat exceptions."""
         status_code = exceptions.get_status_code(error)
         logger.error(f"{error.__class__.__name__}: {error.message}", extra=error.details)
@@ -157,7 +158,7 @@ def register_error_handlers(app: Flask) -> None:
         return jsonify(error_response.model_dump()), status_code
 
     @app.errorhandler(DatabaseUnavailableError)
-    def database_unavailable_handler(error: DatabaseUnavailableError):
+    def database_unavailable_handler(error: DatabaseUnavailableError) -> ResponseReturnValue:
         """Handle database unavailable errors (degraded mode)."""
         logger.warning(f"Database unavailable: {str(error)}")
 

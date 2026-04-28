@@ -9,7 +9,7 @@ diversity filtering, and context formatting for LLM prompts.
 import re
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .. import config
 from ..db import db
@@ -38,9 +38,9 @@ _CONTRACTIONS: dict = {
 try:
     from ..monitoring import counted, timed
 except ImportError:
-    def timed(_metric_name: str):  # noqa: E306
+    def timed(_metric_name: str) -> Callable:  # noqa: E306
         return lambda func: func
-    def counted(_metric_name: str, _labels=None):  # noqa: E306
+    def counted(_metric_name: str, _labels: dict | None = None) -> Callable:  # noqa: E306
         return lambda func: func
 
 

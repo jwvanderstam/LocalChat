@@ -15,6 +15,7 @@ Endpoints:
 from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from ..security import require_admin
 from ..utils.logging_config import get_logger
@@ -38,7 +39,7 @@ def _public(user: dict) -> dict:
 
 @bp.post('/users')
 @require_admin
-def create_user():
+def create_user() -> ResponseReturnValue:
     """
     Create a new user account (admin only).
     ---
@@ -96,7 +97,7 @@ def create_user():
 
 @bp.get('/users')
 @require_admin
-def list_users():
+def list_users() -> ResponseReturnValue:
     """List all users (admin only)."""
     try:
         users = current_app.db.list_users()
@@ -108,7 +109,7 @@ def list_users():
 
 @bp.get('/users/<user_id>')
 @require_admin
-def get_user(user_id: str):
+def get_user(user_id: str) -> ResponseReturnValue:
     """Get a single user by ID (admin only)."""
     try:
         user = current_app.db.get_user_by_id(user_id)
@@ -126,7 +127,7 @@ def get_user(user_id: str):
 
 @bp.put('/users/<user_id>')
 @require_admin
-def update_user(user_id: str):
+def update_user(user_id: str) -> ResponseReturnValue:
     """
     Update user fields (admin only).
     Allowed: email, role, is_active. Use POST /api/users/me/password to change passwords.
@@ -157,7 +158,7 @@ def update_user(user_id: str):
 
 @bp.delete('/users/<user_id>')
 @require_admin
-def delete_user(user_id: str):
+def delete_user(user_id: str) -> ResponseReturnValue:
     """Delete a user (admin only)."""
     try:
         deleted = current_app.db.delete_user(user_id)
@@ -174,7 +175,7 @@ def delete_user(user_id: str):
 # ---------------------------------------------------------------------------
 
 @bp.post('/users/me/password')
-def change_own_password():
+def change_own_password() -> ResponseReturnValue:
     """
     Change the authenticated user's own password.
     ---

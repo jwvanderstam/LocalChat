@@ -31,7 +31,8 @@ from functools import wraps
 from time import time
 from typing import Any, Callable, Dict, Optional
 
-from flask import Flask, g, jsonify, request
+from flask import Flask, Response, g, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from .utils.logging_config import get_logger
 
@@ -55,7 +56,7 @@ class MetricsCollector:
 
         logger.info("MetricsCollector initialized")
 
-    def increment(self, name: str, value: int = 1, labels: dict | None = None):
+    def increment(self, name: str, value: int = 1, labels: dict | None = None) -> None:
         """
         Increment a counter.
 
@@ -68,7 +69,7 @@ class MetricsCollector:
             key = self._make_key(name, labels)
             self._counters[key] += value
 
-    def record(self, name: str, value: float, labels: dict | None = None):
+    def record(self, name: str, value: float, labels: dict | None = None) -> None:
         """
         Record a histogram value.
 
@@ -85,7 +86,7 @@ class MetricsCollector:
             if len(self._histograms[key]) > 1000:
                 self._histograms[key] = self._histograms[key][-1000:]
 
-    def set_gauge(self, name: str, value: float, labels: dict | None = None):
+    def set_gauge(self, name: str, value: float, labels: dict | None = None) -> None:
         """
         Set a gauge value.
 
@@ -143,7 +144,7 @@ class MetricsCollector:
         index = int(len(sorted_values) * (percentile / 100.0))
         return sorted_values[min(index, len(sorted_values) - 1)]
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset all metrics."""
         with self._lock:
             self._counters.clear()
@@ -169,7 +170,7 @@ def get_metrics() -> MetricsCollector:
     return _metrics
 
 
-def timed(metric_name: str):
+def timed(metric_name: str) -> Callable:
     """
     Decorator to time function execution.
 
@@ -183,7 +184,7 @@ def timed(metric_name: str):
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             start = time()
             try:
                 result = func(*args, **kwargs)
@@ -199,7 +200,7 @@ def timed(metric_name: str):
     return decorator
 
 
-def counted(metric_name: str, labels: dict | None = None):
+def counted(metric_name: str, labels: dict | None = None) -> Callable:
     """
     Decorator to count function calls.
 
@@ -214,7 +215,7 @@ def counted(metric_name: str, labels: dict | None = None):
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             get_metrics().increment(metric_name, labels=labels)
             return func(*args, **kwargs)
 
@@ -242,11 +243,11 @@ class RequestTimingMiddleware:
 
         logger.info("RequestTimingMiddleware initialized")
 
-    def before_request(self):
+    def before_request(self) -> None:
         """Record request start time; request_id is already on g via RequestIdMiddleware."""
         g.start_time = time()
 
-    def after_request(self, response):
+    def after_request(self, response: Response) -> Response:
         """Record request metrics."""
         if hasattr(g, 'start_time'):
             duration = time() - g.start_time
@@ -292,7 +293,7 @@ def _check_metrics_auth() -> bool:
     return False
 
 
-def init_monitoring(app: Flask):
+def init_monitoring(app: Flask) -> None:
     """
     Initialize monitoring for Flask app.
 
@@ -308,7 +309,7 @@ def init_monitoring(app: Flask):
     RequestTimingMiddleware(app)
 
     @app.route('/api/metrics', methods=['GET'])
-    def metrics_endpoint():
+    def metrics_endpoint() -> ResponseReturnValue:
         """
         Prometheus-compatible metrics scrape endpoint.
 
@@ -324,7 +325,7 @@ def init_monitoring(app: Flask):
         return text, 200, {"Content-Type": "text/plain; version=0.0.4; charset=utf-8"}
 
     @app.route('/api/metrics.json', methods=['GET'])
-    def metrics_json_endpoint():
+    def metrics_json_endpoint() -> ResponseReturnValue:
         """
         JSON metrics endpoint — used internally by the admin dashboard.
         Requires the same optional token as /api/metrics.
@@ -337,7 +338,7 @@ def init_monitoring(app: Flask):
         return jsonify(get_metrics().get_metrics())
 
     @app.route('/api/health', methods=['GET'])
-    def health_check():
+    def health_check() -> ResponseReturnValue:
         """
         Detailed health check.
 

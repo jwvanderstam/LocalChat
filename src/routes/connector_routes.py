@@ -19,6 +19,7 @@ Endpoints:
 from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from .. import config
 from ..connectors.registry import connector_registry
@@ -38,7 +39,7 @@ _NOT_FOUND = 'Connector not found'
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/connectors/types', methods=['GET'])
-def list_connector_types():
+def list_connector_types() -> ResponseReturnValue:
     """
     List available connector types.
     ---
@@ -57,7 +58,7 @@ def list_connector_types():
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/connectors', methods=['GET'])
-def list_connectors():
+def list_connectors() -> ResponseReturnValue:
     """
     List connectors.
     ---
@@ -78,7 +79,7 @@ def list_connectors():
 
 
 @bp.route('/api/connectors', methods=['POST'])
-def create_connector():
+def create_connector() -> ResponseReturnValue:
     """
     Create a connector.
     ---
@@ -155,7 +156,7 @@ def create_connector():
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/connectors/<connector_id>', methods=['GET'])
-def get_connector(connector_id: str):
+def get_connector(connector_id: str) -> ResponseReturnValue:
     try:
         connector = current_app.db.get_connector(connector_id)
         if connector is None:
@@ -167,7 +168,7 @@ def get_connector(connector_id: str):
 
 
 @bp.route('/api/connectors/<connector_id>', methods=['PUT'])
-def update_connector(connector_id: str):
+def update_connector(connector_id: str) -> ResponseReturnValue:
     """Update connector fields (display_name, config, enabled, sync_interval)."""
     data = request.get_json(silent=True) or {}
     allowed = {'display_name', 'config', 'enabled', 'sync_interval'}
@@ -196,7 +197,7 @@ def update_connector(connector_id: str):
 
 
 @bp.route('/api/connectors/<connector_id>', methods=['DELETE'])
-def delete_connector(connector_id: str):
+def delete_connector(connector_id: str) -> ResponseReturnValue:
     try:
         deleted = current_app.db.delete_connector(connector_id)
         if not deleted:
@@ -213,7 +214,7 @@ def delete_connector(connector_id: str):
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/connectors/<connector_id>/sync', methods=['POST'])
-def trigger_sync(connector_id: str):
+def trigger_sync(connector_id: str) -> ResponseReturnValue:
     """Trigger an immediate sync for one connector (runs in background thread)."""
     import threading
 
@@ -237,7 +238,7 @@ def trigger_sync(connector_id: str):
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/connectors/<connector_id>/history', methods=['GET'])
-def sync_history(connector_id: str):
+def sync_history(connector_id: str) -> ResponseReturnValue:
     limit = min(int(request.args.get('limit', 20)), 100)
     try:
         history = current_app.db.get_connector_sync_history(connector_id, limit=limit)
@@ -252,7 +253,7 @@ def sync_history(connector_id: str):
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/connectors/<connector_id>/webhook', methods=['POST'])
-def receive_webhook(connector_id: str):
+def receive_webhook(connector_id: str) -> ResponseReturnValue:
     """
     Receive a webhook push event.
     ---

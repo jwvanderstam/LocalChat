@@ -10,7 +10,7 @@ import base64
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .. import config
 from ..ollama_client import ollama_client
@@ -53,9 +53,9 @@ except ImportError:
 try:
     from ..monitoring import counted, timed
 except ImportError:
-    def timed(_metric_name):  # noqa: E306
+    def timed(_metric_name: str) -> Callable:  # noqa: E306
         return lambda func: func
-    def counted(_metric_name, _labels=None):  # noqa: E306
+    def counted(_metric_name: str, _labels: dict | None = None) -> Callable:  # noqa: E306
         return lambda func: func
 
 _PDF_NOT_INSTALLED = "pypdf not installed"

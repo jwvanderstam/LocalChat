@@ -207,13 +207,13 @@ def init_security(app: Flask) -> None:
 
     # Request Logging Middleware
     @app.before_request
-    def log_request():
+    def log_request() -> None:
         """Log incoming requests."""
         from .utils.logging_config import sanitize_log_value as _slv
         logger.info("%s %s from %s", request.method, _slv(request.path), _slv(request.remote_addr))
 
     @app.after_request
-    def log_response(response):
+    def log_response(response: Response) -> Response:
         """Log outgoing responses."""
         from .utils.logging_config import sanitize_log_value as _slv
         logger.debug("%s %s -> %s", request.method, _slv(request.path), response.status_code)
@@ -383,7 +383,7 @@ def _workspace_role_check(f: Callable, min_role: str, args, kwargs):
     return f(*args, **kwargs)
 
 
-def require_workspace_role(min_role: str):
+def require_workspace_role(min_role: str) -> Callable:
     """Decorator requiring the caller to hold at least *min_role* in the active workspace.
 
     Role hierarchy (lowest → highest): viewer → editor → owner.
@@ -392,7 +392,7 @@ def require_workspace_role(min_role: str):
     """
     def decorator(f: Callable) -> Callable:
         @wraps(f)
-        def decorated_function(*args, **kwargs):
+        def decorated_function(*args: Any, **kwargs: Any) -> Any:
             return _workspace_role_check(f, min_role, args, kwargs)
         return decorated_function
     return decorator
@@ -412,7 +412,7 @@ def require_auth_optional(f: Callable) -> Callable:
         Decorated function
     """
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         try:
             # Try to get user if token is provided
             from flask_jwt_extended import verify_jwt_in_request
@@ -438,7 +438,7 @@ def admin_required(f: Callable) -> Callable:
     """
     @wraps(f)
     @jwt_required()
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         from flask_jwt_extended import get_jwt
         claims = get_jwt()
 
@@ -466,7 +466,7 @@ def require_admin(f: Callable) -> Callable:
         Decorated function
     """
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> Any:
         from flask import current_app
         # Allow unauthenticated access when no password has been configured,
         # in DEMO_MODE, or during automated tests.

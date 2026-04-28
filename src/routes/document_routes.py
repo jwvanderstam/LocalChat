@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Dict, Generator
 
 from flask import Blueprint, Response, jsonify, request
 from flask import current_app as _current_app
+from flask.typing import ResponseReturnValue
 
 if TYPE_CHECKING:
     from ..types import LocalChatApp
@@ -119,7 +120,7 @@ def _stream_file_ingest(app, file_path: str) -> Generator[str, None, None]:
 
 @bp.route('/upload', methods=['POST'])
 @limiter.limit(config.RATELIMIT_UPLOAD)
-def api_upload_documents():
+def api_upload_documents() -> ResponseReturnValue:
     """
     Upload and ingest documents.
 
@@ -237,7 +238,7 @@ def api_upload_documents():
 
 
 @bp.route('/list', methods=['GET'])
-def api_list_documents():
+def api_list_documents() -> ResponseReturnValue:
     """
     List all documents.
 
@@ -311,7 +312,7 @@ def api_list_documents():
 
 
 @bp.route('/test', methods=['POST'])
-def api_test_retrieval():
+def api_test_retrieval() -> ResponseReturnValue:
     """
     Test RAG retrieval with detailed diagnostic information.
 
@@ -371,7 +372,7 @@ def api_test_retrieval():
 
 
 @bp.route('/stats', methods=['GET'])
-def api_document_stats():
+def api_document_stats() -> ResponseReturnValue:
     """
     Get document statistics including chunk analysis.
 
@@ -431,7 +432,7 @@ def api_document_stats():
 
 
 @bp.route('/search-text', methods=['POST'])
-def api_search_text():
+def api_search_text() -> ResponseReturnValue:
     """
     Search chunks by text content (for debugging).
 
@@ -476,7 +477,7 @@ def api_search_text():
 
 
 @bp.route('/chunks/<int:chunk_id>/context', methods=['GET'])
-def api_get_chunk_context(chunk_id: int):
+def api_get_chunk_context(chunk_id: int) -> ResponseReturnValue:
     """
     Return a chunk and its surrounding neighbours for source attribution.
 
@@ -519,7 +520,7 @@ def api_get_chunk_context(chunk_id: int):
 
 
 @bp.route('/clear', methods=['DELETE'])
-def api_clear_documents():
+def api_clear_documents() -> ResponseReturnValue:
     """
     Clear all documents and chunks from the database.
 

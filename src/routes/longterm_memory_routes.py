@@ -9,6 +9,7 @@ Registered at: /api/memory/
 
 from flask import Blueprint, jsonify, request
 from flask import current_app as _current_app
+from flask.typing import ResponseReturnValue
 
 from .. import config
 from ..utils.logging_config import get_logger
@@ -20,7 +21,7 @@ _ERR_INTERNAL = 'Internal server error'
 
 
 @bp.route('/', methods=['GET'])
-def list_memories():
+def list_memories() -> ResponseReturnValue:
     """Return all stored memories (paginated)."""
     try:
         limit = min(int(request.args.get('limit', 100)), 500)
@@ -33,7 +34,7 @@ def list_memories():
 
 
 @bp.route('/extract', methods=['POST'])
-def extract_memories():
+def extract_memories() -> ResponseReturnValue:
     """
     Trigger memory extraction from unprocessed conversations.
 
@@ -92,7 +93,7 @@ def extract_memories():
 
 
 @bp.route('/<memory_id>', methods=['DELETE'])
-def delete_memory(memory_id: str):
+def delete_memory(memory_id: str) -> ResponseReturnValue:
     """Delete a single memory by UUID."""
     try:
         _current_app.db.delete_memory(memory_id)
@@ -103,7 +104,7 @@ def delete_memory(memory_id: str):
 
 
 @bp.route('/', methods=['DELETE'])
-def delete_all_memories():
+def delete_all_memories() -> ResponseReturnValue:
     """Delete all stored memories."""
     try:
         count = _current_app.db.delete_all_memories()

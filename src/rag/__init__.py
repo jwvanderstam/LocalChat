@@ -8,6 +8,8 @@ for the LocalChat RAG application.
 Re-exports all public symbols for backward compatibility with ``from src.rag import ...``.
 """
 
+from typing import Callable, NoReturn
+
 from .. import config
 from ..db import db
 from ..ollama_client import ollama_client
@@ -24,11 +26,11 @@ try:
     from ..monitoring import counted, get_metrics, timed
     MONITORING_AVAILABLE = True
 except ImportError:
-    def timed(_metric_name: str):  # noqa: E306
+    def timed(_metric_name: str) -> Callable:  # noqa: E306
         return lambda func: func
-    def counted(_metric_name: str, _labels=None):  # noqa: E306
+    def counted(_metric_name: str, _labels: dict | None = None) -> Callable:  # noqa: E306
         return lambda func: func
-    def get_metrics():  # noqa: E306
+    def get_metrics() -> NoReturn:  # noqa: E306
         raise RuntimeError("Monitoring not available")
     MONITORING_AVAILABLE = False
 

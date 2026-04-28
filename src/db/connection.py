@@ -8,7 +8,7 @@ and database/schema initialisation.
 
 import socket
 from contextlib import contextmanager
-from typing import Generator, List, Optional, Tuple
+from typing import Any, Generator, List, Optional, Tuple
 
 import numpy as np
 import psycopg
@@ -46,7 +46,7 @@ class DatabaseUnavailableError(Exception):
 class VectorDumper(Dumper):
     """Dumper for pgvector vector type."""
 
-    def dump(self, obj):
+    def dump(self, obj: Any) -> bytes:
         if hasattr(obj, 'tolist'):
             obj = obj.tolist()
         values_str = ','.join(f'{float(v):.6g}' for v in obj)
@@ -56,7 +56,7 @@ class VectorDumper(Dumper):
 class VectorLoader(Loader):
     """Loader for pgvector vector type."""
 
-    def load(self, data):
+    def load(self, data: Any) -> list[float]:
         if isinstance(data, memoryview):
             data = bytes(data)
         if isinstance(data, bytes):
@@ -194,7 +194,7 @@ class DatabaseConnection:
                 "dbname": config.PG_DB,
             }
 
-            def configure_connection(conn):
+            def configure_connection(conn: Any) -> None:
                 register_vector_types(conn)
                 if conn.info.transaction_status != _PG_TRANSACTION_IDLE:
                     conn.rollback()

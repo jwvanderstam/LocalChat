@@ -8,6 +8,7 @@ CRUD and switch endpoints for workspace/persona management.
 from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from .. import config
 from ..utils.logging_config import get_logger
@@ -25,7 +26,7 @@ _ERR_INTERNAL = 'Internal server error'
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/workspaces', methods=['GET'])
-def list_workspaces():
+def list_workspaces() -> ResponseReturnValue:
     """
     List all workspaces.
     ---
@@ -48,7 +49,7 @@ def list_workspaces():
 
 
 @bp.route('/api/workspaces', methods=['POST'])
-def create_workspace():
+def create_workspace() -> ResponseReturnValue:
     """
     Create a workspace.
     ---
@@ -95,7 +96,7 @@ def create_workspace():
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/workspaces/<workspace_id>', methods=['GET'])
-def get_workspace(workspace_id: str):
+def get_workspace(workspace_id: str) -> ResponseReturnValue:
     """
     Get a workspace.
     ---
@@ -125,7 +126,7 @@ def get_workspace(workspace_id: str):
 
 
 @bp.route('/api/workspaces/<workspace_id>', methods=['PUT'])
-def update_workspace(workspace_id: str):
+def update_workspace(workspace_id: str) -> ResponseReturnValue:
     """
     Update a workspace.
     ---
@@ -171,7 +172,7 @@ def update_workspace(workspace_id: str):
 
 
 @bp.route('/api/workspaces/<workspace_id>', methods=['DELETE'])
-def delete_workspace(workspace_id: str):
+def delete_workspace(workspace_id: str) -> ResponseReturnValue:
     """
     Delete a workspace.
     ---
@@ -212,7 +213,7 @@ def delete_workspace(workspace_id: str):
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/workspaces/active', methods=['GET'])
-def get_active_workspace():
+def get_active_workspace() -> ResponseReturnValue:
     """
     Get the active workspace.
     ---
@@ -239,7 +240,7 @@ def get_active_workspace():
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/workspaces/<workspace_id>/members', methods=['GET'])
-def list_workspace_members(workspace_id: str):
+def list_workspace_members(workspace_id: str) -> ResponseReturnValue:
     """List members of a workspace."""
     try:
         members = current_app.db.list_workspace_members(workspace_id)
@@ -250,7 +251,7 @@ def list_workspace_members(workspace_id: str):
 
 
 @bp.route('/api/workspaces/<workspace_id>/members', methods=['POST'])
-def add_workspace_member(workspace_id: str):
+def add_workspace_member(workspace_id: str) -> ResponseReturnValue:
     """
     Add or update a member's role in a workspace.
     ---
@@ -285,7 +286,7 @@ def add_workspace_member(workspace_id: str):
 
 
 @bp.route('/api/workspaces/<workspace_id>/members/<user_id>', methods=['PUT'])
-def update_workspace_member(workspace_id: str, user_id: str):
+def update_workspace_member(workspace_id: str, user_id: str) -> ResponseReturnValue:
     """Change a member's role."""
     data = request.get_json(silent=True) or {}
     role = data.get('role', '')
@@ -300,7 +301,7 @@ def update_workspace_member(workspace_id: str, user_id: str):
 
 
 @bp.route('/api/workspaces/<workspace_id>/members/<user_id>', methods=['DELETE'])
-def remove_workspace_member(workspace_id: str, user_id: str):
+def remove_workspace_member(workspace_id: str, user_id: str) -> ResponseReturnValue:
     """Remove a member from a workspace."""
     try:
         removed = current_app.db.remove_workspace_member(workspace_id, user_id)
@@ -313,7 +314,7 @@ def remove_workspace_member(workspace_id: str, user_id: str):
 
 
 @bp.route('/api/workspaces/switch', methods=['POST'])
-def switch_workspace():
+def switch_workspace() -> ResponseReturnValue:
     """
     Switch the active workspace.
     ---

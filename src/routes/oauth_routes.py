@@ -18,6 +18,7 @@ from urllib.parse import urlencode
 
 import requests
 from flask import Blueprint, current_app, jsonify, redirect, request, session
+from flask.typing import ResponseReturnValue
 
 from .. import config
 from ..security import get_current_user_id
@@ -41,7 +42,7 @@ def _tenant() -> str:
 # ---------------------------------------------------------------------------
 
 @bp.get('/oauth/microsoft/authorize')
-def microsoft_authorize():
+def microsoft_authorize() -> ResponseReturnValue:
     """
     Redirect the user to the Microsoft OAuth2 consent screen.
     ---
@@ -73,7 +74,7 @@ def microsoft_authorize():
 # ---------------------------------------------------------------------------
 
 @bp.get('/oauth/microsoft/callback')
-def microsoft_callback():
+def microsoft_callback() -> ResponseReturnValue:
     """
     Handle Azure AD callback, exchange code for tokens, store encrypted.
     ---
@@ -146,7 +147,7 @@ def microsoft_callback():
 # ---------------------------------------------------------------------------
 
 @bp.get('/oauth/microsoft/status')
-def microsoft_status():
+def microsoft_status() -> ResponseReturnValue:
     """Return whether the current user has a stored Microsoft token."""
     user_id = get_current_user_id() or 'admin'
     token = current_app.db.get_oauth_token(user_id, 'microsoft')
@@ -166,7 +167,7 @@ def microsoft_status():
 # ---------------------------------------------------------------------------
 
 @bp.delete('/oauth/microsoft/disconnect')
-def microsoft_disconnect():
+def microsoft_disconnect() -> ResponseReturnValue:
     """Remove the stored Microsoft OAuth token for the current user."""
     user_id = get_current_user_id() or 'admin'
     deleted = current_app.db.delete_oauth_token(user_id, 'microsoft')

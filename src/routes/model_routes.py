@@ -12,6 +12,7 @@ import json
 from typing import TYPE_CHECKING, Generator
 
 from flask import Blueprint, Response, current_app, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from .. import config, exceptions
 from ..security import limiter
@@ -25,7 +26,7 @@ logger = get_logger(__name__)
 
 
 @bp.route('', methods=['GET'], strict_slashes=False)
-def api_list_models():
+def api_list_models() -> ResponseReturnValue:
     """
     List all available Ollama models.
 
@@ -76,7 +77,7 @@ def api_list_models():
 
 
 @bp.route('/active', methods=['GET', 'POST'])  # NOSONAR
-def api_active_model():
+def api_active_model() -> ResponseReturnValue:
     """
     Get or set the active model.
 
@@ -182,7 +183,7 @@ def api_active_model():
 
 @bp.route('/pull', methods=['POST'])
 @limiter.limit(config.RATELIMIT_MODELS)
-def api_pull_model():
+def api_pull_model() -> ResponseReturnValue:
     """
     Pull a new model from Ollama registry.
 
@@ -240,7 +241,7 @@ def api_pull_model():
 
 @bp.route('/delete', methods=['DELETE'])
 @limiter.limit(config.RATELIMIT_MODELS)
-def api_delete_model():
+def api_delete_model() -> ResponseReturnValue:
     """
     Delete a model.
 
@@ -283,7 +284,7 @@ def api_delete_model():
 
 
 @bp.route('/test', methods=['POST'])
-def api_test_model():
+def api_test_model() -> ResponseReturnValue:
     """
     Test a model with a simple prompt.
 

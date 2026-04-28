@@ -9,10 +9,10 @@ and size management.
 """
 
 import hashlib
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from ..utils.logging_config import get_logger
-from . import CacheBackend, create_cache_backend
+from . import CacheBackend, CacheStats, create_cache_backend
 
 logger = get_logger(__name__)
 
@@ -120,7 +120,7 @@ class EmbeddingCache:
         """Clear all cached embeddings."""
         return self.backend.clear()
 
-    def get_stats(self):
+    def get_stats(self) -> CacheStats | dict[str, Any]:
         """Get cache statistics."""
         return self.backend.get_stats()
 
@@ -273,7 +273,7 @@ class QueryCache:
         """Clear all cached queries."""
         return self.backend.clear()
 
-    def get_stats(self):
+    def get_stats(self) -> CacheStats | dict[str, Any]:
         """Get cache statistics."""
         return self.backend.get_stats()
 

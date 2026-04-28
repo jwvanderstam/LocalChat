@@ -11,12 +11,13 @@ Serves HTML templates for the web interface.
 from pathlib import Path
 
 from flask import Blueprint, render_template
+from flask.typing import ResponseReturnValue
 
 bp = Blueprint('web', __name__)
 
 
 @bp.route('/favicon.ico', methods=['GET'])
-def favicon():
+def favicon() -> ResponseReturnValue:
     """
     Serve favicon or return 204 No Content if not found.
 

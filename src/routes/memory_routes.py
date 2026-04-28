@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from flask import Blueprint, Response, jsonify, request
 from flask import current_app as _current_app
+from flask.typing import ResponseReturnValue
 
 if TYPE_CHECKING:
     from ..types import LocalChatApp
@@ -38,7 +39,7 @@ _CONVERSATION_NOT_FOUND = 'Conversation not found'
 
 
 @bp.route('/conversations', methods=['GET'])
-def list_conversations():
+def list_conversations() -> ResponseReturnValue:
     """
     List all conversations.
     ---
@@ -61,7 +62,7 @@ def list_conversations():
 
 
 @bp.route('/conversations', methods=['POST'])
-def create_conversation():
+def create_conversation() -> ResponseReturnValue:
     """
     Create a new conversation.
     ---
@@ -89,7 +90,7 @@ def create_conversation():
 
 
 @bp.route('/conversations/<conversation_id>', methods=['GET'])
-def get_conversation(conversation_id: str):
+def get_conversation(conversation_id: str) -> ResponseReturnValue:
     """
     Get a conversation with all its messages.
     ---
@@ -116,7 +117,7 @@ def get_conversation(conversation_id: str):
 
 
 @bp.route('/conversations/<conversation_id>/export', methods=['GET'])
-def export_conversation(conversation_id: str):
+def export_conversation(conversation_id: str) -> ResponseReturnValue:
     """
     Export a conversation as JSON or Markdown.
     ---
@@ -176,7 +177,7 @@ def export_conversation(conversation_id: str):
 
 
 @bp.route('/conversations/<conversation_id>/documents', methods=['GET'])
-def get_conversation_documents(conversation_id: str):
+def get_conversation_documents(conversation_id: str) -> ResponseReturnValue:
     """
     Get the document filter for a conversation.
     ---
@@ -203,7 +204,7 @@ def get_conversation_documents(conversation_id: str):
 
 
 @bp.route('/conversations/<conversation_id>/documents', methods=['PUT'])
-def set_conversation_documents(conversation_id: str):
+def set_conversation_documents(conversation_id: str) -> ResponseReturnValue:
     """
     Set (or clear) the document filter for a conversation.
     ---
@@ -251,7 +252,7 @@ def set_conversation_documents(conversation_id: str):
 
 
 @bp.route('/conversations/<conversation_id>', methods=['PATCH'])
-def update_conversation(conversation_id: str):
+def update_conversation(conversation_id: str) -> ResponseReturnValue:
     """
     Rename a conversation.
     ---
@@ -293,7 +294,7 @@ def update_conversation(conversation_id: str):
 
 
 @bp.route('/conversations', methods=['DELETE'])
-def delete_all_conversations():
+def delete_all_conversations() -> ResponseReturnValue:
     """
     Delete all conversations and their messages.
     ---
@@ -311,7 +312,7 @@ def delete_all_conversations():
 
 
 @bp.route('/conversations/<conversation_id>', methods=['DELETE'])
-def delete_conversation(conversation_id: str):
+def delete_conversation(conversation_id: str) -> ResponseReturnValue:
     """
     Delete a conversation and all its messages.
     ---

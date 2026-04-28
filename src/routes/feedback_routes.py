@@ -9,6 +9,7 @@ GET  /api/feedback/stats — rolling quality metrics (admin use)
 from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from ..utils.logging_config import get_logger
 
@@ -18,7 +19,7 @@ bp = Blueprint("feedback", __name__)
 
 
 @bp.post("/feedback")
-def submit_feedback():
+def submit_feedback() -> ResponseReturnValue:
     """
     Record user feedback for one assistant answer.
 
@@ -71,7 +72,7 @@ def submit_feedback():
 
 
 @bp.get("/feedback/stats")
-def feedback_stats():
+def feedback_stats() -> ResponseReturnValue:
     """Return rolling answer-quality metrics for the admin dashboard."""
     app = current_app._get_current_object()  # type: ignore[attr-defined]
 

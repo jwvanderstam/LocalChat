@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, Generator
 
 from flask import Blueprint, Response, g, jsonify, request
 from flask import current_app as _current_app
+from flask.typing import ResponseReturnValue
 
 if TYPE_CHECKING:
     from ..types import LocalChatApp
@@ -318,7 +319,7 @@ def _collect_cache_stats() -> dict:
 
 
 @bp.route('/status', methods=['GET'])
-def api_status():
+def api_status() -> ResponseReturnValue:
     """
     Get system status.
 
@@ -805,7 +806,7 @@ def _apply_model_routing(
 
 
 @bp.route('/chat', methods=['POST'])
-def api_chat():
+def api_chat() -> ResponseReturnValue:
     """
     Chat endpoint with RAG or direct LLM.
 
@@ -940,7 +941,7 @@ def api_chat():
 # ---------------------------------------------------------------------------
 
 @bp.route('/api/plugins', methods=['GET'])
-def list_plugins():
+def list_plugins() -> ResponseReturnValue:
     """List all loaded tool plugins and the tools each one registered."""
     try:
         from ..tools import plugin_loader, tool_registry
@@ -965,7 +966,7 @@ def list_plugins():
 
 
 @bp.route('/api/plugins/reload', methods=['POST'])
-def reload_plugins():
+def reload_plugins() -> ResponseReturnValue:
     """Reload all plugins from disk without restarting the server."""
     try:
         from .. import config

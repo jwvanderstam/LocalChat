@@ -7,7 +7,7 @@ and metadata tracking for enhanced citations.
 """
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .. import config
 from ..utils.logging_config import get_logger
@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 try:
     from ..monitoring import timed
 except ImportError:
-    def timed(_metric_name: str):  # noqa: E306
+    def timed(_metric_name: str) -> Callable:  # noqa: E306
         return lambda func: func
 
 
