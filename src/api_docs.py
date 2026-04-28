@@ -296,7 +296,7 @@ def init_swagger(app: Flask) -> object | None:
         return swagger
     except ImportError as e:
         # Flasgger not installed - fail gracefully
-        raise ImportError(f"flasgger package not installed: {e}")
+        raise ImportError(f"flasgger package not installed: {e}") from e
 
 
 # Example endpoint documentation (for reference)

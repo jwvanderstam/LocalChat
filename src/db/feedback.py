@@ -225,7 +225,7 @@ class FeedbackMixin:
                     (min_retrieved, max_positive_ratio, limit),
                 )
                 cols = [desc[0] for desc in cur.description]
-                return [dict(zip(cols, row)) for row in cur.fetchall()]
+                return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
     def get_feedback_trend(self, days: int = 30) -> list[dict[str, Any]]:
         """
@@ -296,7 +296,7 @@ class FeedbackMixin:
                     (days,),
                 )
                 cols = [desc[0] for desc in cur.description]
-                return [dict(zip(cols, row)) for row in cur.fetchall()]
+                return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
     def get_reranker_versions(self) -> list[dict[str, Any]]:
         """Return all reranker version rows ordered by trained_at DESC."""

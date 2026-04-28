@@ -105,7 +105,7 @@ class TestJWTAuthentication:
         """Test users have role field (password is now stored as a module-level hash)."""
         from src.security import USERS
 
-        for username, user_data in USERS.items():
+        for _username, user_data in USERS.items():
             assert 'role' in user_data
 
 

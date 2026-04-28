@@ -241,7 +241,7 @@ class RetrievalMixin:
                 ce_scores = reranker.score(query_clean, passages)
                 if ce_scores:
                     w = config.RERANKER_WEIGHT
-                    for r, ce in zip(deduped, ce_scores):
+                    for r, ce in zip(deduped, ce_scores, strict=False):
                         r['combined_score'] = (1.0 - w) * r['combined_score'] + w * ce
                     deduped = sorted(deduped, key=lambda x: x['combined_score'], reverse=True)
                     logger.debug("[RAG] Cross-encoder reranking applied")
@@ -573,7 +573,7 @@ class RetrievalMixin:
 
         query_terms = set(query.lower().split())
 
-        for chunk_id, data in results.items():
+        for _chunk_id, data in results.items():
             chunk_text = data['chunk_text']
             chunk_words = set(chunk_text.lower().split())
             score = (
@@ -664,7 +664,7 @@ class RetrievalMixin:
             (new_current_length, chunks_added)
         """
         chunks_added = 0
-        for chunk_text, chunk_index, similarity, metadata in chunks:
+        for chunk_text, _chunk_index, _similarity, metadata in chunks:
             formatted_chunk = self._format_single_chunk(chunk_text, metadata)
             if current_length + len(formatted_chunk) > max_length:
                 logger.info(f"Context size limit reached: {chunks_added} chunks from doc {doc_num}")

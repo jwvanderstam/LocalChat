@@ -497,7 +497,7 @@ class OllamaClient:
             raise RuntimeError(
                 f"Ollama did not respond within 120 s (model: {model}). "
                 "The model may still be loading — try again shortly."
-            )
+            ) from None
         except requests.exceptions.ConnectionError as exc:
             raise RuntimeError(f"Cannot reach Ollama at {self.base_url}: {exc}") from exc
 
@@ -574,7 +574,7 @@ class OllamaClient:
             raise RuntimeError(
                 f"Ollama did not respond within 120 s (model: {model}). "
                 "The model may still be loading — try again shortly."
-            )
+            ) from None
         except requests.exceptions.ConnectionError as exc:
             raise RuntimeError(f"Cannot reach Ollama at {self.base_url}: {exc}") from exc
 

@@ -165,6 +165,4 @@ class ModelRouter:
         if plan is None:
             return True
         # Multi-hop or synthesis → not fast
-        if plan.estimated_hops > 1 or plan.synthesis_required:
-            return False
-        return True
+        return not (plan.estimated_hops > 1 or plan.synthesis_required)

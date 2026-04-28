@@ -491,7 +491,7 @@ def _retrieve_direct(fields: dict, doc_processor, plan, workspace_id: str | None
         except Exception as e:
             raise exceptions.SearchError(
                 f"Failed to retrieve context: {e}", details={"error": str(e)}
-            )
+            ) from e
 
     if fields['enhance']:
         try:

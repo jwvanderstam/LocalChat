@@ -175,7 +175,7 @@ class TestChunkPagesWithMetadata:
         titles = titles or [None] * len(texts)
         return [
             {"page_number": i + 1, "text": t, "section_title": s}
-            for i, (t, s) in enumerate(zip(texts, titles))
+            for i, (t, s) in enumerate(zip(texts, titles, strict=False))
         ]
 
     def test_chunk_index_is_globally_sequential(self, chunker):

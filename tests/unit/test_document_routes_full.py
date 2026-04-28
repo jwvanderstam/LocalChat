@@ -1,4 +1,3 @@
-1# -*- coding: utf-8 -*-
 """Tests for document routes."""
 
 import json

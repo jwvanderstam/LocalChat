@@ -289,9 +289,7 @@ def _check_metrics_auth() -> bool:
     if not config.METRICS_TOKEN:
         return True
     auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN:
-        return True
-    return False
+    return auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN
 
 
 def init_monitoring(app: Flask) -> None:

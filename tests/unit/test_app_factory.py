@@ -185,9 +185,7 @@ class TestErrorHandlers:
         from src.app_factory import create_app
 
         app = create_app(testing=True)
-
-        # Error handlers should be registered
-        assert app.error_handler_spec is not None or True  # Always has some handling
+        assert app.error_handler_spec is not None
 
 
 class TestAppContext:

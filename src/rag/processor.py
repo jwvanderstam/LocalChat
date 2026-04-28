@@ -168,7 +168,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
         chunks_data = []
         failed = 0
-        for idx, (chunk_meta, embedding) in enumerate(zip(chunks_with_metadata, embeddings)):
+        for idx, (chunk_meta, embedding) in enumerate(zip(chunks_with_metadata, embeddings, strict=False)):
             if embedding is None:
                 failed += 1
                 logger.warning(f"Failed to generate embedding for chunk {idx}")

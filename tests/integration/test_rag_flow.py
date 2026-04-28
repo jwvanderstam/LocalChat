@@ -172,6 +172,15 @@ class TestRagFlow:
                 "generate_chat_response",
                 return_value=iter(["direct answer"]),
             ),
+            # When no RAG context is present, _get_tool_executor creates a ToolExecutor
+            # which calls generate_chat_completion (not generate_chat_response). Without
+            # this mock the executor may invoke the search_documents built-in tool, which
+            # calls retrieve_context through the module-level singleton.
+            patch.object(
+                app.ollama_client,
+                "generate_chat_completion",
+                return_value={"message": {"role": "assistant", "content": "direct answer"}},
+            ),
         ):
             client.post("/api/chat", json={"message": "hello", "use_rag": False})
 

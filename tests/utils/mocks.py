@@ -20,7 +20,7 @@ class MockDatabase:
 
     def document_exists(self, filename: str) -> tuple:
         """Check if document exists."""
-        for doc_id, doc_info in self.documents.items():
+        for _doc_id, doc_info in self.documents.items():
             if doc_info['filename'] == filename:
                 return True, doc_info
         return False, None

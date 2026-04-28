@@ -103,8 +103,8 @@ class ChatRequest(BaseModel):
         if v is not None:
             try:
                 _uuid.UUID(v)
-            except ValueError:
-                raise ValueError('conversation_id must be a valid UUID')
+            except ValueError as e:
+                raise ValueError('conversation_id must be a valid UUID') from e
         return v
 
     @field_validator('message')
