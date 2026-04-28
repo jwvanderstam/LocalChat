@@ -34,7 +34,8 @@ class TestCreateConversation:
                                data=json.dumps({}),
                                content_type='application/json')
         assert response.status_code in (200, 201)
-        app.db.create_conversation.assert_called_once_with('New Conversation')
+        call_args = app.db.create_conversation.call_args
+        assert call_args[0][0] == 'New Conversation'
 
     def test_create_returns_conversation_id(self, client, app):
         app.db.create_conversation = MagicMock(return_value='id-789')

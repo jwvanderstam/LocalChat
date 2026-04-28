@@ -87,7 +87,8 @@ def create_conversation() -> ResponseReturnValue:
     """
     data = request.get_json() or {}
     title = str(data.get('title', 'New Conversation'))[:255].strip() or 'New Conversation'
-    conversation_id = current_app.db.create_conversation(title)
+    workspace_id = config.app_state.get_active_workspace_id()
+    conversation_id = current_app.db.create_conversation(title, workspace_id=workspace_id)
     return jsonify({'id': conversation_id, 'title': title}), 201
 
 
@@ -309,7 +310,8 @@ def delete_all_conversations() -> ResponseReturnValue:
       503:
         description: Database unavailable
     """
-    deleted = current_app.db.delete_all_conversations()
+    workspace_id = config.app_state.get_active_workspace_id()
+    deleted = current_app.db.delete_all_conversations(workspace_id=workspace_id)
     return jsonify({'success': True, 'deleted': deleted})
 
 

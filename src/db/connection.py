@@ -499,6 +499,18 @@ class DatabaseConnection:
                     CREATE INDEX IF NOT EXISTS conversations_workspace_idx
                         ON conversations (workspace_id)
                 """)
+                # Backfill pre-workspace rows so they belong to the Default workspace
+                # and appear correctly when workspace filtering is active.
+                cursor.execute("""
+                    UPDATE conversations
+                    SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1)
+                    WHERE workspace_id IS NULL
+                """)
+                cursor.execute("""
+                    UPDATE documents
+                    SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1)
+                    WHERE workspace_id IS NULL
+                """)
                 logger.debug("workspaces schema ensured")
 
                 cursor.execute("""

@@ -120,7 +120,9 @@ class TestRagFlow:
             )
 
         mock_retrieve.assert_called_once_with(
-            "Tell me about pgvector", filename_filter=[], workspace_id=None
+            "Tell me about pgvector",
+            filename_filter=[],
+            workspace_id=config.app_state.get_active_workspace_id(),
         )
 
     def test_context_text_forwarded_to_llm(self, app, client):

@@ -17,7 +17,7 @@ psycopg[binary]>=3.3.3
 psycopg-pool>=3.3.0
 
 # Validation
-pydantic==2.13.3
+pydantic>=2.12.5
 email-validator==2.3.0
 
 # Document Processing
@@ -51,7 +51,7 @@ python-multipart==0.0.26
 markdown==3.10.2
 
 # Environment configuration
-python-dotenv==1.2.2
+python-dotenv>=1.0.1
 
 # Testing
 pytest==9.0.3

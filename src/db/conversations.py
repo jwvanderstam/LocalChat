@@ -398,11 +398,12 @@ class ConversationsMixin:
         logger.debug(f"Deleted conversation: {conversation_id}")
         return deleted
 
-    def delete_all_conversations(self) -> int:
+    def delete_all_conversations(self, workspace_id: str | None = None) -> int:
         """
-        Delete every conversation and all associated messages.
+        Delete conversations (and their messages via CASCADE).
 
-        WARNING: This operation cannot be undone!
+        When workspace_id is provided only conversations in that workspace are
+        removed; otherwise all conversations across all workspaces are deleted.
 
         Returns:
             int: Number of conversations deleted
@@ -413,10 +414,16 @@ class ConversationsMixin:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversations: Database is not connected")
 
-        logger.warning("Deleting ALL conversations and messages")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("DELETE FROM conversations")
+                if workspace_id:
+                    cursor.execute(
+                        "DELETE FROM conversations WHERE workspace_id = %s",
+                        (workspace_id,),
+                    )
+                else:
+                    logger.warning("Deleting ALL conversations across all workspaces")
+                    cursor.execute("DELETE FROM conversations")
                 deleted = cursor.rowcount
                 conn.commit()
         logger.info(f"Deleted {deleted} conversations (messages removed via cascade)")

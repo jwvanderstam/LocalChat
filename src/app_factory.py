@@ -266,6 +266,11 @@ def _init_database_service(app: LocalChatApp, db) -> None:
         doc_count = db.get_document_count()
         config.app_state.set_document_count(doc_count)
         logger.info(f"Documents in database: {doc_count}")
+        if not config.app_state.get_active_workspace_id():
+            default_id = db.get_default_workspace_id()
+            if default_id:
+                config.app_state.set_active_workspace_id(default_id)
+                logger.info("Active workspace initialised to default: %s", default_id)
         return
     logger.error(db_message)
     logger.error("WARNING: PostgreSQL database is not available! App will run in DEGRADED MODE.")
