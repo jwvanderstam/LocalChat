@@ -111,9 +111,15 @@ Desktop.ini
 *.tar.gz
 *.zip
 
-# Scratch files
+# Scratch / ad-hoc dev scripts (root-level only)
 scratch.py
 temp.py
+scripts/
+test_docx.py
+test_pg_format.py
+test_rag.py
+test_search.py
+test_vector.py
 
 # Test output artifacts (root-level)
 test_*.txt
