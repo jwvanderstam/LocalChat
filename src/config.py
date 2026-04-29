@@ -507,15 +507,15 @@ class AppState:
 
     def _save_state(self) -> None:
         """
-        Save state to JSON file.
-
-        Updates the last_updated timestamp and persists state to disk.
-        Logs errors if save fails but doesn't raise exceptions.
+        Save state to JSON file using an atomic replace so concurrent
+        gunicorn workers never read a partially-written file.
         """
         try:
             self.state['last_updated'] = datetime.now().isoformat()
-            with open(self.state_file, 'w') as f:
+            tmp = self.state_file + '.tmp'
+            with open(tmp, 'w') as f:
                 json.dump(self.state, f, indent=2)
+            os.replace(tmp, self.state_file)
             logger.debug(f"Saved state to {self.state_file}")
         except Exception as e:
             logger.error(f"Error saving state: {e}", exc_info=True)
@@ -594,8 +594,16 @@ class AppState:
         logger.debug(f"Document count incremented by {increment} to {self.state['document_count']}")
 
     def get_active_workspace_id(self) -> str | None:
-        """Return the UUID of the active workspace, or None if not yet set."""
-        return self.state.get('active_workspace_id')
+        """Return the UUID of the active workspace.
+
+        Re-reads from disk on every call so all gunicorn workers see the
+        latest value without needing inter-process signalling.
+        """
+        try:
+            with open(self.state_file) as f:
+                return json.load(f).get('active_workspace_id')
+        except Exception:
+            return self.state.get('active_workspace_id')
 
     def set_active_workspace_id(self, workspace_id: str) -> None:
         """Persist the active workspace UUID."""
