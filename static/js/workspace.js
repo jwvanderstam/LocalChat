@@ -20,23 +20,45 @@
             empty.innerHTML = '<span class="dropdown-item-text text-muted small">No workspaces found</span>';
             list.appendChild(empty);
         } else {
+            const canDelete = workspaces.length > 1;
             workspaces.forEach(function (ws) {
-                const li = document.createElement('li');
-                const a = document.createElement('a');
-                a.className = 'dropdown-item' + (ws.active ? ' active' : '');
-                a.href = '#';
-                a.dataset.workspaceId = ws.id;
-                a.textContent = ws.name;
                 if (ws.active) {
                     document.getElementById('active-workspace-name').textContent = ws.name;
                     localStorage.setItem(ACTIVE_WS_KEY,    ws.name);
                     localStorage.setItem(ACTIVE_WS_ID_KEY, ws.id);
                 }
-                a.addEventListener('click', function (e) {
-                    e.preventDefault();
+
+                const li = document.createElement('li');
+
+                // Wrapper div acts as the dropdown item so we can flex name + button.
+                const row = document.createElement('div');
+                row.className = 'dropdown-item d-flex align-items-center gap-1 pe-1'
+                    + (ws.active ? ' active' : '');
+                row.style.cursor = 'pointer';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'flex-grow-1 text-truncate';
+                nameSpan.textContent = ws.name;
+                nameSpan.addEventListener('click', function () {
                     switchWorkspace(ws.id, ws.name);
                 });
-                li.appendChild(a);
+
+                row.appendChild(nameSpan);
+
+                if (canDelete) {
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'btn btn-link btn-sm p-0 ms-1 text-danger opacity-50';
+                    delBtn.style.lineHeight = '1';
+                    delBtn.title = 'Delete workspace';
+                    delBtn.innerHTML = '<i class="bi bi-trash" style="font-size:0.75rem;pointer-events:none;"></i>';
+                    delBtn.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        deleteWorkspace(ws.id, ws.name);
+                    });
+                    row.appendChild(delBtn);
+                }
+
+                li.appendChild(row);
                 list.appendChild(li);
             });
         }
@@ -113,6 +135,41 @@
             })
             .catch(function (err) {
                 console.warn('[Workspace] Switch request failed:', err);
+            });
+    }
+
+    function deleteWorkspace(workspaceId, workspaceName) {
+        if (!confirm('Delete workspace "' + workspaceName + '"?\n\nThis cannot be undone.')) {
+            return;
+        }
+        fetch('/api/workspaces/' + workspaceId, { method: 'DELETE' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) {
+                    alert('Failed to delete workspace: ' + (data.message || 'Unknown error'));
+                    return;
+                }
+                const fallbackId = data.fallback_workspace_id;
+                // Clear stored state for the deleted workspace.
+                if (localStorage.getItem(ACTIVE_WS_ID_KEY) === workspaceId) {
+                    localStorage.removeItem(ACTIVE_WS_ID_KEY);
+                    localStorage.removeItem(ACTIVE_WS_KEY);
+                }
+                // Switch to the fallback workspace so the UI is never left in a void.
+                if (fallbackId) {
+                    fetch('/api/workspaces/' + fallbackId)
+                        .then(function (r) { return r.json(); })
+                        .then(function (wsData) {
+                            const name = wsData.workspace ? wsData.workspace.name : 'Default';
+                            switchWorkspace(fallbackId, name);
+                        })
+                        .catch(function () { loadWorkspaces(); });
+                } else {
+                    loadWorkspaces();
+                }
+            })
+            .catch(function (err) {
+                console.warn('[Workspace] Delete request failed:', err);
             });
     }
 
