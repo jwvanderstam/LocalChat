@@ -128,12 +128,22 @@ function init() {
 }
 
 // ============================================================================
+// WORKSPACE HEADER HELPER
+// ============================================================================
+
+function _wsHeaders(extra) {
+    const id = localStorage.getItem('localchat_active_workspace_id');
+    const base = id ? { 'X-Workspace-ID': id } : {};
+    return Object.assign(base, extra || {});
+}
+
+// ============================================================================
 // CONVERSATION SIDEBAR
 // ============================================================================
 
 async function loadConversations() {
     try {
-        const response = await fetch('/api/conversations');
+        const response = await fetch('/api/conversations', { headers: _wsHeaders() });
         if (!response.ok) return;
         const data = await response.json();
         conversations = data.conversations || [];
@@ -256,7 +266,7 @@ async function deleteConversation(id) {
 async function deleteAllConversations() {
     if (!confirm('Delete all conversations and chat history? This cannot be undone.')) return;
     try {
-        const response = await fetch('/api/conversations', { method: 'DELETE' });
+        const response = await fetch('/api/conversations', { method: 'DELETE', headers: _wsHeaders() });
         if (response.ok) {
             conversations = [];
             startNewChat();
@@ -412,7 +422,7 @@ async function sendMessage() {
 
         const response = await fetch('/api/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _wsHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify(body)
         });
 

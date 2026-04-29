@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 else:
     current_app = _current_app
 
-from .. import config
 from ..utils.logging_config import get_logger
+from ..utils.workspace import get_workspace_id
 
 bp = Blueprint('memory', __name__)
 logger = get_logger(__name__)
@@ -58,8 +58,7 @@ def list_conversations() -> ResponseReturnValue:
         offset = max(int(request.args.get('offset', 0)), 0)
     except (ValueError, TypeError):
         return jsonify({'success': False, 'message': 'limit and offset must be integers'}), 400
-    workspace_id = config.app_state.get_active_workspace_id()
-    conversations = current_app.db.list_conversations(limit=limit, offset=offset, workspace_id=workspace_id)
+    conversations = current_app.db.list_conversations(limit=limit, offset=offset, workspace_id=get_workspace_id())
     return jsonify({'conversations': conversations, 'limit': limit, 'offset': offset})
 
 
@@ -87,8 +86,7 @@ def create_conversation() -> ResponseReturnValue:
     """
     data = request.get_json() or {}
     title = str(data.get('title', 'New Conversation'))[:255].strip() or 'New Conversation'
-    workspace_id = config.app_state.get_active_workspace_id()
-    conversation_id = current_app.db.create_conversation(title, workspace_id=workspace_id)
+    conversation_id = current_app.db.create_conversation(title, workspace_id=get_workspace_id())
     return jsonify({'id': conversation_id, 'title': title}), 201
 
 
@@ -310,8 +308,7 @@ def delete_all_conversations() -> ResponseReturnValue:
       503:
         description: Database unavailable
     """
-    workspace_id = config.app_state.get_active_workspace_id()
-    deleted = current_app.db.delete_all_conversations(workspace_id=workspace_id)
+    deleted = current_app.db.delete_all_conversations(workspace_id=get_workspace_id())
     return jsonify({'success': True, 'deleted': deleted})
 
 

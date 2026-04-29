@@ -31,6 +31,7 @@ from ..security import limiter
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import sanitize_filename, validate_path
+from ..utils.workspace import get_workspace_id
 
 bp = Blueprint('documents', __name__)
 logger = get_logger(__name__)
@@ -73,7 +74,7 @@ def _update_document_count(app) -> int:
         return config.app_state.get_document_count()
 
 
-def _stream_file_ingest(app, file_path: str) -> Generator[str, None, None]:
+def _stream_file_ingest(app, file_path: str, workspace_id: str | None) -> Generator[str, None, None]:
     """Ingest a single file and yield SSE progress events."""
     yield f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"
 
@@ -81,8 +82,6 @@ def _stream_file_ingest(app, file_path: str) -> Generator[str, None, None]:
     result_container: dict = {}
 
     def _run_ingest(path=file_path, pq=progress_queue, rc=result_container):
-        from .. import config as _cfg
-        workspace_id = _cfg.app_state.get_active_workspace_id()
         try:
             s, m, d = app.doc_processor.ingest_document(
                 path,
@@ -210,14 +209,15 @@ def api_upload_documents() -> ResponseReturnValue:
     if not file_paths:
         return jsonify({'success': False, 'message': 'No supported files found'}), 400
 
-    # Get references to app objects before entering generator
+    # Capture request-scoped values before entering generator (request context not available in generator)
     app = current_app._get_current_object()  # type: ignore[attr-defined]
+    upload_workspace_id = get_workspace_id()
 
     # Stream ingestion progress
     def generate() -> Generator[str, None, None]:
         try:
             for file_path in file_paths:
-                yield from _stream_file_ingest(app, file_path)
+                yield from _stream_file_ingest(app, file_path, upload_workspace_id)
             doc_count = _update_document_count(app)
             yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
         except GeneratorExit:
@@ -297,8 +297,7 @@ def api_list_documents() -> ResponseReturnValue:
     """
     from ..db import DatabaseUnavailableError
     try:
-        workspace_id = config.app_state.get_active_workspace_id()
-        documents = current_app.db.get_all_documents(workspace_id=workspace_id)
+        documents = current_app.db.get_all_documents(workspace_id=get_workspace_id())
         return jsonify({
             'success': True,
             'documents': documents

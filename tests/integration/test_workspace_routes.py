@@ -11,7 +11,7 @@ Covers the full REST surface:
   POST /api/workspaces/switch
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -39,17 +39,13 @@ class TestListWorkspaces:
 
     def test_returns_200(self, client, app):
         app.db.list_workspaces = MagicMock(return_value=[])
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/workspaces")
+        resp = client.get("/api/workspaces")
         assert resp.status_code == 200
 
     def test_returns_workspaces_list(self, client, app):
         ws = _workspace()
         app.db.list_workspaces = MagicMock(return_value=[ws])
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/workspaces")
+        resp = client.get("/api/workspaces")
         data = resp.get_json()
         assert data["success"] is True
         assert len(data["workspaces"]) == 1
@@ -57,17 +53,13 @@ class TestListWorkspaces:
     def test_active_flag_set_on_matching_workspace(self, client, app):
         ws = _workspace(id="ws-active")
         app.db.list_workspaces = MagicMock(return_value=[ws])
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = "ws-active"
-            resp = client.get("/api/workspaces")
+        resp = client.get("/api/workspaces", headers={"X-Workspace-ID": "ws-active"})
         data = resp.get_json()
         assert data["workspaces"][0]["active"] is True
 
     def test_db_error_returns_500(self, client, app):
         app.db.list_workspaces = MagicMock(side_effect=Exception("db down"))
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/workspaces")
+        resp = client.get("/api/workspaces")
         assert resp.status_code == 500
 
 
@@ -121,17 +113,13 @@ class TestGetWorkspace:
 
     def test_returns_workspace(self, client, app):
         app.db.get_workspace = MagicMock(return_value=_workspace())
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/workspaces/ws-1")
+        resp = client.get("/api/workspaces/ws-1")
         assert resp.status_code == 200
         assert resp.get_json()["workspace"]["id"] == "ws-1"
 
     def test_not_found_returns_404(self, client, app):
         app.db.get_workspace = MagicMock(return_value=None)
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/workspaces/missing")
+        resp = client.get("/api/workspaces/missing")
         assert resp.status_code == 404
 
 
@@ -166,27 +154,22 @@ class TestDeleteWorkspace:
 
     def test_deletes_workspace(self, client, app):
         app.db.delete_workspace = MagicMock(return_value=True)
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.delete("/api/workspaces/ws-1")
+        app.db.get_default_workspace_id = MagicMock(return_value="ws-default")
+        resp = client.delete("/api/workspaces/ws-1")
         assert resp.status_code == 200
         assert resp.get_json()["success"] is True
 
     def test_not_found_returns_404(self, client, app):
         app.db.delete_workspace = MagicMock(return_value=False)
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.delete("/api/workspaces/missing")
+        resp = client.delete("/api/workspaces/missing")
         assert resp.status_code == 404
 
-    def test_clears_active_if_deleted_was_active(self, client, app):
+    def test_response_includes_fallback_workspace_id(self, client, app):
         app.db.delete_workspace = MagicMock(return_value=True)
         app.db.get_default_workspace_id = MagicMock(return_value="ws-default")
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = "ws-1"
-            resp = client.delete("/api/workspaces/ws-1")
+        resp = client.delete("/api/workspaces/ws-1")
         assert resp.status_code == 200
-        mock_cfg.app_state.set_active_workspace_id.assert_called_once_with("ws-default")
+        assert resp.get_json()["fallback_workspace_id"] == "ws-default"
 
 
 # ---------------------------------------------------------------------------
@@ -196,18 +179,14 @@ class TestDeleteWorkspace:
 class TestGetActiveWorkspace:
 
     def test_returns_none_when_no_active(self, client, app):
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/workspaces/active")
+        resp = client.get("/api/workspaces/active")
         data = resp.get_json()
         assert data["success"] is True
         assert data["workspace"] is None
 
     def test_returns_active_workspace(self, client, app):
         app.db.get_workspace = MagicMock(return_value=_workspace(id="ws-1"))
-        with patch("src.routes.workspace_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = "ws-1"
-            resp = client.get("/api/workspaces/active")
+        resp = client.get("/api/workspaces/active", headers={"X-Workspace-ID": "ws-1"})
         data = resp.get_json()
         assert data["workspace"]["id"] == "ws-1"
 
@@ -220,8 +199,7 @@ class TestSwitchWorkspace:
 
     def test_switches_successfully(self, client, app):
         app.db.get_workspace = MagicMock(return_value=_workspace(id="ws-2", name="Proj"))
-        with patch("src.routes.workspace_routes.config"):
-            resp = client.post("/api/workspaces/switch", json={"workspace_id": "ws-2"})
+        resp = client.post("/api/workspaces/switch", json={"workspace_id": "ws-2"})
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True

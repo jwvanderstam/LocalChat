@@ -6,7 +6,8 @@
 (function () {
     'use strict';
 
-    const ACTIVE_WS_KEY = 'localchat_active_workspace';
+    const ACTIVE_WS_KEY    = 'localchat_active_workspace';
+    const ACTIVE_WS_ID_KEY = 'localchat_active_workspace_id';
 
     function renderWorkspaceList(workspaces) {
         const list = document.getElementById('workspace-list');
@@ -28,7 +29,8 @@
                 a.textContent = ws.name;
                 if (ws.active) {
                     document.getElementById('active-workspace-name').textContent = ws.name;
-                    localStorage.setItem(ACTIVE_WS_KEY, ws.name);
+                    localStorage.setItem(ACTIVE_WS_KEY,    ws.name);
+                    localStorage.setItem(ACTIVE_WS_ID_KEY, ws.id);
                 }
                 a.addEventListener('click', function (e) {
                     e.preventDefault();
@@ -57,22 +59,35 @@
     }
 
     function loadWorkspaces() {
-        fetch('/api/workspaces')
+        const cachedId   = localStorage.getItem(ACTIVE_WS_ID_KEY);
+        const cachedName = localStorage.getItem(ACTIVE_WS_KEY);
+
+        // Show cached name immediately while the fetch is in flight.
+        if (cachedName) {
+            const el = document.getElementById('active-workspace-name');
+            if (el) el.textContent = cachedName;
+        }
+
+        const headers = cachedId ? { 'X-Workspace-ID': cachedId } : {};
+        fetch('/api/workspaces', { headers })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (data.success) {
-                    renderWorkspaceList(data.workspaces);
+                if (!data.success) return;
+                const workspaces = data.workspaces || [];
+
+                // First-load: no workspace stored yet — default to first in list.
+                if (!cachedId && workspaces.length > 0) {
+                    const first = workspaces[0];
+                    localStorage.setItem(ACTIVE_WS_ID_KEY, first.id);
+                    localStorage.setItem(ACTIVE_WS_KEY,    first.name);
+                    first.active = true;
                 }
+
+                renderWorkspaceList(workspaces);
             })
             .catch(function (err) {
                 console.warn('[Workspace] Failed to load workspaces:', err);
             });
-
-        const cached = localStorage.getItem(ACTIVE_WS_KEY);
-        if (cached) {
-            const el = document.getElementById('active-workspace-name');
-            if (el) el.textContent = cached;
-        }
     }
 
     function switchWorkspace(workspaceId, workspaceName) {
@@ -84,7 +99,8 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data.success) {
-                    localStorage.setItem(ACTIVE_WS_KEY, workspaceName);
+                    localStorage.setItem(ACTIVE_WS_ID_KEY, workspaceId);
+                    localStorage.setItem(ACTIVE_WS_KEY,    workspaceName);
                     document.getElementById('active-workspace-name').textContent = workspaceName;
                     loadWorkspaces();
                     // Notify other modules so they reload their workspace-scoped data.

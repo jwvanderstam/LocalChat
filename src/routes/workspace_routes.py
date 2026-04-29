@@ -10,8 +10,8 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, request
 from flask.typing import ResponseReturnValue
 
-from .. import config
 from ..utils.logging_config import get_logger
+from ..utils.workspace import get_workspace_id
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,7 @@ def list_workspaces() -> ResponseReturnValue:
     """
     try:
         workspaces = current_app.db.list_workspaces()
-        active_id = config.app_state.get_active_workspace_id()
+        active_id = get_workspace_id()
         for ws in workspaces:
             ws['active'] = ws['id'] == active_id
         return jsonify({'success': True, 'workspaces': workspaces})
@@ -118,7 +118,7 @@ def get_workspace(workspace_id: str) -> ResponseReturnValue:
         workspace = current_app.db.get_workspace(workspace_id)
         if workspace is None:
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
-        workspace['active'] = workspace_id == config.app_state.get_active_workspace_id()
+        workspace['active'] = workspace_id == get_workspace_id()
         return jsonify({'success': True, 'workspace': workspace})
     except Exception as e:
         logger.error(f"[Workspaces] get error: {e}", exc_info=True)
@@ -194,15 +194,8 @@ def delete_workspace(workspace_id: str) -> ResponseReturnValue:
         deleted = current_app.db.delete_workspace(workspace_id)
         if not deleted:
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
-        if config.app_state.get_active_workspace_id() == workspace_id:
-            # Fall back to the default workspace (or None = all docs)
-            default_id = current_app.db.get_default_workspace_id()
-            if default_id:
-                config.app_state.set_active_workspace_id(default_id)
-            else:
-                config.app_state.state['active_workspace_id'] = None
-                config.app_state._save_state()
-        return jsonify({'success': True})
+        fallback_id = current_app.db.get_default_workspace_id()
+        return jsonify({'success': True, 'fallback_workspace_id': fallback_id})
     except Exception as e:
         logger.error(f"[Workspaces] delete error: {e}", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
@@ -224,7 +217,7 @@ def get_active_workspace() -> ResponseReturnValue:
       200:
         description: Active workspace object, or null
     """
-    active_id = config.app_state.get_active_workspace_id()
+    active_id = get_workspace_id()
     if not active_id:
         return jsonify({'success': True, 'workspace': None})
     try:
@@ -345,7 +338,6 @@ def switch_workspace() -> ResponseReturnValue:
         workspace = current_app.db.get_workspace(workspace_id)
         if workspace is None:
             return jsonify({'success': False, 'message': _NOT_FOUND}), 404
-        config.app_state.set_active_workspace_id(workspace_id)
         from ..utils.logging_config import sanitize_log_value as _slv
         logger.info("[Workspaces] Switched to workspace: %s (%s)", _slv(workspace['name']), _slv(workspace_id))
         return jsonify({'success': True, 'workspace': workspace})

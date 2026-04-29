@@ -58,25 +58,19 @@ class TestListConnectors:
 
     def test_returns_empty_list(self, client, app):
         app.db.list_connectors = MagicMock(return_value=[])
-        with patch("src.routes.connector_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/connectors")
+        resp = client.get("/api/connectors")
         assert resp.status_code == 200
         assert resp.get_json()["connectors"] == []
 
     def test_returns_connectors(self, client, app):
         app.db.list_connectors = MagicMock(return_value=[_connector()])
-        with patch("src.routes.connector_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/connectors")
+        resp = client.get("/api/connectors")
         data = resp.get_json()
         assert len(data["connectors"]) == 1
 
     def test_db_error_returns_500(self, client, app):
         app.db.list_connectors = MagicMock(side_effect=Exception("db error"))
-        with patch("src.routes.connector_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.get("/api/connectors")
+        resp = client.get("/api/connectors")
         assert resp.status_code == 500
 
 
@@ -89,12 +83,10 @@ class TestCreateConnector:
     def test_creates_local_folder_connector(self, client, app, tmp_path):
         app.db.create_connector = MagicMock(return_value="conn-new")
         app.db.get_connector = MagicMock(return_value=_connector(id="conn-new"))
-        with patch("src.routes.connector_routes.config") as mock_cfg:
-            mock_cfg.app_state.get_active_workspace_id.return_value = None
-            resp = client.post("/api/connectors", json={
-                "connector_type": "local_folder",
-                "config": {"path": str(tmp_path)},
-            })
+        resp = client.post("/api/connectors", json={
+            "connector_type": "local_folder",
+            "config": {"path": str(tmp_path)},
+        })
         assert resp.status_code == 201
         assert resp.get_json()["success"] is True
 

@@ -26,6 +26,7 @@ else:
 
 from .. import config, exceptions
 from ..utils.logging_config import get_logger
+from ..utils.workspace import get_workspace_id
 
 try:
     from pydantic import ValidationError as PydanticValidationError
@@ -893,7 +894,7 @@ def api_chat() -> ResponseReturnValue:
             fields, active_model, current_app.ollama_client, current_app.db
         )
 
-        workspace_id = config.app_state.get_active_workspace_id()
+        workspace_id = get_workspace_id()
 
         messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in fields['chat_history']]
         local_ctx, web_ctx, sources = _retrieve_contexts(

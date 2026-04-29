@@ -21,9 +21,9 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, request
 from flask.typing import ResponseReturnValue
 
-from .. import config
 from ..connectors.registry import connector_registry
 from ..utils.logging_config import get_logger
+from ..utils.workspace import get_workspace_id
 
 logger = get_logger(__name__)
 
@@ -69,7 +69,7 @@ def list_connectors() -> ResponseReturnValue:
       200:
         description: List of connector objects
     """
-    workspace_id = config.app_state.get_active_workspace_id()
+    workspace_id = get_workspace_id()
     try:
         connectors = current_app.db.list_connectors(workspace_id=workspace_id)
         return jsonify({'success': True, 'connectors': connectors})
@@ -117,7 +117,7 @@ def create_connector() -> ResponseReturnValue:
             'message': f"Unknown connector_type. Available: {connector_registry.available_types()}",
         }), 400
 
-    workspace_id = config.app_state.get_active_workspace_id()
+    workspace_id = get_workspace_id()
 
     # Validate config before persisting
     cls = connector_registry.get_class(connector_type)

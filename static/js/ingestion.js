@@ -17,6 +17,12 @@ const testBtn = document.getElementById('test-btn');
 const testResults = document.getElementById('test-results');
 const documentsList = document.getElementById('documents-list');
 
+function _wsHeaders(extra) {
+    const id = localStorage.getItem('localchat_active_workspace_id');
+    const base = id ? { 'X-Workspace-ID': id } : {};
+    return Object.assign(base, extra || {});
+}
+
 // Initialize
 function init() {
     // Upload form
@@ -81,6 +87,7 @@ async function uploadDocuments() {
     try {
         const response = await fetch('/api/documents/upload', {
             method: 'POST',
+            headers: _wsHeaders(),
             body: formData
         });
         
@@ -280,7 +287,7 @@ async function loadDocuments() {
     documentsList.innerHTML = '<div class="text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div> Loading...</div>';
     
     try {
-        const response = await fetch('/api/documents/list');
+        const response = await fetch('/api/documents/list', { headers: _wsHeaders() });
         const data = await response.json();
         
         if (data.success && data.documents && data.documents.length > 0) {
@@ -349,7 +356,8 @@ async function clearDatabase() {
     
     try {
         const response = await fetch('/api/documents/clear', {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: _wsHeaders()
         });
         
         const data = await response.json();

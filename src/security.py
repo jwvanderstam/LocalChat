@@ -133,11 +133,11 @@ def _is_rbac_bypassed(app) -> bool:
 
 
 def _resolve_workspace_id(kwargs: dict, req) -> str | None:
-    """Extract workspace_id from URL params, request JSON, or active state."""
+    """Extract workspace_id from URL params, request JSON, or X-Workspace-ID header."""
     return (
         kwargs.get('workspace_id')
         or (req.get_json(silent=True) or {}).get('workspace_id')
-        or config.app_state.get_active_workspace_id()
+        or req.headers.get('X-Workspace-ID')
     )
 
 def init_security(app: Flask) -> None:

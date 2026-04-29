@@ -498,7 +498,6 @@ class AppState:
         # Return default state
         default_state = {
             'active_model': None,
-            'active_workspace_id': None,
             'document_count': 0,
             'last_updated': None
         }
@@ -593,23 +592,6 @@ class AppState:
         self._save_state()
         logger.debug(f"Document count incremented by {increment} to {self.state['document_count']}")
 
-    def get_active_workspace_id(self) -> str | None:
-        """Return the UUID of the active workspace.
-
-        Re-reads from disk on every call so all gunicorn workers see the
-        latest value without needing inter-process signalling.
-        """
-        try:
-            with open(self.state_file) as f:
-                return json.load(f).get('active_workspace_id')
-        except Exception:
-            return self.state.get('active_workspace_id')
-
-    def set_active_workspace_id(self, workspace_id: str) -> None:
-        """Persist the active workspace UUID."""
-        self.state['active_workspace_id'] = workspace_id
-        self._save_state()
-        logger.debug("Active workspace set to %s", str(workspace_id).replace('\r', '').replace('\n', ' '))
 
 
 # ============================================================================
