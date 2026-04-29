@@ -62,11 +62,11 @@ def _save_uploaded_files(files) -> list:
     return saved
 
 
-def _update_document_count(app) -> int:
+def _update_document_count(app, workspace_id: str | None = None) -> int:
     """Fetch and cache the latest document count, falling back to the cached value."""
     from .. import config
     try:
-        doc_count = app.db.get_document_count()
+        doc_count = app.db.get_document_count(workspace_id=workspace_id)
         config.app_state.set_document_count(doc_count)
         return doc_count
     except Exception as count_err:
@@ -218,7 +218,7 @@ def api_upload_documents() -> ResponseReturnValue:
         try:
             for file_path in file_paths:
                 yield from _stream_file_ingest(app, file_path, upload_workspace_id)
-            doc_count = _update_document_count(app)
+            doc_count = _update_document_count(app, upload_workspace_id)
             yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
         except GeneratorExit:
             pass
@@ -410,9 +410,10 @@ def api_document_stats() -> ResponseReturnValue:
           $ref: '#/definitions/Error'
     """
     from ..db import DatabaseUnavailableError
+    workspace_id = get_workspace_id()
     try:
-        doc_count = current_app.db.get_document_count()
-        chunk_count = current_app.db.get_chunk_count()
+        doc_count = current_app.db.get_document_count(workspace_id=workspace_id)
+        chunk_count = current_app.db.get_chunk_count(workspace_id=workspace_id)
         chunk_stats = current_app.db.get_chunk_statistics()
 
         return jsonify({

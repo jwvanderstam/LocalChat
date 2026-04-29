@@ -125,6 +125,21 @@ class TestDocumentStatsRoute:
         response = client.get('/api/documents/stats')
         assert response.status_code == 503
 
+    def test_stats_passes_workspace_id_to_db(self, client, app):
+        app.db.get_document_count = MagicMock(return_value=2)
+        app.db.get_chunk_count = MagicMock(return_value=10)
+        app.db.get_chunk_statistics = MagicMock(return_value={})
+        client.get('/api/documents/stats', headers={'X-Workspace-ID': 'ws-abc'})
+        app.db.get_document_count.assert_called_once_with(workspace_id='ws-abc')
+        app.db.get_chunk_count.assert_called_once_with(workspace_id='ws-abc')
+
+    def test_stats_no_workspace_header_passes_none(self, client, app):
+        app.db.get_document_count = MagicMock(return_value=5)
+        app.db.get_chunk_count = MagicMock(return_value=25)
+        app.db.get_chunk_statistics = MagicMock(return_value={})
+        client.get('/api/documents/stats')
+        app.db.get_document_count.assert_called_once_with(workspace_id=None)
+
 
 class TestDocumentSearchRoute:
     def test_search_returns_results(self, client, app):

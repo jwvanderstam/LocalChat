@@ -185,3 +185,54 @@ class TestDocumentLoading:
 
         assert success is False
         assert "unsupported" in error.lower() or "file type" in error.lower()
+
+
+class TestImageFileLoading:
+    """Test image file loading via vision model."""
+
+    def test_load_image_file_fails_without_vision_model(self, tmp_path):
+        """No vision model should return a clear error without reading the file."""
+        from src.rag import doc_processor
+
+        img_file = tmp_path / "photo.jpg"
+        img_file.write_bytes(b"\xff\xd8\xff" + b"\x00" * 10)
+
+        with patch('src.rag.loaders.ollama_client') as mock_client:
+            mock_client.get_vision_model.return_value = None
+            success, error = doc_processor.load_image_file(str(img_file))
+
+        assert success is False
+        assert "vision model" in error.lower()
+        mock_client.get_vision_model.assert_called_once()
+
+    def test_load_image_file_skips_file_read_when_no_vision_model(self, tmp_path):
+        """Vision model check must happen before reading the file into memory."""
+        from src.rag import doc_processor
+
+        img_file = tmp_path / "large.png"
+        img_file.write_bytes(b"\x89PNG" + b"\x00" * 100)
+
+        with patch('src.rag.loaders.ollama_client') as mock_client:
+            mock_client.get_vision_model.return_value = None
+            with patch('builtins.open', side_effect=AssertionError("file was read")) as mock_open:
+                success, error = doc_processor.load_image_file(str(img_file))
+                # open() must not have been called for the image data read
+                mock_open.assert_not_called()
+
+        assert success is False
+
+    def test_load_image_file_describes_image_with_vision_model(self, tmp_path):
+        """When a vision model is present, the description is returned."""
+        from src.rag import doc_processor
+
+        img_file = tmp_path / "cat.jpg"
+        img_file.write_bytes(b"\xff\xd8\xff" + b"\x00" * 10)
+
+        with patch('src.rag.loaders.ollama_client') as mock_client:
+            mock_client.get_vision_model.return_value = 'llava'
+            mock_client.describe_image.return_value = (True, "A photo of a cat.")
+            success, content = doc_processor.load_image_file(str(img_file))
+
+        assert success is True
+        assert "cat.jpg" in content
+        assert "A photo of a cat." in content

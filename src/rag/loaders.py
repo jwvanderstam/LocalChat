@@ -505,14 +505,14 @@ class DocumentLoaderMixin:
         try:
             logger.info(f"Loading image file: {file_path}")
 
+            vision_model = ollama_client.get_vision_model()
+            if not vision_model:
+                return False, "No vision model available for image processing. Install a vision-capable model (e.g. llava) via the Models page."
+
             with open(file_path, 'rb') as f:
                 image_data = f.read()
 
             image_b64 = base64.b64encode(image_data).decode('utf-8')
-
-            vision_model = ollama_client.get_vision_model()
-            if not vision_model:
-                return False, "No vision model available for image processing"
 
             success, description = ollama_client.describe_image(vision_model, image_b64)
             if not success:
