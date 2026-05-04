@@ -45,7 +45,7 @@ ddgs>=9.14.1
 numpy>=2.4.4
 
 # Multipart form handling
-python-multipart==0.0.26
+python-multipart==0.0.27
 
 # Markdown rendering
 markdown==3.10.2
