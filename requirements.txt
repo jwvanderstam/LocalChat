@@ -13,7 +13,7 @@ Flask-Limiter==4.1.1       # Rate limiting
 Flask-CORS==6.0.2          # CORS support
 
 # Database — PostgreSQL + pgvector
-psycopg[binary]>=3.3.3
+psycopg[binary]>=3.3.4
 psycopg-pool>=3.3.0
 
 # Validation
