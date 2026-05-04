@@ -14,7 +14,7 @@ Flask-CORS==6.0.2          # CORS support
 
 # Database — PostgreSQL + pgvector
 psycopg[binary]>=3.3.3
-psycopg-pool>=3.3.0
+psycopg-pool>=3.3.1
 
 # Validation
 pydantic>=2.12.5
