@@ -98,6 +98,36 @@ CORS_ORIGINS: list[str] = [o.strip() for o in os.environ.get('CORS_ORIGINS', 'lo
 ADMIN_USERNAME: str = os.environ.get('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD: str = os.environ.get('ADMIN_PASSWORD', '')
 
+_WEAK_PLACEHOLDERS: frozenset[str] = frozenset({
+    'secret', 'changeme', 'change-me', 'dev', 'test', 'password', 'admin',
+    'change-this-to-a-random-secret-key-in-production',
+    'change-this-to-a-random-jwt-secret-in-production',
+})
+
+
+def validate_secrets() -> None:
+    """Abort startup if production secrets are weak or missing.
+
+    Enforces: minimum 32-char length for SECRET_KEY / JWT_SECRET_KEY,
+    rejection of known placeholder values, and a non-empty ADMIN_PASSWORD.
+    Raises SystemExit(1) so gunicorn worker startup aborts cleanly.
+    """
+    if APP_ENV != 'production':
+        return
+    errors: list[str] = []
+    for name, value in (('SECRET_KEY', SECRET_KEY), ('JWT_SECRET_KEY', JWT_SECRET_KEY)):
+        if value.lower() in _WEAK_PLACEHOLDERS:
+            errors.append(f"{name} is a known placeholder — set a random value")
+        elif len(value) < 32:
+            errors.append(f"{name} is too short (minimum 32 characters)")
+    if not ADMIN_PASSWORD:
+        errors.append("ADMIN_PASSWORD must be set in production")
+    if errors:
+        for msg in errors:
+            logger.critical(f"[Security] {msg}")
+        raise SystemExit(1)
+
+
 # ============================================================================
 # DATABASE CONFIGURATION
 # ============================================================================

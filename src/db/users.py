@@ -52,6 +52,33 @@ class UsersMixin:
         logger.info(f"[Users] Created user '{username}' id={user_id}")
         return user_id
 
+    def seed_admin_user(
+        self,
+        username: str,
+        hashed_password: str,
+        role: str = 'admin',
+    ) -> None:
+        """Insert the admin user if no row with that username exists yet.
+
+        Uses INSERT ... ON CONFLICT DO NOTHING so concurrent workers calling
+        this at startup are safe without any application-level locking.
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot seed admin user: DB not connected")
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO users (username, hashed_password, role)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (username) DO NOTHING
+                    """,
+                    (username.lower().strip(), hashed_password, role),
+                )
+                seeded = cur.rowcount == 1
+        if seeded:
+            logger.info(f"[Users] Admin user '{username}' seeded")
+
     # ------------------------------------------------------------------
     # Read
     # ------------------------------------------------------------------

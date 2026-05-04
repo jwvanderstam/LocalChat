@@ -59,6 +59,9 @@ def create_app(
         >>> test_config = {'TESTING': True, 'DATABASE_URL': 'sqlite:///:memory:'}
         >>> app = create_app(config_override=test_config, testing=True)
     """
+    if not testing:
+        config.validate_secrets()
+
     # Get root directory
     root_dir = Path(__file__).parent.parent
 
@@ -352,20 +355,20 @@ def _init_reranker_scheduler(app: LocalChatApp, db) -> None:
 
 
 def _seed_admin_user(db) -> None:
-    """Auto-create the admin DB user on first startup if ADMIN_USERNAME is set."""
-    admin_username = config.ADMIN_USERNAME
+    """Idempotently seed the admin user if ADMIN_PASSWORD is configured.
+
+    Uses an upsert so concurrent gunicorn workers starting simultaneously
+    are all safe to call this without a TOCTOU race.
+    """
     admin_password = config.ADMIN_PASSWORD
     if not admin_password:
-        return  # No password set; skip seeding
+        return
     try:
-        if db.count_users() == 0:
-            from .db.users import hash_user_password
-            db.create_user(
-                username=admin_username,
-                hashed_password=hash_user_password(admin_password),
-                role='admin',
-            )
-            logger.info(f"[Auth] Admin user '{admin_username}' seeded in users table")
+        from .db.users import hash_user_password
+        db.seed_admin_user(
+            username=config.ADMIN_USERNAME,
+            hashed_password=hash_user_password(admin_password),
+        )
     except Exception as exc:
         logger.warning(f"[Auth] Admin seeding skipped: {exc}")
 
