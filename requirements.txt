@@ -39,7 +39,7 @@ cryptography>=47.0.0
 
 # HTTP Requests
 requests==2.33.1
-ddgs>=9.14.1
+ddgs>=9.14.2
 
 # Numerical processing for vector operations
 numpy>=2.4.4
