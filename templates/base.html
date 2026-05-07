@@ -171,23 +171,28 @@
     
     <!-- Common JavaScript -->
     <script>
+        // Render cached model name immediately to avoid "Loading..." flash on navigation
+        const _cachedModel = localStorage.getItem('lc-active-model');
+        if (_cachedModel) document.getElementById('active-model').textContent = _cachedModel;
+
         // Update status bar
         function updateStatus() {
             fetch('/api/status')
                 .then(response => response.json())
                 .then(data => {
                     // Update model
-                    document.getElementById('active-model').textContent = 
-                        data.active_model || 'None';
-                    
+                    const modelName = data.active_model || 'None';
+                    document.getElementById('active-model').textContent = modelName;
+                    localStorage.setItem('lc-active-model', modelName);
+
                     // Update document count
-                    document.getElementById('doc-count').textContent = 
+                    document.getElementById('doc-count').textContent =
                         data.document_count || 0;
-                    
+
                     // Update service status
                     const ollamaStatus = document.getElementById('ollama-status');
                     const dbStatus = document.getElementById('db-status');
-                    
+
                     if (data.ollama) {
                         ollamaStatus.classList.remove('bg-secondary');
                         ollamaStatus.classList.add('bg-success');
@@ -195,7 +200,7 @@
                         ollamaStatus.classList.remove('bg-success');
                         ollamaStatus.classList.add('bg-danger');
                     }
-                    
+
                     if (data.database) {
                         dbStatus.classList.remove('bg-secondary');
                         dbStatus.classList.add('bg-success');
@@ -215,7 +220,7 @@
                     console.error('Error updating status:', error);
                 });
         }
-        
+
         // Update status on load and every 5 seconds
         updateStatus();
         setInterval(updateStatus, 5000);

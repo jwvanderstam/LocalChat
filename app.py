@@ -15,7 +15,10 @@ Last Updated: 2026-03-15 (Refactored to use application factory)
 """
 
 import os
+import socket
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 # Add src to path if running from root
@@ -41,26 +44,42 @@ def create_gunicorn_app():
     return create_app()
 
 
-def _print_db_unavailable_warning() -> None:
-    """Print a prominent console warning when PostgreSQL is not available at startup."""
-    border = "=" * 60
-    print("", file=sys.stderr)
-    print(border, file=sys.stderr)
-    print("  WARNING: PostgreSQL database is NOT available", file=sys.stderr)
-    print(border, file=sys.stderr)
-    print("  LocalChat is running in DEGRADED MODE:", file=sys.stderr)
-    print("    - Document storage and retrieval are disabled", file=sys.stderr)
-    print("    - Conversation history will not be persisted", file=sys.stderr)
-    print("    - RAG features are unavailable", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("  To resolve this, ensure:", file=sys.stderr)
-    print("    1. PostgreSQL is installed and running", file=sys.stderr)
-    print("    2. The database host/port in config.py are correct", file=sys.stderr)
-    print("    3. The database credentials are correct", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("  Set REQUIRE_DATABASE=true to abort startup instead.", file=sys.stderr)
-    print(border, file=sys.stderr)
-    print("", file=sys.stderr)
+def _is_db_reachable(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+def _ensure_db_running() -> None:
+    from src.config import PG_HOST, PG_PORT
+
+    if _is_db_reachable(PG_HOST, PG_PORT):
+        return
+
+    logger.info("PostgreSQL not reachable — starting db service via docker compose...")
+    try:
+        subprocess.run(
+            ["docker", "compose", "up", "-d", "db"],
+            check=True,
+        )
+    except FileNotFoundError:
+        logger.error("docker not found — start PostgreSQL manually and retry.")
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"docker compose up db failed (exit {e.returncode})")
+        sys.exit(1)
+
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if _is_db_reachable(PG_HOST, PG_PORT):
+            logger.info("PostgreSQL is up.")
+            return
+        time.sleep(1)
+
+    logger.error("PostgreSQL did not become reachable within 30 s — aborting.")
+    sys.exit(1)
 
 
 def main():
@@ -69,12 +88,10 @@ def main():
 
     Creates and runs the Flask application using the factory pattern.
     """
+    _ensure_db_running()
+
     # Create application
     app = create_app()
-
-    # Warn the user prominently if the database is unavailable
-    if not app.startup_status.get('database', False):
-        _print_db_unavailable_warning()
 
     # Get configuration from environment
     HOST = os.environ.get('SERVER_HOST', 'localhost')
