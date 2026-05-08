@@ -299,15 +299,22 @@ async function loadDocuments() {
                 
                 html += `
                     <div class="list-group-item">
-                        <div class="d-flex w-100 justify-content-between">
+                        <div class="d-flex w-100 justify-content-between align-items-start">
                             <h6 class="mb-1">
                                 <i class="bi bi-file-text me-2"></i>${escapeHtml(doc.filename)}
                             </h6>
+                            <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0"
+                                    onclick="deleteDocument(${doc.id}, '${escapeHtml(doc.filename).replace(/'/g, "\\'")}')"
+                                    title="Delete document">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <p class="mb-0 text-muted small">
+                                <span class="badge bg-secondary">${chunkCount} chunks</span>
+                            </p>
                             <small class="text-muted">${date}</small>
                         </div>
-                        <p class="mb-1 text-muted small">
-                            <span class="badge bg-secondary">${chunkCount} chunks</span>
-                        </p>
                     </div>
                 `;
             });
@@ -335,6 +342,27 @@ async function loadStats() {
         }
     } catch (error) {
         console.error('Error loading stats:', error);
+    }
+}
+
+// Delete a single document
+async function deleteDocument(docId, filename) {
+    if (!confirm(`Delete "${filename}" and all its chunks?\n\nThis cannot be undone.`)) return;
+
+    try {
+        const response = await fetch(`/api/documents/${docId}`, {
+            method: 'DELETE',
+            headers: _wsHeaders(),
+        });
+        const data = await response.json();
+        if (data.success) {
+            await loadDocuments();
+            await loadStats();
+        } else {
+            alert(data.message || 'Failed to delete document.');
+        }
+    } catch (error) {
+        alert('Error deleting document: ' + error.message);
     }
 }
 

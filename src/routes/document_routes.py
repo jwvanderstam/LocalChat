@@ -520,6 +520,52 @@ def api_get_chunk_context(chunk_id: int) -> ResponseReturnValue:
         return jsonify({'success': False, 'message': 'Failed to fetch chunk context'}), 500
 
 
+@bp.route('/<int:doc_id>', methods=['DELETE'])
+def api_delete_document(doc_id: int) -> ResponseReturnValue:
+    """
+    Delete a single document and its chunks.
+
+    Permanently removes the document record and all associated chunks via
+    cascading foreign-key delete.
+    ---
+    tags:
+      - Documents
+    summary: Delete a document
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        type: integer
+        description: ID of the document to delete
+    responses:
+      200:
+        description: Document deleted successfully
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+      404:
+        description: doc_id is not an integer
+      500:
+        description: Unexpected server error
+      503:
+        description: Database unavailable
+    """
+    from ..db import DatabaseUnavailableError
+
+    try:
+        current_app.db.delete_document(doc_id)
+        _update_document_count(current_app)
+        return jsonify({'success': True})
+    except DatabaseUnavailableError:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting document {doc_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to delete document'}), 500
+
+
 @bp.route('/clear', methods=['DELETE'])
 def api_clear_documents() -> ResponseReturnValue:
     """

@@ -35,20 +35,42 @@ class TestDocumentListRoute:
 
 
 class TestDocumentDeleteRoute:
-    def test_delete_document_success(self, client, app):
-        app.db.delete_document = MagicMock(return_value=True)
-        app.db.get_document_count = MagicMock(return_value=0)
+    def test_delete_document_returns_200_and_success_true(self, client, app):
+        app.db.delete_document = MagicMock()
+        app.db.get_document_count = MagicMock(return_value=2)
         response = client.delete('/api/documents/1')
-        assert response.status_code in (200, 204, 404)
+        assert response.status_code == 200
+        assert response.get_json()['success'] is True
 
-    def test_delete_document_not_found(self, client, app):
-        app.db.delete_document = MagicMock(return_value=False)
-        response = client.delete('/api/documents/999')
-        assert response.status_code in (200, 404)
+    def test_delete_document_calls_db_with_correct_id(self, client, app):
+        app.db.delete_document = MagicMock()
+        app.db.get_document_count = MagicMock(return_value=0)
+        client.delete('/api/documents/42')
+        app.db.delete_document.assert_called_once_with(42)
 
-    def test_delete_document_invalid_id(self, client):
+    def test_delete_document_updates_document_count(self, client, app):
+        app.db.delete_document = MagicMock()
+        app.db.get_document_count = MagicMock(return_value=3)
+        client.delete('/api/documents/1')
+        app.db.get_document_count.assert_called_once()
+
+    def test_delete_document_db_unavailable_returns_503(self, client, app):
+        from src.db import DatabaseUnavailableError
+        app.db.delete_document = MagicMock(
+            side_effect=DatabaseUnavailableError("not connected")
+        )
+        response = client.delete('/api/documents/1')
+        assert response.status_code == 503
+
+    def test_delete_document_unexpected_error_returns_500(self, client, app):
+        app.db.delete_document = MagicMock(side_effect=RuntimeError("boom"))
+        response = client.delete('/api/documents/1')
+        assert response.status_code == 500
+        assert response.get_json()['success'] is False
+
+    def test_delete_document_invalid_id_returns_404(self, client):
         response = client.delete('/api/documents/not-an-id')
-        assert response.status_code in (400, 404)
+        assert response.status_code == 404
 
 
 class TestDocumentClearRoute:
