@@ -1099,11 +1099,17 @@
         return `${m}m`;
     }
 
+    function _wsHeaders(extra) {
+        const id = localStorage.getItem('localchat_active_workspace_id');
+        const base = id ? { 'X-Workspace-ID': id } : {};
+        return Object.assign(base, extra || {});
+    }
+
     async function loadOverviewData() {
         try {
             const [statusRes, statsRes, metricsRes] = await Promise.allSettled([
-                fetch('/api/status'),
-                fetch('/api/documents/stats'),
+                fetch('/api/status', { headers: _wsHeaders() }),
+                fetch('/api/documents/stats', { headers: _wsHeaders() }),
                 fetch('/api/metrics.json')
             ]);
 
@@ -1218,5 +1224,6 @@
 
     loadOverviewData();
     setInterval(loadOverviewData, 15000);
+    document.addEventListener('workspace-switched', loadOverviewData);
 </script>
 {% endblock %}

@@ -411,26 +411,42 @@ class DocumentsMixin:
             'metadata': row[4] or {},
         }
 
-    def get_document_count(self) -> int:
-        """Return the total number of documents in the database."""
+    def get_document_count(self, workspace_id: str | None = None) -> int:
+        """Return the number of documents, optionally scoped to a workspace."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get document count: Database is not connected")
 
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM documents")
+                if workspace_id:
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM documents WHERE workspace_id = %s",
+                        (workspace_id,),
+                    )
+                else:
+                    cursor.execute("SELECT COUNT(*) FROM documents")
                 count = cursor.fetchone()[0]
                 logger.debug(f"Document count: {count}")
                 return count
 
-    def get_chunk_count(self) -> int:
-        """Return the total number of chunks in the database."""
+    def get_chunk_count(self, workspace_id: str | None = None) -> int:
+        """Return the number of chunks, optionally scoped to a workspace."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk count: Database is not connected")
 
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM document_chunks")
+                if workspace_id:
+                    cursor.execute(
+                        """
+                        SELECT COUNT(*) FROM document_chunks dc
+                        JOIN documents d ON dc.document_id = d.id
+                        WHERE d.workspace_id = %s
+                        """,
+                        (workspace_id,),
+                    )
+                else:
+                    cursor.execute("SELECT COUNT(*) FROM document_chunks")
                 count = cursor.fetchone()[0]
                 logger.debug(f"Chunk count: {count}")
                 return count

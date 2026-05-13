@@ -144,7 +144,10 @@ async function uploadDocuments() {
 
                 if (data.done) {
                     progressBar.style.width = '100%';
-                    progressMessage.textContent = `Completed! Total documents: ${data.total_documents}`;
+                    const anyFailed = results.some(r => !r.success);
+                    progressMessage.textContent = anyFailed
+                        ? `Finished with errors. Total documents in workspace: ${data.total_documents}`
+                        : `Completed! Total documents in workspace: ${data.total_documents}`;
                 }
             }
         }
@@ -332,7 +335,7 @@ async function loadDocuments() {
 // Load statistics
 async function loadStats() {
     try {
-        const response = await fetch('/api/documents/stats');
+        const response = await fetch('/api/documents/stats', { headers: _wsHeaders() });
         const data = await response.json();
         
         if (data.success) {

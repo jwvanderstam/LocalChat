@@ -40,8 +40,8 @@ bp = Blueprint('api', __name__)
 logger = get_logger(__name__)
 
 # TTL cache for document count — /status is polled ~every second by the UI;
-# avoid a DB round-trip on every poll by caching for 5 s.
-_status_doc_count_cache: list = [0, 0.0]  # [count, last_refresh_monotonic]
+# avoid a DB round-trip on every poll by caching for 5 s, keyed by workspace_id.
+_status_doc_count_cache: dict[str | None, tuple[int, float]] = {}
 _STATUS_CACHE_TTL: float = 5.0
 _status_cache_lock = threading.Lock()
 
@@ -271,17 +271,20 @@ def _build_context_prompt(
     return messages, final_message
 
 
-def _get_doc_count_cached(db) -> tuple[int, bool]:
-    """Return (doc_count, db_still_available) using a short TTL cache."""
+def _get_doc_count_cached(db, workspace_id: str | None) -> tuple[int, bool]:
+    """Return (doc_count, db_still_available) using a short TTL cache, scoped by workspace."""
     with _status_cache_lock:
         now = time.monotonic()
-        if now - _status_doc_count_cache[1] > _STATUS_CACHE_TTL:
+        cached = _status_doc_count_cache.get(workspace_id)
+        if cached is None or now - cached[1] > _STATUS_CACHE_TTL:
             try:
-                _status_doc_count_cache[:] = [db.get_document_count(), now]
+                count = db.get_document_count(workspace_id=workspace_id)
+                _status_doc_count_cache[workspace_id] = (count, now)
+                return count, True
             except Exception as e:
                 logger.warning(f"Could not get document count: {e}")
                 return 0, False
-        return _status_doc_count_cache[0], True
+        return cached[0], True
 
 
 def _check_ollama_live() -> bool:
@@ -361,8 +364,9 @@ def api_status() -> ResponseReturnValue:
     """
     db_available = current_app.startup_status.get('database', False)
     doc_count = 0
+    workspace_id = get_workspace_id()
     if db_available:
-        doc_count, db_available = _get_doc_count_cached(current_app.db)
+        doc_count, db_available = _get_doc_count_cached(current_app.db, workspace_id)
 
     ollama_available = _check_ollama_live()
 

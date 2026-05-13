@@ -72,11 +72,11 @@ class MockDatabase:
             ))
         return results
 
-    def get_document_count(self) -> int:
+    def get_document_count(self, workspace_id: str | None = None) -> int:
         """Get document count."""
         return len(self.documents)
 
-    def get_chunk_count(self) -> int:
+    def get_chunk_count(self, workspace_id: str | None = None) -> int:
         """Get chunk count."""
         return len(self.chunks)
 
