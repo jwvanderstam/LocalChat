@@ -57,7 +57,7 @@ class GpuMonitor:
             List of GPU info dicts (one per physical GPU), or empty list.
         """
         now = time.monotonic()
-        if self._cache is not None and (now - self._cache_time) < self._ttl:
+        if (now - self._cache_time) < self._ttl:
             return self._cache
         gpus = self._get_nvidia_gpu_info() or self._get_amd_gpu_info()
         self._cache = gpus
