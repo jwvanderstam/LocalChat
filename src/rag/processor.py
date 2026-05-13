@@ -362,15 +362,19 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 logger.error(error_msg)
                 return False, error_msg, None
 
-            db.insert_chunks_batch(chunks_data)
+            chunk_ids = db.insert_chunks_batch(chunks_data)
             logger.info("Chunks inserted successfully")
 
             # ── GraphRAG entity extraction (optional) ─────────────────────
             if config.GRAPH_RAG_ENABLED:
                 try:
                     from ..graph.extractor import EntityExtractor
-                    # Fetch chunk IDs just inserted so the extractor has them
-                    chunks_with_ids = db.get_chunks_with_ids(doc_id)
+                    # Build chunks_with_ids from in-memory data + returned IDs —
+                    # avoids a DB round-trip to re-fetch what we just inserted.
+                    chunks_with_ids = [
+                        {'chunk_id': cid, 'chunk_text': cd['chunk_text']}
+                        for cid, cd in zip(chunk_ids, chunks_data, strict=False)
+                    ]
                     EntityExtractor().extract_for_document(doc_id, chunks_with_ids, db)
                 except Exception as graph_exc:
                     logger.warning(f"[GraphRAG] Entity extraction failed (non-fatal): {graph_exc}")

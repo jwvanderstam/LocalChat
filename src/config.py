@@ -249,6 +249,10 @@ EMBEDDING_CACHE_ENABLED: bool = True         # Enable query embedding caching
 MAX_WORKERS: int = 8                         # Parallel processing threads
 BATCH_SIZE: int = 512                        # Embeddings batch size
 BATCH_MAX_WORKERS: int = 8                   # Batch processor workers
+# Concurrent sub-batches sent to Ollama during embedding. Ollama serialises
+# GPU work internally, so >2 gives diminishing returns and risks starving
+# concurrent chat requests on memory-constrained machines.
+EMBEDDING_CONCURRENT_BATCHES: int = int(os.environ.get('EMBEDDING_CONCURRENT_BATCHES', '2'))
 
 # Database Performance
 # ef_search is computed dynamically in documents.py as max(top_k * 2, 40)

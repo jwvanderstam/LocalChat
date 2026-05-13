@@ -39,8 +39,9 @@ class MockDatabase:
         }
         return doc_id
 
-    def insert_chunks_batch(self, chunks_data: list[tuple]) -> None:
+    def insert_chunks_batch(self, chunks_data: list[tuple]) -> list[int]:
         """Insert chunks in batch."""
+        inserted_ids = []
         for doc_id, chunk_text, chunk_index, embedding in chunks_data:
             chunk_id = self._chunk_id_counter
             self._chunk_id_counter += 1
@@ -55,6 +56,9 @@ class MockDatabase:
 
             if doc_id in self.documents:
                 self.documents[doc_id]['chunk_count'] += 1
+
+            inserted_ids.append(chunk_id)
+        return inserted_ids
 
     def search_similar_chunks(self, query_embedding: list[float], top_k: int = 5,
                             file_type_filter: str | None = None) -> list[tuple]:

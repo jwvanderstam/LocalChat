@@ -73,7 +73,7 @@ def mock_db():
     db.is_connected = True
     db.document_exists = Mock(return_value=(False, None))
     db.insert_document = Mock(return_value=1)
-    db.insert_chunks_batch = Mock()
+    db.insert_chunks_batch = Mock(return_value=[])
     db.search_similar_chunks = Mock(return_value=[])
     db.get_document_count = Mock(return_value=0)
     db.get_chunk_count = Mock(return_value=0)

@@ -147,7 +147,7 @@ class DocumentsMixin:
     def insert_chunks_batch(
         self,
         chunks_data: list[tuple[int, str, int, list[float] | np.ndarray] | dict[str, Any]],
-    ) -> None:
+    ) -> list[int]:
         """
         Insert multiple chunks in a single transaction.
 
@@ -155,11 +155,14 @@ class DocumentsMixin:
             chunks_data: List of tuples ``(doc_id, chunk_text, chunk_index, embedding)``
                          or dicts with keys ``doc_id, chunk_text, chunk_index, embedding[, metadata]``.
 
+        Returns:
+            List of inserted chunk IDs in insertion order.
+
         Raises:
             DatabaseUnavailableError: If database is not connected
         """
         if not chunks_data:
-            return
+            return []
 
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot insert chunks: Database is not connected")
@@ -172,6 +175,7 @@ class DocumentsMixin:
             "INSERT INTO document_chunks"
             " (document_id, chunk_text, chunk_index, embedding, metadata)"
             " VALUES (%s, %s, %s, %s::vector, %s)"
+            " RETURNING id"
         )
         rows = []
         for chunk in chunks_data:
@@ -192,13 +196,19 @@ class DocumentsMixin:
                 Jsonb(metadata),
             ))
 
+        # Pipeline mode batches all INSERT statements in one round-trip.
+        # RETURNING id is collected after the pipeline flushes.
+        chunk_ids: list[int] = []
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 with conn.pipeline():
                     for row in rows:
                         cursor.execute(insert_sql, row)
+                # Fetch RETURNING results after pipeline flush (outside pipeline block).
+                chunk_ids = [r[0] for r in cursor.fetchall()]
             conn.commit()
         logger.info(f"Successfully inserted {len(chunks_data)} chunks")
+        return chunk_ids
 
     def search_similar_chunks(
         self,
