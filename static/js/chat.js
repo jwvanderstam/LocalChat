@@ -568,18 +568,30 @@ async function sendMessage() {
 // UTILITIES
 // ============================================================================
 
+function isTableSeparator(line) {
+    // A separator row contains only |, -, :, and whitespace, and must have at least one - and one |
+    return /^[\s|:\-]+$/.test(line) && line.includes('-') && line.includes('|');
+}
+
 function formatMessageText(text) {
-    const lines = text.split('\n');
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
     const output = [];
     let i = 0;
 
     while (i < lines.length) {
-        // Detect markdown table: current line has |, next is a separator row (---|---), then more | rows
-        if (lines[i].includes('|') && i + 1 < lines.length && /^\s*\|?[\s\-:]+\|/.test(lines[i + 1])) {
+        // Detect markdown table: current line has |, next is a separator row (---|---)
+        if (lines[i].includes('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
             const tableLines = [];
-            while (i < lines.length && lines[i].includes('|')) {
-                tableLines.push(lines[i]);
-                i++;
+            while (i < lines.length) {
+                if (lines[i].includes('|')) {
+                    tableLines.push(lines[i]);
+                    i++;
+                } else if (lines[i].trim() === '' && i + 1 < lines.length && lines[i + 1].includes('|')) {
+                    // skip blank line within table (LLMs sometimes emit one between separator and data)
+                    i++;
+                } else {
+                    break;
+                }
             }
             output.push(renderTable(tableLines));
         } else {
@@ -592,7 +604,7 @@ function formatMessageText(text) {
 }
 
 function renderTable(lines) {
-    const rows = lines.map(l => l.replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+    const rows = lines.map(l => l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim()));
     // Second row is the separator — skip it
     const header = rows[0];
     const body = rows.slice(2);
