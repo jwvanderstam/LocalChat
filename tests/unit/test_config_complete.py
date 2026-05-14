@@ -179,3 +179,26 @@ class TestConfigEdgeCases:
 
         # Should be consistent
         assert host1 == host2
+
+
+class TestRerankerConfig:
+    """Reranker is enabled by default; can be opted out via env var."""
+
+    def test_reranker_enabled_by_default(self):
+        import importlib
+
+        import src.config as cfg
+        importlib.reload(cfg)
+        assert cfg.RERANKER_ENABLED is True
+
+    def test_reranker_disabled_via_env(self):
+        import importlib
+
+        with patch.dict(os.environ, {"RERANKER_ENABLED": "false"}):
+            import src.config as cfg
+            importlib.reload(cfg)
+            assert cfg.RERANKER_ENABLED is False
+
+    def test_reranker_weight_default(self):
+        from src import config
+        assert 0.0 < config.RERANKER_WEIGHT <= 1.0

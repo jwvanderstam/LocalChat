@@ -2,12 +2,13 @@
 Reranker Module
 ===============
 
-Optional cross-encoder reranker that re-scores retrieved chunks using a
-fine-tuned (or base) ``cross-encoder/ms-marco-MiniLM-L-6-v2`` model.
+Cross-encoder reranker that re-scores retrieved chunks using a fine-tuned
+(or base) ``cross-encoder/ms-marco-MiniLM-L-6-v2`` model.  Enabled by
+default (``RERANKER_ENABLED=true``).  Set to ``false`` only on very
+constrained hardware where the extra inference latency is unacceptable.
 
-The module is a no-op when ``sentence-transformers`` is not installed or
-``RERANKER_ENABLED`` is false — retrieval falls back silently to the
-existing hybrid BM25+semantic score.
+Degrades gracefully to a no-op if ``RERANKER_ENABLED`` is false or if the
+``sentence-transformers`` package is somehow missing at runtime.
 
 Usage:
     from src.rag.reranker import get_reranker
