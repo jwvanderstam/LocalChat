@@ -549,3 +549,49 @@ class TestClientConfiguration:
         # Should have some default URL
         assert client.base_url is not None
         assert "http" in client.base_url.lower()
+
+
+class TestSuggestVisionModel:
+    """Tests for OllamaClient.suggest_vision_model()."""
+
+    def test_no_gpu_returns_moondream(self):
+        """With no GPU info, fall back to the CPU-compatible model."""
+        from src.ollama_client import ollama_client
+        with patch.object(ollama_client, 'get_gpu_info', return_value=[]):
+            model, reason = ollama_client.suggest_vision_model()
+        assert model == "moondream:1.8b"
+        assert "CPU" in reason
+
+    def test_4gb_vram_returns_llava7b(self):
+        """4 GB free VRAM → llava:7b."""
+        from src.ollama_client import ollama_client
+        gpus = [{'vram_free_mb': 4096, 'vram_total_mb': 8192, 'vram_used_mb': 4096}]
+        with patch.object(ollama_client, 'get_gpu_info', return_value=gpus):
+            model, reason = ollama_client.suggest_vision_model()
+        assert model == "llava:7b"
+        assert "7 B" in reason
+
+    def test_8gb_vram_returns_llava13b(self):
+        """8 GB free VRAM → llava:13b."""
+        from src.ollama_client import ollama_client
+        gpus = [{'vram_free_mb': 8192, 'vram_total_mb': 12288, 'vram_used_mb': 4096}]
+        with patch.object(ollama_client, 'get_gpu_info', return_value=gpus):
+            model, reason = ollama_client.suggest_vision_model()
+        assert model == "llava:13b"
+        assert "13 B" in reason
+
+    def test_20gb_vram_returns_llava34b(self):
+        """20+ GB free VRAM → llava:34b."""
+        from src.ollama_client import ollama_client
+        gpus = [{'vram_free_mb': 20480, 'vram_total_mb': 24576, 'vram_used_mb': 4096}]
+        with patch.object(ollama_client, 'get_gpu_info', return_value=gpus):
+            model, reason = ollama_client.suggest_vision_model()
+        assert model == "llava:34b"
+        assert "34 B" in reason
+
+    def test_get_gpu_info_exception_falls_back(self):
+        """If GPU detection raises, fall back gracefully to moondream."""
+        from src.ollama_client import ollama_client
+        with patch.object(ollama_client, 'get_gpu_info', side_effect=RuntimeError("no driver")):
+            model, reason = ollama_client.suggest_vision_model()
+        assert model == "moondream:1.8b"

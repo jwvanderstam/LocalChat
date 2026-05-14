@@ -173,24 +173,116 @@ async function uploadDocuments() {
 // Display upload results
 function displayUploadResults(results) {
     if (!results || results.length === 0) return;
-    
+
     let html = '<div class="mt-3">';
-    
-    results.forEach(result => {
-        const alertClass = result.success ? 'alert-success' : 'alert-danger';
-        const icon = result.success ? 'check-circle' : 'x-circle';
-        
-        html += `
-            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                <i class="bi bi-${icon} me-2"></i>
-                <strong>${escapeHtml(result.filename)}:</strong> ${escapeHtml(result.message)}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
+
+    results.forEach((result, idx) => {
+        if (result.suggest_pull) {
+            const { model, reason } = result.suggest_pull;
+            const alertId = `vision-pull-alert-${idx}`;
+            html += `
+                <div class="alert alert-warning alert-dismissible fade show" role="alert" id="${alertId}">
+                    <i class="bi bi-camera me-2"></i>
+                    <strong>${escapeHtml(result.filename)}:</strong> No vision model installed.
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-warning"
+                                onclick="pullVisionModel('${escapeHtml(model)}', '${escapeHtml(reason)}', document.getElementById('${alertId}'))">
+                            <i class="bi bi-download me-1"></i>Download ${escapeHtml(model)}
+                            <small class="text-muted ms-1">(${escapeHtml(reason)})</small>
+                        </button>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        } else {
+            const alertClass = result.success ? 'alert-success' : 'alert-danger';
+            const icon = result.success ? 'check-circle' : 'x-circle';
+            html += `
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                    <i class="bi bi-${icon} me-2"></i>
+                    <strong>${escapeHtml(result.filename)}:</strong> ${escapeHtml(result.message)}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
     });
-    
+
     html += '</div>';
     uploadResults.innerHTML = html;
+}
+
+// Pull a vision model inline and show progress in the given alert element
+async function pullVisionModel(model, reason, alertEl) {
+    const btn = alertEl.querySelector('button.btn-warning');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Downloading…';
+    }
+
+    try {
+        const response = await fetch('/api/models/pull', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let progressEl = alertEl.querySelector('.vision-pull-progress');
+        if (!progressEl) {
+            progressEl = document.createElement('div');
+            progressEl.className = 'vision-pull-progress mt-2 small text-muted';
+            alertEl.insertBefore(progressEl, alertEl.querySelector('button.btn-close'));
+        }
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                let evt;
+                try { evt = JSON.parse(line.substring(6)); } catch { continue; }
+
+                if (evt.error) throw new Error(evt.error);
+
+                if (evt.status) {
+                    let msg = evt.status;
+                    if (evt.total > 0 && evt.completed > 0) {
+                        const pct = Math.round((evt.completed / evt.total) * 100);
+                        msg += ` ${pct}%`;
+                    }
+                    progressEl.textContent = msg;
+                }
+            }
+        }
+
+        // Success — replace entire alert
+        alertEl.className = 'alert alert-success alert-dismissible fade show';
+        alertEl.innerHTML = `
+            <i class="bi bi-check-circle me-2"></i>
+            <strong>${escapeHtml(model)}</strong> downloaded successfully.
+            Re-upload your image to process it.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+    } catch (err) {
+        alertEl.className = 'alert alert-danger alert-dismissible fade show';
+        alertEl.innerHTML = `
+            <i class="bi bi-x-circle me-2"></i>
+            Download failed: ${escapeHtml(err.message)}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+    }
 }
 
 // Test retrieval

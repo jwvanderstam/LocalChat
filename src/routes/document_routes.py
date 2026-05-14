@@ -27,6 +27,7 @@ else:
     current_app = _current_app
 
 from .. import config
+from ..rag.loaders import VISION_MODEL_MISSING_ERROR
 from ..security import limiter
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
@@ -110,7 +111,16 @@ def _stream_file_ingest(app, file_path: str, workspace_id: str | None) -> Genera
 
     success = result_container.get('success', False)
     message = result_container.get('message', 'Unknown error')
-    yield f"data: {json.dumps({'result': {'filename': os.path.basename(file_path), 'success': success, 'message': message}})}\n\n"
+    result_payload: dict = {'filename': os.path.basename(file_path), 'success': success, 'message': message}
+
+    if not success and VISION_MODEL_MISSING_ERROR in message:
+        try:
+            model, reason = app.ollama_client.suggest_vision_model()
+            result_payload['suggest_pull'] = {'model': model, 'reason': reason}
+        except Exception as exc:
+            logger.debug("Could not determine vision model suggestion: %s", exc)
+
+    yield f"data: {json.dumps({'result': result_payload})}\n\n"
 
     try:
         os.remove(file_path)

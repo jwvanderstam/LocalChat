@@ -346,6 +346,27 @@ class OllamaClient:
         logger.warning(f"No dedicated vision model found, falling back to: {fallback}")
         return fallback
 
+    def suggest_vision_model(self) -> tuple[str, str]:
+        """Return (model_name, reason) for the best vision model given available GPU VRAM.
+
+        Tiers: llava:34b (≥20 GB), llava:13b (≥8 GB), llava:7b (≥4 GB),
+        moondream:1.8b (< 4 GB or no GPU — CPU-compatible).
+        """
+        try:
+            gpus = self.get_gpu_info()
+            if gpus:
+                max_free_mb = max(g.get('vram_free_mb', 0) for g in gpus)
+                gb = max_free_mb // 1024
+                if max_free_mb >= 20_000:
+                    return "llava:34b", f"34 B — {gb} GB free VRAM"
+                if max_free_mb >= 8_000:
+                    return "llava:13b", f"13 B — {gb} GB free VRAM"
+                if max_free_mb >= 4_000:
+                    return "llava:7b", f"7 B — {gb} GB free VRAM"
+        except Exception:
+            pass
+        return "moondream:1.8b", "1.8 B — CPU-compatible"
+
     def describe_image(
         self,
         model: str,

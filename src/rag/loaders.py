@@ -73,6 +73,7 @@ _PDF_NOT_INSTALLED = "pypdf not installed"
 _DOCX_NOT_INSTALLED = "python-docx not installed"
 _PPTX_NOT_INSTALLED = "python-pptx not installed — run: pip install python-pptx"
 _XLSX_NOT_INSTALLED = "openpyxl not installed — run: pip install openpyxl"
+VISION_MODEL_MISSING_ERROR = "No vision model available for image processing. Install a vision-capable model (e.g. llava) via the Models page."
 _DOCX_LOAD_ERROR = "Error loading DOCX: "
 _EXTRACTOR_PDFPLUMBER = "pdfplumber"
 _EXTRACTOR_PYPDF = "pypdf"
@@ -563,7 +564,7 @@ class DocumentLoaderMixin:
             vision_model = ollama_client.get_vision_model()
             if not vision_model:
                 logger.warning("No vision model available — image ingestion skipped for %s (install e.g. llava via the Models page)", os.path.basename(file_path))
-                return False, "No vision model available for image processing. Install a vision-capable model (e.g. llava) via the Models page."
+                return False, VISION_MODEL_MISSING_ERROR
 
             with open(file_path, 'rb') as f:
                 image_data = f.read()
