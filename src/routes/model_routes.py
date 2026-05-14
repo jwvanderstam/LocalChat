@@ -214,7 +214,8 @@ def api_pull_model() -> ResponseReturnValue:
                 return jsonify({'success': False, 'message': 'Model name required'}), 400
 
         from ..utils.logging_config import sanitize_log_value as _slv
-        logger.info("Pulling model: %s", _slv(model_name))
+        safe_model = _slv(model_name)
+        logger.info("Pulling model: %s", safe_model)
 
         app = current_app._get_current_object()  # type: ignore[attr-defined]
 
@@ -223,11 +224,11 @@ def api_pull_model() -> ResponseReturnValue:
                 for progress in app.ollama_client.pull_model(model_name):
                     yield f"data: {json.dumps(progress)}\n\n"
             except Exception as e:
-                logger.error(f"Error pulling model: {e}", exc_info=True)
+                logger.error("Error pulling model: %s", e, exc_info=True)
                 error_msg = json.dumps({'error': 'Failed to pull model'})
                 yield f"data: {error_msg}\n\n"
             finally:
-                logger.debug("Model pull stream closed: %s", model_name)
+                logger.debug("Model pull stream closed: %s", safe_model)
 
         response = Response(generate(), mimetype='text/event-stream')
         response.headers['Cache-Control'] = 'no-cache'

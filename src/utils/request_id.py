@@ -65,7 +65,7 @@ def init_request_id(app: Flask) -> None:
         )
         _access_logger.info(
             "%s %s %d",
-            request.method, _slv(request.path), response.status_code,
+            _slv(request.method), _slv(request.path), response.status_code,
             extra={
                 "method": request.method,
                 "path": _slv(request.path),

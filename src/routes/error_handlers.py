@@ -18,6 +18,7 @@ from .. import exceptions
 from ..db import DatabaseUnavailableError
 from ..models import ErrorResponse
 from ..utils.logging_config import get_logger
+from ..utils.logging_config import sanitize_log_value as _slv
 
 logger = get_logger(__name__)
 
@@ -90,8 +91,7 @@ def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(405)
     def method_not_allowed_handler(_error: Any) -> ResponseReturnValue:
         """Handle 405 Method Not Allowed errors."""
-        from ..utils.logging_config import sanitize_log_value as _slv
-        logger.warning("Method not allowed: %s %s", request.method, _slv(request.path))
+        logger.warning("Method not allowed: %s %s", _slv(request.method), _slv(request.path))
 
         error_response = ErrorResponse(
             error="MethodNotAllowed",

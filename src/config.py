@@ -115,16 +115,19 @@ def validate_secrets() -> None:
     if APP_ENV != 'production':
         return
     errors: list[str] = []
-    for name, value in (('SECRET_KEY', SECRET_KEY), ('JWT_SECRET_KEY', JWT_SECRET_KEY)):
-        if value.lower() in _WEAK_PLACEHOLDERS:
-            errors.append(f"{name} is a known placeholder — set a random value")
-        elif len(value) < 32:
-            errors.append(f"{name} is too short (minimum 32 characters)")
+    if SECRET_KEY.lower() in _WEAK_PLACEHOLDERS:
+        errors.append("SECRET_KEY is a known placeholder — set a random value")
+    elif len(SECRET_KEY) < 32:
+        errors.append("SECRET_KEY is too short (minimum 32 characters)")
+    if JWT_SECRET_KEY.lower() in _WEAK_PLACEHOLDERS:
+        errors.append("JWT_SECRET_KEY is a known placeholder — set a random value")
+    elif len(JWT_SECRET_KEY) < 32:
+        errors.append("JWT_SECRET_KEY is too short (minimum 32 characters)")
     if not ADMIN_PASSWORD:
         errors.append("ADMIN_PASSWORD must be set in production")
     if errors:
         for msg in errors:
-            logger.critical(f"[Security] {msg}")
+            logger.critical("[Security] %s", msg)
         raise SystemExit(1)
 
 

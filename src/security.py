@@ -211,13 +211,13 @@ def init_security(app: Flask) -> None:
     def log_request() -> None:
         """Log incoming requests."""
         from .utils.logging_config import sanitize_log_value as _slv
-        logger.info("%s %s from %s", request.method, _slv(request.path), _slv(request.remote_addr))
+        logger.info("%s %s from %s", _slv(request.method), _slv(request.path), _slv(request.remote_addr))
 
     @app.after_request
     def log_response(response: Response) -> Response:
         """Log outgoing responses."""
         from .utils.logging_config import sanitize_log_value as _slv
-        logger.debug("%s %s -> %s", request.method, _slv(request.path), response.status_code)
+        logger.debug("%s %s -> %s", _slv(request.method), _slv(request.path), response.status_code)
         return response
 
     logger.info("Security initialization complete")

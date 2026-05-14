@@ -31,6 +31,7 @@ from ..rag.loaders import VISION_MODEL_MISSING_ERROR
 from ..security import limiter
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
+from ..utils.logging_config import sanitize_log_value as _slv
 from ..utils.sanitization import sanitize_filename, validate_path
 from ..utils.workspace import get_workspace_id
 
@@ -467,7 +468,6 @@ def api_search_text() -> ResponseReturnValue:
                 'message': 'search_text required'
             }), 400
 
-        from ..utils.logging_config import sanitize_log_value as _slv
         logger.info("Searching chunks for text: %s", _slv(search_text))
         results = current_app.db.search_chunks_by_text(search_text, limit)
 
@@ -573,7 +573,7 @@ def api_delete_document(doc_id: int) -> ResponseReturnValue:
     except DatabaseUnavailableError:
         raise
     except Exception as e:
-        logger.error(f"Error deleting document {doc_id}: {e}", exc_info=True)
+        logger.error("Error deleting document %s: %s", _slv(str(doc_id)), e, exc_info=True)
         return jsonify({'success': False, 'message': 'Failed to delete document'}), 500
 
 

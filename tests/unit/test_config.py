@@ -300,12 +300,12 @@ class TestStatePersistence:
         # Make directory read-only (simulate permission error)
         # This test may not work on all systems, so we skip if it fails
         try:
-            os.chmod(temp_dir, 0o444)
+            os.chmod(temp_dir, 0o500)
             state.set_active_model("test")  # Should not raise exception
         except Exception:
             pass  # Skip if chmod doesn't work
         finally:
-            os.chmod(temp_dir, 0o755)  # Restore permissions
+            os.chmod(temp_dir, 0o700)  # Restore permissions
 
 
 # ============================================================================
