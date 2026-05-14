@@ -48,7 +48,17 @@ try:
     PPTX_AVAILABLE = True
     logger.debug("python-pptx available for PPTX processing")
 except ImportError:
-    logger.debug("python-pptx not installed - PPTX support disabled")
+    logger.warning("python-pptx not installed - PPTX support disabled")
+
+_openpyxl = None
+XLSX_AVAILABLE = False
+try:
+    import openpyxl as _openpyxl_lib
+    _openpyxl = _openpyxl_lib
+    XLSX_AVAILABLE = True
+    logger.debug("openpyxl available for Excel processing")
+except ImportError:
+    logger.warning("openpyxl not installed - Excel (.xlsx) support disabled")
 
 # Try to import monitoring - graceful degradation if not available
 try:
@@ -62,6 +72,7 @@ except ImportError:
 _PDF_NOT_INSTALLED = "pypdf not installed"
 _DOCX_NOT_INSTALLED = "python-docx not installed"
 _PPTX_NOT_INSTALLED = "python-pptx not installed — run: pip install python-pptx"
+_XLSX_NOT_INSTALLED = "openpyxl not installed — run: pip install openpyxl"
 _DOCX_LOAD_ERROR = "Error loading DOCX: "
 _EXTRACTOR_PDFPLUMBER = "pdfplumber"
 _EXTRACTOR_PYPDF = "pypdf"
@@ -492,6 +503,50 @@ class DocumentLoaderMixin:
             logger.error(f"Error loading EML: {e}", exc_info=True)
             return False, str(e)
 
+    def load_excel_file(self, file_path: str) -> tuple[bool, str]:
+        """
+        Load an Excel (.xlsx) file and return its content as pipe-delimited text.
+
+        Each sheet is rendered as a labelled table. Empty sheets are skipped.
+
+        Returns:
+            Tuple of (success: bool, content_or_error: str)
+        """
+        if not XLSX_AVAILABLE:
+            logger.error(_XLSX_NOT_INSTALLED)
+            return False, _XLSX_NOT_INSTALLED
+
+        try:
+            logger.info(f"Loading Excel file: {file_path}")
+            wb = _openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+            sheet_parts: list[str] = []
+
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                rows = [
+                    [str(cell.value) if cell.value is not None else "" for cell in row]
+                    for row in ws.iter_rows()
+                    if any(cell.value is not None for cell in row)
+                ]
+                if not rows:
+                    continue
+                table_text = self._format_table_rows(rows)
+                if table_text.strip():
+                    sheet_parts.append(f"[Sheet: {sheet_name}]\n{table_text}")
+
+            wb.close()
+
+            if not sheet_parts:
+                return False, "Excel file contains no extractable data"
+
+            content = "\n\n".join(sheet_parts)
+            logger.info(f"Excel loaded: {len(sheet_parts)} sheet(s), {len(content):,} chars from {file_path}")
+            return True, content
+
+        except Exception as e:
+            logger.error(f"Error loading Excel file: {e}", exc_info=True)
+            return False, str(e)
+
     def load_image_file(self, file_path: str) -> tuple[bool, str]:
         """
         Load an image file by generating a text description via a vision model.
@@ -507,6 +562,7 @@ class DocumentLoaderMixin:
 
             vision_model = ollama_client.get_vision_model()
             if not vision_model:
+                logger.warning("No vision model available — image ingestion skipped for %s (install e.g. llava via the Models page)", os.path.basename(file_path))
                 return False, "No vision model available for image processing. Install a vision-capable model (e.g. llava) via the Models page."
 
             with open(file_path, 'rb') as f:
@@ -551,6 +607,8 @@ class DocumentLoaderMixin:
         elif ext == '.pptx':
             # PPTX returns slide list, not plain text — callers must use load_pptx_file directly
             return self.load_pptx_file(file_path)  # type: ignore[return-value]
+        elif ext == '.xlsx':
+            return self.load_excel_file(file_path)
         elif ext == '.eml':
             return self.load_eml_file(file_path)
         elif ext in config.SUPPORTED_IMAGE_EXTENSIONS:

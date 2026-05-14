@@ -24,6 +24,7 @@ class _Processor(Protocol):
     def chunk_text(self, content: str) -> list[str]: ...
     def load_pptx_file(self, file_path: str) -> tuple: ...
     def chunk_slides(self, slides: Any) -> list[dict[str, Any]]: ...
+    def load_excel_file(self, file_path: str) -> tuple[bool, str]: ...
     def load_text_file(self, file_path: str) -> tuple[bool, str]: ...
     def chunk_code_python(self, content: str) -> list[dict[str, Any]]: ...
     def chunk_code_js_ts(self, content: str) -> list[dict[str, Any]]: ...
@@ -42,6 +43,7 @@ class DocType(StrEnum):
     CODE_TS      = "CODE_TS"
     EMAIL        = "EMAIL"
     IMAGE        = "IMAGE"
+    EXCEL        = "EXCEL"
     UNKNOWN      = "UNKNOWN"
 
 
@@ -61,6 +63,7 @@ class DocTypeClassifier:
         '.jpeg': DocType.IMAGE,
         '.gif':  DocType.IMAGE,
         '.webp': DocType.IMAGE,
+        '.xlsx': DocType.EXCEL,
     }
 
     @classmethod
@@ -215,6 +218,31 @@ def _chunker_image(
     return _chunker_plain_text(proc, file_path, filename, progress_cb)
 
 
+def _chunker_excel(
+    proc: _Processor,
+    file_path: str,
+    filename: str,
+    progress_cb: Callable[[str], None] | None,
+) -> tuple[bool, str, list[dict[str, Any]] | None, str | None]:
+    if progress_cb:
+        progress_cb(f"Loading {filename}...")
+    success, content = proc.load_excel_file(file_path)
+    if not success:
+        return False, f"Failed to load {filename}: {content}", None, None
+    if not content or len(content.strip()) < 10:
+        return False, f"Spreadsheet {filename} has no extractable content", None, None
+    if progress_cb:
+        progress_cb(f"Chunking {filename}...")
+    chunk_texts = proc.chunk_text(content)
+    if not chunk_texts:
+        return False, f"No chunks generated from {filename}", None, None
+    chunks = [
+        {'text': c, 'page_number': None, 'section_title': None, 'chunk_index': i}
+        for i, c in enumerate(chunk_texts)
+    ]
+    return True, "", chunks, content
+
+
 class ChunkerRegistry:
     """Maps DocType → (chunker_fn, chunker_version)."""
 
@@ -229,6 +257,7 @@ class ChunkerRegistry:
         DocType.CODE_TS:     (_chunker_code_js_ts,   "code-ts-v1"),
         DocType.EMAIL:       (_chunker_email,        "email-v1"),
         DocType.IMAGE:       (_chunker_image,        "image-v1"),
+        DocType.EXCEL:       (_chunker_excel,        "excel-v1"),
         DocType.UNKNOWN:     (_chunker_plain_text,   "text-v1"),
     }
 

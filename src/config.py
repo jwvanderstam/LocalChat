@@ -399,7 +399,7 @@ APP_VERSION: str = os.environ.get('APP_VERSION', '1.0.0')
 # Supported file types
 SUPPORTED_IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
 SUPPORTED_EXTENSIONS: list[str] = (
-    ['.pdf', '.txt', '.docx', '.md', '.pptx', '.py', '.js', '.ts', '.eml']
+    ['.pdf', '.txt', '.docx', '.md', '.pptx', '.xlsx', '.py', '.js', '.ts', '.eml']
     + SUPPORTED_IMAGE_EXTENSIONS
 )
 

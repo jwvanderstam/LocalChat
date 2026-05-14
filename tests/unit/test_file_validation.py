@@ -155,3 +155,70 @@ class TestEdgeCases:
         ok, err = validate_file_content(str(tmp_path / "ghost.pdf"), ".pdf")
         assert ok is False
         assert "not found" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# PPTX
+# ---------------------------------------------------------------------------
+
+def _make_zip(tmp_path, name: str, entries: list[str]) -> str:
+    """Create a minimal ZIP with the given entry names."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for entry in entries:
+            zf.writestr(entry, "data")
+    return _write(tmp_path, name, buf.getvalue())
+
+
+class TestPptx:
+    def test_valid_pptx(self, tmp_path):
+        path = _make_zip(tmp_path, "slides.pptx", ["ppt/presentation.xml"])
+        ok, err = validate_file_content(path, ".pptx")
+        assert ok is True
+        assert err == ""
+
+    def test_pptx_missing_ppt_dir(self, tmp_path):
+        path = _make_zip(tmp_path, "fake.pptx", ["not-ppt/something.xml"])
+        ok, err = validate_file_content(path, ".pptx")
+        assert ok is False
+        assert "ppt/" in err
+
+    def test_pptx_not_zip(self, tmp_path):
+        path = _write(tmp_path, "fake.pptx", b"This is not a zip file at all")
+        ok, err = validate_file_content(path, ".pptx")
+        assert ok is False
+        assert "signature" in err.lower()
+
+    def test_pptx_empty(self, tmp_path):
+        path = _write(tmp_path, "empty.pptx", b"")
+        ok, err = validate_file_content(path, ".pptx")
+        assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# XLSX
+# ---------------------------------------------------------------------------
+
+class TestXlsx:
+    def test_valid_xlsx(self, tmp_path):
+        path = _make_zip(tmp_path, "data.xlsx", ["xl/workbook.xml"])
+        ok, err = validate_file_content(path, ".xlsx")
+        assert ok is True
+        assert err == ""
+
+    def test_xlsx_missing_xl_dir(self, tmp_path):
+        path = _make_zip(tmp_path, "fake.xlsx", ["not-xl/something.xml"])
+        ok, err = validate_file_content(path, ".xlsx")
+        assert ok is False
+        assert "xl/" in err
+
+    def test_xlsx_not_zip(self, tmp_path):
+        path = _write(tmp_path, "fake.xlsx", b"This is not a zip file at all")
+        ok, err = validate_file_content(path, ".xlsx")
+        assert ok is False
+        assert "signature" in err.lower()
+
+    def test_xlsx_empty(self, tmp_path):
+        path = _write(tmp_path, "empty.xlsx", b"")
+        ok, err = validate_file_content(path, ".xlsx")
+        assert ok is False

@@ -236,3 +236,84 @@ class TestImageFileLoading:
         assert success is True
         assert "cat.jpg" in content
         assert "A photo of a cat." in content
+
+
+# ---------------------------------------------------------------------------
+# Excel loading
+# ---------------------------------------------------------------------------
+
+class TestExcelFileLoading:
+    """Tests for load_excel_file via openpyxl."""
+
+    def test_load_excel_returns_sheet_content(self, tmp_path):
+        """Happy path: single sheet with data is returned as pipe-delimited text."""
+        import openpyxl
+
+        from src.rag import doc_processor
+
+        path = tmp_path / "data.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Sales"
+        ws.append(["Product", "Q1", "Q2"])
+        ws.append(["Widget", 100, 200])
+        wb.save(str(path))
+
+        success, content = doc_processor.load_excel_file(str(path))
+
+        assert success is True
+        assert "Sales" in content
+        assert "Product" in content
+        assert "Widget" in content
+
+    def test_load_excel_multiple_sheets(self, tmp_path):
+        """Multiple sheets are all included in the output."""
+        import openpyxl
+
+        from src.rag import doc_processor
+
+        path = tmp_path / "multi.xlsx"
+        wb = openpyxl.Workbook()
+        ws1 = wb.active
+        ws1.title = "Sheet1"
+        ws1.append(["A", "B"])
+        ws2 = wb.create_sheet("Sheet2")
+        ws2.append(["X", "Y"])
+        wb.save(str(path))
+
+        success, content = doc_processor.load_excel_file(str(path))
+
+        assert success is True
+        assert "Sheet1" in content
+        assert "Sheet2" in content
+
+    def test_load_excel_empty_workbook_fails(self, tmp_path):
+        """A workbook with no data returns failure."""
+        import openpyxl
+
+        from src.rag import doc_processor
+
+        path = tmp_path / "empty.xlsx"
+        wb = openpyxl.Workbook()
+        wb.active.title = "Empty"
+        wb.save(str(path))
+
+        success, content = doc_processor.load_excel_file(str(path))
+
+        assert success is False
+        assert "no extractable data" in content.lower()
+
+    def test_load_excel_unavailable_returns_error(self, tmp_path):
+        """When openpyxl is not installed the loader returns a clear error."""
+        from unittest.mock import patch
+
+        from src.rag import doc_processor
+
+        path = tmp_path / "x.xlsx"
+        path.write_bytes(b"PK\x03\x04")  # not a real xlsx, but loader won't reach it
+
+        with patch("src.rag.loaders.XLSX_AVAILABLE", False):
+            success, error = doc_processor.load_excel_file(str(path))
+
+        assert success is False
+        assert "openpyxl" in error.lower()

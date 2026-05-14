@@ -37,6 +37,8 @@ _READ_SIZE: dict[str, int] = {
     ".gif":  4,
     ".webp": 12,
     ".docx": 4,
+    ".pptx": 4,
+    ".xlsx": 4,
     ".txt":  512,
     ".md":   512,
 }
@@ -76,12 +78,26 @@ def validate_file_content(file_path: str, extension: str) -> tuple[bool, str]:
     except OSError as exc:
         return False, f"Could not read file: {exc}"
 
-    # --- DOCX (ZIP container) ---
+    # --- ZIP-based Office formats ---
     if ext == ".docx":
         if not header.startswith(b"PK\x03\x04"):
             return False, "DOCX file does not have a valid ZIP/DOCX signature"
         if not _docx_contains_word_dir(file_path):
             return False, "File has ZIP signature but is not a valid DOCX (missing word/ entry)"
+        return True, ""
+
+    if ext == ".pptx":
+        if not header.startswith(b"PK\x03\x04"):
+            return False, "PPTX file does not have a valid ZIP/PPTX signature"
+        if not _pptx_contains_ppt_dir(file_path):
+            return False, "File has ZIP signature but is not a valid PPTX (missing ppt/ entry)"
+        return True, ""
+
+    if ext == ".xlsx":
+        if not header.startswith(b"PK\x03\x04"):
+            return False, "XLSX file does not have a valid ZIP/XLSX signature"
+        if not _xlsx_contains_xl_dir(file_path):
+            return False, "File has ZIP signature but is not a valid XLSX (missing xl/ entry)"
         return True, ""
 
     # --- Plain text / Markdown ---
@@ -113,5 +129,23 @@ def _docx_contains_word_dir(file_path: str) -> bool:
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
             return any(name.startswith("word/") for name in zf.namelist())
+    except zipfile.BadZipFile:
+        return False
+
+
+def _pptx_contains_ppt_dir(file_path: str) -> bool:
+    """Return True if the ZIP archive contains at least one 'ppt/' entry."""
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            return any(name.startswith("ppt/") for name in zf.namelist())
+    except zipfile.BadZipFile:
+        return False
+
+
+def _xlsx_contains_xl_dir(file_path: str) -> bool:
+    """Return True if the ZIP archive contains at least one 'xl/' entry."""
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            return any(name.startswith("xl/") for name in zf.namelist())
     except zipfile.BadZipFile:
         return False
