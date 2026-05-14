@@ -428,11 +428,14 @@ STATE_FILE: str = 'app_state.json'
 # ============================================================================
 # RERANKER CONFIGURATION (Feature 5.2)
 # ============================================================================
-# Set RERANKER_ENABLED=true to activate cross-encoder re-ranking of retrieved
-# chunks.  Requires sentence-transformers to be installed.
-# If no fine-tuned model exists at RERANKER_MODEL_PATH, falls back to the base
-# cross-encoder/ms-marco-MiniLM-L-6-v2 model.
-RERANKER_ENABLED: bool = os.environ.get('RERANKER_ENABLED', 'false').lower() == 'true'
+# Cross-encoder re-ranking of retrieved chunks using sentence-transformers.
+# Enabled by default — significantly improves retrieval precision with minimal
+# overhead on modern hardware.  Set RERANKER_ENABLED=false to disable if CPU
+# latency is a concern (e.g. very slow machines or embedded deployments).
+# Falls back to cross-encoder/ms-marco-MiniLM-L-6-v2 when no fine-tuned model
+# exists at RERANKER_MODEL_PATH; the base model is downloaded automatically
+# (~80 MB, requires internet on first start).
+RERANKER_ENABLED: bool = os.environ.get('RERANKER_ENABLED', 'true').lower() == 'true'
 RERANKER_MODEL_PATH: str = os.environ.get('RERANKER_MODEL_PATH', './models/reranker/latest')
 RERANKER_WEIGHT: float = float(os.environ.get('RERANKER_WEIGHT', '0.3'))
 FEEDBACK_FINETUNE_MIN_PAIRS: int = int(os.environ.get('FEEDBACK_FINETUNE_MIN_PAIRS', '50'))

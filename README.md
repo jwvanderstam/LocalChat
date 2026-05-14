@@ -526,6 +526,7 @@ Core RAG parameters can be tuned **at runtime** in the Settings → RAG Paramete
 | `RERANK_TOP_K` | 12 | `RERANK_TOP_K` | 4–20 | Chunks passed to LLM after reranking |
 | `DIVERSITY_THRESHOLD` | 0.70 | *(UI only)* | 0.50–0.90 | Jaccard threshold for near-duplicate filtering |
 | `SEMANTIC_WEIGHT` | 0.70 | `SEMANTIC_WEIGHT` | 0.30–0.90 | Semantic vs. BM25 blend in hybrid search |
+| `RERANKER_ENABLED` | true | `RERANKER_ENABLED` | true/false | Neural cross-encoder re-ranking (see below) |
 
 Parameters that require re-ingesting documents (chunk size, overlap) are set via environment variables only:
 
@@ -545,7 +546,12 @@ OLLAMA_NUM_CTX=8192      # Token context window sent to Ollama
 # Ingestion timeouts (supports files up to 15 MB)
 OLLAMA_EMBED_TIMEOUT=600 # Seconds — worst-case 15 MB TXT ~280 s
 GUNICORN_TIMEOUT=600     # Must be >= OLLAMA_EMBED_TIMEOUT
+
+# Cross-encoder reranker (enabled by default)
+# RERANKER_ENABLED=false  # Disable on very slow / embedded hardware
 ```
+
+> **Reranker:** LocalChat ships with the neural cross-encoder reranker **enabled by default** (`RERANKER_ENABLED=true`). It uses `cross-encoder/ms-marco-MiniLM-L-6-v2` (downloaded automatically, ~80 MB) to re-score each retrieved chunk against the query, substantially improving answer precision. The overhead is negligible on modern hardware — typically < 200 ms per query. Set `RERANKER_ENABLED=false` only if you are running on very constrained CPU hardware where the extra inference latency is unacceptable.
 
 ### Document Capacity
 
