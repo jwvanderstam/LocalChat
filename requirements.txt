@@ -33,8 +33,8 @@ spacy>=3.8.14      # GraphRAG entity extraction — optional; also run: python -
 
 # Encryption — OAuth token at-rest encryption
 cryptography>=48.0.0
-# Optional: Fine-tuned cross-encoder reranker — enable with RERANKER_ENABLED=true
-# sentence-transformers>=3.0
+# Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
+sentence-transformers>=3.0
 # Optional: Microsoft Graph API auth helper
 # msal>=1.28
 
