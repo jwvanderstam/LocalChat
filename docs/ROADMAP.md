@@ -24,6 +24,8 @@ LocalChat exists to be the gold standard for local, privacy-preserving knowledge
 ## Planned
 
 ### v1.1 — Quality & Reach
+- **Structured document ingest** *(medium priority)* — Current loaders serialize everything as flat text, losing column-to-value relationships. PDF: upgrade to `pymupdf4llm` or `docling` for layout-aware parsing; DOCX: preserve headings and table structure.
+- **Excel loader** *(medium priority)* — Per-sheet processing with explicit header preservation; each chunk serialized as a markdown table (N rows + header) with sheet/row-range metadata. Edge cases: multi-row headers (`header=[0,1]`), merged cells (openpyxl direct), numeric formatting (preserve `€12.500` over `12500.0`). Replaces current flat-text row serialization which makes column-to-value relationships unrecoverable.
 - Multi-language document support
 - Confluence and Google Drive connectors
 - Answer confidence scores surfaced in the UI
@@ -42,6 +44,11 @@ LocalChat exists to be the gold standard for local, privacy-preserving knowledge
 ### v1.4 — Security
 - Encryption at rest
 
+### v1.5 — Chat UX & Document Sources
+- **Drag-and-drop upload** — drop files directly onto the chat interface; no separate upload screen required
+- **Connect information stores** — link OneDrive, SharePoint, S3, or other configured connectors directly from the chat UI (backends already exist in `src/connectors/`)
+- **Multi-source selection** — activate and deactivate multiple document sources per conversation; retrieval scoped to the active selection
+
 ---
 
 ## Improvement Recommendations Audit
@@ -50,11 +57,11 @@ LocalChat exists to be the gold standard for local, privacy-preserving knowledge
 
 The following three recommendations are drawn from a full review of the LocalChat repository (646 commits as of review date). Two are correctness/security concerns that currently pass silently; one addresses the largest accumulation of technical debt in the codebase.
 
-| # | Recommendation | Type | Effort | Impact |
-|---|---|---|---|---|
-| 1 | Startup secret validation | Security | Low (1–2 hours) | High — eliminates JWT forgery risk |
-| 2 | Idempotent admin user seeding | Correctness | Low (1 hour) | High — fixes production startup race |
-| 3 | Decompose `app_factory.py` | Architecture | Medium (half day) | High — largest maintainability gain available |
+| # | Recommendation | Type | Effort | Impact | Status |
+|---|---|---|---|---|---|
+| 1 | Startup secret validation | Security | Low (1–2 hours) | High — eliminates JWT forgery risk | ✓ Done |
+| 2 | Idempotent admin user seeding | Correctness | Low (1 hour) | High — fixes production startup race | ✓ Done |
+| 3 | Decompose `app_factory.py` | Architecture | Medium (half day) | High — largest maintainability gain available | Open |
 
 ### 1 — Startup Secret Validation
 
