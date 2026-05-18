@@ -39,7 +39,7 @@ sentence-transformers>=3.0
 # msal>=1.28
 
 # HTTP Requests
-requests==2.33.1
+requests==2.34.2
 ddgs>=9.14.2
 
 # Numerical processing for vector operations
