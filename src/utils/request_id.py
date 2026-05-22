@@ -67,7 +67,7 @@ def init_request_id(app: Flask) -> None:
             "%s %s %d",
             _slv(request.method), _slv(request.path), response.status_code,
             extra={
-                "method": request.method,
+                "method": _slv(request.method),
                 "path": _slv(request.path),
                 "status_code": response.status_code,
                 "duration_ms": duration_ms,
