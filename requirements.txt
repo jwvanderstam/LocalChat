@@ -40,7 +40,7 @@ sentence-transformers>=5.5.0
 
 # HTTP Requests
 requests==2.34.2
-ddgs>=9.14.2
+ddgs>=9.14.4
 
 # Numerical processing for vector operations
 numpy>=2.4.5
