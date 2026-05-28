@@ -26,6 +26,8 @@ Each planned item is tagged as **Functional** (user-visible behaviour) and/or **
 | Reranker | Cross-encoder re-ranking with optional weekly fine-tune on user feedback |
 | Observability | Prometheus metrics, GPU monitoring, admin dashboard, Grafana dashboard |
 | Deployment | Docker Compose, Helm chart (PostgreSQL + Redis StatefulSets, MCP servers) |
+| Excel ingest | Per-sheet markdown-table serialisation via openpyxl; empty sheets skipped |
+| Cloud fallback gate | `CLOUD_FALLBACK_ENABLED` defaults to `false`; explicit opt-in required before any query reaches a cloud endpoint |
 
 ---
 
@@ -33,18 +35,14 @@ Each planned item is tagged as **Functional** (user-visible behaviour) and/or **
 
 ### v1.1 — Quality and Reach
 **Functional**
-- **Structured document ingest** *(medium priority)* — Current loaders serialize everything as flat text, losing column-to-value relationships. PDF: upgrade to pymupdf4llm or docling for layout-aware parsing; DOCX: preserve headings and table structure.
-- **Excel loader** *(medium priority)* — Per-sheet processing with explicit header preservation; each chunk serialized as a markdown table (N rows + header) with sheet/row-range metadata. Edge cases: multi-row headers, merged cells, numeric formatting. Replaces current flat-text row serialization.
+- **Structured document ingest** *(medium priority)* — pdfplumber and DOCX table extraction already ship. Remaining gap: layout-aware PDF parsing for column-heavy and multi-column documents (pymupdf4llm or docling); better heading-hierarchy preservation in DOCX.
 - Multi-language document support
 - Confluence and Google Drive connectors
 - Answer confidence scores surfaced in the UI
 - Scheduled document re-ingestion for stale sources
 
 **Technical**
-- **Resolve Redis / in-memory fallback ambiguity** *(high priority)* — The current silent Redis-or-in-memory fallback means Flask-Limiter rate limit state is per-worker, does not survive restarts, and is inconsistent across Gunicorn workers. Decision required: commit to Redis as a hard dependency with a startup health check, or commit to in-memory only and remove Redis from the stack. Do not maintain both paths silently. Affects every component that touches caching or rate limiting.
-- **LiteLLM cloud fallback: explicit gate** *(high priority)* — LiteLLM is currently a silent fallback. In a local-first, privacy-oriented application this is a data-leakage risk. Audit and harden so no query reaches a cloud endpoint without explicit per-query user action. Implement in parallel with the UI opt-in.
-
-  > Cross-domain note: if the implicit fallback is what makes the app usable on weak local hardware, removing it without a visible UI opt-in will break that user experience. Both changes must ship together.
+- **Resolve Redis / in-memory fallback ambiguity** *(high priority)* — `REDIS_ENABLED` controls the primary path, but `cache/__init__.py create_cache_backend()` still silently falls back to `MemoryCache` on any Redis failure, and Flask-Limiter falls back to `memory://`. This means rate limit state is per-worker, does not survive restarts, and is inconsistent across Gunicorn workers. Decision required: commit to Redis as a hard dependency with a startup health check and no silent fallback, or commit to in-memory only and remove Redis from the stack. Do not maintain both paths silently. Affects every component that touches caching or rate limiting.
 
 ### v1.2 — Collaboration
 **Functional**
@@ -59,7 +57,7 @@ Each planned item is tagged as **Functional** (user-visible behaviour) and/or **
 - Cross-workspace retrieval for shared knowledge bases
 
 **Technical**
-- **Graph store for real GraphRAG** — spaCy handles entity extraction but GraphRAG requires a persistent graph store for entity/relation traversal. Without one, GraphRAG is NER on top of standard vector retrieval. Recommended starting point: Kuzu (embedded, persistent, Cypher-compatible, no ops overhead). Upgrade path to Neo4j if scale requires it. Entity extraction must run at ingest time, not query time.
+- **Graph store for real GraphRAG** — spaCy handles entity extraction and entities/relations are persisted in flat PostgreSQL tables (`entities`, `entity_relations`). However, only 1-hop co-occurrence lookups are supported; there is no graph traversal, no depth control, and no Cypher queries. True GraphRAG requires a persistent graph store. Recommended starting point: Kuzu (embedded, persistent, Cypher-compatible, no ops overhead). Upgrade path to Neo4j if scale requires it. Entity extraction already runs at ingest time; migration scope is the storage and query layer only.
 
 ### v1.4 — Security
 **Functional / Technical**
@@ -79,9 +77,8 @@ Each planned item is tagged as **Functional** (user-visible behaviour) and/or **
 | Layer | Current | Target | Version |
 |-------|---------|--------|---------|
 | Web framework | Flask 3 + Gunicorn | FastAPI + Uvicorn | v1.4 |
-| Caching / rate limit backend | Redis or in-memory (ambiguous) | Explicit Redis or in-memory only | v1.1 |
-| Graph store | spaCy NER only, no persistence | Kuzu (embedded) | v1.3 |
-| Cloud fallback | Silent (LiteLLM auto) | Explicit opt-in gate | v1.1 |
+| Caching / rate limit backend | Redis or in-memory (silent fallback) | Explicit Redis or in-memory only, no silent path | v1.1 |
+| Graph store | spaCy NER + flat PostgreSQL relation table | Kuzu (embedded, Cypher-compatible) | v1.3 |
 
 ---
 
@@ -97,23 +94,23 @@ The following three recommendations are drawn from a full review of the LocalCha
 | 2 | Idempotent admin user seeding | Correctness | Low (1 hour) | High — fixes production startup race | Done |
 | 3 | Decompose app_factory.py | Architecture | Medium (half day) | High — largest maintainability gain available | Open |
 
-### 1 — Startup Secret Validation
+### 1 — Startup Secret Validation ✓
 
-config.py loads SECRET_KEY, JWT_SECRET_KEY, and ADMIN_PASSWORD from environment variables with no entropy or length check. A deployment with a weak or placeholder key starts cleanly, passes all health checks, and serves traffic — but JWT tokens can be forged trivially. There is no log warning, no startup failure, no signal to the operator.
+config.py loads SECRET_KEY, JWT_SECRET_KEY, and ADMIN_PASSWORD from environment variables. Without validation, a deployment with a weak or placeholder key would start cleanly and serve traffic with forgeable JWT tokens.
 
-**Fix:** add a validate_secrets() call as the first step inside create_app() that enforces minimum key length (32 chars), rejects known placeholders (changeme, secret, dev, etc.), and calls sys.exit(1) in production mode for any violation.
+**Shipped:** `validate_secrets()` in `src/config.py` enforces minimum key length (32 chars), rejects known placeholders (`changeme`, `secret`, `dev`, etc.), and calls `sys.exit(1)` in production mode on any violation. Called as the first step in `create_app()`.
 
-### 2 — Idempotent Admin User Seeding
+### 2 — Idempotent Admin User Seeding ✓
 
-_seed_admin_user() in app_factory.py uses a check-then-insert pattern. Gunicorn starts multiple workers concurrently; two workers can both read count_users() == 0 before either commits, resulting in a duplicate row or an unhandled startup exception. This race is dormant in single-worker development but active in every production deployment.
+`_seed_admin_user()` in `app_factory.py` previously used a check-then-insert pattern. Gunicorn starts multiple workers concurrently; two workers could both read `count_users() == 0` before either committed, resulting in a duplicate row or unhandled startup exception.
 
-**Fix:** replace create_user() in the seeding path with a PostgreSQL upsert (INSERT ... ON CONFLICT (username) DO NOTHING), making the operation atomic and safe to call from any number of concurrent workers.
+**Shipped:** `_seed_admin_user()` now uses a PostgreSQL upsert (`INSERT ... ON CONFLICT (username) DO NOTHING`), making the operation atomic and safe to call from any number of concurrent workers.
 
 ### 3 — Decompose app_factory.py
 
-At 615 lines, app_factory.py conflates two concerns: wiring (Flask app, blueprints, security middleware) and bootstrapping (Ollama check, DB init, admin seeding, embedding warmup, plugin loading, connector startup, reranker scheduler). The testing flag threads through every private function to suppress bootstrapping side-effects.
+At 618 lines, `app_factory.py` conflates two concerns: wiring (Flask app, blueprints, security middleware) and bootstrapping (Ollama check, DB init, admin seeding, embedding warmup, plugin loading, connector startup, reranker scheduler). The `testing` flag threads through every private function to suppress bootstrapping side-effects.
 
-**Fix:** split into src/app_factory.py (pure wiring, ~200 lines, safe to call in tests with zero mocking) and src/app_bootstrap.py (all startup I/O, ~300 lines). The testing flag disappears; bootstrap_app(app) is called only from the production entry point.
+**Fix:** split into `src/app_factory.py` (pure wiring, ~200 lines, safe to call in tests with zero mocking) and `src/app_bootstrap.py` (all startup I/O, ~300 lines). The `testing` flag disappears; `bootstrap_app(app)` is called only from the production entry point.
 
 ---
 
