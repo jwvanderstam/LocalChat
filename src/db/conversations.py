@@ -10,6 +10,8 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from ..utils.encryption import decrypt as _decrypt
+from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
@@ -97,7 +99,7 @@ class ConversationsMixin:
                     (
                         conversation_id,
                         role,
-                        content,
+                        _encrypt(content),
                         Jsonb(plan_json) if plan_json else None,
                         conversation_id,
                     ),
@@ -205,7 +207,7 @@ class ConversationsMixin:
                 return [
                     {
                         'role': row[0],
-                        'content': row[1],
+                        'content': _decrypt(row[1]),
                         'timestamp': row[2].isoformat() if row[2] else None,
                     }
                     for row in rows
@@ -250,7 +252,7 @@ class ConversationsMixin:
                     )
                     SELECT id FROM ins
                     """,
-                    (conversation_id, role, content, Jsonb(plan_json) if plan_json else None, conversation_id),
+                    (conversation_id, role, _encrypt(content), Jsonb(plan_json) if plan_json else None, conversation_id),
                 )
                 message_id = cursor.fetchone()[0]
                 conn.commit()

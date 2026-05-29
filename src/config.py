@@ -492,9 +492,13 @@ CONFLUENCE_URL: str = os.environ.get('CONFLUENCE_URL', '')
 CONFLUENCE_EMAIL: str = os.environ.get('CONFLUENCE_EMAIL', '')
 CONFLUENCE_API_TOKEN: str = os.environ.get('CONFLUENCE_API_TOKEN', '')
 
-# Fernet key for encrypting stored OAuth tokens.  Generate with:
+# Fernet key for encrypting sensitive text columns at rest.  Generate with:
 #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-TOKEN_ENCRYPTION_KEY: str = os.environ.get('TOKEN_ENCRYPTION_KEY', '')
+# TOKEN_ENCRYPTION_KEY is accepted as a legacy alias for backward compatibility.
+ENCRYPTION_KEY: str = (
+    os.environ.get('ENCRYPTION_KEY', '') or os.environ.get('TOKEN_ENCRYPTION_KEY', '')
+)
+TOKEN_ENCRYPTION_KEY: str = ENCRYPTION_KEY
 
 # ============================================================================
 # DEMO MODE

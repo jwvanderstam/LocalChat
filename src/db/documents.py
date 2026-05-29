@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from psycopg.types.json import Jsonb
 
+from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import escape_sql_like
 from .connection import DatabaseUnavailableError
@@ -75,7 +76,7 @@ class DocumentsMixin:
                     "INSERT INTO documents"
                     " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id, language)"
                     " VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                    (filename, content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language),
+                    (filename, _encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language),
                 )
                 doc_id = cursor.fetchone()[0]
                 conn.commit()

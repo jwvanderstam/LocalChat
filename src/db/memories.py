@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ..utils.encryption import decrypt as _decrypt
+from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
@@ -55,7 +57,7 @@ class MemoriesMixin:
                                          memory_type, confidence)
                     VALUES (%s, %s, %s::vector, %s, %s, %s)
                     """,
-                    (memory_id, content, emb_str, source_conv_id, memory_type, confidence),
+                    (memory_id, _encrypt(content), emb_str, source_conv_id, memory_type, confidence),
                 )
                 conn.commit()
         logger.debug(f"Inserted memory {memory_id} type={memory_type}")
@@ -140,7 +142,7 @@ class MemoriesMixin:
                 rows = cursor.fetchall()
         return [
             {
-                "id": r[0], "content": r[1], "memory_type": r[2],
+                "id": r[0], "content": _decrypt(r[1]), "memory_type": r[2],
                 "confidence": r[3], "created_at": r[4].isoformat() if r[4] else None,
                 "use_count": r[5], "similarity": float(r[6]),
             }
@@ -190,7 +192,7 @@ class MemoriesMixin:
                 rows = cursor.fetchall()
         return [
             {
-                "id": r[0], "content": r[1], "memory_type": r[2],
+                "id": r[0], "content": _decrypt(r[1]), "memory_type": r[2],
                 "confidence": r[3],
                 "created_at": r[4].isoformat() if r[4] else None,
                 "last_used": r[5].isoformat() if r[5] else None,
