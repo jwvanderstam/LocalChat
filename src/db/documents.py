@@ -668,3 +668,47 @@ class DocumentsMixin:
                 docs_deleted = cursor.rowcount
                 conn.commit()
         logger.info(f"Deleted {docs_deleted} documents and {chunks_deleted} chunks")
+
+    def get_stale_documents(self, max_age_hours: int, workspace_id: str | None = None) -> list[dict[str, Any]]:
+        """Return documents whose last_ingested_at is older than max_age_hours.
+
+        Documents without last_ingested_at fall back to created_at for comparison.
+        """
+        if not self.is_connected:
+            return []
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    sql = """
+                        SELECT id, filename, workspace_id
+                        FROM documents
+                        WHERE COALESCE(last_ingested_at, created_at)
+                              < NOW() - (INTERVAL '1 hour' * %s)
+                    """
+                    params: list[Any] = [max_age_hours]
+                    if workspace_id:
+                        sql += " AND workspace_id = %s"
+                        params.append(workspace_id)
+                    cursor.execute(sql, params)
+                    return [
+                        {'id': row[0], 'filename': row[1], 'workspace_id': row[2]}
+                        for row in cursor.fetchall()
+                    ]
+        except Exception as exc:
+            logger.warning(f"get_stale_documents failed: {exc}")
+            return []
+
+    def update_last_ingested_at(self, doc_id: int) -> None:
+        """Set last_ingested_at = NOW() for the given document after re-ingest."""
+        if not self.is_connected:
+            return
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE documents SET last_ingested_at = NOW() WHERE id = %s",
+                        (doc_id,),
+                    )
+                    conn.commit()
+        except Exception as exc:
+            logger.warning(f"update_last_ingested_at failed for doc {doc_id}: {exc}")

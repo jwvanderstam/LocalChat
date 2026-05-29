@@ -659,6 +659,17 @@ class DatabaseConnection:
                 """)
                 logger.debug("documents.language column ensured")
 
+                # ── v1.1: scheduled re-ingest tracking ───────────────────────
+                cursor.execute("""
+                    ALTER TABLE documents
+                        ADD COLUMN IF NOT EXISTS last_ingested_at TIMESTAMPTZ
+                """)
+                cursor.execute("""
+                    UPDATE documents SET last_ingested_at = created_at
+                    WHERE last_ingested_at IS NULL
+                """)
+                logger.debug("documents.last_ingested_at column ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
 

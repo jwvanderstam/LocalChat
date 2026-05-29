@@ -29,6 +29,7 @@ import threading
 import time
 from typing import TYPE_CHECKING
 
+from .. import config as app_config
 from ..utils.logging_config import get_logger
 from .base import EventType
 
@@ -37,8 +38,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_TICK = 5          # seconds between "is it time for this connector?" checks
-_MAX_FILE_MB = 50  # reject fetched files larger than this
+_TICK = 5              # seconds between "is it time for this connector?" checks
+_MAX_FILE_MB = 50      # reject fetched files larger than this
+_REINGEST_TICK = 3600  # re-ingest loop check interval (1 hour)
 
 
 class SyncWorker:
@@ -59,6 +61,7 @@ class SyncWorker:
         self._doc_processor = doc_processor
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
+        self._reingest_thread: threading.Thread | None = None
         self._next_run: dict[str, float] = {}   # connector_id → epoch seconds
 
     def start(self) -> None:
@@ -69,12 +72,20 @@ class SyncWorker:
             target=self._loop, name="connector-sync-worker", daemon=True
         )
         self._thread.start()
+        if app_config.REINGEST_ENABLED:
+            self._reingest_thread = threading.Thread(
+                target=self._reingest_loop, name="connector-reingest-worker", daemon=True
+            )
+            self._reingest_thread.start()
+            logger.info(f"[SyncWorker] Re-ingest loop enabled (max_age={app_config.REINGEST_MAX_AGE_HOURS}h)")
         logger.info("[SyncWorker] Started")
 
     def stop(self) -> None:
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=15)
+        if self._reingest_thread is not None:
+            self._reingest_thread.join(timeout=15)
         logger.info("[SyncWorker] Stopped")
 
     # ------------------------------------------------------------------
@@ -164,6 +175,38 @@ class SyncWorker:
                 os.unlink(tmp_path)
             except OSError:
                 pass
+
+    def _reingest_loop(self) -> None:
+        """Periodically re-ingest documents older than REINGEST_MAX_AGE_HOURS."""
+        while not self._stop_event.is_set():
+            try:
+                stale = self._db.get_stale_documents(app_config.REINGEST_MAX_AGE_HOURS)
+                if stale:
+                    logger.info(f"[SyncWorker] Re-ingesting {len(stale)} stale document(s)")
+                for doc in stale:
+                    if self._stop_event.is_set():
+                        break
+                    self._reingest_document(doc)
+            except Exception as exc:
+                logger.error(f"[SyncWorker] Re-ingest loop error: {exc}", exc_info=True)
+            self._stop_event.wait(timeout=_REINGEST_TICK)
+
+    def _reingest_document(self, doc: dict) -> None:
+        filename = doc.get('filename', '')
+        doc_id = doc.get('id')
+        workspace_id = doc.get('workspace_id')
+        try:
+            success, message, _new_id = self._doc_processor.ingest_document(
+                filename,
+                workspace_id=workspace_id,
+            )
+            if success and doc_id is not None:
+                self._db.update_last_ingested_at(doc_id)
+                logger.debug(f"[SyncWorker] Re-ingested: {filename}")
+            else:
+                logger.warning(f"[SyncWorker] Re-ingest failed for {filename}: {message}")
+        except Exception as exc:
+            logger.warning(f"[SyncWorker] Re-ingest error for {filename}: {exc}")
 
     def _handle_delete(self, source) -> None:
         try:

@@ -279,7 +279,14 @@ class RetrievalMixin:
 
         deduped = sorted(deduped, key=lambda x: (x['filename'], x['chunk_index']))
         return [
-            (r['chunk_text'], r['filename'], r['chunk_index'], r['semantic_score'], r.get('metadata', {}), r.get('chunk_id', 0))
+            (
+                r['chunk_text'],
+                r['filename'],
+                r['chunk_index'],
+                r['semantic_score'],
+                {**r.get('metadata', {}), 'combined_score': r.get('combined_score', r['semantic_score'])},
+                r.get('chunk_id', 0),
+            )
             for r in deduped
         ]
 

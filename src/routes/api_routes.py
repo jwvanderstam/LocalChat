@@ -553,6 +553,7 @@ def _get_rag_context_multi_hop(
             "page_number": r[4].get("page_number"),
             "section_title": r[4].get("section_title"),
             "chunk_id": r[5],
+            "combined_score": r[4].get("combined_score"),
         }
         for r in merged
     ]
@@ -657,6 +658,9 @@ def _build_done_payload(
     if sources:
         payload['sources'] = sources
         payload['source_chunk_ids'] = [s['chunk_id'] for s in sources if s.get('chunk_id')]
+        scores = [s['combined_score'] for s in sources if s.get('combined_score') is not None]
+        if scores:
+            payload['answer_confidence'] = round(min(1.0, max(0.0, sum(scores) / len(scores))), 4)
     if cloud_client is not None:
         payload['model_used'] = model_used
     if agent_result is not None:

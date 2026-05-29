@@ -414,6 +414,11 @@ SUPPORTED_EXTENSIONS: list[str] = (
 # set explicitly to "pymupdf4llm", "pdfplumber", or "pypdf" to force one extractor.
 PDF_LOADER: str = os.environ.get('PDF_LOADER', 'auto')
 
+# Scheduled re-ingestion — re-process documents older than REINGEST_MAX_AGE_HOURS.
+# Disabled by default; set REINGEST_ENABLED=true to activate.
+REINGEST_ENABLED: bool = os.environ.get('REINGEST_ENABLED', 'false').lower() == 'true'
+REINGEST_MAX_AGE_HOURS: int = int(os.environ.get('REINGEST_MAX_AGE_HOURS', '168'))  # 7 days
+
 # Vision / multimodal configuration
 VISION_DESCRIBE_PROMPT: str = (
     "Describe this image in detail. Include all visible text, charts, tables, diagrams, "
