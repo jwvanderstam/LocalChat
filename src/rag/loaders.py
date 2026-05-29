@@ -60,6 +60,16 @@ try:
 except ImportError:
     logger.warning("openpyxl not installed - Excel (.xlsx) support disabled")
 
+_pymupdf4llm = None
+PYMUPDF4LLM_AVAILABLE = False
+try:
+    import pymupdf4llm as _pymupdf4llm_lib
+    _pymupdf4llm = _pymupdf4llm_lib
+    PYMUPDF4LLM_AVAILABLE = True
+    logger.debug("pymupdf4llm available for layout-aware PDF extraction")
+except ImportError:
+    logger.debug("pymupdf4llm not available — install for better column-heavy PDF support")
+
 # Try to import monitoring - graceful degradation if not available
 try:
     from ..monitoring import counted, timed
@@ -75,8 +85,20 @@ _PPTX_NOT_INSTALLED = "python-pptx not installed — run: pip install python-ppt
 _XLSX_NOT_INSTALLED = "openpyxl not installed — run: pip install openpyxl"
 VISION_MODEL_MISSING_ERROR = "No vision model available for image processing. Install a vision-capable model (e.g. llava) via the Models page."
 _DOCX_LOAD_ERROR = "Error loading DOCX: "
+_EXTRACTOR_PYMUPDF4LLM = "pymupdf4llm"
 _EXTRACTOR_PDFPLUMBER = "pdfplumber"
 _EXTRACTOR_PYPDF = "pypdf"
+
+
+def _detect_language(text: str) -> str | None:
+    """Detect language of text using langdetect. Returns ISO 639-1 code or None."""
+    try:
+        from langdetect import LangDetectException, detect
+        return detect(text[:2000])
+    except ImportError:
+        return None
+    except Exception:
+        return None
 
 
 class DocumentLoaderMixin:
@@ -113,6 +135,14 @@ class DocumentLoaderMixin:
             return pdf_lib
         except ImportError:
             return None
+
+    def _extract_pymupdf4llm_text(self, file_path: str) -> str:
+        """Extract text from a PDF using pymupdf4llm (layout-aware, handles multi-column)."""
+        text = _pymupdf4llm.to_markdown(file_path)
+        logger.info(f"pymupdf4llm extraction: {len(text):,} chars")
+        if len(text) < 100:
+            raise ValueError("Insufficient text extracted with pymupdf4llm")
+        return text
 
     def _format_table_rows(self, table: list) -> str:
         """Format a pdfplumber table (list of rows) into pipe-delimited text."""
@@ -237,19 +267,29 @@ class DocumentLoaderMixin:
             file_size = os.path.getsize(file_path)
             logger.debug(f"PDF file size: {file_size:,} bytes")
 
-            pdfplumber = self._try_pdfplumber_import()
             text = ""
             extraction_method = "unknown"
+            loader_pref = config.PDF_LOADER  # "auto" | "pymupdf4llm" | "pdfplumber" | "pypdf"
 
-            if pdfplumber is not None:
+            if loader_pref in ('auto', 'pymupdf4llm') and PYMUPDF4LLM_AVAILABLE:
                 try:
-                    text = self._extract_pdfplumber_text(pdfplumber, file_path)
-                    extraction_method = _EXTRACTOR_PDFPLUMBER
-                except Exception as plumber_error:
-                    logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF}")
-                    text = ""
+                    text = self._extract_pymupdf4llm_text(file_path)
+                    extraction_method = _EXTRACTOR_PYMUPDF4LLM
+                except Exception as mupdf_error:
+                    logger.warning(f"{_EXTRACTOR_PYMUPDF4LLM} extraction failed: {mupdf_error}, trying next extractor")
+                    if loader_pref == 'pymupdf4llm':
+                        logger.warning("PDF_LOADER=pymupdf4llm but extraction failed — no fallback configured")
 
-            if not text:
+            if not text and loader_pref in ('auto', 'pdfplumber'):
+                pdfplumber = self._try_pdfplumber_import()
+                if pdfplumber is not None:
+                    try:
+                        text = self._extract_pdfplumber_text(pdfplumber, file_path)
+                        extraction_method = _EXTRACTOR_PDFPLUMBER
+                    except Exception as plumber_error:
+                        logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF}")
+
+            if not text and loader_pref in ('auto', 'pypdf', 'pymupdf4llm', 'pdfplumber'):
                 text = self._extract_pypdf2_text(file_path)
                 extraction_method = _EXTRACTOR_PYPDF
 
@@ -317,8 +357,16 @@ class DocumentLoaderMixin:
         return True, ""
 
     def _extract_docx_text(self, doc) -> str:
-        """Extract combined text from DOCX paragraphs and table cells."""
-        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        """Extract text from DOCX paragraphs (with heading hierarchy) and table cells."""
+        _HEADING_PREFIX = {'Heading 1': '# ', 'Heading 2': '## ', 'Heading 3': '### '}
+        parts = []
+        for p in doc.paragraphs:
+            text = p.text.strip()
+            if not text:
+                continue
+            style_name = p.style.name if p.style else ''
+            prefix = _HEADING_PREFIX.get(style_name, '')
+            parts.append(f"{prefix}{text}")
         cells = [
             cell.text.strip()
             for table in doc.tables
@@ -326,7 +374,7 @@ class DocumentLoaderMixin:
             for cell in row.cells
             if cell.text.strip()
         ]
-        return "\n".join(paragraphs + cells)
+        return "\n".join(parts + cells)
 
     def load_docx_file(self, file_path: str) -> tuple[bool, str]:
         """

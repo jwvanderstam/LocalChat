@@ -652,6 +652,13 @@ class DatabaseConnection:
                 """)
                 logger.debug("oauth_tokens table ensured")
 
+                # ── v1.1: language detection column ──────────────────────────
+                cursor.execute("""
+                    ALTER TABLE documents
+                        ADD COLUMN IF NOT EXISTS language VARCHAR(10)
+                """)
+                logger.debug("documents.language column ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
 

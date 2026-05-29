@@ -23,6 +23,7 @@ from .doc_type import ChunkerRegistry, DocTypeClassifier
 from .loaders import DocumentLoaderMixin
 
 _NO_EMBEDDING_MODEL = "No embedding model available"
+from .loaders import _detect_language
 from .retrieval import RetrievalMixin
 
 
@@ -330,6 +331,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
             # Build content preview — reuse already-loaded data; no second file read.
             content_preview = (raw_content or (chunks_with_metadata[0]['text'] if chunks_with_metadata else ''))[:1000]
+            language = _detect_language(raw_content) if raw_content else None
 
             doc_id = db.insert_document(
                 filename=filename,
@@ -339,6 +341,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 doc_type=doc_type_str,
                 chunker_version=chunker_version,
                 workspace_id=workspace_id,
+                language=language,
             )
             logger.debug(f"Document ID: {doc_id}")
 

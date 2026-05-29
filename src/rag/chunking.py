@@ -15,6 +15,21 @@ from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+
+def _is_cjk_dominant(text: str) -> bool:
+    """Return True when CJK characters exceed 10% of the text (signals character-boundary split)."""
+    if not text:
+        return False
+    cjk = sum(
+        1 for ch in text
+        if '一' <= ch <= '鿿'   # CJK Unified Ideographs
+        or '぀' <= ch <= 'ゟ'   # Hiragana
+        or '゠' <= ch <= 'ヿ'   # Katakana
+        or '가' <= ch <= '힯'   # Korean Hangul
+    )
+    return cjk / len(text) > 0.10
+
+
 # Try to import monitoring - graceful degradation if not available
 try:
     from ..monitoring import timed
@@ -122,6 +137,10 @@ class TextChunkerMixin:
         text = text.strip()
         if len(text) <= chunk_size:
             return [text] if text else []
+
+        if _is_cjk_dominant(text):
+            logger.debug("CJK-dominant text — using character-level split")
+            return self._filter_valid_chunks(self._character_split(text, chunk_size, overlap))
 
         table_pattern = r'\[Table \d+ on page \d+\].*?(?=\[Table \d+ on page \d+\]|\Z)'  # NOSONAR
         table_matches = list(re.finditer(table_pattern, text, re.DOTALL))

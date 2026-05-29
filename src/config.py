@@ -410,6 +410,10 @@ SUPPORTED_EXTENSIONS: list[str] = (
     + SUPPORTED_IMAGE_EXTENSIONS
 )
 
+# PDF extraction backend.  "auto" tries pymupdf4llm → pdfplumber → pypdf in order;
+# set explicitly to "pymupdf4llm", "pdfplumber", or "pypdf" to force one extractor.
+PDF_LOADER: str = os.environ.get('PDF_LOADER', 'auto')
+
 # Vision / multimodal configuration
 VISION_DESCRIBE_PROMPT: str = (
     "Describe this image in detail. Include all visible text, charts, tables, diagrams, "

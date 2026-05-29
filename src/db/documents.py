@@ -40,6 +40,7 @@ class DocumentsMixin:
         doc_type: str | None = None,
         chunker_version: str | None = None,
         workspace_id: str | None = None,
+        language: str | None = None,
     ) -> int:
         """
         Insert a new document and return its ID.
@@ -51,6 +52,8 @@ class DocumentsMixin:
             content_hash: SHA-256 hex digest of the original file bytes (optional)
             doc_type: Document type string from DocType enum (optional)
             chunker_version: Version string of the chunker used (optional)
+            workspace_id: Workspace UUID (optional)
+            language: ISO 639-1 language code detected during ingest (optional)
 
         Returns:
             int: ID of inserted document
@@ -70,9 +73,9 @@ class DocumentsMixin:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO documents"
-                    " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                    (filename, content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id),
+                    " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id, language)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                    (filename, content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language),
                 )
                 doc_id = cursor.fetchone()[0]
                 conn.commit()
