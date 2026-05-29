@@ -433,13 +433,10 @@ def create_cache_backend(
         >>> cache = create_cache_backend('redis', host='localhost', port=6379)
     """
     if backend == "redis":
-        try:
-            # Remove max_size from kwargs for Redis (it doesn't use it)
-            redis_kwargs = {k: v for k, v in kwargs.items() if k != 'max_size' and v is not None}
-            return RedisCache(namespace=namespace, **redis_kwargs)
-        except Exception as e:
-            logger.warning(f"Redis unavailable, falling back to memory cache: {e}")
-            return MemoryCache(namespace=namespace, max_size=kwargs.get('max_size', 1000))
+        # No silent fallback — caller decides what to do on failure.
+        # Set REDIS_STRICT=false in config to opt into soft fallback at the bootstrap level.
+        redis_kwargs = {k: v for k, v in kwargs.items() if k != 'max_size' and v is not None}
+        return RedisCache(namespace=namespace, **redis_kwargs)
 
     elif backend == "memory":
         return MemoryCache(namespace=namespace, **kwargs)

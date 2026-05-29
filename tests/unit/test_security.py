@@ -370,14 +370,31 @@ class TestResolveRatelimitStorage:
             result = _resolve_ratelimit_storage("redis://localhost:6379")
         assert result == "redis://localhost:6379"
 
-    def test_redis_unreachable_falls_back_to_memory(self):
+    def test_redis_unreachable_raises_when_strict(self):
+        """REDIS_STRICT=true (default) aborts rather than silently degrading."""
         from src.security import _resolve_ratelimit_storage
         mock_r = MagicMock()
         mock_r.ping.side_effect = ConnectionError("connection refused")
         mock_redis_mod = MagicMock()
         mock_redis_mod.Redis.return_value = mock_r
         with patch.dict("sys.modules", {"redis": mock_redis_mod}):
-            result = _resolve_ratelimit_storage("redis://localhost:6379")
+            with patch("src.security.config") as mock_cfg:
+                mock_cfg.REDIS_STRICT = True
+                import pytest
+                with pytest.raises(RuntimeError, match="REDIS_STRICT=true"):
+                    _resolve_ratelimit_storage("redis://localhost:6379")
+
+    def test_redis_unreachable_falls_back_to_memory_when_not_strict(self):
+        """REDIS_STRICT=false restores the old soft-fallback behaviour."""
+        from src.security import _resolve_ratelimit_storage
+        mock_r = MagicMock()
+        mock_r.ping.side_effect = ConnectionError("connection refused")
+        mock_redis_mod = MagicMock()
+        mock_redis_mod.Redis.return_value = mock_r
+        with patch.dict("sys.modules", {"redis": mock_redis_mod}):
+            with patch("src.security.config") as mock_cfg:
+                mock_cfg.REDIS_STRICT = False
+                result = _resolve_ratelimit_storage("redis://localhost:6379")
         assert result == "memory://"
 
 

@@ -50,7 +50,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 def _resolve_ratelimit_storage(desired_uri: str) -> str:
-    """Return *desired_uri* if Redis is reachable, otherwise fall back to ``memory://``.
+    """Return *desired_uri* if Redis is reachable; behaviour on failure depends on REDIS_STRICT.
 
     Performed once at startup so every worker process knows its storage backend
     before the first request arrives.
@@ -72,8 +72,14 @@ def _resolve_ratelimit_storage(desired_uri: str) -> str:
         r.ping()
         return desired_uri
     except Exception as exc:
+        if config.REDIS_STRICT:
+            raise RuntimeError(
+                f"Redis unreachable for rate limiting and REDIS_STRICT=true: {exc}. "
+                "Fix Redis connectivity or set REDIS_STRICT=false to allow memory:// fallback."
+            ) from exc
         logger.warning(
-            f"Redis unreachable for rate limiting ({exc}), falling back to memory://"
+            f"Redis unreachable for rate limiting ({exc}), falling back to memory://. "
+            "Set REDIS_STRICT=true to abort startup on Redis failure."
         )
         return "memory://"
 

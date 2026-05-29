@@ -80,6 +80,10 @@ REDIS_ENABLED: bool = os.environ.get('REDIS_ENABLED', 'False').lower() == 'true'
 REDIS_HOST: str = str(os.environ.get('REDIS_HOST', 'localhost'))
 REDIS_PORT: int = int(os.environ.get('REDIS_PORT', '6379'))
 REDIS_PASSWORD: str | None = os.environ.get('REDIS_PASSWORD') or None
+# When REDIS_ENABLED=true, REDIS_STRICT=true (default) aborts startup if Redis is
+# unreachable rather than silently falling back to in-memory. Set REDIS_STRICT=false
+# to restore soft-fallback behaviour (useful for dev boxes that run without Redis).
+REDIS_STRICT: bool = os.environ.get('REDIS_STRICT', 'true').lower() == 'true'
 
 # Rate limiting storage URI.
 # Uses Redis DB 1 (DB 0 is reserved for application caches) when Redis is

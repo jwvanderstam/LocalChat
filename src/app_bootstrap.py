@@ -259,6 +259,13 @@ def _init_caching(app: LocalChatApp) -> None:
         logger.info(f"Caching initialized ({type(embedding_backend).__name__})")
 
     except Exception as e:
+        if config.REDIS_ENABLED and config.REDIS_STRICT:
+            import sys
+            logger.critical(
+                f"[!] Redis cache unavailable and REDIS_STRICT=true: {e}. "
+                "Fix Redis connectivity or set REDIS_STRICT=false to allow memory fallback."
+            )
+            sys.exit(1)
         logger.warning(f"[!] Caching initialization failed: {e}")
         logger.warning("[!] Running without cache (will impact performance)")
         app.embedding_cache = None
