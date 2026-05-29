@@ -9,7 +9,7 @@ Endpoints:
     GET    /api/conversations                    - List all conversations
     POST   /api/conversations                    - Create a new conversation
     GET    /api/conversations/<id>               - Get conversation with messages
-    GET    /api/conversations/<id>/export        - Export conversation (JSON or Markdown)
+    GET    /api/conversations/<id>/export        - Export conversation (JSON, Markdown, PDF, DOCX)
     GET    /api/conversations/<id>/documents     - Get document filter for a conversation
     PUT    /api/conversations/<id>/documents     - Set document filter for a conversation
     PATCH  /api/conversations/<id>               - Rename a conversation
@@ -146,8 +146,8 @@ def export_conversation(conversation_id: str) -> ResponseReturnValue:
         description: Database unavailable
     """
     fmt = request.args.get('format', 'json').lower()
-    if fmt not in ('json', 'markdown'):
-        return jsonify({'error': 'Invalid format. Use json or markdown.'}), 400
+    if fmt not in ('json', 'markdown', 'pdf', 'docx'):
+        return jsonify({'error': 'Invalid format. Use json, markdown, pdf, or docx.'}), 400
 
     messages = current_app.db.get_conversation_messages(conversation_id)
     if messages is None:
@@ -161,20 +161,44 @@ def export_conversation(conversation_id: str) -> ResponseReturnValue:
             headers={'Content-Disposition': f'attachment; filename="conversation-{conversation_id}.json"'},
         )
 
-    # Markdown export
-    lines = [f'# Conversation {conversation_id}', '']
-    for msg in messages:
-        role_label = 'You' if msg['role'] == 'user' else 'Assistant'
-        ts = msg.get('timestamp') or ''
-        lines.append(f'### {role_label}{" — " + ts if ts else ""}')
-        lines.append('')
-        lines.append(msg['content'])
-        lines.append('')
-    return Response(
-        '\n'.join(lines),
-        mimetype='text/markdown',
-        headers={'Content-Disposition': f'attachment; filename="conversation-{conversation_id}.md"'},
-    )
+    if fmt == 'markdown':
+        lines = [f'# Conversation {conversation_id}', '']
+        for msg in messages:
+            role_label = 'You' if msg['role'] == 'user' else 'Assistant'
+            ts = msg.get('timestamp') or ''
+            lines.append(f'### {role_label}{" — " + ts if ts else ""}')
+            lines.append('')
+            lines.append(msg['content'])
+            lines.append('')
+        return Response(
+            '\n'.join(lines),
+            mimetype='text/markdown',
+            headers={'Content-Disposition': f'attachment; filename="conversation-{conversation_id}.md"'},
+        )
+
+    title = f'Conversation {conversation_id}'
+
+    from ..utils.export import export_conversation_docx, export_conversation_pdf
+    try:
+        if fmt == 'docx':
+            data = export_conversation_docx(title, messages)
+            return Response(
+                data,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                headers={'Content-Disposition': f'attachment; filename="conversation-{conversation_id}.docx"'},
+            )
+        # fmt == 'pdf'
+        data = export_conversation_pdf(title, messages)
+        return Response(
+            data,
+            mimetype='application/pdf',
+            headers={'Content-Disposition': f'attachment; filename="conversation-{conversation_id}.pdf"'},
+        )
+    except ImportError as ie:
+        return jsonify({'error': str(ie)}), 501
+    except Exception as e:
+        logger.error(f"[Export] {fmt} export failed: {e}", exc_info=True)
+        return jsonify({'error': 'Export failed'}), 500
 
 
 @bp.route('/conversations/<conversation_id>/documents', methods=['GET'])

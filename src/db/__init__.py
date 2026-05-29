@@ -12,6 +12,7 @@ Submodules:
 """
 
 from ..utils.logging_config import get_logger
+from .annotations import AnnotationsMixin
 from .connection import (
     DatabaseConnection,
     DatabaseUnavailableError,
@@ -31,7 +32,7 @@ from .workspaces import WorkspacesMixin
 logger = get_logger(__name__)
 
 
-class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, UsersMixin, WorkspacesMixin, OAuthTokensMixin, ConnectorsMixin, DatabaseConnection):
+class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, UsersMixin, WorkspacesMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 

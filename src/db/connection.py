@@ -652,6 +652,23 @@ class DatabaseConnection:
                 """)
                 logger.debug("oauth_tokens table ensured")
 
+                # ── v1.2: annotation layer ───────────────────────────────────
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS annotations (
+                        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        chunk_id        INTEGER REFERENCES document_chunks(id) ON DELETE CASCADE,
+                        conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+                        user_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+                        text            TEXT NOT NULL,
+                        created_at      TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_annotations_chunk
+                    ON annotations (chunk_id)
+                """)
+                logger.debug("annotations table ensured")
+
                 # ── v1.1: language detection column ──────────────────────────
                 cursor.execute("""
                     ALTER TABLE documents

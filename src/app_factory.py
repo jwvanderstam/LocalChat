@@ -127,6 +127,7 @@ def _init_cloud_client() -> Any:
 
 def _register_blueprints(app: LocalChatApp) -> None:
     from .routes import (
+        annotation_routes,
         api_routes,
         auth_routes,
         connector_routes,
@@ -153,6 +154,7 @@ def _register_blueprints(app: LocalChatApp) -> None:
     app.register_blueprint(settings_routes.bp)
     app.register_blueprint(auth_routes.bp, url_prefix='/api')
     app.register_blueprint(oauth_routes.bp, url_prefix='/api')
+    app.register_blueprint(annotation_routes.bp, url_prefix='/api')
 
     logger.debug("Blueprints registered")
 
