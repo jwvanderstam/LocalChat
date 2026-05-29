@@ -687,6 +687,17 @@ class DatabaseConnection:
                 """)
                 logger.debug("documents.last_ingested_at column ensured")
 
+                # ── v1.5: multi-source selection — connector source ID ─────────
+                cursor.execute("""
+                    ALTER TABLE documents
+                        ADD COLUMN IF NOT EXISTS source_id VARCHAR(255)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_documents_source_id
+                        ON documents (source_id)
+                """)
+                logger.debug("documents.source_id column ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
 

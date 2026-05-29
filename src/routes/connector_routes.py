@@ -38,6 +38,31 @@ _NOT_FOUND = 'Connector not found'
 
 # ---------------------------------------------------------------------------
 
+@bp.route('/api/connectors/available', methods=['GET'])
+def list_available_connectors() -> ResponseReturnValue:
+    """
+    List connector types available for the current user (have OAuth tokens).
+    ---
+    tags:
+      - Connectors
+    summary: List connector types the user can connect without re-authorizing
+    responses:
+      200:
+        description: List of available connector type strings with auth status
+    """
+    from ..security import get_current_user_id
+    user_id = get_current_user_id()
+    available = []
+    for provider in ('google_drive', 'microsoft', 'onedrive'):
+        try:
+            token = current_app.db.get_oauth_token(user_id or '', provider) if user_id and current_app.db.is_connected else None
+            if token:
+                available.append({'type': provider, 'authorized': True})
+        except Exception:
+            pass
+    return jsonify({'success': True, 'available': available})
+
+
 @bp.route('/api/connectors/types', methods=['GET'])
 def list_connector_types() -> ResponseReturnValue:
     """

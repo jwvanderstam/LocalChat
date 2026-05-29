@@ -111,6 +111,7 @@ def _parse_chat_request(data: dict) -> dict:
         'temperature': req.temperature,
         'model_override': req.model_override or None,
         'additional_workspace_ids': req.additional_workspace_ids or [],
+        'active_source_ids': req.active_source_ids or [],
     }
 
 
@@ -146,6 +147,7 @@ def _get_rag_context(
     filename_filter: list | None = None,
     workspace_id: str | None = None,
     additional_workspace_ids: list[str] | None = None,
+    source_ids: list[str] | None = None,
 ) -> tuple[str, list[dict]]:
     """Retrieve and format RAG context. Returns (formatted context block, source list).
 
@@ -161,6 +163,7 @@ def _get_rag_context(
     results = doc_processor.retrieve_context(
         message, filename_filter=filename_filter or [], workspace_id=workspace_id,
         additional_workspace_ids=additional_workspace_ids,
+        source_ids=source_ids or [],
     )
     logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
     g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(results)
@@ -425,6 +428,7 @@ def _get_filename_filter(fields: dict) -> list[str]:
 def _retrieve_contexts(
     fields: dict, doc_processor, plan=None, workspace_id: str | None = None,
     additional_workspace_ids: list[str] | None = None,
+    source_ids: list[str] | None = None,
 ) -> tuple:
     """Retrieve local RAG context and web search context based on request flags.
 
@@ -443,6 +447,7 @@ def _retrieve_contexts(
     return _retrieve_direct(
         fields, doc_processor, plan, workspace_id=workspace_id,
         additional_workspace_ids=additional_workspace_ids,
+        source_ids=source_ids,
     )
 
 
@@ -487,6 +492,7 @@ def _retrieve_via_aggregator(fields: dict, plan) -> tuple | None:
 def _retrieve_direct(
     fields: dict, doc_processor, plan, workspace_id: str | None = None,
     additional_workspace_ids: list[str] | None = None,
+    source_ids: list[str] | None = None,
 ) -> tuple:
     """Direct retrieval path (default, or aggregator fallback)."""
     local_context = ""
@@ -505,6 +511,7 @@ def _retrieve_direct(
                     fields['message'], doc_processor,
                     filename_filter=filename_filter, workspace_id=workspace_id,
                     additional_workspace_ids=additional_workspace_ids,
+                    source_ids=source_ids,
                 )
         except Exception as e:
             raise exceptions.SearchError(
@@ -921,6 +928,7 @@ def api_chat() -> ResponseReturnValue:
         local_ctx, web_ctx, sources = _retrieve_contexts(
             fields, current_app.doc_processor, plan=plan, workspace_id=workspace_id,
             additional_workspace_ids=fields.get('additional_workspace_ids') or None,
+            source_ids=fields.get('active_source_ids') or None,
         )
         # Capture agent result if the aggregator ran (stored in g by _retrieve_contexts)
         agent_result = getattr(g, 'agent_result', None)

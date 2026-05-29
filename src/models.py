@@ -98,6 +98,10 @@ class ChatRequest(BaseModel):
         default=None,
         description="Additional workspace UUIDs to include in cross-workspace retrieval"
     )
+    active_source_ids: list[str] | None = Field(
+        default=None,
+        description="Connector or source IDs to restrict retrieval to; omit for all sources"
+    )
 
     @field_validator('conversation_id')
     @classmethod

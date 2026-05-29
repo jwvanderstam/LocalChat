@@ -124,6 +124,7 @@ class TestRagFlow:
             filename_filter=[],
             workspace_id=None,
             additional_workspace_ids=None,
+            source_ids=[],
         )
 
     def test_context_text_forwarded_to_llm(self, app, client):

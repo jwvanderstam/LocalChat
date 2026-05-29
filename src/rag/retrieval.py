@@ -196,6 +196,7 @@ class RetrievalMixin:
         use_hybrid_search: bool,
         filename_filter: list[str] | None = None,
         workspace_id: str | None = None,
+        source_ids: list[str] | None = None,
     ) -> dict[str, dict[str, Any]]:
         """Run semantic search, hybrid scoring, and similarity filtering.
 
@@ -210,6 +211,7 @@ class RetrievalMixin:
             file_type_filter=file_type_filter,
             filename_filter=filename_filter or [],
             workspace_id=workspace_id,
+            source_ids=source_ids or [],
         )
         logger.debug(f"[RAG] Semantic search returned {len(semantic_results)} results")
         if not semantic_results:
@@ -303,6 +305,7 @@ class RetrievalMixin:
         filename_filter: list[str] | None = None,
         workspace_id: str | None = None,
         additional_workspace_ids: list[str] | None = None,
+        source_ids: list[str] | None = None,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
@@ -366,6 +369,7 @@ class RetrievalMixin:
             query_clean, query_embedding, top_k, min_similarity, file_type_filter, use_hybrid_search,
             filename_filter=filename_filter,
             workspace_id=workspace_id,
+            source_ids=source_ids,
         )
 
         # Cross-workspace: merge results from additional workspaces and re-rank
@@ -373,6 +377,7 @@ class RetrievalMixin:
             extra_results = self._run_retrieval_pipeline(
                 query_clean, query_embedding, top_k, min_similarity, file_type_filter,
                 use_hybrid_search, filename_filter=filename_filter, workspace_id=extra_ws_id,
+                source_ids=source_ids,
             )
             filtered_results.update(extra_results)
 

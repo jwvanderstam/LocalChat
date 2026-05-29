@@ -162,6 +162,7 @@ class SyncWorker:
             success, message, _doc_id = self._doc_processor.ingest_document(
                 tmp_path,
                 workspace_id=connector.workspace_id,
+                source_id=connector.connector_id or None,
             )
             if success:
                 counts["added" if event.event_type == EventType.ADDED else "updated"] += 1

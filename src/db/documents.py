@@ -42,6 +42,7 @@ class DocumentsMixin:
         chunker_version: str | None = None,
         workspace_id: str | None = None,
         language: str | None = None,
+        source_id: str | None = None,
     ) -> int:
         """
         Insert a new document and return its ID.
@@ -74,9 +75,9 @@ class DocumentsMixin:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO documents"
-                    " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id, language)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                    (filename, _encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language),
+                    " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id, language, source_id)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                    (filename, _encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language, source_id),
                 )
                 doc_id = cursor.fetchone()[0]
                 conn.commit()
@@ -222,6 +223,7 @@ class DocumentsMixin:
         file_type_filter: str | None = None,
         filename_filter: list[str] | None = None,
         workspace_id: str | None = None,
+        source_ids: list[str] | None = None,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """
         Search for similar chunks using cosine similarity via pgvector HNSW.
@@ -263,6 +265,9 @@ class DocumentsMixin:
                 if workspace_id:
                     where_extra += "  AND d.workspace_id = %s\n"
                     params.append(workspace_id)
+                if source_ids:
+                    where_extra += "  AND d.source_id = ANY(%s)\n"
+                    params.append(source_ids)
                 params.extend([max_distance, top_k])
 
                 cursor.execute(
