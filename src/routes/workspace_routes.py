@@ -7,9 +7,22 @@ CRUD and switch endpoints for workspace/persona management.
 
 from __future__ import annotations
 
-from flask import Blueprint, current_app, jsonify, request
+import json
+import time
+from typing import Any
+
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    jsonify,
+    request,
+    stream_with_context,
+)
 from flask.typing import ResponseReturnValue
 
+from .. import config
+from ..security import get_current_user_id
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
 
@@ -20,6 +33,10 @@ bp = Blueprint('workspaces', __name__)
 
 _NOT_FOUND = 'Workspace not found'
 _ERR_INTERNAL = 'Internal server error'
+_ERR_FORBIDDEN = 'Only workspace owners can perform this action'
+
+# In-process presence store: workspace_id → {user_id → expires_at (epoch float)}
+_presence: dict[str, dict[str, float]] = {}
 
 # ---------------------------------------------------------------------------
 # List / Create
@@ -190,6 +207,10 @@ def delete_workspace(workspace_id: str) -> ResponseReturnValue:
       404:
         description: Not found
     """
+    caller = get_current_user_id() or 'admin'
+    role = current_app.db.get_workspace_member_role(workspace_id, caller)
+    if role is not None and role != 'owner':
+        return jsonify({'success': False, 'message': _ERR_FORBIDDEN}), 403
     try:
         deleted = current_app.db.delete_workspace(workspace_id)
         if not deleted:
@@ -280,7 +301,11 @@ def add_workspace_member(workspace_id: str) -> ResponseReturnValue:
 
 @bp.route('/api/workspaces/<workspace_id>/members/<user_id>', methods=['PUT'])
 def update_workspace_member(workspace_id: str, user_id: str) -> ResponseReturnValue:
-    """Change a member's role."""
+    """Change a member's role (owner only)."""
+    caller = get_current_user_id() or 'admin'
+    role_check = current_app.db.get_workspace_member_role(workspace_id, caller)
+    if role_check is not None and role_check != 'owner':
+        return jsonify({'success': False, 'message': _ERR_FORBIDDEN}), 403
     data = request.get_json(silent=True) or {}
     role = data.get('role', '')
     if role not in ('viewer', 'editor', 'owner'):
@@ -295,15 +320,72 @@ def update_workspace_member(workspace_id: str, user_id: str) -> ResponseReturnVa
 
 @bp.route('/api/workspaces/<workspace_id>/members/<user_id>', methods=['DELETE'])
 def remove_workspace_member(workspace_id: str, user_id: str) -> ResponseReturnValue:
-    """Remove a member from a workspace."""
+    """Remove a member from a workspace (owner only)."""
+    caller = get_current_user_id() or 'admin'
+    role_check = current_app.db.get_workspace_member_role(workspace_id, caller)
+    if role_check is not None and role_check != 'owner':
+        return jsonify({'success': False, 'message': _ERR_FORBIDDEN}), 403
     try:
         removed = current_app.db.remove_workspace_member(workspace_id, user_id)
         if not removed:
             return jsonify({'success': False, 'message': 'Member not found'}), 404
         return jsonify({'success': True})
+    except ValueError as ve:
+        return jsonify({'success': False, 'message': str(ve)}), 409
     except Exception as e:
         logger.error(f"[Workspaces] remove member error: {e}", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
+
+
+# ---------------------------------------------------------------------------
+# Presence
+# ---------------------------------------------------------------------------
+
+def _presence_event(workspace_id: str, user_id: str | None) -> str:
+    """Register user, clean stale entries, return SSE-formatted presence event."""
+    now = time.time()
+    bucket = _presence.setdefault(workspace_id, {})
+    if user_id:
+        bucket[user_id] = now + config.PRESENCE_TTL_SECONDS
+    # Evict expired entries
+    expired = [uid for uid, exp in bucket.items() if exp < now]
+    for uid in expired:
+        del bucket[uid]
+    payload = json.dumps({'users': list(bucket.keys()), 'count': len(bucket)})
+    return f"data: {payload}\n\n"
+
+
+@bp.route('/api/workspaces/<workspace_id>/presence', methods=['GET'])
+def workspace_presence(workspace_id: str) -> ResponseReturnValue:
+    """
+    SSE stream of connected users in a workspace.
+    ---
+    tags: [Workspaces]
+    parameters:
+      - {in: path, name: workspace_id, type: string, required: true}
+    responses:
+      200: {description: Server-sent events with presence info}
+    """
+    user_id = get_current_user_id()
+    heartbeat = config.PRESENCE_TTL_SECONDS
+
+    def _generate() -> Any:
+        try:
+            yield _presence_event(workspace_id, user_id)
+            while True:
+                time.sleep(heartbeat)
+                yield _presence_event(workspace_id, user_id)
+        finally:
+            # Remove this user when the stream closes
+            bucket = _presence.get(workspace_id, {})
+            if user_id and user_id in bucket:
+                del bucket[user_id]
+
+    return Response(
+        stream_with_context(_generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+    )
 
 
 @bp.route('/api/workspaces/switch', methods=['POST'])

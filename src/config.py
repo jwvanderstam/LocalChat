@@ -419,6 +419,9 @@ PDF_LOADER: str = os.environ.get('PDF_LOADER', 'auto')
 REINGEST_ENABLED: bool = os.environ.get('REINGEST_ENABLED', 'false').lower() == 'true'
 REINGEST_MAX_AGE_HOURS: int = int(os.environ.get('REINGEST_MAX_AGE_HOURS', '168'))  # 7 days
 
+# Workspace presence — TTL in seconds for an active presence entry.
+PRESENCE_TTL_SECONDS: int = int(os.environ.get('PRESENCE_TTL_SECONDS', '30'))
+
 # Vision / multimodal configuration
 VISION_DESCRIBE_PROMPT: str = (
     "Describe this image in detail. Include all visible text, charts, tables, diagrams, "

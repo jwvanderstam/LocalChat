@@ -153,6 +153,7 @@ class TestUpdateWorkspace:
 class TestDeleteWorkspace:
 
     def test_deletes_workspace(self, client, app):
+        app.db.get_workspace_member_role = MagicMock(return_value=None)
         app.db.delete_workspace = MagicMock(return_value=True)
         app.db.get_default_workspace_id = MagicMock(return_value="ws-default")
         resp = client.delete("/api/workspaces/ws-1")
@@ -160,16 +161,30 @@ class TestDeleteWorkspace:
         assert resp.get_json()["success"] is True
 
     def test_not_found_returns_404(self, client, app):
+        app.db.get_workspace_member_role = MagicMock(return_value=None)
         app.db.delete_workspace = MagicMock(return_value=False)
         resp = client.delete("/api/workspaces/missing")
         assert resp.status_code == 404
 
     def test_response_includes_fallback_workspace_id(self, client, app):
+        app.db.get_workspace_member_role = MagicMock(return_value=None)
         app.db.delete_workspace = MagicMock(return_value=True)
         app.db.get_default_workspace_id = MagicMock(return_value="ws-default")
         resp = client.delete("/api/workspaces/ws-1")
         assert resp.status_code == 200
         assert resp.get_json()["fallback_workspace_id"] == "ws-default"
+
+    def test_non_owner_member_returns_403(self, client, app):
+        app.db.get_workspace_member_role = MagicMock(return_value="editor")
+        resp = client.delete("/api/workspaces/ws-1")
+        assert resp.status_code == 403
+
+    def test_owner_can_delete(self, client, app):
+        app.db.get_workspace_member_role = MagicMock(return_value="owner")
+        app.db.delete_workspace = MagicMock(return_value=True)
+        app.db.get_default_workspace_id = MagicMock(return_value="ws-default")
+        resp = client.delete("/api/workspaces/ws-1")
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------

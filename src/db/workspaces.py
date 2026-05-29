@@ -181,16 +181,48 @@ class WorkspacesMixin:
                 )
 
     def remove_workspace_member(self, workspace_id: str, user_id: str) -> bool:
-        """Remove a member from a workspace. Returns True if a row was deleted."""
+        """Remove a member from a workspace.
+
+        Returns True if a row was deleted. Refuses to remove the last owner.
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot remove workspace member: DB not connected")
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
+                    "SELECT role FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
+                    (workspace_id, user_id),
+                )
+                row = cur.fetchone()
+                if row and row[0] == 'owner':
+                    cur.execute(
+                        "SELECT COUNT(*) FROM workspace_members WHERE workspace_id = %s AND role = 'owner'",
+                        (workspace_id,),
+                    )
+                    if (cur.fetchone() or [0])[0] <= 1:
+                        raise ValueError("Cannot remove the last owner of a workspace")
+                cur.execute(
                     "DELETE FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
                     (workspace_id, user_id),
                 )
                 return cur.rowcount > 0
+
+    def get_workspace_owner(self, workspace_id: str) -> str | None:
+        """Return the user_id of the first owner of a workspace, or None."""
+        if not self.is_connected:
+            return None
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT user_id FROM workspace_members
+                    WHERE workspace_id = %s AND role = 'owner'
+                    ORDER BY created_at LIMIT 1
+                    """,
+                    (workspace_id,),
+                )
+                row = cur.fetchone()
+        return str(row[0]) if row else None
 
     def get_workspace_member_role(
         self, workspace_id: str, user_id: str
