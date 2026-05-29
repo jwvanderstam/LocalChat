@@ -43,6 +43,21 @@ def create_gunicorn_app():
     return app
 
 
+def create_uvicorn_app():
+    """Entry point for Uvicorn / ASGI servers (FastAPI).
+
+    Usage in Dockerfile CMD::
+
+        uvicorn "app:create_uvicorn_app" --factory --host 0.0.0.0 --port 5000
+    """
+    from src.app_bootstrap import bootstrap_app as _bootstrap
+    from src.app_fastapi import create_app as _create_fastapi_app
+
+    fastapi_app = _create_fastapi_app()
+    _bootstrap(fastapi_app)
+    return fastapi_app
+
+
 def _is_db_reachable(host: str, port: int) -> bool:
     try:
         with socket.create_connection((host, port), timeout=2):
