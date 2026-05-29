@@ -264,17 +264,6 @@ def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> A
         return JSONResponse({"success": False, "message": "Failed to fetch chunk context"}, status_code=500)
 
 
-@router.delete("/{doc_id}")
-def api_delete_document(doc_id: int, request: Request) -> Any:
-    try:
-        request.app.state.db.delete_document(doc_id)
-        _update_document_count(request.app.state)
-        return {"success": True}
-    except Exception as exc:
-        logger.error("Error deleting document %s: %s", _slv(str(doc_id)), exc, exc_info=True)
-        return JSONResponse({"success": False, "message": "Failed to delete document"}, status_code=500)
-
-
 @router.delete("/clear")
 def api_clear_documents(request: Request) -> Any:
     try:
@@ -285,6 +274,17 @@ def api_clear_documents(request: Request) -> Any:
     except Exception as exc:
         logger.error("Error clearing documents: %s", exc, exc_info=True)
         return JSONResponse({"success": False, "message": "Failed to clear documents"}, status_code=500)
+
+
+@router.delete("/{doc_id}")
+def api_delete_document(doc_id: int, request: Request) -> Any:
+    try:
+        request.app.state.db.delete_document(doc_id)
+        _update_document_count(request.app.state)
+        return {"success": True}
+    except Exception as exc:
+        logger.error("Error deleting document %s: %s", _slv(str(doc_id)), exc, exc_info=True)
+        return JSONResponse({"success": False, "message": "Failed to delete document"}, status_code=500)
 
 
 def _format_test_results(results: list, mode_name: str) -> dict[str, Any]:
