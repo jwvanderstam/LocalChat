@@ -1,0 +1,125 @@
+"""Model routes — list, active get/set, pull (SSE), delete, test."""
+
+from __future__ import annotations
+
+import json
+from collections.abc import AsyncGenerator
+from typing import Any
+
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from .. import config
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+router = APIRouter()
+
+_ERR_INTERNAL = "Internal server error"
+
+
+@router.get("")
+def list_models(request: Request) -> Any:
+    success, models = request.app.state.ollama_client.list_models()
+    return {"success": success, "models": models}
+
+
+@router.get("/active")
+def get_active_model(request: Request) -> Any:
+    active_model = config.app_state.get_active_model()
+    return {"model": active_model}
+
+
+@router.post("/active")
+async def set_active_model(request: Request) -> Any:
+    from ..models import ModelRequest
+    from ..utils.sanitization import sanitize_model_name
+
+    data = await request.json() if await request.body() else {}
+    try:
+        request_data = ModelRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
+    except Exception:
+        return JSONResponse({"success": False, "message": "model is required"}, status_code=400)
+
+    success, models = request.app.state.ollama_client.list_models()
+    if not success:
+        return JSONResponse({"success": False, "message": "Failed to list models"}, status_code=503)
+
+    model_names = [m["name"] for m in models]
+    if model_name not in model_names:
+        return JSONResponse(
+            {"success": False, "message": f"Model '{model_name}' not found", "available": model_names[:10]},
+            status_code=404,
+        )
+
+    config.app_state.set_active_model(model_name)
+    logger.info("Active model changed to: %s", model_name)
+    return {"success": True, "model": model_name}
+
+
+@router.post("/pull")
+async def pull_model(request: Request) -> Any:
+    from ..models import ModelPullRequest
+    from ..utils.sanitization import sanitize_model_name
+
+    data = await request.json() if await request.body() else {}
+    try:
+        request_data = ModelPullRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
+    except Exception:
+        return JSONResponse({"success": False, "message": "Model name required"}, status_code=400)
+
+    ollama_client = request.app.state.ollama_client
+
+    async def _generate() -> AsyncGenerator[str, None]:
+        try:
+            for progress in ollama_client.pull_model(model_name):
+                yield f"data: {json.dumps(progress)}\n\n"
+        except Exception as exc:
+            logger.error("Error pulling model: %s", exc, exc_info=True)
+            yield f"data: {json.dumps({'error': 'Failed to pull model'})}\n\n"
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.delete("/delete")
+async def delete_model(request: Request) -> Any:
+    from ..models import ModelDeleteRequest
+    from ..utils.sanitization import sanitize_model_name
+
+    data = await request.json() if await request.body() else {}
+    try:
+        request_data = ModelDeleteRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
+    except Exception:
+        return JSONResponse({"success": False, "message": "model is required"}, status_code=400)
+
+    success, message = request.app.state.ollama_client.delete_model(model_name)
+    if not success:
+        return JSONResponse({"success": False, "message": f"Failed to delete model: {message}"}, status_code=400)
+    return {"success": True, "message": message}
+
+
+@router.post("/test")
+async def test_model(request: Request) -> Any:
+    from ..models import ModelRequest
+    from ..utils.sanitization import sanitize_model_name
+
+    data = await request.json() if await request.body() else {}
+    try:
+        request_data = ModelRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
+    except Exception:
+        return JSONResponse({"success": False, "message": "model is required"}, status_code=400)
+
+    try:
+        success, result = request.app.state.ollama_client.test_model(model_name)
+        return {"success": success, "result": result}
+    except Exception:
+        logger.error("[Models] test error", exc_info=True)
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
