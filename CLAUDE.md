@@ -6,7 +6,7 @@
 
 ## What This Project Is
 
-LocalChat is a production RAG application built with Flask. Users upload documents (PDF, DOCX, TXT, MD) and chat with them using a locally-running LLM via Ollama. Documents are chunked, embedded, and stored in PostgreSQL with pgvector for hybrid semantic + BM25 search. The LLM supports tool/function-calling and optional live web search.
+LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TXT, MD) and chat with them using a locally-running LLM via Ollama. Documents are chunked, embedded, and stored in PostgreSQL with pgvector for hybrid semantic + BM25 search. The LLM supports tool/function-calling and optional live web search.
 
 **Runtime deps:** PostgreSQL + pgvector, Ollama (local LLM server), Redis (optional caching).
 
@@ -16,11 +16,11 @@ LocalChat is a production RAG application built with Flask. Users upload documen
 
 | Layer | Tech |
 |-------|------|
-| Web framework | Flask 3 + Gunicorn |
+| Web framework | FastAPI + Uvicorn (production); Flask 3 retained for MCP servers |
 | Database | PostgreSQL 15 + pgvector (psycopg3 pool) |
 | LLM | Ollama (local); LiteLLM cloud fallback |
 | Validation | Pydantic v2 |
-| Auth / security | Flask-JWT-Extended, Flask-Limiter, Flask-CORS |
+| Auth / security | python-jose (JWT), slowapi (rate limiting), Starlette CORSMiddleware |
 | Caching | Redis or in-memory fallback |
 | ML / NLP | spaCy (GraphRAG), cross-encoder reranker (optional) |
 | Linter | `ruff` |
@@ -30,14 +30,14 @@ LocalChat is a production RAG application built with Flask. Users upload documen
 
 ## Architecture
 
-**Entry point:** `app.py` → `create_app()` in `src/app_factory.py` → `LocalChatApp` instance. Gunicorn entry: `create_gunicorn_app()`.
+**Entry point:** `app.py` → `create_app()` in `src/app_fastapi.py` → FastAPI instance wired with all routers. Production: `create_uvicorn_app()`. Legacy Gunicorn path via `create_gunicorn_app()` still works.
 
 **Request flow:**
-1. Blueprint in `src/routes/` — thin handler, no business logic
+1. `APIRouter` in `src/routes_fastapi/` — thin handler, no business logic
 2. Pydantic model in `src/models.py` validates; `src/utils/sanitization.py` cleans
-3. `src/security.py` — JWT, rate limiting, CORS
+3. `src/security_fastapi.py` — JWT (`python-jose`), rate limiting (`slowapi`), CORS
 4. Service packages handle business logic
-5. Chat and upload responses stream via SSE
+5. Chat and upload responses stream via `StreamingResponse` (async SSE)
 
 **Packages:**
 
@@ -77,7 +77,8 @@ Full rules across 4 files in `.claude/rules/` — short version here.
 
 **Testing** → [`.claude/rules/testing.md`](.claude/rules/testing.md)
 - New modules and non-trivial functions need unit tests. Coverage must not drop.
-- Always use `create_app(testing=True)` from `src/app_factory.py`.
+- FastAPI routes: use `TestClient` from `fastapi.testclient` with a minimal mounted app.
+- Flask routes (legacy): `create_app(testing=True)` from `src/app_factory.py`.
 
 **File map** → [`.claude/rules/file-map.md`](.claude/rules/file-map.md)
 - Full module index. Update it in the same commit when adding or removing a file.
@@ -100,8 +101,9 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Anti-patterns & Gotchas
 
 - **Never put SQL outside `src/db/`** — raw queries in routes have caused subtle transaction bugs.
-- **Never import `src/app.py`** — it doesn't export an app. Use `create_app()` from `src/app_factory.py`.
-- **SSE generators must handle disconnect** — wrap in `try/finally`; Flask silently drops broken generators.
+- **Never import `src/app.py`** — it doesn't export an app. Use `create_app()` from `src/app_fastapi.py`.
+- **SSE generators must handle disconnect** — wrap `async def _generate()` in `try/finally`; FastAPI silently drops broken generators.
+- **Register `/clear` before `/{id: int}` routes** — FastAPI matches path patterns in order; a literal `/clear` after `/{id}` is shadowed and returns 422.
 - **Don't mock `OllamaClient` at the wrong layer** — mock at the service boundary, not inside RAG internals.
 - **Don't call `os.getenv` in business logic** — every value that skips `config.py` is invisible to config review.
 - **Don't write destructive migrations** — schema changes use `ALTER TABLE IF NOT EXISTS`; `_init_schema()` owns the DDL.
@@ -111,8 +113,9 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Commands
 
 ```bash
-python app.py                               # dev server
-gunicorn "app:create_gunicorn_app()"        # production
+python app.py                                                          # dev server (Flask)
+uvicorn "app:create_uvicorn_app" --factory --host 0.0.0.0 --port 5000 # dev server (FastAPI)
+gunicorn "app:create_gunicorn_app()"                                   # production (Flask/legacy)
 docker compose up -d                        # full stack
 pytest                                      # all tests + coverage
 pytest -m "not (slow or ollama or db)"     # fast only

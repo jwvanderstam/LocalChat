@@ -82,16 +82,11 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)" 2>/dev/null || exit 1
 
-# gthread workers: each worker handles --threads concurrent requests via OS threads.
-# This prevents SSE chat streams from starving background API polls.
-# Replaced by Uvicorn in v1.4 (FastAPI migration).
 CMD ["sh", "-c", \
-     "gunicorn 'app:create_gunicorn_app()' \
-        --bind 0.0.0.0:${SERVER_PORT:-5000} \
-        --worker-class gthread \
-        --workers ${GUNICORN_WORKERS:-2} \
-        --threads ${GUNICORN_THREADS:-4} \
-        --timeout ${GUNICORN_TIMEOUT:-300} \
-        --access-logfile - \
-        --error-logfile - \
+     "uvicorn 'app:create_uvicorn_app' \
+        --factory \
+        --host 0.0.0.0 \
+        --port ${SERVER_PORT:-5000} \
+        --workers ${UVICORN_WORKERS:-2} \
+        --timeout-keep-alive ${UVICORN_TIMEOUT:-600} \
         --log-level info"]

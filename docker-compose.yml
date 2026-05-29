@@ -4,7 +4,7 @@
 #
 # Services
 # --------
-#   app      — LocalChat Flask/Gunicorn application
+#   app      — LocalChat FastAPI/Uvicorn application
 #   db       — PostgreSQL 16 with pgvector extension
 #   redis    — Optional cache (set REDIS_ENABLED=true in app)
 #   ollama   — Local LLM inference (CPU by default)
@@ -289,9 +289,8 @@ services:
       METRICS_TOKEN:     ${METRICS_TOKEN:-}
 
       # ── Performance ──────────────────────────────────────
-      GUNICORN_WORKERS:     ${GUNICORN_WORKERS:-2}
-      GUNICORN_THREADS:     ${GUNICORN_THREADS:-4}
-      GUNICORN_TIMEOUT:     ${GUNICORN_TIMEOUT:-600}
+      UVICORN_WORKERS:      ${UVICORN_WORKERS:-2}
+      UVICORN_TIMEOUT:      ${UVICORN_TIMEOUT:-600}
       OLLAMA_EMBED_TIMEOUT: ${OLLAMA_EMBED_TIMEOUT:-600}
       DEFAULT_MODEL:        ${DEFAULT_MODEL:-llama3.1}
 
