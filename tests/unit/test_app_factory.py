@@ -31,7 +31,7 @@ class TestAppCreation:
 
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         assert isinstance(app, Flask)
 
@@ -39,7 +39,7 @@ class TestAppCreation:
         """Test create_app in testing mode."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         assert app.config.get('TESTING') is True
 
@@ -47,7 +47,7 @@ class TestAppCreation:
         """Test create_app in normal mode."""
         from src.app_factory import create_app
 
-        app = create_app(testing=False)
+        app = create_app()
 
         # Should create app successfully
         assert app is not None
@@ -57,7 +57,7 @@ class TestAppCreation:
         from src.app_factory import create_app
 
         config = {'SECRET_KEY': 'test-secret', 'DEBUG': False}
-        app = create_app(config_override=config, testing=True)
+        app = create_app(config_override={**config, 'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Config may or may not be applied depending on implementation
         assert app is not None
@@ -70,7 +70,7 @@ class TestConfigurationLoading:
         """Test app has template folder configured."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         assert app.template_folder is not None
         assert Path(app.template_folder).name == 'templates'
@@ -79,7 +79,7 @@ class TestConfigurationLoading:
         """Test app has static folder configured."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         assert app.static_folder is not None
         assert 'static' in str(app.static_folder)
@@ -88,7 +88,7 @@ class TestConfigurationLoading:
         """Test app configures TESTING flag."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         assert 'TESTING' in app.config
 
@@ -100,7 +100,7 @@ class TestServiceInitialization:
         """Test app initializes database service."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Should have db attribute
         assert hasattr(app, 'db') or hasattr(app, 'startup_status')
@@ -109,7 +109,7 @@ class TestServiceInitialization:
         """Test app initializes Ollama client."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Should have ollama_client attribute
         assert hasattr(app, 'ollama_client') or hasattr(app, 'startup_status')
@@ -118,7 +118,7 @@ class TestServiceInitialization:
         """Test app initializes document processor."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Should have doc_processor attribute
         assert hasattr(app, 'doc_processor') or hasattr(app, 'startup_status')
@@ -127,7 +127,7 @@ class TestServiceInitialization:
         """Test app has startup status tracking."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Should track startup status
         assert hasattr(app, 'startup_status')
@@ -141,7 +141,7 @@ class TestBlueprintRegistration:
         """Test app registers web routes blueprint."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Check for registered blueprints
         assert len(app.blueprints) > 0
@@ -150,7 +150,7 @@ class TestBlueprintRegistration:
         """Test app has API routes."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Should have blueprints registered
         assert app.blueprints is not None
@@ -159,7 +159,7 @@ class TestBlueprintRegistration:
         """Test app has routes registered."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Should have some routes
         assert len(list(app.url_map.iter_rules())) > 0
@@ -172,7 +172,7 @@ class TestErrorHandlers:
         """Test app has 404 error handler."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         with app.test_client() as client:
             response = client.get('/nonexistent-route-12345')
@@ -184,7 +184,7 @@ class TestErrorHandlers:
         """Test app has 500 error handler."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
         assert app.error_handler_spec is not None
 
 
@@ -195,7 +195,7 @@ class TestAppContext:
         """Test app context can be created."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         with app.app_context():
             # Context should work
@@ -206,7 +206,7 @@ class TestAppContext:
         """Test request context can be created."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         with app.test_request_context('/'):
             # Request context should work
@@ -221,7 +221,7 @@ class TestTestClient:
         """Test app provides test client."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         with app.test_client() as client:
             assert client is not None
@@ -230,7 +230,7 @@ class TestTestClient:
         """Test test client can make requests."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         with app.test_client() as client:
             # Try to get a route
@@ -247,7 +247,7 @@ class TestApiDocumentation:
         """Test API docs not initialized in testing mode."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # In testing mode, API docs should not be initialized
         # (This is expected behavior)
@@ -259,7 +259,7 @@ class TestApiDocumentation:
 
         # In production, would initialize Swagger
         # Just verify app creates successfully
-        app = create_app(testing=False)
+        app = create_app()
         assert app is not None
 
 
@@ -270,7 +270,7 @@ class TestMonitoring:
         """Test monitoring not initialized in testing mode."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # In testing mode, monitoring should not be initialized
         assert app.config.get('TESTING') is True
@@ -280,7 +280,7 @@ class TestMonitoring:
         from src.app_factory import create_app
 
         # In production, would initialize monitoring
-        app = create_app(testing=False)
+        app = create_app()
         assert app is not None
 
 
@@ -291,7 +291,7 @@ class TestCleanupHandlers:
         """Test app registers cleanup handlers."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Should have teardown handlers
         assert app.config.get('TESTING') is True  # App created successfully with expected config
@@ -300,7 +300,7 @@ class TestCleanupHandlers:
         """Test app context teardown."""
         from src.app_factory import create_app
 
-        app = create_app(testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         with app.app_context():
             pass  # Context should clean up properly
@@ -313,8 +313,8 @@ class TestAppFactoryEdgeCases:
         """Test creating multiple app instances."""
         from src.app_factory import create_app
 
-        app1 = create_app(testing=True)
-        app2 = create_app(testing=True)
+        app1 = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
+        app2 = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         # Should create separate instances
         assert app1 is not app2
@@ -323,7 +323,7 @@ class TestAppFactoryEdgeCases:
         """Test creating app with None config override."""
         from src.app_factory import create_app
 
-        app = create_app(config_override=None, testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         assert app is not None
 
@@ -331,6 +331,6 @@ class TestAppFactoryEdgeCases:
         """Test creating app with empty config override."""
         from src.app_factory import create_app
 
-        app = create_app(config_override={}, testing=True)
+        app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False})
 
         assert app is not None

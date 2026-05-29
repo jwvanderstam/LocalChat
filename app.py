@@ -24,6 +24,7 @@ from pathlib import Path
 # Add src to path if running from root
 sys.path.insert(0, str(Path(__file__).parent))
 
+from src.app_bootstrap import bootstrap_app
 from src.app_factory import create_app
 from src.utils.logging_config import get_logger
 
@@ -31,17 +32,15 @@ logger = get_logger(__name__)
 
 
 def create_gunicorn_app():
-    """
-    Entry point for Gunicorn / WSGI servers.
+    """Entry point for Gunicorn / WSGI servers.
 
     Usage in Dockerfile CMD::
 
         gunicorn "app:create_gunicorn_app()"
-
-    Returns:
-        Configured Flask application instance.
     """
-    return create_app()
+    app = create_app()
+    bootstrap_app(app)
+    return app
 
 
 def _is_db_reachable(host: str, port: int) -> bool:
@@ -90,8 +89,8 @@ def main():
     """
     _ensure_db_running()
 
-    # Create application
     app = create_app()
+    bootstrap_app(app)
 
     # Get configuration from environment
     HOST = os.environ.get('SERVER_HOST', 'localhost')

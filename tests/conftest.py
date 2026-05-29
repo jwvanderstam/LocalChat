@@ -147,16 +147,10 @@ def app():
     Returns:
         Flask: Test Flask application instance
     """
-    import os
-
     from src.app_factory import create_app
 
-    # Force testing mode via environment variable as backup
-    os.environ['TESTING'] = '1'
+    test_app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False, 'DEBUG': False})
 
-    test_app = create_app(testing=True)
-
-    # Double-check testing mode is enabled
     assert test_app.config.get('TESTING') is True, "App not in testing mode!"
 
     # create_app(testing=True) intentionally skips db.initialize() to keep
