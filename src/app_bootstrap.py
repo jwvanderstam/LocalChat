@@ -185,7 +185,7 @@ def _init_reranker_scheduler(app: LocalChatApp, db: Any) -> None:
 def _seed_admin_user(db: Any) -> None:
     """Idempotently seed the admin user if ADMIN_PASSWORD is configured.
 
-    Uses an upsert so concurrent gunicorn workers are all safe to call this.
+    Uses an upsert so concurrent uvicorn workers are all safe to call this.
     """
     admin_password = config.ADMIN_PASSWORD
     if not admin_password:

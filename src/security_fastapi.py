@@ -1,7 +1,7 @@
 """
 FastAPI Security — JWT auth, rate limiting, CORS, admin guards.
 
-Drop-in replacement for the Flask security patterns, using:
+Uses:
   - python-jose for JWT encode/decode
   - slowapi for rate limiting
   - FastAPI dependency injection for auth guards

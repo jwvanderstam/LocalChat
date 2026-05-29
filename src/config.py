@@ -114,7 +114,7 @@ def validate_secrets() -> None:
 
     Enforces: minimum 32-char length for SECRET_KEY / JWT_SECRET_KEY,
     rejection of known placeholder values, and a non-empty ADMIN_PASSWORD.
-    Raises SystemExit(1) so gunicorn worker startup aborts cleanly.
+    Raises SystemExit(1) so uvicorn startup aborts cleanly.
     """
     if APP_ENV != 'production':
         return

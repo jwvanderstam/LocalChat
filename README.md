@@ -7,7 +7,7 @@
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 
-A production-ready Retrieval-Augmented Generation (RAG) application built with Flask, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers. Supports documents up to 15 MB with tunable RAG parameters configurable at runtime from the Settings UI.
+A production-ready Retrieval-Augmented Generation (RAG) application built with FastAPI, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers. Supports documents up to 15 MB with tunable RAG parameters configurable at runtime from the Settings UI.
 
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
@@ -50,7 +50,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **XSS Prevention**: DOM-based rendering; `escapeHtml()` wraps all server-controlled values injected into `innerHTML`
 - **Path Traversal Prevention**: `sanitize_filename()` + `validate_path()` belt-and-suspenders on every upload
 - **AST-Safe Calculator**: `eval()` replaced with a recursive AST evaluator; only arithmetic is permitted
-- **Rate Limiting**: Configurable per-endpoint via Flask-Limiter
+- **Rate Limiting**: Configurable per-endpoint via slowapi
 - **CORS Support**: Configurable allowed origins
 - **JWT Authentication**: Token-based auth for admin endpoints
 - **Input Sanitization**: Pydantic validation + server-side sanitization on all inputs
@@ -135,7 +135,7 @@ Once running, open your browser at `http://localhost:5000`.
 +---------------------------------------------------------------+
 |                                                               |
 |  +------------+    +------------+    +------------+           |
-|  |  Web UI    |--->| Flask API  |--->|  Services  |           |
+|  |  Web UI    |--->| FastAPI    |--->|  Services  |           |
 |  | (Browser)  |--->|  (Routes)  |--->|   Layer    |           |
 |  +------------+    +------------+    +------------+           |
 |                          |                |                   |
@@ -199,8 +199,8 @@ Cache Strategy:
 flowchart TD
     Browser["Browser / API Client"]
 
-    subgraph Flask["Flask Application"]
-        Routes["Routes\n(Blueprints)"]
+    subgraph FastAPI["FastAPI Application"]
+        Routes["Routes\n(APIRouters)"]
         Auth["Security\n(JWT · Rate Limit · CORS)"]
         Pydantic["Pydantic Validation\n+ Sanitization"]
         RAG["RAG Pipeline\n(Retrieval · Reranking)"]
@@ -233,7 +233,7 @@ flowchart TD
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | **Frontend** | HTML, CSS, JavaScript | Web interface |
-| **Backend** | Flask 3.1 | Web framework |
+| **Backend** | FastAPI + Uvicorn | Web framework |
 | **Database** | PostgreSQL 15+ | Document storage |
 | **Vector DB** | pgvector | Similarity search |
 | **Cache** | Redis / Memory | Performance optimization |
@@ -260,13 +260,14 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Evolution roadmap and completion status |
 
 ### Key Entry Points
-- **[`app.py`](app.py)** — Application entry point
-- **[`src/app_factory.py`](src/app_factory.py)** — Flask app factory with blueprint registration
+- **[`app.py`](app.py)** — Application entry point; `create_uvicorn_app()` for production
+- **[`src/app_fastapi.py`](src/app_fastapi.py)** — FastAPI application factory with router registration
+- **[`src/app_bootstrap.py`](src/app_bootstrap.py)** — All startup I/O (DB, Ollama, connectors, plugins, reranker)
 - **[`src/monitoring.py`](src/monitoring.py)** — Prometheus metrics, request timing, health checks (`/api/metrics`, `/api/health`)
 - **[`src/ollama_client.py`](src/ollama_client.py)** — Ollama LLM/embedding client with GPU detection and TTL caching
-- **[`src/routes/settings_routes.py`](src/routes/settings_routes.py)** — Settings UI + admin ops dashboard (`/api/settings`, `/api/admin/stats`)
+- **[`src/routes_fastapi/settings_routes.py`](src/routes_fastapi/settings_routes.py)** — Settings UI + admin ops dashboard (`/api/settings`, `/api/admin/stats`)
 - **[`src/rag/web_search.py`](src/rag/web_search.py)** — DuckDuckGo web search provider (Enhanced mode)
-- **[`src/security.py`](src/security.py)** — Rate limiting, CORS, JWT authentication
+- **[`src/security_fastapi.py`](src/security_fastapi.py)** — Rate limiting, CORS, JWT authentication (FastAPI)
 - **[`src/config.py`](src/config.py)** — All configuration (env vars, RAG tuning, GPU settings, cache settings)
 - **[`.env.example`](.env.example)** — Environment variable template
 
@@ -280,14 +281,17 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 
 ```
 LocalChat/
-├── app.py                          # Entry point; create_gunicorn_app() for prod
+├── app.py                          # Entry point; create_uvicorn_app() for prod
 ├── requirements.txt
 ├── .env.example                    # Environment variable template
 ├── src/
-│   ├── app_factory.py              # Flask factory — wires everything together
+│   ├── app_fastapi.py              # FastAPI application factory
+│   ├── app_factory.py              # Flask factory (legacy — MCP servers only)
+│   ├── app_bootstrap.py            # All startup I/O (DB, Ollama, connectors)
 │   ├── config.py                   # All configuration, loads .env
 │   ├── models.py                   # Pydantic request/response models
-│   ├── security.py                 # JWT, rate limiting, CORS
+│   ├── security_fastapi.py         # JWT, rate limiting, CORS (FastAPI)
+│   ├── security.py                 # JWT, rate limiting, CORS (Flask/MCP)
 │   ├── monitoring.py               # Prometheus metrics, health checks
 │   ├── ollama_client.py            # Ollama LLM/embedding client
 │   ├── llm_client.py               # LiteLLM cloud-fallback adapter
@@ -295,7 +299,7 @@ LocalChat/
 │   ├── gpu_monitor.py              # NVIDIA/AMD GPU detection, TTL-cached
 │   ├── api_docs.py                 # Swagger/OpenAPI at /api/docs/
 │   ├── exceptions.py               # Custom exception hierarchy
-│   ├── types.py                    # LocalChatApp typed Flask subclass
+│   ├── types.py                    # LocalChatApp typed subclass
 │   ├── agent/                      # Multi-model agent dispatch
 │   │   ├── aggregator.py           # Parallel tool dispatch + retry
 │   │   ├── models.py               # ModelRegistry (env-driven model mapping)
@@ -316,7 +320,10 @@ LocalChat/
 │   │   ├── webhook.py              # HTTP push connector
 │   │   ├── sharepoint_connector.py # SharePoint Graph API delta
 │   │   ├── onedrive_connector.py   # OneDrive Graph API delta
-│   │   ├── microsoft_auth.py       # OAuth2 token refresh helper
+│   │   ├── google_drive_connector.py # Google Drive API v3 changes feed
+│   │   ├── confluence_connector.py # Confluence Cloud CQL polling
+│   │   ├── microsoft_auth.py       # Microsoft OAuth2 token refresh
+│   │   ├── google_auth.py          # Google OAuth2 token refresh
 │   │   ├── registry.py             # ConnectorRegistry singleton
 │   │   └── worker.py               # SyncWorker daemon thread
 │   ├── db/                         # PostgreSQL + pgvector layer
@@ -326,11 +333,13 @@ LocalChat/
 │   │   ├── entities.py             # GraphRAG entity/relation CRUD
 │   │   ├── feedback.py             # Answer feedback + chunk stats
 │   │   ├── memories.py             # Long-term memory CRUD + vector search
+│   │   ├── annotations.py          # Annotation CRUD
 │   │   ├── oauth_tokens.py         # Fernet-encrypted OAuth token storage
 │   │   ├── users.py                # User CRUD + PBKDF2 password hashing
 │   │   ├── workspaces.py           # Workspace CRUD
 │   │   └── connectors.py           # Connector config + sync log CRUD
 │   ├── graph/
+│   │   ├── store.py                # GraphStore ABC + Postgres/Kuzu backends
 │   │   ├── extractor.py            # spaCy entity extraction
 │   │   └── expander.py             # 1-hop term expansion for BM25
 │   ├── memory/
@@ -342,7 +351,8 @@ LocalChat/
 │   │   ├── processor.py            # Ingest orchestrator
 │   │   ├── retrieval.py            # Hybrid search (semantic + BM25)
 │   │   ├── chunking.py             # Intelligent overlapping chunking
-│   │   ├── loaders.py              # PDF/DOCX/TXT/MD loaders
+│   │   ├── loaders.py              # PDF/DOCX/TXT/MD/Excel loaders
+│   │   ├── active_learning.py      # Knowledge-gap document suggestions
 │   │   ├── scoring.py              # BM25 implementation
 │   │   ├── reranker.py             # Cross-encoder reranking
 │   │   ├── planner.py              # QueryPlanner — intent decomposition
@@ -350,7 +360,7 @@ LocalChat/
 │   │   ├── feedback_pipeline.py    # Fine-tune pipeline on feedback data
 │   │   ├── cache.py                # Embedding/query cache wrapper
 │   │   └── web_search.py           # DuckDuckGo web search provider
-│   ├── routes/
+│   ├── routes_fastapi/             # FastAPI route handlers (production)
 │   │   ├── api_routes.py           # Chat SSE (/api/chat)
 │   │   ├── document_routes.py      # Document upload/delete/list
 │   │   ├── memory_routes.py        # Conversation CRUD + export
@@ -360,10 +370,12 @@ LocalChat/
 │   │   ├── connector_routes.py     # Connector REST API + webhook receiver
 │   │   ├── feedback_routes.py      # Answer feedback submission + stats
 │   │   ├── longterm_memory_routes.py # Long-term memory CRUD + trigger
-│   │   ├── oauth_routes.py         # Microsoft OAuth2 flow
+│   │   ├── oauth_routes.py         # Microsoft + Google OAuth2 flows
 │   │   ├── workspace_routes.py     # Workspace management
+│   │   ├── annotation_routes.py    # Annotation CRUD
 │   │   ├── web_routes.py           # Frontend SPA + static assets
 │   │   └── error_handlers.py       # 4xx/5xx JSON error handlers
+│   ├── routes/                     # Flask route handlers (MCP servers only)
 │   ├── tools/
 │   │   ├── registry.py             # Tool registration + JSON schemas
 │   │   ├── executor.py             # Tool-call loop (multi-turn)
@@ -372,6 +384,8 @@ LocalChat/
 │   └── utils/
 │       ├── logging_config.py       # JSON structured logging
 │       ├── sanitization.py         # Input sanitization
+│       ├── encryption.py           # Fernet encrypt/decrypt for text columns
+│       ├── export.py               # Conversation export (DOCX + PDF)
 │       └── request_id.py           # X-Request-ID middleware
 ├── mcp_servers/
 │   ├── base.py                     # JSON-RPC 2.0 dispatcher base
@@ -382,7 +396,7 @@ LocalChat/
 │   └── example_plugin.py
 ├── tests/
 │   ├── conftest.py                 # Shared fixtures
-│   ├── unit/                       # 69 modules, ~1,900 tests
+│   ├── unit/                       # 73+ modules, ~2,000 tests
 │   └── integration/                # 12 modules, requires running services
 └── helm/localchat/                 # Helm chart (app + PostgreSQL + Redis + MCP)
 ```
@@ -429,7 +443,7 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 69 modules covering all core components (~1,900 tests)
+- **Unit Tests**: `tests/unit/` — 73+ modules covering all core components (~2,000 tests)
 - **Integration Tests**: `tests/integration/` — 12 modules; require a live PostgreSQL + Ollama instance
 - **Quality Gate**: SonarCloud enforces ≥ 80% coverage on new code, 0 unreviewed hotspots
 
@@ -463,11 +477,11 @@ export REDIS_PORT=6379
 export REDIS_DB=0
 export REDIS_PASSWORD=                # Leave empty if no password
 
-# Flask Configuration
+# Application Configuration
 export SECRET_KEY=your_secret_key_here
 export JWT_SECRET_KEY=your_jwt_secret_here
 export ADMIN_PASSWORD=your_admin_password_here  # Required for /api/auth/login
-export FLASK_ENV=production
+export APP_ENV=production
 export DEBUG=False
 
 # Security Configuration
@@ -545,7 +559,7 @@ OLLAMA_NUM_CTX=8192      # Token context window sent to Ollama
 
 # Ingestion timeouts (supports files up to 15 MB)
 OLLAMA_EMBED_TIMEOUT=600 # Seconds — worst-case 15 MB TXT ~280 s
-GUNICORN_TIMEOUT=600     # Must be >= OLLAMA_EMBED_TIMEOUT
+UVICORN_TIMEOUT=600      # Must be >= OLLAMA_EMBED_TIMEOUT
 
 # Cross-encoder reranker (enabled by default)
 # RERANKER_ENABLED=false  # Disable on very slow / embedded hardware
@@ -835,7 +849,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Ollama** for local LLM inference
 - **pgvector** for vector similarity search
-- **Flask** for web framework
+- **FastAPI** for web framework
 - **Pydantic** for data validation
 - **pytest** for testing framework
 
@@ -854,7 +868,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [x] Docker deployment & Kubernetes configs
 - [x] Monitoring dashboard
 - [x] Advanced RAG techniques (query expansion, multi-hop)
-- [ ] Multi-language support
+- [x] Multi-language support
 - [x] Plugin system
 - [x] Admin dashboard
 

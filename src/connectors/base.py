@@ -4,7 +4,7 @@ Base Connector Interface
 
 All live-sync connectors implement ``BaseConnector``.  The interface is
 intentionally synchronous so connectors can run inside a normal thread
-pool without requiring an async event loop in the main Flask process.
+pool without requiring an async event loop in the main application process.
 """
 
 from __future__ import annotations

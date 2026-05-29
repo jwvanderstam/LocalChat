@@ -31,55 +31,55 @@ Each planned item is tagged as **Functional** (user-visible behaviour) and/or **
 
 ---
 
-## Planned
+## Shipped
 
-### v1.1 — Quality and Reach
+### v1.1 — Quality and Reach ✓
 **Functional**
-- **Structured document ingest** *(medium priority)* — pdfplumber and DOCX table extraction already ship. Remaining gap: layout-aware PDF parsing for column-heavy and multi-column documents (pymupdf4llm or docling); better heading-hierarchy preservation in DOCX.
-- Multi-language document support
+- **Structured document ingest** — layout-aware PDF parsing via pdfplumber; heading-hierarchy preservation in DOCX; Excel per-sheet ingestion via openpyxl.
+- Multi-language document support (language detection at ingest; CJK character-count chunking)
 - Confluence and Google Drive connectors
-- Answer confidence scores surfaced in the UI
-- Scheduled document re-ingestion for stale sources
+- Answer confidence scores surfaced in `done` SSE event
+- Scheduled document re-ingestion for stale sources (`REINGEST_ENABLED`)
 
 **Technical**
-- **Resolve Redis / in-memory fallback ambiguity** *(high priority)* — `REDIS_ENABLED` controls the primary path, but `cache/__init__.py create_cache_backend()` still silently falls back to `MemoryCache` on any Redis failure, and Flask-Limiter falls back to `memory://`. This means rate limit state is per-worker, does not survive restarts, and is inconsistent across Gunicorn workers. Decision required: commit to Redis as a hard dependency with a startup health check and no silent fallback, or commit to in-memory only and remove Redis from the stack. Do not maintain both paths silently. Affects every component that touches caching or rate limiting.
-- **Gunicorn worker concurrency** — `sync` workers block for the full duration of a streaming SSE response (LLM inference), so two concurrent chat streams exhaust all workers and queue every other request. Fix: switch to `gthread` worker class with `--threads 4` (8 concurrent slots vs. 2, no extra dependencies). Change is docker-compose and Helm only — no application code required. Resolved permanently by the FastAPI + Uvicorn migration (v1.4).
+- **Redis / in-memory fallback** — `REDIS_ENABLED=true` with no Redis running now raises at startup (no silent fallback). `REDIS_ENABLED=false` uses MemoryCache exclusively.
+- **Worker concurrency** — resolved permanently by the FastAPI + Uvicorn migration below.
 
-### v1.2 — Collaboration
+### v1.2 — Collaboration ✓
 **Functional**
-- Shared workspaces with real-time presence
-- Annotation layer: highlight source chunks directly in documents
-- Export: structured answers with citations to PDF/DOCX
+- Shared workspaces with role enforcement (owner / editor / viewer)
+- Annotation layer: highlight and annotate source chunks (`src/db/annotations.py`, `src/routes_fastapi/annotation_routes.py`)
+- Export: structured answers with citations to PDF/DOCX (`src/utils/export.py`)
 
-### v1.3 — Intelligence
+### v1.3 — Intelligence ✓
 **Functional**
-- Automatic ontology extraction per workspace (GraphRAG expansion)
-- Active learning loop: model suggests which documents to ingest next
-- Cross-workspace retrieval for shared knowledge bases
+- Automatic ontology extraction per workspace (`GET /api/workspaces/<id>/ontology`)
+- Active learning loop: `suggest_documents()` in `src/rag/active_learning.py` surfaces knowledge gaps
+- Cross-workspace retrieval: `retrieve_context()` accepts multiple workspace IDs
 
 **Technical**
-- **Graph store for real GraphRAG** — spaCy handles entity extraction and entities/relations are persisted in flat PostgreSQL tables (`entities`, `entity_relations`). However, only 1-hop co-occurrence lookups are supported; there is no graph traversal, no depth control, and no Cypher queries. True GraphRAG requires a persistent graph store. Recommended starting point: Kuzu (embedded, persistent, Cypher-compatible, no ops overhead). Upgrade path to Neo4j if scale requires it. Entity extraction already runs at ingest time; migration scope is the storage and query layer only.
+- **Graph store** — `GraphStore` ABC with `PostgresGraphStore` (default) and `KuzuGraphStore` (optional, Cypher-compatible). Controlled by `GRAPH_BACKEND` env var. See `src/graph/store.py`.
 
-### v1.4 — Security
+### v1.4 — Security ✓
 **Functional / Technical**
-- Encryption at rest
-- **Flask to FastAPI migration** — Flask 3 + Gunicorn is synchronous. LLM inference, streaming responses, and MCP integrations are inherently async. FastAPI + Uvicorn is the correct fit for this workload. Migration scope: all route handlers, middleware (JWT, CORS, rate limiting), Pydantic v2 models. Flask-JWT-Extended to fastapi-jwt; Flask-Limiter to slowapi; Flask-CORS to FastAPI built-in. Execute in one branch, not incrementally across releases. Zero direct user-facing change but required before any further agentic scale-out.
+- **Encryption at rest** — `src/utils/encryption.py` provides canonical Fernet `encrypt()`/`decrypt()`. Sensitive text columns (document content, messages, memories, OAuth tokens) are encrypted at the DB layer.
+- **FastAPI + Uvicorn migration** — all 13 route modules ported to `src/routes_fastapi/`. JWT via python-jose, rate limiting via slowapi, CORS via Starlette CORSMiddleware. Entry point: `create_uvicorn_app()` in `app.py`. Flask retained only for MCP domain servers.
 
-### v1.5 — Chat UX and Document Sources
+### v1.5 — Chat UX and Document Sources (Planned)
 **Functional**
-- **Drag-and-drop upload** — drop files directly onto the chat interface; no separate upload screen required
-- **Connect information stores** — link OneDrive, SharePoint, S3, or other configured connectors directly from the chat UI (backends already exist in src/connectors/)
+- **Drag-and-drop upload** — drop files directly onto the chat interface; no separate upload screen required (backend `/api/documents/upload` already supports multipart; frontend work only)
+- **Connect information stores** — link OneDrive, SharePoint, S3, or other configured connectors directly from the chat UI (backends already exist in `src/connectors/`)
 - **Multi-source selection** — activate and deactivate multiple document sources per conversation; retrieval scoped to the active selection
 
 ---
 
-## Tech Stack: Current vs. Target
+## Tech Stack: Current
 
-| Layer | Current | Target | Version |
-|-------|---------|--------|---------|
-| Web framework | Flask 3 + Gunicorn | FastAPI + Uvicorn | v1.4 |
-| Caching / rate limit backend | Redis or in-memory (silent fallback) | Explicit Redis or in-memory only, no silent path | v1.1 |
-| Graph store | spaCy NER + flat PostgreSQL relation table | Kuzu (embedded, Cypher-compatible) | v1.3 |
+| Layer | Current | Notes |
+|-------|---------|-------|
+| Web framework | FastAPI + Uvicorn | Migrated from Flask 3 + Gunicorn in v1.4 |
+| Caching / rate limit backend | Explicit Redis or in-memory, no silent fallback | Resolved in v1.1 |
+| Graph store | `PostgresGraphStore` (default) or `KuzuGraphStore` | Kuzu opt-in via `GRAPH_BACKEND=kuzu` |
 
 ---
 
@@ -93,7 +93,7 @@ The following three recommendations are drawn from a full review of the LocalCha
 |---|---|---|---|---|---|
 | 1 | Startup secret validation | Security | Low (1-2 hours) | High — eliminates JWT forgery risk | Done |
 | 2 | Idempotent admin user seeding | Correctness | Low (1 hour) | High — fixes production startup race | Done |
-| 3 | Decompose app_factory.py | Architecture | Medium (half day) | High — largest maintainability gain available | Open |
+| 3 | Decompose app_factory.py | Architecture | Medium (half day) | High — largest maintainability gain available | Done |
 
 ### 1 — Startup Secret Validation ✓
 
@@ -111,7 +111,7 @@ config.py loads SECRET_KEY, JWT_SECRET_KEY, and ADMIN_PASSWORD from environment 
 
 At 618 lines, `app_factory.py` conflates two concerns: wiring (Flask app, blueprints, security middleware) and bootstrapping (Ollama check, DB init, admin seeding, embedding warmup, plugin loading, connector startup, reranker scheduler). The `testing` flag threads through every private function to suppress bootstrapping side-effects.
 
-**Fix:** split into `src/app_factory.py` (pure wiring, ~200 lines, safe to call in tests with zero mocking) and `src/app_bootstrap.py` (all startup I/O, ~300 lines). The `testing` flag disappears; `bootstrap_app(app)` is called only from the production entry point.
+**Shipped:** split into `src/app_factory.py` (pure wiring, safe to call in tests with zero mocking) and `src/app_bootstrap.py` (all startup I/O, ~300 lines). The `testing` flag is gone; `bootstrap_app(app)` is called only from the production entry point.
 
 ---
 

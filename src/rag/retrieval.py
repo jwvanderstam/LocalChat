@@ -157,7 +157,7 @@ class RetrievalMixin:
         return deduped
 
     def _get_app_cache(self, attr_name: str) -> Any | None:
-        """Return a named cache from the Flask app, or None outside a request context."""
+        """Return a named cache from the app, or None outside a request context."""
         try:
             from flask import current_app as _cur_app
             return getattr(_cur_app._get_current_object(), attr_name, None)  # type: ignore[attr-defined]
@@ -424,7 +424,7 @@ class RetrievalMixin:
                 return emb
             return None
 
-        # Fallback to module-level LRU cache (no Flask context)
+        # Fallback to module-level LRU cache (no app context)
         cached = embedding_cache.get(text, model)
         if cached is not None:
             logger.debug("[RAG] Embedding cache hit")

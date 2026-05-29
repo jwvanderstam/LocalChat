@@ -25,7 +25,7 @@ except ImportError:
 router = APIRouter()
 logger = get_logger(__name__)
 
-# TTL caches (same as Flask version)
+# TTL caches — module-level to survive across requests
 _status_doc_count_cache: dict[str | None, tuple[int, float]] = {}
 _STATUS_CACHE_TTL: float = 5.0
 _status_cache_lock = threading.Lock()
