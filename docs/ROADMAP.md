@@ -43,6 +43,7 @@ Each planned item is tagged as **Functional** (user-visible behaviour) and/or **
 
 **Technical**
 - **Resolve Redis / in-memory fallback ambiguity** *(high priority)* — `REDIS_ENABLED` controls the primary path, but `cache/__init__.py create_cache_backend()` still silently falls back to `MemoryCache` on any Redis failure, and Flask-Limiter falls back to `memory://`. This means rate limit state is per-worker, does not survive restarts, and is inconsistent across Gunicorn workers. Decision required: commit to Redis as a hard dependency with a startup health check and no silent fallback, or commit to in-memory only and remove Redis from the stack. Do not maintain both paths silently. Affects every component that touches caching or rate limiting.
+- **Gunicorn worker concurrency** — `sync` workers block for the full duration of a streaming SSE response (LLM inference), so two concurrent chat streams exhaust all workers and queue every other request. Fix: switch to `gthread` worker class with `--threads 4` (8 concurrent slots vs. 2, no extra dependencies). Change is docker-compose and Helm only — no application code required. Resolved permanently by the FastAPI + Uvicorn migration (v1.4).
 
 ### v1.2 — Collaboration
 **Functional**
