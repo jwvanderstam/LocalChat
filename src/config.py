@@ -461,6 +461,24 @@ MICROSOFT_REDIRECT_URI: str = os.environ.get(
     'MICROSOFT_REDIRECT_URI',
     'http://localhost:5000/api/oauth/microsoft/callback',
 )
+
+# ============================================================================
+# GOOGLE DRIVE / OAUTH CONFIGURATION
+# ============================================================================
+GOOGLE_CLIENT_ID: str = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET: str = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI: str = os.environ.get(
+    'GOOGLE_REDIRECT_URI',
+    'http://localhost:5000/api/oauth/google/callback',
+)
+
+# ============================================================================
+# CONFLUENCE CONFIGURATION
+# ============================================================================
+CONFLUENCE_URL: str = os.environ.get('CONFLUENCE_URL', '')
+CONFLUENCE_EMAIL: str = os.environ.get('CONFLUENCE_EMAIL', '')
+CONFLUENCE_API_TOKEN: str = os.environ.get('CONFLUENCE_API_TOKEN', '')
+
 # Fernet key for encrypting stored OAuth tokens.  Generate with:
 #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 TOKEN_ENCRYPTION_KEY: str = os.environ.get('TOKEN_ENCRYPTION_KEY', '')
