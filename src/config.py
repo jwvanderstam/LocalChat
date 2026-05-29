@@ -422,6 +422,11 @@ REINGEST_MAX_AGE_HOURS: int = int(os.environ.get('REINGEST_MAX_AGE_HOURS', '168'
 # Workspace presence — TTL in seconds for an active presence entry.
 PRESENCE_TTL_SECONDS: int = int(os.environ.get('PRESENCE_TTL_SECONDS', '30'))
 
+# Graph store backend.  "postgres" uses existing entity_relations tables.
+# "kuzu" uses the Kuzu embedded graph DB (requires kuzu>=0.6.0 and KUZU_DB_PATH).
+GRAPH_BACKEND: str = os.environ.get('GRAPH_BACKEND', 'postgres')
+KUZU_DB_PATH: str = os.environ.get('KUZU_DB_PATH', '')
+
 # Vision / multimodal configuration
 VISION_DESCRIBE_PROMPT: str = (
     "Describe this image in detail. Include all visible text, charts, tables, diagrams, "

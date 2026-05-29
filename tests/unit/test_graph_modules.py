@@ -197,43 +197,50 @@ class TestEntityExtractorExtractEntities:
 # EntityExtractor._persist_entities
 # ===========================================================================
 
+def _make_store():
+    """Mock GraphStore-like object (upsert_entity + insert_relation)."""
+    store = MagicMock()
+    store.upsert_entity.side_effect = lambda name, etype: hash(name) % 1000
+    store.insert_relation.return_value = None
+    return store
+
+
 class TestEntityExtractorPersistEntities:
-    def _persist(self, entities, db=None):
+    def _persist(self, entities, store=None):
         from src.graph.extractor import EntityExtractor
-        if db is None:
-            db = _make_db()
-            db.upsert_entity.side_effect = lambda name, etype: hash(name) % 1000
-        EntityExtractor._persist_entities(entities, doc_id=1, chunk_id=10, db=db)
-        return db
+        if store is None:
+            store = _make_store()
+        EntityExtractor._persist_entities(entities, doc_id=1, chunk_id=10, store=store)
+        return store
 
     def test_calls_upsert_for_each_entity(self):
-        db = self._persist([("Apple", "ORG"), ("Tim Cook", "PERSON")])
-        assert db.upsert_entity.call_count == 2
+        store = self._persist([("Apple", "ORG"), ("Tim Cook", "PERSON")])
+        assert store.upsert_entity.call_count == 2
 
     def test_creates_co_occurrence_pairs(self):
-        db = self._persist([("Apple", "ORG"), ("Tim Cook", "PERSON"), ("iPhone", "PRODUCT")])
+        store = self._persist([("Apple", "ORG"), ("Tim Cook", "PERSON"), ("iPhone", "PRODUCT")])
         # 3 entities → C(3,2) = 3 pairs
-        assert db.insert_entity_relation.call_count == 3
+        assert store.insert_relation.call_count == 3
 
     def test_single_entity_no_relation(self):
-        db = self._persist([("Apple", "ORG")])
-        db.insert_entity_relation.assert_not_called()
+        store = self._persist([("Apple", "ORG")])
+        store.insert_relation.assert_not_called()
 
     def test_upsert_failure_is_silent(self):
-        db = _make_db()
-        db.upsert_entity.side_effect = Exception("DB down")
+        store = _make_store()
+        store.upsert_entity.side_effect = Exception("DB down")
         # Should not raise
         from src.graph.extractor import EntityExtractor
-        EntityExtractor._persist_entities([("Apple", "ORG")], doc_id=1, chunk_id=1, db=db)
+        EntityExtractor._persist_entities([("Apple", "ORG")], doc_id=1, chunk_id=1, store=store)
 
     def test_relation_failure_is_silent(self):
-        db = _make_db()
-        db.upsert_entity.side_effect = lambda name, etype: 1  # always returns id=1
-        db.insert_entity_relation.side_effect = Exception("constraint violation")
+        store = _make_store()
+        store.upsert_entity.side_effect = lambda name, etype: 1
+        store.insert_relation.side_effect = Exception("constraint violation")
         # Should not raise
         from src.graph.extractor import EntityExtractor
         EntityExtractor._persist_entities(
-            [("Apple", "ORG"), ("Google", "ORG")], doc_id=1, chunk_id=1, db=db
+            [("Apple", "ORG"), ("Google", "ORG")], doc_id=1, chunk_id=1, store=store
         )
 
 

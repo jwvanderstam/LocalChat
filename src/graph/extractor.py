@@ -62,13 +62,14 @@ _KEEP_TYPES = {"PERSON", "ORG", "GPE", "PRODUCT", "WORK_OF_ART", "LAW", "EVENT",
 
 
 class EntityExtractor:
-    """Extract entities from ingested document chunks and persist to the graph DB."""
+    """Extract entities from ingested document chunks and persist to the graph store."""
 
     def extract_for_document(
         self,
         doc_id: int,
         chunks_data: list[dict[str, Any]],
         db: Any,
+        graph_store: Any | None = None,
     ) -> int:
         """
         Extract entities from all chunks of a document.
@@ -76,7 +77,9 @@ class EntityExtractor:
         Args:
             doc_id: Database ID of the parent document.
             chunks_data: List of chunk dicts as stored by insert_chunks_batch.
-            db: Database instance.
+            db: Database instance (used if graph_store is None).
+            graph_store: Optional GraphStore — if provided, used instead of db
+                         for entity persistence.
 
         Returns:
             Number of (entity, chunk) pairs processed.
@@ -84,6 +87,8 @@ class EntityExtractor:
         nlp = _get_nlp()
         if nlp is None:
             return 0
+
+        store = graph_store or _wrap_db(db)
 
         total = 0
         for chunk in chunks_data:
@@ -94,7 +99,7 @@ class EntityExtractor:
             try:
                 entities = self._extract_entities(nlp, text)
                 if entities:
-                    self._persist_entities(entities, doc_id, chunk_id, db)
+                    self._persist_entities(entities, doc_id, chunk_id, store)
                     total += len(entities)
             except Exception as exc:
                 logger.debug(f"[GraphRAG] Chunk {chunk_id} extraction failed: {exc}")
@@ -122,13 +127,13 @@ class EntityExtractor:
         entities: list[tuple[str, str]],
         doc_id: int,
         chunk_id: int,
-        db: Any,
+        store: Any,
     ) -> None:
-        """Upsert entities and create co-occurrence pairs."""
+        """Upsert entities and create co-occurrence pairs via the graph store."""
         entity_ids: list[str] = []
         for name, etype in entities:
             try:
-                eid = db.upsert_entity(name, etype)
+                eid = store.upsert_entity(name, etype)
                 entity_ids.append(eid)
             except Exception as exc:
                 logger.debug(f"[GraphRAG] upsert_entity failed for {name!r}: {exc}")
@@ -136,6 +141,12 @@ class EntityExtractor:
         # Create co-occurrence relations for all pairs in this chunk
         for eid_a, eid_b in itertools.combinations(entity_ids, 2):
             try:
-                db.insert_entity_relation(eid_a, eid_b, doc_id, chunk_id)
+                store.insert_relation(eid_a, eid_b, doc_id, chunk_id)
             except Exception as exc:
                 logger.debug(f"[GraphRAG] relation insert failed: {exc}")
+
+
+def _wrap_db(db: Any) -> Any:
+    """Wrap a raw db object in PostgresGraphStore for uniform interface."""
+    from .store import PostgresGraphStore
+    return PostgresGraphStore(db)
