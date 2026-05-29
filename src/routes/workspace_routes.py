@@ -426,3 +426,50 @@ def switch_workspace() -> ResponseReturnValue:
     except Exception as e:
         logger.error(f"[Workspaces] switch error: {e}", exc_info=True)
         return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
+
+
+# ---------------------------------------------------------------------------
+# Ontology
+# ---------------------------------------------------------------------------
+
+@bp.route('/api/workspaces/<workspace_id>/suggestions', methods=['GET'])
+def workspace_suggestions(workspace_id: str) -> ResponseReturnValue:
+    """
+    Return active-learning document suggestions for a workspace.
+    ---
+    tags: [Workspaces]
+    parameters:
+      - {in: path, name: workspace_id, type: string, required: true}
+      - {in: query, name: top_k, type: integer, default: 10}
+    responses:
+      200: {description: List of suggested topics to add to the knowledge base}
+    """
+    top_k = min(int(request.args.get('top_k', 10)), 50)
+    try:
+        from ..rag.active_learning import suggest_documents
+        suggestions = suggest_documents(workspace_id, current_app.db, top_k=top_k)
+        return jsonify({'success': True, 'workspace_id': workspace_id, 'suggestions': suggestions})
+    except Exception as e:
+        logger.error(f"[Workspaces] suggestions error: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500
+
+
+@bp.route('/api/workspaces/<workspace_id>/ontology', methods=['GET'])
+def workspace_ontology(workspace_id: str) -> ResponseReturnValue:
+    """
+    Return the entity-type and relation-pattern ontology for a workspace.
+    ---
+    tags: [Workspaces]
+    parameters:
+      - {in: path, name: workspace_id, type: string, required: true}
+      - {in: query, name: top_n, type: integer, default: 20}
+    responses:
+      200: {description: Ontology summary}
+    """
+    top_n = min(int(request.args.get('top_n', 20)), 100)
+    try:
+        ontology = current_app.db.get_workspace_ontology(workspace_id, top_n=top_n)
+        return jsonify({'success': True, 'workspace_id': workspace_id, **ontology})
+    except Exception as e:
+        logger.error(f"[Workspaces] ontology error: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': _ERR_INTERNAL}), 500

@@ -428,3 +428,53 @@ class ConversationsMixin:
                 conn.commit()
         logger.info(f"Deleted {deleted} conversations (messages removed via cascade)")
         return deleted
+
+    def get_low_confidence_queries(
+        self, workspace_id: str | None = None, threshold: float = 0.5, limit: int = 50
+    ) -> list[str]:
+        """Return user query strings that received poor or no positive feedback.
+
+        Identifies queries by joining conversation_messages (role=user) with
+        answer_feedback on the next assistant message.  Returns queries where
+        the average rating is below *threshold* or where no feedback was given.
+        """
+        if not self.is_connected:
+            return []
+        try:
+            ws_filter = "AND c.workspace_id = %s" if workspace_id else ""
+            params: list[Any] = []
+            if workspace_id:
+                params.append(workspace_id)
+            params.append(threshold)
+            params.append(limit)
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        f"""
+                        SELECT um.content
+                        FROM conversation_messages um
+                        JOIN conversations c ON c.id = um.conversation_id
+                        WHERE um.role = 'user' {ws_filter}
+                          AND (
+                            -- has feedback below threshold
+                            EXISTS (
+                                SELECT 1 FROM answer_feedback af
+                                WHERE af.conversation_id = um.conversation_id
+                                  AND af.rating < %s
+                            )
+                            OR
+                            -- no feedback at all
+                            NOT EXISTS (
+                                SELECT 1 FROM answer_feedback af
+                                WHERE af.conversation_id = um.conversation_id
+                            )
+                          )
+                        ORDER BY um.created_at DESC
+                        LIMIT %s
+                        """,
+                        params,
+                    )
+                    return [row[0] for row in cursor.fetchall()]
+        except Exception as exc:
+            logger.warning(f"get_low_confidence_queries failed: {exc}")
+            return []

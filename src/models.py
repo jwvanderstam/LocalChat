@@ -94,6 +94,10 @@ class ChatRequest(BaseModel):
         max_length=100,
         description="Override the model router selection — use this exact Ollama model ID"
     )
+    additional_workspace_ids: list[str] | None = Field(
+        default=None,
+        description="Additional workspace UUIDs to include in cross-workspace retrieval"
+    )
 
     @field_validator('conversation_id')
     @classmethod

@@ -175,3 +175,57 @@ class EntitiesMixin:
                 cursor.execute("SELECT COUNT(*) FROM entity_relations")
                 relation_count = cursor.fetchone()[0]
         return {"entity_count": entity_count, "relation_count": relation_count}
+
+    def get_workspace_ontology(
+        self, workspace_id: str | None = None, top_n: int = 20
+    ) -> dict[str, Any]:
+        """Return workspace-scoped ontology: top entity types and relation patterns.
+
+        When workspace_id is None, aggregates across all documents.
+        """
+        if not self.is_connected:
+            return {"entity_types": [], "relation_patterns": []}
+
+        ws_filter = "AND d.workspace_id = %s" if workspace_id else ""
+        params_ws: list[Any] = [workspace_id] if workspace_id else []
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                # Top entity types by occurrence in workspace docs
+                cursor.execute(
+                    f"""
+                    SELECT e.type, COUNT(DISTINCT er.source_id) AS entity_count
+                    FROM entity_relations er
+                    JOIN entities e ON e.id = er.source_id
+                    JOIN documents d ON d.id = er.doc_id
+                    WHERE true {ws_filter}
+                    GROUP BY e.type
+                    ORDER BY entity_count DESC
+                    LIMIT %s
+                    """,
+                    (*params_ws, top_n),
+                )
+                entity_types = [
+                    {"type": row[0], "count": row[1]}
+                    for row in cursor.fetchall()
+                ]
+
+                # Top relation patterns by frequency
+                cursor.execute(
+                    f"""
+                    SELECT er.relation, COUNT(*) AS freq
+                    FROM entity_relations er
+                    JOIN documents d ON d.id = er.doc_id
+                    WHERE true {ws_filter}
+                    GROUP BY er.relation
+                    ORDER BY freq DESC
+                    LIMIT %s
+                    """,
+                    (*params_ws, top_n),
+                )
+                relation_patterns = [
+                    {"relation": row[0], "count": row[1]}
+                    for row in cursor.fetchall()
+                ]
+
+        return {"entity_types": entity_types, "relation_patterns": relation_patterns}

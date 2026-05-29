@@ -110,6 +110,7 @@ def _parse_chat_request(data: dict) -> dict:
         'images': req.images or [],
         'temperature': req.temperature,
         'model_override': req.model_override or None,
+        'additional_workspace_ids': req.additional_workspace_ids or [],
     }
 
 
@@ -144,6 +145,7 @@ def _get_rag_context(
     doc_processor,
     filename_filter: list | None = None,
     workspace_id: str | None = None,
+    additional_workspace_ids: list[str] | None = None,
 ) -> tuple[str, list[dict]]:
     """Retrieve and format RAG context. Returns (formatted context block, source list).
 
@@ -157,7 +159,8 @@ def _get_rag_context(
 
     # Direct retrieval path (default when MCP disabled, or MCP fallback)
     results = doc_processor.retrieve_context(
-        message, filename_filter=filename_filter or [], workspace_id=workspace_id
+        message, filename_filter=filename_filter or [], workspace_id=workspace_id,
+        additional_workspace_ids=additional_workspace_ids,
     )
     logger.info(f"[RAG] Retrieved {len(results)} chunks from database")
     g.chunks_retrieved = getattr(g, "chunks_retrieved", 0) + len(results)
@@ -419,7 +422,10 @@ def _get_filename_filter(fields: dict) -> list[str]:
         return []
 
 
-def _retrieve_contexts(fields: dict, doc_processor, plan=None, workspace_id: str | None = None) -> tuple:
+def _retrieve_contexts(
+    fields: dict, doc_processor, plan=None, workspace_id: str | None = None,
+    additional_workspace_ids: list[str] | None = None,
+) -> tuple:
     """Retrieve local RAG context and web search context based on request flags.
 
     When AGGREGATOR_AGENT_ENABLED is true, dispatches all tools through
@@ -434,7 +440,10 @@ def _retrieve_contexts(fields: dict, doc_processor, plan=None, workspace_id: str
         if result is not None:
             return result
 
-    return _retrieve_direct(fields, doc_processor, plan, workspace_id=workspace_id)
+    return _retrieve_direct(
+        fields, doc_processor, plan, workspace_id=workspace_id,
+        additional_workspace_ids=additional_workspace_ids,
+    )
 
 
 def _retrieve_via_aggregator(fields: dict, plan) -> tuple | None:
@@ -475,7 +484,10 @@ def _retrieve_via_aggregator(fields: dict, plan) -> tuple | None:
         return None
 
 
-def _retrieve_direct(fields: dict, doc_processor, plan, workspace_id: str | None = None) -> tuple:
+def _retrieve_direct(
+    fields: dict, doc_processor, plan, workspace_id: str | None = None,
+    additional_workspace_ids: list[str] | None = None,
+) -> tuple:
     """Direct retrieval path (default, or aggregator fallback)."""
     local_context = ""
     web_context = ""
@@ -491,7 +503,8 @@ def _retrieve_direct(fields: dict, doc_processor, plan, workspace_id: str | None
             else:
                 local_context, sources = _get_rag_context(
                     fields['message'], doc_processor,
-                    filename_filter=filename_filter, workspace_id=workspace_id
+                    filename_filter=filename_filter, workspace_id=workspace_id,
+                    additional_workspace_ids=additional_workspace_ids,
                 )
         except Exception as e:
             raise exceptions.SearchError(
@@ -906,7 +919,8 @@ def api_chat() -> ResponseReturnValue:
 
         messages = [{'role': m.get('role', 'user'), 'content': m.get('content', '')} for m in fields['chat_history']]
         local_ctx, web_ctx, sources = _retrieve_contexts(
-            fields, current_app.doc_processor, plan=plan, workspace_id=workspace_id
+            fields, current_app.doc_processor, plan=plan, workspace_id=workspace_id,
+            additional_workspace_ids=fields.get('additional_workspace_ids') or None,
         )
         # Capture agent result if the aggregator ran (stored in g by _retrieve_contexts)
         agent_result = getattr(g, 'agent_result', None)

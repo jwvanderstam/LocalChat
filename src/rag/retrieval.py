@@ -302,6 +302,7 @@ class RetrievalMixin:
         expand_context: bool = True,  # NOSONAR — reserved public API parameter
         filename_filter: list[str] | None = None,
         workspace_id: str | None = None,
+        additional_workspace_ids: list[str] | None = None,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
@@ -366,6 +367,15 @@ class RetrievalMixin:
             filename_filter=filename_filter,
             workspace_id=workspace_id,
         )
+
+        # Cross-workspace: merge results from additional workspaces and re-rank
+        for extra_ws_id in (additional_workspace_ids or []):
+            extra_results = self._run_retrieval_pipeline(
+                query_clean, query_embedding, top_k, min_similarity, file_type_filter,
+                use_hybrid_search, filename_filter=filename_filter, workspace_id=extra_ws_id,
+            )
+            filtered_results.update(extra_results)
+
         if not filtered_results:
             return []
 

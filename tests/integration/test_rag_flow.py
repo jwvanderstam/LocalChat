@@ -123,6 +123,7 @@ class TestRagFlow:
             "Tell me about pgvector",
             filename_filter=[],
             workspace_id=None,
+            additional_workspace_ids=None,
         )
 
     def test_context_text_forwarded_to_llm(self, app, client):
