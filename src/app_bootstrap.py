@@ -13,6 +13,29 @@ from .utils.logging_config import get_logger, setup_logging
 logger = get_logger(__name__)
 
 
+def _run_alembic_migrations() -> None:
+    """Apply any pending Alembic migrations after _init_schema() succeeds."""
+    from pathlib import Path
+    try:
+        import alembic.command
+        import alembic.config as alembic_config
+    except ImportError:
+        logger.warning("alembic not installed — skipping migration step")
+        return
+
+    ini_path = Path(__file__).resolve().parent.parent / "alembic.ini"
+    if not ini_path.exists():
+        logger.warning("alembic.ini not found at %s — skipping migration step", ini_path)
+        return
+
+    try:
+        cfg = alembic_config.Config(str(ini_path))
+        alembic.command.upgrade(cfg, "head")
+        logger.info("Alembic migrations applied (or already at head)")
+    except Exception as exc:
+        logger.error("Alembic migration failed: %s", exc, exc_info=True)
+
+
 def bootstrap_app(app: Any) -> None:
     """Start all services for a fully-wired LocalChat app.
 
@@ -95,6 +118,7 @@ def _init_database_service(app: Any, db: Any) -> None:
     app.state.startup_status["database"] = db_success
     if db_success:
         logger.info(db_message)
+        _run_alembic_migrations()
         doc_count = db.get_document_count()
         config.app_state.set_document_count(doc_count)
         logger.info(f"Documents in database: {doc_count}")

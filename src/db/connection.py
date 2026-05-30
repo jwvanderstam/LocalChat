@@ -355,39 +355,7 @@ class DatabaseConnection:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-                cursor.execute("""
-                    ALTER TABLE conversations
-                    ADD COLUMN IF NOT EXISTS document_ids JSONB DEFAULT '[]'::jsonb
-                """)
                 logger.debug("Conversations table ensured")
-
-                cursor.execute("""
-                    ALTER TABLE documents
-                    ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64)
-                """)
-                logger.debug("documents.content_hash column ensured")
-
-                cursor.execute("""
-                    ALTER TABLE documents
-                    ADD COLUMN IF NOT EXISTS doc_type VARCHAR(20)
-                """)
-                cursor.execute("""
-                    ALTER TABLE documents
-                    ADD COLUMN IF NOT EXISTS chunker_version VARCHAR(50)
-                """)
-                logger.debug("documents.doc_type and chunker_version columns ensured")
-
-                cursor.execute("""
-                    ALTER TABLE documents
-                    ADD COLUMN IF NOT EXISTS local_only BOOLEAN DEFAULT TRUE
-                """)
-                logger.debug("documents.local_only column ensured")
-
-                cursor.execute("""
-                    ALTER TABLE conversation_messages
-                    ADD COLUMN IF NOT EXISTS plan_json JSONB
-                """)
-                logger.debug("conversation_messages.plan_json column ensured")
 
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS entities (
@@ -437,10 +405,6 @@ class DatabaseConnection:
                     ON memories USING hnsw (embedding vector_cosine_ops)
                     WITH (m = 16, ef_construction = 64)
                 """)
-                cursor.execute("""
-                    ALTER TABLE conversations
-                    ADD COLUMN IF NOT EXISTS memory_extracted_at TIMESTAMP
-                """)
                 logger.debug("memories table and indexes ensured")
 
                 cursor.execute("""
@@ -475,41 +439,6 @@ class DatabaseConnection:
                     INSERT INTO workspaces (name, description)
                     SELECT 'Default', 'Default workspace'
                     WHERE NOT EXISTS (SELECT 1 FROM workspaces)
-                """)
-                cursor.execute("""
-                    ALTER TABLE documents
-                        ADD COLUMN IF NOT EXISTS workspace_id UUID
-                            REFERENCES workspaces(id) ON DELETE SET NULL
-                """)
-                cursor.execute("""
-                    ALTER TABLE conversations
-                        ADD COLUMN IF NOT EXISTS workspace_id UUID
-                            REFERENCES workspaces(id) ON DELETE SET NULL
-                """)
-                cursor.execute("""
-                    ALTER TABLE memories
-                        ADD COLUMN IF NOT EXISTS workspace_id UUID
-                            REFERENCES workspaces(id) ON DELETE SET NULL
-                """)
-                cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS documents_workspace_idx
-                        ON documents (workspace_id)
-                """)
-                cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS conversations_workspace_idx
-                        ON conversations (workspace_id)
-                """)
-                # Backfill pre-workspace rows so they belong to the Default workspace
-                # and appear correctly when workspace filtering is active.
-                cursor.execute("""
-                    UPDATE conversations
-                    SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1)
-                    WHERE workspace_id IS NULL
-                """)
-                cursor.execute("""
-                    UPDATE documents
-                    SET workspace_id = (SELECT id FROM workspaces ORDER BY created_at LIMIT 1)
-                    WHERE workspace_id IS NULL
                 """)
                 logger.debug("workspaces schema ensured")
 
@@ -549,13 +478,6 @@ class DatabaseConnection:
                     )
                 """)
                 logger.debug("chunk_stats table ensured")
-
-                # Additive: add workspace_id to answer_feedback if not present
-                cursor.execute("""
-                    ALTER TABLE answer_feedback
-                        ADD COLUMN IF NOT EXISTS workspace_id UUID
-                            REFERENCES workspaces(id) ON DELETE SET NULL
-                """)
 
                 # ── Feature 4.3: Live Connector Framework ────────────────────
                 cursor.execute("""
@@ -668,35 +590,6 @@ class DatabaseConnection:
                     ON annotations (chunk_id)
                 """)
                 logger.debug("annotations table ensured")
-
-                # ── v1.1: language detection column ──────────────────────────
-                cursor.execute("""
-                    ALTER TABLE documents
-                        ADD COLUMN IF NOT EXISTS language VARCHAR(10)
-                """)
-                logger.debug("documents.language column ensured")
-
-                # ── v1.1: scheduled re-ingest tracking ───────────────────────
-                cursor.execute("""
-                    ALTER TABLE documents
-                        ADD COLUMN IF NOT EXISTS last_ingested_at TIMESTAMPTZ
-                """)
-                cursor.execute("""
-                    UPDATE documents SET last_ingested_at = created_at
-                    WHERE last_ingested_at IS NULL
-                """)
-                logger.debug("documents.last_ingested_at column ensured")
-
-                # ── v1.5: multi-source selection — connector source ID ─────────
-                cursor.execute("""
-                    ALTER TABLE documents
-                        ADD COLUMN IF NOT EXISTS source_id VARCHAR(255)
-                """)
-                cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_documents_source_id
-                        ON documents (source_id)
-                """)
-                logger.debug("documents.source_id column ensured")
 
                 # ── v2.0: JWT revocation deny-list ───────────────────────────
                 cursor.execute("""

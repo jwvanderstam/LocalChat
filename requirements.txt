@@ -23,6 +23,10 @@ slowapi>=0.1.9                     # Rate limiting for FastAPI/Starlette
 psycopg[binary]>=3.3.4
 psycopg-pool>=3.3.1
 
+# Database migrations
+alembic>=1.14
+sqlalchemy>=2.0  # required by alembic; postgresql+psycopg dialect for psycopg3
+
 # Validation
 pydantic>=2.12.5  # Cannot bump past 2.12.5 until litellm drops its pydantic==2.12.5 exact pin
 email-validator==2.3.0
