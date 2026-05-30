@@ -46,3 +46,13 @@ def models(request: Request) -> HTMLResponse:
 @router.get("/overview", include_in_schema=False)
 def overview(request: Request) -> HTMLResponse:
     return _templates(request).TemplateResponse("overview.html", {"request": request})
+
+
+@router.get("/settings", include_in_schema=False)
+def settings(request: Request) -> HTMLResponse:
+    try:
+        from .settings_routes import gather_admin_stats
+        stats = gather_admin_stats(request.app.state)
+    except Exception:
+        stats = {}
+    return _templates(request).TemplateResponse("settings.html", {"request": request, "stats": stats})

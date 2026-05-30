@@ -115,5 +115,5 @@ class ConnectorRegistry:
             return list(self._instances.values())
 
 
-# Global singleton — imported by app_factory and connector_routes
+# Global singleton — imported by app_bootstrap and connector_routes
 connector_registry = ConnectorRegistry()

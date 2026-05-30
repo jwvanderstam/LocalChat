@@ -9,13 +9,13 @@
     <script>(function(){var t=localStorage.getItem('lc-theme');if(t)document.documentElement.setAttribute('data-theme',t);var d=localStorage.getItem('lc-dark');if(d!=='0')document.documentElement.setAttribute('data-bs-theme','dark');})();</script>
 
     <!-- Bootstrap 5 CSS -->
-    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', path='css/bootstrap.min.css') }}" rel="stylesheet">
 
     <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-icons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/bootstrap-icons.css') }}">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
     
     {% block extra_head %}{% endblock %}
 </head>
@@ -161,13 +161,13 @@
     </div>
 
     <!-- Bootstrap 5 JS Bundle -->
-    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', path='js/bootstrap.bundle.min.js') }}"></script>
 
     <!-- Theme picker -->
-    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+    <script src="{{ url_for('static', path='js/settings.js') }}"></script>
 
     <!-- Workspace switcher -->
-    <script src="{{ url_for('static', filename='js/workspace.js') }}"></script>
+    <script src="{{ url_for('static', path='js/workspace.js') }}"></script>
     
     <!-- Common JavaScript -->
     <script>

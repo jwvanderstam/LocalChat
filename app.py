@@ -1,17 +1,13 @@
 
-"""
-Flask Application Launcher
-==========================
+"""LocalChat application entry point.
 
-Main entry point for LocalChat RAG application.
-Uses application factory pattern for better testability.
+Production (Docker / Uvicorn)::
 
-Example:
-    >>> python app.py
-    # Starts web server on http://localhost:5000
+    uvicorn "app:create_uvicorn_app" --factory --host 0.0.0.0 --port 5000
 
-Author: LocalChat Team
-Last Updated: 2026-03-15 (Refactored to use application factory)
+Development::
+
+    python app.py
 """
 
 import os
@@ -24,37 +20,21 @@ from pathlib import Path
 # Add src to path if running from root
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.app_bootstrap import bootstrap_app
-from src.app_factory import create_app
 from src.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-def create_gunicorn_app():
-    """Entry point for Gunicorn / WSGI servers.
-
-    Usage in Dockerfile CMD::
-
-        gunicorn "app:create_gunicorn_app()"
-    """
-    app = create_app()
-    bootstrap_app(app)
-    return app
-
-
 def create_uvicorn_app():
     """Entry point for Uvicorn / ASGI servers (FastAPI).
 
-    Usage in Dockerfile CMD::
-
-        uvicorn "app:create_uvicorn_app" --factory --host 0.0.0.0 --port 5000
+    Used by the Dockerfile CMD and ``python app.py``.
     """
-    from src.app_bootstrap import bootstrap_app as _bootstrap
-    from src.app_fastapi import create_app as _create_fastapi_app
+    from src.app_bootstrap import bootstrap_app
+    from src.app_fastapi import create_app
 
-    fastapi_app = _create_fastapi_app()
-    _bootstrap(fastapi_app)
+    fastapi_app = create_app()
+    bootstrap_app(fastapi_app)
     return fastapi_app
 
 
@@ -96,47 +76,32 @@ def _ensure_db_running() -> None:
     sys.exit(1)
 
 
-def main():
-    """
-    Main application entry point.
+def main() -> None:
+    """Run the FastAPI app via Uvicorn (development entry point)."""
+    import uvicorn
 
-    Creates and runs the Flask application using the factory pattern.
-    """
     _ensure_db_running()
 
-    app = create_app()
-    bootstrap_app(app)
-
-    # Get configuration from environment
-    HOST = os.environ.get('SERVER_HOST', 'localhost')
+    HOST = os.environ.get("SERVER_HOST", "localhost")
     try:
-        PORT = int(os.environ.get('SERVER_PORT', '5000'))
+        PORT = int(os.environ.get("SERVER_PORT", "5000"))
     except ValueError:
         PORT = 5000
 
-    DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-
-    logger.info("=" * 50)
-    logger.info("LocalChat Application Ready")
-    logger.info("=" * 50)
-    logger.info(f"Server: http://{HOST}:{PORT}")
-    logger.info(f"Debug: {DEBUG}")
-    logger.info(f"Ollama: {'OK' if app.startup_status['ollama'] else 'UNAVAILABLE'}")
-    logger.info(f"Database: {'OK' if app.startup_status['database'] else 'UNAVAILABLE'}")
-    logger.info("=" * 50)
-
-    # Run application
+    logger.info("Starting LocalChat on http://%s:%d", HOST, PORT)
     try:
-        app.run(
+        uvicorn.run(
+            "app:create_uvicorn_app",
+            factory=True,
             host=HOST,
             port=PORT,
-            debug=DEBUG,
-            use_reloader=False  # Disable reloader to avoid double cleanup
+            log_level="info",
+            reload=False,
         )
     except KeyboardInterrupt:
-        logger.info("\nShutting down gracefully...")
-    except Exception as e:
-        logger.error(f"Error starting server: {e}", exc_info=True)
+        logger.info("Shutting down.")
+    except Exception as exc:
+        logger.error("Server error: %s", exc, exc_info=True)
         sys.exit(1)
 
 

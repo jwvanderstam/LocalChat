@@ -173,32 +173,38 @@ class TestFeedbackReadOps:
 
 
 # ---------------------------------------------------------------------------
-# Route test helpers — use real Flask app context so current_app resolves
+# Route test helpers — minimal FastAPI app per the testing standard
 # ---------------------------------------------------------------------------
 
-def _make_flask_app(db_ok=True, insert_raises=False, stats=None, trend=None, stale=None):
-    """Create a real Flask app with mock db attributes on it directly."""
-    from flask import Flask
+def _make_fastapi_app(db_ok=True, insert_raises=False, stats=None, trend=None, stale=None):
+    """Minimal FastAPI app wired for feedback route tests."""
+    from unittest.mock import MagicMock
 
-    from src.routes.feedback_routes import bp
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
 
-    mock_db = _make_db(connected=db_ok)
+    from src.routes_fastapi.feedback_routes import router
+
+    test_app = FastAPI()
+    test_app.include_router(router, prefix="/api")
+
+    mock_db = MagicMock()
+    mock_db.is_connected = db_ok
     if insert_raises:
         mock_db.insert_feedback.side_effect = Exception("DB error")
     else:
         mock_db.insert_feedback.return_value = str(uuid.uuid4())
-    mock_db.get_feedback_stats.return_value = stats or {"total": 0, "positive": 0, "negative": 0, "thumbs_up_rate": None, "by_type": {}}
+    mock_db.get_feedback_stats.return_value = stats or {
+        "total": 0, "positive": 0, "negative": 0, "thumbs_up_rate": None, "by_type": {}
+    }
     mock_db.get_feedback_trend.return_value = trend or []
     mock_db.get_stale_chunks.return_value = stale or []
 
-    flask_app = Flask(__name__)
-    flask_app.register_blueprint(bp, url_prefix="/api")
-    flask_app.config["TESTING"] = True
-    # Attach the mock db and startup_status directly to the Flask app object
-    # so current_app._get_current_object() returns this Flask app with these attrs
-    flask_app.db = mock_db
-    flask_app.startup_status = {"database": db_ok}
-    return flask_app
+    test_app.state.db = mock_db
+    test_app.state.startup_status = {"database": db_ok}
+
+    client = TestClient(test_app, raise_server_exceptions=False)
+    return test_app, client
 
 
 # ===========================================================================
@@ -207,61 +213,49 @@ def _make_flask_app(db_ok=True, insert_raises=False, stats=None, trend=None, sta
 
 class TestFeedbackRoute:
     def test_valid_thumbs_up_returns_201(self):
-        app = _make_flask_app()
-        with app.test_client() as client:
-            resp = client.post(
-                "/api/feedback",
-                data=json.dumps({"rating": 1, "message_id": 42}),
-                content_type="application/json",
-            )
+        _, client = _make_fastapi_app()
+        resp = client.post("/api/feedback", json={"rating": 1, "message_id": 42})
         assert resp.status_code == 201
-        data = resp.get_json()
+        data = resp.json()
         assert data["ok"] is True
         assert "id" in data
 
     def test_valid_thumbs_down_returns_201(self):
-        app = _make_flask_app()
-        with app.test_client() as client:
-            resp = client.post("/api/feedback", data=json.dumps({"rating": -1}), content_type="application/json")
+        _, client = _make_fastapi_app()
+        resp = client.post("/api/feedback", json={"rating": -1})
         assert resp.status_code == 201
 
     def test_invalid_rating_returns_400(self):
-        app = _make_flask_app()
-        with app.test_client() as client:
-            resp = client.post("/api/feedback", data=json.dumps({"rating": 0}), content_type="application/json")
+        _, client = _make_fastapi_app()
+        resp = client.post("/api/feedback", json={"rating": 0})
         assert resp.status_code == 400
 
     def test_db_unavailable_returns_503(self):
-        app = _make_flask_app(db_ok=False)
-        with app.test_client() as client:
-            resp = client.post("/api/feedback", data=json.dumps({"rating": 1}), content_type="application/json")
+        _, client = _make_fastapi_app(db_ok=False)
+        resp = client.post("/api/feedback", json={"rating": 1})
         assert resp.status_code == 503
 
     def test_db_exception_returns_500(self):
-        app = _make_flask_app(insert_raises=True)
-        with app.test_client() as client:
-            resp = client.post("/api/feedback", data=json.dumps({"rating": 1}), content_type="application/json")
+        _, client = _make_fastapi_app(insert_raises=True)
+        resp = client.post("/api/feedback", json={"rating": 1})
         assert resp.status_code == 500
 
     def test_positive_increments_chunk_positive(self):
-        app = _make_flask_app()
+        app, client = _make_fastapi_app()
         payload = {"rating": 1, "message_id": 1, "source_chunk_ids": [10, 11]}
-        with app.test_client() as client:
-            client.post("/api/feedback", data=json.dumps(payload), content_type="application/json")
-        app.db.increment_chunk_positive.assert_called_once_with([10, 11])
+        client.post("/api/feedback", json=payload)
+        app.state.db.increment_chunk_positive.assert_called_once_with([10, 11])
 
     def test_negative_increments_chunk_negative(self):
-        app = _make_flask_app()
+        app, client = _make_fastapi_app()
         payload = {"rating": -1, "message_id": 1, "source_chunk_ids": [5]}
-        with app.test_client() as client:
-            client.post("/api/feedback", data=json.dumps(payload), content_type="application/json")
-        app.db.increment_chunk_negative.assert_called_once_with([5])
+        client.post("/api/feedback", json=payload)
+        app.state.db.increment_chunk_negative.assert_called_once_with([5])
 
     def test_no_chunk_ids_no_stat_update(self):
-        app = _make_flask_app()
-        with app.test_client() as client:
-            client.post("/api/feedback", data=json.dumps({"rating": 1}), content_type="application/json")
-        app.db.increment_chunk_positive.assert_not_called()
+        app, client = _make_fastapi_app()
+        client.post("/api/feedback", json={"rating": 1})
+        app.state.db.increment_chunk_positive.assert_not_called()
 
 
 # ===========================================================================
@@ -270,20 +264,20 @@ class TestFeedbackRoute:
 
 class TestFeedbackStatsRoute:
     def test_returns_200_with_stats_structure(self):
-        app = _make_flask_app(stats={"total": 10, "positive": 7, "negative": 3, "thumbs_up_rate": 0.7, "by_type": {}})
-        with app.test_client() as client:
-            resp = client.get("/api/feedback/stats")
+        _, client = _make_fastapi_app(
+            stats={"total": 10, "positive": 7, "negative": 3, "thumbs_up_rate": 0.7, "by_type": {}}
+        )
+        resp = client.get("/api/feedback/stats")
         assert resp.status_code == 200
-        data = resp.get_json()
+        data = resp.json()
         assert "stats" in data
         assert "trend" in data
         assert "stale_chunks" in data
         assert "period_days" in data
 
     def test_db_unavailable_returns_503(self):
-        app = _make_flask_app(db_ok=False)
-        with app.test_client() as client:
-            resp = client.get("/api/feedback/stats")
+        _, client = _make_fastapi_app(db_ok=False)
+        resp = client.get("/api/feedback/stats")
         assert resp.status_code == 503
 
 

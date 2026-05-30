@@ -12,8 +12,10 @@ from typing import Any
 
 from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.datastructures import UploadFile as _StarletteUploadFile
 
 from .. import config
+from ..db.connection import DatabaseUnavailableError
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.logging_config import sanitize_log_value as _slv
@@ -118,8 +120,7 @@ def _stream_file_ingest(app_state: Any, file_path: str, workspace_id: str | None
 
 
 @router.post("/upload")
-async def api_upload_documents(request: Request, files: list[UploadFile] = None) -> Any:  # type: ignore[assignment]
-    # FastAPI requires explicit Form(...) for multipart — we handle raw form manually
+async def api_upload_documents(request: Request) -> Any:
     form = await request.form()
     uploaded_files = form.getlist("files")
     if not uploaded_files:
@@ -127,7 +128,7 @@ async def api_upload_documents(request: Request, files: list[UploadFile] = None)
 
     file_paths: list[str] = []
     for file in uploaded_files:
-        if isinstance(file, UploadFile):
+        if isinstance(file, _StarletteUploadFile):
             path = _save_upload_file(file)
             if path:
                 file_paths.append(path)
@@ -168,6 +169,9 @@ def api_list_documents(request: Request) -> Any:
     try:
         documents = request.app.state.db.get_all_documents(workspace_id=get_workspace_id(request))
         return {"success": True, "documents": documents}
+    except DatabaseUnavailableError as exc:
+        logger.error("DB unavailable listing documents: %s", exc)
+        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
     except Exception as exc:
         logger.error("Error listing documents: %s", exc, exc_info=True)
         return JSONResponse({"success": False, "message": "Failed to retrieve documents"}, status_code=500)
@@ -185,6 +189,9 @@ def api_document_stats(request: Request) -> Any:
             "chunk_statistics": db.get_chunk_statistics(),
             "max_upload_size": config.MAX_CONTENT_LENGTH,
         }
+    except DatabaseUnavailableError as exc:
+        logger.error("DB unavailable getting stats: %s", exc)
+        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
     except Exception as exc:
         logger.error("Error getting document stats: %s", exc, exc_info=True)
         return JSONResponse({"success": False, "message": "Failed to retrieve statistics"}, status_code=500)
@@ -271,6 +278,9 @@ def api_clear_documents(request: Request) -> Any:
         request.app.state.db.delete_all_documents()
         config.app_state.set_document_count(0)
         return {"success": True, "message": "All documents and chunks have been deleted"}
+    except DatabaseUnavailableError as exc:
+        logger.error("DB unavailable clearing documents: %s", exc)
+        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
     except Exception as exc:
         logger.error("Error clearing documents: %s", exc, exc_info=True)
         return JSONResponse({"success": False, "message": "Failed to clear documents"}, status_code=500)
@@ -282,6 +292,9 @@ def api_delete_document(doc_id: int, request: Request) -> Any:
         request.app.state.db.delete_document(doc_id)
         _update_document_count(request.app.state)
         return {"success": True}
+    except DatabaseUnavailableError as exc:
+        logger.error("DB unavailable deleting document %s: %s", _slv(str(doc_id)), exc)
+        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
     except Exception as exc:
         logger.error("Error deleting document %s: %s", _slv(str(doc_id)), exc, exc_info=True)
         return JSONResponse({"success": False, "message": "Failed to delete document"}, status_code=500)

@@ -41,13 +41,13 @@ class TestIndexRoute:
         response = client.get('/')
 
         assert response.status_code == 200
-        assert b'html' in response.data.lower() or b'<!DOCTYPE' in response.data
+        assert b'html' in response.content.lower() or b'<!DOCTYPE' in response.content
 
     def test_index_returns_html(self, client):
         """Test index returns HTML content."""
         response = client.get('/')
 
-        assert response.content_type.startswith('text/html')
+        assert response.headers.get('content-type', '').startswith('text/html')
 
 
 class TestChatRoute:
@@ -63,7 +63,7 @@ class TestChatRoute:
         """Test chat returns HTML content."""
         response = client.get('/chat')
 
-        assert response.content_type.startswith('text/html')
+        assert response.headers.get('content-type', '').startswith('text/html')
 
 
 class TestDocumentsRoute:
@@ -79,7 +79,7 @@ class TestDocumentsRoute:
         """Test documents returns HTML content."""
         response = client.get('/documents')
 
-        assert response.content_type.startswith('text/html')
+        assert response.headers.get('content-type', '').startswith('text/html')
 
 
 class TestModelsRoute:
@@ -95,7 +95,7 @@ class TestModelsRoute:
         """Test models returns HTML content."""
         response = client.get('/models')
 
-        assert response.content_type.startswith('text/html')
+        assert response.headers.get('content-type', '').startswith('text/html')
 
 
 class TestOverviewRoute:
@@ -111,7 +111,7 @@ class TestOverviewRoute:
         """Test overview returns HTML content."""
         response = client.get('/overview')
 
-        assert response.content_type.startswith('text/html')
+        assert response.headers.get('content-type', '').startswith('text/html')
 
 
 class TestSettingsRoute:
@@ -127,22 +127,22 @@ class TestSettingsRoute:
         """Test settings returns HTML content."""
         response = client.get('/settings')
 
-        assert response.content_type.startswith('text/html')
+        assert response.headers.get('content-type', '').startswith('text/html')
 
     def test_settings_observability_tab_present(self, client):
         """Test settings page includes the Observability tab."""
         response = client.get('/settings')
 
         assert response.status_code == 200
-        assert b'Observability' in response.data
+        assert b'Observability' in response.content
 
     def test_settings_appearance_tab_present(self, client):
         """Test settings page includes the Appearance tab and theme swatches container."""
         response = client.get('/settings')
 
         assert response.status_code == 200
-        assert b'Appearance' in response.data
-        assert b'theme-swatches' in response.data
+        assert b'Appearance' in response.content
+        assert b'theme-swatches' in response.content
 
 
 class TestWebRoutesGeneral:

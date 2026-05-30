@@ -745,8 +745,11 @@ async def api_chat(request: Request) -> Any:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    except (PydanticValidationError, exceptions.LocalChatException):
-        raise
+    except PydanticValidationError as exc:
+        return JSONResponse({"error": "ValidationError", "success": False, "message": "Invalid request", "details": exc.errors()}, status_code=422)
+    except exceptions.LocalChatException as exc:
+        logger.warning("[CHAT API] LocalChat error: %s", exc)
+        return JSONResponse({"success": False, "message": str(exc)}, status_code=500)
     except Exception as exc:
         logger.error("[CHAT API] Unexpected error: %s", exc, exc_info=True)
         return JSONResponse({"success": False, "message": "An unexpected error occurred during chat"}, status_code=500)

@@ -55,17 +55,17 @@ class TestRagFlow:
         from src import config
 
         config.app_state.set_active_model("llama3.2")
-        app.startup_status["ollama"] = True
+        app.state.startup_status["ollama"] = True
 
         with (
-            patch.object(app.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS),
+            patch.object(app.state.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS),
             patch.object(
-                app.doc_processor,
+                app.state.doc_processor,
                 "format_context_for_llm",
                 return_value=FORMATTED_CONTEXT,
             ),
             patch.object(
-                app.ollama_client,
+                app.state.ollama_client,
                 "generate_chat_response",
                 side_effect=lambda *a, **k: iter(["pgvector is used for semantic search."]),
             ),
@@ -79,15 +79,15 @@ class TestRagFlow:
     def test_rag_chat_returns_200_sse_stream(self, app, client):
         resp = self._rag_chat(client, app)
         assert resp.status_code == 200
-        assert "text/event-stream" in resp.content_type
+        assert "text/event-stream" in resp.headers['content-type']
 
     def test_rag_chat_stream_contains_llm_content(self, app, client):
         resp = self._rag_chat(client, app)
-        assert "pgvector is used for semantic search." in resp.data.decode()
+        assert "pgvector is used for semantic search." in resp.content.decode()
 
     def test_rag_stream_ends_with_done_event(self, app, client):
         resp = self._rag_chat(client, app)
-        body = resp.data.decode()
+        body = resp.content.decode()
         data_lines = [ln for ln in body.splitlines() if ln.startswith("data:")]
         assert data_lines, "Expected at least one SSE data line"
         last = json.loads(data_lines[-1].removeprefix("data:").strip())
@@ -97,19 +97,19 @@ class TestRagFlow:
         from src import config
 
         config.app_state.set_active_model("llama3.2")
-        app.startup_status["ollama"] = True
+        app.state.startup_status["ollama"] = True
 
         with (
             patch.object(
-                app.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS
+                app.state.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS
             ) as mock_retrieve,
             patch.object(
-                app.doc_processor,
+                app.state.doc_processor,
                 "format_context_for_llm",
                 return_value=FORMATTED_CONTEXT,
             ),
             patch.object(
-                app.ollama_client,
+                app.state.ollama_client,
                 "generate_chat_response",
                 return_value=iter(["ok"]),
             ),
@@ -132,7 +132,7 @@ class TestRagFlow:
         from src import config
 
         config.app_state.set_active_model("llama3.2")
-        app.startup_status["ollama"] = True
+        app.state.startup_status["ollama"] = True
         captured: list = []
 
         def capture_generate(model, messages, **kwargs):
@@ -140,14 +140,14 @@ class TestRagFlow:
             return iter(["answer"])
 
         with (
-            patch.object(app.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS),
+            patch.object(app.state.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS),
             patch.object(
-                app.doc_processor,
+                app.state.doc_processor,
                 "format_context_for_llm",
                 return_value=FORMATTED_CONTEXT,
             ),
             patch.object(
-                app.ollama_client,
+                app.state.ollama_client,
                 "generate_chat_response",
                 side_effect=capture_generate,
             ),
@@ -167,12 +167,12 @@ class TestRagFlow:
         from src import config
 
         config.app_state.set_active_model("llama3.2")
-        app.startup_status["ollama"] = True
+        app.state.startup_status["ollama"] = True
 
         with (
-            patch.object(app.doc_processor, "retrieve_context") as mock_retrieve,
+            patch.object(app.state.doc_processor, "retrieve_context") as mock_retrieve,
             patch.object(
-                app.ollama_client,
+                app.state.ollama_client,
                 "generate_chat_response",
                 return_value=iter(["direct answer"]),
             ),
@@ -181,7 +181,7 @@ class TestRagFlow:
             # this mock the executor may invoke the search_documents built-in tool, which
             # calls retrieve_context through the module-level singleton.
             patch.object(
-                app.ollama_client,
+                app.state.ollama_client,
                 "generate_chat_completion",
                 return_value={"message": {"role": "assistant", "content": "direct answer"}},
             ),
@@ -205,20 +205,20 @@ class TestRagFlow:
 
         with (
             patch.object(
-                app.doc_processor,
+                app.state.doc_processor,
                 "ingest_document",
                 return_value=(True, "Ingested 2 chunks", 1),
             ),
             patch(
-                "src.routes.document_routes._save_uploaded_files",
-                return_value=[str(txt_file)],
+                "src.routes_fastapi.document_routes._save_upload_file",
+                return_value=str(txt_file),
             ),
         ):
-            resp = client.post(
-                "/api/documents/upload",
-                data={"files": (txt_file.open("rb"), "test_doc.txt")},
-                content_type="multipart/form-data",
-            )
+            with txt_file.open("rb") as fh:
+                resp = client.post(
+                    "/api/documents/upload",
+                    files=[("files", ("test_doc.txt", fh, "text/plain"))],
+                )
 
         assert resp.status_code == 200
-        assert "text/event-stream" in resp.content_type
+        assert "text/event-stream" in resp.headers['content-type']

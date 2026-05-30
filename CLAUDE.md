@@ -30,7 +30,7 @@ LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TX
 
 ## Architecture
 
-**Entry point:** `app.py` → `create_app()` in `src/app_fastapi.py` → FastAPI instance wired with all routers. Production: `create_uvicorn_app()`. Legacy Gunicorn path via `create_gunicorn_app()` still works.
+**Entry point:** `app.py` → `create_app()` in `src/app_fastapi.py` → FastAPI instance wired with all routers. `create_uvicorn_app()` is used both in dev (`python app.py`) and production (Docker / Uvicorn).
 
 **Request flow:**
 1. `APIRouter` in `src/routes_fastapi/` — thin handler, no business logic
@@ -78,7 +78,7 @@ Full rules across 4 files in `.claude/rules/` — short version here.
 **Testing** → [`.claude/rules/testing.md`](.claude/rules/testing.md)
 - New modules and non-trivial functions need unit tests. Coverage must not drop.
 - FastAPI routes: use `TestClient` from `fastapi.testclient` with a minimal mounted app.
-- Flask routes (legacy): `create_app(testing=True)` from `src/app_factory.py`.
+- MCP server routes (Flask): create a bare `Flask(__name__)` app in the test; `src/app_factory.py` is gone.
 
 **File map** → [`.claude/rules/file-map.md`](.claude/rules/file-map.md)
 - Full module index. Update it in the same commit when adding or removing a file.
@@ -113,9 +113,8 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Commands
 
 ```bash
-python app.py                                                          # dev server (Flask)
-uvicorn "app:create_uvicorn_app" --factory --host 0.0.0.0 --port 5000 # dev server (FastAPI)
-gunicorn "app:create_gunicorn_app()"                                   # production (Flask/legacy)
+python app.py                                                          # dev server (FastAPI + Uvicorn)
+uvicorn "app:create_uvicorn_app" --factory --host 0.0.0.0 --port 5000 # production (FastAPI + Uvicorn)
 docker compose up -d                        # full stack
 pytest                                      # all tests + coverage
 pytest -m "not (slow or ollama or db)"     # fast only

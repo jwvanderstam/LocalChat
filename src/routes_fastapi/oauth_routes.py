@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 
 import requests as _requests
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from .. import config
 from ..security_fastapi import get_current_user_id
@@ -38,7 +38,7 @@ def _tenant() -> str:
 # ---------------------------------------------------------------------------
 
 @router.get("/oauth/microsoft/authorize")
-def microsoft_authorize(request: Request) -> RedirectResponse | JSONResponse:
+def microsoft_authorize(request: Request) -> Response:
     if not config.MICROSOFT_CLIENT_ID:
         return JSONResponse({"success": False, "message": "MICROSOFT_CLIENT_ID is not configured"}, status_code=501)
 
@@ -136,7 +136,7 @@ def microsoft_disconnect(request: Request) -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 @router.get("/oauth/google/authorize")
-def google_authorize(request: Request) -> RedirectResponse | JSONResponse:
+def google_authorize(request: Request) -> Response:
     if not config.GOOGLE_CLIENT_ID:
         return JSONResponse({"success": False, "message": "GOOGLE_CLIENT_ID is not configured"}, status_code=501)
 

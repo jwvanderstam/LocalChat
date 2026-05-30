@@ -212,11 +212,8 @@ class TestRequestTiming:
 
     def test_timing_middleware_measures_duration(self, app, client):
         """Test middleware measures request duration."""
-        with client:
-            response = client.get('/')
-
-            # Should process request (timing happens in background)
-            assert response.status_code in [200, 404]
+        response = client.get('/api/docs/')
+        assert response.status_code in [200, 404]
 
 
 class TestHealthChecks:
@@ -240,7 +237,7 @@ class TestHealthChecks:
         response = client.get('/api/status')
 
         if response.status_code == 200:
-            assert response.content_type == 'application/json'
+            assert response.headers.get('content-type', '') == 'application/json'
 
 
 class TestPerformanceTracking:

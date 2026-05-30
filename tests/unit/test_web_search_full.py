@@ -7,7 +7,7 @@ class TestWebSearchIntentDetection:
     """Tests for _has_web_search_intent auto-detection in api_routes."""
 
     def _intent(self, msg):
-        from src.routes.api_routes import _has_web_search_intent
+        from src.routes_fastapi.api_routes import _has_web_search_intent
         return _has_web_search_intent(msg)
 
     def test_check_internet_phrase(self):

@@ -82,8 +82,8 @@ def assert_json_response(response, expected_status: int = 200):
         AssertionError: If response doesn't match expectations
     """
     assert response.status_code == expected_status, f"Expected {expected_status}, got {response.status_code}"
-    assert response.content_type == 'application/json', f"Expected JSON, got {response.content_type}"
-    assert response.get_json() is not None, "Response has no JSON body"
+    assert response.headers.get('content-type', '') == 'application/json', f"Expected JSON, got {response.headers.get('content-type', '')}"
+    assert response.json() is not None, "Response has no JSON body"
 
 
 def assert_error_response(response, error_type: str = None):
@@ -95,7 +95,7 @@ def assert_error_response(response, error_type: str = None):
         error_type: Expected error type (optional)
     """
     assert response.status_code >= 400, f"Expected error status, got {response.status_code}"
-    data = response.get_json()
+    data = response.json()
     assert data is not None, "Error response has no JSON body"
     assert 'error' in data or 'message' in data, "Error response missing error/message field"
 

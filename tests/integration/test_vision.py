@@ -172,10 +172,10 @@ class TestChatWithImages:
         from src import config
 
         config.app_state.set_active_model("llava:7b")
-        app.startup_status["ollama"] = True
+        app.state.startup_status["ollama"] = True
 
         with patch.object(
-            app.ollama_client,
+            app.state.ollama_client,
             "generate_chat_response",
             return_value=iter(["I can see a cat."]),
         ):
@@ -189,14 +189,14 @@ class TestChatWithImages:
             )
 
         assert resp.status_code == 200
-        assert "text/event-stream" in resp.content_type
-        assert "I can see a cat." in resp.data.decode()
+        assert "text/event-stream" in resp.headers['content-type']
+        assert "I can see a cat." in resp.content.decode()
 
     def test_images_field_is_passed_to_llm(self, app, client):
         from src import config
 
         config.app_state.set_active_model("llava:7b")
-        app.startup_status["ollama"] = True
+        app.state.startup_status["ollama"] = True
         captured: dict = {}
 
         def capture(model, messages, **kwargs):
@@ -205,7 +205,7 @@ class TestChatWithImages:
 
         fake_b64 = base64.b64encode(b"pixel_data").decode()
 
-        with patch.object(app.ollama_client, "generate_chat_response", side_effect=capture):
+        with patch.object(app.state.ollama_client, "generate_chat_response", side_effect=capture):
             client.post(
                 "/api/chat",
                 json={"message": "Describe it", "images": [fake_b64], "use_rag": False},

@@ -1,6 +1,6 @@
 """
-S3 Connector (stub)
-===================
+S3 Connector
+============
 
 Polls an S3-compatible bucket (AWS S3, MinIO, Cloudflare R2, etc.) for
 new, modified, and deleted objects using ``ListObjectsV2`` with

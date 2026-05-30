@@ -267,23 +267,23 @@ class TestParseChatRequest:
 
     def test_temperature_included_with_default(self):
         from src import config
-        from src.routes.api_routes import _parse_chat_request
+        from src.routes_fastapi.api_routes import _parse_chat_request
         fields = _parse_chat_request({'message': 'hi', 'use_rag': False})
         assert 'temperature' in fields
         assert fields['temperature'] == pytest.approx(config.DEFAULT_TEMPERATURE)
 
     def test_temperature_included_when_provided(self):
-        from src.routes.api_routes import _parse_chat_request
+        from src.routes_fastapi.api_routes import _parse_chat_request
         fields = _parse_chat_request({'message': 'hi', 'use_rag': False, 'temperature': 1.2})
         assert fields['temperature'] == pytest.approx(1.2)
 
     def test_temperature_zero_passes_through(self):
-        from src.routes.api_routes import _parse_chat_request
+        from src.routes_fastapi.api_routes import _parse_chat_request
         fields = _parse_chat_request({'message': 'hi', 'temperature': 0.0})
         assert fields['temperature'] == pytest.approx(0.0)
 
     def test_temperature_boundary_max_passes_through(self):
-        from src.routes.api_routes import _parse_chat_request
+        from src.routes_fastapi.api_routes import _parse_chat_request
         fields = _parse_chat_request({'message': 'hi', 'temperature': 2.0})
         assert fields['temperature'] == pytest.approx(2.0)
 
@@ -291,102 +291,121 @@ class TestParseChatRequest:
         """Out-of-range temperature must bubble up as a validation error."""
         from pydantic import ValidationError
 
-        from src.routes.api_routes import _parse_chat_request
+        from src.routes_fastapi.api_routes import _parse_chat_request
         with pytest.raises(ValidationError):
             _parse_chat_request({'message': 'hi', 'temperature': 3.0})
 
     def test_temperature_negative_raises(self):
         from pydantic import ValidationError
 
-        from src.routes.api_routes import _parse_chat_request
+        from src.routes_fastapi.api_routes import _parse_chat_request
         with pytest.raises(ValidationError):
             _parse_chat_request({'message': 'hi', 'temperature': -1.0})
 
 
 # ============================================================================
-# _stream_chat_response – temperature forwarded to ollama_client
+# api_chat endpoint – temperature forwarded to ollama_client
 # ============================================================================
 
 class TestStreamChatResponseTemperature:
-    """_stream_chat_response passes temperature to generate_chat_response."""
+    """api_chat passes temperature to generate_chat_response."""
 
-    def _make_app(self, chunks=None):
-        app = Mock()
-        app.ollama_client.generate_chat_response.return_value = iter(chunks or ["hi"])
-        app.cloud_client = None  # disable cloud fallback in unit tests
-        app.db = Mock()
-        app.db.save_message = Mock(return_value=None)
-        app.db.create_conversation = Mock(return_value="conv-123")
-        app.db.add_message = Mock(return_value=None)
-        return app
+    def _make_fastapi_app(self, chunks=None):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
 
-    def _drain(self, response):
-        """Consume the SSE Response generator so the inner callable runs."""
-        list(response.response)
+        from src.routes_fastapi.api_routes import router
+
+        test_app = FastAPI()
+        test_app.include_router(router, prefix="/api")
+
+        test_app.state.startup_status = {"database": True, "ollama": True, "ready": True}
+        test_app.state.db = Mock()
+        test_app.state.db.save_message = Mock(return_value=1)
+        test_app.state.db.create_conversation_with_message = Mock(return_value=("conv-123", 1))
+        test_app.state.db.get_conversation_document_filter = Mock(return_value=[])
+        test_app.state.doc_processor = Mock()
+        test_app.state.doc_processor.retrieve_context = Mock(return_value=[])
+        test_app.state.ollama_client = Mock()
+        test_app.state.ollama_client.generate_chat_response.return_value = iter(chunks or ["hi"])
+        test_app.state.cloud_client = None
+        test_app.state.testing = True
+        test_app.state.embedding_cache = None
+        test_app.state.query_cache = None
+        test_app.state.connector_registry = None
+
+        return test_app, TestClient(test_app, raise_server_exceptions=False)
+
+    def _config_ctx(self, active_model="llama3.2"):
+        import contextlib
+
+        @contextlib.contextmanager
+        def _ctx():
+            with patch("src.routes_fastapi.api_routes.config") as cfg:
+                cfg.app_state.get_active_model.return_value = active_model
+                cfg.WEB_SEARCH_ENABLED = False
+                cfg.MCP_ENABLED = False
+                cfg.AGGREGATOR_AGENT_ENABLED = False
+                cfg.QUERY_PLANNER_ENABLED = False
+                cfg.LONG_TERM_MEMORY_ENABLED = False
+                cfg.MODEL_ROUTER_ENABLED = False
+                cfg.TOOL_CALLING_ENABLED = False
+                cfg.PLUGINS_ENABLED = False
+                cfg.CLOUD_REFUSAL_PATTERNS = []
+                cfg.TOP_K_RESULTS = 5
+                cfg.GRAPH_RAG_ENABLED = False
+                cfg.DEFAULT_TEMPERATURE = 0.7
+                yield cfg
+
+        return _ctx()
+
+    def _post_and_parse(self, app, client, payload):
+        import json as _json
+        with self._config_ctx():
+            resp = client.post("/api/chat", json=payload)
+        events = []
+        for line in resp.content.decode().splitlines():
+            if line.startswith("data: "):
+                events.append(_json.loads(line[6:]))
+        return resp, events
 
     def test_temperature_forwarded(self):
-        from src.routes.api_routes import _stream_chat_response
-
-        app = self._make_app(["hello"])
-        with patch('src.routes.api_routes._persist_assistant_message'):
-            response = _stream_chat_response(app, "llama3.2", [], "conv-1", None, temperature=0.3)
-            self._drain(response)
-            app.ollama_client.generate_chat_response.assert_called_once()
-            _, kwargs = app.ollama_client.generate_chat_response.call_args
-            assert kwargs.get('temperature') == pytest.approx(0.3)
+        app, client = self._make_fastapi_app(["hello"])
+        self._post_and_parse(app, client, {"message": "hi", "use_rag": False, "temperature": 0.3})
+        app.state.ollama_client.generate_chat_response.assert_called_once()
+        _, kwargs = app.state.ollama_client.generate_chat_response.call_args
+        assert kwargs.get('temperature') == pytest.approx(0.3)
 
     def test_default_temperature_forwarded(self):
-        from src.routes.api_routes import _stream_chat_response
-
-        app = self._make_app(["hello"])
-        with patch('src.routes.api_routes._persist_assistant_message'):
-            response = _stream_chat_response(app, "llama3.2", [], "conv-1", None)
-            self._drain(response)
-            app.ollama_client.generate_chat_response.assert_called_once()
-            _, kwargs = app.ollama_client.generate_chat_response.call_args
-            assert kwargs.get('temperature') == pytest.approx(0.7)
+        from src import config as src_config
+        app, client = self._make_fastapi_app(["hello"])
+        self._post_and_parse(app, client, {"message": "hi", "use_rag": False})
+        app.state.ollama_client.generate_chat_response.assert_called_once()
+        _, kwargs = app.state.ollama_client.generate_chat_response.call_args
+        assert kwargs.get('temperature') == pytest.approx(src_config.DEFAULT_TEMPERATURE)
 
     def test_tool_executor_bypasses_ollama_client(self):
-        """When a tool_executor is provided it handles generation; ollama_client must not be called."""
-        from src.routes.api_routes import _stream_chat_response
+        """When a tool_executor is injected it handles generation; ollama_client must not be called."""
+        app, client = self._make_fastapi_app()
+        mock_executor = Mock()
+        mock_executor.execute.return_value = iter(["tool response"])
 
-        app = self._make_app()
-        tool_executor = Mock()
-        tool_executor.execute.return_value = iter(["tool response"])
+        with patch("src.routes_fastapi.api_routes._get_tool_executor", return_value=mock_executor):
+            self._post_and_parse(app, client, {"message": "hi", "use_rag": False})
 
-        with patch('src.routes.api_routes._persist_assistant_message'):
-            response = _stream_chat_response(app, "llama3.2", [], "conv-1", tool_executor, temperature=0.9)
-            self._drain(response)
-
-        app.ollama_client.generate_chat_response.assert_not_called()
-        tool_executor.execute.assert_called_once()
+        app.state.ollama_client.generate_chat_response.assert_not_called()
+        mock_executor.execute.assert_called_once()
 
     def test_sse_output_contains_content(self):
         """Streamed SSE lines must carry the content chunks."""
-        import json
-
-        from src.routes.api_routes import _stream_chat_response
-
-        app = self._make_app(["Hello", " world"])
-        with patch('src.routes.api_routes._persist_assistant_message'):
-            response = _stream_chat_response(app, "llama3.2", [], "conv-1", None, temperature=0.5)
-            chunks = [line for line in response.response if line]
-
-        payloads = [json.loads(c.removeprefix("data: ")) for c in chunks if c.startswith("data: ")]
-        content_parts = [p['content'] for p in payloads if 'content' in p]
+        app, client = self._make_fastapi_app(["Hello", " world"])
+        _, events = self._post_and_parse(app, client, {"message": "hi", "use_rag": False, "temperature": 0.5})
+        content_parts = [e['content'] for e in events if 'content' in e]
         assert content_parts == ["Hello", " world"]
 
     def test_temperature_zero_produces_deterministic_label_in_sse(self):
         """At temperature=0 the stream still completes and emits a done payload."""
-        import json
-
-        from src.routes.api_routes import _stream_chat_response
-
-        app = self._make_app(["answer"])
-        with patch('src.routes.api_routes._persist_assistant_message'):
-            response = _stream_chat_response(app, "llama3.2", [], "conv-1", None, temperature=0.0)
-            raw = list(response.response)
-
-        payloads = [json.loads(c.removeprefix("data: ")) for c in raw if c.startswith("data: ")]
-        done_payloads = [p for p in payloads if p.get('done')]
+        app, client = self._make_fastapi_app(["answer"])
+        _, events = self._post_and_parse(app, client, {"message": "hi", "use_rag": False, "temperature": 0.0})
+        done_payloads = [e for e in events if e.get('done')]
         assert len(done_payloads) == 1

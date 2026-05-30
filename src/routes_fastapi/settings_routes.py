@@ -1,4 +1,4 @@
-"""Settings routes — admin stats, RAG params, reranker management."""
+"""Settings routes — admin stats, RAG params, reranker management, health, metrics."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from .. import config
 from ..security_fastapi import require_admin_dep
@@ -140,6 +140,36 @@ def gather_admin_stats(app_state: Any) -> dict:
             "CHUNK_OVERLAP":       config.CHUNK_OVERLAP,
         },
     }
+
+
+@router.get("/health")
+def health_check(request: Request) -> Any:
+    from ..monitoring import _compute_health_status
+    status, status_code, checks = _compute_health_status(request.app.state)
+    return JSONResponse(
+        {"status": status, "checks": checks, "timestamp": datetime.now().isoformat()},
+        status_code=status_code,
+    )
+
+
+@router.get("/metrics", response_class=PlainTextResponse)
+def metrics_endpoint(request: Request) -> Any:
+    from ..monitoring import _check_metrics_auth_request, export_prometheus_metrics
+    if not _check_metrics_auth_request(request):
+        return Response("Forbidden", status_code=403,
+                        headers={"WWW-Authenticate": 'Bearer realm="metrics"'})
+    return PlainTextResponse(
+        export_prometheus_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+@router.get("/metrics.json")
+def metrics_json_endpoint(request: Request) -> Any:
+    from ..monitoring import _check_metrics_auth_request, get_metrics
+    if not _check_metrics_auth_request(request):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    return get_metrics().get_metrics()
 
 
 @router.get("/settings/stats")

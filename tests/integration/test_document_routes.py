@@ -36,7 +36,7 @@ class TestUploadDocuments:
         response = client.post('/api/documents/upload')
 
         assert response.status_code == 400
-        data = response.get_json()
+        data = response.json()
         assert 'files' in data.get('message', '').lower()
 
     def test_upload_rejects_empty_files(self, client):
@@ -54,7 +54,7 @@ class TestUploadDocuments:
 
         response = client.post('/api/documents/upload', data={
             'files': [(io.BytesIO(pdf_content), 'test.pdf')]
-        }, content_type='multipart/form-data')
+        })
 
         # Should return SSE stream or error
         assert response.status_code in [200, 400, 500]
@@ -65,7 +65,7 @@ class TestUploadDocuments:
 
         response = client.post('/api/documents/upload', data={
             'files': [(io.BytesIO(text_content), 'test.txt')]
-        }, content_type='multipart/form-data')
+        })
 
         assert response.status_code in [200, 400, 500]
 
@@ -73,7 +73,7 @@ class TestUploadDocuments:
         """Test upload rejects unsupported file formats."""
         response = client.post('/api/documents/upload', data={
             'files': [(io.BytesIO(b'content'), 'test.xyz')]
-        }, content_type='multipart/form-data')
+        })
 
         # Should reject or handle gracefully
         assert response.status_code in [200, 400]
@@ -84,7 +84,7 @@ class TestUploadDocuments:
 
         response = client.post('/api/documents/upload', data={
             'files': [(io.BytesIO(text_content), 'test.txt')]
-        }, content_type='multipart/form-data')
+        })
 
         if response.status_code == 200:
             assert response.mimetype == 'text/event-stream'
@@ -103,19 +103,19 @@ class TestListDocuments:
         """Test list returns JSON."""
         response = client.get('/api/documents/list')
 
-        assert response.content_type == 'application/json'
+        assert response.headers.get('content-type', '') == 'application/json'
 
     def test_list_has_success_field(self, client):
         """Test list response has success field."""
         response = client.get('/api/documents/list')
-        data = response.get_json()
+        data = response.json()
 
         assert 'success' in data
 
     def test_list_has_documents_array(self, client):
         """Test list response has documents array."""
         response = client.get('/api/documents/list')
-        data = response.get_json()
+        data = response.json()
 
         if data.get('success'):
             assert 'documents' in data
@@ -124,7 +124,7 @@ class TestListDocuments:
     def test_list_document_structure(self, client):
         """Test document objects have expected structure."""
         response = client.get('/api/documents/list')
-        data = response.get_json()
+        data = response.json()
 
         if data.get('success') and data.get('documents'):
             doc = data['documents'][0]
@@ -145,12 +145,12 @@ class TestDocumentStats:
         """Test stats returns JSON."""
         response = client.get('/api/documents/stats')
 
-        assert response.content_type == 'application/json'
+        assert response.headers.get('content-type', '') == 'application/json'
 
     def test_stats_has_required_fields(self, client):
         """Test stats response has required fields."""
         response = client.get('/api/documents/stats')
-        data = response.get_json()
+        data = response.json()
 
         if data.get('success'):
             assert 'document_count' in data
@@ -159,7 +159,7 @@ class TestDocumentStats:
     def test_stats_fields_are_integers(self, client):
         """Test stats fields are correct types."""
         response = client.get('/api/documents/stats')
-        data = response.get_json()
+        data = response.json()
 
         if data.get('success'):
             assert isinstance(data.get('document_count', 0), int)
@@ -168,7 +168,7 @@ class TestDocumentStats:
     def test_stats_includes_chunk_statistics(self, client):
         """Test stats includes detailed chunk statistics."""
         response = client.get('/api/documents/stats')
-        data = response.get_json()
+        data = response.json()
 
         if data.get('success'):
             # May have chunk_statistics field
@@ -205,8 +205,8 @@ class TestRetrievalTesting:
         })
 
         if response.status_code == 200:
-            assert response.content_type == 'application/json'
-            data = response.get_json()
+            assert response.headers.get('content-type', '') == 'application/json'
+            data = response.json()
             assert 'success' in data
 
     def test_test_with_hybrid_search_flag(self, client):
@@ -250,7 +250,7 @@ class TestTextSearch:
         response = client.post('/api/documents/search-text', json={})
 
         assert response.status_code == 400
-        data = response.get_json()
+        data = response.json()
         assert 'search_text' in data.get('message', '').lower()
 
     def test_search_text_with_valid_input(self, client):
@@ -268,8 +268,8 @@ class TestTextSearch:
         })
 
         if response.status_code == 200:
-            assert response.content_type == 'application/json'
-            data = response.get_json()
+            assert response.headers.get('content-type', '') == 'application/json'
+            data = response.json()
             assert 'success' in data
             assert 'results' in data
 
@@ -281,7 +281,7 @@ class TestTextSearch:
         })
 
         if response.status_code == 200:
-            data = response.get_json()
+            data = response.json()
             if data.get('success') and data.get('results'):
                 assert len(data['results']) <= 5
 
@@ -307,12 +307,12 @@ class TestClearDocuments:
         """Test clear returns JSON response."""
         response = client.delete('/api/documents/clear')
 
-        assert response.content_type == 'application/json'
+        assert response.headers.get('content-type', '') == 'application/json'
 
     def test_clear_has_success_field(self, client):
         """Test clear response has success field."""
         response = client.delete('/api/documents/clear')
-        data = response.get_json()
+        data = response.json()
 
         assert 'success' in data
 
@@ -332,7 +332,7 @@ class TestDocumentRoutesSecurity:
         # Try uploading executable
         response = client.post('/api/documents/upload', data={
             'files': [(io.BytesIO(b'MZ'), 'malware.exe')]
-        }, content_type='multipart/form-data')
+        })
 
         # Should reject or handle safely
         assert response.status_code in [200, 400]
@@ -374,5 +374,5 @@ class TestDocumentRoutesErrorHandling:
         # Should handle gracefully
         assert response.status_code in [200, 500]
         if response.status_code == 500:
-            data = response.get_json()
+            data = response.json()
             assert 'message' in data or 'error' in data

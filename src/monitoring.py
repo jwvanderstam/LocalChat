@@ -277,18 +277,20 @@ class RequestTimingMiddleware:
 
 
 def _check_metrics_auth() -> bool:
-    """
-    Return True if the request is authorised to read metrics.
-
-    When ``METRICS_TOKEN`` is configured the caller must supply it as a
-    Bearer token (``Authorization: Bearer <token>``).  When the config value
-    is empty the endpoint is open — acceptable when it is only reachable from
-    a private network or a dedicated scrape interface.
-    """
+    """Return True if the Flask request is authorised to read metrics."""
     from . import config
     if not config.METRICS_TOKEN:
         return True
     auth = request.headers.get("Authorization", "")
+    return auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN
+
+
+def _check_metrics_auth_request(req: Any) -> bool:
+    """Return True if a FastAPI Request is authorised to read metrics."""
+    from . import config
+    if not config.METRICS_TOKEN:
+        return True
+    auth = req.headers.get("authorization", "")
     return auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN
 
 

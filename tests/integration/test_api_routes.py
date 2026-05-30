@@ -28,14 +28,14 @@ class TestStatusEndpoint:
         """Test status returns JSON."""
         response = client.get('/api/status')
 
-        assert response.content_type == 'application/json'
-        data = response.get_json()
+        assert response.headers.get('content-type', '') == 'application/json'
+        data = response.json()
         assert isinstance(data, dict)
 
     def test_status_contains_required_fields(self, client):
         """Test status response has required fields."""
         response = client.get('/api/status')
-        data = response.get_json()
+        data = response.json()
 
         # Required fields
         assert 'ollama' in data
@@ -47,7 +47,7 @@ class TestStatusEndpoint:
     def test_status_fields_have_correct_types(self, client):
         """Test status fields are correct types."""
         response = client.get('/api/status')
-        data = response.get_json()
+        data = response.json()
 
         assert isinstance(data['ollama'], bool)
         assert isinstance(data['database'], bool)
@@ -57,7 +57,7 @@ class TestStatusEndpoint:
     def test_status_includes_cache_stats_when_available(self, client):
         """Test status includes cache stats if caching enabled."""
         response = client.get('/api/status')
-        data = response.get_json()
+        data = response.json()
 
         # Cache stats may or may not be present
         if 'cache' in data:
@@ -86,20 +86,20 @@ class TestChatEndpoint:
         response = client.post('/api/chat', json={})
 
         # Should return 400
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400, 422, 500]
 
     def test_chat_rejects_empty_message(self, client):
         """Test chat rejects empty message."""
         response = client.post('/api/chat', json={'message': ''})
 
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400, 422, 500]
 
     def test_chat_rejects_too_long_message(self, client):
         """Test chat rejects messages over 5000 chars."""
         long_message = 'x' * 6000
         response = client.post('/api/chat', json={'message': long_message})
 
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400, 422, 500]
 
     def test_chat_with_valid_message_direct_mode(self, client, mock_ollama):
         """Test chat with valid message in direct LLM mode."""
@@ -143,7 +143,7 @@ class TestChatEndpoint:
 
         # If successful, should be SSE
         if response.status_code == 200:
-            assert response.mimetype == 'text/event-stream'
+            assert response.headers.get('content-type', '') == 'text/event-stream'
 
 
 class TestChatErrorHandling:
@@ -160,7 +160,7 @@ class TestChatErrorHandling:
         })
 
         # Should return error
-        assert response.status_code in [400, 500]
+        assert response.status_code in [400, 422, 500]
 
     def test_chat_handles_rag_retrieval_error(self, client, mock_ollama):
         """Test chat handles RAG retrieval errors gracefully."""
@@ -182,14 +182,14 @@ class TestAPIResponseFormats:
         response = client.post('/api/chat', json={'message': ''})
 
         if response.status_code >= 400:
-            data = response.get_json()
+            data = response.json()
             if data:  # May not have JSON body
                 assert 'message' in data or 'error' in data
 
     def test_status_response_is_well_formed(self, client):
         """Test status response is well-formed."""
         response = client.get('/api/status')
-        data = response.get_json()
+        data = response.json()
 
         # Check structure
         assert isinstance(data, dict)
@@ -209,7 +209,7 @@ def mock_ollama(monkeypatch):
     def mock_get_current_app():
         from flask import Flask
         app = Flask(__name__)
-        app.ollama_client = mock_client
+        app.state.ollama_client = mock_client
         return app
 
     # This is a simplified mock

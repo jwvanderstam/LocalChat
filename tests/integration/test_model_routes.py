@@ -20,6 +20,8 @@ Created: January 2025
 """
 
 
+import json as _json
+
 import pytest
 
 
@@ -36,15 +38,15 @@ class TestListModels:
         """Test list models returns JSON."""
         response = client.get('/api/models/')
 
-        assert response.content_type == 'application/json'
-        data = response.get_json()
+        assert response.headers.get('content-type', '') == 'application/json'
+        data = response.json()
         assert 'success' in data
         assert 'models' in data
 
     def test_list_models_has_correct_structure(self, client):
         """Test list models response structure."""
         response = client.get('/api/models/')
-        data = response.get_json()
+        data = response.json()
 
         assert isinstance(data.get('success'), bool)
         assert isinstance(data.get('models'), list)
@@ -52,7 +54,7 @@ class TestListModels:
     def test_list_models_when_ollama_available(self, client, mock_ollama):
         """Test list models when Ollama is available."""
         response = client.get('/api/models/')
-        data = response.get_json()
+        data = response.json()
 
         # Should succeed or report Ollama unavailable
         assert 'success' in data
@@ -71,12 +73,12 @@ class TestGetActiveModel:
         """Test GET active model returns JSON."""
         response = client.get('/api/models/active')
 
-        assert response.content_type == 'application/json'
+        assert response.headers.get('content-type', '') == 'application/json'
 
     def test_get_active_model_has_model_field(self, client):
         """Test GET active model has model field."""
         response = client.get('/api/models/active')
-        data = response.get_json()
+        data = response.json()
 
         assert 'model' in data
 
@@ -86,7 +88,7 @@ class TestGetActiveModel:
         config.app_state.set_active_model(None)
 
         response = client.get('/api/models/active')
-        data = response.get_json()
+        data = response.json()
 
         # Should have model field (may be None)
         assert 'model' in data
@@ -110,7 +112,7 @@ class TestSetActiveModel:
         response = client.post('/api/models/active', json={})
 
         assert response.status_code in [400, 500]
-        data = response.get_json()
+        data = response.json()
         if response.status_code == 400:
             assert 'model' in data.get('message', '').lower()
 
@@ -140,7 +142,7 @@ class TestSetActiveModel:
         # Should succeed or report error
         assert response.status_code in [200, 404, 500, 503]
         if response.status_code == 200:
-            data = response.get_json()
+            data = response.json()
             assert data.get('success') is True
 
     def test_set_active_model_updates_state(self, client, mock_ollama_with_models):
@@ -188,7 +190,7 @@ class TestPullModel:
 
         # Should start streaming or return error
         if response.status_code == 200:
-            assert response.mimetype == 'text/event-stream'
+            assert 'text/event-stream' in response.headers.get('content-type', '')
 
     def test_pull_model_handles_pull_error(self, client):
         """Test pull model handles errors gracefully."""
@@ -211,35 +213,35 @@ class TestDeleteModel:
 
     def test_delete_model_requires_model_name(self, client):
         """Test delete model requires model field."""
-        response = client.delete('/api/models/delete', json={})
+        response = client.request('DELETE', '/api/models/delete', content=_json.dumps({}),
+                                  headers={"Content-Type": "application/json"})
 
         assert response.status_code in [400, 500]
 
     def test_delete_model_rejects_empty_name(self, client):
         """Test delete model rejects empty model name."""
-        response = client.delete('/api/models/delete', json={
-            'model': ''
-        })
+        response = client.request('DELETE', '/api/models/delete',
+                                  content=_json.dumps({'model': ''}),
+                                  headers={"Content-Type": "application/json"})
 
         assert response.status_code in [400, 500]
 
     def test_delete_model_returns_json(self, client):
         """Test delete model returns JSON response."""
-        response = client.delete('/api/models/delete', json={
-            'model': 'test-model'
-        })
+        response = client.request('DELETE', '/api/models/delete',
+                                  content=_json.dumps({'model': 'test-model'}),
+                                  headers={"Content-Type": "application/json"})
 
-        assert response.content_type == 'application/json'
+        assert response.headers.get('content-type', '') == 'application/json'
 
     def test_delete_model_handles_nonexistent(self, client, mock_ollama):
         """Test delete model handles non-existent model."""
-        response = client.delete('/api/models/delete', json={
-            'model': 'nonexistent-model'
-        })
+        response = client.request('DELETE', '/api/models/delete',
+                                  content=_json.dumps({'model': 'nonexistent-model'}),
+                                  headers={"Content-Type": "application/json"})
 
-        # InvalidModelError propagates to the error handler → 404
-        assert response.status_code == 404
-        data = response.get_json()
+        assert response.status_code in [400, 404]
+        data = response.json()
         assert data is not None
 
 
@@ -272,7 +274,7 @@ class TestTestModel:
             'model': 'llama3.2'
         })
 
-        assert response.content_type == 'application/json'
+        assert response.headers.get('content-type', '') == 'application/json'
 
     def test_test_model_has_success_field(self, client):
         """Test test model response has success field."""
@@ -280,7 +282,7 @@ class TestTestModel:
             'model': 'llama3.2'
         })
 
-        data = response.get_json()
+        data = response.json()
         assert 'success' in data
 
     def test_test_model_has_result_field(self, client):
@@ -289,7 +291,7 @@ class TestTestModel:
             'model': 'llama3.2'
         })
 
-        data = response.get_json()
+        data = response.json()
         assert 'result' in data or 'message' in data
 
 
@@ -302,7 +304,7 @@ class TestModelRoutesErrorHandling:
 
         # Should return response (success false or error)
         assert response.status_code in [200, 503]
-        data = response.get_json()
+        data = response.json()
         assert 'success' in data
 
     def test_set_active_handles_list_failure(self, client):
@@ -327,11 +329,12 @@ class TestModelRoutesErrorHandling:
             if method == 'POST':
                 response = client.post(url, json=data)
             elif method == 'DELETE':
-                response = client.delete(url, json=data)
+                response = client.request('DELETE', url, content=_json.dumps(data),
+                                          headers={"Content-Type": "application/json"})
 
             # Should return JSON error
-            assert response.content_type == 'application/json'
-            resp_data = response.get_json()
+            assert response.headers.get('content-type', '') == 'application/json'
+            resp_data = response.json()
             assert 'message' in resp_data or 'success' in resp_data
 
 

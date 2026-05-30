@@ -141,44 +141,20 @@ def mock_ollama_client():
 
 @pytest.fixture
 def app():
-    """
-    Provide Flask application for testing.
+    """Provide a FastAPI test application instance."""
+    from src.app_fastapi import create_app
 
-    Returns:
-        Flask: Test Flask application instance
-    """
-    from src.app_factory import create_app
-
-    test_app = create_app(config_override={'TESTING': True, 'WTF_CSRF_ENABLED': False, 'DEBUG': False})
-
-    assert test_app.config.get('TESTING') is True, "App not in testing mode!"
-
-    # create_app(testing=True) intentionally skips db.initialize() to keep
-    # unit tests fast and offline.  Explicitly mark the db as connected so
-    # every test starts from a known True state; individual tests that need
-    # the "not-connected" path can set app.db.is_connected = False themselves.
-    _original_is_connected = test_app.db.is_connected
-    test_app.db.is_connected = True
-
-    yield test_app
-
-    # Restore the original flag so this fixture never permanently alters the
-    # global db singleton between test functions.
-    test_app.db.is_connected = _original_is_connected
+    test_app = create_app(config_override={"TESTING": True})
+    test_app.state.db.is_connected = True
+    return test_app
 
 
 @pytest.fixture
 def client(app):
-    """
-    Provide Flask test client.
+    """Provide a FastAPI TestClient."""
+    from fastapi.testclient import TestClient
 
-    Args:
-        app: Flask application fixture
-
-    Returns:
-        FlaskClient: Test client for making requests
-    """
-    return app.test_client()
+    return TestClient(app, raise_server_exceptions=True)
 
 
 @pytest.fixture
