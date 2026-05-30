@@ -77,29 +77,25 @@ class TestLiteLLMClientInit:
                 from src.llm_client import LiteLLMClient
                 LiteLLMClient("openai", None, "gpt-4o")
 
-    def test_sets_env_var_when_api_key_provided(self):
-        import os
+    def test_stores_api_key_as_instance_var(self):
         mock_litellm = MagicMock()
         with patch.dict("sys.modules", {"litellm": mock_litellm}):
             from importlib import reload
 
             import src.llm_client as mod
             reload(mod)
-            mod.LiteLLMClient("openai", "sk-test-key", "gpt-4o")
-            assert os.environ.get("OPENAI_API_KEY") == "sk-test-key"
+            client = mod.LiteLLMClient("openai", "sk-test-key", "gpt-4o")
+            assert client._api_key == "sk-test-key"
 
-    def test_no_env_var_when_no_api_key(self):
-        import os
+    def test_no_api_key_stored_when_none(self):
         mock_litellm = MagicMock()
         with patch.dict("sys.modules", {"litellm": mock_litellm}):
             from importlib import reload
 
             import src.llm_client as mod
             reload(mod)
-            os.environ.pop("ANTHROPIC_API_KEY", None)
-            mod.LiteLLMClient("anthropic", None, "claude-3-haiku")
-            # No key set — env var should not be set (or was already absent)
-            # We just verify no exception raised
+            client = mod.LiteLLMClient("anthropic", None, "claude-3-haiku")
+            assert client._api_key is None
 
 
 # ===========================================================================

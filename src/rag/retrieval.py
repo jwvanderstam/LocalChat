@@ -157,12 +157,8 @@ class RetrievalMixin:
         return deduped
 
     def _get_app_cache(self, attr_name: str) -> Any | None:
-        """Return a named cache from the app, or None outside a request context."""
-        try:
-            from flask import current_app as _cur_app
-            return getattr(_cur_app._get_current_object(), attr_name, None)  # type: ignore[attr-defined]
-        except RuntimeError:
-            return None
+        """Return None — app cache access requires a request context; use module-level LRU instead."""
+        return None
 
     def _log_similarity_miss(
         self, all_results: dict[str, dict[str, Any]], min_similarity: float
@@ -404,14 +400,7 @@ class RetrievalMixin:
         Returns:
             Embedding vector or None on failure
         """
-        # Prefer app-level cache (tracked by admin dashboard)
-        _app_emb_cache = app_cache
-        if _app_emb_cache is None:
-            try:
-                from flask import current_app as _cur_app
-                _app_emb_cache = getattr(_cur_app._get_current_object(), 'embedding_cache', None)  # type: ignore[attr-defined]
-            except RuntimeError:
-                pass
+        _app_emb_cache = app_cache  # caller may pass an app-level cache for richer tracking
 
         if _app_emb_cache is not None:
             cached = _app_emb_cache.get(text, model)

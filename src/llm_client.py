@@ -84,12 +84,7 @@ class LiteLLMClient:
 
         self._provider = provider
         self._model = model
-
-        if api_key:
-            import os
-            # litellm reads provider API keys from env vars (e.g. OPENAI_API_KEY).
-            key_var = f"{provider.upper()}_API_KEY"
-            os.environ.setdefault(key_var, api_key)
+        self._api_key = api_key  # passed directly to each completion() call
 
         logger.info(f"[CloudFallback] LiteLLMClient ready — provider={provider}, model={model}")
 
@@ -118,6 +113,8 @@ class LiteLLMClient:
         }
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
+        if self._api_key:
+            kwargs["api_key"] = self._api_key
 
         try:
             response = self._litellm.completion(**kwargs)
@@ -139,5 +136,7 @@ class LiteLLMClient:
         kwargs: dict = {"model": model, "messages": messages, "stream": False}
         if tools:
             kwargs["tools"] = tools
+        if self._api_key:
+            kwargs["api_key"] = self._api_key
         response = self._litellm.completion(**kwargs)
         return response.model_dump()

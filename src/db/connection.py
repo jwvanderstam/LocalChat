@@ -63,10 +63,10 @@ class VectorLoader(Loader):
         if isinstance(data, bytes):
             data = data.decode('utf-8')
         data_str = data.strip()
-        if data_str.startswith('[') and data_str.endswith(']'):  # type: ignore
+        if data_str.startswith('[') and data_str.endswith(']'):  # type: ignore[union-attr]
             data_str = data_str[1:-1]
             if data_str:
-                return [float(x) for x in data_str.split(',')]  # type: ignore
+                return [float(x) for x in data_str.split(',')]  # type: ignore[union-attr]
         return []
 
 
@@ -290,7 +290,7 @@ class DatabaseConnection:
                         query = sql.SQL("CREATE DATABASE {}").format(
                             sql.Identifier(config.PG_DB)
                         )
-                        cursor.execute(query)  # type: ignore
+                        cursor.execute(query)  # type: ignore[arg-type]
                         logger.info(f"Database '{config.PG_DB}' created successfully")
                     else:
                         logger.debug(f"Database '{config.PG_DB}' already exists")

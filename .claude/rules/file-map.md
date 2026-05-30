@@ -103,6 +103,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Utils** | |
 | `src/utils/logging_config.py` | `JsonFormatter` + `RequestIdFilter`; `LOG_FORMAT=json` |
 | `src/utils/request_id.py` | X-Request-ID middleware + per-request access log |
+| `src/utils/file_validation.py` | Magic-byte + ZIP content validation for uploaded files; prevents content-type spoofing |
 | `src/utils/sanitization.py` | HTML/injection cleaning |
 | `src/utils/encryption.py` | Canonical Fernet `encrypt()`/`decrypt()` for sensitive text columns at rest |
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |

@@ -690,6 +690,8 @@ async def _generate_sse(
     except Exception:
         logger.exception("[CHAT API] Unexpected error generating response")
         yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
+    finally:
+        pass  # ensures cleanup runs on client disconnect
 
 
 @router.post("/chat")

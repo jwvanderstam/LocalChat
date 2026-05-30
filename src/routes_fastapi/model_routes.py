@@ -80,6 +80,8 @@ async def pull_model(request: Request) -> Any:
         except Exception:
             logger.exception("Error pulling model")
             yield f"data: {json.dumps({'error': 'Failed to pull model'})}\n\n"
+        finally:
+            pass  # ensures cleanup runs on client disconnect
 
     return StreamingResponse(
         _generate(),
