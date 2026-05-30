@@ -1,0 +1,27 @@
+# TLS termination overlay — use with: docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
+#
+# Prerequisites:
+#   1. Edit nginx/nginx.conf: replace YOUR_DOMAIN with your actual domain.
+#   2. Place your certificate files in ./nginx/certs/:
+#        fullchain.pem  — full certificate chain
+#        privkey.pem    — private key
+#      (e.g. from Let's Encrypt: copy from /etc/letsencrypt/live/<domain>/)
+#
+# The app service is NOT exposed on 5000 when this overlay is active —
+# all traffic enters via Nginx on 80/443.
+
+services:
+  app:
+    ports: !reset []  # remove direct port exposure; Nginx is the only ingress
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
