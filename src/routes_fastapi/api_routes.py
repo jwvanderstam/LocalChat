@@ -25,6 +25,8 @@ except ImportError:
 router = APIRouter()
 logger = get_logger(__name__)
 
+_ERR_INVALID_JSON = "Request body must be valid JSON"
+
 # TTL caches — module-level to survive across requests
 _status_doc_count_cache: dict[str | None, tuple[int, float]] = {}
 _STATUS_CACHE_TTL: float = 5.0
@@ -641,25 +643,74 @@ def api_status(request: Request) -> Any:
     return response
 
 
+async def _generate_sse(
+    plan: Any,
+    tool_executor: Any,
+    active_model: str,
+    app_state: Any,
+    messages: list,
+    fields: dict,
+    sources: list[dict] | None,
+    cloud_client: Any,
+    conversation_id: str | None,
+    agent_result: Any,
+    routed_rationale: str | None,
+) -> AsyncGenerator[str, None]:
+    full_response: list[str] = []
+    model_used = "local"
+    try:
+        if plan is not None:
+            yield f"data: {json.dumps({'plan': plan.to_dict()})}\n\n"
+
+        local_stream = (
+            tool_executor.execute(active_model, messages, stream=True)
+            if tool_executor is not None
+            else app_state.ollama_client.generate_chat_response(
+                active_model, messages, stream=True, temperature=fields["temperature"]
+            )
+        )
+
+        for chunk, chunk_model in _stream_chunks_with_fallback(
+            local_stream, cloud_client, sources, app_state, messages, fields["temperature"]
+        ):
+            full_response.append(chunk)
+            model_used = chunk_model
+            yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+        asst_message_id = _persist_assistant_message(app_state, conversation_id, "".join(full_response))
+        _update_chunk_stats(app_state, sources or [])
+        done_payload = _build_done_payload(
+            conversation_id, asst_message_id, sources, cloud_client, model_used,
+            agent_result, active_model if routed_rationale else None, routed_rationale,
+        )
+        yield f"data: {json.dumps(done_payload)}\n\n"
+
+    except exceptions.LocalChatException as exc:
+        yield f"data: {json.dumps({'error': 'GenerationError', 'message': exc.message, 'done': True})}\n\n"
+    except Exception as exc:
+        logger.error("[CHAT API] Unexpected error generating response: %s", exc, exc_info=True)
+        yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
+
+
 @router.post("/chat")
 async def api_chat(request: Request) -> Any:
     try:
         body = await request.body()
         if not body:
-            return JSONResponse({"error": "BadRequest", "success": False, "message": "Request body must be valid JSON"}, status_code=400)
+            return JSONResponse({"error": "BadRequest", "success": False, "message": _ERR_INVALID_JSON}, status_code=400)
         import json as _json
         try:
             data = _json.loads(body)
         except _json.JSONDecodeError:
-            return JSONResponse({"error": "BadRequest", "success": False, "message": "Request body must be valid JSON"}, status_code=400)
+            return JSONResponse({"error": "BadRequest", "success": False, "message": _ERR_INVALID_JSON}, status_code=400)
 
         if not isinstance(data, dict):
-            return JSONResponse({"error": "BadRequest", "success": False, "message": "Request body must be valid JSON"}, status_code=400)
+            return JSONResponse({"error": "BadRequest", "success": False, "message": _ERR_INVALID_JSON}, status_code=400)
 
         try:
             fields = _parse_chat_request(data)
-        except ImportError as exc:
-            logger.error("Failed to import required modules: %s", exc)
+        except ImportError:
+            logger.exception("Failed to import required modules")
             return JSONResponse({"success": False, "message": "Server configuration error"}, status_code=500)
 
         active_model = config.app_state.get_active_model()
@@ -703,44 +754,11 @@ async def api_chat(request: Request) -> Any:
         tool_executor = None if (local_ctx or web_ctx) else _get_tool_executor(app_state)
         cloud_client = getattr(app_state, "cloud_client", None)
 
-        async def _generate() -> AsyncGenerator[str, None]:
-            full_response: list[str] = []
-            model_used = "local"
-            try:
-                if plan is not None:
-                    yield f"data: {json.dumps({'plan': plan.to_dict()})}\n\n"
-
-                local_stream = (
-                    tool_executor.execute(active_model, messages, stream=True)
-                    if tool_executor is not None
-                    else app_state.ollama_client.generate_chat_response(
-                        active_model, messages, stream=True, temperature=fields["temperature"]
-                    )
-                )
-
-                for chunk, chunk_model in _stream_chunks_with_fallback(
-                    local_stream, cloud_client, sources, app_state, messages, fields["temperature"]
-                ):
-                    full_response.append(chunk)
-                    model_used = chunk_model
-                    yield f"data: {json.dumps({'content': chunk})}\n\n"
-
-                asst_message_id = _persist_assistant_message(app_state, conversation_id, "".join(full_response))
-                _update_chunk_stats(app_state, sources or [])
-                done_payload = _build_done_payload(
-                    conversation_id, asst_message_id, sources, cloud_client, model_used,
-                    agent_result, active_model if routed_rationale else None, routed_rationale,
-                )
-                yield f"data: {json.dumps(done_payload)}\n\n"
-
-            except exceptions.LocalChatException as exc:
-                yield f"data: {json.dumps({'error': 'GenerationError', 'message': exc.message, 'done': True})}\n\n"
-            except Exception as exc:
-                logger.error("[CHAT API] Unexpected error generating response: %s", exc, exc_info=True)
-                yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
-
         return StreamingResponse(
-            _generate(),
+            _generate_sse(
+                plan, tool_executor, active_model, app_state, messages, fields,
+                sources, cloud_client, conversation_id, agent_result, routed_rationale,
+            ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )

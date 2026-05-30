@@ -119,6 +119,26 @@ def _stream_file_ingest(app_state: Any, file_path: str, workspace_id: str | None
     return events
 
 
+async def _generate_upload_sse(
+    app_state: Any, file_paths: list[str], workspace_id: str | None,
+) -> AsyncGenerator[str, None]:
+    try:
+        for file_path in file_paths:
+            for event in _stream_file_ingest(app_state, file_path, workspace_id):
+                yield event
+        doc_count = _update_document_count(app_state, workspace_id)
+        yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
+    except Exception:
+        logger.exception("Upload stream error")
+        yield f"data: {json.dumps({'error': 'Upload failed', 'done': True})}\n\n"
+    finally:
+        for fp in file_paths:
+            try:
+                os.remove(fp)
+            except OSError:
+                pass
+
+
 @router.post("/upload")
 async def api_upload_documents(request: Request) -> Any:
     form = await request.form()
@@ -136,29 +156,8 @@ async def api_upload_documents(request: Request) -> Any:
     if not file_paths:
         return JSONResponse({"success": False, "message": "No supported files found"}, status_code=400)
 
-    app_state = request.app.state
-    workspace_id = get_workspace_id(request)
-
-    async def _generate() -> AsyncGenerator[str, None]:
-        try:
-            for file_path in file_paths:
-                events = _stream_file_ingest(app_state, file_path, workspace_id)
-                for event in events:
-                    yield event
-            doc_count = _update_document_count(app_state, workspace_id)
-            yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
-        except Exception as exc:
-            logger.error("Upload stream error: %s", exc, exc_info=True)
-            yield f"data: {json.dumps({'error': 'Upload failed', 'done': True})}\n\n"
-        finally:
-            for fp in file_paths:
-                try:
-                    os.remove(fp)
-                except OSError:
-                    pass
-
     return StreamingResponse(
-        _generate(),
+        _generate_upload_sse(request.app.state, file_paths, get_workspace_id(request)),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -169,8 +168,8 @@ def api_list_documents(request: Request) -> Any:
     try:
         documents = request.app.state.db.get_all_documents(workspace_id=get_workspace_id(request))
         return {"success": True, "documents": documents}
-    except DatabaseUnavailableError as exc:
-        logger.error("DB unavailable listing documents: %s", exc)
+    except DatabaseUnavailableError:
+        logger.exception("DB unavailable listing documents")
         return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
     except Exception as exc:
         logger.error("Error listing documents: %s", exc, exc_info=True)
@@ -189,8 +188,8 @@ def api_document_stats(request: Request) -> Any:
             "chunk_statistics": db.get_chunk_statistics(),
             "max_upload_size": config.MAX_CONTENT_LENGTH,
         }
-    except DatabaseUnavailableError as exc:
-        logger.error("DB unavailable getting stats: %s", exc)
+    except DatabaseUnavailableError:
+        logger.exception("DB unavailable getting stats")
         return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
     except Exception as exc:
         logger.error("Error getting document stats: %s", exc, exc_info=True)
@@ -278,8 +277,8 @@ def api_clear_documents(request: Request) -> Any:
         request.app.state.db.delete_all_documents()
         config.app_state.set_document_count(0)
         return {"success": True, "message": "All documents and chunks have been deleted"}
-    except DatabaseUnavailableError as exc:
-        logger.error("DB unavailable clearing documents: %s", exc)
+    except DatabaseUnavailableError:
+        logger.exception("DB unavailable clearing documents")
         return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
     except Exception as exc:
         logger.error("Error clearing documents: %s", exc, exc_info=True)
@@ -292,8 +291,8 @@ def api_delete_document(doc_id: int, request: Request) -> Any:
         request.app.state.db.delete_document(doc_id)
         _update_document_count(request.app.state)
         return {"success": True}
-    except DatabaseUnavailableError as exc:
-        logger.error("DB unavailable deleting document %s: %s", _slv(str(doc_id)), exc)
+    except DatabaseUnavailableError:
+        logger.exception("DB unavailable deleting document %s", _slv(str(doc_id)))
         return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
     except Exception as exc:
         logger.error("Error deleting document %s: %s", _slv(str(doc_id)), exc, exc_info=True)

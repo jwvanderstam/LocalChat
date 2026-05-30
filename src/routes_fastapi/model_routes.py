@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 _ERR_INTERNAL = "Internal server error"
+_ERR_MODEL_REQUIRED = "model is required"
 
 
 @router.get("")
@@ -40,7 +41,7 @@ async def set_active_model(request: Request) -> Any:
         request_data = ModelRequest(**data)
         model_name = sanitize_model_name(request_data.model)
     except Exception:
-        return JSONResponse({"success": False, "message": "model is required"}, status_code=400)
+        return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
 
     success, models = request.app.state.ollama_client.list_models()
     if not success:
@@ -97,7 +98,7 @@ async def delete_model(request: Request) -> Any:
         request_data = ModelDeleteRequest(**data)
         model_name = sanitize_model_name(request_data.model)
     except Exception:
-        return JSONResponse({"success": False, "message": "model is required"}, status_code=400)
+        return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
 
     success, message = request.app.state.ollama_client.delete_model(model_name)
     if not success:
@@ -115,7 +116,7 @@ async def test_model(request: Request) -> Any:
         request_data = ModelRequest(**data)
         model_name = sanitize_model_name(request_data.model)
     except Exception:
-        return JSONResponse({"success": False, "message": "model is required"}, status_code=400)
+        return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
 
     try:
         success, result = request.app.state.ollama_client.test_model(model_name)

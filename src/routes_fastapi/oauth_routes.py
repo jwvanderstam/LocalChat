@@ -88,8 +88,8 @@ def microsoft_callback(request: Request) -> JSONResponse:
             timeout=15,
         )
         resp.raise_for_status()
-    except _requests.HTTPError as exc:
-        logger.error("[OAuth] Token exchange failed: %s", exc)
+    except _requests.HTTPError:
+        logger.exception("[OAuth] Token exchange failed")
         return JSONResponse({"success": False, "message": "Token exchange failed"}, status_code=500)
 
     data = resp.json()
@@ -185,8 +185,8 @@ def google_callback(request: Request) -> JSONResponse:
             timeout=15,
         )
         resp.raise_for_status()
-    except _requests.HTTPError as exc:
-        logger.error("[OAuth] Google token exchange failed: %s", exc)
+    except _requests.HTTPError:
+        logger.exception("[OAuth] Google token exchange failed")
         return JSONResponse({"success": False, "message": "Token exchange failed"}, status_code=500)
 
     data = resp.json()

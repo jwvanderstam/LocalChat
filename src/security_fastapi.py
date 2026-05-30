@@ -46,6 +46,7 @@ _ADMIN_PASSWORD_HASH: bytes = hashlib.pbkdf2_hmac(
 )
 
 _ROLE_LEVELS: dict[str, int] = {"viewer": 0, "editor": 1, "owner": 2}
+_ERR_AUTH_REQUIRED = "Authentication required"
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -142,7 +143,7 @@ def require_auth(
     if _is_rbac_bypassed(request):
         return "anonymous"
     if not credentials:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Authentication required"})
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
     try:
         payload = _decode_token(credentials.credentials)
     except Exception:
@@ -179,7 +180,7 @@ def require_admin_dep(
         return "anonymous"
     claims = _get_token_claims(credentials)
     if not claims:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Authentication required"})
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
     if claims.get("role") != "admin":
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": "Admin access required"})
     return claims.get("sub", "admin")
@@ -197,7 +198,7 @@ def require_workspace_role_dep(min_role: str):
             return "anonymous"
         claims = _get_token_claims(credentials)
         if not claims:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Authentication required"})
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
         user_id = claims.get("sub")
         if claims.get("role") == "admin":
             return user_id or "admin"
