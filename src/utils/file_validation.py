@@ -28,6 +28,10 @@ _MAGIC: dict[str, tuple[int, bytes]] = {
     ".webp": (8, b"WEBP"),
 }
 
+_EXT_DOCX = ".docx"
+_EXT_PPTX = ".pptx"
+_EXT_XLSX = ".xlsx"
+
 # Number of header bytes needed per extension.
 _READ_SIZE: dict[str, int] = {
     ".pdf":  4,
@@ -36,9 +40,9 @@ _READ_SIZE: dict[str, int] = {
     ".jpeg": 3,
     ".gif":  4,
     ".webp": 12,
-    ".docx": 4,
-    ".pptx": 4,
-    ".xlsx": 4,
+    _EXT_DOCX: 4,
+    _EXT_PPTX: 4,
+    _EXT_XLSX: 4,
     ".txt":  512,
     ".md":   512,
 }
@@ -61,7 +65,7 @@ def validate_file_content(file_path: str, extension: str) -> tuple[bool, str]:
     except OSError as exc:
         return False, f"Could not read file: {exc}"
 
-    if ext in (".docx", ".pptx", ".xlsx"):
+    if ext in (_EXT_DOCX, _EXT_PPTX, _EXT_XLSX):
         return _validate_zip_office(header, file_path, ext)
     if ext in (".txt", ".md"):
         return _validate_text(header, ext)
@@ -75,9 +79,9 @@ def _validate_zip_office(header: bytes, file_path: str, ext: str) -> tuple[bool,
     if not header.startswith(b"PK\x03\x04"):
         return False, f"{fmt} file does not have a valid ZIP/{fmt} signature"
     checker_map = {
-        ".docx": ("word/", _docx_contains_word_dir),
-        ".pptx": ("ppt/",  _pptx_contains_ppt_dir),
-        ".xlsx": ("xl/",   _xlsx_contains_xl_dir),
+        _EXT_DOCX: ("word/", _docx_contains_word_dir),
+        _EXT_PPTX: ("ppt/",  _pptx_contains_ppt_dir),
+        _EXT_XLSX: ("xl/",   _xlsx_contains_xl_dir),
     }
     dir_prefix, checker = checker_map[ext]
     if not checker(file_path):

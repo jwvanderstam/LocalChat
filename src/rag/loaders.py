@@ -245,19 +245,25 @@ class DocumentLoaderMixin:
                     })
         return pages_data
 
+    def _try_pymupdf4llm(self, loader_pref: str, file_path: str) -> str:
+        """Attempt pymupdf4llm extraction; return empty string on failure."""
+        try:
+            return self._extract_pymupdf4llm_text(file_path)
+        except Exception as mupdf_error:
+            logger.warning(f"{_EXTRACTOR_PYMUPDF4LLM} extraction failed: {mupdf_error}, trying next extractor")
+            if loader_pref == 'pymupdf4llm':
+                logger.warning("PDF_LOADER=pymupdf4llm but extraction failed — no fallback configured")
+            return ""
+
     def _select_pdf_text(self, loader_pref: str, file_path: str) -> tuple[str, str]:
         """Try extractors in preference order; return (text, method_used)."""
         text = ""
         method = "unknown"
 
         if loader_pref in ('auto', 'pymupdf4llm') and PYMUPDF4LLM_AVAILABLE:
-            try:
-                text = self._extract_pymupdf4llm_text(file_path)
+            text = self._try_pymupdf4llm(loader_pref, file_path)
+            if text:
                 method = _EXTRACTOR_PYMUPDF4LLM
-            except Exception as mupdf_error:
-                logger.warning(f"{_EXTRACTOR_PYMUPDF4LLM} extraction failed: {mupdf_error}, trying next extractor")
-                if loader_pref == 'pymupdf4llm':
-                    logger.warning("PDF_LOADER=pymupdf4llm but extraction failed — no fallback configured")
 
         if not text and loader_pref in ('auto', 'pdfplumber'):
             pdfplumber = self._try_pdfplumber_import()
