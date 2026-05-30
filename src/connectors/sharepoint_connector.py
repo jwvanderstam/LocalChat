@@ -61,8 +61,8 @@ class SharePointConnector(BaseConnector):
             token = self._access_token()
             drive_id = self._resolve_drive_id(token)
             return self._list_recursive(token, drive_id, "root")
-        except Exception as exc:
-            logger.error(f"[SharePoint] list_sources failed: {exc}")
+        except Exception:
+            logger.exception("[SharePoint] list_sources failed")
             return []
 
     def poll(self) -> list[DocumentEvent]:
@@ -71,8 +71,8 @@ class SharePointConnector(BaseConnector):
             token = self._access_token()
             drive_id = self._resolve_drive_id(token)
             return self._delta_poll(token, drive_id)
-        except Exception as exc:
-            logger.error(f"[SharePoint] poll failed: {exc}")
+        except Exception:
+            logger.exception("[SharePoint] poll failed")
             return []
 
     def fetch(self, source: DocumentSource) -> bytes:

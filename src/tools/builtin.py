@@ -110,7 +110,7 @@ def list_documents(**_kwargs) -> str:
     try:
         documents = db.get_all_documents()
     except Exception as exc:
-        logger.error(f"[TOOL] list_documents failed: {exc}", exc_info=True)
+        logger.exception("[TOOL] list_documents failed")
         return f"Could not retrieve documents: {exc}"
 
     if not documents:

@@ -75,15 +75,15 @@ class ConfluenceConnector(BaseConnector):
     def list_sources(self) -> list[DocumentSource]:
         try:
             return self._list_pages()
-        except Exception as exc:
-            logger.error(f"[Confluence] list_sources failed: {exc}")
+        except Exception:
+            logger.exception("[Confluence] list_sources failed")
             return []
 
     def poll(self) -> list[DocumentEvent]:
         try:
             return self._poll_changes()
-        except Exception as exc:
-            logger.error(f"[Confluence] poll failed: {exc}")
+        except Exception:
+            logger.exception("[Confluence] poll failed")
             return []
 
     def fetch(self, source: DocumentSource) -> bytes:

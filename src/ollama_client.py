@@ -142,7 +142,7 @@ class OllamaClient:
         except requests.exceptions.RequestException as e:
             self.is_available = False
             message = f"Cannot connect to Ollama: {str(e)}"
-            logger.error(message, exc_info=True)
+            logger.exception(message)
             return False, message
 
     def list_models(self) -> tuple[bool, list[dict[str, Any]]]:
@@ -189,8 +189,8 @@ class OllamaClient:
                 logger.warning(f"Failed to list models: {response.status_code}")
                 return False, self._list_models_cache if self._list_models_cache is not None else []
 
-        except Exception as e:
-            logger.error(f"Error listing models: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error listing models")
             return False, self._list_models_cache if self._list_models_cache is not None else []
 
     def get_first_available_model(self, preferred: str | None = None) -> str | None:
@@ -271,7 +271,7 @@ class OllamaClient:
 
         except Exception as e:
             error_msg = f"Error pulling model: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            logger.exception(error_msg)
             yield {"error": error_msg}
 
     def delete_model(self, model_name: str) -> tuple[bool, str]:
@@ -308,7 +308,7 @@ class OllamaClient:
             return success, message
 
         except Exception as e:
-            logger.error(f"Error deleting model: {e}", exc_info=True)
+            logger.exception("Error deleting model")
             return False, str(e)
 
     def get_vision_model(self) -> str | None:
@@ -406,7 +406,7 @@ class OllamaClient:
             return True, description.strip()
 
         except Exception as e:
-            logger.error(f"Error describing image: {e}", exc_info=True)
+            logger.exception("Error describing image")
             return False, str(e)
 
     def _iter_stream_chunks(self, response) -> Generator[str, None, None]:
@@ -688,8 +688,8 @@ class OllamaClient:
             if should_fallback:
                 return self._embed_legacy_api(model, text)
             return False, []
-        except Exception as e:
-            logger.error(f"Error generating embedding: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error generating embedding")
             return False, []
 
     def generate_embeddings_batch(
@@ -931,7 +931,7 @@ class OllamaClient:
             return True, response_text.strip()
 
         except Exception as e:
-            logger.error(f"Model test failed: {e}", exc_info=True)
+            logger.exception("Model test failed")
             return False, str(e)
 
 

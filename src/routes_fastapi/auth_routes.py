@@ -52,7 +52,7 @@ async def create_user(request: Request, _admin: str = Depends(require_admin_dep)
     except Exception as exc:
         if "unique" in str(exc).lower():
             return JSONResponse({"success": False, "message": "Username or email already exists"}, status_code=409)
-        logger.error("[Users] create error", exc_info=True)
+        logger.exception("[Users] create error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -62,7 +62,7 @@ def list_users(request: Request, _admin: str = Depends(require_admin_dep)) -> An
         users = request.app.state.db.list_users()
         return {"success": True, "users": [_public(u) for u in users]}
     except Exception:
-        logger.error("[Users] list error", exc_info=True)
+        logger.exception("[Users] list error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -74,7 +74,7 @@ def get_user(user_id: str, request: Request, _admin: str = Depends(require_admin
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "user": _public(user)}
     except Exception:
-        logger.error("[Users] get error", exc_info=True)
+        logger.exception("[Users] get error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -96,7 +96,7 @@ async def update_user(user_id: str, request: Request, _admin: str = Depends(requ
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "user": _public(db.get_user_by_id(user_id))}
     except Exception:
-        logger.error("[Users] update error", exc_info=True)
+        logger.exception("[Users] update error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -108,7 +108,7 @@ def delete_user(user_id: str, request: Request, _admin: str = Depends(require_ad
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True}
     except Exception:
-        logger.error("[Users] delete error", exc_info=True)
+        logger.exception("[Users] delete error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -163,8 +163,8 @@ async def logout(request: Request) -> Any:
 
     try:
         db.revoke_token(jti, expires_at)
-    except Exception as exc:
-        logger.error("[Auth] logout revoke error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Auth] logout revoke error")
         return JSONResponse({"success": False, "message": "Failed to revoke token"}, status_code=500)
 
     return {"success": True}

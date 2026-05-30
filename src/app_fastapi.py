@@ -123,8 +123,8 @@ def _init_cloud_client() -> Any:
     except ImportError as e:
         logger.warning(f"[CloudFallback] {e} — disabled")
         return None
-    except Exception as e:
-        logger.error(f"[CloudFallback] Failed to initialise: {e}", exc_info=True)
+    except Exception:
+        logger.exception("[CloudFallback] Failed to initialise")
         return None
 
 

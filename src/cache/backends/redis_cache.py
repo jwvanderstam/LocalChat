@@ -50,8 +50,8 @@ class RedisCache(CacheBackend):
         except ImportError:
             logger.error("Redis library not installed. Run: pip install redis")
             raise
-        except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+        except Exception:
+            logger.exception("Failed to connect to Redis")
             raise
 
     def get(self, key: str) -> Any | None:
@@ -63,8 +63,8 @@ class RedisCache(CacheBackend):
                 return None
             self.stats.hits += 1
             return pickle.loads(data)
-        except Exception as e:
-            logger.error(f"Redis get error: {e}")
+        except Exception:
+            logger.exception("Redis get error")
             self.stats.misses += 1
             return None
 
@@ -78,8 +78,8 @@ class RedisCache(CacheBackend):
                 self.client.set(full_key, data)
             self.stats.sets += 1
             return True
-        except Exception as e:
-            logger.error(f"Redis set error: {e}")
+        except Exception:
+            logger.exception("Redis set error")
             return False
 
     def delete(self, key: str) -> bool:
@@ -90,16 +90,16 @@ class RedisCache(CacheBackend):
                 self.stats.deletes += 1
                 return True
             return False
-        except Exception as e:
-            logger.error(f"Redis delete error: {e}")
+        except Exception:
+            logger.exception("Redis delete error")
             return False
 
     def exists(self, key: str) -> bool:
         full_key = self.make_key(key)
         try:
             return bool(self.client.exists(full_key))
-        except Exception as e:
-            logger.error(f"Redis exists error: {e}")
+        except Exception:
+            logger.exception("Redis exists error")
             return False
 
     def clear(self) -> bool:
@@ -110,14 +110,14 @@ class RedisCache(CacheBackend):
                 self.client.delete(*keys)
                 logger.info(f"Cleared {len(keys)} keys from RedisCache")
             return True
-        except Exception as e:
-            logger.error(f"Redis clear error: {e}")
+        except Exception:
+            logger.exception("Redis clear error")
             return False
 
     def get_stats(self) -> CacheStats:
         try:
             pattern = f"{self.namespace}:*"
             self.stats.size = sum(1 for _ in self.client.scan_iter(match=pattern, count=100))
-        except Exception as e:
-            logger.error(f"Redis stats error: {e}")
+        except Exception:
+            logger.exception("Redis stats error")
         return self.stats

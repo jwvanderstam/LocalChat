@@ -259,7 +259,7 @@ class ToolExecutor:
         try:
             result = self._registry.execute(name, arguments)
         except Exception as exc:
-            logger.error(f"[TOOLS] Tool '{name}' raised: {exc}", exc_info=True)
+            logger.exception("[TOOLS] Tool '%s' raised", name)
             return f"Tool error: {exc}"
 
         if not isinstance(result, str):

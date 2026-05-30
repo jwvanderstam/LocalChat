@@ -95,8 +95,8 @@ class DatabaseCache:
 
             logger.debug(f"Cache table {self.table_name} verified/created")
 
-        except Exception as e:
-            logger.error(f"Error creating cache table: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error creating cache table")
             raise
 
     def _make_cache_key(self, query: str, params: dict | None = None) -> str:
@@ -175,8 +175,8 @@ class DatabaseCache:
                         logger.debug(f"Cache MISS (L3): {cache_key[:16]}...")
                         return None
 
-        except Exception as e:
-            logger.error(f"Error reading from cache: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error reading from cache")
             return None
 
     def set(
@@ -238,8 +238,8 @@ class DatabaseCache:
             logger.debug(f"Cache SET (L3): {cache_key[:16]}... (ttl={ttl}s)")
             return True
 
-        except Exception as e:
-            logger.error(f"Error writing to cache: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error writing to cache")
             return False
 
     def delete(self, query: str, params: dict | None = None) -> bool:
@@ -262,8 +262,8 @@ class DatabaseCache:
                 return True
             return False
 
-        except Exception as e:
-            logger.error(f"Error deleting from cache: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error deleting from cache")
             return False
 
     def clear_expired(self) -> int:
@@ -289,8 +289,8 @@ class DatabaseCache:
 
             return deleted
 
-        except Exception as e:
-            logger.error(f"Error clearing expired entries: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error clearing expired entries")
             return 0
 
     def get_stats(self) -> dict[str, Any]:
@@ -327,8 +327,8 @@ class DatabaseCache:
 
             return {}
 
-        except Exception as e:
-            logger.error(f"Error getting cache stats: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error getting cache stats")
             return {}
 
     def get_top_queries(self, limit: int = 10) -> list[tuple[str, int]]:
@@ -355,8 +355,8 @@ class DatabaseCache:
                     cur.execute(sql, (limit,))
                     return cur.fetchall()
 
-        except Exception as e:
-            logger.error(f"Error getting top queries: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error getting top queries")
             return []
 
     def warm_cache(self, queries: list[tuple[str, Any]]) -> int:

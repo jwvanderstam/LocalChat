@@ -84,8 +84,8 @@ def register_vector_types(conn) -> None:
                 logger.debug(f"Registered pgvector type adapters (OID: {vector_oid})")
             else:
                 logger.warning("pgvector type 'vector' not found in database")
-    except Exception as e:
-        logger.error(f"Failed to register vector type adapters: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Failed to register vector type adapters")
 
 
 # ============================================================================
@@ -150,7 +150,7 @@ class DatabaseConnection:
             return False, error_msg
         except Exception as e:
             error_msg = f"Unexpected error checking PostgreSQL availability: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            logger.exception(error_msg)
             return False, error_msg
         finally:
             if sock is not None:
@@ -252,7 +252,7 @@ class DatabaseConnection:
                     pass
                 self.connection_pool = None
             error_msg = f"Database connection failed: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            logger.exception(error_msg)
             return False, error_msg
 
     def _ensure_vector_extension(self, conn_kwargs: dict) -> None:
@@ -294,8 +294,8 @@ class DatabaseConnection:
                         logger.info(f"Database '{config.PG_DB}' created successfully")
                     else:
                         logger.debug(f"Database '{config.PG_DB}' already exists")
-        except Exception as e:
-            logger.error(f"Error creating database: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error creating database")
             raise
 
     def _ensure_extensions_and_tables(self) -> None:

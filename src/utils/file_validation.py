@@ -45,82 +45,63 @@ _READ_SIZE: dict[str, int] = {
 
 _DEFAULT_READ = 16
 
-
 def validate_file_content(file_path: str, extension: str) -> tuple[bool, str]:
-    """
-    Validate that the file's content matches its declared extension.
-
-    Reads only the minimum number of header bytes required for each format.
-    Text files (.txt, .md) are validated by attempting a UTF-8 decode.
-
-    Args:
-        file_path:  Absolute path to the saved file.
-        extension:  Lowercase extension including the leading dot (e.g. '.pdf').
-
-    Returns:
-        (True, "")                on success
-        (False, error_message)    on mismatch or read failure
-    """
+    """Validate that the file's content matches its declared extension."""
     path = Path(file_path)
-
     if not path.exists():
         return False, f"File not found: {file_path}"
-
     if path.stat().st_size == 0:
         return False, "File is empty (0 bytes)"
 
     ext = extension.lower()
     read_size = _READ_SIZE.get(ext, _DEFAULT_READ)
-
     try:
         with open(file_path, "rb") as fh:
             header = fh.read(read_size)
     except OSError as exc:
         return False, f"Could not read file: {exc}"
 
-    # --- ZIP-based Office formats ---
-    if ext == ".docx":
-        if not header.startswith(b"PK\x03\x04"):
-            return False, "DOCX file does not have a valid ZIP/DOCX signature"
-        if not _docx_contains_word_dir(file_path):
-            return False, "File has ZIP signature but is not a valid DOCX (missing word/ entry)"
-        return True, ""
-
-    if ext == ".pptx":
-        if not header.startswith(b"PK\x03\x04"):
-            return False, "PPTX file does not have a valid ZIP/PPTX signature"
-        if not _pptx_contains_ppt_dir(file_path):
-            return False, "File has ZIP signature but is not a valid PPTX (missing ppt/ entry)"
-        return True, ""
-
-    if ext == ".xlsx":
-        if not header.startswith(b"PK\x03\x04"):
-            return False, "XLSX file does not have a valid ZIP/XLSX signature"
-        if not _xlsx_contains_xl_dir(file_path):
-            return False, "File has ZIP signature but is not a valid XLSX (missing xl/ entry)"
-        return True, ""
-
-    # --- Plain text / Markdown ---
+    if ext in (".docx", ".pptx", ".xlsx"):
+        return _validate_zip_office(header, file_path, ext)
     if ext in (".txt", ".md"):
-        try:
-            header.decode("utf-8")
-            return True, ""
-        except UnicodeDecodeError:
-            return False, f"{ext.upper().lstrip('.')} file contains invalid UTF-8 / binary content"
-
-    # --- Magic-byte formats ---
+        return _validate_text(header, ext)
     if ext in _MAGIC:
-        offset, expected = _MAGIC[ext]
-        actual = header[offset: offset + len(expected)]
-        if actual != expected:
-            fmt = ext.upper().lstrip(".")
-            return False, (
-                f"{fmt} file has invalid signature "
-                f"(expected {expected.hex()}, got {actual.hex() or 'empty'})"
-            )
-        return True, ""
+        return _validate_magic(header, ext)
+    return True, ""
 
-    # Unknown extension — let the document loader handle it.
+
+def _validate_zip_office(header: bytes, file_path: str, ext: str) -> tuple[bool, str]:
+    fmt = ext.upper().lstrip(".")
+    if not header.startswith(b"PK\x03\x04"):
+        return False, f"{fmt} file does not have a valid ZIP/{fmt} signature"
+    checker_map = {
+        ".docx": ("word/", _docx_contains_word_dir),
+        ".pptx": ("ppt/",  _pptx_contains_ppt_dir),
+        ".xlsx": ("xl/",   _xlsx_contains_xl_dir),
+    }
+    dir_prefix, checker = checker_map[ext]
+    if not checker(file_path):
+        return False, f"File has ZIP signature but is not a valid {fmt} (missing {dir_prefix} entry)"
+    return True, ""
+
+
+def _validate_text(header: bytes, ext: str) -> tuple[bool, str]:
+    try:
+        header.decode("utf-8")
+        return True, ""
+    except UnicodeDecodeError:
+        return False, f"{ext.upper().lstrip('.')} file contains invalid UTF-8 / binary content"
+
+
+def _validate_magic(header: bytes, ext: str) -> tuple[bool, str]:
+    offset, expected = _MAGIC[ext]
+    actual = header[offset: offset + len(expected)]
+    if actual != expected:
+        fmt = ext.upper().lstrip(".")
+        return False, (
+            f"{fmt} file has invalid signature "
+            f"(expected {expected.hex()}, got {actual.hex() or 'empty'})"
+        )
     return True, ""
 
 

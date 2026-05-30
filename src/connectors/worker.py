@@ -119,7 +119,7 @@ class SyncWorker:
                 self._handle_event(connector, event, counts)
         except Exception as exc:
             error_msg = str(exc)
-            logger.error(f"[SyncWorker] Connector {connector_id} error: {exc}", exc_info=True)
+            logger.exception("[SyncWorker] Connector %s error", connector_id)
         finally:
             self._db.finish_sync_log(log_id, counts, error_msg)
             self._db.update_connector_sync_status(connector_id, error=error_msg)
@@ -169,8 +169,8 @@ class SyncWorker:
                 logger.debug(f"[SyncWorker] Ingested {event.source.filename}: {message}")
             else:
                 logger.warning(f"[SyncWorker] Ingest failed for {event.source.filename}: {message}")
-        except Exception as exc:
-            logger.error(f"[SyncWorker] Ingest error for {event.source.filename}: {exc}")
+        except Exception:
+            logger.exception("[SyncWorker] Ingest error for %s", event.source.filename)
         finally:
             try:
                 os.unlink(tmp_path)
@@ -188,8 +188,8 @@ class SyncWorker:
                     if self._stop_event.is_set():
                         break
                     self._reingest_document(doc)
-            except Exception as exc:
-                logger.error(f"[SyncWorker] Re-ingest loop error: {exc}", exc_info=True)
+            except Exception:
+                logger.exception("[SyncWorker] Re-ingest loop error")
             self._stop_event.wait(timeout=_REINGEST_TICK)
 
     def _reingest_document(self, doc: dict) -> None:

@@ -77,8 +77,8 @@ async def pull_model(request: Request) -> Any:
         try:
             for progress in ollama_client.pull_model(model_name):
                 yield f"data: {json.dumps(progress)}\n\n"
-        except Exception as exc:
-            logger.error("Error pulling model: %s", exc, exc_info=True)
+        except Exception:
+            logger.exception("Error pulling model")
             yield f"data: {json.dumps({'error': 'Failed to pull model'})}\n\n"
 
     return StreamingResponse(
@@ -122,5 +122,5 @@ async def test_model(request: Request) -> Any:
         success, result = request.app.state.ollama_client.test_model(model_name)
         return {"success": success, "result": result}
     except Exception:
-        logger.error("[Models] test error", exc_info=True)
+        logger.exception("[Models] test error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

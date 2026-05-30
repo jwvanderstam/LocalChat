@@ -70,15 +70,15 @@ class GoogleDriveConnector(BaseConnector):
     def list_sources(self) -> list[DocumentSource]:
         try:
             return self._list_files(self._access_token())
-        except Exception as exc:
-            logger.error(f"[GoogleDrive] list_sources failed: {exc}")
+        except Exception:
+            logger.exception("[GoogleDrive] list_sources failed")
             return []
 
     def poll(self) -> list[DocumentEvent]:
         try:
             return self._changes_poll(self._access_token())
-        except Exception as exc:
-            logger.error(f"[GoogleDrive] poll failed: {exc}")
+        except Exception:
+            logger.exception("[GoogleDrive] poll failed")
             return []
 
     def fetch(self, source: DocumentSource) -> bytes:

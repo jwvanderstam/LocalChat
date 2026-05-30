@@ -32,8 +32,8 @@ def _run_alembic_migrations() -> None:
         cfg = alembic_config.Config(str(ini_path))
         alembic.command.upgrade(cfg, "head")
         logger.info("Alembic migrations applied (or already at head)")
-    except Exception as exc:
-        logger.error("Alembic migration failed: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("Alembic migration failed")
 
 
 def bootstrap_app(app: Any) -> None:
@@ -194,8 +194,8 @@ def _init_reranker_scheduler(app: Any, db: Any) -> None:
                     if version_id and result.get("ndcg_after", 0) > result.get("ndcg_before", 0):
                         promote_model(db, version_id)
                         logger.info("[Reranker] Weekly fine-tune complete — model promoted")
-        except Exception as exc:
-            logger.error(f"[Reranker] Weekly fine-tune failed: {exc}", exc_info=True)
+        except Exception:
+            logger.exception("[Reranker] Weekly fine-tune failed")
         finally:
             t = threading.Timer(_WEEK_SECONDS, _weekly_train)
             t.daemon = True

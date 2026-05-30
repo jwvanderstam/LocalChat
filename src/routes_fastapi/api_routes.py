@@ -687,8 +687,8 @@ async def _generate_sse(
 
     except exceptions.LocalChatException as exc:
         yield f"data: {json.dumps({'error': 'GenerationError', 'message': exc.message, 'done': True})}\n\n"
-    except Exception as exc:
-        logger.error("[CHAT API] Unexpected error generating response: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[CHAT API] Unexpected error generating response")
         yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
 
 
@@ -768,8 +768,8 @@ async def api_chat(request: Request) -> Any:
     except exceptions.LocalChatException as exc:
         logger.warning("[CHAT API] LocalChat error: %s", exc)
         return JSONResponse({"success": False, "message": str(exc)}, status_code=500)
-    except Exception as exc:
-        logger.error("[CHAT API] Unexpected error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[CHAT API] Unexpected error")
         return JSONResponse({"success": False, "message": "An unexpected error occurred during chat"}, status_code=500)
 
 
@@ -791,7 +791,7 @@ def list_plugins(request: Request) -> Any:
             "total_tools": len(tool_registry),
         }
     except Exception:
-        logger.error("[PLUGINS] list_plugins error", exc_info=True)
+        logger.exception("[PLUGINS] list_plugins error")
         return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)
 
 
@@ -804,5 +804,5 @@ def reload_plugins(request: Request) -> Any:
         count = plugin_loader.reload_all()
         return {"success": True, "reloaded": count, "plugins": plugin_loader.list_plugins()}
     except Exception:
-        logger.error("[PLUGINS] reload error", exc_info=True)
+        logger.exception("[PLUGINS] reload error")
         return JSONResponse({"success": False, "message": "Internal server error"}, status_code=500)

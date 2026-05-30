@@ -58,16 +58,16 @@ class OneDriveConnector(BaseConnector):
             token = self._access_token()
             root_item = self._resolve_root_item(token)
             return self._list_recursive(token, root_item)
-        except Exception as exc:
-            logger.error(f"[OneDrive] list_sources failed: {exc}")
+        except Exception:
+            logger.exception("[OneDrive] list_sources failed")
             return []
 
     def poll(self) -> list[DocumentEvent]:
         try:
             token = self._access_token()
             return self._delta_poll(token)
-        except Exception as exc:
-            logger.error(f"[OneDrive] poll failed: {exc}")
+        except Exception:
+            logger.exception("[OneDrive] poll failed")
             return []
 
     def fetch(self, source: DocumentSource) -> bytes:

@@ -256,7 +256,7 @@ def log_function_call(func: Callable) -> Callable:
             logger.debug(f"{func.__name__} returned {result}")
             return result
         except Exception as e:
-            logger.error(f"{func.__name__} raised {type(e).__name__}: {e}", exc_info=True)
+            logger.exception("%s raised %s", func.__name__, type(e).__name__)
             raise
 
     return wrapper

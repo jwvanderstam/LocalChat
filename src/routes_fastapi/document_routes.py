@@ -25,6 +25,8 @@ from ..utils.workspace import get_workspace_id
 logger = get_logger(__name__)
 router = APIRouter()
 
+_ERR_DB_UNAVAILABLE = "Database unavailable"
+
 
 def _save_upload_file(file: UploadFile) -> str | None:
     """Validate and save a single UploadFile; return path on success or None."""
@@ -170,9 +172,9 @@ def api_list_documents(request: Request) -> Any:
         return {"success": True, "documents": documents}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable listing documents")
-        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
-    except Exception as exc:
-        logger.error("Error listing documents: %s", exc, exc_info=True)
+        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except Exception:
+        logger.exception("Error listing documents")
         return JSONResponse({"success": False, "message": "Failed to retrieve documents"}, status_code=500)
 
 
@@ -190,9 +192,9 @@ def api_document_stats(request: Request) -> Any:
         }
     except DatabaseUnavailableError:
         logger.exception("DB unavailable getting stats")
-        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
-    except Exception as exc:
-        logger.error("Error getting document stats: %s", exc, exc_info=True)
+        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except Exception:
+        logger.exception("Error getting document stats")
         return JSONResponse({"success": False, "message": "Failed to retrieve statistics"}, status_code=500)
 
 
@@ -228,8 +230,8 @@ async def api_test_retrieval(request: Request) -> Any:
                 "recommendation": _get_search_recommendation(results_hybrid, results_semantic),
             },
         }
-    except Exception as exc:
-        logger.error("Error in test_retrieval: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("Error in test_retrieval")
         return JSONResponse({"success": False, "message": "Failed to test retrieval"}, status_code=500)
 
 
@@ -243,8 +245,8 @@ async def api_search_text(request: Request) -> Any:
     try:
         results = request.app.state.db.search_chunks_by_text(search_text, limit)
         return {"success": True, "search_text": search_text, "count": len(results), "results": results}
-    except Exception as exc:
-        logger.error("Error searching text: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("Error searching text")
         return JSONResponse({"success": False, "message": "Search failed"}, status_code=500)
 
 
@@ -266,7 +268,7 @@ def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> A
             "chunks": [{"chunk_text": text, "chunk_index": idx} for text, idx in adjacent],
         }
     except Exception:
-        logger.error("Error fetching chunk context for %s", str(chunk_id), exc_info=True)
+        logger.exception("Error fetching chunk context for %s", str(chunk_id))
         return JSONResponse({"success": False, "message": "Failed to fetch chunk context"}, status_code=500)
 
 
@@ -279,9 +281,9 @@ def api_clear_documents(request: Request) -> Any:
         return {"success": True, "message": "All documents and chunks have been deleted"}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable clearing documents")
-        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
-    except Exception as exc:
-        logger.error("Error clearing documents: %s", exc, exc_info=True)
+        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except Exception:
+        logger.exception("Error clearing documents")
         return JSONResponse({"success": False, "message": "Failed to clear documents"}, status_code=500)
 
 
@@ -293,9 +295,9 @@ def api_delete_document(doc_id: int, request: Request) -> Any:
         return {"success": True}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable deleting document %s", _slv(str(doc_id)))
-        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
-    except Exception as exc:
-        logger.error("Error deleting document %s: %s", _slv(str(doc_id)), exc, exc_info=True)
+        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except Exception:
+        logger.exception("Error deleting document %s", _slv(str(doc_id)))
         return JSONResponse({"success": False, "message": "Failed to delete document"}, status_code=500)
 
 

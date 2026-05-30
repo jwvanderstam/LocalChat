@@ -24,7 +24,7 @@ def list_memories(request: Request, limit: int = 100, offset: int = 0) -> Any:
         memories = request.app.state.db.get_all_memories(limit=limit, offset=offset)
         return {"success": True, "memories": memories, "count": len(memories)}
     except Exception:
-        logger.error("[Memory] list_memories error", exc_info=True)
+        logger.exception("[Memory] list_memories error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -69,7 +69,7 @@ async def extract_memories(request: Request) -> Any:
 
         return {"success": True, "conversations_processed": processed, "new_memories": total_new}
     except Exception:
-        logger.error("[Memory] extract_memories error", exc_info=True)
+        logger.exception("[Memory] extract_memories error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -79,7 +79,7 @@ def delete_memory(memory_id: str, request: Request) -> Any:
         request.app.state.db.delete_memory(memory_id)
         return {"success": True}
     except Exception:
-        logger.error("[Memory] delete_memory error", exc_info=True)
+        logger.exception("[Memory] delete_memory error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -89,5 +89,5 @@ def delete_all_memories(request: Request) -> Any:
         count = request.app.state.db.delete_all_memories()
         return {"success": True, "deleted": count}
     except Exception:
-        logger.error("[Memory] delete_all_memories error", exc_info=True)
+        logger.exception("[Memory] delete_all_memories error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

@@ -271,8 +271,8 @@ def reranker_train(request: Request, _admin: str = Depends(require_admin_dep)) -
                 version_id = persist_reranker_version(app_state.db, result)
                 if version_id and result.get("ndcg_after", 0) > result.get("ndcg_before", 0):
                     promote_model(app_state.db, version_id)
-        except Exception as exc:
-            logger.error("[Reranker] Background training failed: %s", exc, exc_info=True)
+        except Exception:
+            logger.exception("[Reranker] Background training failed")
 
     threading.Thread(target=_train, daemon=True, name="reranker-train").start()
     return {"success": True, "message": "Fine-tune started in background"}

@@ -390,7 +390,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
         except Exception as e:
             error_msg = f"Error ingesting document: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            logger.exception(error_msg)
             return False, error_msg, None
 
     def ingest_multiple_documents(

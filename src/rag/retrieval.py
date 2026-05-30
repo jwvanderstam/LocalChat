@@ -669,7 +669,7 @@ class RetrievalMixin:
 
         except Exception as e:
             error_msg = f"Error testing retrieval: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            logger.exception(error_msg)
             return False, []
 
     def _append_chunks_for_doc(

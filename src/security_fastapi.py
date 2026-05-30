@@ -135,6 +135,19 @@ def get_current_user_id(
         return None
 
 
+def _verify_jti_not_revoked(jti: str, db: Any) -> None:
+    """Raise 401 if the token is revoked; silently no-op when DB is unavailable."""
+    if db is None or not getattr(db, "is_connected", False):
+        return
+    try:
+        if db.is_token_revoked(jti):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Token has been revoked"})
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # DB unavailable — fail open rather than locking out users
+
+
 def require_auth(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008
@@ -150,15 +163,7 @@ def require_auth(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Invalid or expired token"}) from None
     jti = payload.get("jti")
     if jti:
-        db = getattr(request.app.state, "db", None)
-        if db is not None and getattr(db, "is_connected", False):
-            try:
-                if db.is_token_revoked(jti):
-                    raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Token has been revoked"})
-            except HTTPException:
-                raise
-            except Exception:
-                pass  # DB unavailable — fail open rather than locking out users
+        _verify_jti_not_revoked(jti, getattr(request.app.state, "db", None))
     return payload["sub"]
 
 
@@ -186,6 +191,36 @@ def require_admin_dep(
     return claims.get("sub", "admin")
 
 
+def _enforce_workspace_role(
+    request: Request,
+    workspace_id: str | None,
+    credentials: HTTPAuthorizationCredentials | None,
+    min_role: str,
+) -> str:
+    """Enforce workspace membership; returns user_id or raises 4xx."""
+    if _is_rbac_bypassed(request):
+        return "anonymous"
+    claims = _get_token_claims(credentials)
+    if not claims:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
+    user_id = claims.get("sub")
+    if claims.get("role") == "admin":
+        return user_id or "admin"
+    # Resolve workspace_id from header when not in query
+    ws_id = workspace_id or request.headers.get("X-Workspace-ID")
+    if not ws_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail={"message": "No workspace context"})
+    db = getattr(request.app.state, "db", None)
+    if db is None or not db.is_connected:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail={"message": "Database unavailable"})
+    role = db.get_workspace_member_role(ws_id, user_id)
+    if role is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": "Access denied: not a workspace member"})
+    if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": f"Requires {min_role} role or higher"})
+    return user_id or ""
+
+
 def require_workspace_role_dep(min_role: str):
     """Return a FastAPI dependency that enforces workspace membership."""
 
@@ -194,27 +229,7 @@ def require_workspace_role_dep(min_role: str):
         workspace_id: str | None = None,
         credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008
     ) -> str:
-        if _is_rbac_bypassed(request):
-            return "anonymous"
-        claims = _get_token_claims(credentials)
-        if not claims:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
-        user_id = claims.get("sub")
-        if claims.get("role") == "admin":
-            return user_id or "admin"
-        # Resolve workspace_id from header when not in query
-        ws_id = workspace_id or request.headers.get("X-Workspace-ID")
-        if not ws_id:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail={"message": "No workspace context"})
-        db = getattr(request.app.state, "db", None)
-        if db is None or not db.is_connected:
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail={"message": "Database unavailable"})
-        role = db.get_workspace_member_role(ws_id, user_id)
-        if role is None:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": "Access denied: not a workspace member"})
-        if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
-            raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": f"Requires {min_role} role or higher"})
-        return user_id or ""
+        return _enforce_workspace_role(request, workspace_id, credentials, min_role)
 
     return _dep
 

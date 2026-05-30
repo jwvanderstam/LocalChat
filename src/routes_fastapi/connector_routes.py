@@ -47,7 +47,7 @@ def list_connectors(request: Request) -> Any:
         connectors = request.app.state.db.list_connectors(workspace_id=workspace_id)
         return {"success": True, "connectors": connectors}
     except Exception:
-        logger.error("[Connectors] list error", exc_info=True)
+        logger.exception("[Connectors] list error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -95,7 +95,7 @@ async def create_connector(request: Request) -> Any:
         connector = db.get_connector(connector_id)
         return JSONResponse({"success": True, "connector": connector}, status_code=201)
     except Exception:
-        logger.error("[Connectors] create error", exc_info=True)
+        logger.exception("[Connectors] create error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -107,7 +107,7 @@ def get_connector(connector_id: str, request: Request) -> Any:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "connector": connector}
     except Exception:
-        logger.error("[Connectors] get error", exc_info=True)
+        logger.exception("[Connectors] get error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -131,7 +131,7 @@ async def update_connector(connector_id: str, request: Request) -> Any:
                 connector_registry.remove(connector_id)
         return {"success": True, "connector": db.get_connector(connector_id)}
     except Exception:
-        logger.error("[Connectors] update error", exc_info=True)
+        logger.exception("[Connectors] update error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -144,7 +144,7 @@ def delete_connector(connector_id: str, request: Request) -> Any:
         connector_registry.remove(connector_id)
         return {"success": True}
     except Exception:
-        logger.error("[Connectors] delete error", exc_info=True)
+        logger.exception("[Connectors] delete error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -172,7 +172,7 @@ def sync_history(connector_id: str, request: Request, limit: int = 20) -> Any:
         history = request.app.state.db.get_connector_sync_history(connector_id, limit=limit)
         return {"success": True, "history": history}
     except Exception:
-        logger.error("[Connectors] history error", exc_info=True)
+        logger.exception("[Connectors] history error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 

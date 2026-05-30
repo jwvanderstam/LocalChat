@@ -46,8 +46,8 @@ def list_workspaces(request: Request) -> Any:
         for ws in workspaces:
             ws["active"] = ws["id"] == active_id
         return {"success": True, "workspaces": workspaces}
-    except Exception as exc:
-        logger.error("[Workspaces] list error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] list error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -67,8 +67,8 @@ async def create_workspace(request: Request) -> Any:
         )
         workspace = db.get_workspace(workspace_id)
         return JSONResponse({"success": True, "workspace": workspace}, status_code=201)
-    except Exception as exc:
-        logger.error("[Workspaces] create error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] create error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -80,8 +80,8 @@ def get_active_workspace(request: Request) -> Any:
     try:
         workspace = request.app.state.db.get_workspace(active_id)
         return {"success": True, "workspace": workspace}
-    except Exception as exc:
-        logger.error("[Workspaces] get active error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] get active error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -98,8 +98,8 @@ async def switch_workspace(request: Request) -> Any:
         from ..utils.logging_config import sanitize_log_value as _slv
         logger.info("[Workspaces] Switched to workspace: %s (%s)", _slv(workspace["name"]), _slv(workspace_id))
         return {"success": True, "workspace": workspace}
-    except Exception as exc:
-        logger.error("[Workspaces] switch error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] switch error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -111,8 +111,8 @@ def get_workspace(workspace_id: str, request: Request) -> Any:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         workspace["active"] = workspace_id == get_workspace_id(request)
         return {"success": True, "workspace": workspace}
-    except Exception as exc:
-        logger.error("[Workspaces] get error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] get error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -129,8 +129,8 @@ async def update_workspace(workspace_id: str, request: Request) -> Any:
         if not updated:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "workspace": db.get_workspace(workspace_id)}
-    except Exception as exc:
-        logger.error("[Workspaces] update error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] update error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -147,8 +147,8 @@ def delete_workspace(workspace_id: str, request: Request) -> Any:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         fallback_id = db.get_default_workspace_id()
         return {"success": True, "fallback_workspace_id": fallback_id}
-    except Exception as exc:
-        logger.error("[Workspaces] delete error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] delete error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -157,8 +157,8 @@ def list_workspace_members(workspace_id: str, request: Request) -> Any:
     try:
         members = request.app.state.db.list_workspace_members(workspace_id)
         return {"success": True, "members": members}
-    except Exception as exc:
-        logger.error("[Workspaces] list members error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] list members error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -174,8 +174,8 @@ async def add_workspace_member(workspace_id: str, request: Request) -> Any:
     try:
         request.app.state.db.add_workspace_member(workspace_id, user_id, role)
         return {"success": True}
-    except Exception as exc:
-        logger.error("[Workspaces] add member error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] add member error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -192,8 +192,8 @@ async def update_workspace_member(workspace_id: str, user_id: str, request: Requ
     try:
         request.app.state.db.add_workspace_member(workspace_id, user_id, role)
         return {"success": True}
-    except Exception as exc:
-        logger.error("[Workspaces] update member error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] update member error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -210,8 +210,8 @@ def remove_workspace_member(workspace_id: str, user_id: str, request: Request) -
         return {"success": True}
     except ValueError as ve:
         return JSONResponse({"success": False, "message": str(ve)}, status_code=409)
-    except Exception as exc:
-        logger.error("[Workspaces] remove member error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] remove member error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -247,8 +247,8 @@ def workspace_suggestions(workspace_id: str, request: Request, top_k: int = 10) 
         from ..rag.active_learning import suggest_documents
         suggestions = suggest_documents(workspace_id, request.app.state.db, top_k=top_k)
         return {"success": True, "workspace_id": workspace_id, "suggestions": suggestions}
-    except Exception as exc:
-        logger.error("[Workspaces] suggestions error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] suggestions error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -258,6 +258,6 @@ def workspace_ontology(workspace_id: str, request: Request, top_n: int = 20) -> 
     try:
         ontology = request.app.state.db.get_workspace_ontology(workspace_id, top_n=top_n)
         return {"success": True, "workspace_id": workspace_id, **ontology}
-    except Exception as exc:
-        logger.error("[Workspaces] ontology error: %s", exc, exc_info=True)
+    except Exception:
+        logger.exception("[Workspaces] ontology error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

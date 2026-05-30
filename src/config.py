@@ -575,8 +575,8 @@ class AppState:
                     state = json.load(f)
                     logger.debug(f"Loaded state from {self.state_file}")
                     return state
-            except Exception as e:
-                logger.error(f"Error loading state: {e}", exc_info=True)
+            except Exception:
+                logger.exception("Error loading state")
 
         # Return default state
         default_state = {
@@ -599,8 +599,8 @@ class AppState:
                 json.dump(self.state, f, indent=2)
             os.replace(tmp, self.state_file)
             logger.debug(f"Saved state to {self.state_file}")
-        except Exception as e:
-            logger.error(f"Error saving state: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error saving state")
 
     def get_active_model(self) -> str | None:
         """

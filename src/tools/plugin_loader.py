@@ -96,10 +96,7 @@ class PluginLoader:
                 loaded += 1
             except Exception as exc:
                 plugin_key = path.stem
-                logger.error(
-                    f"[PLUGINS] Failed to load '{plugin_key}': {exc}",
-                    exc_info=True,
-                )
+                logger.exception("[PLUGINS] Failed to load '%s'", plugin_key)
                 self._plugins[plugin_key] = {
                     "path": str(path),
                     "tools": [],
@@ -240,11 +237,8 @@ class PluginLoader:
             try:
                 self.reload(plugin_name)
                 count += 1
-            except Exception as exc:
-                logger.error(
-                    f"[PLUGINS] Reload failed for '{plugin_name}': {exc}",
-                    exc_info=True,
-                )
+            except Exception:
+                logger.exception("[PLUGINS] Reload failed for '%s'", plugin_name)
         logger.info(f"[PLUGINS] Reloaded {count} plugin(s)")
         return count
 

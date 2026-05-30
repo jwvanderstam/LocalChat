@@ -125,7 +125,7 @@ class DocumentLoaderMixin:
             logger.debug(f"Loaded {len(content)} characters from text file")
             return True, content
         except Exception as e:
-            logger.error(f"Error loading text file: {e}", exc_info=True)
+            logger.exception("Error loading text file")
             return False, str(e)
 
     def _try_pdfplumber_import(self):
@@ -169,8 +169,8 @@ class DocumentLoaderMixin:
                 table_text += self._format_table_rows(table)
                 table_text += "\n"
             return table_text
-        except Exception as e:
-            logger.error(f"  Page {page_num}: Error extracting tables: {e}")
+        except Exception:
+            logger.exception("  Page %s: Error extracting tables", page_num)
             return ""
 
     def _extract_pdfplumber_text(self, pdfplumber_module, file_path: str) -> str:
@@ -205,8 +205,8 @@ class DocumentLoaderMixin:
                         text += page_text + "\n"
                     else:
                         logger.warning(f"  Page {page_num}: no text extracted")
-                except Exception as e:
-                    logger.error(f"  Page {page_num}: Error extracting text: {e}")
+                except Exception:
+                    logger.exception("  Page %s: Error extracting text", page_num)
         logger.info(f"pypdf extraction complete: {len(text):,} characters")
         return text
 
@@ -245,19 +245,37 @@ class DocumentLoaderMixin:
                     })
         return pages_data
 
+    def _select_pdf_text(self, loader_pref: str, file_path: str) -> tuple[str, str]:
+        """Try extractors in preference order; return (text, method_used)."""
+        text = ""
+        method = "unknown"
+
+        if loader_pref in ('auto', 'pymupdf4llm') and PYMUPDF4LLM_AVAILABLE:
+            try:
+                text = self._extract_pymupdf4llm_text(file_path)
+                method = _EXTRACTOR_PYMUPDF4LLM
+            except Exception as mupdf_error:
+                logger.warning(f"{_EXTRACTOR_PYMUPDF4LLM} extraction failed: {mupdf_error}, trying next extractor")
+                if loader_pref == 'pymupdf4llm':
+                    logger.warning("PDF_LOADER=pymupdf4llm but extraction failed — no fallback configured")
+
+        if not text and loader_pref in ('auto', 'pdfplumber'):
+            pdfplumber = self._try_pdfplumber_import()
+            if pdfplumber is not None:
+                try:
+                    text = self._extract_pdfplumber_text(pdfplumber, file_path)
+                    method = _EXTRACTOR_PDFPLUMBER
+                except Exception as plumber_error:
+                    logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF}")
+
+        if not text and loader_pref in ('auto', 'pypdf', 'pymupdf4llm', 'pdfplumber'):
+            text = self._extract_pypdf2_text(file_path)
+            method = _EXTRACTOR_PYPDF
+
+        return text, method
+
     def load_pdf_file(self, file_path: str) -> tuple[bool, str]:
-        """
-        Load a PDF file with enhanced table extraction and improved text extraction.
-
-        Uses pdfplumber for better table extraction if available,
-        falls back to PyPDF2 for basic text extraction.
-
-        Args:
-            file_path: Path to PDF file
-
-        Returns:
-            Tuple of (success: bool, content_or_error: str)
-        """
+        """Load a PDF file; tries pymupdf4llm → pdfplumber → pypdf in order."""
         if not PDF_AVAILABLE:
             logger.error(_PDF_NOT_INSTALLED)
             return False, _PDF_NOT_INSTALLED
@@ -267,31 +285,8 @@ class DocumentLoaderMixin:
             file_size = os.path.getsize(file_path)
             logger.debug(f"PDF file size: {file_size:,} bytes")
 
-            text = ""
-            extraction_method = "unknown"
             loader_pref = config.PDF_LOADER  # "auto" | "pymupdf4llm" | "pdfplumber" | "pypdf"
-
-            if loader_pref in ('auto', 'pymupdf4llm') and PYMUPDF4LLM_AVAILABLE:
-                try:
-                    text = self._extract_pymupdf4llm_text(file_path)
-                    extraction_method = _EXTRACTOR_PYMUPDF4LLM
-                except Exception as mupdf_error:
-                    logger.warning(f"{_EXTRACTOR_PYMUPDF4LLM} extraction failed: {mupdf_error}, trying next extractor")
-                    if loader_pref == 'pymupdf4llm':
-                        logger.warning("PDF_LOADER=pymupdf4llm but extraction failed — no fallback configured")
-
-            if not text and loader_pref in ('auto', 'pdfplumber'):
-                pdfplumber = self._try_pdfplumber_import()
-                if pdfplumber is not None:
-                    try:
-                        text = self._extract_pdfplumber_text(pdfplumber, file_path)
-                        extraction_method = _EXTRACTOR_PDFPLUMBER
-                    except Exception as plumber_error:
-                        logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF}")
-
-            if not text and loader_pref in ('auto', 'pypdf', 'pymupdf4llm', 'pdfplumber'):
-                text = self._extract_pypdf2_text(file_path)
-                extraction_method = _EXTRACTOR_PYPDF
+            text, extraction_method = self._select_pdf_text(loader_pref, file_path)
 
             if not text.strip():
                 error_msg = (
@@ -308,7 +303,7 @@ class DocumentLoaderMixin:
             return True, text
 
         except Exception as e:
-            logger.error(f"Error loading PDF: {e}", exc_info=True)
+            logger.exception("Error loading PDF")
             return False, str(e)
 
     def _load_pdf_with_pages(
@@ -345,7 +340,7 @@ class DocumentLoaderMixin:
             return True, pages_data
 
         except Exception as e:
-            logger.error(f"Error loading PDF with pages: {e}", exc_info=True)
+            logger.exception("Error loading PDF with pages")
             return False, str(e)
 
     def _validate_docx_file(self, file_path: str) -> tuple[bool, str]:
@@ -403,7 +398,7 @@ class DocumentLoaderMixin:
                 doc = Document(file_path)
             except Exception as doc_error:
                 error_msg = f"Failed to open DOCX file: {doc_error}"
-                logger.error(error_msg, exc_info=True)
+                logger.exception(error_msg)
                 return False, f"{error_msg}. File might be corrupted or password-protected."
 
             text = self._extract_docx_text(doc)
@@ -417,7 +412,7 @@ class DocumentLoaderMixin:
             return True, text
 
         except Exception as e:
-            logger.error(f"{_DOCX_LOAD_ERROR}{e}", exc_info=True)
+            logger.exception(_DOCX_LOAD_ERROR)
             return False, f"{_DOCX_LOAD_ERROR}{e}"
 
     def _line_looks_like_title(self, line: str) -> str | None:
@@ -500,7 +495,7 @@ class DocumentLoaderMixin:
                 return False, "No text found in presentation"
             return True, slides
         except Exception as e:
-            logger.error(f"Error loading PPTX: {e}", exc_info=True)
+            logger.exception("Error loading PPTX")
             return False, str(e)
 
     @staticmethod
@@ -549,7 +544,7 @@ class DocumentLoaderMixin:
             logger.info(f"EML loaded: {len(content)} chars from {file_path}")
             return True, content
         except Exception as e:
-            logger.error(f"Error loading EML: {e}", exc_info=True)
+            logger.exception("Error loading EML")
             return False, str(e)
 
     def load_excel_file(self, file_path: str) -> tuple[bool, str]:
@@ -593,7 +588,7 @@ class DocumentLoaderMixin:
             return True, content
 
         except Exception as e:
-            logger.error(f"Error loading Excel file: {e}", exc_info=True)
+            logger.exception("Error loading Excel file")
             return False, str(e)
 
     def load_image_file(self, file_path: str) -> tuple[bool, str]:
@@ -629,7 +624,7 @@ class DocumentLoaderMixin:
             return True, content
 
         except Exception as e:
-            logger.error(f"Error loading image file: {e}", exc_info=True)
+            logger.exception("Error loading image file")
             return False, str(e)
 
     @timed('rag.load_document')

@@ -52,6 +52,25 @@ def get_conversation(conversation_id: str, request: Request) -> Any:
     return {"id": conversation_id, "messages": messages}
 
 
+def _build_markdown_export(conversation_id: str, messages: list) -> str:
+    lines = [f"# Conversation {conversation_id}", ""]
+    for msg in messages:
+        role_label = "You" if msg["role"] == "user" else "Assistant"
+        ts = msg.get("timestamp") or ""
+        lines.append(f'### {role_label}{" — " + ts if ts else ""}')
+        lines.append("")
+        lines.append(msg["content"])
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _build_binary_export(fmt: str, title: str, messages: list) -> bytes:
+    from ..utils.export import export_conversation_docx, export_conversation_pdf
+    if fmt == "docx":
+        return export_conversation_docx(title, messages)
+    return export_conversation_pdf(title, messages)
+
+
 @router.get("/conversations/{conversation_id}/export")
 def export_conversation(conversation_id: str, request: Request, format: str = "json") -> Any:
     fmt = format.lower()
@@ -71,40 +90,28 @@ def export_conversation(conversation_id: str, request: Request, format: str = "j
         )
 
     if fmt == "markdown":
-        lines = [f"# Conversation {conversation_id}", ""]
-        for msg in messages:
-            role_label = "You" if msg["role"] == "user" else "Assistant"
-            ts = msg.get("timestamp") or ""
-            lines.append(f'### {role_label}{" — " + ts if ts else ""}')
-            lines.append("")
-            lines.append(msg["content"])
-            lines.append("")
         return Response(
-            "\n".join(lines),
+            _build_markdown_export(conversation_id, messages),
             media_type="text/markdown",
             headers={"Content-Disposition": f'attachment; filename="conversation-{conversation_id}.md"'},
         )
 
     title = f"Conversation {conversation_id}"
-    from ..utils.export import export_conversation_docx, export_conversation_pdf
+    _mime = {
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pdf": "application/pdf",
+    }
     try:
-        if fmt == "docx":
-            data = export_conversation_docx(title, messages)
-            return Response(
-                data,
-                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                headers={"Content-Disposition": f'attachment; filename="conversation-{conversation_id}.docx"'},
-            )
-        data = export_conversation_pdf(title, messages)
+        data = _build_binary_export(fmt, title, messages)
         return Response(
             data,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="conversation-{conversation_id}.pdf"'},
+            media_type=_mime[fmt],
+            headers={"Content-Disposition": f'attachment; filename="conversation-{conversation_id}.{fmt}"'},
         )
     except ImportError as ie:
         return JSONResponse({"error": str(ie)}, status_code=501)
-    except Exception as exc:
-        logger.error("[Export] %s export failed: %s", fmt, exc, exc_info=True)
+    except Exception:
+        logger.exception("[Export] %s export failed", fmt)
         return JSONResponse({"error": "Export failed"}, status_code=500)
 
 

@@ -36,8 +36,8 @@ async def create_annotation(request: Request) -> Any:
         return JSONResponse({"success": True, "id": annotation_id}, status_code=201)
     except ValueError as ve:
         return JSONResponse({"success": False, "message": str(ve)}, status_code=400)
-    except Exception as e:
-        logger.error(f"[Annotations] create error: {e}", exc_info=True)
+    except Exception:
+        logger.exception("[Annotations] create error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -46,8 +46,8 @@ def list_chunk_annotations(chunk_id: int, request: Request) -> Any:
     try:
         annotations = request.app.state.db.get_annotations_for_chunk(chunk_id)
         return {"success": True, "annotations": annotations}
-    except Exception as e:
-        logger.error(f"[Annotations] list error: {e}", exc_info=True)
+    except Exception:
+        logger.exception("[Annotations] list error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
@@ -59,6 +59,6 @@ def delete_annotation(annotation_id: str, request: Request) -> Any:
         if not deleted:
             return JSONResponse({"success": False, "message": "Annotation not found"}, status_code=404)
         return {"success": True}
-    except Exception as e:
-        logger.error(f"[Annotations] delete error: {e}", exc_info=True)
+    except Exception:
+        logger.exception("[Annotations] delete error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

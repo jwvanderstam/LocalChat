@@ -125,8 +125,8 @@ class LiteLLMClient:
                 yield from self._iter_stream_chunks(response)
             else:
                 yield (response.choices[0].message.content or "") if response.choices else ""
-        except Exception as e:
-            logger.error(f"[CloudFallback] litellm error: {e}", exc_info=True)
+        except Exception:
+            logger.exception("[CloudFallback] litellm error")
             raise
 
     def generate_chat_completion(
