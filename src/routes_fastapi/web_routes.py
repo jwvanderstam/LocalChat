@@ -25,27 +25,27 @@ def favicon(request: Request) -> Response:
 
 @router.get("/", include_in_schema=False)
 def index(request: Request) -> HTMLResponse:
-    return _templates(request).TemplateResponse("chat.html", {"request": request})
+    return _templates(request).TemplateResponse(request, "chat.html")
 
 
 @router.get("/chat", include_in_schema=False)
 def chat(request: Request) -> HTMLResponse:
-    return _templates(request).TemplateResponse("chat.html", {"request": request})
+    return _templates(request).TemplateResponse(request, "chat.html")
 
 
 @router.get("/documents", include_in_schema=False)
 def documents(request: Request) -> HTMLResponse:
-    return _templates(request).TemplateResponse("documents.html", {"request": request})
+    return _templates(request).TemplateResponse(request, "documents.html")
 
 
 @router.get("/models", include_in_schema=False)
 def models(request: Request) -> HTMLResponse:
-    return _templates(request).TemplateResponse("models.html", {"request": request})
+    return _templates(request).TemplateResponse(request, "models.html")
 
 
 @router.get("/overview", include_in_schema=False)
 def overview(request: Request) -> HTMLResponse:
-    return _templates(request).TemplateResponse("overview.html", {"request": request})
+    return _templates(request).TemplateResponse(request, "overview.html")
 
 
 @router.get("/settings", include_in_schema=False)
@@ -55,4 +55,4 @@ def settings(request: Request) -> HTMLResponse:
         stats = gather_admin_stats(request.app.state)
     except Exception:
         stats = {}
-    return _templates(request).TemplateResponse("settings.html", {"request": request, "stats": stats})
+    return _templates(request).TemplateResponse(request, "settings.html", {"stats": stats})
