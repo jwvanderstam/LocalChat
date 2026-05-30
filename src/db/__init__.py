@@ -26,13 +26,14 @@ from .entities import EntitiesMixin
 from .feedback import FeedbackMixin
 from .memories import MemoriesMixin
 from .oauth_tokens import OAuthTokensMixin
+from .tokens import TokensMixin
 from .users import UsersMixin
 from .workspaces import WorkspacesMixin
 
 logger = get_logger(__name__)
 
 
-class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, UsersMixin, WorkspacesMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, DatabaseConnection):
+class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, UsersMixin, WorkspacesMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, TokensMixin, DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 
@@ -53,4 +54,4 @@ db = Database()
 
 logger.info("Database module loaded")
 
-__all__ = ['Database', 'db', 'DatabaseUnavailableError', 'VectorLoader']
+__all__ = ['Database', 'db', 'DatabaseUnavailableError', 'VectorLoader', 'TokensMixin']

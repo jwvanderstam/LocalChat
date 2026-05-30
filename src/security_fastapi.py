@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -55,6 +56,7 @@ def create_access_token(identity: str, additional_claims: dict[str, Any] | None 
 
     payload: dict[str, Any] = {
         "sub": identity,
+        "jti": str(uuid.uuid4()),
         "exp": datetime.now(UTC) + timedelta(seconds=config.JWT_ACCESS_TOKEN_EXPIRES),
         "iat": datetime.now(UTC),
     }
@@ -143,9 +145,20 @@ def require_auth(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Authentication required"})
     try:
         payload = _decode_token(credentials.credentials)
-        return payload["sub"]
     except Exception:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Invalid or expired token"}) from None
+    jti = payload.get("jti")
+    if jti:
+        db = getattr(request.app.state, "db", None)
+        if db is not None and getattr(db, "is_connected", False):
+            try:
+                if db.is_token_revoked(jti):
+                    raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Token has been revoked"})
+            except HTTPException:
+                raise
+            except Exception:
+                pass  # DB unavailable — fail open rather than locking out users
+    return payload["sub"]
 
 
 def _get_token_claims(credentials: HTTPAuthorizationCredentials | None) -> dict[str, Any]:
@@ -219,12 +232,19 @@ def setup_cors(app: Any) -> None:
     """Add CORSMiddleware to a FastAPI app when CORS is enabled."""
     if not config.CORS_ENABLED:
         return
+    origins = config.CORS_ORIGINS or ["*"]
+    if origins == ["*"] or origins == "*":
+        logger.warning(
+            "CORS is enabled with wildcard origin ('*'). "
+            "Any domain can make cross-origin requests. "
+            "Set CORS_ORIGINS to specific domains for non-localhost deployments."
+        )
     from starlette.middleware.cors import CORSMiddleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=config.CORS_ORIGINS or ["*"],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.info(f"CORS enabled for origins: {config.CORS_ORIGINS}")
+    logger.info("CORS enabled for origins: %s", origins)

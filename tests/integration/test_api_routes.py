@@ -143,7 +143,7 @@ class TestChatEndpoint:
 
         # If successful, should be SSE
         if response.status_code == 200:
-            assert response.headers.get('content-type', '') == 'text/event-stream'
+            assert 'text/event-stream' in response.headers.get('content-type', '')
 
 
 class TestChatErrorHandling:

@@ -98,6 +98,12 @@ def _init_database_service(app: Any, db: Any) -> None:
         doc_count = db.get_document_count()
         config.app_state.set_document_count(doc_count)
         logger.info(f"Documents in database: {doc_count}")
+        try:
+            purged = db.purge_expired_tokens()
+            if purged:
+                logger.info("Purged %d expired revoked token(s)", purged)
+        except Exception as _purge_err:
+            logger.debug("Could not purge expired tokens: %s", _purge_err)
         return
     logger.error(db_message)
     logger.error("WARNING: PostgreSQL database is not available! App will run in DEGRADED MODE.")

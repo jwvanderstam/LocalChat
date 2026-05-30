@@ -698,6 +698,15 @@ class DatabaseConnection:
                 """)
                 logger.debug("documents.source_id column ensured")
 
+                # ── v2.0: JWT revocation deny-list ───────────────────────────
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS revoked_tokens (
+                        jti        UUID PRIMARY KEY,
+                        expires_at TIMESTAMPTZ NOT NULL
+                    )
+                """)
+                logger.debug("revoked_tokens table ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
 

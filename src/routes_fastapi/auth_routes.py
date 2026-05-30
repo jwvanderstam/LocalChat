@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from ..security_fastapi import get_current_user_id, require_admin_dep
+from ..security_fastapi import (
+    _decode_token,
+    _extract_bearer_token,
+    get_current_user_id,
+    require_admin_dep,
+)
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -129,4 +135,36 @@ async def change_own_password(request: Request) -> Any:
         return JSONResponse({"success": False, "message": "Current password is incorrect"}, status_code=401)
 
     db.update_user(user_id, hashed_password=hash_user_password(new_password))
+    return {"success": True}
+
+
+@router.post("/logout")
+async def logout(request: Request) -> Any:
+    """Revoke the caller's current JWT so it cannot be reused."""
+    token = _extract_bearer_token(request)
+    if not token:
+        return JSONResponse({"success": False, "message": "No token provided"}, status_code=400)
+    try:
+        payload = _decode_token(token)
+    except Exception:
+        return JSONResponse({"success": False, "message": "Invalid token"}, status_code=400)
+
+    jti = payload.get("jti")
+    if not jti:
+        # Token predates jti support — nothing to revoke, still report success.
+        return {"success": True}
+
+    exp_ts = payload.get("exp")
+    expires_at = datetime.fromtimestamp(exp_ts, tz=UTC) if exp_ts else datetime.now(UTC)
+
+    db = getattr(request.app.state, "db", None)
+    if db is None or not getattr(db, "is_connected", False):
+        return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
+
+    try:
+        db.revoke_token(jti, expires_at)
+    except Exception as exc:
+        logger.error("[Auth] logout revoke error: %s", exc, exc_info=True)
+        return JSONResponse({"success": False, "message": "Failed to revoke token"}, status_code=500)
+
     return {"success": True}

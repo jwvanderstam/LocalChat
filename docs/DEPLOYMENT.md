@@ -140,3 +140,30 @@ helm uninstall localchat -n localchat
 # PVCs are retained by default — delete manually if no longer needed:
 kubectl delete pvc -n localchat -l app.kubernetes.io/instance=localchat
 ```
+
+## Security Checklist
+
+Before exposing LocalChat to any network beyond localhost, verify these settings:
+
+| Item | Env var | Requirement |
+|------|---------|-------------|
+| JWT secret | `JWT_SECRET_KEY` | Minimum 32 random bytes. Never use the default placeholder. |
+| Metrics endpoint | `METRICS_TOKEN` | Must be set; without it `/api/metrics` is public. |
+| Admin password | `ADMIN_PASSWORD` | Change from default before first use. |
+| CORS origins | `CORS_ORIGINS` | Set to specific domains; avoid `*` in production. |
+| Token encryption | `TOKEN_ENCRYPTION_KEY` | Required if using OAuth connectors (SharePoint/OneDrive/Google Drive). |
+| TLS | — | Terminate TLS at the ingress/proxy layer; see [TLS with Docker Compose](#tls-with-docker-compose) below. |
+
+### TLS with Docker Compose
+
+Add an Nginx TLS termination proxy via the override file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
+```
+
+The override (`docker-compose.nginx.yml`) adds an `nginx:alpine` service that:
+- Listens on 443, terminates TLS with your certificate
+- Proxies to the app on port 5000
+
+Provide your certificate and key by mounting them into the Nginx container and editing `nginx/nginx.conf` (replace the `server_name`, `ssl_certificate`, and `ssl_certificate_key` placeholders).
