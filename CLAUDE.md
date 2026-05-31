@@ -85,6 +85,33 @@ Full rules across 4 files in `.claude/rules/` — short version here.
 
 ---
 
+## Data Integrity: Clark-Wilson Pattern
+
+LocalChat applies the Clark-Wilson integrity model to all persistent data. The core rule: **no Transformation Procedure (TP) may leave a Constrained Data Item (CDI) in a state that fails an Integrity Verification Procedure (IVP).**
+
+**CDIs in this codebase** — any entity referenced by ID from other data:
+`documents`, `document_chunks`, `conversations`, `messages`, `users`, `workspaces`, `memories`, `annotations`, `connectors`
+
+**The rule: state transitions, not destruction**
+
+Hard-deleting a CDI while other data still holds its ID breaks IVPs — citations reference missing chunks, conversations reference deleted users. Instead:
+
+- Every CDI table carries `deleted_at TIMESTAMPTZ` and `deleted_by UUID` columns.
+- A "delete" TP sets `deleted_at`; it never issues `DELETE FROM` on a CDI.
+- All SELECT queries on CDIs filter `WHERE deleted_at IS NULL`.
+- A hard purge is a *separate, explicitly authorized TP* with a precondition: no active references exist. It is never the default operation.
+
+**Audit trail** — state changes on CDIs must be traceable: who changed what, when. `deleted_at` + `deleted_by` is the minimum required.
+
+**Separation of intent** — "Retire" (soft-delete, reversible) and "Destroy" (purge, irreversible, requires authorization) are distinct TPs. Never collapse them into one action.
+
+**Applying this when writing new code:**
+- Adding a new table that other tables will reference → add `deleted_at` + `deleted_by` from the start.
+- Implementing a delete endpoint → it soft-deletes; expose a separate `/purge` endpoint (admin-only) if hard deletion is ever needed.
+- Writing a query that reads CDI rows → always include `WHERE deleted_at IS NULL` unless the intent is explicitly to include retired records.
+
+---
+
 ## Quality Gates
 
 Run both before every commit. Both must be clean.
