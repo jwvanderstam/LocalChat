@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -28,7 +28,7 @@ def _public(user: dict) -> dict:
 
 
 @router.post("/users", status_code=201)
-async def create_user(request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+async def create_user(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..db.users import hash_user_password
 
     data = await request.json() if await request.body() else {}
@@ -57,7 +57,7 @@ async def create_user(request: Request, _admin: str = Depends(require_admin_dep)
 
 
 @router.get("/users")
-def list_users(request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+def list_users(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
         users = request.app.state.db.list_users()
         return {"success": True, "users": [_public(u) for u in users]}
@@ -67,7 +67,7 @@ def list_users(request: Request, _admin: str = Depends(require_admin_dep)) -> An
 
 
 @router.get("/users/{user_id}")
-def get_user(user_id: str, request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+def get_user(user_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
         user = request.app.state.db.get_user_by_id(user_id)
         if user is None:
@@ -79,7 +79,7 @@ def get_user(user_id: str, request: Request, _admin: str = Depends(require_admin
 
 
 @router.put("/users/{user_id}")
-async def update_user(user_id: str, request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+async def update_user(user_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..db.users import hash_user_password
 
     data = await request.json() if await request.body() else {}
@@ -101,7 +101,7 @@ async def update_user(user_id: str, request: Request, _admin: str = Depends(requ
 
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: str, request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+def delete_user(user_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
         deleted = request.app.state.db.delete_user(user_id)
         if not deleted:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
@@ -178,7 +178,7 @@ def settings_stats_api(request: Request) -> Any:
 
 
 @router.get("/settings/rag")
-def rag_params_get(request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+def rag_params_get(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     params = {}
     for key, meta in _RAG_LIMITS.items():
         params[key] = {
@@ -192,7 +192,7 @@ def rag_params_get(request: Request, _admin: str = Depends(require_admin_dep)) -
 
 
 @router.post("/settings/rag")
-async def rag_params_set(request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+async def rag_params_set(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     body = await request.json() if await request.body() else {}
     errors: list[str] = []
     updates: dict = {}
@@ -231,7 +231,7 @@ async def rag_params_set(request: Request, _admin: str = Depends(require_admin_d
 
 
 @router.get("/reranker/status")
-def reranker_status(request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+def reranker_status(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..rag.reranker import get_reranker
     reranker = get_reranker()
     versions: list[dict] = []
@@ -246,7 +246,7 @@ def reranker_status(request: Request, _admin: str = Depends(require_admin_dep)) 
 
 
 @router.post("/reranker/train")
-def reranker_train(request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+def reranker_train(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     import threading
 
     if not request.app.state.startup_status.get("database"):
@@ -279,7 +279,7 @@ def reranker_train(request: Request, _admin: str = Depends(require_admin_dep)) -
 
 
 @router.post("/reranker/promote/{version_id}")
-def reranker_promote(version_id: str, request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+def reranker_promote(version_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..rag.feedback_pipeline import promote_model
     ok = promote_model(request.app.state.db, version_id)
     if not ok:
@@ -288,7 +288,7 @@ def reranker_promote(version_id: str, request: Request, _admin: str = Depends(re
 
 
 @router.post("/reranker/rollback/{version_id}")
-def reranker_rollback(version_id: str, request: Request, _admin: str = Depends(require_admin_dep)) -> Any:
+def reranker_rollback(version_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..rag.feedback_pipeline import rollback_model
     ok = rollback_model(request.app.state.db, version_id)
     if not ok:

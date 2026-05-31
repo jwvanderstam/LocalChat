@@ -156,7 +156,7 @@ class RetrievalMixin:
                 deduped.append(r)
         return deduped
 
-    def _get_app_cache(self, attr_name: str) -> Any | None:
+    def _get_app_cache(self) -> Any | None:
         """Return None — app cache access requires a request context; use module-level LRU instead."""
         return None
 
@@ -338,8 +338,8 @@ class RetrievalMixin:
             except Exception as graph_exc:
                 logger.debug(f"[GraphRAG] Expansion skipped: {graph_exc}")
 
-        _app_query_cache = self._get_app_cache('query_cache')
-        _app_emb_cache = self._get_app_cache('embedding_cache')
+        _app_query_cache = self._get_app_cache()
+        _app_emb_cache = self._get_app_cache()
 
         cached_result = (
             _app_query_cache.get(query_clean, top_k, min_similarity, use_hybrid_search)
