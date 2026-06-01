@@ -3,7 +3,7 @@
 > **Status:** Planning  
 > **Predecessor:** v2.0 completed May 2026 (dual-stack migration, JWT revocation, Alembic migrations, CI integration tests, chat.js ES modules).
 
-v3.0 targets two architectural principles: **data integrity hardening** (Clark-Wilson compliance) and **role-based access control** (admin / user / viewer).
+v3.0 targets three architectural principles: **data integrity hardening** (Clark-Wilson compliance), **role-based access control** (admin / user / viewer), and **two-tier knowledge architecture** (Global Knowledge Base + workspace-scoped projects).
 
 ---
 
@@ -149,7 +149,104 @@ A systematic pass over every route to assign the correct minimum role. This is s
 | 3 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) | 1 week |
 | 4 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
 | 5 | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
-| **Total** | | **~5 weeks** |
+| 6 | GKB-1 (schema + two-tier retrieval) | 1 week |
+| 7 | GKB-2 (contribution workflow) | 1 week |
+| 8 | GKB-3 (pricing plugin — reference implementation) | 1–2 weeks |
+| **Total** | | **~8–9 weeks** |
+
+---
+
+## Initiative 3 — Global Knowledge Base (GKB)
+
+### Background
+
+Workspaces are project containers — isolated knowledge silos scoped to a team and a deliverable. But certain plugins (pricing, competitive intelligence, risk scoring) need to learn from patterns that emerge *across* all projects, not just within one. A single-tier workspace model cannot serve both needs.
+
+**The two-tier pattern:**
+
+```
+┌─────────────────────────────────────────────────┐
+│           GLOBAL KNOWLEDGE BASE (GKB)           │
+│  Narrative knowledge contributed from projects.  │
+│  No workspace_id. Readable by all plugins.       │
+└────────────────┬────────────────────────────────┘
+                 │ contributes on close ↑
+                 │ global context on query ↓
+    ┌────────────┴──────┐   ┌───────────────────┐
+    │   Project A        │   │   Project B        │
+    │   (Workspace)      │   │   (Workspace)      │
+    └───────────────────┘   └───────────────────┘
+```
+
+- **GKB** — `document_chunks` rows with `workspace_id = NULL`. Same pgvector infrastructure; no schema invention.
+- **Contribution** — a deliberate human act by the workspace owner. Not automatic. Not a pipeline.
+- **Knowledge form** — fuzzy narrative (retrospectives, lessons learned), not structured facts. Vector retrieval handles fuzziness natively.
+- **Plugin scope** — plugins declare `local`, `global`, or `hybrid`. The pricing plugin is `hybrid`: retrieves from GKB for patterns, from the active workspace for project specifics, and hands the merged context to the LLM.
+
+---
+
+### GKB-1 — Schema and two-tier retrieval
+
+**Schema changes (Alembic migration):**
+- `document_chunks.workspace_id` is already nullable in practice — confirm the column allows NULL; add index on `workspace_id IS NULL` for global-tier queries.
+- Add `contributed_at TIMESTAMPTZ`, `contributed_by UUID`, `archived_at TIMESTAMPTZ` to `document_chunks` for GKB-tier rows. This supports staleness management without polluting project chunks.
+- Add `source_project_id UUID` (references `workspaces.id`, nullable) — provenance for contributed chunks.
+- Add `outcome VARCHAR(32)` and `sector VARCHAR(128)` metadata columns on contributed chunks (structured envelope around fuzzy content).
+
+**Retrieval changes (`src/rag/retrieval.py`):**
+- Add `scope: Literal["local", "global", "hybrid"] = "local"` parameter to `retrieve_context()`.
+- `local` — existing behaviour, `WHERE workspace_id = %s`.
+- `global` — `WHERE workspace_id IS NULL AND archived_at IS NULL`.
+- `hybrid` — run both queries, merge results, deduplicate, re-rank. The existing reranker handles merged result sets naturally.
+
+**Tests:** unit tests for each scope mode; integration test confirming hybrid merge returns results from both tiers.
+
+---
+
+### GKB-2 — Contribution workflow
+
+A workspace owner (or admin) marks a project as contributing to the GKB. They select which documents cross the project boundary and approve a contribution narrative before ingestion.
+
+**Backend:**
+- `POST /api/workspaces/{id}/contribute` — accepts a list of `document_ids` and an optional `narrative` (free text). Ingests selected documents into the GKB tier (`workspace_id = NULL`) with contribution metadata. The narrative, if provided, is ingested as an additional chunk.
+- `DELETE /api/workspaces/{id}/contributions` — archives all GKB chunks contributed from this workspace (`SET archived_at = NOW()`). Does not hard-delete (Clark-Wilson).
+- `GET /api/gkb/chunks` — admin endpoint; lists all GKB chunks with provenance and metadata.
+
+**UI:**
+- "Contribute to Global Knowledge" action on the workspace settings page (owner-only).
+- Document selector with optional narrative text area.
+- Review screen showing what will be contributed before confirmation.
+
+**Guardrails:**
+- Contribution requires workspace `owner` role (not `editor` or `viewer`).
+- Admin can revoke a contribution (archive) without deleting the workspace.
+- Contributed documents are tagged in the workspace document list as "shared globally."
+
+---
+
+### GKB-3 — Pricing plugin (reference implementation)
+
+The pricing plugin is the first `hybrid`-scope plugin. It serves as the reference implementation for all future cross-workspace plugins.
+
+**Scope:** price-to-win analysis for an active project.
+
+**Query flow:**
+1. User asks: "What should we price this project at?"
+2. Plugin extracts context signals from the question and active workspace (project type, scope, client sector, timeline).
+3. GKB retrieval: semantic search over global chunks filtered by `outcome`, `sector` metadata where available.
+4. Project retrieval: semantic search over active workspace chunks (RFP, requirements, client notes).
+5. Merged context → LLM → price-to-win narrative with reasoning.
+
+**Plugin manifest (declares scope):**
+```python
+PLUGIN_SCOPE = "hybrid"          # reads GKB + active workspace
+PLUGIN_CONTRIBUTES = False       # does not write to GKB (contribution is manual)
+PLUGIN_MIN_ROLE = "viewer"       # any workspace member can query
+```
+
+**Implementation files:** `plugins/pricing/` (new), `src/tools/registry.py` (scope-aware dispatch), `src/rag/retrieval.py` (GKB-1 already covers the retrieval layer).
+
+**Tests:** integration test with seeded GKB chunks + project workspace chunks; assert hybrid query returns from both; assert global-only query excludes project chunks.
 
 ---
 
@@ -161,3 +258,5 @@ A systematic pass over every route to assign the correct minimum role. This is s
 | OAuth / SSO for viewer-only access | Defer to v4.0 |
 | Row-level security in PostgreSQL | Defer — application-level RBAC sufficient for self-hosted deployment |
 | Purge scheduler (auto-purge after N days) | Defer — manual purge is sufficient; scheduled purge is a separate feature |
+| Automatic signal extraction pipeline | Defer — human-curated retrospectives are the contribution model; ML extraction is v4.0 |
+| GKB staleness / decay scoring | Defer — `archived_at` column reserved; active staleness weighting is a future retrieval improvement |
