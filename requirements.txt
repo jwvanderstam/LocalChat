@@ -1,7 +1,7 @@
 # Web Framework — FastAPI (ASGI)
-fastapi>=0.115.0
+fastapi>=0.136.3
 uvicorn[standard]>=0.34.0
-httpx>=0.28.0          # FastAPI TestClient + async HTTP
+httpx>=0.28.1          # FastAPI TestClient + async HTTP
 
 # Flask — kept during migration; remove once all routes are ported
 Flask==3.1.3
@@ -16,7 +16,7 @@ redis==7.4.0  # Redis cache backend (optional but recommended)
 Flask-JWT-Extended==4.7.4  # Authentication (Flask; kept during migration)
 Flask-Limiter==4.1.1       # Rate limiting (Flask; kept during migration)
 Flask-CORS==6.0.2          # CORS support (Flask; kept during migration)
-python-jose[cryptography]>=3.3.0  # JWT for FastAPI
+python-jose[cryptography]>=3.5.0  # JWT for FastAPI
 slowapi>=0.1.9                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector
@@ -24,7 +24,7 @@ psycopg[binary]>=3.3.4
 psycopg-pool>=3.3.1
 
 # Database migrations
-alembic>=1.14
+alembic>=1.18.4
 sqlalchemy>=2.0  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
@@ -35,12 +35,12 @@ email-validator==2.3.0
 pypdf>=6.12.1
 pdfplumber==0.11.9  # Enhanced PDF extraction with table support
 pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this version
-pymupdf4llm>=0.0.17    # Layout-aware PDF extraction for column-heavy documents (optional)
+pymupdf4llm>=1.27.2.3    # Layout-aware PDF extraction for column-heavy documents (optional)
 langdetect>=1.0.9      # Language detection for multilingual document support
 python-docx==1.2.0
 python-pptx>=1.0.2
 html2text>=2020.1          # Confluence HTML→plain-text conversion
-reportlab>=4.0             # PDF export for conversation download (optional)
+reportlab>=4.5.1             # PDF export for conversation download (optional)
 kuzu>=0.6.0                # Graph store backend (optional; set GRAPH_BACKEND=kuzu to activate)
 openpyxl>=3.1.5         # Excel (.xlsx) ingestion
 litellm>=1.83.7    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
@@ -62,7 +62,7 @@ ddgs>=9.14.4
 numpy>=2.4.6
 
 # Multipart form handling
-python-multipart==0.0.29
+python-multipart==0.0.30
 
 # Markdown rendering
 markdown==3.10.2
@@ -77,4 +77,4 @@ pytest-mock==3.15.1
 faker==40.19.1
 responses==0.26.1
 freezegun==1.5.5
-coverage==7.14.0
+coverage==7.14.1
