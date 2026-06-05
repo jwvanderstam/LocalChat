@@ -1,6 +1,6 @@
 # Web Framework — FastAPI (ASGI)
 fastapi>=0.136.3
-uvicorn[standard]>=0.34.0
+uvicorn[standard]>=0.48.0
 httpx>=0.28.1          # FastAPI TestClient + async HTTP
 
 # Flask — kept during migration; remove once all routes are ported
@@ -41,7 +41,7 @@ python-docx==1.2.0
 python-pptx>=1.0.2
 html2text>=2020.1          # Confluence HTML→plain-text conversion
 reportlab>=4.5.1             # PDF export for conversation download (optional)
-kuzu>=0.6.0                # Graph store backend (optional; set GRAPH_BACKEND=kuzu to activate)
+kuzu>=0.11.3               # Graph store backend (optional; set GRAPH_BACKEND=kuzu to activate)
 openpyxl>=3.1.5         # Excel (.xlsx) ingestion
 litellm>=1.83.7    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
 h11>=0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
