@@ -54,7 +54,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **CORS Support**: Configurable allowed origins
 - **JWT Authentication**: Token-based auth for admin endpoints
 - **Input Sanitization**: Pydantic validation + server-side sanitization on all inputs
-- **Supply Chain**: Pinned Docker image SHA256 digest; `litellm>=1.72.6`, `h11>=0.16.0`
+- **Supply Chain**: Pinned Docker image SHA256 digest; `litellm>=1.83.7`, `h11>=0.16.0`
 - **Container Hardening**: Non-root user (UID 1000), `allowPrivilegeEscalation: false`, `drop: ALL` capabilities in Helm charts
 - **Secret Scanning**: No credentials in source; placeholder examples only
 
@@ -257,7 +257,7 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 | [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema, ER diagram, index rationale |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and fixes |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore, and maintenance procedures |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Evolution roadmap and completion status |
+| [ROADMAP.md](ROADMAP.md) | Evolution roadmap and completion status |
 
 ### Key Entry Points
 - **[`app.py`](app.py)** — Application entry point; `create_uvicorn_app()` for production
@@ -273,7 +273,6 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 
 ### API Documentation
 - Interactive Swagger UI available at `/api/docs/` when the app is running
-- Configured in [`src/api_docs.py`](src/api_docs.py)
 
 ---
 
@@ -286,20 +285,16 @@ LocalChat/
 ├── .env.example                    # Environment variable template
 ├── src/
 │   ├── app_fastapi.py              # FastAPI application factory
-│   ├── app_factory.py              # Flask factory (legacy — MCP servers only)
 │   ├── app_bootstrap.py            # All startup I/O (DB, Ollama, connectors)
 │   ├── config.py                   # All configuration, loads .env
 │   ├── models.py                   # Pydantic request/response models
 │   ├── security_fastapi.py         # JWT, rate limiting, CORS (FastAPI)
-│   ├── security.py                 # JWT, rate limiting, CORS (Flask/MCP)
 │   ├── monitoring.py               # Prometheus metrics, health checks
 │   ├── ollama_client.py            # Ollama LLM/embedding client
 │   ├── llm_client.py               # LiteLLM cloud-fallback adapter
 │   ├── mcp_client.py               # MCP HTTP client + circuit breaker
 │   ├── gpu_monitor.py              # NVIDIA/AMD GPU detection, TTL-cached
-│   ├── api_docs.py                 # Swagger/OpenAPI at /api/docs/
 │   ├── exceptions.py               # Custom exception hierarchy
-│   ├── types.py                    # LocalChatApp typed subclass
 │   ├── agent/                      # Multi-model agent dispatch
 │   │   ├── aggregator.py           # Parallel tool dispatch + retry
 │   │   ├── models.py               # ModelRegistry (env-driven model mapping)
@@ -335,6 +330,7 @@ LocalChat/
 │   │   ├── memories.py             # Long-term memory CRUD + vector search
 │   │   ├── annotations.py          # Annotation CRUD
 │   │   ├── oauth_tokens.py         # Fernet-encrypted OAuth token storage
+│   │   ├── tokens.py               # JWT revocation deny-list
 │   │   ├── users.py                # User CRUD + PBKDF2 password hashing
 │   │   ├── workspaces.py           # Workspace CRUD
 │   │   └── connectors.py           # Connector config + sync log CRUD
@@ -374,8 +370,7 @@ LocalChat/
 │   │   ├── workspace_routes.py     # Workspace management
 │   │   ├── annotation_routes.py    # Annotation CRUD
 │   │   ├── web_routes.py           # Frontend SPA + static assets
-│   │   └── error_handlers.py       # 4xx/5xx JSON error handlers
-│   ├── routes/                     # Flask route handlers (MCP servers only)
+│   │   └── _request_state.py       # Per-request state helpers
 │   ├── tools/
 │   │   ├── registry.py             # Tool registration + JSON schemas
 │   │   ├── executor.py             # Tool-call loop (multi-turn)
@@ -386,6 +381,8 @@ LocalChat/
 │       ├── sanitization.py         # Input sanitization
 │       ├── encryption.py           # Fernet encrypt/decrypt for text columns
 │       ├── export.py               # Conversation export (DOCX + PDF)
+│       ├── file_validation.py      # Magic-byte + ZIP content validation for uploads
+│       ├── workspace.py            # get_workspace_id() — X-Workspace-ID header helper
 │       └── request_id.py           # X-Request-ID middleware
 ├── mcp_servers/
 │   ├── base.py                     # JSON-RPC 2.0 dispatcher base
@@ -396,7 +393,7 @@ LocalChat/
 │   └── example_plugin.py
 ├── tests/
 │   ├── conftest.py                 # Shared fixtures
-│   ├── unit/                       # 73+ modules, ~2,000 tests
+│   ├── unit/                       # 70+ modules, ~2,000 tests
 │   └── integration/                # 12 modules, requires running services
 └── helm/localchat/                 # Helm chart (app + PostgreSQL + Redis + MCP)
 ```
@@ -443,7 +440,7 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 73+ modules covering all core components (~2,000 tests)
+- **Unit Tests**: `tests/unit/` — 70+ modules covering all core components (~2,000 tests)
 - **Integration Tests**: `tests/integration/` — 12 modules; require a live PostgreSQL + Ollama instance
 - **Quality Gate**: SonarCloud enforces ≥ 80% coverage on new code, 0 unreviewed hotspots
 
@@ -742,6 +739,7 @@ Two GitHub Actions workflows run on every push and pull request to `main`, plus 
 | **Tests** | `.github/workflows/tests.yml` | Runs all unit tests on Python 3.11 |
 | **SonarCloud** | `.github/workflows/sonarcloud.yml` | Runs unit tests with coverage, then uploads results to SonarCloud |
 | **CodeQL** | `.github/workflows/codeql.yml` | Python `security-extended` static analysis on push/PR to main + weekly Monday scan |
+| **Docker publish** | `.github/workflows/docker-publish.yml` | Builds and pushes image to `ghcr.io/jwvanderstam/localchat` on merge to main and version tags |
 | **Dependabot** | `.github/dependabot.yml` | Weekly PRs for pip and GitHub Actions version bumps; auto-assigned to `jwvanderstam` with labels `dependencies` / `ci` |
 
 ### SonarCloud
