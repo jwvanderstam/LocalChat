@@ -15,7 +15,7 @@ redis==7.4.0  # Redis cache backend (optional but recommended)
 # Security
 Flask-JWT-Extended==4.7.4  # Authentication (Flask; kept during migration)
 Flask-Limiter==4.1.1       # Rate limiting (Flask; kept during migration)
-Flask-CORS==6.0.2          # CORS support (Flask; kept during migration)
+Flask-CORS==6.0.4          # CORS support (Flask; kept during migration)
 python-jose[cryptography]>=3.5.0  # JWT for FastAPI
 slowapi>=0.1.9                     # Rate limiting for FastAPI/Starlette
 
