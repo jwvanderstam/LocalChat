@@ -769,7 +769,7 @@ async def api_chat(request: Request) -> Any:
         return JSONResponse({"error": "ValidationError", "success": False, "message": "Invalid request", "details": exc.errors()}, status_code=422)
     except exceptions.LocalChatException as exc:
         logger.warning("[CHAT API] LocalChat error: %s", exc)
-        return JSONResponse({"success": False, "message": str(exc)}, status_code=500)
+        return JSONResponse({"success": False, "message": exc.message}, status_code=500)
     except Exception:
         logger.exception("[CHAT API] Unexpected error")
         return JSONResponse({"success": False, "message": "An unexpected error occurred during chat"}, status_code=500)

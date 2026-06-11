@@ -108,8 +108,8 @@ def export_conversation(conversation_id: str, request: Request, format: str = "j
             media_type=_mime[fmt],
             headers={"Content-Disposition": f'attachment; filename="conversation-{conversation_id}.{fmt}"'},
         )
-    except ImportError as ie:
-        return JSONResponse({"error": str(ie)}, status_code=501)
+    except ImportError:
+        return JSONResponse({"error": "Export format not available"}, status_code=501)
     except Exception:
         logger.exception("[Export] %s export failed", fmt)
         return JSONResponse({"error": "Export failed"}, status_code=500)

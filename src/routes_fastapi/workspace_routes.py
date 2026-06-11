@@ -209,7 +209,8 @@ def remove_workspace_member(workspace_id: str, user_id: str, request: Request) -
             return JSONResponse({"success": False, "message": "Member not found"}, status_code=404)
         return {"success": True}
     except ValueError as ve:
-        return JSONResponse({"success": False, "message": str(ve)}, status_code=409)
+        logger.warning("[Workspaces] remove member constraint: %s", ve)
+        return JSONResponse({"success": False, "message": "Cannot remove the last owner of a workspace"}, status_code=409)
     except Exception:
         logger.exception("[Workspaces] remove member error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
