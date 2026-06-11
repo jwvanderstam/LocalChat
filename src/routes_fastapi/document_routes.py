@@ -79,8 +79,9 @@ def _stream_file_ingest(app_state: Any, file_path: str, workspace_id: str | None
                 workspace_id=workspace_id,
             )
             result_container.update({"success": s, "message": m, "doc_id": d})
-        except Exception as exc:
-            result_container.update({"success": False, "message": str(exc), "doc_id": None})
+        except Exception:
+            logger.exception("Ingest thread failed")
+            result_container.update({"success": False, "message": "Document processing failed", "doc_id": None})
         finally:
             progress_queue.put(("done", None))
 

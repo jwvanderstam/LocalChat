@@ -109,6 +109,7 @@ def export_conversation(conversation_id: str, request: Request, format: str = "j
             headers={"Content-Disposition": f'attachment; filename="conversation-{conversation_id}.{fmt}"'},
         )
     except ImportError:
+        logger.warning("[Export] optional dependency not installed for format: %s", fmt)
         return JSONResponse({"error": "Export format not available"}, status_code=501)
     except Exception:
         logger.exception("[Export] %s export failed", fmt)

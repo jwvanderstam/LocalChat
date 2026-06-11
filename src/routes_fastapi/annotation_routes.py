@@ -34,7 +34,8 @@ async def create_annotation(request: Request) -> Any:
             chunk_id=chunk_id, text=text, user_id=user_id, conversation_id=conversation_id,
         )
         return JSONResponse({"success": True, "id": annotation_id}, status_code=201)
-    except ValueError:
+    except ValueError as ve:
+        logger.warning("[Annotations] validation error: %s", ve)
         return JSONResponse({"success": False, "message": "Annotation text must not be empty"}, status_code=400)
     except Exception:
         logger.exception("[Annotations] create error")
