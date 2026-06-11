@@ -1,6 +1,6 @@
 # Web Framework — FastAPI (ASGI)
 fastapi>=0.136.3
-uvicorn[standard]>=0.48.0
+uvicorn[standard]>=0.49.0
 httpx>=0.28.1          # FastAPI TestClient + async HTTP
 
 # Flask — kept during migration; remove once all routes are ported
