@@ -48,7 +48,7 @@ h11>=0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request 
 spacy>=3.8.14      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
-cryptography>=48.0.0
+cryptography>=49.0.0
 # Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
 sentence-transformers>=5.5.1
 # Optional: Microsoft Graph API auth helper
