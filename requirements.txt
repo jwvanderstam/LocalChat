@@ -32,7 +32,7 @@ pydantic>=2.12.5  # Cannot bump past 2.12.5 until litellm drops its pydantic==2.
 email-validator==2.3.0
 
 # Document Processing
-pypdf>=6.13.0
+pypdf>=6.13.2
 pdfplumber==0.11.9  # Enhanced PDF extraction with table support
 pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this version
 pymupdf4llm>=1.27.2.3    # Layout-aware PDF extraction for column-heavy documents (optional)
