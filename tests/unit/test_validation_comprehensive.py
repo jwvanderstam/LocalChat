@@ -1,6 +1,5 @@
 """
-Comprehensive Validation Tests - Week 3 Day 2
-=============================================
+Comprehensive validation tests.
 
 Tests the Pydantic validation models from src/models.py.
 Target: 15+ tests, high coverage on models.py

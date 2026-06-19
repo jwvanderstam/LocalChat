@@ -2,7 +2,7 @@
 Document Re-ingestion Dedup Tests
 ==================================
 
-Unit tests for Phase 4.5: duplicate detection via SHA-256 file hash.
+Unit tests for duplicate detection via SHA-256 file hash.
 
 Scenarios tested:
 - New document (no prior record) → ingested normally

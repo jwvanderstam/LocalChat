@@ -1,6 +1,5 @@
 """
-Comprehensive Ollama Client Tests - Week 2 Day 3
-=================================================
+Comprehensive Ollama client tests.
 
 Tests the actual OllamaClient class from src/ollama_client.py with proper HTTP mocking.
 Target: 30+ tests, 90%+ coverage on ollama_client.py

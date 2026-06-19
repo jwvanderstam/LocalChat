@@ -112,6 +112,25 @@ Hard-deleting a CDI while other data still holds its ID breaks IVPs — citation
 
 ---
 
+## Plugin Contract: Inward-Only Dependencies
+
+LocalChat supports plugins (LLM tools, connectors, background work) that extend the application without modifying it. The core rule mirrors Clark-Wilson, applied to module boundaries instead of data: **a plugin may consume core capabilities; it may never define them.** Dependencies point inward only — the core knows nothing named after any plugin.
+
+**The rule: the core owns the catalogue, plugins consume it**
+
+- The core publishes a stable catalogue of **services** (retrieval, LLM, scoped storage, config, identity) that plugins request by name, and **hooks** (document ingested, scheduler tick, tool invocation, route mount) that plugins subscribe to.
+- A plugin declares a manifest (scope, minimum role, hooks, config keys) and is wired up by the core. Everything it does flows through requested services and subscribed hooks. Nothing flows the other way.
+- No core table holds a foreign key into a plugin table. No core module imports a plugin module. No core test depends on a plugin being present.
+- When a plugin needs something the core does not expose, add a **general** capability to the catalogue — named for what it does, not for who asked. Test: *would this capability be reasonable if the requesting plugin vanished?* If not, it is a leak.
+
+**The IVP: the plugin-absent CI gate**
+
+A CI job verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core. This gate is the enforcing procedure.
+
+Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
+
+---
+
 ## Quality Gates
 
 Run both before every commit. Both must be clean.
