@@ -269,7 +269,7 @@ def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> A
             "chunks": [{"chunk_text": text, "chunk_index": idx} for text, idx in adjacent],
         }
     except Exception:
-        logger.exception("Error fetching chunk context for chunk %d", chunk_id)
+        logger.exception("Error fetching chunk context")
         return JSONResponse({"success": False, "message": "Failed to fetch chunk context"}, status_code=500)
 
 
