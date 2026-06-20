@@ -37,11 +37,11 @@ The originally-flagged "shabby commit messages" concern did not survive inspecti
 
 ---
 
-### HK-3 — Config consolidation ⬜
+### HK-3 — Config consolidation ✅ (done, committed)
 
-Adopt `pyproject.toml` as the single source for tool configuration (ruff, pytest, coverage, project metadata), absorbing the standalone `ruff.toml` and `pytest.ini`. Leave `sonar-project.properties` (external tool) as-is. Decide dependencies: PEP 621 in `pyproject.toml` **or** `requirements.txt`, not split across both.
+`ruff.toml` and `pytest.ini` absorbed into `pyproject.toml` (`[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]`). `sonar-project.properties` left at root (SonarCloud expects it there). Dependencies remain in `requirements.txt`; PEP 621 metadata deferred — adding it would require a full package restructure with no current benefit.
 
-**Acceptance:** a fresh clone + install + `pytest -m "not (slow or ollama or db)"` succeeds using only the consolidated config.
+Doc files moved to `docs/`: `MIGRATIONS.md`, `INTEGRATION_TESTS.md`, `ROADMAP.md`. Root now holds only entrypoints, tooling config, and container/infra files.
 
 ---
 
@@ -98,7 +98,7 @@ This is the integrity-verification procedure for cleanliness and for single-fram
 
 **Out of scope:** rewriting `main` history; module renames or code moves (refactoring, kept in separate diffs).
 
-**Files across HK:** `.gitignore` ✅, `.env.example` ✅, `.claude/rules/*` (✅ plugins/python; ⬜ architecture/testing/file-map), `CLAUDE.md` (✅ plugin section; ⬜ flask refs), `mcp_servers/*` ✅, `docker-compose.yml` ✅, `src/monitoring.py` + `src/utils/*` ⬜, `requirements.txt` ⬜, `templates/overview.html` ⬜, `docs/DEPLOYMENT.md` ⬜, new `pyproject.toml` ⬜, `.github/workflows/` ⬜.
+**Files across HK:** `.gitignore` ✅, `.env.example` ✅, `.claude/rules/*` (✅ plugins/python; ⬜ architecture/testing/file-map), `CLAUDE.md` (✅ plugin section; ⬜ flask refs), `mcp_servers/*` ✅, `docker-compose.yml` ✅, `src/monitoring.py` + `src/utils/*` ⬜, `requirements.txt` ⬜, `templates/overview.html` ⬜, `docs/DEPLOYMENT.md` ⬜, new `pyproject.toml` ✅, `.github/workflows/` ⬜.
 
 ---
 

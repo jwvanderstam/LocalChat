@@ -109,6 +109,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request |
 | **Infra / Config** | |
+| `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
 | `helm/localchat/` | Full Helm chart: app + PostgreSQL + Redis StatefulSets + MCP Deployments |
 | `docs/DEPLOYMENT.md` | Helm install/upgrade/rollback guide, secrets management |
