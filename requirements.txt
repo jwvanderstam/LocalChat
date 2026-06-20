@@ -33,8 +33,8 @@ email-validator==2.3.0
 
 # Document Processing
 pypdf>=6.13.2
-pdfplumber==0.11.9  # Enhanced PDF extraction with table support
-pdfminer.six==20251230  # Pinned: pdfplumber 0.11.9 requires exactly this version
+pdfplumber==0.11.10  # Enhanced PDF extraction with table support
+pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
 pymupdf4llm>=1.27.2.3    # Layout-aware PDF extraction for column-heavy documents (optional)
 langdetect>=1.0.9      # Language detection for multilingual document support
 python-docx==1.2.0
