@@ -62,7 +62,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0002_early_additive_columns.py` | Adds conversations/documents/messages early columns |
 | `migrations/versions/0003_workspace_columns.py` | Adds workspace_id FK to documents, conversations, memories, answer_feedback |
 | `migrations/versions/0004_documents_language_ingest_source.py` | Adds documents.language, last_ingested_at, source_id |
-| `MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
+| `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
 | **Agent** | |
 | `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); <1 ms |
 | `src/agent/aggregator.py` | `AggregatorAgent` — parallel tool dispatch, retry, dedup |
@@ -109,6 +109,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request |
 | **Infra / Config** | |
+| `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
 | `helm/localchat/` | Full Helm chart: app + PostgreSQL + Redis StatefulSets + MCP Deployments |
 | `docs/DEPLOYMENT.md` | Helm install/upgrade/rollback guide, secrets management |
@@ -117,7 +118,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
 | `.github/workflows/tests.yml` | CI: `unit-tests` (ruff + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) |
-| `INTEGRATION_TESTS.md` | How to run integration tests locally and CI setup instructions |
+| `docs/INTEGRATION_TESTS.md` | How to run integration tests locally and CI setup instructions |
 | `docker-compose.nginx.yml` | Nginx TLS overlay — compose with `docker-compose.yml` to add HTTPS termination |
 | `nginx/nginx.conf` | Nginx config template — replace `YOUR_DOMAIN` and mount certs before use |
 | `tests/e2e/test_smoke.py` | Playwright smoke tests (`@pytest.mark.e2e`); require a live server + `pytest-playwright` |

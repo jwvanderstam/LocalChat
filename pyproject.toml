@@ -1,0 +1,87 @@
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",    # line-too-long — enforced by reviewer judgment, not tooling
+    "E402",    # module-import-not-at-top — intentional in several modules
+    "F401",    # unused-import — many re-exports throughout the codebase
+    "F811",    # redefined-while-unused — conditional import pattern (TYPE_CHECKING guards)
+    "SIM105",  # suppressible-exception — explicit `except/pass` is intentional in places
+    "SIM117",  # multiple-with-statements — readability preference; nested is clearer here
+    "B017",    # assert-raises-exception — 4 remaining in tests; intentional broad catches
+    "B023",    # function-uses-loop-variable — deferred
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # allow assert in tests
+
+[tool.pytest.ini_options]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+testpaths = ["tests"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=.",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (slower, require services)",
+    "slow: Slow tests (> 1 second)",
+    "db: Tests requiring database",
+    "ollama: Tests requiring Ollama service",
+    "rag: Tests for RAG functionality",
+    "api: Tests for API endpoints",
+    "validation: Tests for input validation",
+    "sanitization: Tests for input sanitization",
+    "exceptions: Tests for exception classes",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["."]
+relative_files = true
+omit = [
+    "*/tests/*",
+    "*/venv/*",
+    "*/env/*",
+    "*/.venv/*",
+    "*/site-packages/*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "setup.py",
+    "test_*.py",
+    "conftest.py",
+]
+
+[tool.coverage.report]
+precision = 2
+relative_files = true
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
