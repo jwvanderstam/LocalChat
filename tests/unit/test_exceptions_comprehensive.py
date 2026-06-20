@@ -1,6 +1,5 @@
 """
-Comprehensive Exception Tests - Week 3 Day 1
-============================================
+Comprehensive exception tests.
 
 Tests the custom exception classes from src/exceptions.py.
 Target: 15+ tests, 100% coverage on exceptions.py

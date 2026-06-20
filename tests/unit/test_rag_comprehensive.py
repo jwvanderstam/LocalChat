@@ -1,6 +1,5 @@
 """
-Comprehensive RAG Module Tests - Week 2 Day 4-5
-===============================================
+Comprehensive RAG module tests.
 
 Tests the DocumentProcessor class from src/rag.py with proper file I/O and embedding mocking.
 Target: 35+ tests, 85%+ coverage on rag.py

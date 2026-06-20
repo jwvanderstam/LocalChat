@@ -36,8 +36,11 @@ env/
 *.swp
 *.swo
 
-# Claude Code local config
-.claude/
+# Claude Code: track shared rules, ignore local/transient state
+.claude/*
+!.claude/rules/
+.claude/worktrees/
+.claude/settings.local.json
 
 # Environment
 .env
