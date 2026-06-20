@@ -248,16 +248,15 @@ flowchart TD
 
 ## Documentation
 
-All documentation lives in-code with comprehensive docstrings and type hints.
-
-### Additional Docs
-
 | Document | Purpose |
 |----------|---------|
-| [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema, ER diagram, index rationale |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Helm install/upgrade/rollback, secrets management |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore, and maintenance procedures |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Evolution roadmap and completion status |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema, ER diagram, index rationale |
+| [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | How to apply, write, and roll back Alembic migrations |
+| [docs/INTEGRATION_TESTS.md](docs/INTEGRATION_TESTS.md) | Running integration tests locally and in CI |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | v3.0 initiative plan and sprint schedule |
 
 ### Key Entry Points
 - **[`app.py`](app.py)** — Application entry point; `create_uvicorn_app()` for production
@@ -282,7 +281,18 @@ All documentation lives in-code with comprehensive docstrings and type hints.
 LocalChat/
 ├── app.py                          # Entry point; create_uvicorn_app() for prod
 ├── requirements.txt
+├── pyproject.toml                  # Tool config: ruff, pytest, coverage
+├── alembic.ini                     # Alembic migration runner config
 ├── .env.example                    # Environment variable template
+├── docs/
+│   ├── DEPLOYMENT.md               # Helm install/upgrade/rollback
+│   ├── OPERATIONS.md               # Backup, restore, maintenance
+│   ├── SCHEMA.md                   # DB schema and ER diagram
+│   ├── MIGRATIONS.md               # Alembic migration guide
+│   ├── INTEGRATION_TESTS.md        # Integration test setup
+│   ├── TROUBLESHOOTING.md          # Common issues and fixes
+│   ├── ROADMAP.md                  # v3.0 initiative plan
+│   └── grafana-dashboard.json      # Importable Grafana dashboard
 ├── src/
 │   ├── app_fastapi.py              # FastAPI application factory
 │   ├── app_bootstrap.py            # All startup I/O (DB, Ollama, connectors)
@@ -797,43 +807,9 @@ See [GitHub Releases](https://github.com/jwvanderstam/LocalChat/releases) for ve
 
 ---
 
----
-
-
 ## Troubleshooting
 
-### Common Issues
-
-**Issue**: RAG not retrieving documents
-```bash
-# Check if documents are uploaded
-curl http://localhost:5000/api/documents/stats
-
-# Test retrieval
-curl -X POST http://localhost:5000/api/documents/test \
-  -H "Content-Type: application/json" \
-  -d '{"query": "test"}'
-```
-
-**Issue**: Ollama connection failed
-```bash
-# Check Ollama is running
-curl http://localhost:11434/api/tags
-
-# Restart Ollama
-ollama serve
-```
-
-**Issue**: Database connection error
-```bash
-# Check PostgreSQL is running
-pg_isready
-
-# Check pgvector extension
-psql rag_db -c "SELECT * FROM pg_extension WHERE extname='vector';"
-```
-
-See [`src/config.py`](src/config.py) for database and connection pool settings.
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for common issues and fixes.
 
 ---
 
@@ -863,12 +839,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Roadmap
 
-- [x] Docker deployment & Kubernetes configs
-- [x] Monitoring dashboard
-- [x] Advanced RAG techniques (query expansion, multi-hop)
-- [x] Multi-language support
-- [x] Plugin system
-- [x] Admin dashboard
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the v3.0 initiative plan and sprint schedule.
 
 ---
 
