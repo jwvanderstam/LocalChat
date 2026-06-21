@@ -9,11 +9,11 @@ The guiding constraint across all of them: **the core stays stable and clean.** 
 
 ---
 
-## Initiative 1 — Repository Hygiene and Single-Framework Consolidation
+## Initiative 1 — Repository Hygiene and Web-Stack Coherence
 
 Make the repository clean, professional, and free of migration-era remnants, and finish consolidating onto a single web framework (FastAPI). Sequenced first: one fix (the `.claude/` ignore rule) blocks the Plugin Contract initiative, and clearing the ground keeps every later diff reviewable.
 
-> **Status legend:** ✅ done this session · 🔬 needs investigation before acting · ⬜ not started. Items marked done are committed on working branches (`chore/repo-hygiene`, `refactor/mcp-servers-fastapi`) pending PR.
+> **Status legend:** ✅ done this session · 🔬 needs investigation before acting · ⬜ not started. Items marked ✅ are merged to `main`.
 
 ---
 
@@ -45,7 +45,9 @@ Doc files moved to `docs/`: `MIGRATIONS.md`, `INTEGRATION_TESTS.md`, `ROADMAP.md
 
 ---
 
-### HK-4 — Single-framework consolidation: eliminate Flask ⬜ 🔬
+### HK-4 — Single-framework consolidation: eliminate Flask ✅ (done, merged #105)
+
+> **Outcome:** Flask removed from all of `src/` and `requirements.txt`. The dead `init_monitoring`/`init_request_id` were not blindly deleted — metrics and request-id were **ported** to FastAPI middleware (`MetricsMiddleware`, `RequestIdMiddleware`), filling the observability gap the migration had left. MCP servers already on FastAPI from the earlier port.
 
 The dual-stack migration (Flask → FastAPI) stalled mid-way. The goal is one framework. Progress and remaining work:
 
@@ -73,7 +75,7 @@ This means the choice per capability is **port-or-delete, decided by evidence**:
 
 ---
 
-### HK-5 — Documentation rot: sync rules and overview with FastAPI reality ⬜
+### HK-5 — Documentation rot: sync rules and overview with FastAPI reality ✅ (done, merged #105)
 
 The dual-stack migration left several docs describing the old Flask structure (`src/routes/`, `src/app_factory.py` — both gone):
 - `.claude/rules/architecture.md` — describes Flask blueprints, `app_factory.py`, Flask SSE. Rewrite to the real structure: `src/routes_fastapi/` router-per-domain, `create_app()` in `app_fastapi.py` + `bootstrap_app()` in `app_bootstrap.py`, and the subsystems the current doc omits entirely (`agent/`, `graph/`, `memory/`, `performance/`). **Held back from the hygiene commit deliberately** — these are authoritative house rules and need your review, not a silent rewrite.
@@ -86,7 +88,7 @@ Sequence HK-5 **after** HK-4 so the docs describe the post-consolidation reality
 
 ---
 
-### HK-6 — Regression guard (the hygiene IVP) ⬜
+### HK-6 — Regression guard (the hygiene IVP) ✅ (done, merged #105)
 
 A `repo-hygiene` CI job, required on every PR to `main`, failing on:
 - tracked files matching `.gitignore` patterns (artefacts that slipped in),
@@ -99,6 +101,58 @@ This is the integrity-verification procedure for cleanliness and for single-fram
 **Out of scope:** rewriting `main` history; module renames or code moves (refactoring, kept in separate diffs).
 
 **Files across HK:** `.gitignore` ✅, `.env.example` ✅, `.claude/rules/*` (✅ plugins/python; ⬜ architecture/testing/file-map), `CLAUDE.md` (✅ plugin section; ⬜ flask refs), `mcp_servers/*` ✅, `docker-compose.yml` ✅, `src/monitoring.py` + `src/utils/*` ⬜, `requirements.txt` ⬜, `templates/overview.html` ⬜, `docs/DEPLOYMENT.md` ⬜, new `pyproject.toml` ✅, `.github/workflows/` ⬜.
+
+---
+
+### Web-stack coherence: sync/async (HK-7 to HK-10)
+
+Eliminating Flask (HK-4 ✅) gave one framework; it did not make the async/sync boundary coherent. FastAPI is async, but the two heaviest I/O paths are still sync (`psycopg`, `requests`), and handlers split ~32 async / ~66 sync by accident, not design. These tickets make the boundary deliberate and lay the cheap foundations that keep a future scale-up (sovereign RAG platform, many concurrent users) from becoming a codebase-wide rewrite.
+
+**Framing — foundation, not premature optimisation.** The decision rule is *foundation or blockade at scale*, not *does it block measurably today*. A load test on a single GPU would mislead: the VRAM budget (MM-1) saturates after 1-2 concurrent generations, so the event-loop never becomes the visible bottleneck locally. That result would say "async doesn't matter" — true today, false the moment inference runs on shared/remote infrastructure. Measurement informs priority; it does not gate the work.
+
+> **Sequencing within Initiative 1:** HK-4 (remove Flask) is done. HK-7, HK-8, HK-9 are cheap and act on the remaining FastAPI stack; HK-10 is deferred behind an explicit scale trigger.
+
+---
+
+### HK-7 — Seal the data-access boundary ⬜ (cheap; highest leverage)
+
+The real insurance against async's contagion. Async is "colour": making the DB async forces every caller up the stack to become async too, and that call-graph **grows with the codebase** — so deferring the conversion makes it *more* expensive over time, not less. The fix is not "go async now" but to ensure all DB access already flows through the `db/` layer, so the async choice lives behind one boundary instead of every call-site.
+
+- Audit: confirm route handlers and RAG code touch the DB **only** via `db/` mixins — no stray `connection` calls outside the layer. *(Unverified: the `db/` mixins exist, but whether the boundary is leak-free is not yet confirmed — this audit may be a small cleanup or real work.)*
+- Close any leaks so the data-access interface is the single chokepoint.
+- Sync, low-risk, valuable on its own (testability, readability). Decouples the *cost* of a future async migration from its *timing*. Same inward-only discipline as the plugin contract.
+- **Acceptance:** no DB access bypasses the `db/` layer; documented as a rule in `.claude/rules/`.
+
+---
+
+### HK-8 — Port the Ollama client to async ⬜ (cheap; high scale-value)
+
+Verified still sync (`requests.Session` in `src/ollama_client.py`). Inference is the longest wait, so it's where blocking costs most once inference is off the local GPU. The client is isolated, so the port is cheap.
+
+- `requests.Session` -> `httpx.AsyncClient`; client methods become `async def`; keep connection pooling and the streaming path.
+- **Acceptance:** concurrent chat requests don't serialise on inference under a multi-request load; streaming unchanged; tests green.
+
+---
+
+### HK-9 — Make the handler boundary intentional ⬜ (cheap)
+
+Stop the accidental async/sync split.
+
+- Rule: handlers touching only sync work are declared `sync def` (FastAPI threadpools them safely). `async def` is reserved for genuinely async paths (streaming SSE; HK-8's client).
+- Audit the async handlers for direct blocking calls — convert to `sync def` or wrap in `run_in_threadpool`.
+- **Acceptance:** no `async def` handler makes a direct blocking call; rule documented in `.claude/rules/`.
+
+---
+
+### HK-10 — Database async ⬜ 🔬 (deferred; scale-triggered; largest/riskiest)
+
+Explicitly **not now**. Verified still sync (`psycopg` + `ConnectionPool`). Because HK-7 seals the boundary, this becomes a one-layer change whenever it triggers — regardless of how much the app has grown.
+
+- **Trigger (not a date):** real multi-user adoption **and** inference running off the local GPU, so the event-loop becomes the actual bottleneck. *Make this concrete before relying on it — e.g. "more than N concurrent users" or "inference moved to separate infra" — or it becomes a wish that never fires.*
+- `psycopg` async mode (`AsyncConnection`/`AsyncConnectionPool`) or evaluate `asyncpg`; convert the hot read path (retrieval, chat) only — admin/CRUD stays sync.
+- **Acceptance:** retrieval no longer blocks the event-loop under load; tests green.
+
+**Out of scope:** blanket "everything async" (rejected — async added only where it earns its place); `ThreadPoolExecutor` fan-out and streaming SSE (already correct, untouched).
 
 ---
 
@@ -455,8 +509,8 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 
 | Sprint | Tickets | Est. duration |
 |---|---|---|
-| 1 | HK-1 ✅ + HK-2 ✅ done; HK-3 (config consolidation) + HK-6 (CI guard) | 1 week |
-| 1b | HK-4 (eliminate Flask → one framework; MCP port ✅ done) + HK-5 (doc sync) | 1 week |
+| 1 | HK-1..HK-6 ✅ done & merged (#105): hygiene, config consolidation, Flask eliminated, docs synced, CI gate | — |
+| 1b | HK-7 (seal data-access boundary) + HK-8 (Ollama async) + HK-9 (handler boundary) | 1 week |
 | 2 | CW-1 (document soft-delete pilot) | 1 week |
 | 3 | CW-2a + CW-2b (conversations, users) | 1 week |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) | 1 week |
