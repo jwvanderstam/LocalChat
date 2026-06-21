@@ -101,7 +101,7 @@ jobs:
 
       - name: No tracked files matching .gitignore
         run: |
-          tracked=$(git ls-files --ignored --exclude-standard)
+          tracked=$(git ls-files --ignored --cached --exclude-standard)
           if [ -n "$tracked" ]; then
             echo "::error::These tracked files match .gitignore patterns:"
             echo "$tracked"
