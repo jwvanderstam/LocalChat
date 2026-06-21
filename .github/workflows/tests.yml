@@ -82,3 +82,48 @@ jobs:
 
       - name: Run integration tests
         run: pytest tests/integration/ -m "not ollama" -v --tb=short
+
+  repo-hygiene:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        with:
+          fetch-depth: 0  # needed for commit-message range check
+
+      - name: No Flask imports in src/
+        run: |
+          if git grep -El "import flask|from flask" -- src/ 2>/dev/null; then
+            echo "::error::Flask imports found in src/ — all application code must use FastAPI"
+            exit 1
+          fi
+          echo "OK: no Flask imports in src/"
+
+      - name: No tracked files matching .gitignore
+        run: |
+          tracked=$(git ls-files --ignored --exclude-standard)
+          if [ -n "$tracked" ]; then
+            echo "::error::These tracked files match .gitignore patterns:"
+            echo "$tracked"
+            exit 1
+          fi
+          echo "OK: no tracked files in .gitignore"
+
+      - name: No disallowed files
+        run: |
+          bad=$(git ls-files | grep -E '(\.DS_Store|Thumbs\.db|\.bak$|\.swp$)' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Disallowed files found:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "OK: no disallowed files"
+
+      - name: Conventional Commits check (warning only)
+        if: github.event_name == 'pull_request'
+        run: |
+          git log --format="%s" "origin/${{ github.base_ref }}..HEAD" | while read -r msg; do
+            if [ -n "$msg" ] && ! echo "$msg" | grep -qE '^(feat|fix|docs|chore|refactor|test|style|ci|perf|build)(\(.+\))?(!)?:'; then
+              echo "::warning::Commit does not match Conventional Commits: $msg"
+            fi
+          done

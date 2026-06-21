@@ -204,13 +204,4 @@ def mock_ollama(monkeypatch):
 
     mock_client = MagicMock()
     mock_client.generate_chat_response.return_value = iter(['Test response'])
-
-    # Mock at app level
-    def mock_get_current_app():
-        from flask import Flask
-        app = Flask(__name__)
-        app.state.ollama_client = mock_client
-        return app
-
-    # This is a simplified mock
     return mock_client

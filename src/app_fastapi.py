@@ -70,6 +70,11 @@ def create_app(config_override: dict[str, Any] | None = None) -> FastAPI:
     # ── Security ───────────────────────────────────────────────────────────
     _init_security(app, testing)
 
+    # ── Observability middlewares ───────────────────────────────────────────
+    # Added after _init_security so they wrap _log_requests.
+    # Last added = outermost: MetricsMiddleware → RequestIdMiddleware → _log_requests → routes
+    _init_middlewares(app)
+
     # ── Routes ─────────────────────────────────────────────────────────────
     _register_routers(app)
 
@@ -83,6 +88,15 @@ def create_app(config_override: dict[str, Any] | None = None) -> FastAPI:
 
     logger.info("FastAPI application created (testing=%s)", testing)
     return app
+
+
+def _init_middlewares(app: FastAPI) -> None:
+    from .monitoring import MetricsMiddleware
+    from .utils.request_id import RequestIdMiddleware
+
+    app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(MetricsMiddleware)
+    logger.info("Observability middlewares registered")
 
 
 def _init_security(app: FastAPI, testing: bool) -> None:

@@ -120,7 +120,7 @@ Required secret keys:
 |-----|---------|
 | `POSTGRES_PASSWORD` | PostgreSQL password |
 | `REDIS_PASSWORD` | Redis password (optional) |
-| `SECRET_KEY` | Flask session signing key |
+| `SECRET_KEY` | JWT signing key |
 | `ADMIN_PASSWORD` | Initial admin user password |
 | `TOKEN_ENCRYPTION_KEY` | Fernet key for OAuth token encryption (base64url, 32 bytes) |
 | `MICROSOFT_CLIENT_ID` | Azure AD app client ID (SharePoint/OneDrive) |

@@ -11,8 +11,8 @@ Exposes tools:
 Run standalone:
     python -m mcp_servers.cloud_connectors [--port 5003]
 
-Run via gunicorn:
-    gunicorn "mcp_servers.cloud_connectors.server:flask_app" --bind 0.0.0.0:5003
+Run via uvicorn:
+    uvicorn "mcp_servers.cloud_connectors.server:app" --host 0.0.0.0 --port 5003
 """
 
 import argparse
@@ -86,7 +86,7 @@ _server.register_tool(
     handler=list_sources,
 )
 
-flask_app = _server.get_wsgi_app()
+app = _server.get_asgi_app()
 
 
 # ---------------------------------------------------------------------------

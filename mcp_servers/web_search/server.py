@@ -13,8 +13,8 @@ Exposes tools:
 Run standalone:
     python -m mcp_servers.web_search [--port 5002]
 
-Run via gunicorn:
-    gunicorn "mcp_servers.web_search.server:flask_app" --bind 0.0.0.0:5002
+Run via uvicorn:
+    uvicorn "mcp_servers.web_search.server:app" --host 0.0.0.0 --port 5002
 """
 
 import argparse
@@ -94,7 +94,7 @@ _server.register_tool(
     handler=list_sources,
 )
 
-flask_app = _server.get_wsgi_app()
+app = _server.get_asgi_app()
 
 
 # ---------------------------------------------------------------------------

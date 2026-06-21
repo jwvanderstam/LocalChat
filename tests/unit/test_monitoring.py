@@ -1,46 +1,64 @@
 
-"""
-Monitoring Tests
-================
-
-Tests for monitoring and metrics (src/monitoring.py)
-
-Target: Increase coverage from 59% to 75% (+1.5% overall)
-
-Covers:
-- MetricsCollector
-- Request timing middleware
-- Health checks
-- Performance tracking
-
-Author: LocalChat Team
-Created: January 2025
-"""
+"""Tests for monitoring and metrics (src/monitoring.py)."""
 
 from time import sleep
 
 import pytest
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def monitoring_app():
-    """Minimal Flask app with monitoring routes registered."""
-    from flask import Flask
+    """Minimal FastAPI app with MetricsMiddleware and monitoring endpoints."""
+    from fastapi import Request
 
-    from src.monitoring import init_monitoring
+    from src.monitoring import (
+        MetricsMiddleware,
+        _check_metrics_auth,
+        _compute_health_status,
+        export_prometheus_metrics,
+        get_metrics,
+    )
 
-    app = Flask('monitoring_test')
-    app.config['TESTING'] = True
-    app.startup_status = {'database': True, 'ollama': True}  # type: ignore[misc]
-    app.embedding_cache = None  # type: ignore[misc]
-    init_monitoring(app)
+    app = FastAPI()
+    app.add_middleware(MetricsMiddleware)
+    app.state.startup_status = {"database": True, "ollama": True}
+    app.state.embedding_cache = None
+
+    @app.get("/api/health")
+    def health(request: Request) -> JSONResponse:
+        status, code, checks = _compute_health_status(request.app.state)
+        from datetime import datetime
+        return JSONResponse(
+            {"status": status, "checks": checks, "timestamp": datetime.now().isoformat()},
+            status_code=code,
+        )
+
+    @app.get("/api/metrics")
+    def metrics(request: Request):
+        if not _check_metrics_auth(request):
+            return Response("Forbidden", status_code=403,
+                            headers={"WWW-Authenticate": 'Bearer realm="metrics"'})
+        return PlainTextResponse(
+            export_prometheus_metrics(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
+    @app.get("/api/metrics.json")
+    def metrics_json(request: Request):
+        if not _check_metrics_auth(request):
+            return JSONResponse({"error": "Forbidden"}, status_code=403)
+        return get_metrics().get_metrics()
+
     return app
 
 
 @pytest.fixture
 def monitoring_client(monitoring_app):
-    """Test client for the monitoring-enabled app."""
-    return monitoring_app.test_client()
+    """FastAPI TestClient for the monitoring app."""
+    return TestClient(monitoring_app)
 
 
 
@@ -204,14 +222,14 @@ class TestGlobalMetrics:
 class TestRequestTiming:
     """Test request timing middleware."""
 
-    def test_request_timing_middleware_exists(self):
-        """Test request timing middleware can be created."""
-        from src.monitoring import RequestTimingMiddleware
+    def test_metrics_middleware_exists(self):
+        """MetricsMiddleware class is importable."""
+        from src.monitoring import MetricsMiddleware
 
-        assert RequestTimingMiddleware is not None
+        assert MetricsMiddleware is not None
 
     def test_timing_middleware_measures_duration(self, app, client):
-        """Test middleware measures request duration."""
+        """MetricsMiddleware adds X-Request-Duration header to responses."""
         response = client.get('/api/docs/')
         assert response.status_code in [200, 404]
 
@@ -268,17 +286,13 @@ class TestPerformanceTracking:
 class TestMonitoringInitialization:
     """Test monitoring initialization."""
 
-    def test_monitoring_can_be_initialized(self):
-        """Test monitoring module can be initialized."""
-        try:
-            from src.monitoring import init_monitoring
-            assert init_monitoring is not None
-        except ImportError:
-            pass  # init_monitoring may not be present in all configurations
+    def test_metrics_middleware_importable(self):
+        """MetricsMiddleware is importable from src.monitoring."""
+        from src.monitoring import MetricsMiddleware
+        assert MetricsMiddleware is not None
 
-    def test_monitoring_with_flask_app(self, app):
-        """Test monitoring can be used with Flask app."""
-        # Should be able to attach to app
+    def test_monitoring_with_app(self, app):
+        """FastAPI app can be created."""
         assert app is not None
 
 
@@ -442,43 +456,31 @@ class TestTimedSlowOperation:
         mock_logger.warning.assert_not_called()
 
 
-class TestRequestTimingMiddlewareUnit:
-    """Unit tests for RequestTimingMiddleware constructor and hook registration."""
+class TestMetricsMiddlewareUnit:
+    """Unit tests for MetricsMiddleware."""
 
-    def test_registers_before_and_after_hooks(self):
-        """__init__ registers one before_request and one after_request hook."""
-        from flask import Flask
+    def test_adds_timing_header(self, monitoring_client):
+        """MetricsMiddleware adds X-Request-Duration header to every response."""
+        response = monitoring_client.get("/api/health")
+        assert "X-Request-Duration" in response.headers
 
-        from src.monitoring import RequestTimingMiddleware
+    def test_increments_request_counter(self, monitoring_client):
+        """MetricsMiddleware increments http_requests_total for each request."""
+        from src.monitoring import get_metrics
 
-        test_app = Flask('timing_unit_test')
-        before_count = len(test_app.before_request_funcs.get(None, []))
-        after_count = len(test_app.after_request_funcs.get(None, []))
+        get_metrics().reset()
+        monitoring_client.get("/api/health")
+        counters = get_metrics().get_metrics()["counters"]
+        assert any("http_requests_total" in k for k in counters)
 
-        RequestTimingMiddleware(test_app)
+    def test_records_request_duration(self, monitoring_client):
+        """MetricsMiddleware records http_request_duration_seconds."""
+        from src.monitoring import get_metrics
 
-        assert len(test_app.before_request_funcs.get(None, [])) == before_count + 1
-        assert len(test_app.after_request_funcs.get(None, [])) == after_count + 1
-
-    def test_after_request_safe_without_start_time(self):
-        """after_request returns the response unchanged when g.start_time is absent."""
-        from unittest.mock import Mock
-
-        from flask import Flask
-
-        from src.monitoring import RequestTimingMiddleware
-
-        test_app = Flask('timing_no_start')
-        mw = RequestTimingMiddleware(test_app)
-
-        fake_response = Mock()
-        fake_response.status_code = 200
-        fake_response.headers = {}
-
-        with test_app.test_request_context('/'):
-            result = mw.after_request(fake_response)
-
-        assert result is fake_response
+        get_metrics().reset()
+        monitoring_client.get("/api/health")
+        histograms = get_metrics().get_metrics()["histograms"]
+        assert any("http_request_duration_seconds" in k for k in histograms)
 
 
 class TestMetricsEndpoints:
@@ -490,12 +492,12 @@ class TestMetricsEndpoints:
 
     def test_metrics_prometheus_content_type(self, monitoring_client):
         """Prometheus endpoint returns text/plain."""
-        assert 'text/plain' in monitoring_client.get('/api/metrics').content_type
+        assert 'text/plain' in monitoring_client.get('/api/metrics').headers['content-type']
 
     def test_metrics_prometheus_has_type_declarations(self, monitoring_client):
         """Prometheus output contains at least one # TYPE line."""
         monitoring_client.get('/api/health')  # generate a metric
-        assert b'# TYPE' in monitoring_client.get('/api/metrics').data
+        assert b'# TYPE' in monitoring_client.get('/api/metrics').content
 
     def test_metrics_json_returns_200(self, monitoring_client):
         """JSON metrics endpoint is reachable."""
@@ -503,7 +505,7 @@ class TestMetricsEndpoints:
 
     def test_metrics_json_structure(self, monitoring_client):
         """JSON metrics response contains the expected top-level keys."""
-        data = monitoring_client.get('/api/metrics.json').get_json()
+        data = monitoring_client.get('/api/metrics.json').json()
         assert 'counters' in data
         assert 'histograms' in data
         assert 'gauges' in data
@@ -513,7 +515,7 @@ class TestMetricsEndpoints:
         """Health endpoint returns a JSON body with status and timestamp."""
         response = monitoring_client.get('/api/health')
         assert response.status_code in [200, 503]
-        data = response.get_json()
+        data = response.json()
         assert 'status' in data
         assert 'timestamp' in data
 
@@ -521,15 +523,14 @@ class TestMetricsEndpoints:
         """X-Request-Duration header is present on every response."""
         assert 'X-Request-Duration' in monitoring_client.get('/api/health').headers
 
-    def test_http_requests_total_increments(self, monitoring_client, monitoring_app):
+    def test_http_requests_total_increments(self, monitoring_client):
         """http_requests_total counter increments with each request."""
         from src.monitoring import get_metrics
 
         get_metrics().reset()
         monitoring_client.get('/api/health')
 
-        with monitoring_app.app_context():
-            counters = get_metrics().get_metrics()['counters']
+        counters = get_metrics().get_metrics()['counters']
         assert any('http_requests_total' in k for k in counters)
 
 
@@ -569,7 +570,7 @@ class TestMetricsAuth:
         assert response.status_code == 200
 
     def test_json_endpoint_enforces_token(self, monitoring_client):
-        """/api/metrics.json also returns 403 when token is missing."""
+        """/api/metrics.json returns 403 when token is missing."""
         from unittest.mock import patch
 
         with patch('src.config.METRICS_TOKEN', 'secret'):
