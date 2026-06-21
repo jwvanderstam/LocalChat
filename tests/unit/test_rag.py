@@ -344,7 +344,7 @@ class TestRetrieval:
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
         mock_db.search_similar_chunks.return_value = []
 
-        results = processor.retrieve_context("test", file_type_filter=".pdf")
+        processor.retrieve_context("test", file_type_filter=".pdf")
 
         # Should pass filter to database
         call_args = mock_db.search_similar_chunks.call_args
