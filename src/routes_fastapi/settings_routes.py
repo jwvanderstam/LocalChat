@@ -154,8 +154,8 @@ def health_check(request: Request) -> Any:
 
 @router.get("/metrics", response_class=PlainTextResponse)
 def metrics_endpoint(request: Request) -> Any:
-    from ..monitoring import _check_metrics_auth_request, export_prometheus_metrics
-    if not _check_metrics_auth_request(request):
+    from ..monitoring import _check_metrics_auth, export_prometheus_metrics
+    if not _check_metrics_auth(request):
         return Response("Forbidden", status_code=403,
                         headers={"WWW-Authenticate": 'Bearer realm="metrics"'})
     return PlainTextResponse(
@@ -166,8 +166,8 @@ def metrics_endpoint(request: Request) -> Any:
 
 @router.get("/metrics.json")
 def metrics_json_endpoint(request: Request) -> Any:
-    from ..monitoring import _check_metrics_auth_request, get_metrics
-    if not _check_metrics_auth_request(request):
+    from ..monitoring import _check_metrics_auth, get_metrics
+    if not _check_metrics_auth(request):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     return get_metrics().get_metrics()
 

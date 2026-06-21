@@ -13,8 +13,8 @@ Exposes tools:
 Run standalone:
     python -m mcp_servers.local_docs [--port 5001]
 
-Run via gunicorn:
-    gunicorn "mcp_servers.local_docs.server:flask_app" --bind 0.0.0.0:5001
+Run via uvicorn:
+    uvicorn "mcp_servers.local_docs.server:app" --host 0.0.0.0 --port 5001
 """
 
 import argparse
@@ -120,8 +120,8 @@ _server.register_tool(
     handler=list_sources,
 )
 
-# WSGI entry point for gunicorn
-flask_app = _server.get_wsgi_app()
+# ASGI entry point for uvicorn
+app = _server.get_asgi_app()
 
 
 # ---------------------------------------------------------------------------

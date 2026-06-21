@@ -383,7 +383,7 @@
                                     <div class="col-md-6">
                                         <ul class="list-unstyled mb-0">
                                             <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>JWT Authentication:</strong> Token-based auth for admin endpoints</li>
-                                            <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Rate Limiting:</strong> Per-endpoint via Flask-Limiter</li>
+                                            <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Rate Limiting:</strong> Per-endpoint via slowapi</li>
                                             <li><i class="bi bi-check-circle-fill text-success me-2"></i><strong>CORS Support:</strong> Configurable allowed origins</li>
                                         </ul>
                                     </div>
@@ -612,8 +612,8 @@
 
                                         <div class="list-group list-group-flush">
                                             <div class="list-group-item px-0">
-                                                <div class="d-flex justify-content-between"><code>app_factory.py</code><small class="text-muted">~430 ln</small></div>
-                                                <small class="text-muted">Flask factory, blueprint registration, cleanup handlers</small>
+                                                <div class="d-flex justify-content-between"><code>app_fastapi.py</code><small class="text-muted">~200 ln</small></div>
+                                                <small class="text-muted">FastAPI factory, router registration, middleware wiring</small>
                                             </div>
                                             <div class="list-group-item px-0">
                                                 <div class="d-flex justify-content-between"><code>config.py</code><small class="text-muted">~200 ln</small></div>
@@ -747,22 +747,22 @@
                         <text x="208" y="236" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Nginx</text>
                         <text x="208" y="254" text-anchor="middle" fill="white" font-size="10">Reverse Proxy</text>
 
-                        <!-- Nginx -> Flask -->
+                        <!-- Nginx -> FastAPI -->
                         <line x1="258" y1="240" x2="296" y2="240" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
                         <text x="277" y="232" text-anchor="middle" fill="#666" font-size="9">HTTP</text>
 
-                        <!-- Flask App -->
+                        <!-- FastAPI App -->
                         <rect x="296" y="160" width="170" height="160" rx="6" fill="#20c997"/>
-                        <text x="381" y="185" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Flask App</text>
-                        <text x="381" y="203" text-anchor="middle" fill="white" font-size="10">Routes &amp; Blueprints</text>
+                        <text x="381" y="185" text-anchor="middle" fill="white" font-size="13" font-weight="bold">FastAPI App</text>
+                        <text x="381" y="203" text-anchor="middle" fill="white" font-size="10">Routes &amp; Routers</text>
                         <text x="381" y="219" text-anchor="middle" fill="white" font-size="10">RAG Pipeline</text>
                         <text x="381" y="235" text-anchor="middle" fill="white" font-size="10">Security Middleware</text>
                         <text x="381" y="251" text-anchor="middle" fill="white" font-size="10">Monitoring</text>
                         <text x="381" y="267" text-anchor="middle" fill="white" font-size="10">Tool Executor</text>
                         <text x="381" y="283" text-anchor="middle" fill="white" font-size="10">SSE Streaming</text>
-                        <text x="381" y="299" text-anchor="middle" fill="white" font-size="10">8 Worker Threads</text>
+                        <text x="381" y="299" text-anchor="middle" fill="white" font-size="10">Async ASGI</text>
 
-                        <!-- Flask -> Ollama -->
+                        <!-- FastAPI -> Ollama -->
                         <line x1="466" y1="190" x2="520" y2="120" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
                         <text x="500" y="148" text-anchor="middle" fill="#666" font-size="9">REST API</text>
 
@@ -773,7 +773,7 @@
                         <text x="590" y="112" text-anchor="middle" fill="white" font-size="10">Embeddings</text>
                         <text x="590" y="128" text-anchor="middle" fill="white" font-size="10">Model Management</text>
 
-                        <!-- Flask -> PostgreSQL -->
+                        <!-- FastAPI -> PostgreSQL -->
                         <line x1="466" y1="295" x2="520" y2="360" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
                         <text x="500" y="340" text-anchor="middle" fill="#666" font-size="9">SQL / pgvector</text>
 
@@ -785,7 +785,7 @@
                         <text x="590" y="436" text-anchor="middle" fill="white" font-size="10">HNSW Index</text>
                         <text x="590" y="452" text-anchor="middle" fill="white" font-size="10">Conversation History</text>
 
-                        <!-- Flask -> Cache -->
+                        <!-- FastAPI -> Cache -->
                         <line x1="381" y1="320" x2="381" y2="378" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
 
                         <!-- Cache -->
@@ -794,7 +794,7 @@
                         <text x="381" y="420" text-anchor="middle" fill="white" font-size="10">Embedding Cache (5K)</text>
                         <text x="381" y="436" text-anchor="middle" fill="white" font-size="10">Query Cache (1K) + Redis</text>
 
-                        <!-- Flask -> Monitoring -->
+                        <!-- FastAPI -> Monitoring -->
                         <line x1="296" y1="195" x2="212" y2="140" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
 
                         <!-- Monitoring -->
@@ -802,9 +802,9 @@
                         <text x="136" y="94" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Monitoring</text>
                         <text x="136" y="112" text-anchor="middle" fill="white" font-size="10">Prometheus /api/metrics</text>
                         <text x="136" y="128" text-anchor="middle" fill="white" font-size="10">Health /api/health</text>
-                        <text x="136" y="144" text-anchor="middle" fill="white" font-size="10">Request Timing Middleware</text>
+                        <text x="136" y="144" text-anchor="middle" fill="white" font-size="10">Request-ID Middleware</text>
 
-                        <!-- Flask -> Admin -->
+                        <!-- FastAPI -> Admin -->
                         <line x1="296" y1="300" x2="212" y2="360" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
 
                         <!-- Admin Dashboard -->
@@ -955,19 +955,19 @@
             </div>
             <div class="modal-body">
                 <h6 class="text-primary">Overview</h6>
-                <p>LocalChat is a production-ready RAG system built with Flask, Ollama, PostgreSQL (pgvector), and an optional Redis cache. The application uses the factory pattern with clean blueprint separation and full observability.</p>
+                <p>LocalChat is a production-ready RAG system built with FastAPI, Ollama, PostgreSQL (pgvector), and an optional Redis cache. The application uses the factory pattern with clean router separation and full observability.</p>
 
                 <div class="row">
                     <div class="col-md-6">
                         <h6 class="mt-3">Core Components</h6>
                         <ul>
-                            <li><strong>Flask App Factory:</strong> <code>src/app_factory.py</code></li>
+                            <li><strong>FastAPI App Factory:</strong> <code>src/app_fastapi.py</code></li>
                             <li><strong>RAG Engine:</strong> <code>src/rag/</code> (chunking, retrieval, scoring, cache, web_search)</li>
                             <li><strong>Database Layer:</strong> <code>src/db/</code> (PostgreSQL + pgvector, HNSW, connection pool)</li>
                             <li><strong>Ollama Client:</strong> <code>src/ollama_client.py</code></li>
                             <li><strong>Monitoring:</strong> <code>src/monitoring.py</code> (Prometheus, health, request timing)</li>
-                            <li><strong>Security:</strong> <code>src/security.py</code> (JWT, rate limiting, CORS)</li>
-                            <li><strong>Settings Routes:</strong> <code>src/routes/settings_routes.py</code></li>
+                            <li><strong>Security:</strong> <code>src/security_fastapi.py</code> (JWT, rate limiting, CORS)</li>
+                            <li><strong>Settings Routes:</strong> <code>src/routes_fastapi/settings_routes.py</code></li>
                             <li><strong>Tool System:</strong> <code>src/tools/</code> (registry, executor, builtins)</li>
                             <li><strong>Cache:</strong> <code>src/cache/</code> (memory / Redis / database backends)</li>
                             <li><strong>Validation:</strong> <code>src/models.py</code> (8 Pydantic models)</li>
@@ -993,7 +993,7 @@
 
                 <h6 class="text-primary mt-4">Data Flow &mdash; Query</h6>
                 <ol>
-                    <li>User sends question &rarr; Flask receives via SSE route</li>
+                    <li>User sends question &rarr; FastAPI receives via SSE route</li>
                     <li>Question &rarr; Ollama &rarr; query embedding vector</li>
                     <li>pgvector HNSW search &rarr; top-30 candidate chunks</li>
                     <li>Hybrid re-rank (BM25 + semantic) &rarr; top-12 chunks</li>

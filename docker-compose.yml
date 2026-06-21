@@ -147,12 +147,10 @@ services:
     image: ghcr.io/jwvanderstam/localchat:latest
     restart: unless-stopped
     command: >
-      sh -c "gunicorn 'mcp_servers.local_docs.server:flask_app'
-        --bind 0.0.0.0:5001
+      sh -c "uvicorn 'mcp_servers.local_docs.server:app'
+        --host 0.0.0.0 --port 5001
         --workers 2
-        --timeout 120
-        --access-logfile -
-        --error-logfile -
+        --timeout-keep-alive 120
         --log-level info"
     depends_on:
       db:
@@ -184,12 +182,10 @@ services:
     image: ghcr.io/jwvanderstam/localchat:latest
     restart: unless-stopped
     command: >
-      sh -c "gunicorn 'mcp_servers.web_search.server:flask_app'
-        --bind 0.0.0.0:5002
+      sh -c "uvicorn 'mcp_servers.web_search.server:app'
+        --host 0.0.0.0 --port 5002
         --workers 2
-        --timeout 60
-        --access-logfile -
-        --error-logfile -
+        --timeout-keep-alive 60
         --log-level info"
     environment:
       SECRET_KEY: ${SECRET_KEY:-dev-mcp-key}
@@ -212,12 +208,10 @@ services:
     image: ghcr.io/jwvanderstam/localchat:latest
     restart: unless-stopped
     command: >
-      sh -c "gunicorn 'mcp_servers.cloud_connectors.server:flask_app'
-        --bind 0.0.0.0:5003
+      sh -c "uvicorn 'mcp_servers.cloud_connectors.server:app'
+        --host 0.0.0.0 --port 5003
         --workers 1
-        --timeout 30
-        --access-logfile -
-        --error-logfile -
+        --timeout-keep-alive 30
         --log-level info"
     depends_on:
       db:

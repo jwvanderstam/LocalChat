@@ -6,9 +6,12 @@ Lightweight JSON-RPC 2.0 server base class for LocalChat MCP domain servers.
 Each server exposes tools via POST /mcp and a GET /health endpoint.
 
 Protocol:
-  - tools/list  → {"jsonrpc":"2.0","id":N,"method":"tools/list","params":{}}
-  - tools/call  → {"jsonrpc":"2.0","id":N,"method":"tools/call","params":{"name":"<tool>","arguments":{...}}}
-  - health      → {"jsonrpc":"2.0","id":N,"method":"health","params":{}}
+  - tools/list  -> {"jsonrpc":"2.0","id":N,"method":"tools/list","params":{}}
+  - tools/call  -> {"jsonrpc":"2.0","id":N,"method":"tools/call","params":{"name":"<tool>","arguments":{...}}}
+  - health      -> {"jsonrpc":"2.0","id":N,"method":"health","params":{}}
+
+Built on FastAPI/Starlette (ASGI). Run via uvicorn with the module-level
+``app`` object, or call ``run()`` for standalone development.
 """
 
 import json
@@ -16,7 +19,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from flask import Flask, jsonify, request
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +39,7 @@ class MCPServer:
 
     Each subclass registers tools via register_tool() and then either:
       - calls run() for standalone operation, or
-      - passes get_wsgi_app() to gunicorn.
+      - passes get_asgi_app() to uvicorn.
     """
 
     def __init__(self, name: str) -> None:
@@ -43,40 +47,46 @@ class MCPServer:
         self._tools: dict[str, dict] = {}
         self._handlers: dict[str, Callable] = {}
 
-        self.app = Flask(name)
-        self.app.json.sort_keys = False
+        self.app = FastAPI(title=f"MCP server: {name}", docs_url=None, redoc_url=None)
 
-        @self.app.route("/mcp", methods=["POST"])
-        def handle_rpc():  # noqa: ANN202
-            body = request.get_json(force=True, silent=True) or {}
+        @self.app.post("/mcp")
+        async def handle_rpc(request: Request) -> JSONResponse:
+            try:
+                body = await request.json()
+            except Exception:
+                body = {}
+            if not isinstance(body, dict):
+                body = {}
+
             id_ = body.get("id")
             method = body.get("method", "")
             params = body.get("params") or {}
 
             if method == "health":
-                return jsonify(_rpc_ok(id_, {"status": "ok", "server": self.name}))
+                return JSONResponse(_rpc_ok(id_, {"status": "ok", "server": self.name}))
 
             if method == "tools/list":
-                return jsonify(_rpc_ok(id_, {"tools": list(self._tools.values())}))
+                return JSONResponse(_rpc_ok(id_, {"tools": list(self._tools.values())}))
 
             if method == "tools/call":
                 tool_name = params.get("name", "")
                 args = params.get("arguments") or {}
                 if tool_name not in self._handlers:
-                    return jsonify(_rpc_error(id_, -32601, f"Tool not found: {tool_name}"))
+                    return JSONResponse(_rpc_error(id_, -32601, f"Tool not found: {tool_name}"))
                 try:
                     result = self._handlers[tool_name](**args)
                     content = [{"type": "text", "text": json.dumps(result)}]
-                    return jsonify(_rpc_ok(id_, {"content": content}))
+                    return JSONResponse(_rpc_ok(id_, {"content": content}))
                 except Exception as exc:
-                    logger.error("[%s] Tool '%s' raised: %s", self.name, str(tool_name).replace('\r','').replace('\n',' '), exc, exc_info=True)
-                    return jsonify(_rpc_error(id_, -32000, "Tool execution failed"))
+                    safe_name = str(tool_name).replace("\r", "").replace("\n", " ")
+                    logger.error("[%s] Tool '%s' raised: %s", self.name, safe_name, exc, exc_info=True)
+                    return JSONResponse(_rpc_error(id_, -32000, "Tool execution failed"))
 
-            return jsonify(_rpc_error(id_, -32601, f"Method not found: {method}"))
+            return JSONResponse(_rpc_error(id_, -32601, f"Method not found: {method}"))
 
-        @self.app.route("/health", methods=["GET"])
-        def health():  # noqa: ANN202
-            return jsonify({"status": "ok", "server": self.name})
+        @self.app.get("/health")
+        async def health() -> JSONResponse:
+            return JSONResponse({"status": "ok", "server": self.name})
 
     def register_tool(
         self,
@@ -93,11 +103,13 @@ class MCPServer:
         }
         self._handlers[name] = handler
 
-    def get_wsgi_app(self) -> Flask:
-        """Return the Flask WSGI app (for gunicorn)."""
+    def get_asgi_app(self) -> FastAPI:
+        """Return the FastAPI ASGI app (for uvicorn)."""
         return self.app
 
     def run(self, host: str = "0.0.0.0", port: int = 5001, debug: bool = False) -> None:
-        """Run the server in development mode."""
+        """Run the server in development mode via uvicorn."""
+        import uvicorn  # noqa: PLC0415
+
         logger.info(f"[{self.name}] Starting on {host}:{port}")
-        self.app.run(host=host, port=port, debug=debug)
+        uvicorn.run(self.app, host=host, port=port, log_level="debug" if debug else "info")

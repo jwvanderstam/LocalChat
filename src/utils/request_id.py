@@ -1,78 +1,61 @@
-"""
-Request ID Middleware
-====================
+"""Request ID middleware for FastAPI.
 
-Assigns a unique ``request_id`` to every incoming HTTP request and stores it
-on ``flask.g`` so that it can be:
-
-  * Injected into every log record via ``RequestIdFilter``
-  * Echoed back in the ``X-Request-ID`` response header
-  * Propagated to downstream services via the outgoing ``X-Request-ID`` header
-
-The middleware accepts an ``X-Request-ID`` header from an upstream proxy
-(e.g., Nginx, Traefik) so that end-to-end tracing works without changes to
-client code.
-
-Usage::
-
-    from src.utils.request_id import init_request_id
-    init_request_id(app)
-
+Assigns a unique request ID to every incoming request, stores it in a
+ContextVar for log injection, and echoes it in the X-Request-ID response header.
+Accepts an X-Request-ID header from an upstream proxy (Nginx, Traefik) so that
+end-to-end tracing works without changes to client code.
 """
 
 import logging
 import time
 import uuid
+from contextvars import ContextVar
 
-from flask import Flask, g, request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from .logging_config import sanitize_log_value as _slv
 
 _HEADER = "X-Request-ID"
 _access_logger = logging.getLogger("access")
 
-
-def _get_or_generate() -> str:
-    """Return the incoming request-id header or generate a fresh UUID4."""
-    incoming = request.headers.get(_HEADER)
-    if incoming and len(incoming) <= 128:  # basic sanity-check on length
-        return incoming
-    return str(uuid.uuid4())
+#: ContextVar holding the request ID for the current async context.
+#: Read by RequestIdFilter in logging_config.py to inject into every log record.
+request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 
 
-def init_request_id(app: Flask) -> None:
-    """
-    Register before/after request hooks that manage ``g.request_id``.
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Assigns a unique request ID to every incoming HTTP request.
 
-    Args:
-        app: Flask application instance.
-
-    After calling this function every request will have:
-      - ``flask.g.request_id`` set (UUID4 or value from upstream header)
-      - ``X-Request-ID`` echoed in the response headers
+    Reads X-Request-ID from the upstream proxy if present (and ≤128 chars),
+    generates a UUID4 otherwise. Stores the ID in request_id_var so that
+    every log record in this async context carries it, and echoes it in
+    the X-Request-ID response header. Also logs a structured access record
+    to the 'access' logger after each request completes.
     """
 
-    @app.before_request
-    def _assign_request_id() -> None:
-        g.request_id = _get_or_generate()
-        g.request_start_time = time.perf_counter()
-
-    @app.after_request
-    def _echo_request_id(response):
-        response.headers[_HEADER] = getattr(g, "request_id", "")
-        duration_ms = round(
-            (time.perf_counter() - getattr(g, "request_start_time", time.perf_counter())) * 1000, 1
-        )
-        _access_logger.info(
-            "%s %s %d",
-            _slv(request.method), _slv(request.path), response.status_code,
-            extra={
-                "method": _slv(request.method),
-                "path": _slv(request.path),
-                "status_code": response.status_code,
-                "duration_ms": duration_ms,
-                "model": getattr(g, "model", None),
-                "chunks_retrieved": getattr(g, "chunks_retrieved", None),
-            },
-        )
-        return response
+    async def dispatch(self, request: Request, call_next) -> Response:
+        incoming = request.headers.get(_HEADER, "")
+        request_id = incoming if incoming and len(incoming) <= 128 else str(uuid.uuid4())
+        token = request_id_var.set(request_id)
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+            response.headers[_HEADER] = request_id
+            duration_ms = round((time.perf_counter() - start) * 1000, 1)
+            _access_logger.info(
+                "%s %s %d",
+                _slv(request.method),
+                _slv(request.url.path),
+                response.status_code,
+                extra={
+                    "method": _slv(request.method),
+                    "path": _slv(request.url.path),
+                    "status_code": response.status_code,
+                    "duration_ms": duration_ms,
+                },
+            )
+            return response
+        finally:
+            request_id_var.reset(token)

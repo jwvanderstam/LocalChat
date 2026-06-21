@@ -3,20 +3,14 @@ fastapi>=0.137.0
 uvicorn[standard]>=0.49.0
 httpx>=0.28.1          # FastAPI TestClient + async HTTP
 
-# Flask — kept during migration; remove once all routes are ported
-Flask==3.1.3
-Werkzeug>=3.1.8
-flasgger==0.9.7.1
 gunicorn==26.0.0
+Werkzeug>=3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
 
 # Caching
 redis==8.0.0  # Redis cache backend (optional but recommended)
 
 # Security
-Flask-JWT-Extended==4.7.4  # Authentication (Flask; kept during migration)
-Flask-Limiter==4.1.1       # Rate limiting (Flask; kept during migration)
-Flask-CORS==6.0.5          # CORS support (Flask; kept during migration)
-python-jose[cryptography]>=3.5.0  # JWT for FastAPI
+python-jose[cryptography]>=3.5.0  # JWT
 slowapi>=0.1.10                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector

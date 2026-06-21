@@ -36,12 +36,6 @@ app.state.testing = True
 client = TestClient(app, raise_server_exceptions=True)
 ```
 
-**Flask routes** (legacy `src/routes/`):
-```python
-from src.app_factory import create_app
-app = create_app(testing=True)
-```
-
 Never import from `src/app.py` — it doesn't export an app.
 
 ## Fixtures

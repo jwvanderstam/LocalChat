@@ -3,24 +3,22 @@
 Monitoring and Metrics Module
 ==============================
 
-Provides comprehensive monitoring, metrics, and observability
-for the LocalChat application.
-
-Endpoints registered by ``init_monitoring()``::
-
-    GET /api/metrics       — Prometheus text format v0.0.4 scrape endpoint
-    GET /api/metrics.json  — JSON metrics snapshot for the admin dashboard
-    GET /api/health        — Detailed component health check
+Provides metrics, observability, and health checking for LocalChat.
 
 Features:
 - Prometheus metrics export (counters, histograms with buckets, gauges)
-- Request timing middleware (``X-Request-Duration`` header on every response)
+- MetricsMiddleware: ASGI middleware that records HTTP request timing and counts
 - Detailed health checks (database, Ollama, embedding cache)
-- GPU-aware health reporting via Ollama ``/api/ps`` data in health checks
 - Performance tracking decorators (``@timed``, ``@counted``)
 - Optional Bearer-token authentication for scrape endpoints (``METRICS_TOKEN``)
 - Thread-safe ``MetricsCollector`` with per-key label support
 - ``app_uptime_seconds`` gauge always present in Prometheus output
+
+Endpoints (registered in ``src/routes_fastapi/settings_routes.py``)::
+
+    GET /api/metrics       — Prometheus text format v0.0.4 scrape endpoint
+    GET /api/metrics.json  — JSON metrics snapshot for the admin dashboard
+    GET /api/health        — Detailed component health check
 
 """
 
@@ -32,8 +30,9 @@ from functools import wraps
 from time import time
 from typing import Any
 
-from flask import Flask, Response, g, jsonify, request
-from flask.typing import ResponseReturnValue
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from .utils.logging_config import get_logger
 
@@ -224,145 +223,36 @@ def counted(metric_name: str, labels: dict | None = None) -> Callable:
     return decorator
 
 
-class RequestTimingMiddleware:
-    """
-    Middleware to track request timing and metrics.
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """ASGI middleware that records HTTP request duration and count for every request."""
 
-    Automatically instruments all requests with timing data.
-    """
+    async def dispatch(self, request: Request, call_next) -> Response:
+        start = time()
+        response = await call_next(request)
+        duration = time() - start
 
-    def __init__(self, app: Flask):
-        """
-        Initialize middleware.
-
-        Args:
-            app: Flask application
-        """
-        self.app = app
-        app.before_request(self.before_request)
-        app.after_request(self.after_request)
-
-        logger.info("RequestTimingMiddleware initialized")
-
-    def before_request(self) -> None:
-        """Record request start time; request_id is already on g via RequestIdMiddleware."""
-        g.start_time = time()
-
-    def after_request(self, response: Response) -> Response:
-        """Record request metrics."""
-        if hasattr(g, 'start_time'):
-            duration = time() - g.start_time
-
-            # Record metrics
-            metrics = get_metrics()
-
-            # Request duration
-            metrics.record('http_request_duration_seconds', duration, labels={
-                'method': request.method,
-                'endpoint': request.endpoint or 'unknown',
-                'status': response.status_code
-            })
-
-            # Request counter
-            metrics.increment('http_requests_total', labels={
-                'method': request.method,
-                'endpoint': request.endpoint or 'unknown',
-                'status': response.status_code
-            })
-
-            # Add timing header; request_id header is handled by RequestIdMiddleware
-            response.headers['X-Request-Duration'] = f"{duration:.3f}s"
-
+        metrics = get_metrics()
+        metrics.record("http_request_duration_seconds", duration, labels={
+            "method": request.method,
+            "endpoint": request.url.path,
+            "status": response.status_code,
+        })
+        metrics.increment("http_requests_total", labels={
+            "method": request.method,
+            "endpoint": request.url.path,
+            "status": response.status_code,
+        })
+        response.headers["X-Request-Duration"] = f"{duration:.3f}s"
         return response
 
 
-def _check_metrics_auth() -> bool:
-    """Return True if the Flask request is authorised to read metrics."""
-    from . import config
-    if not config.METRICS_TOKEN:
-        return True
-    auth = request.headers.get("Authorization", "")
-    return auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN
-
-
-def _check_metrics_auth_request(req: Any) -> bool:
-    """Return True if a FastAPI Request is authorised to read metrics."""
+def _check_metrics_auth(req: Any) -> bool:
+    """Return True if the request is authorised to read metrics."""
     from . import config
     if not config.METRICS_TOKEN:
         return True
     auth = req.headers.get("authorization", "")
     return auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN
-
-
-def init_monitoring(app: Flask) -> None:
-    """
-    Initialize monitoring for Flask app.
-
-    Registers:
-      * ``/api/metrics``       — Prometheus text format (scrape endpoint)
-      * ``/api/metrics.json``  — JSON metrics for the admin dashboard
-      * ``/api/health``        — Detailed health check
-
-    Args:
-        app: Flask application
-    """
-    # Attach timing middleware
-    RequestTimingMiddleware(app)
-
-    @app.route('/api/metrics', methods=['GET'])
-    def metrics_endpoint() -> ResponseReturnValue:
-        """
-        Prometheus-compatible metrics scrape endpoint.
-
-        Returns text/plain in the Prometheus exposition format (v0.0.4).
-        Requires a Bearer token when ``METRICS_TOKEN`` is set.
-        ---
-        tags:
-          - System
-        """
-        if not _check_metrics_auth():
-            return "Forbidden", 403, {"WWW-Authenticate": 'Bearer realm="metrics"'}
-        text = export_prometheus_metrics()
-        return text, 200, {"Content-Type": "text/plain; version=0.0.4; charset=utf-8"}
-
-    @app.route('/api/metrics.json', methods=['GET'])
-    def metrics_json_endpoint() -> ResponseReturnValue:
-        """
-        JSON metrics endpoint — used internally by the admin dashboard.
-        Requires the same optional token as /api/metrics.
-        ---
-        tags:
-          - System
-        """
-        if not _check_metrics_auth():
-            return jsonify({"error": "Forbidden"}), 403
-        return jsonify(get_metrics().get_metrics())
-
-    @app.route('/api/health', methods=['GET'])
-    def health_check() -> ResponseReturnValue:
-        """
-        Detailed health check.
-
-        Checks all system components and returns detailed status.
-        ---
-        tags:
-          - System
-        summary: Health check
-        responses:
-          200:
-            description: System healthy or degraded
-          503:
-            description: System unhealthy (database down)
-        """
-        from flask import current_app
-        status, status_code, checks = _compute_health_status(current_app)
-        return (
-            jsonify({"status": status, "checks": checks,
-                     "timestamp": datetime.now().isoformat()}),
-            status_code,
-        )
-
-    logger.info("✓ Monitoring endpoints initialized")
 
 
 def _status(healthy: bool) -> str:

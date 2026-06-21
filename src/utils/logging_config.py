@@ -90,23 +90,16 @@ class JsonFormatter(logging.Formatter):
 
 
 class RequestIdFilter(logging.Filter):
-    """
-    Logging filter that copies ``flask.g.request_id`` onto every log record.
+    """Copies the current request ID onto every log record.
 
-    Must be added to each handler (or the root logger) **after** the Flask
-    application context is set up.  Falls back to an empty string outside of
-    a request context so it is safe to use in background threads and tests.
+    Reads from request_id_var (set by RequestIdMiddleware). Falls back to an
+    empty string outside a request context — tests, background threads, startup.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            from flask import g, request
-            record.request_id = getattr(g, "request_id", "")
-            record.user_agent = request.user_agent.string
-        except RuntimeError:
-            # No application/request context — e.g. tests or worker threads.
-            record.request_id = ""
-            record.user_agent = ""
+        from .request_id import request_id_var
+        record.request_id = request_id_var.get()
+        record.user_agent = ""
         return True
 
 
