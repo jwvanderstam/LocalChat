@@ -326,3 +326,53 @@ class FeedbackMixin:
         except Exception as exc:
             logger.warning(f"[Reranker] version query failed: {exc}")
             return []
+
+    def insert_reranker_version(self, result: dict[str, Any]) -> str | None:
+        """Insert a reranker_versions row (inactive) and return its UUID, or None on error."""
+        if not self.is_connected:
+            return None
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO reranker_versions
+                            (base_model, ndcg_before, ndcg_after, pair_count, model_path, active)
+                        VALUES (%s, %s, %s, %s, %s, FALSE)
+                        RETURNING id
+                        """,
+                        (
+                            result.get("base_model", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+                            result.get("ndcg_before"),
+                            result.get("ndcg_after"),
+                            result.get("pair_count"),
+                            result.get("output_path"),
+                        ),
+                    )
+                    return str(cur.fetchone()[0])
+        except Exception as exc:
+            logger.warning(f"[Reranker] Could not persist version: {exc}")
+            return None
+
+    def activate_reranker_version(self, version_id: str) -> str | None:
+        """Demote all reranker versions, activate version_id. Returns its model_path, or None."""
+        if not self.is_connected:
+            return None
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT model_path FROM reranker_versions WHERE id = %s", (version_id,)
+                    )
+                    row = cur.fetchone()
+                    if not row:
+                        return None
+                    model_path = row[0]
+                    cur.execute("UPDATE reranker_versions SET active = FALSE")
+                    cur.execute(
+                        "UPDATE reranker_versions SET active = TRUE WHERE id = %s", (version_id,)
+                    )
+            return model_path
+        except Exception as exc:
+            logger.warning(f"[Reranker] Activation failed: {exc}")
+            return None

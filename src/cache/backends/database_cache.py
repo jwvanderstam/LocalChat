@@ -12,6 +12,12 @@ Features:
 - Automatic expiration
 - Cache warming strategies
 
+HK-7 note: this backend accesses the database connection directly (via
+``db.get_connection()``) by design. It is a low-level cache tier, a peer of the
+``src/db/`` mixin layer rather than a consumer of it — forcing it through the
+domain mixins would be architecturally backwards. This is a deliberate, documented
+exception to the "all DB access via src/db/" rule, not an unsealed boundary leak.
+
 """
 
 import hashlib
