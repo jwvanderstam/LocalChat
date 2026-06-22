@@ -19,7 +19,7 @@ psycopg-pool>=3.3.1
 
 # Database migrations
 alembic>=1.18.4
-sqlalchemy>=2.0.50  # required by alembic; postgresql+psycopg dialect for psycopg3
+sqlalchemy>=2.0.51  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
 pydantic>=2.12.5  # Cannot bump past 2.12.5 until litellm drops its pydantic==2.12.5 exact pin
