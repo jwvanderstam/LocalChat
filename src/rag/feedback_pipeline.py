@@ -94,47 +94,23 @@ def _write_latest_pointer(versioned_dir: Path) -> None:
 
 
 def persist_reranker_version(db: Any, result: dict) -> str | None:
-    """Insert a reranker_versions row and return its UUID, or None on error."""
-    try:
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO reranker_versions
-                        (base_model, ndcg_before, ndcg_after, pair_count, model_path, active)
-                    VALUES (%s, %s, %s, %s, %s, FALSE)
-                    RETURNING id
-                    """,
-                    (
-                        result.get("base_model", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
-                        result.get("ndcg_before"),
-                        result.get("ndcg_after"),
-                        result.get("pair_count"),
-                        result.get("output_path"),
-                    ),
-                )
-                return str(cur.fetchone()[0])
-    except Exception as exc:
-        logger.warning(f"[Pipeline] Could not persist reranker version: {exc}")
-        return None
+    """Insert a reranker_versions row and return its UUID, or None on error.
+
+    Delegates to the db-layer FeedbackMixin (HK-7: no direct DB access outside src/db/).
+    """
+    return db.insert_reranker_version(result)
 
 
 def promote_model(db: Any, version_id: str) -> bool:
-    """Set *version_id* as active and update the latest.txt pointer. Returns success."""
+    """Set *version_id* as active and update the latest.txt pointer. Returns success.
+
+    DB writes are delegated to the db-layer FeedbackMixin (HK-7); file-pointer update
+    and reranker reload remain here as non-DB concerns.
+    """
     try:
-        with db.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Fetch model path
-                cur.execute("SELECT model_path FROM reranker_versions WHERE id = %s", (version_id,))
-                row = cur.fetchone()
-                if not row:
-                    return False
-                model_path = row[0]
-                # Demote all, promote this one
-                cur.execute("UPDATE reranker_versions SET active = FALSE")
-                cur.execute(
-                    "UPDATE reranker_versions SET active = TRUE WHERE id = %s", (version_id,)
-                )
+        model_path = db.activate_reranker_version(version_id)
+        if model_path is None:
+            return False
         logger.info("[Pipeline] Promoted reranker version")
         # Update latest.txt
         if model_path:
