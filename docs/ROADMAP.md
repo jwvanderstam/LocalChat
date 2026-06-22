@@ -78,7 +78,7 @@ This means the choice per capability is **port-or-delete, decided by evidence**:
 ### HK-5 — Documentation rot: sync rules and overview with FastAPI reality ✅ (done, merged #105)
 
 The dual-stack migration left several docs describing the old Flask structure (`src/routes/`, `src/app_factory.py` — both gone):
-- `.claude/rules/architecture.md` — describes Flask blueprints, `app_factory.py`, Flask SSE. Rewrite to the real structure: `src/routes_fastapi/` router-per-domain, `create_app()` in `app_fastapi.py` + `bootstrap_app()` in `app_bootstrap.py`, and the subsystems the current doc omits entirely (`agent/`, `graph/`, `memory/`, `performance/`). **Held back from the hygiene commit deliberately** — these are authoritative house rules and need your review, not a silent rewrite.
+- `.claude/rules/architecture.md` — describes Flask blueprints, `app_factory.py`, Flask SSE. Rewrite to the real structure: `src/routes_fastapi/` router-per-domain, `create_app()` in `app_fastapi.py` + `bootstrap_app()` in `app_bootstrap.py`, and the subsystems the current doc omits entirely (`agent/`, `graph/`, `memory/`, `performance/`). **Done:** rewritten to the real structure (verified — `architecture.md` now describes `routes_fastapi/`, `app_fastapi.py`, and async generators; `overview.html` has no Flask references).
 - `.claude/rules/testing.md` — remove/relabel the "Flask routes (legacy `src/routes/`)" block referencing `create_app(testing=True)`.
 - `.claude/rules/file-map.md` and `CLAUDE.md` — fix stale `app_factory.py` / `src/routes/` references.
 - `templates/overview.html` — user-facing page still shows "Flask App", "Flask App Factory: `src/app_factory.py`", and an Nginx→Flask architecture diagram. Highest-visibility rot (users see it). Update to FastAPI.
@@ -418,6 +418,18 @@ NVIDIA and Apple together validate the abstraction: they exercise both memory mo
 **Files:** new `src/gpu/backends.py` (the `GpuBackend` interface + NVIDIA/Apple/CPU implementations + AMD stub), `src/gpu_monitor.py` (refactor existing NVIDIA-specific detection onto the abstraction), `src/ollama_client.py` (footprint estimation, load guard), model selection route, `static/js/` (greyed-out dropdown with backend-aware reason).
 
 **Note for later:** footprint estimation is a heuristic — quantisation schemes and KV-cache growth vary, and vary the same way across vendors, so the estimator stays single-codepath. Start conservative on headroom; calibrate against real readings (`nvidia-smi` on the RTX 5070, Activity Monitor on the Mac). The AMD parser must be verified on real ROCm hardware before its stub is promoted from "untested."
+
+---
+
+### MM-2 — Runtime resource isolation ⬜
+
+MM-1 stops you selecting a model too large to *load*. MM-2 stops a *running* model from starving the rest of the stack. Distinct risk: an Ollama generation that consumes all memory can take down PostgreSQL or the ingestion worker on the same host. MM-1 is about fit-at-load; MM-2 is about isolation-at-runtime.
+
+- **Container limits:** set `mem_limit` and `cpus` per service in `docker-compose.yml` so no single container (Ollama especially) can exhaust the host. Reserve headroom for the DB and worker.
+- **Ollama model lifecycle:** set `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_KEEP_ALIVE` so the inference server doesn't hold multiple models in VRAM simultaneously or pin one indefinitely — directly complements the MM-1 VRAM budget.
+- **Acceptance:** under a deliberate memory-pressure test, a heavy inference does not crash or starve the DB/worker; limits documented in `docker-compose.yml`.
+
+> Scope note: this is deployment/infrastructure config, not application code — low risk, high resilience value. Pairs naturally with MM-1 (fit-at-load + isolation-at-runtime = complete resource story).
 
 ---
 
