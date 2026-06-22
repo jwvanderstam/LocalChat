@@ -156,8 +156,19 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 
 ---
 
-## Commands
+## Session Hygiene
 
+Before treating any session as "done", run `git session-status` (alias defined in this repo; see Commands). It surfaces three things that silently break across multi-tool work (Claude Code, chat, Copilot, agents):
+
+- **Branches with commits not in `main`.** Pushing to an already-merged branch lands the commit *nowhere* — there is no open PR to carry it. This is the trap that orphaned MM-2 once. The check flags it.
+- **Sync drift** between local and remote `main`.
+- **Open PRs** still awaiting merge.
+
+Rules:
+- Never delete a branch without first running `git log main..<branch>` to confirm it holds no unique work. `git branch -d` (safe, refuses unmerged) over `git branch -D` (force) unless you have verified.
+- After pushing follow-up commits, confirm they belong to an *open* PR — a closed/merged PR will not pick them up.
+
+## Commands
 ```bash
 python app.py                                                          # dev server (FastAPI + Uvicorn)
 uvicorn "app:create_uvicorn_app" --factory --host 0.0.0.0 --port 5000 # production (FastAPI + Uvicorn)
@@ -166,4 +177,7 @@ pytest                                      # all tests + coverage
 pytest -m "not (slow or ollama or db)"     # fast only
 pytest tests/unit/                          # unit only
 pytest tests/integration/                   # integration only
+git session-status                          # end-of-session: orphaned commits, sync drift, open PRs
+# one-time setup (alias lives in local .git/config, not the repo):
+#   git config alias.session-status '!bash scripts/session-status.sh'
 ```

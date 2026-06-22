@@ -117,7 +117,8 @@ Desktop.ini
 # Scratch / ad-hoc dev scripts (root-level only)
 scratch.py
 /temp.py
-/scripts/
+/scripts/*
+!/scripts/session-status.sh
 /test_docx.py
 /test_pg_format.py
 /test_rag.py
