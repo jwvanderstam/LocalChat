@@ -53,7 +53,7 @@ requests==2.34.2
 ddgs>=9.14.4
 
 # Numerical processing for vector operations
-numpy>=2.4.6
+numpy>=2.5.0
 
 # Multipart form handling
 python-multipart==0.0.32
