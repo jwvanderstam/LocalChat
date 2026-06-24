@@ -1,6 +1,5 @@
 """Tests for memory (conversation) routes."""
 
-import json
 from unittest.mock import MagicMock
 
 

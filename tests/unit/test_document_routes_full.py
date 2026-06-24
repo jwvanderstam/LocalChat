@@ -1,6 +1,5 @@
 """Tests for document routes."""
 
-import json
 from unittest.mock import MagicMock
 
 

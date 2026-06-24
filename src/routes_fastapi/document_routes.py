@@ -63,7 +63,6 @@ def _update_document_count(app_state: Any, workspace_id: str | None = None) -> i
 
 def _stream_file_ingest(app_state: Any, file_path: str, workspace_id: str | None) -> list[str]:
     """Ingest a single file synchronously, collecting SSE events into a list."""
-    from ..rag.loaders import VISION_MODEL_MISSING_ERROR
 
     events: list[str] = [
         f"data: {json.dumps({'message': f'Processing {os.path.basename(file_path)}...'})}\n\n"

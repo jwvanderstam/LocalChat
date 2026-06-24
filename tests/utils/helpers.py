@@ -47,29 +47,6 @@ def generate_mock_chunks(count: int = 5, min_length: int = 50, max_length: int =
     return chunks
 
 
-def generate_mock_search_results(count: int = 5) -> list[tuple]:
-    """
-    Generate mock search results.
-
-    Args:
-        count: Number of results
-
-    Returns:
-        List of (chunk_text, filename, chunk_index, similarity, metadata, chunk_id) tuples
-    """
-    results = []
-    for i in range(count):
-        results.append((
-            fake.text(max_nb_chars=200),
-            f"document_{i}.pdf",
-            i,
-            random.uniform(0.7, 0.99),
-            {},
-            i + 1,
-        ))
-    return results
-
-
 def assert_json_response(response, expected_status: int = 200):
     """
     Assert response is JSON with expected status.

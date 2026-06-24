@@ -13,7 +13,6 @@ Covers the full REST surface:
   POST /api/connectors/<id>/webhook
 """
 
-import json as _json
 from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------

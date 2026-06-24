@@ -1,6 +1,5 @@
 """Tests for model routes."""
 
-import json
 from unittest.mock import patch
 
 

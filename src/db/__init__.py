@@ -17,7 +17,6 @@ from .connection import (
     DatabaseConnection,
     DatabaseUnavailableError,
     VectorLoader,
-    register_vector_types,
 )
 from .connectors import ConnectorsMixin
 from .conversations import ConversationsMixin

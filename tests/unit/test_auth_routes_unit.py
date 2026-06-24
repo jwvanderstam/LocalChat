@@ -1,6 +1,5 @@
 """Unit tests for auth route exception handlers."""
 
-import json
 from unittest.mock import MagicMock
 
 

@@ -93,7 +93,7 @@ _EXTRACTOR_PYPDF = "pypdf"
 def _detect_language(text: str) -> str | None:
     """Detect language of text using langdetect. Returns ISO 639-1 code or None."""
     try:
-        from langdetect import LangDetectException, detect
+        from langdetect import detect
         return detect(text[:2000])
     except ImportError:
         return None

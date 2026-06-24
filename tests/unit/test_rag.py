@@ -6,16 +6,14 @@ Tests document processing, chunking, embedding, and retrieval operations.
 
 import os
 import tempfile
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from tests.utils.helpers import (
-    generate_mock_chunks,
     generate_mock_embedding,
     generate_mock_search_results,
 )
-from tests.utils.mocks import MockDatabase, MockOllamaClient
 
 # ============================================================================
 # DOCUMENT LOADING TESTS

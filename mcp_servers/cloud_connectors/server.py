@@ -34,7 +34,6 @@ _server = MCPServer("cloud-connectors")
 def search(query: str, filters: dict | None = None, top_k: int = 10) -> dict:
     """Search documents from all enabled connectors via the core retrieval pipeline."""
     try:
-        from src.db import db
         from src.rag import doc_processor
         results = doc_processor.retrieve_context(query, top_k=top_k)
         if not results:

@@ -20,7 +20,5 @@ Version: 1.0.0
 __version__ = "1.0.0"
 __author__ = "LocalChat Team"
 
-import os
-
 # Package namespace initialization
 # Relative imports will resolve correctly with this file present

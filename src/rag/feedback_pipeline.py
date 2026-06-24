@@ -154,7 +154,6 @@ def finetune_reranker(
     """
     try:
         from sentence_transformers import CrossEncoder
-        from sentence_transformers.cross_encoder.evaluation import CERerankingEvaluator
     except ImportError as exc:
         logger.warning(
             "[Pipeline] sentence-transformers not installed — skipping fine-tune. "

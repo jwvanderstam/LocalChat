@@ -20,7 +20,6 @@ class TestConnectorRoutesErrors:
 
     def test_update_connector_db_error_returns_500(self, client, app):
         app.state.db.update_connector = MagicMock(side_effect=Exception("db gone"))
-        import json
         resp = client.put(
             '/api/connectors/some-id',
             json={'display_name': 'new name'},
@@ -42,7 +41,6 @@ class TestConnectorRoutesErrors:
 
     def test_create_connector_db_error_returns_500(self, client, app):
         """DB error after config validation should return 500."""
-        import json
         from unittest.mock import patch
 
         app.state.db.create_connector = MagicMock(side_effect=Exception("db gone"))
@@ -64,7 +62,6 @@ class TestConnectorRoutesErrors:
 
     def test_create_connector_instantiation_error_returns_400(self, client, app):
         """Constructor raising should return 400 via logger.warning path."""
-        import json
         from unittest.mock import patch
 
         with patch('src.routes_fastapi.connector_routes.connector_registry') as reg:

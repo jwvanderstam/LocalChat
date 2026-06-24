@@ -19,9 +19,9 @@ import hashlib
 import json
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from ..utils.logging_config import get_logger
 
