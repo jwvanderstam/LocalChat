@@ -12,7 +12,7 @@ Covers:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helper — build a minimal FastAPI test app with the router
@@ -124,7 +124,7 @@ class TestExtractMemories:
 
         with patch("src.memory.extractor.MemoryExtractor") as MockExtractor:
             instance = MockExtractor.return_value
-            instance.extract.return_value = 2
+            instance.extract = AsyncMock(return_value=2)
             resp = self._post_extract(client)
 
         assert resp.status_code == 200
@@ -140,7 +140,7 @@ class TestExtractMemories:
 
         with patch("src.memory.extractor.MemoryExtractor") as MockExtractor:
             instance = MockExtractor.return_value
-            instance.extract.side_effect = [Exception("NLP error"), 1]
+            instance.extract = AsyncMock(side_effect=[Exception("NLP error"), 1])
             resp = self._post_extract(client)
 
         assert resp.status_code == 200
@@ -167,7 +167,7 @@ class TestExtractMemories:
 
         with patch("src.memory.extractor.MemoryExtractor") as MockExtractor:
             instance = MockExtractor.return_value
-            instance.extract.return_value = 0
+            instance.extract = AsyncMock(return_value=0)
             self._post_extract(client)
             call_args = instance.extract.call_args
             msg_list = call_args.kwargs.get("messages") or call_args.args[1]

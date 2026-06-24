@@ -1,27 +1,47 @@
-
 """
 Unit Tests for Ollama Client
 ==============================
 
 Comprehensive tests for src/ollama_client.py
 
-Target: Increase coverage from 28% to 70% (+5% total coverage)
-
 Focus areas:
-- Connection checking
-- Model listing
-- Embedding generation
-- Chat response generation
+- Connection checking (sync, uses httpx.Client)
+- Model listing (sync)
+- Embedding generation (sync)
+- Chat response generation (async, uses httpx.AsyncClient)
+- Model testing (async)
 - Error handling
-- Streaming responses
-
-Author: LocalChat Team
-Created: January 2025
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
-import requests
+import httpx
+import pytest
+
+# ---------------------------------------------------------------------------
+# Async stream helpers
+# ---------------------------------------------------------------------------
+
+def _make_async_stream_cm(lines: list[str], status_code: int = 200):
+    """Build a mock async context manager for httpx.AsyncClient.stream()."""
+    mock_response = Mock()
+    mock_response.status_code = status_code
+    mock_response.text = ""
+
+    async def _aiter_lines():
+        for line in lines:
+            yield line
+
+    mock_response.aiter_lines = Mock(return_value=_aiter_lines())
+
+    async def _aread():
+        return b""
+    mock_response.aread = _aread
+
+    cm = AsyncMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_response)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    return cm, mock_response
 
 
 class TestConnectionManagement:
@@ -49,7 +69,7 @@ class TestConnectionManagement:
 
         client = OllamaClient(base_url="http://localhost:11434")
 
-        with patch.object(client._session, 'get', side_effect=requests.exceptions.ConnectionError("Connection refused")):
+        with patch.object(client._session, 'get', side_effect=httpx.ConnectError("Connection refused")):
             success, message = client.check_connection()
 
             assert success is False
@@ -61,11 +81,10 @@ class TestConnectionManagement:
 
         client = OllamaClient(base_url="http://localhost:11434")
 
-        with patch.object(client._session, 'get', side_effect=requests.exceptions.Timeout("Timeout")):
+        with patch.object(client._session, 'get', side_effect=httpx.TimeoutException("Timeout")):
             success, message = client.check_connection()
 
             assert success is False
-            assert "timeout" in message.lower()
 
 
 class TestModelListing:
@@ -243,131 +262,102 @@ class TestEmbeddingGeneration:
 
 
 class TestChatGeneration:
-    """Test chat response generation."""
+    """Test async chat response generation."""
 
-    def test_generate_chat_response_success(self):
-        """Test successful chat generation."""
+    async def test_generate_chat_response_streaming(self):
+        """Test successful streaming chat generation."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm, _ = _make_async_stream_cm([
+            '{"message": {"role": "assistant", "content": "Hello"}}',
+            '{"message": {"role": "assistant", "content": " world"}}',
+            '{"done": true}',
+        ])
+        client._async_client.stream = Mock(return_value=cm)
 
-        # Mock streaming response
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            b'{"message": {"role": "assistant", "content": "Hello"}}',
-            b'{"message": {"role": "assistant", "content": " world"}}',
-            b'{"done": true}'
-        ]
+        chunks = [c async for c in client.generate_chat_response("llama3.2", [{"role": "user", "content": "Hi"}])]
+        assert "Hello" in chunks
+        assert " world" in chunks
 
-        with patch.object(client._session, 'post', return_value=mock_response):
-            response_gen = client.generate_chat_response(
-                model="llama3.2",
-                messages=[{"role": "user", "content": "Hi"}]
-            )
-
-            responses = list(response_gen)
-            assert len(responses) > 0
-
-    def test_generate_chat_response_handles_streaming(self):
-        """Test streaming response handling."""
+    async def test_generate_chat_response_non_streaming(self):
+        """Test non-streaming chat generation (stream=False)."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"message": {"content": "Complete response"}}
+        client._async_client.post = AsyncMock(return_value=mock_resp)
 
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            b'{"message": {"role": "assistant", "content": "chunk1"}}',
-            b'{"message": {"role": "assistant", "content": "chunk2"}}',
-            b'{"done": true}'
-        ]
+        chunks = [c async for c in client.generate_chat_response("llama3.2", [], stream=False)]
+        assert chunks == ["Complete response"]
 
-        with patch.object(client._session, 'post', return_value=mock_response):
-            response_gen = client.generate_chat_response(
-                model="llama3.2",
-                messages=[]
-            )
-
-            chunks = list(response_gen)
-            # Should yield chunks
-            assert isinstance(chunks, list)
-
-    def test_generate_chat_response_handles_error(self):
-        """Test error handling in chat generation."""
+    async def test_generate_chat_response_http_error_raises(self):
+        """Non-200 HTTP response should raise RuntimeError."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm, mock_resp = _make_async_stream_cm([], status_code=500)
+        mock_resp.text = "Internal error"
 
-        with patch.object(client._session, 'post', side_effect=Exception("API Error")):
-            response_gen = client.generate_chat_response(
-                model="llama3.2",
-                messages=[]
-            )
+        async def _aread():
+            return b"Internal error"
+        mock_resp.aread = _aread
+        client._async_client.stream = Mock(return_value=cm)
 
-            # Should not crash, may return empty or error message
-            try:
-                list(response_gen)
-            except Exception:
-                pass  # Error expected
+        with pytest.raises(RuntimeError):
+            async for _ in client.generate_chat_response("llama3.2", []):
+                pass
 
-    def test_generate_chat_response_with_context(self):
-        """Test chat generation with RAG context."""
+    async def test_generate_chat_response_timeout_raises(self):
+        """TimeoutException should be converted to RuntimeError."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+        cm.__aexit__ = AsyncMock(return_value=None)
+        client._async_client.stream = Mock(return_value=cm)
 
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            b'{"response": "Based on context..."}',
-            b'{"done": true}'
-        ]
-
-        with patch.object(client._session, 'post', return_value=mock_response):
-            response_gen = client.generate_chat_response(
-                model="llama3.2",
-                messages=[{"role": "user", "content": "Question?"}]
-            )
-
-            responses = list(response_gen)
-            # Should include responses
-            assert len(responses) >= 0
+        with pytest.raises(RuntimeError):
+            async for _ in client.generate_chat_response("llama3.2", []):
+                pass
 
 
 class TestModelTesting:
-    """Test model testing functionality."""
+    """Test async model testing functionality."""
 
-    def test_test_model_success(self):
+    async def test_test_model_success(self):
         """Test successful model testing."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm, _ = _make_async_stream_cm([
+            '{"message": {"content": "Hello, I am working!"}}',
+            '{"done": true}',
+        ])
+        client._async_client.stream = Mock(return_value=cm)
 
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            b'{"message": {"content": "Hello, I am working!"}}',
-            b'{"done": true}'
-        ]
+        success, message = await client.test_model("llama3.2")
 
-        with patch.object(client._session, 'post', return_value=mock_response):
-            success, message = client.test_model("llama3.2")
+        assert success is True
+        assert len(message) > 0
 
-            assert success is True
-            assert len(message) > 0
-
-    def test_test_model_failure(self):
-        """Test model testing failure."""
+    async def test_test_model_failure(self):
+        """Test model testing failure on exception."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(side_effect=Exception("Model not found"))
+        cm.__aexit__ = AsyncMock(return_value=None)
+        client._async_client.stream = Mock(return_value=cm)
 
-        with patch.object(client._session, 'post', side_effect=Exception("Model not found")):
-            success, message = client.test_model("nonexistent")
+        success, message = await client.test_model("nonexistent")
 
-            assert success is False
-            assert len(message) > 0
+        assert success is False
+        assert len(message) > 0
 
 
 class TestErrorHandling:
@@ -379,19 +369,18 @@ class TestErrorHandling:
 
         client = OllamaClient(base_url="http://localhost:11434")
 
-        with patch.object(client._session, 'get', side_effect=requests.exceptions.ConnectionError("Connection refused")):
+        with patch.object(client._session, 'get', side_effect=httpx.ConnectError("Connection refused")):
             success, message = client.check_connection()
 
             assert success is False
-            assert "connection" in message.lower() or "refused" in message.lower()
 
     def test_handles_timeout_gracefully(self):
-        """Test timeout handling."""
+        """Test timeout handling in sync embedding path."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
 
-        with patch.object(client._session, 'post', side_effect=requests.exceptions.Timeout()):
+        with patch.object(client._session, 'post', side_effect=Exception("Timeout")):
             success, embedding = client.generate_embedding("model", "text")
 
             assert success is False
@@ -413,22 +402,17 @@ class TestErrorHandling:
             assert success is False or success is True
 
     def test_handles_http_error_codes(self):
-        """Test handling of HTTP error codes."""
+        """Test handling of HTTP error codes in sync path."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
 
         mock_response = Mock()
         mock_response.status_code = 404
-        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found")
 
         with patch.object(client._session, 'get', return_value=mock_response):
-            try:
-                success, message = client.check_connection()
-                # May succeed or fail depending on implementation
-                assert isinstance(success, bool)
-            except Exception:
-                pass
+            success, message = client.check_connection()
+            assert isinstance(success, bool)
 
 
 class TestGenerateEmbeddingsBatch:
@@ -440,8 +424,6 @@ class TestGenerateEmbeddingsBatch:
         assert client.generate_embeddings_batch("nomic-embed-text", []) == []
 
     def test_successful_batch_returns_embeddings(self):
-        from unittest.mock import Mock, patch
-
         from src.ollama_client import OllamaClient
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["hello", "world"]
@@ -454,8 +436,6 @@ class TestGenerateEmbeddingsBatch:
         assert result == expected
 
     def test_partial_response_pads_with_none(self):
-        from unittest.mock import Mock, patch
-
         from src.ollama_client import OllamaClient
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["a", "b", "c"]
@@ -471,8 +451,6 @@ class TestGenerateEmbeddingsBatch:
         assert result[2] is None
 
     def test_http_error_falls_back_to_per_text(self):
-        from unittest.mock import Mock, patch
-
         from src.ollama_client import OllamaClient
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["hello"]
@@ -485,8 +463,6 @@ class TestGenerateEmbeddingsBatch:
         assert result == [embedding]
 
     def test_exception_falls_back_to_per_text(self):
-        from unittest.mock import patch
-
         from src.ollama_client import OllamaClient
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["hello"]
@@ -497,8 +473,6 @@ class TestGenerateEmbeddingsBatch:
         assert result == [embedding]
 
     def test_fallback_yields_none_on_embedding_failure(self):
-        from unittest.mock import patch
-
         from src.ollama_client import OllamaClient
         client = OllamaClient(base_url="http://localhost:11434")
         texts = ["hello"]

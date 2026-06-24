@@ -1,23 +1,59 @@
-
 """
 Complete Ollama Client Tests
 =============================
 
-Additional tests to achieve 95%+ coverage of ollama_client.py
+Additional tests covering edge cases in ollama_client.py.
 
-Missing coverage (10 lines):
-- Lines 196-199: Long text handling
-- Lines 233-235: Token limit handling
-- Lines 421-423: Model pull progress
-
-Author: LocalChat Team
-Created: January 2025
+Sync methods are tested by patching client._session.* (httpx.Client).
+Async methods are tested by patching client._async_client.* (httpx.AsyncClient).
+pull_model uses client._session.stream() as a sync context manager.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
-import requests
+import httpx
+import pytest
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_async_stream_cm(lines: list[str], status_code: int = 200):
+    """Build a mock async context manager for httpx.AsyncClient.stream()."""
+    mock_response = Mock()
+    mock_response.status_code = status_code
+    mock_response.text = ""
+
+    async def _aiter_lines():
+        for line in lines:
+            yield line
+
+    mock_response.aiter_lines = Mock(return_value=_aiter_lines())
+
+    async def _aread():
+        return b""
+    mock_response.aread = _aread
+
+    cm = AsyncMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_response)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    return cm, mock_response
+
+
+def _make_pull_cm(lines: list[str], status_code: int = 200):
+    """Build a sync context manager mock for httpx.Client.stream() (pull_model)."""
+    mock_response = Mock()
+    mock_response.status_code = status_code
+    mock_response.iter_lines.return_value = lines
+    cm = Mock()
+    cm.__enter__ = Mock(return_value=mock_response)
+    cm.__exit__ = Mock(return_value=False)
+    return cm
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 class TestLongTextHandling:
     """Test handling of very long text inputs."""
@@ -28,19 +64,15 @@ class TestLongTextHandling:
 
         client = OllamaClient(base_url="http://localhost:11434")
 
-        # Create very long text (10,000 characters)
         long_text = "This is a test sentence. " * 400
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            'embeddings': [[0.1] * 768]
-        }
+        mock_response.json.return_value = {'embeddings': [[0.1] * 768]}
 
         with patch.object(client._session, 'post', return_value=mock_response):
             success, embedding = client.generate_embedding("nomic-embed-text", long_text)
 
-            # Should handle long text gracefully
             assert success is True
             assert len(embedding) == 768
 
@@ -52,100 +84,72 @@ class TestLongTextHandling:
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            'embeddings': [[0.0] * 768]
-        }
+        mock_response.json.return_value = {'embeddings': [[0.0] * 768]}
 
         with patch.object(client._session, 'post', return_value=mock_response):
             success, embedding = client.generate_embedding("nomic-embed-text", "")
 
-            # Should handle empty string
             assert isinstance(success, bool)
 
 
 class TestChatTokenLimits:
-    """Test chat generation with token limits."""
+    """Test chat generation with token limits (async, uses _async_client)."""
 
-    def test_generate_chat_with_max_tokens_parameter(self):
+    async def test_generate_chat_with_max_tokens_parameter(self):
         """Test chat generation with explicit max_tokens."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm, _ = _make_async_stream_cm([
+            '{"message": {"role": "assistant", "content": "Short response due to token limit"}}',
+            '{"done": true}',
+        ])
+        client._async_client.stream = Mock(return_value=cm)
 
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            b'{"message": {"role": "assistant", "content": "Short response due to token limit"}}',
-            b'{"done": true}'
-        ]
+        chunks = [c async for c in client.generate_chat_response(
+            model="llama3.2",
+            messages=[{"role": "user", "content": "Tell me a story"}],
+            max_tokens=50,
+        )]
+        assert len(chunks) >= 1
 
-        with patch.object(client._session, 'post', return_value=mock_response):
-            response_gen = client.generate_chat_response(
-                model="llama3.2",
-                messages=[{"role": "user", "content": "Tell me a story"}],
-                max_tokens=50  # Explicit token limit
-            )
-
-            responses = list(response_gen)
-            assert len(responses) >= 1
-
-    def test_generate_chat_handles_token_limit_exceeded(self):
-        """Test handling when response exceeds token limits."""
+    async def test_generate_chat_handles_token_limit_exceeded(self):
+        """Test handling when response spans multiple chunks."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm, _ = _make_async_stream_cm([
+            '{"message": {"content": "Part 1"}}',
+            '{"message": {"content": " Part 2"}}',
+            '{"done": true}',
+        ])
+        client._async_client.stream = Mock(return_value=cm)
 
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            b'{"response": "Part 1"}',
-            b'{"response": " Part 2"}',
-            b'{"done": true, "context": [1, 2, 3]}'
-        ]
-
-        with patch.object(client._session, 'post', return_value=mock_response):
-            response_gen = client.generate_chat_response(
-                model="llama3.2",
-                messages=[{"role": "user", "content": "Long question"}]
-            )
-
-            responses = list(response_gen)
-            assert isinstance(responses, list)
+        chunks = [c async for c in client.generate_chat_response(
+            model="llama3.2",
+            messages=[{"role": "user", "content": "Long question"}],
+        )]
+        assert isinstance(chunks, list)
 
 
 class TestModelPullProgress:
-    """Test model pulling with progress tracking."""
+    """Test model pulling with progress tracking (sync, uses _session.stream)."""
 
     def test_pull_model_with_progress_callback(self):
         """Test pulling model with progress updates."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm = _make_pull_cm([
+            '{"status": "downloading", "completed": 1000000, "total": 10000000}',
+            '{"status": "downloading", "completed": 5000000, "total": 10000000}',
+            '{"status": "success"}',
+        ])
+        with patch.object(client._session, 'stream', return_value=cm):
+            results = list(client.pull_model("llama3.2"))
 
-        progress_calls = []
-
-        def progress_callback(status, progress):
-            progress_calls.append((status, progress))
-
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            b'{"status": "downloading", "completed": 1000000, "total": 10000000}',
-            b'{"status": "downloading", "completed": 5000000, "total": 10000000}',
-            b'{"status": "downloading", "completed": 10000000, "total": 10000000}',
-            b'{"status": "success"}'
-        ]
-
-        with patch.object(client._session, 'post', return_value=mock_response):
-            if hasattr(client, 'pull_model'):
-                results = list(client.pull_model("llama3.2"))
-
-                # Should yield progress updates
-                assert len(results) > 0
-                assert all(isinstance(r, dict) for r in results)
-            else:
-                # Method might not exist, that's okay
-                pass
+            assert len(results) > 0
+            assert all(isinstance(r, dict) for r in results)
 
     def test_pull_model_handles_network_interruption(self):
         """Test model pull handling network errors."""
@@ -153,65 +157,41 @@ class TestModelPullProgress:
 
         client = OllamaClient(base_url="http://localhost:11434")
 
-        with patch.object(client._session, 'post', side_effect=requests.exceptions.ConnectionError("Network error")):
-            if hasattr(client, 'pull_model'):
-                results = list(client.pull_model("llama3.2"))
+        with patch.object(client._session, 'stream', side_effect=Exception("Network error")):
+            results = list(client.pull_model("llama3.2"))
 
-                assert len(results) == 1
-                assert "error" in results[0]
-            else:
-                # Method might not exist
-                pass
+            assert len(results) == 1
+            assert "error" in results[0]
 
 
 class TestStreamingEdgeCases:
-    """Test streaming response edge cases."""
+    """Test streaming response edge cases (async, uses _async_client)."""
 
-    def test_streaming_with_empty_response(self):
+    async def test_streaming_with_empty_response(self):
         """Test streaming that returns no content."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm, _ = _make_async_stream_cm(['{"done": true}'])
+        client._async_client.stream = Mock(return_value=cm)
 
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.iter_lines.return_value = [
-            b'{"done": true}'
-        ]
+        chunks = [c async for c in client.generate_chat_response(model="llama3.2", messages=[])]
+        assert isinstance(chunks, list)
 
-        with patch.object(client._session, 'post', return_value=mock_response):
-            response_gen = client.generate_chat_response(
-                model="llama3.2",
-                messages=[]
-            )
-
-            responses = list(response_gen)
-            # Should handle empty response gracefully
-            assert isinstance(responses, list)
-
-    def test_streaming_with_malformed_json(self):
-        """Test streaming with invalid JSON chunks."""
+    async def test_streaming_with_malformed_json(self):
+        """Test streaming with invalid JSON chunks raises an exception."""
         from src.ollama_client import OllamaClient
 
         client = OllamaClient(base_url="http://localhost:11434")
+        cm, _ = _make_async_stream_cm([
+            '{"message":{"content":"Good data"}}',
+            'invalid json here',
+            '{"done":true}',
+        ])
+        client._async_client.stream = Mock(return_value=cm)
 
-        mock_response = Mock()
-        mock_response.iter_lines.return_value = [
-            b'{"response": "Good data"}',
-            b'invalid json here',
-            b'{"done": true}'
-        ]
-
-        with patch.object(client._session, 'post', return_value=mock_response):
-            response_gen = client.generate_chat_response(
-                model="llama3.2",
-                messages=[]
-            )
-
-            try:
-                responses = list(response_gen)
-                # Should handle gracefully or raise appropriately
-                assert isinstance(responses, list)
-            except Exception:
-                # Exception is acceptable for malformed data
-                pass
+        try:
+            chunks = [c async for c in client.generate_chat_response(model="llama3.2", messages=[])]
+            assert isinstance(chunks, list)
+        except Exception:
+            pass  # JSON error on malformed line is acceptable

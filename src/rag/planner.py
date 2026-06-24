@@ -78,14 +78,14 @@ class QueryPlan:
 class QueryPlanner:
     """Calls the active model to produce a structured QueryPlan for a query."""
 
-    def plan(
+    async def plan(
         self,
         query: str,
         model: str,
         ollama_client: Any,
     ) -> QueryPlan | None:
         """
-        Return a QueryPlan or None if planning fails.
+        Return a QueryPlan or None if planning fails (async).
 
         Args:
             query: Raw user query string.
@@ -101,11 +101,11 @@ class QueryPlanner:
                 {"role": "user",   "content": f"Query: {query}"},
             ]
             # Non-streaming single-shot call; temperature=0 for determinism.
-            raw = next(iter(
-                ollama_client.generate_chat_response(
-                    model, messages, stream=False, temperature=0.0
-                )
-            ), "")
+            raw = ""
+            async for chunk in ollama_client.generate_chat_response(
+                model, messages, stream=False, temperature=0.0
+            ):
+                raw += chunk
             plan = self._parse(raw.strip(), query)
             logger.info(
                 f"[Planner] intent={plan.intent} hops={plan.estimated_hops}"

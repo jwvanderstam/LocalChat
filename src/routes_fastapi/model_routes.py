@@ -121,7 +121,7 @@ async def test_model(request: Request) -> Any:
         return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
 
     try:
-        success, result = request.app.state.ollama_client.test_model(model_name)
+        success, result = await request.app.state.ollama_client.test_model(model_name)
         return {"success": success, "result": result}
     except Exception:
         logger.exception("[Models] test error")

@@ -57,6 +57,9 @@ class TestRagFlow:
         config.app_state.set_active_model("llama3.2")
         app.state.startup_status["ollama"] = True
 
+        async def _gen_rag(*a, **k):
+            yield "pgvector is used for semantic search."
+
         with (
             patch.object(app.state.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS),
             patch.object(
@@ -67,7 +70,7 @@ class TestRagFlow:
             patch.object(
                 app.state.ollama_client,
                 "generate_chat_response",
-                side_effect=lambda *a, **k: iter(["pgvector is used for semantic search."]),
+                side_effect=_gen_rag,
             ),
         ):
             return client.post("/api/chat", json={"message": message, "use_rag": True})

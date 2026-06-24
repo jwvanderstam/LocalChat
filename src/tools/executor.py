@@ -20,7 +20,7 @@ Usage:
 from __future__ import annotations
 
 import json
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
 
 from .. import config
@@ -119,26 +119,24 @@ class ToolExecutor:
             )
         return f"{pad}{data}"
 
-    def execute(
+    async def execute(
         self,
         model: str,
         messages: list[dict[str, Any]],
         stream: bool = True,
-    ) -> Generator[str, None, None]:
+    ) -> AsyncGenerator[str, None]:
         """
-        Run a chat completion with automatic tool execution.
+        Run a chat completion with automatic tool execution (async).
 
         Yields:
             Text chunks of the model's final answer.
-
-        The method is a generator so it can be plugged directly into the
-        existing SSE streaming pipeline.
         """
         schemas = self._registry.get_ollama_schemas()
         if not schemas:
-            yield from self._client.generate_chat_response(
+            async for chunk in self._client.generate_chat_response(
                 model, messages, stream=stream
-            )
+            ):
+                yield chunk
             return
 
         working_messages: list[dict[str, Any]] = list(messages)
@@ -151,7 +149,7 @@ class ToolExecutor:
             )
 
             active_tools = None if inline_mode else schemas
-            response = self._client.generate_chat_completion(
+            response = await self._client.generate_chat_completion(
                 model, working_messages, tools=active_tools
             )
             assistant_msg = response.get("message", {})
@@ -175,9 +173,10 @@ class ToolExecutor:
             f"[TOOLS] Reached max rounds ({self._max_rounds}), "
             "streaming final response without tools"
         )
-        yield from self._client.generate_chat_response(
+        async for chunk in self._client.generate_chat_response(
             model, working_messages, stream=stream
-        )
+        ):
+            yield chunk
 
     # ------------------------------------------------------------------
     # Internals

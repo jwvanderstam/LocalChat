@@ -8,8 +8,9 @@ Unit tests covering the temperature parameter added to:
   - _parse_chat_request / _stream_chat_response in api_routes (src/routes/api_routes.py)
 """
 
+import json as _json
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -126,6 +127,27 @@ class TestChatRequestTemperature:
 # OllamaClient – temperature forwarded to Ollama options
 # ============================================================================
 
+def _make_async_stream_cm(lines: list[str], status_code: int = 200):
+    """Build a mock async context manager for httpx.AsyncClient.stream()."""
+    mock_response = Mock()
+    mock_response.status_code = status_code
+
+    async def _aiter_lines():
+        for line in lines:
+            yield line
+
+    mock_response.aiter_lines = Mock(return_value=_aiter_lines())
+
+    async def _aread():
+        return b""
+
+    mock_response.aread = _aread
+    cm = AsyncMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_response)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    return cm, mock_response
+
+
 class TestOllamaClientTemperature:
     """generate_chat_response passes temperature into the Ollama payload."""
 
@@ -133,129 +155,106 @@ class TestOllamaClientTemperature:
         from src.ollama_client import OllamaClient
         return OllamaClient(base_url="http://localhost:11434")
 
-    def _mock_stream_response(self, chunks):
-        """Return a mock requests.Response that streams JSON lines."""
-        lines = []
-        for chunk in chunks:
-            import json
-            lines.append(json.dumps({"message": {"content": chunk}, "done": False}).encode())
-        lines.append(b'{"message": {"content": ""}, "done": true}')
+    def _stream_lines(self, chunks: list[str]) -> list[str]:
+        lines = [_json.dumps({"message": {"content": c}, "done": False}) for c in chunks]
+        lines.append('{"message": {"content": ""}, "done": true}')
+        return lines
 
-        mock_resp = Mock()
-        mock_resp.status_code = 200
-        mock_resp.iter_lines.return_value = iter(lines)
-        return mock_resp
-
-    def test_default_temperature_sent(self):
+    async def test_default_temperature_sent(self):
         client = self._make_client()
-        mock_resp = self._mock_stream_response(["hi"])
+        cm, _ = _make_async_stream_cm(self._stream_lines(["hi"]))
+        client._async_client.stream = Mock(return_value=cm)
 
-        with patch.object(client._session, 'post', return_value=mock_resp) as mock_post:
-            list(client.generate_chat_response("llama3.2", [{"role": "user", "content": "hi"}]))
-            payload = mock_post.call_args[1]['json']
-            assert payload['options']['temperature'] == pytest.approx(0.7)
+        _ = [c async for c in client.generate_chat_response("llama3.2", [{"role": "user", "content": "hi"}])]
+        payload = client._async_client.stream.call_args.kwargs['json']
+        assert payload['options']['temperature'] == pytest.approx(0.7)
 
-    def test_custom_temperature_sent(self):
+    async def test_custom_temperature_sent(self):
         client = self._make_client()
-        mock_resp = self._mock_stream_response(["hi"])
+        cm, _ = _make_async_stream_cm(self._stream_lines(["hi"]))
+        client._async_client.stream = Mock(return_value=cm)
 
-        with patch.object(client._session, 'post', return_value=mock_resp) as mock_post:
-            list(client.generate_chat_response(
-                "llama3.2",
-                [{"role": "user", "content": "hi"}],
-                temperature=0.1,
-            ))
-            payload = mock_post.call_args[1]['json']
-            assert payload['options']['temperature'] == pytest.approx(0.1)
+        _ = [c async for c in client.generate_chat_response(
+            "llama3.2", [{"role": "user", "content": "hi"}], temperature=0.1,
+        )]
+        payload = client._async_client.stream.call_args.kwargs['json']
+        assert payload['options']['temperature'] == pytest.approx(0.1)
 
-    def test_high_temperature_sent(self):
+    async def test_high_temperature_sent(self):
         client = self._make_client()
-        mock_resp = self._mock_stream_response(["hi"])
+        cm, _ = _make_async_stream_cm(self._stream_lines(["hi"]))
+        client._async_client.stream = Mock(return_value=cm)
 
-        with patch.object(client._session, 'post', return_value=mock_resp) as mock_post:
-            list(client.generate_chat_response(
-                "llama3.2",
-                [{"role": "user", "content": "hi"}],
-                temperature=1.9,
-            ))
-            payload = mock_post.call_args[1]['json']
-            assert payload['options']['temperature'] == pytest.approx(1.9)
+        _ = [c async for c in client.generate_chat_response(
+            "llama3.2", [{"role": "user", "content": "hi"}], temperature=1.9,
+        )]
+        payload = client._async_client.stream.call_args.kwargs['json']
+        assert payload['options']['temperature'] == pytest.approx(1.9)
 
-    def test_temperature_zero_sent(self):
+    async def test_temperature_zero_sent(self):
         client = self._make_client()
-        mock_resp = self._mock_stream_response(["hi"])
+        cm, _ = _make_async_stream_cm(self._stream_lines(["hi"]))
+        client._async_client.stream = Mock(return_value=cm)
 
-        with patch.object(client._session, 'post', return_value=mock_resp) as mock_post:
-            list(client.generate_chat_response(
-                "llama3.2",
-                [{"role": "user", "content": "hi"}],
-                temperature=0.0,
-            ))
-            payload = mock_post.call_args[1]['json']
-            assert payload['options']['temperature'] == pytest.approx(0.0)
+        _ = [c async for c in client.generate_chat_response(
+            "llama3.2", [{"role": "user", "content": "hi"}], temperature=0.0,
+        )]
+        payload = client._async_client.stream.call_args.kwargs['json']
+        assert payload['options']['temperature'] == pytest.approx(0.0)
 
-    def test_other_options_still_present(self):
+    async def test_other_options_still_present(self):
         """Ensure num_gpu and num_ctx are not displaced by temperature."""
         client = self._make_client()
-        mock_resp = self._mock_stream_response(["hi"])
+        cm, _ = _make_async_stream_cm(self._stream_lines(["hi"]))
+        client._async_client.stream = Mock(return_value=cm)
 
-        with patch.object(client._session, 'post', return_value=mock_resp) as mock_post:
-            list(client.generate_chat_response(
-                "llama3.2",
-                [{"role": "user", "content": "hi"}],
-                temperature=0.5,
-            ))
-            opts = mock_post.call_args[1]['json']['options']
-            assert 'num_gpu' in opts
-            assert 'num_ctx' in opts
-            assert 'temperature' in opts
+        _ = [c async for c in client.generate_chat_response(
+            "llama3.2", [{"role": "user", "content": "hi"}], temperature=0.5,
+        )]
+        opts = client._async_client.stream.call_args.kwargs['json']['options']
+        assert 'num_gpu' in opts
+        assert 'num_ctx' in opts
+        assert 'temperature' in opts
 
-    def test_non_streaming_mode_includes_temperature(self):
+    async def test_non_streaming_mode_includes_temperature(self):
         """Temperature must appear in the payload even when stream=False."""
         client = self._make_client()
-
         mock_resp = Mock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"message": {"content": "hi"}, "done": True}
+        client._async_client.post = AsyncMock(return_value=mock_resp)
 
-        with patch.object(client._session, 'post', return_value=mock_resp) as mock_post:
-            list(client.generate_chat_response(
-                "llama3.2",
-                [{"role": "user", "content": "hi"}],
-                stream=False,
-                temperature=0.4,
-            ))
-            opts = mock_post.call_args[1]['json']['options']
-            assert opts['temperature'] == pytest.approx(0.4)
+        _ = [c async for c in client.generate_chat_response(
+            "llama3.2", [{"role": "user", "content": "hi"}],
+            stream=False, temperature=0.4,
+        )]
+        opts = client._async_client.post.call_args.kwargs['json']['options']
+        assert opts['temperature'] == pytest.approx(0.4)
 
-    def test_temperature_and_max_tokens_coexist(self):
+    async def test_temperature_and_max_tokens_coexist(self):
         """Both temperature and num_predict must appear together in options."""
         client = self._make_client()
-        mock_resp = self._mock_stream_response(["hi"])
+        cm, _ = _make_async_stream_cm(self._stream_lines(["hi"]))
+        client._async_client.stream = Mock(return_value=cm)
 
-        with patch.object(client._session, 'post', return_value=mock_resp) as mock_post:
-            list(client.generate_chat_response(
-                "llama3.2",
-                [{"role": "user", "content": "hi"}],
-                max_tokens=256,
-                temperature=1.1,
-            ))
-            opts = mock_post.call_args[1]['json']['options']
-            assert opts['temperature'] == pytest.approx(1.1)
-            assert opts['num_predict'] == 256
+        _ = [c async for c in client.generate_chat_response(
+            "llama3.2", [{"role": "user", "content": "hi"}],
+            max_tokens=256, temperature=1.1,
+        )]
+        opts = client._async_client.stream.call_args.kwargs['json']['options']
+        assert opts['temperature'] == pytest.approx(1.1)
+        assert opts['num_predict'] == 256
 
-    def test_temperature_exact_boundary_2_0_sent(self):
+    async def test_temperature_exact_boundary_2_0_sent(self):
         """Boundary value 2.0 must pass through to the payload unchanged."""
         client = self._make_client()
-        mock_resp = self._mock_stream_response(["hi"])
+        cm, _ = _make_async_stream_cm(self._stream_lines(["hi"]))
+        client._async_client.stream = Mock(return_value=cm)
 
-        with patch.object(client._session, 'post', return_value=mock_resp) as mock_post:
-            list(client.generate_chat_response(
-                "llama3.2",
-                [{"role": "user", "content": "hi"}],
-                temperature=2.0,
-            ))
-            assert mock_post.call_args[1]['json']['options']['temperature'] == pytest.approx(2.0)
+        _ = [c async for c in client.generate_chat_response(
+            "llama3.2", [{"role": "user", "content": "hi"}], temperature=2.0,
+        )]
+        assert client._async_client.stream.call_args.kwargs['json']['options']['temperature'] == pytest.approx(2.0)
 
 
 # ============================================================================
@@ -327,7 +326,13 @@ class TestStreamChatResponseTemperature:
         test_app.state.doc_processor = Mock()
         test_app.state.doc_processor.retrieve_context = Mock(return_value=[])
         test_app.state.ollama_client = Mock()
-        test_app.state.ollama_client.generate_chat_response.return_value = iter(chunks or ["hi"])
+        _chunks = chunks or ["hi"]
+
+        async def _default_gen(*args, **kwargs):
+            for chunk in _chunks:
+                yield chunk
+
+        test_app.state.ollama_client.generate_chat_response.side_effect = _default_gen
         test_app.state.cloud_client = None
         test_app.state.testing = True
         test_app.state.embedding_cache = None

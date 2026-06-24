@@ -225,6 +225,20 @@ class TestQueryPlannerParse:
 # QueryPlanner.plan (integration with mocked ollama_client)
 # ===========================================================================
 
+def _async_gen(*values):
+    async def _g(*args, **kwargs):
+        for v in values:
+            yield v
+    return _g
+
+
+def _async_gen_raise(exc):
+    async def _g(*args, **kwargs):
+        raise exc
+        yield  # make it an async generator
+    return _g
+
+
 class TestQueryPlannerPlan:
     def _planner(self):
         return QueryPlanner()
@@ -232,7 +246,7 @@ class TestQueryPlannerPlan:
     def _make_client(self, response: str):
         """Return a mock ollama_client whose generate_chat_response yields response."""
         client = MagicMock()
-        client.generate_chat_response.return_value = iter([response])
+        client.generate_chat_response = _async_gen(response)
         return client
 
     def _valid_json_response(self, **overrides):
@@ -248,95 +262,97 @@ class TestQueryPlannerPlan:
 
     # ── Success paths ─────────────────────────────────────────────────────────
 
-    def test_returns_query_plan_on_success(self):
+    async def test_returns_query_plan_on_success(self):
         planner = self._planner()
         client = self._make_client(self._valid_json_response())
-        result = planner.plan("What is the policy?", "llama3", client)
+        result = await planner.plan("What is the policy?", "llama3", client)
         assert isinstance(result, QueryPlan)
         assert result.intent == "factual_lookup"
 
-    def test_calls_ollama_with_correct_args(self):
+    async def test_calls_ollama_with_correct_args(self):
         planner = self._planner()
-        client = self._make_client(self._valid_json_response())
-        planner.plan("test query", "my-model", client)
-        client.generate_chat_response.assert_called_once()
-        call_args = client.generate_chat_response.call_args
-        # positional: model, messages
-        assert call_args.args[0] == "my-model"
-        messages = call_args.args[1]
+        called_args = {}
+
+        async def _capture_gen(model, messages, **kwargs):
+            called_args['model'] = model
+            called_args['messages'] = messages
+            called_args['kwargs'] = kwargs
+            yield self._valid_json_response()
+
+        client = MagicMock()
+        client.generate_chat_response = _capture_gen
+        await planner.plan("test query", "my-model", client)
+
+        assert called_args['model'] == "my-model"
+        messages = called_args['messages']
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
         assert "test query" in messages[1]["content"]
-        # keyword: stream=False, temperature=0.0
-        assert call_args.kwargs.get("stream") is False
-        assert call_args.kwargs.get("temperature") == 0.0
+        assert called_args['kwargs'].get("stream") is False
+        assert called_args['kwargs'].get("temperature") == 0.0
 
-    def test_returns_plan_with_correct_sub_questions(self):
+    async def test_returns_plan_with_correct_sub_questions(self):
         planner = self._planner()
         client = self._make_client(self._valid_json_response(
             intent="comparison",
             sub_questions=["What is A?", "What is B?"],
             estimated_hops=2,
         ))
-        result = planner.plan("Compare A and B", "llama3", client)
+        result = await planner.plan("Compare A and B", "llama3", client)
         assert result.sub_questions == ["What is A?", "What is B?"]
         assert result.is_multi_hop is True
 
     # ── Failure paths return None (non-blocking) ──────────────────────────────
 
-    def test_returns_none_when_llm_raises(self):
+    async def test_returns_none_when_llm_raises(self):
         planner = self._planner()
         client = MagicMock()
-        client.generate_chat_response.side_effect = RuntimeError("Ollama down")
-        result = planner.plan("query", "llama3", client)
+        client.generate_chat_response = _async_gen_raise(RuntimeError("Ollama down"))
+        result = await planner.plan("query", "llama3", client)
         assert result is None
 
-    def test_returns_none_when_response_is_empty(self):
+    async def test_returns_none_when_response_is_empty(self):
         planner = self._planner()
         client = MagicMock()
-        # Empty iterator → next(iter(...), "") gives "" → _parse raises → caught
-        client.generate_chat_response.return_value = iter([])
-        result = planner.plan("query", "llama3", client)
+        client.generate_chat_response = _async_gen()  # yields nothing → raw="" → _parse raises → caught
+        result = await planner.plan("query", "llama3", client)
         assert result is None
 
-    def test_returns_none_when_response_has_no_json(self):
+    async def test_returns_none_when_response_has_no_json(self):
         planner = self._planner()
         client = self._make_client("I cannot help with that.")
-        result = planner.plan("query", "llama3", client)
+        result = await planner.plan("query", "llama3", client)
         assert result is None
 
-    def test_returns_none_when_json_is_invalid(self):
+    async def test_returns_none_when_json_is_invalid(self):
         planner = self._planner()
         client = self._make_client("{broken json}")
-        result = planner.plan("query", "llama3", client)
+        result = await planner.plan("query", "llama3", client)
         assert result is None
 
-    def test_returns_none_when_iterator_raises_mid_stream(self):
+    async def test_returns_none_when_iterator_raises_mid_stream(self):
         planner = self._planner()
         client = MagicMock()
-        def bad_gen():
-            raise ConnectionError("stream interrupted")
-            yield  # make it a generator
-        client.generate_chat_response.return_value = bad_gen()
-        result = planner.plan("query", "llama3", client)
+        client.generate_chat_response = _async_gen_raise(ConnectionError("stream interrupted"))
+        result = await planner.plan("query", "llama3", client)
         assert result is None
 
     # ── Logging smoke-test ────────────────────────────────────────────────────
 
-    def test_logs_intent_on_success(self):
+    async def test_logs_intent_on_success(self):
         planner = self._planner()
         client = self._make_client(self._valid_json_response(intent="synthesis", estimated_hops=2))
         with patch("src.rag.planner.logger") as mock_logger:
-            planner.plan("summarise everything", "llama3", client)
+            await planner.plan("summarise everything", "llama3", client)
         mock_logger.info.assert_called_once()
         log_msg = mock_logger.info.call_args.args[0]
         assert "synthesis" in log_msg
         assert "2" in log_msg
 
-    def test_logs_debug_on_failure(self):
+    async def test_logs_debug_on_failure(self):
         planner = self._planner()
         client = MagicMock()
-        client.generate_chat_response.side_effect = Exception("boom")
+        client.generate_chat_response = _async_gen_raise(Exception("boom"))
         with patch("src.rag.planner.logger") as mock_logger:
-            planner.plan("query", "llama3", client)
+            await planner.plan("query", "llama3", client)
         mock_logger.debug.assert_called_once()

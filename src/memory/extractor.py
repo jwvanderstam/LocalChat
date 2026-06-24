@@ -41,7 +41,7 @@ _JSON_ARRAY_RE = re.compile(r'\[.*\]', re.DOTALL)
 class MemoryExtractor:
     """Extract memories from a list of conversation messages."""
 
-    def extract(
+    async def extract(
         self,
         conversation_id: str,
         messages: list[dict[str, str]],
@@ -50,7 +50,7 @@ class MemoryExtractor:
         db: Any,
     ) -> int:
         """
-        Extract and persist memories from a conversation.
+        Extract and persist memories from a conversation (async).
 
         Args:
             conversation_id: UUID string of the source conversation.
@@ -81,7 +81,7 @@ class MemoryExtractor:
         transcript = "\n".join(transcript_parts[-20:])  # last 20 turns max
 
         try:
-            raw_memories = self._call_llm(transcript, model, ollama_client)
+            raw_memories = await self._call_llm(transcript, model, ollama_client)
         except Exception as exc:
             logger.warning(f"[Memory] LLM extraction failed for conv {conversation_id}: {exc}")
             db.mark_conversation_extracted(conversation_id)
@@ -131,17 +131,17 @@ class MemoryExtractor:
             return False
 
     @staticmethod
-    def _call_llm(transcript: str, model: str, ollama_client: Any) -> list[dict]:
-        """Call the LLM and parse the JSON array response."""
+    async def _call_llm(transcript: str, model: str, ollama_client: Any) -> list[dict]:
+        """Call the LLM and parse the JSON array response (async)."""
         prompt_messages = [
             {"role": "system", "content": _EXTRACT_SYSTEM},
             {"role": "user",   "content": f"Conversation:\n{transcript}"},
         ]
-        raw = next(iter(
-            ollama_client.generate_chat_response(
-                model, prompt_messages, stream=False, temperature=0.0
-            )
-        ), "")
+        raw = ""
+        async for chunk in ollama_client.generate_chat_response(
+            model, prompt_messages, stream=False, temperature=0.0
+        ):
+            raw += chunk
         match = _JSON_ARRAY_RE.search(raw.strip())
         if not match:
             logger.debug(f"[Memory] No JSON array in LLM output: {raw[:120]!r}")

@@ -1,7 +1,7 @@
 """Tests for ToolRegistry, ToolExecutor, and built-in tools."""
 
 import ast
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -132,55 +132,62 @@ class TestToolExecutorExecute:
         client = MagicMock()
         return ToolExecutor(client, registry, max_rounds=max_rounds), client, registry
 
-    def test_no_schemas_falls_back_to_direct_chat(self):
+    async def test_no_schemas_falls_back_to_direct_chat(self):
         from src.tools.executor import ToolExecutor
         from src.tools.registry import ToolRegistry
 
         empty_registry = ToolRegistry()
         client = MagicMock()
-        client.generate_chat_response.return_value = iter(["hi"])
+
+        async def _gen(*a, **k):
+            yield "hi"
+
+        client.generate_chat_response = _gen
         executor = ToolExecutor(client, empty_registry)
 
-        result = list(executor.execute("model", [{"role": "user", "content": "hi"}]))
+        result = [c async for c in executor.execute("model", [{"role": "user", "content": "hi"}])]
         assert result == ["hi"]
 
-    def test_final_text_answer_yielded(self):
+    async def test_final_text_answer_yielded(self):
         executor, client, _ = self._make_executor()
-        client.generate_chat_completion.return_value = {
+        client.generate_chat_completion = AsyncMock(return_value={
             "message": {"content": "The answer is 5", "tool_calls": None}
-        }
-        result = "".join(executor.execute("model", [{"role": "user", "content": "q"}]))
+        })
+        result = "".join([c async for c in executor.execute("model", [{"role": "user", "content": "q"}])])
         assert "5" in result
 
-    def test_tool_call_executed(self):
+    async def test_tool_call_executed(self):
         executor, client, _ = self._make_executor()
-        client.generate_chat_completion.side_effect = [
+        client.generate_chat_completion = AsyncMock(side_effect=[
             {"message": {"tool_calls": [{"function": {"name": "add", "arguments": {"a": 2, "b": 3}}}]}},
             {"message": {"content": "Result: 5", "tool_calls": None}},
-        ]
-        result = "".join(executor.execute("model", []))
+        ])
+        result = "".join([c async for c in executor.execute("model", [])])
         assert "5" in result
 
-    def test_unknown_tool_in_call_returns_error_string(self):
+    async def test_unknown_tool_in_call_returns_error_string(self):
         executor, client, _ = self._make_executor()
-        client.generate_chat_completion.side_effect = [
+        client.generate_chat_completion = AsyncMock(side_effect=[
             {"message": {"tool_calls": [{"function": {"name": "ghost", "arguments": {}}}]}},
             {"message": {"content": "Done", "tool_calls": None}},
-        ]
-        result = "".join(executor.execute("model", []))
+        ])
+        result = "".join([c async for c in executor.execute("model", [])])
         assert "Done" in result
 
-    def test_max_rounds_exhausted_streams_final(self):
+    async def test_max_rounds_exhausted_streams_final(self):
         executor, client, _ = self._make_executor(max_rounds=1)
-        # Always return tool call — exhausts rounds
-        client.generate_chat_completion.return_value = {
+        client.generate_chat_completion = AsyncMock(return_value={
             "message": {"tool_calls": [{"function": {"name": "add", "arguments": {"a": 1, "b": 1}}}]}
-        }
-        client.generate_chat_response.return_value = iter(["fallback"])
-        result = "".join(executor.execute("model", []))
+        })
+
+        async def _gen(*a, **k):
+            yield "fallback"
+
+        client.generate_chat_response = _gen
+        result = "".join([c async for c in executor.execute("model", [])])
         assert result == "fallback"
 
-    def test_tool_raising_exception_returns_error_message(self):
+    async def test_tool_raising_exception_returns_error_message(self):
         from src.tools.executor import ToolExecutor
         from src.tools.registry import ToolRegistry
 
@@ -191,30 +198,29 @@ class TestToolExecutorExecute:
             raise ValueError("intentional")
 
         client = MagicMock()
-        client.generate_chat_completion.side_effect = [
+        client.generate_chat_completion = AsyncMock(side_effect=[
             {"message": {"tool_calls": [{"function": {"name": "boom", "arguments": {}}}]}},
             {"message": {"content": "Handled", "tool_calls": None}},
-        ]
+        ])
         executor = ToolExecutor(client, registry)
-        result = "".join(executor.execute("model", []))
-        # Should survive the tool error
+        result = "".join([c async for c in executor.execute("model", [])])
         assert "Handled" in result
 
-    def test_tool_call_with_json_string_arguments(self):
+    async def test_tool_call_with_json_string_arguments(self):
         executor, client, _ = self._make_executor()
-        client.generate_chat_completion.side_effect = [
+        client.generate_chat_completion = AsyncMock(side_effect=[
             {"message": {"tool_calls": [{"function": {"name": "add", "arguments": '{"a": 1, "b": 2}'}}]}},
             {"message": {"content": "ok", "tool_calls": None}},
-        ]
-        result = "".join(executor.execute("model", []))
+        ])
+        result = "".join([c async for c in executor.execute("model", [])])
         assert "ok" in result
 
-    def test_empty_content_in_final_answer(self):
+    async def test_empty_content_in_final_answer(self):
         executor, client, _ = self._make_executor()
-        client.generate_chat_completion.return_value = {
+        client.generate_chat_completion = AsyncMock(return_value={
             "message": {"content": "", "tool_calls": None}
-        }
-        result = list(executor.execute("model", []))
+        })
+        result = [c async for c in executor.execute("model", [])]
         assert result == []
 
 

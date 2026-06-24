@@ -53,7 +53,15 @@ def _make_chat_app(active_model="llama3.2", db_ok=True, ollama_ok=True, chunks=N
     test_app.state.doc_processor.retrieve_context.return_value = []
     test_app.state.ollama_client = MagicMock()
     test_app.state.ollama_client.check_connection.return_value = (True, "OK")
-    test_app.state.ollama_client.generate_chat_response.return_value = iter(chunks or ["Hello", " world"])
+    _default_chunks = chunks or ["Hello", " world"]
+
+    async def _default_generate(*args, **kwargs):
+        for chunk in _default_chunks:
+            yield chunk
+
+    # side_effect = callable makes the MagicMock delegate to the async generator factory;
+    # tests that need errors can replace side_effect with an Exception instance.
+    test_app.state.ollama_client.generate_chat_response.side_effect = _default_generate
     test_app.state.cloud_client = None
     test_app.state.testing = True
     test_app.state.embedding_cache = None

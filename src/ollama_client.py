@@ -40,10 +40,10 @@ Example:
 import json
 import threading
 import time
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from typing import Any, NoReturn
 
-import requests
+import httpx
 
 from . import config
 from .gpu_monitor import GpuMonitor
@@ -59,26 +59,17 @@ class OllamaClient:
 
     Handles communication with the Ollama server for chat completions,
     embedding generation, model management, and GPU hardware detection.
-    All HTTP requests reuse a single ``requests.Session`` for connection
-    pooling.
+
+    Sync admin operations (list_models, pull_model, check_connection, etc.)
+    use a shared ``httpx.Client`` for connection pooling.  Inference methods
+    (generate_chat_response, generate_chat_completion) are ``async def`` and
+    use a shared ``httpx.AsyncClient`` so they release the event loop while
+    waiting for the model, enabling concurrent chat requests.
 
     Attributes:
         base_url (str): Base URL for Ollama API.
         is_available (bool): Whether Ollama server is accessible.
         available_models (List[str]): List of available model names.
-
-    TTL cache attributes (internal):
-        _running_models_cache: Cached ``/api/ps`` result; refreshed every
-            ``_RUNNING_MODELS_TTL`` seconds (default 5 s).
-        _gpu_info_cache: Cached GPU hardware stats; refreshed every
-            ``_GPU_INFO_TTL`` seconds (default 30 s).
-
-    Example:
-        >>> client = OllamaClient("http://localhost:11434")
-        >>> success, msg = client.check_connection()
-        >>> if success:
-        ...     gpus = client.get_gpu_info()
-        ...     models = client.get_running_models()
     """
 
     # How long (seconds) to serve cached results before re-querying.
@@ -86,18 +77,12 @@ class OllamaClient:
     _LIST_MODELS_TTL: float = 60.0     # installed models list; rarely changes
 
     def __init__(self, base_url: str | None = None) -> None:
-        """
-        Initialize Ollama client.
-
-        Args:
-            base_url: Base URL for Ollama API (default from config)
-        """
         self.base_url: str = base_url or config.OLLAMA_BASE_URL
         self.is_available: bool = False
         self.available_models: list[str] = []
-        self._session = requests.Session()  # reuse TCP connections across calls
-        self._embedding_model_cache: str | None = None  # resolved once, reused
-        # TTL caches — avoids /api/ps on every admin page load
+        self._session = httpx.Client()          # sync — admin ops, embeddings
+        self._async_client = httpx.AsyncClient()  # async — inference hot path
+        self._embedding_model_cache: str | None = None
         self._running_models_cache: list[dict[str, Any]] | None = None
         self._running_models_cache_time: float = 0.0
         self._list_models_cache: list[dict[str, Any]] | None = None
@@ -109,17 +94,8 @@ class OllamaClient:
         """
         Check if Ollama is running and accessible.
 
-        Tests connectivity to the Ollama server and retrieves available models.
-
         Returns:
             Tuple of (success: bool, message: str)
-            - success: True if connection successful
-            - message: Status message or error description
-
-        Example:
-            >>> success, msg = ollama_client.check_connection()
-            >>> print(msg)
-            'Ollama is running with 4 models'
         """
         try:
             logger.debug(f"Checking connection to {self.base_url}")
@@ -139,7 +115,7 @@ class OllamaClient:
                 logger.warning(message)
                 return False, message
 
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             self.is_available = False
             message = f"Cannot connect to Ollama: {str(e)}"
             logger.exception(message)
@@ -149,17 +125,8 @@ class OllamaClient:
         """
         List all available models.
 
-        Queries Ollama for installed models and their metadata.
-
         Returns:
             Tuple of (success: bool, models: List[Dict])
-            - success: True if request successful
-            - models: List of model dictionaries with name, size, etc.
-
-        Example:
-            >>> success, models = ollama_client.list_models()
-            >>> for model in models:
-            ...     print(model['name'], model['size'])
         """
         now = time.monotonic()
         if (
@@ -202,12 +169,6 @@ class OllamaClient:
         first model in the list (Ollama orders by modification time).
 
         Embedding-only models (nomic-embed-text, mxbai-embed, etc.) are skipped.
-
-        Args:
-            preferred: Preferred model name prefix (e.g. "llama3.1").
-
-        Returns:
-            Name of selected model, or None if no models available.
         """
         success, models = self.list_models()
         if not success or not models:
@@ -220,7 +181,7 @@ class OllamaClient:
             if not any(m['name'].lower().startswith(f) for f in embed_families)
         ]
         if not chat_models:
-            chat_models = models  # fall back if everything looks like an embed model
+            chat_models = models
 
         if preferred:
             for m in chat_models:
@@ -235,39 +196,29 @@ class OllamaClient:
 
     def pull_model(self, model_name: str) -> Generator[dict[str, Any], None, None]:
         """
-        Pull a model from Ollama registry.
-
-        Downloads a model from the Ollama registry with streaming progress updates.
-
-        Args:
-            model_name: Name of model to pull (e.g., "llama3.2")
+        Pull a model from Ollama registry with streaming progress updates.
 
         Yields:
             Progress updates as dictionaries with status/completion info
-
-        Example:
-            >>> for progress in ollama_client.pull_model("llama3.2"):
-            ...     print(progress.get('status'))
         """
         try:
             logger.info(f"Pulling model: {model_name}")
-            response = self._session.post(
+            with self._session.stream(
+                "POST",
                 f"{self.base_url}/api/pull",
                 json={"name": model_name},
-                stream=True,
-                timeout=300
-            )
-
-            if response.status_code == 200:
-                for line in response.iter_lines():
-                    if line:
-                        yield json.loads(line)
-                logger.info(f"Successfully pulled model: {model_name}")
-                self._list_models_cache = None  # invalidate after pull
-            else:
-                error_msg = f"Failed to pull model: {response.status_code}"
-                logger.error(error_msg)
-                yield {"error": error_msg}
+                timeout=300,
+            ) as response:
+                if response.status_code == 200:
+                    for line in response.iter_lines():
+                        if line:
+                            yield json.loads(line)
+                    logger.info(f"Successfully pulled model: {model_name}")
+                    self._list_models_cache = None
+                else:
+                    error_msg = f"Failed to pull model: {response.status_code}"
+                    logger.error(error_msg)
+                    yield {"error": error_msg}
 
         except Exception as e:
             error_msg = f"Error pulling model: {str(e)}"
@@ -278,22 +229,15 @@ class OllamaClient:
         """
         Delete a model from Ollama.
 
-        Args:
-            model_name: Name of model to delete
-
         Returns:
             Tuple of (success: bool, message: str)
-
-        Example:
-            >>> success, msg = ollama_client.delete_model("old-model")
-            >>> print(msg)
         """
         try:
             logger.info(f"Deleting model: {model_name}")
             response = self._session.delete(
                 f"{self.base_url}/api/delete",
                 json={"name": model_name},
-                timeout=30
+                timeout=30,
             )
 
             success = response.status_code == 200
@@ -301,7 +245,7 @@ class OllamaClient:
 
             if success:
                 logger.info(f"Deleted model: {model_name}")
-                self._list_models_cache = None  # invalidate after delete
+                self._list_models_cache = None
             else:
                 logger.warning(f"Failed to delete model: {model_name}")
 
@@ -315,16 +259,8 @@ class OllamaClient:
         """
         Get a vision-capable model for image processing.
 
-        Searches installed models for known multimodal/vision model families.
-        Falls back to the first available model if none are identified.
-
         Returns:
             Name of a vision model, or None if no models are available
-
-        Example:
-            >>> model = ollama_client.get_vision_model()
-            >>> if model:
-            ...     print(f"Vision model: {model}")
         """
         vision_families = ['llava', 'moondream', 'bakllava', 'minicpm-v', 'cogvlm']
         success, models = self.list_models()
@@ -334,14 +270,12 @@ class OllamaClient:
 
         model_names = [m['name'] for m in models]
 
-        # Prefer an explicitly vision-capable model
         for family in vision_families:
             for name in model_names:
                 if family in name.lower():
                     logger.info(f"Using vision model: {name}")
                     return name
 
-        # Fall back to the active / first model (may still support vision)
         fallback = model_names[0]
         logger.warning(f"No dedicated vision model found, falling back to: {fallback}")
         return fallback
@@ -376,19 +310,11 @@ class OllamaClient:
         """
         Generate a text description of an image using a vision model.
 
-        Args:
-            model: Vision-capable model name
-            image_b64: Base64-encoded image data
-            prompt: Custom description prompt (default: from config)
+        Kept sync so it can be called from the document ingest pipeline
+        (processor → loaders) without async contagion into those layers.
 
         Returns:
             Tuple of (success: bool, description_or_error: str)
-
-        Example:
-            >>> import base64
-            >>> with open("image.png", "rb") as f:
-            ...     b64 = base64.b64encode(f.read()).decode()
-            >>> success, desc = ollama_client.describe_image("llava", b64)
         """
         if prompt is None:
             prompt = config.VISION_DESCRIBE_PROMPT
@@ -398,20 +324,31 @@ class OllamaClient:
             messages: list[dict[str, Any]] = [
                 {"role": "user", "content": prompt, "images": [image_b64]}
             ]
-            description = ""
-            for chunk in self.generate_chat_response(model, messages, stream=False):
-                description += chunk
-
-            logger.info(f"Image described: {len(description)} characters")
-            return True, description.strip()
+            payload: dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "keep_alive": -1,
+                "options": self._build_chat_options(),
+            }
+            response = self._session.post(
+                f"{self.base_url}/api/chat",
+                json=payload,
+                timeout=120,
+            )
+            if response.status_code == 200:
+                description = response.json().get("message", {}).get("content", "")
+                logger.info(f"Image described: {len(description)} characters")
+                return True, description.strip()
+            self._raise_for_ollama_error(response, model)
 
         except Exception as e:
             logger.exception("Error describing image")
             return False, str(e)
 
-    def _iter_stream_chunks(self, response) -> Generator[str, None, None]:
+    async def _iter_stream_chunks(self, response: httpx.Response) -> AsyncGenerator[str, None]:
         """Yield content chunks from a streaming Ollama /api/chat response."""
-        for line in response.iter_lines():
+        async for line in response.aiter_lines():
             if line:
                 data = json.loads(line)
                 if 'message' in data:
@@ -421,21 +358,13 @@ class OllamaClient:
                 if data.get('done', False):
                     break
 
-    def _raise_for_ollama_error(self, response, model: str) -> NoReturn:
+    def _raise_for_ollama_error(self, response: Any, model: str) -> NoReturn:
         """
         Parse a non-200 Ollama response and raise an appropriate exception.
 
         A 404 is interpreted as "model not found" and raises
         ``InvalidModelError`` with an actionable user message.  All other
         non-200 codes raise a generic ``RuntimeError``.
-
-        Args:
-            response: The ``requests.Response`` object (status_code != 200).
-            model: Model name that was requested (used in the error message).
-
-        Raises:
-            InvalidModelError: Model not found in Ollama (HTTP 404).
-            RuntimeError: Any other non-200 Ollama API error.
         """
         from .exceptions import InvalidModelError
 
@@ -468,22 +397,16 @@ class OllamaClient:
             options["num_predict"] = max_tokens
         return options
 
-    def generate_chat_response(
+    async def generate_chat_response(
         self,
         model: str,
         messages: list[dict[str, Any]],
         stream: bool = True,
         max_tokens: int | None = None,
         temperature: float = 0.7,
-    ) -> Generator[str, None, None]:
+    ) -> AsyncGenerator[str, None]:
         """
-        Generate a chat response from the model.
-
-        Args:
-            model: Name of model to use.
-            messages: List of message dicts with ``role`` and ``content``.
-            stream: Whether to stream response (default: ``True``).
-            max_tokens: Optional token limit passed to Ollama.
+        Generate a chat response from the model (async).
 
         Yields:
             Response text chunks.
@@ -491,11 +414,6 @@ class OllamaClient:
         Raises:
             InvalidModelError: If the requested model is not installed.
             RuntimeError: For any other non-200 Ollama API response.
-
-        Example:
-            >>> messages = [{"role": "user", "content": "Hello"}]
-            >>> for chunk in ollama_client.generate_chat_response("llama3.2", messages):
-            ...     print(chunk, end='')
         """
         logger.debug(f"Generating chat response with model: {model}")
         options = self._build_chat_options(temperature, max_tokens)
@@ -508,29 +426,39 @@ class OllamaClient:
         }
 
         try:
-            response = self._session.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-                stream=stream,
-                timeout=120,
-            )
-        except requests.exceptions.Timeout:
+            if stream:
+                async with self._async_client.stream(
+                    "POST",
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                    timeout=120,
+                ) as response:
+                    if response.status_code == 200:
+                        async for chunk in self._iter_stream_chunks(response):
+                            yield chunk
+                        logger.debug("Chat response generated successfully")
+                    else:
+                        await response.aread()
+                        self._raise_for_ollama_error(response, model)
+            else:
+                response = await self._async_client.post(
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                    timeout=120,
+                )
+                if response.status_code == 200:
+                    yield response.json().get('message', {}).get('content', '')
+                    logger.debug("Chat response generated successfully")
+                else:
+                    self._raise_for_ollama_error(response, model)
+
+        except httpx.TimeoutException:
             raise RuntimeError(
                 f"Ollama did not respond within 120 s (model: {model}). "
                 "The model may still be loading — try again shortly."
             ) from None
-        except requests.exceptions.ConnectionError as exc:
+        except httpx.ConnectError as exc:
             raise RuntimeError(f"Cannot reach Ollama at {self.base_url}: {exc}") from exc
-
-        if response.status_code == 200:
-            if stream:
-                yield from self._iter_stream_chunks(response)
-            else:
-                data = response.json()
-                yield data.get('message', {}).get('content', '')
-            logger.debug("Chat response generated successfully")
-        else:
-            self._raise_for_ollama_error(response, model)
 
     def _build_tool_payload(
         self,
@@ -552,51 +480,40 @@ class OllamaClient:
             payload["tools"] = tools
         return payload
 
-    def generate_chat_completion(
+    async def generate_chat_completion(
         self,
         model: str,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
-        Non-streaming chat completion that returns the full response.
+        Non-streaming chat completion that returns the full response (async).
 
         Used by the tool-calling executor to inspect ``tool_calls`` before
         deciding whether to stream the final answer.
 
-        Args:
-            model: Name of model to use.
-            messages: Conversation messages.
-            tools: Optional list of tool schemas in Ollama format.
-
         Returns:
-            Full Ollama response dictionary (contains ``message`` with
-            ``content`` and/or ``tool_calls``).
+            Full Ollama response dictionary.
 
         Raises:
             InvalidModelError: If the requested model is not installed.
             RuntimeError: For any other non-200 Ollama API response.
-
-        Example:
-            >>> resp = ollama_client.generate_chat_completion("llama3.2", messages)
-            >>> if resp["message"].get("tool_calls"):
-            ...     print("Model wants to call tools")
         """
         payload = self._build_tool_payload(model, messages, tools)
-
         logger.debug(f"Chat completion (non-stream) with model: {model}")
+
         try:
-            response = self._session.post(
+            response = await self._async_client.post(
                 f"{self.base_url}/api/chat",
                 json=payload,
                 timeout=120,
             )
-        except requests.exceptions.Timeout:
+        except httpx.TimeoutException:
             raise RuntimeError(
                 f"Ollama did not respond within 120 s (model: {model}). "
                 "The model may still be loading — try again shortly."
             ) from None
-        except requests.exceptions.ConnectionError as exc:
+        except httpx.ConnectError as exc:
             raise RuntimeError(f"Cannot reach Ollama at {self.base_url}: {exc}") from exc
 
         if response.status_code == 200:
@@ -632,7 +549,7 @@ class OllamaClient:
                 logger.debug(f"Generated embedding with {len(embeddings[0])} dimensions")
                 return True, embeddings[0], False
         if response.status_code == 404:
-            return False, [], True  # caller should try legacy endpoint
+            return False, [], True
         logger.warning(f"Failed to generate embedding: {response.status_code}")
         return False, [], False
 
@@ -667,15 +584,10 @@ class OllamaClient:
         text: str
     ) -> tuple[bool, list[float]]:
         """
-        Generate embedding vector for text.
+        Generate embedding vector for text (sync).
 
-        Tries the newer ``/api/embed`` endpoint first (more efficient, supports
-        batching and truncation).  Falls back to the legacy ``/api/embeddings``
-        endpoint if the server returns 404 (older Ollama build).
-
-        Args:
-            model: Name of embedding model (e.g., "nomic-embed-text")
-            text: Input text to embed
+        Tries the newer ``/api/embed`` endpoint first.  Falls back to the
+        legacy ``/api/embeddings`` endpoint if the server returns 404.
 
         Returns:
             Tuple of (success: bool, embedding: List[float])
@@ -698,18 +610,10 @@ class OllamaClient:
         texts: list[str],
     ) -> list[list[float] | None]:
         """
-        Generate embeddings for multiple texts in a single API call.
-
-        Sends all texts as a batch via the ``/api/embed`` endpoint so Ollama
-        processes them in one GPU forward pass — far faster than one
-        ``generate_embedding`` call per text.
+        Generate embeddings for multiple texts in a single API call (sync).
 
         Falls back to individual ``generate_embedding`` calls if the batch
         request fails.
-
-        Args:
-            model: Embedding model name (e.g., "nomic-embed-text")
-            texts: List of input texts to embed
 
         Returns:
             List of embeddings aligned with ``texts``; ``None`` for any that
@@ -746,7 +650,6 @@ class OllamaClient:
         except Exception as exc:
             logger.warning(f"Batch embedding error: {exc}; falling back to per-text")
 
-        # Per-text fallback
         fallback_results = []
         for text in texts:
             success, embedding = self.generate_embedding(model, text)
@@ -757,11 +660,7 @@ class OllamaClient:
         """
         Return models currently loaded in Ollama (from ``/api/ps``).
 
-        Results are cached for ``_RUNNING_MODELS_TTL`` seconds so that
-        repeated admin dashboard refreshes do not hammer the Ollama HTTP API.
-
-        Each entry contains ``name``, ``size`` (bytes), ``size_vram`` (bytes)
-        and ``processor`` so callers can display GPU/CPU offload percentages.
+        Results are cached for ``_RUNNING_MODELS_TTL`` seconds.
 
         Returns:
             List of model info dicts, or empty list if unavailable.
@@ -781,7 +680,6 @@ class OllamaClient:
                 return result
         except Exception as e:
             logger.debug("Could not fetch running models from /api/ps: %s", e)
-        # Return stale data rather than an empty list when the query fails
         return self._running_models_cache if self._running_models_cache is not None else []
 
     def get_gpu_info(self) -> list[dict[str, Any]]:
@@ -790,10 +688,6 @@ class OllamaClient:
 
         Delegates to :class:`~src.gpu_monitor.GpuMonitor`, which TTL-caches
         results (30 s) and tries NVIDIA first, then AMD.
-
-        Each entry contains:
-            ``id``, ``name``, ``vendor``, ``vram_total_mb``, ``vram_used_mb``,
-            ``vram_free_mb``, ``utilization_percent``, ``temperature_c``.
 
         Returns:
             List of GPU info dicts (one per physical GPU), or empty list.
@@ -838,17 +732,8 @@ class OllamaClient:
         """
         Get the best available embedding model.
 
-        Tries preferred model first, then falls back to common embedding models.
-
-        Args:
-            preferred_model: Preferred model name (optional)
-
         Returns:
             Name of best available embedding model, or None if none available
-
-        Example:
-            >>> model = ollama_client.get_embedding_model("nomic-embed-text")
-            >>> print(f"Using embedding model: {model}")
         """
         if not preferred_model:
             preferred_model = config.OLLAMA_EMBEDDING_MODEL or None
@@ -901,27 +786,19 @@ class OllamaClient:
         t.start()
         logger.debug("Background cache refresh thread started")
 
-    def test_model(self, model_name: str) -> tuple[bool, str]:
+    async def test_model(self, model_name: str) -> tuple[bool, str]:
         """
         Test a model with a simple prompt.
 
-        Args:
-            model_name: Name of model to test
-
         Returns:
             Tuple of (success: bool, response: str)
-
-        Example:
-            >>> success, response = ollama_client.test_model("llama3.2")
-            >>> if success:
-            ...     print(f"Model works: {response}")
         """
         try:
             logger.info(f"Testing model: {model_name}")
             messages = [{"role": "user", "content": "Say 'Hello, I am working!' and nothing else."}]
             response_text = ""
 
-            for chunk in self.generate_chat_response(model_name, messages, stream=True):
+            async for chunk in self.generate_chat_response(model_name, messages, stream=True):
                 response_text += chunk
 
             if response_text.startswith("Error:"):
@@ -939,7 +816,6 @@ class OllamaClient:
 # GLOBAL INSTANCE
 # ============================================================================
 
-# Global Ollama client instance
 ollama_client = OllamaClient()
 
 logger.info("Ollama client module loaded")

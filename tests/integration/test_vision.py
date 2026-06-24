@@ -1,26 +1,31 @@
 """Tests for the vision feature: OllamaClient.describe_image and image chat."""
 
 import base64
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 
 class TestDescribeImage:
-    """Unit tests for OllamaClient.describe_image."""
+    """Unit tests for OllamaClient.describe_image.
+
+    describe_image is sync and uses _session.post() directly (no generate_chat_response).
+    """
 
     def _make_client(self):
         from src.ollama_client import OllamaClient
 
         return OllamaClient()
 
+    def _session_resp(self, content: str, status_code: int = 200) -> Mock:
+        m = Mock()
+        m.status_code = status_code
+        m.json.return_value = {"message": {"content": content}}
+        return m
+
     def test_assembles_chunks_into_description(self):
         client = self._make_client()
-        with patch.object(
-            client,
-            "generate_chat_response",
-            return_value=iter(["A ", "red ", "apple."]),
-        ):
+        with patch.object(client._session, "post", return_value=self._session_resp("A red apple.")):
             success, desc = client.describe_image("llava:7b", "base64data==")
         assert success is True
         assert desc == "A red apple."
@@ -29,33 +34,25 @@ class TestDescribeImage:
         client = self._make_client()
         captured: dict = {}
 
-        def fake_stream(model, messages, **kwargs):
-            captured["messages"] = messages
-            return iter(["ok"])
+        def fake_post(url, **kwargs):
+            captured["payload"] = kwargs.get("json", {})
+            return self._session_resp("ok")
 
-        with patch.object(client, "generate_chat_response", side_effect=fake_stream):
+        with patch.object(client._session, "post", side_effect=fake_post):
             client.describe_image("llava:7b", "b64==", prompt="Describe the colours.")
 
-        assert captured["messages"][0]["content"] == "Describe the colours."
+        assert captured["payload"]["messages"][0]["content"] == "Describe the colours."
 
     def test_returns_false_on_exception(self):
         client = self._make_client()
-        with patch.object(
-            client,
-            "generate_chat_response",
-            side_effect=RuntimeError("connection refused"),
-        ):
+        with patch.object(client._session, "post", side_effect=RuntimeError("connection refused")):
             success, msg = client.describe_image("llava:7b", "b64data==")
         assert success is False
         assert "connection refused" in msg
 
     def test_strips_trailing_whitespace_from_description(self):
         client = self._make_client()
-        with patch.object(
-            client,
-            "generate_chat_response",
-            return_value=iter(["  A cat.  ", "  \n"]),
-        ):
+        with patch.object(client._session, "post", return_value=self._session_resp("  A cat.  \n")):
             _, desc = client.describe_image("llava:7b", "b64==")
         assert desc == "A cat."
 
@@ -174,10 +171,13 @@ class TestChatWithImages:
         config.app_state.set_active_model("llava:7b")
         app.state.startup_status["ollama"] = True
 
+        async def _gen_vision(*a, **k):
+            yield "I can see a cat."
+
         with patch.object(
             app.state.ollama_client,
             "generate_chat_response",
-            return_value=iter(["I can see a cat."]),
+            side_effect=_gen_vision,
         ):
             resp = client.post(
                 "/api/chat",
@@ -199,9 +199,9 @@ class TestChatWithImages:
         app.state.startup_status["ollama"] = True
         captured: dict = {}
 
-        def capture(model, messages, **kwargs):
+        async def capture(model, messages, **kwargs):
             captured["messages"] = messages
-            return iter(["ok"])
+            yield "ok"
 
         fake_b64 = base64.b64encode(b"pixel_data").decode()
 

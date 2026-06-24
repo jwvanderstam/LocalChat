@@ -529,18 +529,18 @@ def _update_chunk_stats(app_state: Any, sources: list[dict]) -> None:
             logger.debug("[Feedback] chunk_stats update failed: %s", exc)
 
 
-def _stream_chunks_with_fallback(
+async def _stream_chunks_with_fallback(
     local_stream: Any, cloud_client: Any, sources: list[dict] | None, app_state: Any, messages: list, temperature: float
-):
+) -> AsyncGenerator[tuple[str, str], None]:
     from ..llm_client import is_refusal
 
     if cloud_client is None:
-        for chunk in local_stream:
+        async for chunk in local_stream:
             yield chunk, "local"
         return
 
     buffered_chunks: list[str] = []
-    for chunk in local_stream:
+    async for chunk in local_stream:
         buffered_chunks.append(chunk)
     buffered = "".join(buffered_chunks)
 
@@ -555,7 +555,7 @@ def _stream_chunks_with_fallback(
             yield chunk, "local"
 
 
-def _retrieve_plan_and_memory(
+async def _retrieve_plan_and_memory(
     fields: dict, active_model: str, ollama_client: Any, db: Any
 ) -> tuple[Any, str]:
     plan = None
@@ -563,7 +563,7 @@ def _retrieve_plan_and_memory(
     if config.QUERY_PLANNER_ENABLED and fields["use_rag"] and query_words >= 7:
         try:
             from ..rag.planner import QueryPlanner
-            plan = QueryPlanner().plan(fields["message"], active_model, ollama_client)
+            plan = await QueryPlanner().plan(fields["message"], active_model, ollama_client)
         except Exception as plan_err:
             logger.warning("[Planner] Unexpected error (skipped): %s", plan_err)
 
@@ -670,7 +670,7 @@ async def _generate_sse(
             )
         )
 
-        for chunk, chunk_model in _stream_chunks_with_fallback(
+        async for chunk, chunk_model in _stream_chunks_with_fallback(
             local_stream, cloud_client, sources, app_state, messages, fields["temperature"]
         ):
             full_response.append(chunk)
@@ -726,7 +726,7 @@ async def api_chat(request: Request) -> Any:
         )
 
         app_state = request.app.state
-        plan, memory_context = _retrieve_plan_and_memory(
+        plan, memory_context = await _retrieve_plan_and_memory(
             fields, active_model, app_state.ollama_client, app_state.db
         )
 

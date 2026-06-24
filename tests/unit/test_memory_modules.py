@@ -16,6 +16,13 @@ from unittest.mock import MagicMock
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _async_gen(*values):
+    async def _g(*args, **kwargs):
+        for v in values:
+            yield v
+    return _g
+
+
 def _make_ollama(embedding_model="nomic-embed-text", embedding_ok=True, embedding_vec=None):
     client = MagicMock()
     client.get_embedding_model.return_value = embedding_model
@@ -177,90 +184,95 @@ class TestMemoryExtractorExtract:
         ollama = MagicMock()
         ollama.get_embedding_model.return_value = "embed-model"
         ollama.generate_embedding.return_value = (True, [0.1] * 384)
-        ollama.generate_chat_response.return_value = iter([json.dumps(items)])
+        ollama.generate_chat_response = _async_gen(json.dumps(items))
         return ollama
 
-    def test_empty_messages_returns_zero_and_marks_extracted(self):
+    async def test_empty_messages_returns_zero_and_marks_extracted(self):
         e = self._extractor()
         db = MagicMock()
-        count = e.extract("conv-1", [], "model", MagicMock(), db)
+        count = await e.extract("conv-1", [], "model", MagicMock(), db)
         assert count == 0
         db.mark_conversation_extracted.assert_called_once_with("conv-1")
 
-    def test_all_empty_content_returns_zero(self):
+    async def test_all_empty_content_returns_zero(self):
         e = self._extractor()
         db = MagicMock()
         msgs = [{"role": "user", "content": ""}, {"role": "assistant", "content": None}]
-        count = e.extract("conv-1", msgs, "model", MagicMock(), db)
+        count = await e.extract("conv-1", msgs, "model", MagicMock(), db)
         assert count == 0
         db.mark_conversation_extracted.assert_called_once()
 
-    def test_llm_returns_valid_memories_stores_them(self):
+    async def test_llm_returns_valid_memories_stores_them(self):
         e = self._extractor()
         db = MagicMock()
         db.is_duplicate_memory.return_value = False
         ollama = self._llm_response([
             {"content": "User prefers dark mode", "memory_type": "preference", "confidence": 0.9}
         ])
-        count = e.extract("conv-1", self._make_messages(), "model", ollama, db)
+        count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 1
         db.insert_memory.assert_called_once()
 
-    def test_duplicate_memory_is_skipped(self):
+    async def test_duplicate_memory_is_skipped(self):
         e = self._extractor()
         db = MagicMock()
         db.is_duplicate_memory.return_value = True
         ollama = self._llm_response([
             {"content": "User prefers dark mode", "memory_type": "preference", "confidence": 0.9}
         ])
-        count = e.extract("conv-1", self._make_messages(), "model", ollama, db)
+        count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 0
         db.insert_memory.assert_not_called()
 
-    def test_embedding_failure_skips_memory(self):
+    async def test_embedding_failure_skips_memory(self):
         e = self._extractor()
         db = MagicMock()
         import json as _json
         ollama = MagicMock()
         ollama.get_embedding_model.return_value = "em"
         ollama.generate_embedding.return_value = (False, None)
-        ollama.generate_chat_response.return_value = iter([
+        ollama.generate_chat_response = _async_gen(
             _json.dumps([{"content": "Something memorable", "memory_type": "fact", "confidence": 1.0}])
-        ])
-        count = e.extract("conv-1", self._make_messages(), "model", ollama, db)
+        )
+        count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 0
         db.insert_memory.assert_not_called()
 
-    def test_llm_failure_marks_extracted_and_returns_zero(self):
+    async def test_llm_failure_marks_extracted_and_returns_zero(self):
         e = self._extractor()
         db = MagicMock()
         ollama = MagicMock()
-        ollama.generate_chat_response.side_effect = RuntimeError("timeout")
-        count = e.extract("conv-1", self._make_messages(), "model", ollama, db)
+
+        async def _raise(*args, **kwargs):
+            raise RuntimeError("timeout")
+            yield
+
+        ollama.generate_chat_response = _raise
+        count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 0
         db.mark_conversation_extracted.assert_called_once()
 
-    def test_short_content_is_skipped(self):
+    async def test_short_content_is_skipped(self):
         e = self._extractor()
         db = MagicMock()
         db.is_duplicate_memory.return_value = False
         ollama = self._llm_response([
             {"content": "Hi", "memory_type": "fact", "confidence": 1.0}  # too short (< 5 chars)
         ])
-        count = e.extract("conv-1", self._make_messages(), "model", ollama, db)
+        count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 0
 
-    def test_marks_extracted_even_on_all_duplicates(self):
+    async def test_marks_extracted_even_on_all_duplicates(self):
         e = self._extractor()
         db = MagicMock()
         db.is_duplicate_memory.return_value = True
         ollama = self._llm_response([
             {"content": "Something worth remembering", "memory_type": "fact", "confidence": 1.0}
         ])
-        e.extract("conv-1", self._make_messages(), "model", ollama, db)
+        await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         db.mark_conversation_extracted.assert_called_once()
 
-    def test_transcript_truncates_to_last_20_turns(self):
+    async def test_transcript_truncates_to_last_20_turns(self):
         """Verify that very long conversation histories don't crash extract()."""
         e = self._extractor()
         db = MagicMock()
@@ -268,7 +280,7 @@ class TestMemoryExtractorExtract:
         ollama = self._llm_response([])
         msgs = [{"role": "user", "content": f"message {i}"} for i in range(100)]
         # Should not raise
-        count = e.extract("conv-1", msgs, "model", ollama, db)
+        count = await e.extract("conv-1", msgs, "model", ollama, db)
         assert isinstance(count, int)
 
 
@@ -277,33 +289,33 @@ class TestMemoryExtractorExtract:
 # ===========================================================================
 
 class TestMemoryExtractorCallLlm:
-    def _call(self, raw_output):
+    async def _call(self, raw_output):
         from src.memory.extractor import MemoryExtractor
         ollama = MagicMock()
-        ollama.generate_chat_response.return_value = iter([raw_output])
-        return MemoryExtractor._call_llm("transcript text", "model", ollama)
+        ollama.generate_chat_response = _async_gen(raw_output)
+        return await MemoryExtractor._call_llm("transcript text", "model", ollama)
 
-    def test_valid_json_array_returned(self):
+    async def test_valid_json_array_returned(self):
         items = [{"content": "Alice likes Python", "memory_type": "preference", "confidence": 0.8}]
         import json
-        result = self._call(json.dumps(items))
+        result = await self._call(json.dumps(items))
         assert result == items
 
-    def test_no_json_array_returns_empty_list(self):
-        result = self._call("I cannot extract any memories from this conversation.")
+    async def test_no_json_array_returns_empty_list(self):
+        result = await self._call("I cannot extract any memories from this conversation.")
         assert result == []
 
-    def test_empty_array_returned(self):
-        result = self._call("[]")
+    async def test_empty_array_returned(self):
+        result = await self._call("[]")
         assert result == []
 
-    def test_json_array_embedded_in_prose(self):
+    async def test_json_array_embedded_in_prose(self):
         import json
         items = [{"content": "Fact", "memory_type": "fact", "confidence": 1.0}]
         raw = f"Here are the memories:\n{json.dumps(items)}\nDone."
-        result = self._call(raw)
+        result = await self._call(raw)
         assert result == items
 
-    def test_empty_llm_response_returns_empty_list(self):
-        result = self._call("")
+    async def test_empty_llm_response_returns_empty_list(self):
+        result = await self._call("")
         assert result == []

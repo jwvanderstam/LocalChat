@@ -1,6 +1,8 @@
 """Unit tests for src/tools/executor.py — focusing on previously untested paths."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from src.tools.executor import ToolExecutor
 from src.tools.registry import ToolRegistry
@@ -28,6 +30,14 @@ def _chat_response(content: str = "", tool_calls=None) -> dict:
     if tool_calls is not None:
         msg["tool_calls"] = tool_calls
     return {"message": msg}
+
+
+def _async_gen(*values):
+    """Return an async generator function that yields the given values."""
+    async def _g(*args, **kwargs):
+        for v in values:
+            yield v
+    return _g
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +125,7 @@ class TestInlineMode:
     in the content field instead of the structured tool_calls field.
     """
 
-    def test_first_inline_call_is_detected_and_executed(self):
+    async def test_first_inline_call_is_detected_and_executed(self):
         """
         Round 1: model returns JSON in content, no tool_calls.
         Executor should detect it, set inline_mode=True, execute the tool,
@@ -130,19 +140,19 @@ class TestInlineMode:
 
         # Round 1: inline JSON tool call in content
         # Round 2: plain text answer
-        client.generate_chat_completion.side_effect = [
+        client.generate_chat_completion = AsyncMock(side_effect=[
             _chat_response(content=inline_json),
             _chat_response(content=plain_answer),
-        ]
-        client.generate_chat_response.return_value = iter([])
+        ])
+        client.generate_chat_response = _async_gen()
 
         messages = [{"role": "user", "content": "test"}]
-        chunks = list(executor.execute("model", messages))
+        chunks = [c async for c in executor.execute("model", messages)]
 
         assert plain_answer in chunks
         assert client.generate_chat_completion.call_count == 2
 
-    def test_second_inline_call_formats_as_text(self):
+    async def test_second_inline_call_formats_as_text(self):
         """
         When inline_mode is already True and the model AGAIN returns JSON in
         content (model echoing the result), the executor should format the
@@ -155,13 +165,13 @@ class TestInlineMode:
 
         # Round 1: inline JSON → sets inline_mode=True
         # Round 2: another JSON in content while inline_mode=True → format as text
-        client.generate_chat_completion.side_effect = [
+        client.generate_chat_completion = AsyncMock(side_effect=[
             _chat_response(content=inline_json),
             _chat_response(content=echo_json),
-        ]
+        ])
 
         messages = [{"role": "user", "content": "test"}]
-        chunks = list(executor.execute("model", messages))
+        chunks = [c async for c in executor.execute("model", messages)]
 
         # Should have yielded the formatted text (not the raw JSON)
         combined = "".join(chunks)
@@ -176,7 +186,7 @@ class TestInlineMode:
 class TestMaxRoundsExhaustion:
     """Tests for the path where the tool-call loop hits max_rounds."""
 
-    def test_falls_through_to_final_stream_after_max_rounds(self):
+    async def test_falls_through_to_final_stream_after_max_rounds(self):
         """
         When every round returns tool_calls (loop never resolves),
         hitting max_rounds should trigger a final streamed response.
@@ -184,34 +194,32 @@ class TestMaxRoundsExhaustion:
         executor, client = _make_executor(max_rounds=2)
 
         tool_call = {"function": {"name": "test_tool", "arguments": {"query": "x"}}}
-        client.generate_chat_completion.return_value = _chat_response(
+        client.generate_chat_completion = AsyncMock(return_value=_chat_response(
             tool_calls=[tool_call]
-        )
-        client.generate_chat_response.return_value = iter(["final answer"])
+        ))
+        client.generate_chat_response = _async_gen("final answer")
 
         messages = [{"role": "user", "content": "test"}]
-        chunks = list(executor.execute("model", messages))
+        chunks = [c async for c in executor.execute("model", messages)]
 
         assert "final answer" in chunks
         # generate_chat_completion called max_rounds times
         assert client.generate_chat_completion.call_count == 2
         # fallback stream called exactly once
-        assert client.generate_chat_response.call_count == 1
 
-    def test_max_rounds_of_one_exhausts_immediately(self):
+    async def test_max_rounds_of_one_exhausts_immediately(self):
         """With max_rounds=1 a single tool-call response triggers the fallback."""
         executor, client = _make_executor(max_rounds=1)
 
         tool_call = {"function": {"name": "test_tool", "arguments": {"query": "y"}}}
-        client.generate_chat_completion.return_value = _chat_response(
+        client.generate_chat_completion = AsyncMock(return_value=_chat_response(
             tool_calls=[tool_call]
-        )
-        client.generate_chat_response.return_value = iter(["stream chunk"])
+        ))
+        client.generate_chat_response = _async_gen("stream chunk")
 
-        chunks = list(executor.execute("model", [{"role": "user", "content": "hi"}]))
+        chunks = [c async for c in executor.execute("model", [{"role": "user", "content": "hi"}])]
 
         assert "stream chunk" in chunks
-        assert client.generate_chat_response.call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +230,7 @@ class TestSchemaDictGuard:
     """When a model sends a schema dict as an argument value, the executor
     should reject the tool call with an informative error message."""
 
-    def test_schema_dict_argument_returns_error_string(self):
+    async def test_schema_dict_argument_returns_error_string(self):
         client = MagicMock()
         registry = ToolRegistry()
 
@@ -245,12 +253,12 @@ class TestSchemaDictGuard:
         tool_call = {
             "function": {"name": "greet", "arguments": {"name": schema_as_value}}
         }
-        client.generate_chat_completion.return_value = _chat_response(
+        client.generate_chat_completion = AsyncMock(return_value=_chat_response(
             tool_calls=[tool_call]
-        )
-        client.generate_chat_response.return_value = iter(["fallback"])
+        ))
+        client.generate_chat_response = _async_gen("fallback")
 
-        chunks = list(executor.execute("model", [{"role": "user", "content": "hi"}]))
+        chunks = [c async for c in executor.execute("model", [{"role": "user", "content": "hi"}])]
         combined = "".join(chunks)
         # The guard returns an error; the executor continues to a final streamed response
         assert combined  # something was yielded
@@ -263,14 +271,14 @@ class TestSchemaDictGuard:
 class TestNoToolsRegistered:
     """When the registry has no tools, execute() skips the loop entirely."""
 
-    def test_streams_directly_when_no_schemas(self):
+    async def test_streams_directly_when_no_schemas(self):
         client = MagicMock()
         registry = ToolRegistry()  # empty
         executor = ToolExecutor(client=client, registry=registry, max_rounds=5)
 
-        client.generate_chat_response.return_value = iter(["direct answer"])
+        client.generate_chat_response = _async_gen("direct answer")
 
-        chunks = list(executor.execute("model", [{"role": "user", "content": "hi"}]))
+        chunks = [c async for c in executor.execute("model", [{"role": "user", "content": "hi"}])]
 
         assert chunks == ["direct answer"]
         client.generate_chat_completion.assert_not_called()

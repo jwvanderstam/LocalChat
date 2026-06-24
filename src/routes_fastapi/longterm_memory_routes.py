@@ -56,7 +56,7 @@ async def extract_memories(request: Request) -> Any:
                         msg_list.append({"role": m.get("role", ""), "content": m.get("content", "")})
                     elif isinstance(m, (list, tuple)) and len(m) >= 2:
                         msg_list.append({"role": m[0], "content": m[1]})
-                total_new += extractor.extract(
+                total_new += await extractor.extract(
                     conversation_id=conv["id"],
                     messages=msg_list,
                     model=active_model,
