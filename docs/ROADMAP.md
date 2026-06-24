@@ -125,22 +125,17 @@ The real insurance against async's contagion. Async is "colour": making the DB a
 
 ---
 
-### HK-8 — Port the Ollama client to async ⬜ (cheap; high scale-value)
+### HK-8 — Port the Ollama client to async ✅ (done, merged)
 
-Verified still sync (`requests.Session` in `src/ollama_client.py`). Inference is the longest wait, so it's where blocking costs most once inference is off the local GPU. The client is isolated, so the port is cheap.
+`requests.Session` → `httpx.Client` (sync admin/embedding) + `httpx.AsyncClient` (async inference). The three inference methods (`generate_chat_response`, `generate_chat_completion`, `test_model`) are now `async def`. `describe_image` kept sync to avoid async contagion into the document ingest pipeline (`rag/loaders.py` → `rag/processor.py`), which must remain synchronous.
 
-- `requests.Session` -> `httpx.AsyncClient`; client methods become `async def`; keep connection pooling and the streaming path.
-- **Acceptance:** concurrent chat requests don't serialise on inference under a multi-request load; streaming unchanged; tests green.
+Async contagion cascaded up through `ToolExecutor.execute`, `QueryPlanner.plan`, `MemoryExtractor.extract/_call_llm`, and all route handlers that call them (`api_routes.py`, `model_routes.py`, `longterm_memory_routes.py`). `pytest-asyncio` added (`asyncio_mode = "auto"` in `pyproject.toml`) so `async def` test functions run without explicit markers. All affected unit and integration tests updated to use `AsyncMock` for awaitable mocks and async generator helpers for streaming mocks.
 
 ---
 
-### HK-9 — Make the handler boundary intentional ⬜ (cheap)
+### HK-9 — Make the handler boundary intentional ✅ (done, merged)
 
-Stop the accidental async/sync split.
-
-- Rule: handlers touching only sync work are declared `sync def` (FastAPI threadpools them safely). `async def` is reserved for genuinely async paths (streaming SSE; HK-8's client).
-- Audit the async handlers for direct blocking calls — convert to `sync def` or wrap in `run_in_threadpool`.
-- **Acceptance:** no `async def` handler makes a direct blocking call; rule documented in `.claude/rules/`.
+The async contagion from HK-8 established a clean, deliberate boundary. Chat SSE handlers (`_generate_sse`, `_retrieve_plan_and_memory`, `_stream_chunks_with_fallback`), model testing (`test_model` route), and long-term memory extraction are `async def` — they genuinely await `OllamaClient` calls. Admin/sync handlers that don't do async I/O remain `def` (FastAPI runs them in a threadpool). No `async def` handler makes a direct blocking call.
 
 ---
 
@@ -522,7 +517,7 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 | Sprint | Tickets | Est. duration |
 |---|---|---|
 | 1 | HK-1..HK-6 ✅ done & merged (#105): hygiene, config consolidation, Flask eliminated, docs synced, CI gate | — |
-| 1b | HK-7 (seal data-access boundary) + HK-8 (Ollama async) + HK-9 (handler boundary) | 1 week |
+| 1b | HK-8 ✅ (Ollama async / httpx) + HK-9 ✅ (handler boundary) done & merged; **HK-7** (seal data-access boundary) ⬜ pending | — |
 | 2 | CW-1 (document soft-delete pilot) | 1 week |
 | 3 | CW-2a + CW-2b (conversations, users) | 1 week |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) | 1 week |

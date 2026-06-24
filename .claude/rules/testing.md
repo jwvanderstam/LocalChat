@@ -50,6 +50,48 @@ Never import from `src/app.py` — it doesn't export an app.
 - Coverage must not drop on any PR.
 - Don't add `# pragma: no cover` to avoid covering real logic — cover it.
 
+## Async tests
+
+`asyncio_mode = "auto"` is set in `pyproject.toml`. Any `async def test_*` function runs automatically as an async test — no `@pytest.mark.asyncio` needed.
+
+**Mock patterns for async code:**
+
+```python
+from unittest.mock import AsyncMock
+
+# Awaitable method (generate_chat_completion, extract, plan, …)
+client.generate_chat_completion = AsyncMock(return_value={"message": {"content": "ok"}})
+client.generate_chat_completion = AsyncMock(side_effect=[response1, response2])
+
+# Async generator (generate_chat_response streams chunks)
+async def _gen(*args, **kwargs):
+    for chunk in ["Hello", " world"]:
+        yield chunk
+
+client.generate_chat_response = _gen          # assign directly
+mock.generate_chat_response.side_effect = _gen  # or via MagicMock.side_effect
+
+# Collect async generator results
+chunks = [c async for c in client.generate_chat_response(model, messages)]
+```
+
+**httpx stream context manager (OllamaClient._async_client.stream):**
+
+```python
+from unittest.mock import AsyncMock, Mock
+
+cm = AsyncMock()
+mock_resp = Mock()
+mock_resp.status_code = 200
+async def _lines():
+    for line in ['{"message":{"content":"hi"},"done":false}', '{"done":true}']:
+        yield line
+mock_resp.aiter_lines = Mock(return_value=_lines())
+cm.__aenter__ = AsyncMock(return_value=mock_resp)
+cm.__aexit__ = AsyncMock(return_value=None)
+client._async_client.stream = Mock(return_value=cm)
+```
+
 ## Style
 
 - Test names are descriptive sentences: `test_retrieve_context_returns_empty_list_when_no_documents_match`.

@@ -239,10 +239,11 @@ flowchart TD
 | **Cache** | Redis / Memory | Performance optimization |
 | **LLM** | Ollama | Local inference |
 | **Embeddings** | nomic-embed-text | Vector generation |
+| **HTTP client** | httpx | Async inference I/O; sync admin/embedding |
 | **GPU** | NVIDIA (nvidia-smi) / AMD (rocm-smi) | Hardware acceleration |
 | **Metrics** | Prometheus text format v0.0.4 | Observability |
 | **Validation** | Pydantic 2.12 | Input validation |
-| **Testing** | pytest | Test framework |
+| **Testing** | pytest + pytest-asyncio | Test framework |
 
 ---
 

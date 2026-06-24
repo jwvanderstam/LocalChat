@@ -16,15 +16,16 @@ LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TX
 
 | Layer | Tech |
 |-------|------|
-| Web framework | FastAPI + Uvicorn (production); Flask 3 retained for MCP servers |
+| Web framework | FastAPI + Uvicorn |
 | Database | PostgreSQL 15 + pgvector (psycopg3 pool) |
 | LLM | Ollama (local); LiteLLM cloud fallback |
+| HTTP client | httpx — `httpx.Client` (sync admin/embedding); `httpx.AsyncClient` (async inference) |
 | Validation | Pydantic v2 |
 | Auth / security | python-jose (JWT), slowapi (rate limiting), Starlette CORSMiddleware |
 | Caching | Redis or in-memory fallback |
 | ML / NLP | spaCy (GraphRAG), cross-encoder reranker (optional) |
 | Linter | `ruff` |
-| Tests | pytest + pytest-cov |
+| Tests | pytest + pytest-asyncio (`asyncio_mode = "auto"`) + pytest-cov |
 
 ---
 
