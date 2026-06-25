@@ -296,14 +296,13 @@ class TestDocumentIngestion:
 class TestRetrieval:
     """Tests for context retrieval."""
 
-    @patch('src.rag.retrieval.db')
-    @patch('src.rag.retrieval.ollama_client')
+    @patch('src.rag.processor.db')
+    @patch('src.rag.processor.ollama_client')
     def test_retrieve_context_returns_list(self, mock_ollama, mock_db):
         """Should return list of results."""
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
 
-        # Setup mocks
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
         mock_db.search_similar_chunks.return_value = generate_mock_search_results(5)
@@ -312,14 +311,13 @@ class TestRetrieval:
 
         assert isinstance(results, list)
 
-    @patch('src.rag.retrieval.db')
-    @patch('src.rag.retrieval.ollama_client')
+    @patch('src.rag.processor.db')
+    @patch('src.rag.processor.ollama_client')
     def test_retrieve_context_with_parameters(self, mock_ollama, mock_db):
         """Should respect retrieval parameters."""
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
 
-        # Setup mocks
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
         mock_db.search_similar_chunks.return_value = generate_mock_search_results(3)
@@ -327,29 +325,26 @@ class TestRetrieval:
         results = processor.retrieve_context("test query", top_k=3, min_similarity=0.5)
 
         assert isinstance(results, list)
-        # Check that db was called with correct parameters
         mock_db.search_similar_chunks.assert_called_once()
 
-    @patch('src.rag.retrieval.db')
-    @patch('src.rag.retrieval.ollama_client')
+    @patch('src.rag.processor.db')
+    @patch('src.rag.processor.ollama_client')
     def test_retrieve_context_with_file_filter(self, mock_ollama, mock_db):
         """Should filter by file type."""
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
 
-        # Setup mocks
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
         mock_db.search_similar_chunks.return_value = []
 
         processor.retrieve_context("test", file_type_filter=".pdf")
 
-        # Should pass filter to database
         call_args = mock_db.search_similar_chunks.call_args
         assert call_args[1]['file_type_filter'] == ".pdf"
 
-    @patch('src.rag.retrieval.db')
-    @patch('src.rag.retrieval.ollama_client')
+    @patch('src.rag.processor.db')
+    @patch('src.rag.processor.ollama_client')
     def test_retrieve_context_no_embedding_model(self, mock_ollama, mock_db):
         """Should handle no embedding model."""
         from src.rag import DocumentProcessor

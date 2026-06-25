@@ -34,8 +34,8 @@ def mock_env_vars():
 # ============================================================================
 
 @pytest.fixture
-def doc_processor():
-    """Create a fresh DocumentProcessor instance."""
+def doc_processor(mock_db, mock_ollama):
+    """Create a fresh DocumentProcessor instance with mocked dependencies."""
     from src.rag import DocumentProcessor
     return DocumentProcessor()
 
@@ -386,27 +386,21 @@ class TestContextRetrieval:
 
     def test_retrieve_context_no_results(self, doc_processor, mock_db, mock_ollama):
         """Should handle no results."""
-        with patch('src.rag.retrieval.db') as mock_ret_db:
-            mock_ret_db.search_similar_chunks.return_value = []
+        mock_db.search_similar_chunks.return_value = []
 
-            results = doc_processor.retrieve_context("test query")
+        results = doc_processor.retrieve_context("test query")
 
-            assert results == []
+        assert results == []
 
     def test_retrieve_context_with_filter(self, doc_processor, mock_db, mock_ollama):
         """Should apply file type filter."""
-        with patch('src.rag.retrieval.db') as mock_ret_db:
-            mock_ret_db.search_similar_chunks.return_value = [
-                ("chunk text 1", "report.pdf", 0, 0.95, {}, 1),
-            ]
-            doc_processor.retrieve_context(
-                "test query",
-                file_type_filter=".pdf"
-            )
+        mock_db.search_similar_chunks.return_value = [
+            ("chunk text 1", "report.pdf", 0, 0.95, {}, 1),
+        ]
+        doc_processor.retrieve_context("test query", file_type_filter=".pdf")
 
-            # Verify filter was passed to database
-            call_args = mock_ret_db.search_similar_chunks.call_args
-            assert call_args[1]['file_type_filter'] == ".pdf"
+        call_args = mock_db.search_similar_chunks.call_args
+        assert call_args[1]['file_type_filter'] == ".pdf"
 
     @patch('src.rag.retrieval.config.RERANK_RESULTS', True)
     def test_retrieve_context_with_reranking(self, doc_processor, mock_db, mock_ollama):
@@ -444,24 +438,21 @@ class TestContextRetrieval:
 
     def test_retrieve_context_no_embedding_model(self, doc_processor, mock_db, mock_ollama):
         """Should handle no embedding model available."""
-        with patch('src.rag.retrieval.ollama_client') as mock_ret_ollama:
-            mock_ret_ollama.get_embedding_model.return_value = None
+        mock_ollama.get_embedding_model.return_value = None
 
-            results = doc_processor.retrieve_context("test query")
+        results = doc_processor.retrieve_context("test query")
 
         assert results == []
 
     def test_retrieve_context_embedding_failure(self, doc_processor, mock_db, mock_ollama):
         """Should handle embedding generation failure."""
-        with patch('src.rag.retrieval.ollama_client') as mock_ret_ollama, \
-             patch('src.rag.retrieval.embedding_cache') as mock_cache:
-            mock_cache.get.return_value = None
-            mock_ret_ollama.get_embedding_model.return_value = "nomic-embed-text"
-            mock_ret_ollama.generate_embedding.return_value = (False, [])
-
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+        mock_ollama.generate_embedding.return_value = (False, [])
+        with patch('src.rag.retrieval.embedding_cache') as mock_cache:
+            mock_cache.get.return_value = None  # prevent cross-test cache hit
             results = doc_processor.retrieve_context("test query")
 
-            assert results == []
+        assert results == []
 
 
 # ============================================================================

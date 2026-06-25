@@ -210,7 +210,7 @@ class RetrievalMixin:
             Filtered results dict mapping chunk_id to result data, or empty dict
             when no chunks pass the similarity threshold.
         """
-        semantic_results = db.search_similar_chunks(
+        semantic_results = self._db.search_similar_chunks(
             query_embedding,
             top_k=top_k * 2,
             min_similarity=min_similarity,
@@ -359,7 +359,7 @@ class RetrievalMixin:
             logger.info("[RAG] Query cache hit")
             return cached_result
 
-        embedding_model = ollama_client.get_embedding_model()
+        embedding_model = self._ollama_client.get_embedding_model()
         if not embedding_model:
             logger.error("[RAG] No embedding model available")
             return []
@@ -417,7 +417,7 @@ class RetrievalMixin:
             if cached is not None:
                 logger.debug("[RAG] Embedding cache hit")
                 return cached
-            success, emb = ollama_client.generate_embedding(model, text)
+            success, emb = self._ollama_client.generate_embedding(model, text)
             if success and emb:
                 _app_emb_cache.set(text, model, emb)
                 return emb
@@ -428,7 +428,7 @@ class RetrievalMixin:
         if cached is not None:
             logger.debug("[RAG] Embedding cache hit")
             return cached
-        success, emb = ollama_client.generate_embedding(model, text)
+        success, emb = self._ollama_client.generate_embedding(model, text)
         if success and emb:
             embedding_cache.put(text, model, emb)
             return emb

@@ -60,8 +60,16 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         bm25_scorer: BM25 scorer for keyword matching
     """
 
-    def __init__(self) -> None:
-        """Initialize document processor."""
+    def __init__(
+        self,
+        db: Any = None,
+        ollama_client: Any = None,
+    ) -> None:
+        # globals() reads the module-level names so patches on src.rag.processor.db
+        # and .ollama_client are respected when creating instances inside tests.
+        _g = globals()
+        self._db = db if db is not None else _g['db']
+        self._ollama_client = ollama_client if ollama_client is not None else _g['ollama_client']
         self.embedding_model: str | None = None
         self.bm25_scorer = None
         self._corpus_chunks: list[str] = []
@@ -83,7 +91,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             List of embeddings (or None for failed items)
         """
         if model is None:
-            model = self.embedding_model or ollama_client.get_embedding_model()
+            model = self.embedding_model or self._ollama_client.get_embedding_model()
             if model is None:
                 logger.error(_NO_EMBEDDING_MODEL)
                 return [None] * len(texts)
@@ -99,7 +107,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
             logger.debug(f"Processing embedding batch {i//batch_size_int + 1}: texts {i+1}-{batch_end} of {total}")
 
-            batch_results = ollama_client.generate_embeddings_batch(model, batch)
+            batch_results = self._ollama_client.generate_embeddings_batch(model, batch)
             embeddings.extend(batch_results)
             failed = sum(1 for e in batch_results if e is None)
             if failed:
@@ -127,7 +135,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         Returns:
             Tuple of (doc_id, chunk_text, chunk_index, embedding) or None if failed
         """
-        success, embedding = ollama_client.generate_embedding(model, chunk_text)
+        success, embedding = self._ollama_client.generate_embedding(model, chunk_text)
         if success and embedding:
             return (doc_id, chunk_text, chunk_index, embedding)
         logger.warning(f"Failed to generate embedding for chunk {chunk_index}")
@@ -266,7 +274,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         or ``None`` if ingestion should continue (old copy already deleted
         when content changed).
         """
-        exists, doc_info = db.document_exists(filename)
+        exists, doc_info = self._db.document_exists(filename)
         if not exists:
             return None
         if doc_info.get('content_hash') == file_hash:
@@ -286,7 +294,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         )
         if progress_callback:
             progress_callback(f"Replacing existing document '{filename}'...")
-        db.delete_document(doc_info['id'])
+        self._db.delete_document(doc_info['id'])
         return None
 
     @timed('rag.ingest_document')
@@ -334,7 +342,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             content_preview = (raw_content or (chunks_with_metadata[0]['text'] if chunks_with_metadata else ''))[:1000]
             language = _detect_language(raw_content) if raw_content else None
 
-            doc_id = db.insert_document(
+            doc_id = self._db.insert_document(
                 filename=filename,
                 content=content_preview,
                 metadata={'total_chunks': len(chunks_with_metadata), 'file_path': file_path},
@@ -347,7 +355,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             )
             logger.debug(f"Document ID: {doc_id}")
 
-            embedding_model = ollama_client.get_embedding_model()
+            embedding_model = self._ollama_client.get_embedding_model()
             if not embedding_model:
                 logger.error(_NO_EMBEDDING_MODEL)
                 return False, _NO_EMBEDDING_MODEL, None
@@ -367,7 +375,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 logger.error(error_msg)
                 return False, error_msg, None
 
-            chunk_ids = db.insert_chunks_batch(chunks_data)
+            chunk_ids = self._db.insert_chunks_batch(chunks_data)
             logger.info("Chunks inserted successfully")
 
             # ── GraphRAG entity extraction (optional) ─────────────────────

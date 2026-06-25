@@ -48,6 +48,4 @@ __all__ = [
     'MONITORING_AVAILABLE',
     'logger',
     'config',
-    'db',
-    'ollama_client',
 ]

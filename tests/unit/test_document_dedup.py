@@ -57,16 +57,14 @@ class TestComputeFileHash:
 # ingest_document dedup logic
 # ---------------------------------------------------------------------------
 
-def _make_processor():
-    """Return a DocumentProcessor with all heavy dependencies mocked."""
-    from src.rag.processor import DocumentProcessor
-    proc = DocumentProcessor.__new__(DocumentProcessor)
-    return proc
-
-
 @pytest.fixture()
 def processor():
-    return _make_processor()
+    """Return a DocumentProcessor with all heavy dependencies mocked."""
+    from unittest.mock import MagicMock
+
+    from src.rag.processor import DocumentProcessor
+
+    return DocumentProcessor(db=MagicMock(), ollama_client=MagicMock())
 
 
 @pytest.fixture()
@@ -80,52 +78,39 @@ FILE_HASH = hashlib.sha256(b"Some document content for testing.").hexdigest()
 
 
 class TestIngestDocumentDedup:
-    """Patch db and ollama so no real services are needed."""
-
-    def _patch_deps(self, doc_exists_return, load_ok=True):
-        """Return a context-manager stack of patches."""
-        patches = [
-            patch("src.rag.processor.db"),
-            patch("src.rag.processor.ollama_client"),
-            patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
-        ]
-        return patches
+    """DocumentProcessor with injected mocks — no real services needed."""
 
     def test_new_document_is_ingested(self, processor, txt_file):
+        mock_db = processor._db
+        mock_ollama = processor._ollama_client
+        mock_db.document_exists.return_value = (False, {})
+        mock_db.insert_document.return_value = 42
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+
         with (
-            patch("src.rag.processor.db") as mock_db,
-            patch("src.rag.processor.ollama_client") as mock_ollama,
             patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
             patch.object(processor, "_load_document_chunks",
                          return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content", "TXT", "text-v1")),
             patch.object(processor, "_run_embedding_pipeline",
                          return_value=([{"chunk_text": "chunk"}], 0)),
         ):
-            mock_db.document_exists.return_value = (False, {})
-            mock_db.insert_document.return_value = 42
-            mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
-
             success, msg, doc_id = processor.ingest_document(txt_file)
 
         assert success is True
         assert doc_id == 42
         mock_db.delete_document.assert_not_called()
         mock_db.insert_document.assert_called_once()
-        # hash was passed to insert_document
         _, kwargs = mock_db.insert_document.call_args
         assert kwargs.get("content_hash") == FILE_HASH
 
     def test_same_hash_skips_ingestion(self, processor, txt_file):
-        with (
-            patch("src.rag.processor.db") as mock_db,
-            patch("src.rag.processor.ollama_client"),
-            patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
-        ):
-            mock_db.document_exists.return_value = (
-                True,
-                {"id": 7, "chunk_count": 5, "content_hash": FILE_HASH},
-            )
+        mock_db = processor._db
+        mock_db.document_exists.return_value = (
+            True,
+            {"id": 7, "chunk_count": 5, "content_hash": FILE_HASH},
+        )
 
+        with patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH):
             success, msg, doc_id = processor.ingest_document(txt_file)
 
         assert success is True
@@ -136,22 +121,22 @@ class TestIngestDocumentDedup:
 
     def test_different_hash_replaces_document(self, processor, txt_file):
         old_hash = "a" * 64
+        mock_db = processor._db
+        mock_ollama = processor._ollama_client
+        mock_db.document_exists.return_value = (
+            True,
+            {"id": 3, "chunk_count": 10, "content_hash": old_hash},
+        )
+        mock_db.insert_document.return_value = 99
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+
         with (
-            patch("src.rag.processor.db") as mock_db,
-            patch("src.rag.processor.ollama_client") as mock_ollama,
             patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
             patch.object(processor, "_load_document_chunks",
                          return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content", "TXT", "text-v1")),
             patch.object(processor, "_run_embedding_pipeline",
                          return_value=([{"chunk_text": "chunk"}], 0)),
         ):
-            mock_db.document_exists.return_value = (
-                True,
-                {"id": 3, "chunk_count": 10, "content_hash": old_hash},
-            )
-            mock_db.insert_document.return_value = 99
-            mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
-
             success, msg, doc_id = processor.ingest_document(txt_file)
 
         assert success is True
@@ -162,22 +147,21 @@ class TestIngestDocumentDedup:
     def test_replace_progress_callback_called(self, processor, txt_file):
         old_hash = "b" * 64
         progress_calls = []
+        mock_db = processor._db
+        mock_ollama = processor._ollama_client
+        mock_db.document_exists.return_value = (
+            True, {"id": 1, "chunk_count": 2, "content_hash": old_hash}
+        )
+        mock_db.insert_document.return_value = 10
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
 
         with (
-            patch("src.rag.processor.db") as mock_db,
-            patch("src.rag.processor.ollama_client") as mock_ollama,
             patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
             patch.object(processor, "_load_document_chunks",
                          return_value=(True, None, [{"text": "c", "metadata": {}}], "c", "TXT", "text-v1")),
             patch.object(processor, "_run_embedding_pipeline",
                          return_value=([{"chunk_text": "c"}], 0)),
         ):
-            mock_db.document_exists.return_value = (
-                True, {"id": 1, "chunk_count": 2, "content_hash": old_hash}
-            )
-            mock_db.insert_document.return_value = 10
-            mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
-
             processor.ingest_document(txt_file, progress_callback=progress_calls.append)
 
         assert any("Replacing" in m for m in progress_calls)

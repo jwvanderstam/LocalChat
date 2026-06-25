@@ -76,36 +76,38 @@ class TestContextRetrieval:
 
     def test_retrieve_with_valid_query(self):
         """Test retrieval with valid query."""
-        from src.rag import doc_processor
+        from unittest.mock import MagicMock
 
-        with patch('src.rag.retrieval.ollama_client') as mock_ollama:
-            mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
-            mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
+        from src.rag import DocumentProcessor
 
-            with patch('src.rag.retrieval.db') as mock_db:
-                mock_db.search_similar_chunks.return_value = [
-                    ("chunk text", "file.txt", 1, 0.9, {}, 1)
-                ]
-                mock_db.search_by_keyword.return_value = []
+        mock_ollama = MagicMock()
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+        mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
+        mock_db = MagicMock()
+        mock_db.search_similar_chunks.return_value = []
+        mock_db.search_by_keyword.return_value = []
 
-                result = doc_processor.retrieve_context("test query", top_k=5)
+        proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
+        result = proc.retrieve_context("test query", top_k=5)
 
-                assert isinstance(result, (str, list))
+        assert isinstance(result, (str, list))
 
     def test_retrieve_with_top_k(self):
         """Test retrieval respects top_k parameter."""
-        from src.rag import doc_processor
+        from unittest.mock import MagicMock
 
-        with patch('src.rag.retrieval.ollama_client') as mock_ollama:
-            mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
-            mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
+        from src.rag import DocumentProcessor
 
-            with patch('src.rag.retrieval.db') as mock_db:
-                mock_db.search_similar_chunks.return_value = []
-                mock_db.search_by_keyword.return_value = []
+        mock_ollama = MagicMock()
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+        mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
+        mock_db = MagicMock()
+        mock_db.search_similar_chunks.return_value = []
+        mock_db.search_by_keyword.return_value = []
 
-                result = doc_processor.retrieve_context("query", top_k=10)
-                assert isinstance(result, (str, list))
+        proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
+        result = proc.retrieve_context("query", top_k=10)
+        assert isinstance(result, (str, list))
 
 
 class TestHybridSearch:
@@ -255,38 +257,41 @@ class TestRetrievalEdgeCases:
 
     def test_retrieve_with_no_results(self):
         """Test retrieval when no chunks found."""
-        from src.rag import doc_processor
+        from unittest.mock import MagicMock
 
-        with patch('src.rag.retrieval.ollama_client') as mock_ollama:
-            mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
-            mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
+        from src.rag import DocumentProcessor
 
-            with patch('src.rag.retrieval.db') as mock_db:
-                mock_db.search_similar_chunks.return_value = []
-                mock_db.search_by_keyword.return_value = []
+        mock_ollama = MagicMock()
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+        mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
+        mock_db = MagicMock()
+        mock_db.search_similar_chunks.return_value = []
+        mock_db.search_by_keyword.return_value = []
 
-                result = doc_processor.retrieve_context("query")
+        proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
+        result = proc.retrieve_context("query")
 
-                # Should return empty or message
-                assert isinstance(result, (str, list))
+        assert isinstance(result, (str, list))
 
     def test_retrieve_with_min_similarity(self):
         """Test retrieval with minimum similarity threshold."""
-        from src.rag import doc_processor
+        from unittest.mock import MagicMock
 
-        with patch('src.rag.retrieval.ollama_client') as mock_ollama:
-            mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
-            mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
+        from src.rag import DocumentProcessor
 
-            with patch('src.rag.retrieval.db') as mock_db:
-                mock_db.search_similar_chunks.return_value = []
-                mock_db.search_by_keyword.return_value = []
+        mock_ollama = MagicMock()
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+        mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
+        mock_db = MagicMock()
+        mock_db.search_similar_chunks.return_value = []
+        mock_db.search_by_keyword.return_value = []
 
-                try:
-                    result = doc_processor.retrieve_context("query", min_similarity=0.8)
-                    assert isinstance(result, (str, list))
-                except TypeError:
-                    pass  # Parameter may not exist
+        proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
+        try:
+            result = proc.retrieve_context("query", min_similarity=0.8)
+            assert isinstance(result, (str, list))
+        except TypeError:
+            pass  # Parameter may not exist
 
 
 class TestCacheIntegration:

@@ -29,6 +29,15 @@ def _no_appstate_io():
     config.app_state.state_file = None
 
 
+@pytest.fixture(autouse=True)
+def _reset_metrics():
+    """Reset MetricsCollector singleton between tests for isolation."""
+    import src.monitoring as m
+    m._metrics = None
+    yield
+    m._metrics = None
+
+
 @pytest.fixture
 def temp_dir() -> Generator[str, None, None]:
     """
