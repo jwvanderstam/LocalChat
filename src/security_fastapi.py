@@ -115,6 +115,19 @@ def _extract_bearer_token(request: Request) -> str | None:
     return None
 
 
+def extract_bearer_token(request: Request) -> str | None:
+    """Public: extract Bearer token from Authorization header."""
+    return _extract_bearer_token(request)
+
+
+def decode_token_for_revocation(token: str) -> dict[str, Any] | None:
+    """Decode a JWT for revocation — returns claims dict or None on any failure."""
+    try:
+        return _decode_token(token)
+    except Exception:
+        return None
+
+
 def get_current_user_id(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008

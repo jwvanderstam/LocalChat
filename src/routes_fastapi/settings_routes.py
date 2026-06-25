@@ -115,8 +115,8 @@ def _collect_system_info(app_state: Any) -> dict:
 
 
 def gather_admin_stats(app_state: Any) -> dict:
-    from ..monitoring import _compute_health_status, get_metrics
-    _, _, health_checks = _compute_health_status(app_state)
+    from ..monitoring import compute_health_status, get_metrics
+    _, _, health_checks = compute_health_status(app_state)
     metrics_snapshot = get_metrics().get_metrics()
 
     return {
@@ -144,8 +144,8 @@ def gather_admin_stats(app_state: Any) -> dict:
 
 @router.get("/health")
 def health_check(request: Request) -> Any:
-    from ..monitoring import _compute_health_status
-    status, status_code, checks = _compute_health_status(request.app.state)
+    from ..monitoring import compute_health_status
+    status, status_code, checks = compute_health_status(request.app.state)
     return JSONResponse(
         {"status": status, "checks": checks, "timestamp": datetime.now().isoformat()},
         status_code=status_code,

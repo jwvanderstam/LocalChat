@@ -8,7 +8,6 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from ..connectors.registry import connector_registry
 from ..security_fastapi import get_current_user_id
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
@@ -37,7 +36,7 @@ def list_available_connectors(request: Request) -> Any:
 
 @router.get("/connectors/types")
 def list_connector_types(request: Request) -> Any:
-    return {"success": True, "types": connector_registry.available_types()}
+    return {"success": True, "types": request.app.state.connector_registry.available_types()}
 
 
 @router.get("/connectors")
@@ -61,14 +60,15 @@ async def create_connector(request: Request) -> Any:
 
     if not connector_type:
         return JSONResponse({"success": False, "message": "connector_type is required"}, status_code=400)
-    if connector_type not in connector_registry.available_types():
+    registry = request.app.state.connector_registry
+    if connector_type not in registry.available_types():
         return JSONResponse(
-            {"success": False, "message": f"Unknown connector_type. Available: {connector_registry.available_types()}"},
+            {"success": False, "message": f"Unknown connector_type. Available: {registry.available_types()}"},
             status_code=400,
         )
 
     workspace_id = get_workspace_id(request)
-    cls = connector_registry.get_class(connector_type)
+    cls = registry.get_class(connector_type)
     try:
         tmp_instance = cls(connector_config)
     except Exception as exc:
@@ -91,7 +91,7 @@ async def create_connector(request: Request) -> Any:
             workspace_id=workspace_id,
             sync_interval=sync_interval,
         )
-        connector_registry.add(connector_id, connector_type, connector_config, workspace_id=workspace_id)
+        registry.add(connector_id, connector_type, connector_config, workspace_id=workspace_id)
         connector = db.get_connector(connector_id)
         return JSONResponse({"success": True, "connector": connector}, status_code=201)
     except Exception:
@@ -126,9 +126,9 @@ async def update_connector(connector_id: str, request: Request) -> Any:
         if "config" in fields or "enabled" in fields:
             row = db.get_connector(connector_id)
             if row and row.get("enabled"):
-                connector_registry.add(connector_id, row["connector_type"], row["config"], workspace_id=row.get("workspace_id"))
+                request.app.state.connector_registry.add(connector_id, row["connector_type"], row["config"], workspace_id=row.get("workspace_id"))
             else:
-                connector_registry.remove(connector_id)
+                request.app.state.connector_registry.remove(connector_id)
         return {"success": True, "connector": db.get_connector(connector_id)}
     except Exception:
         logger.exception("[Connectors] update error")
@@ -141,7 +141,7 @@ def delete_connector(connector_id: str, request: Request) -> Any:
         deleted = request.app.state.db.delete_connector(connector_id)
         if not deleted:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
-        connector_registry.remove(connector_id)
+        request.app.state.connector_registry.remove(connector_id)
         return {"success": True}
     except Exception:
         logger.exception("[Connectors] delete error")
@@ -150,7 +150,7 @@ def delete_connector(connector_id: str, request: Request) -> Any:
 
 @router.post("/connectors/{connector_id}/sync")
 def trigger_sync(connector_id: str, request: Request) -> Any:
-    connector_instance = connector_registry.get(connector_id)
+    connector_instance = request.app.state.connector_registry.get(connector_id)
     if connector_instance is None:
         return JSONResponse({"success": False, "message": "Connector not found or not loaded"}, status_code=404)
 
@@ -192,7 +192,7 @@ async def receive_webhook(connector_id: str, request: Request) -> Any:
             logger.warning("[Webhook] Bad secret for connector")
             return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
 
-    instance = connector_registry.get(connector_id)
+    instance = request.app.state.connector_registry.get(connector_id)
     if instance is None:
         return JSONResponse({"success": False, "message": "Connector not active"}, status_code=503)
 

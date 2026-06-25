@@ -10,7 +10,7 @@ import re
 import time
 from collections import defaultdict
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NamedTuple
 
 from .. import config
 from ..db import db
@@ -20,6 +20,16 @@ from .cache import embedding_cache
 from .scoring import BM25Scorer
 
 logger = get_logger(__name__)
+
+
+class RetrievalResult(NamedTuple):
+    chunk_text: str
+    filename: str
+    chunk_index: int
+    similarity: float
+    metadata: dict[str, Any]
+    chunk_id: int
+
 
 # Pre-built at import time — avoids recreating this dict on every query
 _CONTRACTIONS: dict = {
@@ -251,11 +261,11 @@ class RetrievalMixin:
         self,
         query_clean: str,
         filtered_results: dict[str, dict[str, Any]],
-    ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
+    ) -> list[RetrievalResult]:
         """Apply diversity filter, re-ranking, deduplication, and convert to output tuples.
 
         Returns:
-            Final list of (chunk_text, filename, chunk_index, similarity, metadata, chunk_id) tuples.
+            Final list of RetrievalResult named tuples.
         """
         if config.ENABLE_DIVERSITY_FILTER:
             filtered_results = self._apply_diversity_filter_dict(filtered_results)
@@ -277,13 +287,13 @@ class RetrievalMixin:
 
         deduped = sorted(deduped, key=lambda x: (x['filename'], x['chunk_index']))
         return [
-            (
-                r['chunk_text'],
-                r['filename'],
-                r['chunk_index'],
-                r['semantic_score'],
-                {**r.get('metadata', {}), 'combined_score': r.get('combined_score', r['semantic_score'])},
-                r.get('chunk_id', 0),
+            RetrievalResult(
+                chunk_text=r['chunk_text'],
+                filename=r['filename'],
+                chunk_index=r['chunk_index'],
+                similarity=r['semantic_score'],
+                metadata={**r.get('metadata', {}), 'combined_score': r.get('combined_score', r['semantic_score'])},
+                chunk_id=r.get('chunk_id', 0),
             )
             for r in deduped
         ]
@@ -302,7 +312,7 @@ class RetrievalMixin:
         workspace_id: str | None = None,
         additional_workspace_ids: list[str] | None = None,
         source_ids: list[str] | None = None,
-    ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
+    ) -> list[RetrievalResult]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
 
@@ -687,7 +697,7 @@ class RetrievalMixin:
 
     def format_context_for_llm(
         self,
-        results: list[tuple[str, str, int, float, dict[str, Any]]],
+        results: list[RetrievalResult],
         max_length: int = 30000
     ) -> str:
         """

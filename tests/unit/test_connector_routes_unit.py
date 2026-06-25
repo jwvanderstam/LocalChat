@@ -41,38 +41,37 @@ class TestConnectorRoutesErrors:
 
     def test_create_connector_db_error_returns_500(self, client, app):
         """DB error after config validation should return 500."""
-        from unittest.mock import patch
-
         app.state.db.create_connector = MagicMock(side_effect=Exception("db gone"))
-        with patch('src.routes_fastapi.connector_routes.connector_registry') as reg:
-            mock_cls = MagicMock()
-            mock_instance = MagicMock()
-            mock_instance.validate_config.return_value = []
-            mock_instance.display_name = 'Test'
-            mock_cls.return_value = mock_instance
-            reg.available_types.return_value = ['webhook']
-            reg.get_class.return_value = mock_cls
 
-            resp = client.post(
-                '/api/connectors',
-                json={'connector_type': 'webhook', 'config': {}},
-            )
+        mock_cls = MagicMock()
+        mock_instance = MagicMock()
+        mock_instance.validate_config.return_value = []
+        mock_instance.display_name = 'Test'
+        mock_cls.return_value = mock_instance
+        mock_reg = MagicMock()
+        mock_reg.available_types.return_value = ['webhook']
+        mock_reg.get_class.return_value = mock_cls
+        app.state.connector_registry = mock_reg
+
+        resp = client.post(
+            '/api/connectors',
+            json={'connector_type': 'webhook', 'config': {}},
+        )
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
     def test_create_connector_instantiation_error_returns_400(self, client, app):
         """Constructor raising should return 400 via logger.warning path."""
-        from unittest.mock import patch
+        mock_cls = MagicMock(side_effect=ValueError("bad config"))
+        mock_reg = MagicMock()
+        mock_reg.available_types.return_value = ['webhook']
+        mock_reg.get_class.return_value = mock_cls
+        app.state.connector_registry = mock_reg
 
-        with patch('src.routes_fastapi.connector_routes.connector_registry') as reg:
-            mock_cls = MagicMock(side_effect=ValueError("bad config"))
-            reg.available_types.return_value = ['webhook']
-            reg.get_class.return_value = mock_cls
-
-            resp = client.post(
-                '/api/connectors',
-                json={'connector_type': 'webhook', 'config': {}},
-            )
+        resp = client.post(
+            '/api/connectors',
+            json={'connector_type': 'webhook', 'config': {}},
+        )
         assert resp.status_code == 400
         assert resp.json()['message'] == 'Invalid connector configuration'
 

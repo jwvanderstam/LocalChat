@@ -143,9 +143,11 @@ def mock_ollama_client():
 def app():
     """Provide a FastAPI test application instance."""
     from src.app_fastapi import create_app
+    from src.connectors.registry import connector_registry
 
     test_app = create_app(config_override={"TESTING": True})
     test_app.state.db.is_connected = True
+    test_app.state.connector_registry = connector_registry
     return test_app
 
 

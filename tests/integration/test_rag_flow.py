@@ -5,24 +5,24 @@ from unittest.mock import patch
 
 import pytest
 
-# Representative chunks that retrieve_context would return:
-# (chunk_text, filename, chunk_index, similarity_score, metadata, chunk_id)
+from src.rag.retrieval import RetrievalResult
+
 SAMPLE_CHUNKS = [
-    (
-        "LocalChat supports pgvector for semantic similarity search.",
-        "localchat_overview.txt",
-        0,
-        0.92,
-        {"page_number": None, "section_title": "Overview"},
-        1,
+    RetrievalResult(
+        chunk_text="LocalChat supports pgvector for semantic similarity search.",
+        filename="localchat_overview.txt",
+        chunk_index=0,
+        similarity=0.92,
+        metadata={"page_number": None, "section_title": "Overview"},
+        chunk_id=1,
     ),
-    (
-        "Documents are split into overlapping chunks and embedded with nomic-embed-text.",
-        "localchat_overview.txt",
-        1,
-        0.88,
-        {"page_number": None, "section_title": "Overview"},
-        2,
+    RetrievalResult(
+        chunk_text="Documents are split into overlapping chunks and embedded with nomic-embed-text.",
+        filename="localchat_overview.txt",
+        chunk_index=1,
+        similarity=0.88,
+        metadata={"page_number": None, "section_title": "Overview"},
+        chunk_id=2,
     ),
 ]
 
@@ -102,6 +102,9 @@ class TestRagFlow:
         config.app_state.set_active_model("llama3.2")
         app.state.startup_status["ollama"] = True
 
+        async def _gen_ok(*a, **k):
+            yield "ok"
+
         with (
             patch.object(
                 app.state.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS
@@ -114,7 +117,7 @@ class TestRagFlow:
             patch.object(
                 app.state.ollama_client,
                 "generate_chat_response",
-                return_value=iter(["ok"]),
+                side_effect=_gen_ok,
             ),
         ):
             client.post(
@@ -138,9 +141,9 @@ class TestRagFlow:
         app.state.startup_status["ollama"] = True
         captured: list = []
 
-        def capture_generate(model, messages, **kwargs):
+        async def capture_generate(model, messages, **kwargs):
             captured.extend(messages)
-            return iter(["answer"])
+            yield "answer"
 
         with (
             patch.object(app.state.doc_processor, "retrieve_context", return_value=SAMPLE_CHUNKS),

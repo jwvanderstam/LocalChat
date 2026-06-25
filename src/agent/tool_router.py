@@ -99,12 +99,12 @@ class ToolRouter:
         context = doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH)
         sources = [
             {
-                "filename": r[1],
-                "chunk_index": r[2],
-                "similarity": round(float(r[3]), 4),
-                "page_number": r[4].get("page_number"),
-                "section_title": r[4].get("section_title"),
-                "chunk_id": r[5] if len(r) > 5 else None,
+                "filename": r.filename,
+                "chunk_index": r.chunk_index,
+                "similarity": round(float(r.similarity), 4),
+                "page_number": r.metadata.get("page_number"),
+                "section_title": r.metadata.get("section_title"),
+                "chunk_id": r.chunk_id,
             }
             for r in results
         ]

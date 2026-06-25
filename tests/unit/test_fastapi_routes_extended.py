@@ -172,10 +172,9 @@ class TestConnectorRoutesExtended:
         from src.routes_fastapi.connector_routes import router
 
         state = _base_state()
+        state.connector_registry.available_types.return_value = ["local_folder", "s3", "google_drive"]
         client = _make_client(router, "/api", state)
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.available_types.return_value = ["local_folder", "s3", "google_drive"]
-            resp = client.get("/api/connectors/types")
+        resp = client.get("/api/connectors/types")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
         assert "local_folder" in resp.json()["types"]
@@ -197,10 +196,9 @@ class TestConnectorRoutesExtended:
         from src.routes_fastapi.connector_routes import router
 
         state = _base_state()
+        state.connector_registry.available_types.return_value = ["local_folder"]
         client = _make_client(router, "/api", state)
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.available_types.return_value = ["local_folder"]
-            resp = client.post("/api/connectors", json={"connector_type": "nonexistent"})
+        resp = client.post("/api/connectors", json={"connector_type": "nonexistent"})
         assert resp.status_code == 400
 
 
@@ -386,7 +384,7 @@ class TestSettingsRoutesExtended:
             mc.OLLAMA_BASE_URL = "http://localhost:11434"
             mc.app_state = MagicMock()
             mc.app_state.get_active_model.return_value = "llama3.2"
-            with patch("src.monitoring._compute_health_status") as mh:
+            with patch("src.monitoring.compute_health_status") as mh:
                 mh.return_value = (True, True, {})
                 with patch("src.monitoring.get_metrics") as mgm:
                     mgm.return_value = MagicMock()

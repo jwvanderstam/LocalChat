@@ -12,6 +12,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import config, exceptions
+from ..rag.retrieval import RetrievalResult
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
 
@@ -142,13 +143,13 @@ def _get_rag_context(
 
     sources = [
         {
-            "filename": filename,
-            "chunk_index": chunk_index,
-            "page_number": metadata.get("page_number"),
-            "section_title": metadata.get("section_title"),
-            "chunk_id": chunk_id,
+            "filename": r.filename,
+            "chunk_index": r.chunk_index,
+            "page_number": r.metadata.get("page_number"),
+            "section_title": r.metadata.get("section_title"),
+            "chunk_id": r.chunk_id,
         }
-        for _, filename, chunk_index, _, metadata, chunk_id in results
+        for r in results
     ]
     return doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH), sources
 
@@ -385,13 +386,12 @@ def _get_rag_context_multi_hop(
             except Exception as exc:
                 logger.warning("[Planner] Sub-question retrieval failed: %s", exc)
 
-    seen: dict[int, tuple] = {}
+    seen: dict[int, RetrievalResult] = {}
     for r in all_results:
-        chunk_id = r[5]
-        if chunk_id not in seen or r[3] > seen[chunk_id][3]:
-            seen[chunk_id] = r
+        if r.chunk_id not in seen or r.similarity > seen[r.chunk_id].similarity:
+            seen[r.chunk_id] = r
 
-    merged = sorted(seen.values(), key=lambda r: r[3], reverse=True)[:config.TOP_K_RESULTS]
+    merged = sorted(seen.values(), key=lambda r: r.similarity, reverse=True)[:config.TOP_K_RESULTS]
 
     if not merged:
         return "", []
@@ -402,12 +402,12 @@ def _get_rag_context_multi_hop(
     local_context = doc_processor.format_context_for_llm(merged, max_length=config.MAX_CONTEXT_LENGTH)
     sources = [
         {
-            "filename": r[1],
-            "chunk_index": r[2],
-            "page_number": r[4].get("page_number"),
-            "section_title": r[4].get("section_title"),
-            "chunk_id": r[5],
-            "combined_score": r[4].get("combined_score"),
+            "filename": r.filename,
+            "chunk_index": r.chunk_index,
+            "page_number": r.metadata.get("page_number"),
+            "section_title": r.metadata.get("section_title"),
+            "chunk_id": r.chunk_id,
+            "combined_score": r.metadata.get("combined_score"),
         }
         for r in merged
     ]

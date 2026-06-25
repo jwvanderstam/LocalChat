@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ..security_fastapi import (
-    _decode_token,
-    _extract_bearer_token,
+    decode_token_for_revocation,
+    extract_bearer_token,
     get_current_user_id,
     require_admin_dep,
 )
@@ -141,12 +141,11 @@ async def change_own_password(request: Request) -> Any:
 @router.post("/logout")
 async def logout(request: Request) -> Any:
     """Revoke the caller's current JWT so it cannot be reused."""
-    token = _extract_bearer_token(request)
+    token = extract_bearer_token(request)
     if not token:
         return JSONResponse({"success": False, "message": "No token provided"}, status_code=400)
-    try:
-        payload = _decode_token(token)
-    except Exception:
+    payload = decode_token_for_revocation(token)
+    if payload is None:
         return JSONResponse({"success": False, "message": "Invalid token"}, status_code=400)
 
     jti = payload.get("jti")

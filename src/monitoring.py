@@ -272,7 +272,7 @@ def _live_check_ollama(app, db_up: bool) -> bool:
     return ollama_up
 
 
-def _compute_health_status(app) -> tuple:
+def compute_health_status(app) -> tuple:
     """Compute health status dict from app startup_status. Returns (status, code, checks)."""
     checks = {}
     overall_healthy = True

@@ -13,7 +13,7 @@ Covers the full REST surface:
   POST /api/connectors/<id>/webhook
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -161,8 +161,8 @@ class TestUpdateConnector:
             return_value=_connector(id="conn-1", enabled=False)
         )
         mock_registry = MagicMock()
-        with patch("src.routes_fastapi.connector_routes.connector_registry", mock_registry):
-            resp = client.put("/api/connectors/conn-1", json={"enabled": False})
+        app.state.connector_registry = mock_registry
+        resp = client.put("/api/connectors/conn-1", json={"enabled": False})
         assert resp.status_code == 200
         mock_registry.remove.assert_called_once_with("conn-1")
 
@@ -176,8 +176,8 @@ class TestDeleteConnector:
     def test_deletes_connector(self, client, app):
         app.state.db.delete_connector = MagicMock(return_value=True)
         mock_registry = MagicMock()
-        with patch("src.routes_fastapi.connector_routes.connector_registry", mock_registry):
-            resp = client.delete("/api/connectors/conn-1")
+        app.state.connector_registry = mock_registry
+        resp = client.delete("/api/connectors/conn-1")
         assert resp.status_code == 200
         mock_registry.remove.assert_called_once_with("conn-1")
 
@@ -197,23 +197,23 @@ class TestTriggerSync:
         mock_instance = MagicMock()
         mock_worker = MagicMock()
         app.state.sync_worker = mock_worker
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.get.return_value = mock_instance
-            resp = client.post("/api/connectors/conn-1/sync")
+        app.state.connector_registry = MagicMock()
+        app.state.connector_registry.get.return_value = mock_instance
+        resp = client.post("/api/connectors/conn-1/sync")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_connector_not_loaded_returns_404(self, client, app):
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.get.return_value = None
-            resp = client.post("/api/connectors/conn-1/sync")
+        app.state.connector_registry = MagicMock()
+        app.state.connector_registry.get.return_value = None
+        resp = client.post("/api/connectors/conn-1/sync")
         assert resp.status_code == 404
 
     def test_no_worker_returns_503(self, client, app):
         app.state.sync_worker = None
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.get.return_value = MagicMock()
-            resp = client.post("/api/connectors/conn-1/sync")
+        app.state.connector_registry = MagicMock()
+        app.state.connector_registry.get.return_value = MagicMock()
+        resp = client.post("/api/connectors/conn-1/sync")
         assert resp.status_code == 503
 
 
@@ -253,14 +253,14 @@ class TestWebhookReceiver:
         app.state.db.get_connector = MagicMock(return_value=_connector(connector_type="webhook"))
         mock_instance = MagicMock()
         mock_instance.push_event.return_value = []
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.get.return_value = mock_instance
-            resp = client.post("/api/connectors/conn-1/webhook", json={
-                "event_type": "added",
-                "source_id": "doc-1",
-                "filename": "report.pdf",
-                "fetch_url": "http://example.com/report.pdf",
-            })
+        app.state.connector_registry = MagicMock()
+        app.state.connector_registry.get.return_value = mock_instance
+        resp = client.post("/api/connectors/conn-1/webhook", json={
+            "event_type": "added",
+            "source_id": "doc-1",
+            "filename": "report.pdf",
+            "fetch_url": "http://example.com/report.pdf",
+        })
         assert resp.status_code == 200
 
     def test_wrong_connector_type_returns_400(self, client, app):
@@ -277,22 +277,20 @@ class TestWebhookReceiver:
         app.state.db.get_connector = MagicMock(return_value=_connector(connector_type="webhook"))
         mock_instance = MagicMock()
         mock_instance.push_event.return_value = ["'source_id' is required"]
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.get.return_value = mock_instance
-            resp = client.post("/api/connectors/conn-1/webhook", json={})
+        app.state.connector_registry = MagicMock()
+        app.state.connector_registry.get.return_value = mock_instance
+        resp = client.post("/api/connectors/conn-1/webhook", json={})
         assert resp.status_code == 400
 
     def test_bad_secret_returns_403(self, client, app):
         connector = _connector(connector_type="webhook")
         connector["config"] = {"secret": "correct-secret"}
         app.state.db.get_connector = MagicMock(return_value=connector)
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.get.return_value = MagicMock()
-            resp = client.post(
-                "/api/connectors/conn-1/webhook",
-                json={"event_type": "added", "source_id": "x", "fetch_url": "http://x"},
-                headers={"X-LocalChat-Secret": "wrong-secret"},
-            )
+        resp = client.post(
+            "/api/connectors/conn-1/webhook",
+            json={"event_type": "added", "source_id": "x", "fetch_url": "http://x"},
+            headers={"X-LocalChat-Secret": "wrong-secret"},
+        )
         assert resp.status_code == 403
 
     def test_correct_secret_accepted(self, client, app):
@@ -301,18 +299,18 @@ class TestWebhookReceiver:
         app.state.db.get_connector = MagicMock(return_value=connector)
         mock_instance = MagicMock()
         mock_instance.push_event.return_value = []
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.get.return_value = mock_instance
-            resp = client.post(
-                "/api/connectors/conn-1/webhook",
-                json={"event_type": "deleted", "source_id": "doc-1"},
-                headers={"X-LocalChat-Secret": "correct-secret"},
-            )
+        app.state.connector_registry = MagicMock()
+        app.state.connector_registry.get.return_value = mock_instance
+        resp = client.post(
+            "/api/connectors/conn-1/webhook",
+            json={"event_type": "deleted", "source_id": "doc-1"},
+            headers={"X-LocalChat-Secret": "correct-secret"},
+        )
         assert resp.status_code == 200
 
     def test_instance_not_active_returns_503(self, client, app):
         app.state.db.get_connector = MagicMock(return_value=_connector(connector_type="webhook"))
-        with patch("src.routes_fastapi.connector_routes.connector_registry") as mock_reg:
-            mock_reg.get.return_value = None
-            resp = client.post("/api/connectors/conn-1/webhook", json={})
+        app.state.connector_registry = MagicMock()
+        app.state.connector_registry.get.return_value = None
+        resp = client.post("/api/connectors/conn-1/webhook", json={})
         assert resp.status_code == 503

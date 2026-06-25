@@ -17,7 +17,7 @@ def monitoring_app():
     from src.monitoring import (
         MetricsMiddleware,
         _check_metrics_auth,
-        _compute_health_status,
+        compute_health_status,
         export_prometheus_metrics,
         get_metrics,
     )
@@ -29,7 +29,7 @@ def monitoring_app():
 
     @app.get("/api/health")
     def health(request: Request) -> JSONResponse:
-        status, code, checks = _compute_health_status(request.app.state)
+        status, code, checks = compute_health_status(request.app.state)
         from datetime import datetime
         return JSONResponse(
             {"status": status, "checks": checks, "timestamp": datetime.now().isoformat()},
@@ -578,19 +578,19 @@ class TestMetricsAuth:
 
 
 class TestComputeHealthStatus:
-    """Unit tests for _compute_health_status covering all branches."""
+    """Unit tests for compute_health_status covering all branches."""
 
     def test_healthy_when_db_and_ollama_up(self):
         """Returns 'healthy'/200 when both database and Ollama are up."""
         from unittest.mock import Mock
 
-        from src.monitoring import _compute_health_status
+        from src.monitoring import compute_health_status
 
         app = Mock()
         app.startup_status = {'database': True, 'ollama': True}
         app.embedding_cache = None
 
-        status, code, checks = _compute_health_status(app)
+        status, code, checks = compute_health_status(app)
         assert status == 'healthy'
         assert code == 200
         assert checks['database']['healthy'] is True
@@ -600,13 +600,13 @@ class TestComputeHealthStatus:
         """Returns 'unhealthy'/503 when the database is down."""
         from unittest.mock import Mock
 
-        from src.monitoring import _compute_health_status
+        from src.monitoring import compute_health_status
 
         app = Mock()
         app.startup_status = {'database': False, 'ollama': True}
         app.embedding_cache = None
 
-        status, code, checks = _compute_health_status(app)
+        status, code, checks = compute_health_status(app)
         assert status == 'unhealthy'
         assert code == 503
 
@@ -614,13 +614,13 @@ class TestComputeHealthStatus:
         """Ollama-down check carries an explanatory message."""
         from unittest.mock import Mock
 
-        from src.monitoring import _compute_health_status
+        from src.monitoring import compute_health_status
 
         app = Mock()
         app.startup_status = {'database': True, 'ollama': False}
         app.embedding_cache = None
 
-        status, code, checks = _compute_health_status(app)
+        status, code, checks = compute_health_status(app)
         assert 'message' in checks['ollama']
         assert status == 'healthy'
 
@@ -628,10 +628,10 @@ class TestComputeHealthStatus:
         """Handles missing startup_status gracefully."""
         from unittest.mock import Mock
 
-        from src.monitoring import _compute_health_status
+        from src.monitoring import compute_health_status
 
         app = Mock(spec=[])  # no attributes at all
-        status, code, checks = _compute_health_status(app)
+        status, code, checks = compute_health_status(app)
         assert status == 'healthy'
         assert code == 200
         assert checks == {}
@@ -640,7 +640,7 @@ class TestComputeHealthStatus:
         """Cache stats appear in checks when embedding_cache is attached."""
         from unittest.mock import Mock
 
-        from src.monitoring import _compute_health_status
+        from src.monitoring import compute_health_status
 
         mock_stats = Mock()
         mock_stats.to_dict.return_value = {'hits': 10, 'misses': 5}
@@ -649,7 +649,7 @@ class TestComputeHealthStatus:
         app.embedding_cache = Mock()
         app.embedding_cache.get_stats.return_value = mock_stats
 
-        status, code, checks = _compute_health_status(app)
+        status, code, checks = compute_health_status(app)
         assert 'cache' in checks
         assert checks['cache']['healthy'] is True
         assert checks['cache']['stats'] == {'hits': 10, 'misses': 5}
