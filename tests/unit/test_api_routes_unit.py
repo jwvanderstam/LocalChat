@@ -79,7 +79,8 @@ def _config_patch(active_model="llama3.2"):
 
     @contextlib.contextmanager
     def _patch():
-        with patch("src.routes_fastapi.api_routes.config") as cfg:
+        with patch("src.routes_fastapi.api_routes.config") as cfg, \
+             patch("src.services.chat.config") as chat_cfg:
             cfg.app_state.get_active_model.return_value = active_model
             cfg.WEB_SEARCH_ENABLED = False
             cfg.MCP_ENABLED = False
@@ -93,6 +94,15 @@ def _config_patch(active_model="llama3.2"):
             cfg.TOP_K_RESULTS = 5
             cfg.GRAPH_RAG_ENABLED = False
             cfg.DEFAULT_TEMPERATURE = 0.7
+            # chat.py reads from its own config reference
+            chat_cfg.WEB_SEARCH_ENABLED = False
+            chat_cfg.MCP_ENABLED = False
+            chat_cfg.AGGREGATOR_AGENT_ENABLED = False
+            chat_cfg.QUERY_PLANNER_ENABLED = False
+            chat_cfg.LONG_TERM_MEMORY_ENABLED = False
+            chat_cfg.MODEL_ROUTER_ENABLED = False
+            chat_cfg.TOOL_CALLING_ENABLED = False
+            chat_cfg.TOP_K_RESULTS = 5
             yield cfg
 
     return _patch()
@@ -104,10 +114,10 @@ def _config_patch(active_model="llama3.2"):
 
 class TestParseChatRequest:
     def _parse(self, data):
-        from src.routes_fastapi.api_routes import _parse_chat_request
-        with patch("src.routes_fastapi.api_routes.config") as cfg:
+        from src.services.chat import parse_chat_request
+        with patch("src.services.chat.config") as cfg:
             cfg.WEB_SEARCH_ENABLED = True
-            return _parse_chat_request(data)
+            return parse_chat_request(data)
 
     def test_valid_minimal_request(self):
         result = self._parse({"message": "hello"})
@@ -119,10 +129,10 @@ class TestParseChatRequest:
         assert result["use_rag"] is False
 
     def test_enhance_disabled_when_web_search_disabled(self):
-        from src.routes_fastapi.api_routes import _parse_chat_request
-        with patch("src.routes_fastapi.api_routes.config") as cfg:
+        from src.services.chat import parse_chat_request
+        with patch("src.services.chat.config") as cfg:
             cfg.WEB_SEARCH_ENABLED = False
-            result = _parse_chat_request({"message": "q", "enhance": True})
+            result = parse_chat_request({"message": "q", "enhance": True})
         assert result["enhance"] is False
 
     def test_model_override_passed_through(self):
@@ -253,50 +263,50 @@ class TestPersistMessages:
         return app
 
     def test_persist_user_returns_conversation_id_and_message_id(self):
-        from src.routes_fastapi.api_routes import _persist_user_message
+        from src.services.chat import persist_user_message
         app = self._make_app()
-        conv_id, msg_id = _persist_user_message(app, "existing-conv", "hello")
+        conv_id, msg_id = persist_user_message(app, "existing-conv", "hello")
         assert conv_id == "existing-conv"
         assert msg_id == 99
 
     def test_persist_user_creates_conversation_when_none(self):
-        from src.routes_fastapi.api_routes import _persist_user_message
+        from src.services.chat import persist_user_message
         app = self._make_app()
-        conv_id, msg_id = _persist_user_message(app, None, "first message")
+        conv_id, msg_id = persist_user_message(app, None, "first message")
         assert conv_id == "conv-new"
         assert msg_id == 99
         app.db.create_conversation_with_message.assert_called_once()
 
     def test_persist_user_returns_none_message_id_when_db_unavailable(self):
-        from src.routes_fastapi.api_routes import _persist_user_message
+        from src.services.chat import persist_user_message
         app = self._make_app(db_ok=False)
-        conv_id, msg_id = _persist_user_message(app, "conv", "msg")
+        conv_id, msg_id = persist_user_message(app, "conv", "msg")
         assert msg_id is None
 
     def test_persist_user_handles_db_exception(self):
-        from src.routes_fastapi.api_routes import _persist_user_message
+        from src.services.chat import persist_user_message
         app = self._make_app()
         app.db.save_message.side_effect = Exception("DB error")
-        conv_id, msg_id = _persist_user_message(app, "conv", "msg")
+        conv_id, msg_id = persist_user_message(app, "conv", "msg")
         assert msg_id is None
 
     def test_persist_assistant_returns_message_id(self):
-        from src.routes_fastapi.api_routes import _persist_assistant_message
+        from src.services.chat import persist_assistant_message
         app = self._make_app()
-        msg_id = _persist_assistant_message(app, "conv-1", "response text")
+        msg_id = persist_assistant_message(app, "conv-1", "response text")
         assert msg_id == 99
 
     def test_persist_assistant_returns_none_when_no_conv_id(self):
-        from src.routes_fastapi.api_routes import _persist_assistant_message
+        from src.services.chat import persist_assistant_message
         app = self._make_app()
-        msg_id = _persist_assistant_message(app, None, "text")
+        msg_id = persist_assistant_message(app, None, "text")
         assert msg_id is None
 
     def test_persist_assistant_handles_exception(self):
-        from src.routes_fastapi.api_routes import _persist_assistant_message
+        from src.services.chat import persist_assistant_message
         app = self._make_app()
         app.db.save_message.side_effect = Exception("DB error")
-        msg_id = _persist_assistant_message(app, "conv", "text")
+        msg_id = persist_assistant_message(app, "conv", "text")
         assert msg_id is None
 
 
@@ -307,8 +317,8 @@ class TestPersistMessages:
 class TestApiStatus:
     def _get_status(self, active_model="llama3.2", db_ok=True, doc_count=5):
         app, client = _make_chat_app(active_model=active_model, db_ok=db_ok)
-        with patch("src.routes_fastapi.api_routes._get_doc_count_cached", return_value=(doc_count, db_ok)):
-            with patch("src.routes_fastapi.api_routes._check_ollama_live", return_value=True):
+        with patch("src.services.chat.get_doc_count_cached", return_value=(doc_count, db_ok)):
+            with patch("src.services.chat.check_ollama_live", return_value=True):
                 with patch("src.routes_fastapi.api_routes.config") as cfg:
                     cfg.app_state.get_active_model.return_value = active_model
                     cfg.MCP_ENABLED = False
@@ -354,27 +364,27 @@ class TestCheckOllamaLive:
         return app_state
 
     def test_cache_hit_returns_cached_value(self):
-        import src.routes_fastapi.api_routes as api_routes
+        import src.services.chat as chat_svc
         app_state = self._make_app_state()
         fresh_time = time.monotonic()
-        with patch.object(api_routes, '_ollama_status_cache', [True, fresh_time]):
-            result = api_routes._check_ollama_live(app_state)
+        with patch.object(chat_svc, '_ollama_status_cache', [True, fresh_time]):
+            result = chat_svc.check_ollama_live(app_state)
         assert result is True
         app_state.ollama_client.check_connection.assert_not_called()
 
     def test_cache_miss_live_check_success(self):
-        import src.routes_fastapi.api_routes as api_routes
+        import src.services.chat as chat_svc
         app_state = self._make_app_state(check_ok=True)
-        with patch.object(api_routes, '_ollama_status_cache', [False, 0.0]):
-            result = api_routes._check_ollama_live(app_state)
+        with patch.object(chat_svc, '_ollama_status_cache', [False, 0.0]):
+            result = chat_svc.check_ollama_live(app_state)
         assert result is True
         assert app_state.startup_status['ollama'] is True
 
     def test_cache_miss_live_check_failure(self):
-        import src.routes_fastapi.api_routes as api_routes
+        import src.services.chat as chat_svc
         app_state = self._make_app_state(check_ok=False)
-        with patch.object(api_routes, '_ollama_status_cache', [True, 0.0]):
-            result = api_routes._check_ollama_live(app_state)
+        with patch.object(chat_svc, '_ollama_status_cache', [True, 0.0]):
+            result = chat_svc.check_ollama_live(app_state)
         assert result is False
         assert app_state.startup_status['ollama'] is False
 

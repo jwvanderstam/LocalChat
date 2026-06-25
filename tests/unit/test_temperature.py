@@ -266,40 +266,40 @@ class TestParseChatRequest:
 
     def test_temperature_included_with_default(self):
         from src import config
-        from src.routes_fastapi.api_routes import _parse_chat_request
-        fields = _parse_chat_request({'message': 'hi', 'use_rag': False})
+        from src.services.chat import parse_chat_request
+        fields = parse_chat_request({'message': 'hi', 'use_rag': False})
         assert 'temperature' in fields
         assert fields['temperature'] == pytest.approx(config.DEFAULT_TEMPERATURE)
 
     def test_temperature_included_when_provided(self):
-        from src.routes_fastapi.api_routes import _parse_chat_request
-        fields = _parse_chat_request({'message': 'hi', 'use_rag': False, 'temperature': 1.2})
+        from src.services.chat import parse_chat_request
+        fields = parse_chat_request({'message': 'hi', 'use_rag': False, 'temperature': 1.2})
         assert fields['temperature'] == pytest.approx(1.2)
 
     def test_temperature_zero_passes_through(self):
-        from src.routes_fastapi.api_routes import _parse_chat_request
-        fields = _parse_chat_request({'message': 'hi', 'temperature': 0.0})
+        from src.services.chat import parse_chat_request
+        fields = parse_chat_request({'message': 'hi', 'temperature': 0.0})
         assert fields['temperature'] == pytest.approx(0.0)
 
     def test_temperature_boundary_max_passes_through(self):
-        from src.routes_fastapi.api_routes import _parse_chat_request
-        fields = _parse_chat_request({'message': 'hi', 'temperature': 2.0})
+        from src.services.chat import parse_chat_request
+        fields = parse_chat_request({'message': 'hi', 'temperature': 2.0})
         assert fields['temperature'] == pytest.approx(2.0)
 
     def test_temperature_out_of_range_raises(self):
         """Out-of-range temperature must bubble up as a validation error."""
         from pydantic import ValidationError
 
-        from src.routes_fastapi.api_routes import _parse_chat_request
+        from src.services.chat import parse_chat_request
         with pytest.raises(ValidationError):
-            _parse_chat_request({'message': 'hi', 'temperature': 3.0})
+            parse_chat_request({'message': 'hi', 'temperature': 3.0})
 
     def test_temperature_negative_raises(self):
         from pydantic import ValidationError
 
-        from src.routes_fastapi.api_routes import _parse_chat_request
+        from src.services.chat import parse_chat_request
         with pytest.raises(ValidationError):
-            _parse_chat_request({'message': 'hi', 'temperature': -1.0})
+            parse_chat_request({'message': 'hi', 'temperature': -1.0})
 
 
 # ============================================================================
@@ -346,7 +346,8 @@ class TestStreamChatResponseTemperature:
 
         @contextlib.contextmanager
         def _ctx():
-            with patch("src.routes_fastapi.api_routes.config") as cfg:
+            with patch("src.routes_fastapi.api_routes.config") as cfg, \
+                 patch("src.services.chat.config") as chat_cfg:
                 cfg.app_state.get_active_model.return_value = active_model
                 cfg.WEB_SEARCH_ENABLED = False
                 cfg.MCP_ENABLED = False
@@ -360,6 +361,15 @@ class TestStreamChatResponseTemperature:
                 cfg.TOP_K_RESULTS = 5
                 cfg.GRAPH_RAG_ENABLED = False
                 cfg.DEFAULT_TEMPERATURE = 0.7
+                # chat.py reads from its own config reference
+                chat_cfg.WEB_SEARCH_ENABLED = False
+                chat_cfg.MCP_ENABLED = False
+                chat_cfg.AGGREGATOR_AGENT_ENABLED = False
+                chat_cfg.QUERY_PLANNER_ENABLED = False
+                chat_cfg.LONG_TERM_MEMORY_ENABLED = False
+                chat_cfg.MODEL_ROUTER_ENABLED = False
+                chat_cfg.TOOL_CALLING_ENABLED = False
+                chat_cfg.TOP_K_RESULTS = 5
                 yield cfg
 
         return _ctx()
@@ -395,7 +405,7 @@ class TestStreamChatResponseTemperature:
         mock_executor = Mock()
         mock_executor.execute.return_value = iter(["tool response"])
 
-        with patch("src.routes_fastapi.api_routes._get_tool_executor", return_value=mock_executor):
+        with patch("src.services.chat.get_tool_executor", return_value=mock_executor):
             self._post_and_parse(app, client, {"message": "hi", "use_rag": False})
 
         app.state.ollama_client.generate_chat_response.assert_not_called()

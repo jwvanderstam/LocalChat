@@ -16,7 +16,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/gpu_monitor.py` | `GpuMonitor` — NVIDIA/AMD detection via `nvidia-smi`/`rocm-smi`, TTL 30 s |
 | `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
 | **Routes** | |
-| `src/routes_fastapi/api_routes.py` | Chat (SSE), status; streams `sources` in `done` event |
+| `src/routes_fastapi/api_routes.py` | Chat (SSE), status — HTTP plumbing only; delegates business logic to `src/services/chat.py` |
+| `src/services/chat.py` | Chat business logic: context retrieval, RAG, planning, memory, model routing, message persistence |
 | `src/routes_fastapi/document_routes.py` | Document upload, delete, list; SSE progress stream |
 | `src/routes_fastapi/model_routes.py` | Ollama model list, pull, delete, active-model management |
 | `src/routes_fastapi/memory_routes.py` | Conversation CRUD, export, document-filter endpoints |
