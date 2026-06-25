@@ -132,10 +132,10 @@ def gather_admin_stats(app_state: Any) -> dict:
             ),
         },
         "rag": {
-            "TOP_K_RESULTS":       config.TOP_K_RESULTS,
-            "RERANK_TOP_K":        config.RERANK_TOP_K,
-            "DIVERSITY_THRESHOLD": config.DIVERSITY_THRESHOLD,
-            "SEMANTIC_WEIGHT":     config.SEMANTIC_WEIGHT,
+            "TOP_K_RESULTS":       config.app_state.get_rag_param("TOP_K_RESULTS"),
+            "RERANK_TOP_K":        config.app_state.get_rag_param("RERANK_TOP_K"),
+            "DIVERSITY_THRESHOLD": config.app_state.get_rag_param("DIVERSITY_THRESHOLD"),
+            "SEMANTIC_WEIGHT":     config.app_state.get_rag_param("SEMANTIC_WEIGHT"),
             "CHUNK_SIZE":          config.CHUNK_SIZE,
             "CHUNK_OVERLAP":       config.CHUNK_OVERLAP,
         },
@@ -182,7 +182,7 @@ def rag_params_get(request: Request, _admin: Annotated[str, Depends(require_admi
     params = {}
     for key, meta in _RAG_LIMITS.items():
         params[key] = {
-            "value":   meta["type"](getattr(config, key, meta["default"])),
+            "value":   meta["type"](config.app_state.get_rag_param(key)),
             "min":     meta["min"],
             "max":     meta["max"],
             "type":    meta["type"].__name__,
@@ -215,8 +215,8 @@ async def rag_params_set(request: Request, _admin: Annotated[str, Depends(requir
     if errors:
         return JSONResponse({"success": False, "errors": errors}, status_code=400)
 
-    top_k    = updates.get("TOP_K_RESULTS", config.TOP_K_RESULTS)
-    rerank_k = updates.get("RERANK_TOP_K",  config.RERANK_TOP_K)
+    top_k    = updates.get("TOP_K_RESULTS", config.app_state.get_rag_param("TOP_K_RESULTS"))
+    rerank_k = updates.get("RERANK_TOP_K",  config.app_state.get_rag_param("RERANK_TOP_K"))
     if rerank_k > top_k:
         return JSONResponse(
             {"success": False, "errors": [f"RERANK_TOP_K ({rerank_k}) cannot exceed TOP_K_RESULTS ({top_k})"]},
@@ -224,8 +224,7 @@ async def rag_params_set(request: Request, _admin: Annotated[str, Depends(requir
         )
 
     for key, value in updates.items():
-        setattr(config, key, value)
-        logger.info("RAG param updated: %s = %s", key, value)
+        config.app_state.set_rag_param(key, value)
 
     return {"success": True, "updated": updates}
 

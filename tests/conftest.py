@@ -22,6 +22,13 @@ fake = Faker()
 # CONFIGURATION FIXTURES
 # ============================================================================
 
+@pytest.fixture(autouse=True, scope="session")
+def _no_appstate_io():
+    """Disable AppState file I/O for the entire test session."""
+    from src import config
+    config.app_state.state_file = None
+
+
 @pytest.fixture
 def temp_dir() -> Generator[str, None, None]:
     """

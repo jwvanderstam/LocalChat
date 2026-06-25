@@ -51,15 +51,6 @@ def _save_upload_file(file: UploadFile) -> str | None:
     return file_path
 
 
-def _update_document_count(app_state: Any, workspace_id: str | None = None) -> int:
-    try:
-        doc_count = app_state.db.get_document_count(workspace_id=workspace_id)
-        config.app_state.set_document_count(doc_count)
-        return doc_count
-    except Exception as count_err:
-        logger.warning("Could not update document count: %s", count_err)
-        return config.app_state.get_document_count()
-
 
 def _stream_file_ingest(app_state: Any, file_path: str, workspace_id: str | None) -> list[str]:
     """Ingest a single file synchronously, collecting SSE events into a list."""
@@ -128,7 +119,7 @@ async def _generate_upload_sse(
         for file_path in file_paths:
             for event in _stream_file_ingest(app_state, file_path, workspace_id):
                 yield event
-        doc_count = _update_document_count(app_state, workspace_id)
+        doc_count = app_state.db.get_document_count(workspace_id=workspace_id)
         yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
     except Exception:
         logger.exception("Upload stream error")
@@ -277,7 +268,6 @@ def api_clear_documents(request: Request) -> Any:
     try:
         logger.warning("Clearing all documents from database")
         request.app.state.db.delete_all_documents()
-        config.app_state.set_document_count(0)
         return {"success": True, "message": "All documents and chunks have been deleted"}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable clearing documents")
@@ -291,7 +281,6 @@ def api_clear_documents(request: Request) -> Any:
 def api_delete_document(doc_id: int, request: Request) -> Any:
     try:
         request.app.state.db.delete_document(doc_id)
-        _update_document_count(request.app.state)
         return {"success": True}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable deleting document %s", _slv(str(doc_id)))

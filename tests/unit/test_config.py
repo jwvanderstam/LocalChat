@@ -72,40 +72,39 @@ class TestAppStateInitialization:
         state = AppState(state_file=state_file)
 
         assert state.get_active_model() is None
-        assert state.get_document_count() == 0
+
+    def test_state_file_none_disables_io(self):
+        """state_file=None must not read or write any file."""
+        state = AppState(state_file=None)
+        assert state.state_file is None
+        state.set_active_model("llama3.2")  # must not raise, must not create files
+        assert state.get_active_model() == "llama3.2"
 
     def test_loads_existing_state_file(self, temp_dir):
         """Should load existing state file."""
         state_file = os.path.join(temp_dir, "existing_state.json")
 
-        # Create existing state
         existing_state = {
             'active_model': 'llama3.2',
-            'document_count': 5,
             'last_updated': '2024-12-27T10:00:00'
         }
         with open(state_file, 'w') as f:
             json.dump(existing_state, f)
 
-        # Load state
         state = AppState(state_file=state_file)
 
         assert state.get_active_model() == 'llama3.2'
-        assert state.get_document_count() == 5
 
     def test_handles_corrupted_state_file(self, temp_dir):
         """Should handle corrupted state file gracefully."""
         state_file = os.path.join(temp_dir, "corrupted.json")
 
-        # Create corrupted file
         with open(state_file, 'w') as f:
             f.write("{ invalid json }")
 
-        # Should fall back to default state
         state = AppState(state_file=state_file)
 
         assert state.get_active_model() is None
-        assert state.get_document_count() == 0
 
 
 # ============================================================================
@@ -167,89 +166,53 @@ class TestActiveModel:
 
 
 # ============================================================================
-# DOCUMENT COUNT TESTS
+# RAG PARAM TESTS
 # ============================================================================
 
 @pytest.mark.unit
-class TestDocumentCount:
-    """Tests for document count management."""
+class TestRagParams:
+    """Tests for mutable RAG param management via AppState."""
 
-    def test_get_document_count_returns_zero_initially(self, temp_dir):
-        """Should return 0 initially."""
+    def test_get_rag_param_returns_config_default(self, temp_dir):
+        """get_rag_param falls back to module-level constant when no override is set."""
+        from src.config import TOP_K_RESULTS
+        state = AppState(state_file=os.path.join(temp_dir, "test.json"))
+        assert state.get_rag_param("TOP_K_RESULTS") == TOP_K_RESULTS
+
+    def test_set_rag_param_updates_value(self, temp_dir):
+        """set_rag_param stores the override so get_rag_param returns it."""
+        state = AppState(state_file=os.path.join(temp_dir, "test.json"))
+        state.set_rag_param("TOP_K_RESULTS", 5)
+        assert state.get_rag_param("TOP_K_RESULTS") == 5
+
+    def test_set_rag_param_persists_to_file(self, temp_dir):
+        """set_rag_param writes through to the JSON state file."""
         state_file = os.path.join(temp_dir, "test.json")
         state = AppState(state_file=state_file)
+        state.set_rag_param("SEMANTIC_WEIGHT", 0.5)
 
-        assert state.get_document_count() == 0
-
-    def test_set_document_count_updates_state(self, temp_dir):
-        """Should update document count."""
-        state_file = os.path.join(temp_dir, "test.json")
-        state = AppState(state_file=state_file)
-
-        state.set_document_count(10)
-
-        assert state.get_document_count() == 10
-
-    def test_set_document_count_persists_to_file(self, temp_dir):
-        """Should persist document count to file."""
-        state_file = os.path.join(temp_dir, "test.json")
-        state = AppState(state_file=state_file)
-
-        state.set_document_count(25)
-
-        # Load from file
         with open(state_file) as f:
-            saved_state = json.load(f)
+            saved = json.load(f)
+        assert saved['rag_params']['SEMANTIC_WEIGHT'] == 0.5
 
-        assert saved_state['document_count'] == 25
-
-    def test_set_document_count_rejects_negative(self, temp_dir):
-        """Should reject negative document count."""
+    def test_rag_param_override_survives_reload(self, temp_dir):
+        """A new AppState instance loading the same file sees the override."""
         state_file = os.path.join(temp_dir, "test.json")
-        state = AppState(state_file=state_file)
+        AppState(state_file=state_file).set_rag_param("RERANK_TOP_K", 3)
+        reloaded = AppState(state_file=state_file)
+        assert reloaded.get_rag_param("RERANK_TOP_K") == 3
 
-        with pytest.raises(ValueError, match="cannot be negative"):
-            state.set_document_count(-1)
+    def test_get_rag_param_unknown_key_raises(self, temp_dir):
+        """get_rag_param raises KeyError for unknown keys."""
+        state = AppState(state_file=os.path.join(temp_dir, "test.json"))
+        with pytest.raises(KeyError):
+            state.get_rag_param("NONEXISTENT_PARAM")
 
-    def test_set_document_count_accepts_zero(self, temp_dir):
-        """Should accept zero as valid count."""
-        state_file = os.path.join(temp_dir, "test.json")
-        state = AppState(state_file=state_file)
-
-        state.set_document_count(0)
-        assert state.get_document_count() == 0
-
-    def test_increment_document_count_increases_by_one(self, temp_dir):
-        """Should increment count by 1."""
-        state_file = os.path.join(temp_dir, "test.json")
-        state = AppState(state_file=state_file)
-
-        state.set_document_count(5)
-        state.increment_document_count()
-
-        assert state.get_document_count() == 6
-
-    def test_increment_document_count_by_custom_amount(self, temp_dir):
-        """Should increment by custom amount."""
-        state_file = os.path.join(temp_dir, "test.json")
-        state = AppState(state_file=state_file)
-
-        state.set_document_count(10)
-        state.increment_document_count(5)
-
-        assert state.get_document_count() == 15
-
-    def test_increment_document_count_persists(self, temp_dir):
-        """Should persist incremented count."""
-        state_file = os.path.join(temp_dir, "test.json")
-        state = AppState(state_file=state_file)
-
-        state.set_document_count(3)
-        state.increment_document_count(2)
-
-        # Reload state
-        new_state = AppState(state_file=state_file)
-        assert new_state.get_document_count() == 5
+    def test_set_rag_param_unknown_key_raises(self, temp_dir):
+        """set_rag_param raises KeyError for unknown keys."""
+        state = AppState(state_file=os.path.join(temp_dir, "test.json"))
+        with pytest.raises(KeyError):
+            state.set_rag_param("NONEXISTENT_PARAM", 99)
 
 
 # ============================================================================
@@ -264,16 +227,14 @@ class TestStatePersistence:
         """Should persist state across different instances."""
         state_file = os.path.join(temp_dir, "test.json")
 
-        # First instance
         state1 = AppState(state_file=state_file)
         state1.set_active_model("llama3.2")
-        state1.set_document_count(10)
+        state1.set_rag_param("TOP_K_RESULTS", 7)
 
-        # Second instance
         state2 = AppState(state_file=state_file)
 
         assert state2.get_active_model() == "llama3.2"
-        assert state2.get_document_count() == 10
+        assert state2.get_rag_param("TOP_K_RESULTS") == 7
 
     def test_timestamp_updated_on_save(self, temp_dir):
         """Should update timestamp on each save."""
@@ -321,30 +282,20 @@ class TestAppStateIntegration:
         state_file = os.path.join(temp_dir, "test.json")
         state = AppState(state_file=state_file)
 
-        # Initial state
         assert state.get_active_model() is None
-        assert state.get_document_count() == 0
 
-        # Set model
         state.set_active_model("llama3.2")
         assert state.get_active_model() == "llama3.2"
 
-        # Add documents
-        state.set_document_count(5)
-        assert state.get_document_count() == 5
+        state.set_rag_param("TOP_K_RESULTS", 10)
+        assert state.get_rag_param("TOP_K_RESULTS") == 10
 
-        # Increment documents
-        state.increment_document_count(3)
-        assert state.get_document_count() == 8
-
-        # Change model
         state.set_active_model("llama2")
         assert state.get_active_model() == "llama2"
 
-        # Verify persistence
         new_state = AppState(state_file=state_file)
         assert new_state.get_active_model() == "llama2"
-        assert new_state.get_document_count() == 8
+        assert new_state.get_rag_param("TOP_K_RESULTS") == 10
 
     def test_concurrent_updates(self, temp_dir):
         """Should handle updates from multiple instances."""
@@ -395,14 +346,11 @@ class TestAppStateEdgeCases:
         state.set_active_model(special_name)
         assert state.get_active_model() == special_name
 
-    def test_handles_large_document_count(self, temp_dir):
-        """Should handle large document counts."""
-        state_file = os.path.join(temp_dir, "test.json")
-        state = AppState(state_file=state_file)
-
-        large_count = 1000000
-        state.set_document_count(large_count)
-        assert state.get_document_count() == large_count
+    def test_handles_rag_param_float_value(self, temp_dir):
+        """Should store and return float RAG param values correctly."""
+        state = AppState(state_file=os.path.join(temp_dir, "test.json"))
+        state.set_rag_param("SEMANTIC_WEIGHT", 0.85)
+        assert abs(state.get_rag_param("SEMANTIC_WEIGHT") - 0.85) < 1e-9
 
     def test_handles_unicode_in_state(self, temp_dir):
         """Should handle Unicode characters."""

@@ -47,11 +47,10 @@ class TestDocumentDeleteRoute:
         client.delete('/api/documents/42')
         app.state.db.delete_document.assert_called_once_with(42)
 
-    def test_delete_document_updates_document_count(self, client, app):
+    def test_delete_document_returns_success(self, client, app):
         app.state.db.delete_document = MagicMock()
-        app.state.db.get_document_count = MagicMock(return_value=3)
-        client.delete('/api/documents/1')
-        app.state.db.get_document_count.assert_called_once()
+        response = client.delete('/api/documents/1')
+        assert response.json()['success'] is True
 
     def test_delete_document_db_unavailable_returns_503(self, client, app):
         from src.db import DatabaseUnavailableError

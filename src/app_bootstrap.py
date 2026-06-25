@@ -120,7 +120,6 @@ def _init_database_service(app: Any, db: Any) -> None:
         logger.info(db_message)
         _run_alembic_migrations()
         doc_count = db.get_document_count()
-        config.app_state.set_document_count(doc_count)
         logger.info(f"Documents in database: {doc_count}")
         try:
             purged = db.purge_expired_tokens()

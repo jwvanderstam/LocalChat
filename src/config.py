@@ -528,48 +528,21 @@ if not METRICS_TOKEN:
     )
 
 
+_RAG_PARAM_KEYS: frozenset[str] = frozenset(
+    {"TOP_K_RESULTS", "RERANK_TOP_K", "DIVERSITY_THRESHOLD", "SEMANTIC_WEIGHT"}
+)
+
+
 class AppState:
-    """
-    Manages persistent application state.
+    """Manages persistent application state (active model, mutable RAG params)."""
 
-    Handles runtime configuration such as active model and document count,
-    persisting state to a JSON file for recovery after restarts.
-
-    Attributes:
-        state_file (str): Path to state persistence file
-        state (Dict[str, Any]): Current application state
-
-    Example:
-        >>> state = AppState()
-        >>> state.set_active_model("llama3.2")
-        >>> model = state.get_active_model()
-        >>> print(model)
-        llama3.2
-    """
-
-    def __init__(self, state_file: str = STATE_FILE) -> None:
-        """
-        Initialize application state manager.
-
-        Args:
-            state_file: Path to state persistence file
-        """
-        self.state_file: str = state_file
+    def __init__(self, state_file: str | None = STATE_FILE) -> None:
+        self.state_file: str | None = state_file
         self.state: dict[str, Any] = self._load_state()
         logger.info("Application state initialized")
 
     def _load_state(self) -> dict[str, Any]:
-        """
-        Load state from JSON file.
-
-        Returns:
-            Dictionary containing application state, or default state if file
-            doesn't exist or cannot be read.
-
-        Note:
-            If loading fails, returns default state and logs the error.
-        """
-        if os.path.exists(self.state_file):
+        if self.state_file is not None and os.path.exists(self.state_file):
             try:
                 with open(self.state_file) as f:
                     state = json.load(f)
@@ -578,20 +551,18 @@ class AppState:
             except Exception:
                 logger.exception("Error loading state")
 
-        # Return default state
-        default_state = {
+        default_state: dict[str, Any] = {
             'active_model': None,
-            'document_count': 0,
-            'last_updated': None
+            'last_updated': None,
+            'rag_params': {},
         }
         logger.debug("Using default application state")
         return default_state
 
     def _save_state(self) -> None:
-        """
-        Save state to JSON file using an atomic replace so concurrent
-        gunicorn workers never read a partially-written file.
-        """
+        """Atomic write so concurrent workers never read a partially-written file."""
+        if self.state_file is None:
+            return
         try:
             self.state['last_updated'] = datetime.now().isoformat()
             tmp = self.state_file + '.tmp'
@@ -603,78 +574,31 @@ class AppState:
             logger.exception("Error saving state")
 
     def get_active_model(self) -> str | None:
-        """
-        Get the currently active model name.
-
-        Returns:
-            Name of active model, or None if no model is set
-
-        Example:
-            >>> model = app_state.get_active_model()
-            >>> if model:
-            ...     print(f"Using model: {model}")
-        """
         return self.state.get('active_model')
 
     def set_active_model(self, model_name: str) -> None:
-        """
-        Set the active model name.
-
-        Args:
-            model_name: Name of the model to set as active
-
-        Example:
-            >>> app_state.set_active_model("llama3.2:latest")
-        """
         self.state['active_model'] = model_name
         self._save_state()
         logger.info("Active model set to: %s", str(model_name).replace('\r', '').replace('\n', ' '))
 
-    def get_document_count(self) -> int:
-        """
-        Get the current document count.
+    def get_rag_param(self, key: str) -> Any:
+        """Return the current value for a mutable RAG param, falling back to the config constant."""
+        if key not in _RAG_PARAM_KEYS:
+            raise KeyError(f"Unknown RAG param: {key!r}")
+        rag_params: dict[str, Any] = self.state.get('rag_params', {})
+        if key in rag_params:
+            return rag_params[key]
+        return globals()[key]  # module-level constant defined in this file
 
-        Returns:
-            Number of documents in the system
-        """
-        return self.state.get('document_count', 0)
-
-    def set_document_count(self, count: int) -> None:
-        """
-        Set the document count.
-
-        Args:
-            count: New document count
-
-        Raises:
-            ValueError: If count is negative
-
-        Example:
-            >>> app_state.set_document_count(10)
-        """
-        if count < 0:
-            logger.error(f"Invalid document count: {count}")
-            raise ValueError("Document count cannot be negative")
-
-        self.state['document_count'] = count
+    def set_rag_param(self, key: str, value: Any) -> None:
+        """Persist a mutable RAG param override."""
+        if key not in _RAG_PARAM_KEYS:
+            raise KeyError(f"Unknown RAG param: {key!r}")
+        if 'rag_params' not in self.state:
+            self.state['rag_params'] = {}
+        self.state['rag_params'][key] = value
         self._save_state()
-        logger.debug(f"Document count set to: {count}")
-
-    def increment_document_count(self, increment: int = 1) -> None:
-        """
-        Increment the document count.
-
-        Args:
-            increment: Amount to increment by (default: 1)
-
-        Example:
-            >>> app_state.increment_document_count(5)
-        """
-        current = self.state.get('document_count', 0)
-        self.state['document_count'] = current + increment
-        self._save_state()
-        logger.debug(f"Document count incremented by {increment} to {self.state['document_count']}")
-
+        logger.info("RAG param updated: %s = %s", key, value)
 
 
 # ============================================================================

@@ -278,7 +278,7 @@ class RetrievalMixin:
             key=lambda x: (x['combined_score'], -(x['chunk_index'])),
             reverse=True
         )
-        final_top_k = getattr(config, 'RERANK_TOP_K', 8)
+        final_top_k = config.app_state.get_rag_param("RERANK_TOP_K")
         deduped = self._deduplicate_results(sorted_results[:final_top_k])
         logger.debug(f"[RAG] After dedup: {len(deduped)} chunks")
 
@@ -329,7 +329,7 @@ class RetrievalMixin:
             metadata dict contains page_number, section_title when available
         """
         start_time = time.time()
-        top_k = top_k or config.TOP_K_RESULTS
+        top_k = top_k or config.app_state.get_rag_param("TOP_K_RESULTS")
         min_similarity = min_similarity if min_similarity is not None else config.MIN_SIMILARITY_THRESHOLD
 
         logger.info(f"[RAG] Retrieve context - query: {query[:80]}...")
@@ -516,7 +516,7 @@ class RetrievalMixin:
         """Return True when chunk_words is sufficiently different from every selected chunk."""
         for selected in selected_words:
             union = chunk_words | selected
-            if union and len(chunk_words & selected) / len(union) > config.DIVERSITY_THRESHOLD:
+            if union and len(chunk_words & selected) / len(union) > config.app_state.get_rag_param("DIVERSITY_THRESHOLD"):
                 return False
         return True
 
@@ -551,7 +551,7 @@ class RetrievalMixin:
                 diverse_results[chunk_id] = data
                 selected_words.append(chunk_words)
                 # Stop once we have enough diverse candidates (O(n×k) instead of O(n²))
-                if len(diverse_results) >= getattr(config, 'RERANK_TOP_K', 8):
+                if len(diverse_results) >= config.app_state.get_rag_param("RERANK_TOP_K"):
                     break
 
         return diverse_results
