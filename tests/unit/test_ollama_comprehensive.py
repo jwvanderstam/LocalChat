@@ -307,7 +307,7 @@ class TestChatGeneration:
         """Should handle chat history and pass messages through."""
         called_json = {}
 
-        async def _capture_stream(method, url, json=None, timeout=None):
+        def _capture_stream(method, url, json=None, timeout=None):
             called_json['messages'] = json.get('messages', []) if json else []
             cm, _ = _make_async_stream_cm(['{"message":{"content":"ok"},"done":true}'])
             return cm
