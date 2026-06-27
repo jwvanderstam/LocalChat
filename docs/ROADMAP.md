@@ -508,6 +508,8 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 
 ## Initiative 7 — Pricing Plugin (first external consumer)
 
+> **Status: Deferred** — not in scope for single-GPU self-hosted deployment. Design artefacts exist in the private Atos/Eviden repo (`LocalChat_PricingRAG_Design_v2.1.docx`). Revisit after PC-4 proves the plugin contract against a generic consumer. No timeline set.
+
 The pricing plugin is the **first consumer** of the plugin contract — not its reference implementation, and not part of the core. It lives in a private Atos/Eviden repository as a directory overlay. The core neither imports it nor tests against it; the `core-without-plugins` gate proves this on every PR.
 
 Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
@@ -552,6 +554,7 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
 > **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
 > **Active:** Sprint 3 (CW-2a + CW-2b — conversations and users soft-delete).
+> **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 (viewer role) are end-to-end solid with full test coverage. The YTD fix-to-feature ratio (78:49) reflects a "governed after generation" tax that grows with breadth; Sprints 3–4 pay it down.
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
 ---
@@ -569,3 +572,4 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 | Speculative plugin services/hooks | Not built ahead of need — catalogue grows on demand per `.claude/rules/plugins.md` |
 | AMD GPU backend (MM-1) | Interface defined; implementation left as a community contribution — cannot be tested without ROCm hardware |
 | Pricing plugin in core repo or core tests | Never — pricing is private and the `core-without-plugins` gate forbids the dependency |
+| Pricing plugin implementation (Initiative 7) | Deferred — not in scope for self-hosted single-GPU deployment; design artefacts in private repo; revisit post-PC-4 |

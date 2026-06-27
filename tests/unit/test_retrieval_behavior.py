@@ -6,7 +6,7 @@ standalone unit tests — no database or Ollama required.
 """
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -179,3 +179,80 @@ class TestDeduplicateResults:
         assert ("b.pdf", 0) in filenames_and_indices
         assert ("a.pdf", 1) not in filenames_and_indices
         assert ("b.pdf", 5) in filenames_and_indices
+
+
+# ---------------------------------------------------------------------------
+# _apply_cross_encoder
+# ---------------------------------------------------------------------------
+
+class TestApplyCrossEncoder:
+    def test_reranker_reorders_chunks_by_cross_encoder_score(self, retriever):
+        """Chunk with low vector-sim but high CE score must rank first after reranking."""
+        chunk_b = _result("b.pdf", 0, semantic_score=0.9, text="chunk b text")
+        chunk_a = _result("a.pdf", 0, semantic_score=0.3, text="chunk a text")
+        # chunk_b starts first (higher combined_score=0.9 vs 0.3)
+        deduped = [chunk_b, chunk_a]
+
+        mock_reranker = MagicMock()
+        mock_reranker.is_available.return_value = True
+        # CE scores in input order: b=0.1 (low), a=0.9 (high)
+        # With weight=0.5: b → 0.5*0.9 + 0.5*0.1 = 0.50; a → 0.5*0.3 + 0.5*0.9 = 0.60
+        mock_reranker.score.return_value = [0.1, 0.9]
+
+        with patch("src.rag.reranker.get_reranker", return_value=mock_reranker):
+            with patch("src.rag.retrieval.config") as cfg:
+                cfg.RERANKER_WEIGHT = 0.5
+                result = retriever._apply_cross_encoder("test query", deduped)
+
+        assert result[0]["filename"] == "a.pdf"
+        assert result[1]["filename"] == "b.pdf"
+
+    def test_order_unchanged_when_reranker_unavailable(self, retriever):
+        """When is_available() is False the input order must be preserved."""
+        chunk_a = _result("a.pdf", 0, semantic_score=0.9)
+        chunk_b = _result("b.pdf", 0, semantic_score=0.3)
+        deduped = [chunk_a, chunk_b]
+
+        mock_reranker = MagicMock()
+        mock_reranker.is_available.return_value = False
+
+        with patch("src.rag.reranker.get_reranker", return_value=mock_reranker):
+            result = retriever._apply_cross_encoder("test query", deduped)
+
+        assert result[0]["filename"] == "a.pdf"
+        assert result[1]["filename"] == "b.pdf"
+
+    def test_order_unchanged_when_scores_list_empty(self, retriever):
+        """When score() returns [] the if-ce_scores branch is skipped and order is unchanged."""
+        chunk_a = _result("a.pdf", 0, semantic_score=0.9)
+        chunk_b = _result("b.pdf", 0, semantic_score=0.3)
+        deduped = [chunk_a, chunk_b]
+
+        mock_reranker = MagicMock()
+        mock_reranker.is_available.return_value = True
+        mock_reranker.score.return_value = []
+
+        with patch("src.rag.reranker.get_reranker", return_value=mock_reranker):
+            with patch("src.rag.retrieval.config") as cfg:
+                cfg.RERANKER_WEIGHT = 0.5
+                result = retriever._apply_cross_encoder("test query", deduped)
+
+        assert result[0]["filename"] == "a.pdf"
+        assert result[1]["filename"] == "b.pdf"
+
+    def test_combined_score_is_blended_at_configured_weight(self, retriever):
+        """combined = (1 - w) * old_combined + w * ce_score."""
+        chunk = _result("doc.pdf", 0, semantic_score=0.6, text="some text")
+        # combined_score starts at 0.6 (same as semantic_score via _result)
+
+        mock_reranker = MagicMock()
+        mock_reranker.is_available.return_value = True
+        mock_reranker.score.return_value = [0.4]
+
+        with patch("src.rag.reranker.get_reranker", return_value=mock_reranker):
+            with patch("src.rag.retrieval.config") as cfg:
+                cfg.RERANKER_WEIGHT = 0.3
+                result = retriever._apply_cross_encoder("test query", [chunk])
+
+        expected = 0.7 * 0.6 + 0.3 * 0.4  # 0.54
+        assert abs(result[0]["combined_score"] - expected) < 1e-9
