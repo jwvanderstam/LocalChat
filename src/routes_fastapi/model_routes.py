@@ -21,8 +21,47 @@ _ERR_MODEL_REQUIRED = "model is required"
 
 @router.get("")
 def list_models(request: Request) -> Any:
+    from ..gpu.backends import detect
+
     success, models = request.app.state.ollama_client.list_models()
-    return {"success": success, "models": models}
+    if not success:
+        return {"success": False, "models": []}
+
+    try:
+        backend = detect(force=config.GPU_BACKEND)
+        if backend.memory_model == "dedicated":
+            budget_mb = backend.free_mb
+        else:
+            budget_mb = max(0, backend.total_mb - config.SHARED_POOL_OS_RESERVE_MB)
+
+        enriched = []
+        for m in models:
+            footprint_mb = request.app.state.ollama_client.estimate_model_footprint(m["name"])
+            fits = footprint_mb <= budget_mb
+            enriched.append(
+                {
+                    **m,
+                    "fits": fits,
+                    "footprint_mb": footprint_mb,
+                    "budget_mb": budget_mb,
+                    "reason": (
+                        None
+                        if fits
+                        else (
+                            f"requires ~{footprint_mb:,} MB, "
+                            f"{budget_mb:,} MB available on {backend.backend_name}"
+                        )
+                    ),
+                }
+            )
+    except Exception:
+        logger.exception("GPU budget check failed — serving models without fit information")
+        enriched = [
+            {**m, "fits": True, "footprint_mb": 0, "budget_mb": 0, "reason": None}
+            for m in models
+        ]
+
+    return {"success": success, "models": enriched}
 
 
 @router.get("/active")

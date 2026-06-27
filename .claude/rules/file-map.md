@@ -11,9 +11,11 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/models.py` | Pydantic request/response models |
 | `src/security_fastapi.py` | JWT (`python-jose`), rate limiting (`slowapi`), CORS (Starlette middleware) |
 | `src/monitoring.py` | `MetricsCollector`, `export_prometheus_metrics`, `get_metrics`; `MetricsMiddleware` (ASGI) for request timing |
-| `src/ollama_client.py` | `OllamaClient` singleton — chat (stream + non-stream), embedding, model CRUD, vision, GPU info; TTL-cached model list (60 s) and running models (5 s) |
+| `src/ollama_client.py` | `OllamaClient` singleton — chat (stream + non-stream), embedding, model CRUD, vision, GPU info; `estimate_model_footprint()`, `load_model_guard()`; TTL-cached model list (60 s) and running models (5 s) |
 | `src/llm_client.py` | `LiteLLMClient` cloud-fallback adapter; `ModelClient` Protocol |
-| `src/gpu_monitor.py` | `GpuMonitor` — NVIDIA/AMD detection via `nvidia-smi`/`rocm-smi`, TTL 30 s |
+| `src/gpu/__init__.py` | GPU package — re-exports `GpuBackend`, `detect`, and backend classes |
+| `src/gpu/backends.py` | `GpuBackend` Protocol + `NvidiaBackend`, `AmdBackend` (stub), `AppleBackend`, `CpuBackend`; `detect(force)` factory (MM-1) |
+| `src/gpu_monitor.py` | `GpuMonitor` — NVIDIA/AMD detection via `nvidia-smi`/`rocm-smi`, TTL 30 s (per-GPU detail for admin dashboard) |
 | `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
 | **Routes** | |
 | `src/routes_fastapi/api_routes.py` | Chat (SSE), status — HTTP plumbing only; delegates business logic to `src/services/chat.py` |

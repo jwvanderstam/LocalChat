@@ -137,8 +137,12 @@
                         <span class="badge bg-success active-badge ms-2" style="display: none;">Active</span>
                     </h5>
                     <p class="card-text text-muted small mb-2">
-                        <span class="model-size"></span> - 
+                        <span class="model-size"></span> -
                         <span class="model-modified"></span>
+                    </p>
+                    <p class="card-text text-warning small mb-0 model-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <span class="model-warning-text"></span>
                     </p>
                 </div>
                 <div class="btn-group">
@@ -226,6 +230,16 @@
                 if (model.name === currentActiveModel) {
                     card.querySelector('.active-badge').style.display = 'inline';
                     cardElement.classList.add('border-success');
+                }
+
+                if (model.fits === false) {
+                    cardElement.style.opacity = '0.55';
+                    card.querySelector('.model-warning').style.display = '';
+                    card.querySelector('.model-warning-text').textContent =
+                        model.reason || 'May not fit in available memory';
+                    const activateBtn = card.querySelector('.activate-btn');
+                    activateBtn.disabled = true;
+                    activateBtn.title = model.reason || 'Insufficient memory';
                 }
 
                 card.querySelector('.activate-btn').onclick = () => activateModel(model.name);

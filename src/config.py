@@ -527,6 +527,20 @@ if not METRICS_TOKEN:
         "Set METRICS_TOKEN in .env to restrict access."
     )
 
+# ============================================================================
+# GPU / MODEL-FIT CONFIGURATION (MM-1)
+# ============================================================================
+# GPU_BACKEND selects the hardware probe: auto | nvidia | amd | apple | cpu
+# MODEL_VRAM_HEADROOM_MB is added to the on-disk model size to estimate runtime VRAM.
+# SHARED_POOL_OS_RESERVE_MB is subtracted from total RAM when the backend uses shared
+# (unified) memory, leaving headroom for the OS and other processes.
+# MODEL_ALLOW_OVERSIZED=true lets oversized models through with a warning instead of
+# blocking the request.
+GPU_BACKEND: str = os.environ.get('GPU_BACKEND', 'auto')
+MODEL_VRAM_HEADROOM_MB: int = int(os.environ.get('MODEL_VRAM_HEADROOM_MB', '1500'))
+SHARED_POOL_OS_RESERVE_MB: int = int(os.environ.get('SHARED_POOL_OS_RESERVE_MB', '3000'))
+MODEL_ALLOW_OVERSIZED: bool = os.environ.get('MODEL_ALLOW_OVERSIZED', 'false').lower() == 'true'
+
 
 _RAG_PARAM_KEYS: frozenset[str] = frozenset(
     {"TOP_K_RESULTS", "RERANK_TOP_K", "DIVERSITY_THRESHOLD", "SEMANTIC_WEIGHT"}
