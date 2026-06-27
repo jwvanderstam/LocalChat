@@ -1,10 +1,3 @@
-"""
-Long-Term Memory Operations
-============================
-
-Mixin providing CRUD and vector-search operations for the ``memories`` table.
-"""
-
 from __future__ import annotations
 
 import uuid

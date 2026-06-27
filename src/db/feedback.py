@@ -1,10 +1,3 @@
-"""
-Feedback Operations Module
-==========================
-
-Mixin providing CRUD for the ``answer_feedback`` and ``chunk_stats`` tables.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -36,19 +29,7 @@ class FeedbackMixin:
         feedback_type: str = "answer_quality",
         correct_doc_ids: list[str] | None = None,
     ) -> str:
-        """
-        Record a thumbs-up (rating=1) or thumbs-down (rating=-1) for one answer.
-
-        Args:
-            rating: 1 (positive) or -1 (negative).
-            message_id: FK to conversation_messages.id (assistant turn).
-            conversation_id: UUID string of the conversation.
-            feedback_type: One of 'answer_quality', 'wrong_sources', 'missing_source'.
-            correct_doc_ids: User-indicated correct document filenames (optional).
-
-        Returns:
-            UUID string of the inserted feedback row.
-        """
+        """Record a thumbs-up (rating=1) or thumbs-down (rating=-1) for one answer."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot insert feedback: Database not connected")
 
@@ -136,16 +117,7 @@ class FeedbackMixin:
     # ── Feedback read operations ───────────────────────────────────────────────
 
     def get_feedback_stats(self, days: int = 7) -> dict[str, Any]:
-        """
-        Return aggregate feedback metrics for the past *days* days.
-
-        Returns a dict with:
-          - total: total feedback rows
-          - positive: count of rating=1
-          - negative: count of rating=-1
-          - thumbs_up_rate: positive / total (None when total=0)
-          - by_type: {feedback_type: count}
-        """
+        """Return aggregate feedback for the past *days* days: total, positive, negative, thumbs_up_rate, by_type."""
         if not self.is_connected:
             return {"total": 0, "positive": 0, "negative": 0, "thumbs_up_rate": None, "by_type": {}}
 
@@ -228,10 +200,7 @@ class FeedbackMixin:
                 return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
     def get_feedback_trend(self, days: int = 30) -> list[dict[str, Any]]:
-        """
-        Return rolling thumbs-up counts bucketed by *bucket_days* for charting.
-        Each element: {bucket_start: date-string, positive: int, negative: int}.
-        """
+        """Return daily thumbs-up/down counts for the past *days* days for charting."""
         if not self.is_connected:
             return []
 
@@ -256,12 +225,7 @@ class FeedbackMixin:
                 ]
 
     def export_feedback_pairs(self, days: int = 7) -> list[dict[str, Any]]:
-        """
-        Export (query, chunk_text, label) triples for reranker fine-tuning.
-
-        label = 1 for chunks cited in positively-rated answers,
-                0 for chunks cited in negatively-rated answers.
-        """
+        """Export (query, chunk_text, label) triples for reranker fine-tuning; label=1 positive, 0 negative."""
         if not self.is_connected:
             return []
 

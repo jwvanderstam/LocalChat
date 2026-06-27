@@ -1,29 +1,12 @@
-"""
-Embedding Cache
-===============
-
-LRU cache for query embeddings to avoid redundant API calls.
-"""
-
 import hashlib
 from collections import OrderedDict
 from typing import Any
 
 
 class EmbeddingCache:
-    """
-    LRU cache for query embeddings to avoid redundant API calls.
-
-    Caches embeddings based on text hash for fast lookup.
-    """
+    """LRU cache keyed by SHA-256(model:text) to avoid redundant Ollama embed calls."""
 
     def __init__(self, max_size: int = 1000) -> None:
-        """
-        Initialize embedding cache.
-
-        Args:
-            max_size: Maximum number of embeddings to cache
-        """
         self.max_size = max_size
         self._cache: OrderedDict[str, list[float]] = OrderedDict()
         self._hits = 0
@@ -34,16 +17,6 @@ class EmbeddingCache:
         return hashlib.sha256(f"{model}:{text}".encode()).hexdigest()
 
     def get(self, text: str, model: str) -> list[float] | None:
-        """
-        Get cached embedding if available.
-
-        Args:
-            text: Text that was embedded
-            model: Model used for embedding
-
-        Returns:
-            Cached embedding or None
-        """
         key = self._hash_text(text, model)
         if key in self._cache:
             self._cache.move_to_end(key)  # O(1)
@@ -53,14 +26,6 @@ class EmbeddingCache:
         return None
 
     def put(self, text: str, model: str, embedding: list[float]) -> None:
-        """
-        Cache an embedding.
-
-        Args:
-            text: Text that was embedded
-            model: Model used for embedding
-            embedding: The embedding vector
-        """
         key = self._hash_text(text, model)
         if key in self._cache:
             self._cache.move_to_end(key)  # O(1)
