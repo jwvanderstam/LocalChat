@@ -696,6 +696,44 @@ class OllamaClient:
         """
         return self._gpu_monitor.get_gpu_info()
 
+    def estimate_model_footprint(self, model_name: str) -> int:
+        """Return estimated VRAM requirement for *model_name* in MB.
+
+        Uses the on-disk ``size`` field from ``/api/tags`` as an upper-bound
+        proxy for runtime VRAM, then adds ``MODEL_VRAM_HEADROOM_MB`` for KV
+        cache and activation memory.  Returns headroom-only when the model is
+        not found (unknown model; callers should treat this as a lower bound).
+        """
+        _, models = self.list_models()
+        for m in models:
+            if m["name"] == model_name:
+                size_bytes: int = m.get("size", 0)
+                return size_bytes // (1024 * 1024) + config.MODEL_VRAM_HEADROOM_MB
+        return config.MODEL_VRAM_HEADROOM_MB
+
+    def load_model_guard(self, model_name: str, backend: Any) -> None:
+        """Raise ``ValueError`` when *model_name* won't fit and MODEL_ALLOW_OVERSIZED is false.
+
+        ``backend`` must expose ``backend_name: str``, ``memory_model: str``,
+        ``total_mb: int``, and ``free_mb: int`` (i.e. a :class:`~src.gpu.backends.GpuBackend`).
+        For dedicated memory the budget is ``free_mb``; for shared memory it is
+        ``total_mb - SHARED_POOL_OS_RESERVE_MB``.
+        """
+        footprint = self.estimate_model_footprint(model_name)
+        if backend.memory_model == "dedicated":
+            budget = backend.free_mb
+        else:
+            budget = max(0, backend.total_mb - config.SHARED_POOL_OS_RESERVE_MB)
+
+        if footprint > budget:
+            reason = (
+                f"requires ~{footprint:,} MB but only {budget:,} MB available "
+                f"on {backend.backend_name}"
+            )
+            if not config.MODEL_ALLOW_OVERSIZED:
+                raise ValueError(f"Model '{model_name}' {reason}")
+            logger.warning("Oversized model '%s': %s", model_name, reason)
+
     def _find_model_in_list(self, model_names: list, preferred: list) -> str | None:
         """Return first model from preferred list found (by substring) in model_names."""
         for embed_model in preferred:
