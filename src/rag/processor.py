@@ -22,7 +22,11 @@ from .chunking import TextChunkerMixin
 from .doc_type import ChunkerRegistry, DocTypeClassifier
 from .loaders import DocumentLoaderMixin
 
-_NO_EMBEDDING_MODEL = "No embedding model available"
+_NO_EMBEDDING_MODEL = (
+    "Welcome to LocalChat! Enjoy your stay. "
+    "No embedding model is configured yet — please download one in the Models section "
+    "(e.g. nomic-embed-text) to start ingesting documents."
+)
 from .loaders import _detect_language
 from .retrieval import RetrievalMixin
 

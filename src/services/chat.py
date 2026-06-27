@@ -16,9 +16,11 @@ logger = get_logger(__name__)
 _status_doc_count_cache: dict[str | None, tuple[int, float]] = {}
 _STATUS_CACHE_TTL: float = 5.0
 _status_cache_lock = threading.Lock()
-_ollama_status_cache: list = [False, 0.0]
+_ollama_status_cache: list = [False, 0.0]  # [available, last_check_time]
 _OLLAMA_STATUS_TTL: float = 10.0
 _ollama_status_lock = threading.Lock()
+_ollama_refresh_thread: threading.Thread | None = None
+_ollama_refresh_lock = threading.Lock()
 
 _WEB_INTENT_PHRASES = (
     "check internet", "search internet", "search the internet",
@@ -157,19 +159,40 @@ def get_doc_count_cached(db: Any, workspace_id: str | None) -> tuple[int, bool]:
         return cached[0], True
 
 
-def check_ollama_live(app_state: Any) -> bool:
-    with _ollama_status_lock:
-        now = time.monotonic()
-        if now - _ollama_status_cache[1] < _OLLAMA_STATUS_TTL:
-            return _ollama_status_cache[0]
+def _ollama_refresh_worker(app_state: Any) -> None:
+    """Refresh Ollama liveness on a background thread; never blocks the request path."""
+    while True:
+        time.sleep(_OLLAMA_STATUS_TTL)
         try:
             available, _ = app_state.ollama_client.check_connection()
         except Exception:
             available = False
-        _ollama_status_cache[:] = [available, now]
+        with _ollama_status_lock:
+            _ollama_status_cache[:] = [available, time.monotonic()]
         app_state.startup_status["ollama"] = available
         app_state.startup_status["ready"] = available and app_state.startup_status.get("database", False)
-        return available
+
+
+def check_ollama_live(app_state: Any) -> bool:
+    global _ollama_refresh_thread
+    with _ollama_status_lock:
+        if _ollama_status_cache[1] == 0.0:
+            # First call: seed from bootstrap result so we don't briefly report False
+            _ollama_status_cache[:] = [
+                app_state.startup_status.get("ollama", False),
+                time.monotonic(),
+            ]
+    with _ollama_refresh_lock:
+        if _ollama_refresh_thread is None or not _ollama_refresh_thread.is_alive():
+            _ollama_refresh_thread = threading.Thread(
+                target=_ollama_refresh_worker,
+                args=(app_state,),
+                name="ollama-liveness",
+                daemon=True,
+            )
+            _ollama_refresh_thread.start()
+    with _ollama_status_lock:
+        return bool(_ollama_status_cache[0])
 
 
 def get_filename_filter(fields: dict, db: Any) -> list[str]:

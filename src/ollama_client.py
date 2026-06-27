@@ -656,14 +656,13 @@ class OllamaClient:
             fallback_results.append(embedding if success else None)
         return fallback_results
 
-    def get_running_models(self) -> list[dict[str, Any]]:
+    def get_running_models(self, *, _background: bool = False) -> list[dict[str, Any]]:
         """
         Return models currently loaded in Ollama (from ``/api/ps``).
 
-        Results are cached for ``_RUNNING_MODELS_TTL`` seconds.
-
-        Returns:
-            List of model info dicts, or empty list if unavailable.
+        Request-path callers always get the cached value (fresh or stale) — never
+        block on HTTP.  Only the background refresh thread passes ``_background=True``
+        to make the live call and update the cache.
         """
         now = time.monotonic()
         if (
@@ -671,6 +670,9 @@ class OllamaClient:
             and (now - self._running_models_cache_time) < self._RUNNING_MODELS_TTL
         ):
             return self._running_models_cache
+        # Stale or never populated: request path returns what it has; background refreshes.
+        if not _background:
+            return self._running_models_cache if self._running_models_cache is not None else []
         try:
             response = self._session.get(f"{self.base_url}/api/ps", timeout=5)
             if response.status_code == 200:
@@ -769,9 +771,9 @@ class OllamaClient:
         def _refresh_loop() -> None:
             gpu_tick = 0
             while True:
-                time.sleep(4.0)
+                # Refresh before sleeping so the cache is warm from the first request
                 try:
-                    self.get_running_models()
+                    self.get_running_models(_background=True)
                 except Exception:
                     pass
                 gpu_tick += 1
@@ -781,6 +783,7 @@ class OllamaClient:
                         self.get_gpu_info()
                     except Exception:
                         pass
+                time.sleep(4.0)
 
         t = threading.Thread(target=_refresh_loop, name="ollama-cache-refresh", daemon=True)
         t.start()

@@ -104,7 +104,7 @@ class DocumentsMixin:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "SELECT 1 FROM documents WHERE filename = ANY(%s)"
-                        " AND local_only = TRUE LIMIT 1",
+                        " AND local_only = TRUE AND deleted_at IS NULL LIMIT 1",
                         (filenames,),
                     )
                     return cursor.fetchone() is not None
@@ -129,12 +129,17 @@ class DocumentsMixin:
                 rows = cursor.fetchall()
         return [{"chunk_id": r[0], "chunk_text": r[1]} for r in rows]
 
-    def delete_document(self, doc_id: int) -> None:
+    def delete_document(self, doc_id: int, deleted_by: str | None = None) -> None:
         """
-        Delete a single document and all its chunks (cascades via FK).
+        Soft-delete a document by setting deleted_at / deleted_by.
+
+        Chunks are excluded from live RAG queries via the JOIN on documents.deleted_at;
+        the chunk rows themselves are left intact so citation history remains valid.
 
         Args:
-            doc_id: ID of the document to delete
+            doc_id: ID of the document to retire
+            deleted_by: UUID of the user who triggered the retirement, or None for
+                        system-initiated operations (e.g. re-ingest replacement).
 
         Raises:
             DatabaseUnavailableError: If database is not connected
@@ -142,12 +147,53 @@ class DocumentsMixin:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete document: Database is not connected")
 
-        logger.debug(f"Deleting document ID: {doc_id}")
+        logger.debug("Soft-deleting document ID: %s", doc_id)
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE documents SET deleted_at = NOW(), deleted_by = %s WHERE id = %s",
+                    (deleted_by, doc_id),
+                )
+                conn.commit()
+        logger.info("Document %s soft-deleted by %s", doc_id, deleted_by)
+
+    def purge_document(self, doc_id: int) -> bool:
+        """
+        Hard-delete a document and all its chunks after verifying no chunk has
+        been retrieved (i.e. no chunk_stats row exists for any of its chunks).
+
+        Returns:
+            True on success, False when the citation precondition blocks the purge.
+
+        Raises:
+            DatabaseUnavailableError: If database is not connected
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot purge document: Database is not connected")
+
+        logger.debug("Purge requested for document ID: %s", doc_id)
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                # Citation precondition: any chunk that was retrieved blocks the purge.
+                cursor.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM chunk_stats cs
+                        JOIN document_chunks dc ON dc.id = cs.chunk_id
+                        WHERE dc.document_id = %s
+                    )
+                    """,
+                    (doc_id,),
+                )
+                if cursor.fetchone()[0]:
+                    logger.info("Purge of document %s blocked: chunk_stats references exist", doc_id)
+                    return False
+
+                cursor.execute("DELETE FROM document_chunks WHERE document_id = %s", (doc_id,))
                 cursor.execute("DELETE FROM documents WHERE id = %s", (doc_id,))
                 conn.commit()
-        logger.info(f"Document {doc_id} deleted")
+        logger.info("Document %s permanently purged", doc_id)
+        return True
 
     def insert_chunks_batch(
         self,
@@ -280,6 +326,7 @@ class DocumentsMixin:
                     JOIN documents d ON dc.document_id = d.id
                     CROSS JOIN q
                     WHERE dc.embedding IS NOT NULL
+                      AND d.deleted_at IS NULL
                     {where_extra}  AND (dc.embedding <=> q.emb) <= %s
                     ORDER BY dc.embedding <=> q.emb
                     LIMIT %s
@@ -327,6 +374,7 @@ class DocumentsMixin:
                         JOIN documents d ON dc.document_id = d.id
                         CROSS JOIN q
                         WHERE dc.embedding IS NOT NULL
+                          AND d.deleted_at IS NULL
                           AND d.filename LIKE %s
                           AND (dc.embedding <=> q.emb) <= %s
                         ORDER BY dc.embedding <=> q.emb
@@ -345,6 +393,7 @@ class DocumentsMixin:
                         JOIN documents d ON dc.document_id = d.id
                         CROSS JOIN q
                         WHERE dc.embedding IS NOT NULL
+                          AND d.deleted_at IS NULL
                           AND (dc.embedding <=> q.emb) <= %s
                         ORDER BY dc.embedding <=> q.emb
                         LIMIT %s
@@ -439,11 +488,11 @@ class DocumentsMixin:
             with conn.cursor() as cursor:
                 if workspace_id:
                     cursor.execute(
-                        "SELECT COUNT(*) FROM documents WHERE workspace_id = %s",
+                        "SELECT COUNT(*) FROM documents WHERE workspace_id = %s AND deleted_at IS NULL",
                         (workspace_id,),
                     )
                 else:
-                    cursor.execute("SELECT COUNT(*) FROM documents")
+                    cursor.execute("SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL")
                 count = cursor.fetchone()[0]
                 logger.debug(f"Document count: {count}")
                 return count
@@ -460,12 +509,18 @@ class DocumentsMixin:
                         """
                         SELECT COUNT(*) FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
-                        WHERE d.workspace_id = %s
+                        WHERE d.workspace_id = %s AND d.deleted_at IS NULL
                         """,
                         (workspace_id,),
                     )
                 else:
-                    cursor.execute("SELECT COUNT(*) FROM document_chunks")
+                    cursor.execute(
+                        """
+                        SELECT COUNT(*) FROM document_chunks dc
+                        JOIN documents d ON dc.document_id = d.id
+                        WHERE d.deleted_at IS NULL
+                        """
+                    )
                 count = cursor.fetchone()[0]
                 logger.debug(f"Chunk count: {count}")
                 return count
@@ -494,7 +549,7 @@ class DocumentsMixin:
                         SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
                         FROM documents d
                         LEFT JOIN document_chunks dc ON d.id = dc.document_id
-                        WHERE d.workspace_id = %s
+                        WHERE d.workspace_id = %s AND d.deleted_at IS NULL
                         GROUP BY d.id, d.filename, d.created_at
                         ORDER BY d.created_at DESC
                     """, (workspace_id,))
@@ -503,6 +558,7 @@ class DocumentsMixin:
                         SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
                         FROM documents d
                         LEFT JOIN document_chunks dc ON d.id = dc.document_id
+                        WHERE d.deleted_at IS NULL
                         GROUP BY d.id, d.filename, d.created_at
                         ORDER BY d.created_at DESC
                     """)
@@ -540,7 +596,7 @@ class DocumentsMixin:
                     SELECT d.id, d.created_at, COUNT(dc.id) AS chunk_count, d.content_hash
                     FROM documents d
                     LEFT JOIN document_chunks dc ON d.id = dc.document_id
-                    WHERE d.filename = %s
+                    WHERE d.filename = %s AND d.deleted_at IS NULL
                     GROUP BY d.id, d.created_at, d.content_hash
                 """, (filename,))
                 row = cursor.fetchone()
@@ -690,6 +746,7 @@ class DocumentsMixin:
                         FROM documents
                         WHERE COALESCE(last_ingested_at, created_at)
                               < NOW() - (INTERVAL '1 hour' * %s)
+                          AND deleted_at IS NULL
                     """
                     params: list[Any] = [max_age_hours]
                     if workspace_id:

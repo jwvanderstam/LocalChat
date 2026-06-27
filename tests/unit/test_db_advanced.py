@@ -415,3 +415,92 @@ class TestConnectionPoolManagement:
 
         # Should not raise
         test_db.close()
+
+
+# ============================================================================
+# CW-1: Document Soft-Delete and Purge
+# ============================================================================
+
+@pytest.mark.unit
+class TestDocumentSoftDelete:
+    """delete_document must UPDATE, not DELETE; purge_document checks citations."""
+
+    def _make_db(self):
+        from src import db as db_module
+        instance = db_module.Database()
+        instance.is_connected = True
+        return instance
+
+    def _mock_conn(self, cursor):
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cursor
+        conn.cursor.return_value.__exit__.return_value = None
+        return conn
+
+    def test_delete_document_issues_update_not_delete(self):
+        """Soft-delete must call UPDATE SET deleted_at, not DELETE FROM."""
+        db = self._make_db()
+        cursor = MagicMock()
+        conn = self._make_conn_ctx(cursor)
+
+        with patch.object(db, 'get_connection') as mock_gc:
+            mock_gc.return_value.__enter__.return_value = conn
+            mock_gc.return_value.__exit__.return_value = None
+            db.delete_document(99, 'user-uuid-123')
+
+        sql = cursor.execute.call_args[0][0]
+        assert 'UPDATE' in sql.upper()
+        assert 'deleted_at' in sql
+        assert 'DELETE FROM' not in sql.upper()
+
+    def test_delete_document_without_user_is_system_delete(self):
+        """deleted_by defaults to None — system-initiated replacement."""
+        db = self._make_db()
+        cursor = MagicMock()
+        conn = self._make_conn_ctx(cursor)
+
+        with patch.object(db, 'get_connection') as mock_gc:
+            mock_gc.return_value.__enter__.return_value = conn
+            mock_gc.return_value.__exit__.return_value = None
+            db.delete_document(7)  # no deleted_by
+
+        params = cursor.execute.call_args[0][1]
+        # params = (deleted_by, doc_id) — deleted_by should be None
+        assert params[0] is None
+        assert params[1] == 7
+
+    def test_purge_blocked_when_chunk_stats_exist(self):
+        """purge_document returns False when citation precondition fails."""
+        db = self._make_db()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (True,)  # citations exist
+        conn = self._make_conn_ctx(cursor)
+
+        with patch.object(db, 'get_connection') as mock_gc:
+            mock_gc.return_value.__enter__.return_value = conn
+            mock_gc.return_value.__exit__.return_value = None
+            result = db.purge_document(5)
+
+        assert result is False
+
+    def test_purge_succeeds_and_deletes_rows_when_no_citations(self):
+        """purge_document returns True and issues DELETEs when no citations exist."""
+        db = self._make_db()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (False,)  # no citations
+        conn = self._make_conn_ctx(cursor)
+
+        with patch.object(db, 'get_connection') as mock_gc:
+            mock_gc.return_value.__enter__.return_value = conn
+            mock_gc.return_value.__exit__.return_value = None
+            result = db.purge_document(5)
+
+        assert result is True
+        calls = [call[0][0].upper() for call in cursor.execute.call_args_list]
+        assert any('DELETE' in sql for sql in calls)
+
+    def _make_conn_ctx(self, cursor):
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cursor
+        conn.cursor.return_value.__exit__.return_value = None
+        return conn

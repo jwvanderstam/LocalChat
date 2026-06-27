@@ -122,7 +122,8 @@ class TestConnection:
         assert "2 models" in message
         assert ollama_client.is_available is True
         assert len(ollama_client.available_models) == 2
-        mock_http.get.assert_called_once()
+        # Background refresh thread also calls /api/ps; assert the tags call was made
+        mock_http.get.assert_any_call(f"{ollama_client.base_url}/api/tags", timeout=5)
 
     def test_check_connection_failure_http_error(self, ollama_client, mock_http):
         """Should handle HTTP error responses."""

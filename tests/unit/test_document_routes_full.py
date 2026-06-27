@@ -41,11 +41,12 @@ class TestDocumentDeleteRoute:
         assert response.status_code == 200
         assert response.json()['success'] is True
 
-    def test_delete_document_calls_db_with_correct_id(self, client, app):
+    def test_delete_document_calls_db_with_correct_id_and_user(self, client, app):
         app.state.db.delete_document = MagicMock()
         app.state.db.get_document_count = MagicMock(return_value=0)
         client.delete('/api/documents/42')
-        app.state.db.delete_document.assert_called_once_with(42)
+        # require_admin_dep returns 'anonymous' in test/demo mode
+        app.state.db.delete_document.assert_called_once_with(42, 'anonymous')
 
     def test_delete_document_returns_success(self, client, app):
         app.state.db.delete_document = MagicMock()
@@ -69,6 +70,35 @@ class TestDocumentDeleteRoute:
     def test_delete_document_invalid_id_returns_404(self, client):
         response = client.delete('/api/documents/not-an-id')
         assert response.status_code in (404, 422)
+
+
+class TestDocumentPurgeRoute:
+    def test_purge_succeeds_when_no_citations(self, client, app):
+        app.state.db.purge_document = MagicMock(return_value=True)
+        response = client.delete('/api/documents/5/purge')
+        assert response.status_code == 200
+        assert response.json()['success'] is True
+        app.state.db.purge_document.assert_called_once_with(5)
+
+    def test_purge_returns_409_when_citations_exist(self, client, app):
+        app.state.db.purge_document = MagicMock(return_value=False)
+        response = client.delete('/api/documents/5/purge')
+        assert response.status_code == 409
+        assert response.json()['success'] is False
+        assert 'chunk_stats' in response.json()['message']
+
+    def test_purge_db_unavailable_returns_503(self, client, app):
+        from src.db import DatabaseUnavailableError
+        app.state.db.purge_document = MagicMock(
+            side_effect=DatabaseUnavailableError("not connected")
+        )
+        response = client.delete('/api/documents/5/purge')
+        assert response.status_code == 503
+
+    def test_purge_unexpected_error_returns_500(self, client, app):
+        app.state.db.purge_document = MagicMock(side_effect=RuntimeError("boom"))
+        response = client.delete('/api/documents/5/purge')
+        assert response.status_code == 500
 
 
 class TestDocumentClearRoute:

@@ -10,12 +10,13 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Request, UploadFile
+from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.datastructures import UploadFile as _StarletteUploadFile
 
 from .. import config
 from ..db.connection import DatabaseUnavailableError
+from ..security_fastapi import require_admin_dep
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.logging_config import sanitize_log_value as _slv
@@ -277,10 +278,45 @@ def api_clear_documents(request: Request) -> Any:
         return JSONResponse({"success": False, "message": "Failed to clear documents"}, status_code=500)
 
 
-@router.delete("/{doc_id}")
-def api_delete_document(doc_id: int, request: Request) -> Any:
+@router.delete("/{doc_id}/purge")
+def api_purge_document(
+    doc_id: int,
+    request: Request,
+    admin_user_id: str = Depends(require_admin_dep),  # noqa: B008
+) -> Any:
+    """Hard-delete a soft-deleted document if no chunk_stats citation exists."""
     try:
-        request.app.state.db.delete_document(doc_id)
+        purged = request.app.state.db.purge_document(doc_id)
+        if not purged:
+            return JSONResponse(
+                {
+                    "success": False,
+                    "message": (
+                        "Document cannot be purged: one or more of its chunks appear in "
+                        "retrieval history (chunk_stats). Remove the citation history first "
+                        "or leave the document soft-deleted."
+                    ),
+                },
+                status_code=409,
+            )
+        return {"success": True}
+    except DatabaseUnavailableError:
+        logger.exception("DB unavailable purging document %s", _slv(str(doc_id)))
+        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except Exception:
+        logger.exception("Error purging document %s", _slv(str(doc_id)))
+        return JSONResponse({"success": False, "message": "Failed to purge document"}, status_code=500)
+
+
+@router.delete("/{doc_id}")
+def api_delete_document(
+    doc_id: int,
+    request: Request,
+    admin_user_id: str = Depends(require_admin_dep),  # noqa: B008
+) -> Any:
+    """Soft-delete a document (sets deleted_at). Does not remove rows or files."""
+    try:
+        request.app.state.db.delete_document(doc_id, admin_user_id)
         return {"success": True}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable deleting document %s", _slv(str(doc_id)))
