@@ -62,7 +62,7 @@ class RedisCache(CacheBackend):
                 self.stats.misses += 1
                 return None
             self.stats.hits += 1
-            return pickle.loads(data)
+            return pickle.loads(data)  # nosec B301
         except Exception:
             logger.exception("Redis get error")
             self.stats.misses += 1

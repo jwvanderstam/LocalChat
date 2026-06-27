@@ -81,6 +81,11 @@ exclude_lines = [
     "@abc.abstractmethod",
 ]
 
+[tool.bandit]
+# B608: psycopg3 uses %s placeholders for parameterized queries — not string interpolation
+# B104: web_search and Uvicorn intentionally bind to 0.0.0.0
+skips = ["B608", "B104"]
+
 [tool.coverage.html]
 directory = "htmlcov"
 

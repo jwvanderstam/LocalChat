@@ -44,6 +44,11 @@ jobs:
       - name: Lint with ruff
         run: ruff check .
 
+      - name: Security scan (bandit)
+        run: |
+          pip install bandit
+          bandit -r src/ -ll -q -c pyproject.toml
+
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short -x
 
