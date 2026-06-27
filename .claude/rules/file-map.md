@@ -63,6 +63,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0002_early_additive_columns.py` | Adds conversations/documents/messages early columns |
 | `migrations/versions/0003_workspace_columns.py` | Adds workspace_id FK to documents, conversations, memories, answer_feedback |
 | `migrations/versions/0004_documents_language_ingest_source.py` | Adds documents.language, last_ingested_at, source_id |
+| `migrations/versions/0005_document_soft_delete.py` | CW-1: adds documents.deleted_at, deleted_by; document_chunks.deleted_at |
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
 | **Agent** | |
 | `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); <1 ms |
