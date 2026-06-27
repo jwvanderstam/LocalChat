@@ -1,11 +1,3 @@
-"""
-Document Operations Module
-==========================
-
-Mixin providing document storage, chunk management, and vector
-similarity search operations.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -44,25 +36,6 @@ class DocumentsMixin:
         language: str | None = None,
         source_id: str | None = None,
     ) -> int:
-        """
-        Insert a new document and return its ID.
-
-        Args:
-            filename: Name of the document file
-            content: Text content of the document
-            metadata: Optional metadata dictionary
-            content_hash: SHA-256 hex digest of the original file bytes (optional)
-            doc_type: Document type string from DocType enum (optional)
-            chunker_version: Version string of the chunker used (optional)
-            workspace_id: Workspace UUID (optional)
-            language: ISO 639-1 language code detected during ingest (optional)
-
-        Returns:
-            int: ID of inserted document
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot insert document: Database is not connected")
 
@@ -85,18 +58,7 @@ class DocumentsMixin:
         return doc_id
 
     def any_local_only_sources(self, filenames: list[str]) -> bool:
-        """
-        Return True if any of the given filenames have local_only = TRUE.
-
-        Used by the cloud fallback logic to prevent cloud calls when the
-        context includes documents the user marked as local-only.
-
-        Args:
-            filenames: List of document filenames to check
-
-        Returns:
-            bool: True if at least one document is local-only
-        """
+        """Used by cloud fallback to block cloud calls when context includes local-only documents."""
         if not filenames or not self.is_connected:
             return False
         try:
@@ -135,14 +97,6 @@ class DocumentsMixin:
 
         Chunks are excluded from live RAG queries via the JOIN on documents.deleted_at;
         the chunk rows themselves are left intact so citation history remains valid.
-
-        Args:
-            doc_id: ID of the document to retire
-            deleted_by: UUID of the user who triggered the retirement, or None for
-                        system-initiated operations (e.g. re-ingest replacement).
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
         """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete document: Database is not connected")
@@ -159,14 +113,8 @@ class DocumentsMixin:
 
     def purge_document(self, doc_id: int) -> bool:
         """
-        Hard-delete a document and all its chunks after verifying no chunk has
-        been retrieved (i.e. no chunk_stats row exists for any of its chunks).
-
-        Returns:
-            True on success, False when the citation precondition blocks the purge.
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
+        Hard-delete only when no chunk_stats row exists for any of this document's chunks.
+        Returns False when citations block the purge; True on success.
         """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot purge document: Database is not connected")
@@ -199,19 +147,7 @@ class DocumentsMixin:
         self,
         chunks_data: list[tuple[int, str, int, list[float] | np.ndarray] | dict[str, Any]],
     ) -> list[int]:
-        """
-        Insert multiple chunks in a single transaction.
-
-        Args:
-            chunks_data: List of tuples ``(doc_id, chunk_text, chunk_index, embedding)``
-                         or dicts with keys ``doc_id, chunk_text, chunk_index, embedding[, metadata]``.
-
-        Returns:
-            List of inserted chunk IDs in insertion order.
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Accepts ``(doc_id, chunk_text, chunk_index, embedding)`` tuples or equivalent dicts with optional metadata."""
         if not chunks_data:
             return []
 
@@ -271,24 +207,7 @@ class DocumentsMixin:
         workspace_id: str | None = None,
         source_ids: list[str] | None = None,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
-        """
-        Search for similar chunks using cosine similarity via pgvector HNSW.
-
-        Args:
-            query_embedding: Query vector (768 dimensions)
-            top_k: Number of results to return
-            min_similarity: Minimum cosine similarity threshold (0.0–1.0).
-                Filtering at the database level avoids transferring chunks that
-                would be discarded by the Python-side threshold check anyway.
-            file_type_filter: Optional file extension filter (e.g. '.pdf')
-            filename_filter: Optional list of exact filenames to restrict search to.
-
-        Returns:
-            List of ``(chunk_text, filename, chunk_index, similarity, metadata, chunk_id)``
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Search via pgvector HNSW; min_similarity applied at DB level to avoid transferring chunks that fail the threshold."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
 
@@ -345,15 +264,7 @@ class DocumentsMixin:
         min_similarity: float = 0.0,
         file_type_filter: str | None = None,
     ) -> list[tuple[str, str, int, float, int]]:
-        """
-        Search for similar chunks, applying a similarity threshold at DB level.
-
-        Returns:
-            List of ``(chunk_text, filename, chunk_index, similarity, document_id)``
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Returns ``(chunk_text, filename, chunk_index, similarity, document_id)`` tuples."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
 
@@ -408,20 +319,6 @@ class DocumentsMixin:
     def get_adjacent_chunks(
         self, document_id: int, chunk_index: int, window_size: int = 1
     ) -> list[tuple[str, int]]:
-        """
-        Get chunks immediately before and after a given chunk.
-
-        Args:
-            document_id: ID of the document
-            chunk_index: Index of the centre chunk
-            window_size: Number of chunks before/after to include
-
-        Returns:
-            List of ``(chunk_text, chunk_index)`` ordered by chunk_index
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get adjacent chunks: Database is not connected")
 
@@ -445,19 +342,6 @@ class DocumentsMixin:
                 return results
 
     def get_chunk_by_id(self, chunk_id: int) -> dict[str, Any] | None:
-        """
-        Fetch a single chunk row by its primary key.
-
-        Args:
-            chunk_id: Primary key of the chunk
-
-        Returns:
-            Dict with keys ``id, document_id, chunk_index, chunk_text, metadata``,
-            or ``None`` if not found.
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk: Database is not connected")
 
@@ -526,18 +410,7 @@ class DocumentsMixin:
                 return count
 
     def get_all_documents(self, workspace_id: str | None = None) -> list[dict[str, Any]]:
-        """
-        List documents with metadata, optionally scoped to a workspace.
-
-        Args:
-            workspace_id: When provided, only return documents belonging to this workspace.
-
-        Returns:
-            List of dicts with keys: id, filename, created_at, chunk_count
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """List documents (id, filename, created_at, chunk_count), optionally scoped to a workspace."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get documents: Database is not connected")
 
@@ -576,16 +449,7 @@ class DocumentsMixin:
                 return documents
 
     def document_exists(self, filename: str) -> tuple[bool, dict[str, Any]]:
-        """
-        Check whether a document with the given filename already exists.
-
-        Returns:
-            Tuple of ``(exists, doc_info)`` where ``doc_info`` has keys
-            ``id``, ``created_at``, ``chunk_count``.
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Return ``(exists, doc_info)``; doc_info has id, created_at, chunk_count, content_hash."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot check document existence: Database is not connected")
 
@@ -613,12 +477,7 @@ class DocumentsMixin:
                 return False, {}
 
     def get_chunk_statistics(self) -> dict[str, Any]:
-        """
-        Return statistics about chunks (totals, embedding coverage, samples).
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Return statistics about chunks (totals, embedding coverage, samples)."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk statistics: Database is not connected")
 
@@ -668,19 +527,7 @@ class DocumentsMixin:
     def search_chunks_by_text(
         self, search_text: str, limit: int = 10
     ) -> list[dict[str, Any]]:
-        """
-        Case-insensitive text search over chunk content (for debugging).
-
-        Args:
-            search_text: Text to search for
-            limit: Maximum number of results
-
-        Returns:
-            List of dicts with keys: filename, chunk_index, preview, full_text, length
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Case-insensitive text search over chunk content (for debugging — not the live search path)."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot search chunks by text: Database is not connected")
 
@@ -710,14 +557,7 @@ class DocumentsMixin:
                 return results
 
     def delete_all_documents(self) -> None:
-        """
-        Delete every document and all its chunks.
-
-        WARNING: This operation cannot be undone!
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Delete every document and all its chunks. WARNING: irreversible."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete documents: Database is not connected")
 

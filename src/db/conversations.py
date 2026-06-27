@@ -1,10 +1,3 @@
-"""
-Conversation Operations Module
-===============================
-
-Mixin providing persistent chat-memory operations (conversations and messages).
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -29,18 +22,6 @@ class ConversationsMixin:
     get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
 
     def create_conversation(self, title: str = 'New Conversation', workspace_id: str | None = None) -> str:
-        """
-        Create a new conversation and return its UUID.
-
-        Args:
-            title: Conversation title (truncated to 255 chars)
-
-        Returns:
-            str: UUID of the created conversation
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot create conversation: Database is not connected")
 
@@ -115,20 +96,7 @@ class ConversationsMixin:
         offset: int = 0,
         workspace_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """
-        List conversations ordered by most recently updated.
-
-        Args:
-            limit: Maximum number of conversations to return (default 50, max 200).
-            offset: Number of conversations to skip for pagination (default 0).
-            workspace_id: When provided, only return conversations belonging to this workspace.
-
-        Returns:
-            List of dicts with keys: id, title, created_at, updated_at, message_count
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Return conversations ordered by updated_at DESC (id, title, created_at, updated_at, message_count)."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot list conversations: Database is not connected")
 
@@ -173,18 +141,7 @@ class ConversationsMixin:
     def get_conversation_messages(
         self, conversation_id: str
     ) -> list[dict[str, Any]] | None:
-        """
-        Get all messages for a conversation.
-
-        Args:
-            conversation_id: UUID of the conversation
-
-        Returns:
-            List of message dicts (role, content, timestamp), or None if not found
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Return messages (role, content, timestamp) ordered ASC, or None if conversation not found."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get messages: Database is not connected")
 
@@ -220,21 +177,6 @@ class ConversationsMixin:
         content: str,
         plan_json: dict | None = None,
     ) -> int:
-        """
-        Append a message to a conversation and update its timestamp.
-
-        Args:
-            conversation_id: UUID of the conversation
-            role: 'user' or 'assistant'
-            content: Message text
-            plan_json: Optional query plan dict (stored for the user turn)
-
-        Returns:
-            int: ID of the inserted message row
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot save message: Database is not connected")
 
@@ -260,19 +202,7 @@ class ConversationsMixin:
         return message_id
 
     def update_message_plan_json(self, message_id: int, plan_json: dict) -> None:
-        """
-        Update the plan_json of an existing message row.
-
-        Used to attach tool_trace and agent warnings to the user turn
-        after the AggregatorAgent finishes executing.
-
-        Args:
-            message_id: ID of the message row to update.
-            plan_json:  New plan dict (replaces existing value).
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected.
-        """
+        """Attach tool_trace and agent warnings to the user turn after AggregatorAgent finishes."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot update message: Database is not connected")
 
@@ -288,19 +218,6 @@ class ConversationsMixin:
         logger.debug(f"Updated plan_json for message id={message_id}")
 
     def update_conversation_title(self, conversation_id: str, title: str) -> bool:
-        """
-        Update a conversation's title.
-
-        Args:
-            conversation_id: UUID of the conversation
-            title: New title (truncated to 255 chars)
-
-        Returns:
-            bool: True if updated, False if conversation not found
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot update conversation: Database is not connected")
 
@@ -315,18 +232,7 @@ class ConversationsMixin:
         return updated
 
     def get_conversation_document_filter(self, conversation_id: str) -> list[str]:
-        """
-        Return the filename filter list stored for a conversation.
-
-        Args:
-            conversation_id: UUID of the conversation
-
-        Returns:
-            List of filenames to restrict retrieval to (empty list = all documents)
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Return filenames to restrict retrieval to; empty list means all documents."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get document filter: Database is not connected")
 
@@ -344,20 +250,7 @@ class ConversationsMixin:
     def set_conversation_document_filter(
         self, conversation_id: str, filenames: list[str]
     ) -> bool:
-        """
-        Store a document filename filter for a conversation.
-
-        Args:
-            conversation_id: UUID of the conversation
-            filenames: List of filenames to restrict retrieval to.
-                Pass an empty list to clear the filter (all documents).
-
-        Returns:
-            bool: True if updated, False if conversation not found
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Store a document filename filter; pass an empty list to clear (all documents)."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot set document filter: Database is not connected")
 
@@ -375,18 +268,6 @@ class ConversationsMixin:
         return updated
 
     def delete_conversation(self, conversation_id: str) -> bool:
-        """
-        Delete a conversation and all its messages (via CASCADE).
-
-        Args:
-            conversation_id: UUID of the conversation
-
-        Returns:
-            bool: True if deleted, False if not found
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversation: Database is not connected")
 
@@ -401,18 +282,7 @@ class ConversationsMixin:
         return deleted
 
     def delete_all_conversations(self, workspace_id: str | None = None) -> int:
-        """
-        Delete conversations (and their messages via CASCADE).
-
-        When workspace_id is provided only conversations in that workspace are
-        removed; otherwise all conversations across all workspaces are deleted.
-
-        Returns:
-            int: Number of conversations deleted
-
-        Raises:
-            DatabaseUnavailableError: If database is not connected
-        """
+        """Delete conversations and their messages (CASCADE); scoped to workspace when provided."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversations: Database is not connected")
 

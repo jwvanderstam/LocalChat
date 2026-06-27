@@ -1,21 +1,6 @@
 """
-Retrieval Feedback Pipeline
-============================
-
-Weekly job that exports feedback-labelled training pairs and optionally
-fine-tunes a cross-encoder reranker on domain-specific relevance signals.
-
-Running standalone (no Flask context needed)::
-
-    python -m src.rag.feedback_pipeline --days 7 --output pairs.jsonl
-
-Fine-tuning (requires sentence-transformers)::
-
-    python -m src.rag.feedback_pipeline --finetune --model-dir ./models/reranker
-
-The fine-tuning step is intentionally kept optional: if sentence-transformers
-is not installed the pipeline exports pairs and exits cleanly.  The app runs
-normally without this module — it is never imported at request time.
+Weekly feedback pipeline: export labelled training pairs, optionally fine-tune the reranker.
+Never imported at request time — safe no-op when sentence-transformers is absent.
 """
 
 from __future__ import annotations
@@ -137,21 +122,7 @@ def finetune_reranker(
     epochs: int = 3,
     batch_size: int = 16,
 ) -> dict[str, Any]:
-    """
-    Fine-tune a cross-encoder reranker on domain feedback pairs.
-
-    Requires:  pip install sentence-transformers>=3.0
-
-    Args:
-        pairs:       List of {query, chunk_text, label} dicts.
-        base_model:  Hugging Face model ID to start from.
-        output_dir:  Where to save the fine-tuned model.
-        epochs:      Training epochs.
-        batch_size:  Training batch size.
-
-    Returns:
-        Dict with {ndcg_before, ndcg_after, output_path, pair_count}.
-    """
+    """Fine-tune a cross-encoder reranker on domain feedback pairs. Requires sentence-transformers>=3.0."""
     try:
         from sentence_transformers import CrossEncoder
     except ImportError as exc:
@@ -226,11 +197,7 @@ def finetune_reranker(
 # ---------------------------------------------------------------------------
 
 def run(db: Any, days: int = 7, output: str | Path | None = None, finetune: bool = False, **kwargs) -> dict:
-    """
-    Full pipeline run.  Safe to call from a cron job or management command.
-
-    Returns a summary dict suitable for logging / dashboard display.
-    """
+    """Full pipeline run — safe to call from a cron job or management command."""
     pairs = export_training_pairs(db, days=days)
 
     if output:

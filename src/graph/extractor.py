@@ -1,13 +1,4 @@
-"""
-Entity Extractor
-================
-
-Extracts named entities from document chunks using spaCy and persists them
-in the ``entities`` / ``entity_relations`` tables.
-
-spaCy and an NLP model are optional.  If neither is available the extractor
-is a safe no-op — the rest of the ingest pipeline is unaffected.
-"""
+"""spaCy entity extractor; safe no-op when spaCy or an NLP model is unavailable."""
 
 from __future__ import annotations
 
@@ -71,19 +62,7 @@ class EntityExtractor:
         db: Any,
         graph_store: Any | None = None,
     ) -> int:
-        """
-        Extract entities from all chunks of a document.
-
-        Args:
-            doc_id: Database ID of the parent document.
-            chunks_data: List of chunk dicts as stored by insert_chunks_batch.
-            db: Database instance (used if graph_store is None).
-            graph_store: Optional GraphStore — if provided, used instead of db
-                         for entity persistence.
-
-        Returns:
-            Number of (entity, chunk) pairs processed.
-        """
+        """Extract entities from all chunks and return count of (entity, chunk) pairs processed."""
         nlp = _get_nlp()
         if nlp is None:
             return 0

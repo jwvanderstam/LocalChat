@@ -1,20 +1,3 @@
-
-"""
-Cache Module - Base Classes and Interfaces
-==========================================
-
-Provides caching infrastructure for LocalChat with multiple backend support.
-
-Supports:
-- Redis backend (production)
-- In-memory backend (fallback/testing)
-- Embedding caching
-- Query result caching
-- TTL and eviction policies
-- Cache statistics
-
-"""
-
 import hashlib
 import json
 from abc import ABC, abstractmethod
@@ -41,17 +24,14 @@ class CacheStats:
 
     @property
     def hit_rate(self) -> float:
-        """Calculate hit rate."""
         total = self.hits + self.misses
         return (self.hits / total * 100) if total > 0 else 0.0
 
     @property
     def usage_percent(self) -> float:
-        """Calculate cache usage percentage."""
         return (self.size / self.max_size * 100) if self.max_size > 0 else 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
         return {
             'hits': self.hits,
             'misses': self.misses,
@@ -66,19 +46,9 @@ class CacheStats:
 
 
 class CacheBackend(ABC):
-    """
-    Abstract base class for cache backends.
-
-    Defines the interface that all cache backends must implement.
-    """
+    """ABC defining the interface all cache backends must implement."""
 
     def __init__(self, namespace: str = "localchat"):
-        """
-        Initialize cache backend.
-
-        Args:
-            namespace: Cache key namespace for isolation
-        """
         self.namespace = namespace
         self.stats = CacheStats()
 
@@ -113,46 +83,16 @@ class CacheBackend(ABC):
         pass
 
     def make_key(self, *parts: str) -> str:
-        """
-        Create namespaced cache key.
-
-        Args:
-            *parts: Key components
-
-        Returns:
-            Namespaced cache key
-        """
         return f"{self.namespace}:{':'.join(parts)}"
 
     def hash_key(self, data: str) -> str:
-        """
-        Create hash of data for cache key.
-
-        Args:
-            data: Data to hash
-
-        Returns:
-            SHA256 hash hex string
-        """
         return hashlib.sha256(data.encode()).hexdigest()
 
 
 class MemoryCache(CacheBackend):
-    """
-    In-memory cache implementation.
-
-    Fast, simple cache with LRU eviction. No persistence.
-    Good for testing and fallback when Redis unavailable.
-    """
+    """LRU in-memory cache. No persistence; used for testing and Redis fallback."""
 
     def __init__(self, namespace: str = "localchat", max_size: int = 1000):
-        """
-        Initialize memory cache.
-
-        Args:
-            namespace: Cache namespace
-            max_size: Maximum number of items
-        """
         super().__init__(namespace)
         self.max_size = max_size
         self.stats.max_size = max_size
@@ -250,12 +190,7 @@ class MemoryCache(CacheBackend):
 
 
 class RedisCache(CacheBackend):
-    """
-    Redis cache implementation.
-
-    Production-grade cache with persistence, atomic operations,
-    and distributed support.
-    """
+    """Production cache with persistence, atomic operations, and distributed support."""
 
     def __init__(
         self,
@@ -266,17 +201,6 @@ class RedisCache(CacheBackend):
         password: str | None = None,
         socket_timeout: float = 5.0
     ):
-        """
-        Initialize Redis cache.
-
-        Args:
-            namespace: Cache namespace
-            host: Redis host
-            port: Redis port
-            db: Redis database number
-            password: Redis password (optional)
-            socket_timeout: Socket timeout in seconds
-        """
         super().__init__(namespace)
 
         try:
@@ -414,24 +338,7 @@ def create_cache_backend(
     namespace: str = "localchat",
     **kwargs
 ) -> CacheBackend:
-    """
-    Factory function to create cache backend.
-
-    Args:
-        backend: Backend type ('memory' or 'redis')
-        namespace: Cache namespace
-        **kwargs: Backend-specific arguments
-
-    Returns:
-        Configured cache backend
-
-    Example:
-        >>> # Memory cache
-        >>> cache = create_cache_backend('memory', max_size=1000)
-        >>>
-        >>> # Redis cache
-        >>> cache = create_cache_backend('redis', host='localhost', port=6379)
-    """
+    """Factory: 'memory' (default) or 'redis'."""
     if backend == "redis":
         # No silent fallback — caller decides what to do on failure.
         # Set REDIS_STRICT=false in config to opt into soft fallback at the bootstrap level.

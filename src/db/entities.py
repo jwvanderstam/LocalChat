@@ -1,10 +1,3 @@
-"""
-Knowledge Graph Operations
-==========================
-
-Mixin providing entity and relation CRUD for the GraphRAG feature.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

@@ -1,18 +1,3 @@
-"""
-Built-in Tools
-==============
-
-Ready-to-use tools that are registered automatically when the ``tools``
-package is imported.
-
-Tools:
-    search_documents  - Search the RAG vector database.
-    list_documents    - List all ingested documents.
-    get_current_datetime - Return the current date and time.
-    calculate         - Evaluate a basic arithmetic expression.
-
-"""
-
 from __future__ import annotations
 
 import ast as _ast
