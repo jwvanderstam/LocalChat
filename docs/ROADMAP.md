@@ -365,7 +365,7 @@ A small but real constraint: the deployment hardware has a finite memory budget 
 
 ---
 
-### MM-1 — Vendor-neutral, environment-aware model availability
+### MM-1 — Vendor-neutral, environment-aware model availability ✅ (done, merged #120)
 
 **Why:** A model selected without regard to the memory budget causes a hard OOM at load, a runtime error mid-inference, or silent CPU-offload that destroys throughput. Today nothing prevents this. Only models that fit — at the configured quantisation and context length, after reserving headroom for embeddings, reranker, and KV-cache — should be selectable.
 
@@ -522,12 +522,12 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 |---|---|---|
 | 1 | HK-1..HK-6 ✅ done & merged (#105): hygiene, config consolidation, Flask eliminated, docs synced, CI gate | — |
 | 1b | HK-7 ✅ (data-access boundary sealed, #116) + HK-8 ✅ (Ollama async/httpx) + HK-9 ✅ (handler boundary) — all done & merged | — |
-| 2 | 🚧 CW-1 (document soft-delete pilot) | 1 week |
+| 2 | CW-1 (document soft-delete pilot) ✅ done & merged (#119) | — |
 | 3 | CW-2a + CW-2b (conversations, users) | 1 week |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) | 1 week |
 | 5 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
 | 6 | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
-| 7 | MM-1 (environment-aware model availability) — independent, can run in parallel | 1 week |
+| 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) | — |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
@@ -536,7 +536,8 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 | **Total** | | **~13–14 weeks** |
 
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
-> MM-1 is independent of the CW/RBAC/GKB/PC chain — it touches only `src/gpu/`, `gpu_monitor.py`, `ollama_client.py`, and the model route. Shown at Sprint 7 but can run in parallel with any earlier sprint if a second hand is available.
+> **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
+> **Active:** Sprint 3 (CW-2a + CW-2b — conversations and users soft-delete).
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
 ---
