@@ -443,7 +443,7 @@ class TestGetGpuInfo:
         assert mock_run.call_count == 2
 
     def test_running_models_cache_hit_skips_http(self):
-        """get_running_models returns cached data and does not make a second HTTP call."""
+        """Background call populates cache; request-path calls never hit the network."""
         client = self._make_client()
         models_payload = {"models": [{"name": "llama3:latest"}]}
 
@@ -453,11 +453,11 @@ class TestGetGpuInfo:
             mock_resp.json.return_value = models_payload
             mock_get.return_value = mock_resp
 
-            first = client.get_running_models()
-            second = client.get_running_models()   # cache hit
+            from_background = client.get_running_models(_background=True)  # live HTTP
+            from_request = client.get_running_models()                      # cache hit
 
-        assert first == second
-        assert mock_get.call_count == 1
+        assert from_background == from_request
+        assert mock_get.call_count == 1  # only the background call hit the network
 
     def test_running_models_returns_stale_cache_on_error(self):
         """Stale cached data is returned when the /api/ps request fails."""

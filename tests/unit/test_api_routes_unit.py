@@ -350,43 +350,51 @@ class TestApiStatus:
 
 
 # ===========================================================================
-# _check_ollama_live — TTL cache + live check
+# check_ollama_live — background refresh, never blocks request path
 # ===========================================================================
 
 class TestCheckOllamaLive:
-    def _make_app_state(self, check_ok=True):
+    def _make_app_state(self, ollama_ok: bool = True) -> MagicMock:
         app_state = MagicMock()
-        app_state.startup_status = {"database": True, "ollama": False, "ready": False}
-        if check_ok:
-            app_state.ollama_client.check_connection.return_value = (True, "OK")
-        else:
-            app_state.ollama_client.check_connection.side_effect = ConnectionError("timeout")
+        app_state.startup_status = {"database": True, "ollama": ollama_ok, "ready": ollama_ok}
+        app_state.ollama_client.check_connection.return_value = (True, "OK")
         return app_state
 
-    def test_cache_hit_returns_cached_value(self):
+    def _live_thread_ctx(self):
+        import src.services.chat as chat_svc
+        t = MagicMock()
+        t.is_alive.return_value = True
+        return patch.object(chat_svc, '_ollama_refresh_thread', t)
+
+    def test_returns_cached_value_without_live_check(self):
+        """check_connection is never called — always served from cache."""
         import src.services.chat as chat_svc
         app_state = self._make_app_state()
-        fresh_time = time.monotonic()
-        with patch.object(chat_svc, '_ollama_status_cache', [True, fresh_time]):
+        with patch.object(chat_svc, '_ollama_status_cache', [True, time.monotonic()]), \
+             self._live_thread_ctx():
             result = chat_svc.check_ollama_live(app_state)
         assert result is True
         app_state.ollama_client.check_connection.assert_not_called()
 
-    def test_cache_miss_live_check_success(self):
+    def test_seeds_from_bootstrap_status_on_first_call(self):
+        """timestamp==0.0 seeds from startup_status without an HTTP call."""
         import src.services.chat as chat_svc
-        app_state = self._make_app_state(check_ok=True)
-        with patch.object(chat_svc, '_ollama_status_cache', [False, 0.0]):
+        app_state = self._make_app_state(ollama_ok=True)
+        with patch.object(chat_svc, '_ollama_status_cache', [False, 0.0]), \
+             self._live_thread_ctx():
             result = chat_svc.check_ollama_live(app_state)
         assert result is True
-        assert app_state.startup_status['ollama'] is True
+        app_state.ollama_client.check_connection.assert_not_called()
 
-    def test_cache_miss_live_check_failure(self):
+    def test_seeds_false_when_bootstrap_reported_unavailable(self):
+        """First call reflects bootstrap failure without touching Ollama."""
         import src.services.chat as chat_svc
-        app_state = self._make_app_state(check_ok=False)
-        with patch.object(chat_svc, '_ollama_status_cache', [True, 0.0]):
+        app_state = self._make_app_state(ollama_ok=False)
+        with patch.object(chat_svc, '_ollama_status_cache', [True, 0.0]), \
+             self._live_thread_ctx():
             result = chat_svc.check_ollama_live(app_state)
         assert result is False
-        assert app_state.startup_status['ollama'] is False
+        app_state.ollama_client.check_connection.assert_not_called()
 
 
 # ===========================================================================
