@@ -365,7 +365,7 @@ A small but real constraint: the deployment hardware has a finite memory budget 
 
 ---
 
-### MM-1 — Vendor-neutral, environment-aware model availability
+### MM-1 — Vendor-neutral, environment-aware model availability ✅ (done, merged #120)
 
 **Why:** A model selected without regard to the memory budget causes a hard OOM at load, a runtime error mid-inference, or silent CPU-offload that destroys throughput. Today nothing prevents this. Only models that fit — at the configured quantisation and context length, after reserving headroom for embeddings, reranker, and KV-cache — should be selectable.
 
@@ -442,13 +442,26 @@ The mechanism that lets plugins extend LocalChat without the core ever depending
 
 ### PC-1 — Service catalogue and manifest loader
 
+**Current foundation (do not rebuild from scratch).** The following already exists and works:
+- `src/tools/registry.py` — `ToolRegistry` with `@register` decorator, JSON-schema export, execute-by-name, `unregister` for hot-reload.
+- `src/tools/plugin_loader.py` — file-based loader: scans `plugins/*.py`, dynamic import, per-plugin load/unload/hot-reload, error isolation, `PLUGIN_META` dict support.
+- `src/tools/builtin.py` — 4 built-in LLM tools (`search_documents`, `list_documents`, `get_current_datetime`, `calculate`) registered at import time.
+- `GET /api/plugins`, `POST /api/plugins/reload` — already live admin endpoints.
+- `plugins/example_plugin.py` — working demo (`word_count`, `reverse_text`).
+
+PC-1 **extends** this foundation: it adds the manifest contract, service injection, and the `PluginServices` provider. It does not replace or rewrite what is already there.
+
 **What it builds:** the inward-facing capability surface plugins request by name.
 
 - A `PluginServices` provider assembled at startup, exposing handles: `retrieval` (wraps `retrieve_context` incl. `scope`), `llm` (wraps `OllamaClient`), `storage` (namespaced DB handle + optional Clark-Wilson helpers), `config` (validated access to declared keys), `identity` (wraps `require_role_dep`).
 - Manifest reading in `src/tools/plugin_loader.py`: parse `PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_CONTRIBUTES`, `PLUGIN_HOOKS`, `PLUGIN_CONFIG`; validate; register config keys; inject service handles.
 - A malformed/failing manifest disables that plugin and logs; startup proceeds.
 
-**Files:** `src/tools/plugin_loader.py`, new `src/plugins/services.py`, `src/config.py` (dynamic key registration)
+**Migration items bundled into PC-1:**
+- `plugins/example_plugin.py` currently does `from src.tools.registry import tool_registry` directly — importing a core internal. When PC-1 lands, convert it to use the injected service handle and update `plugins/README.md` to reflect the new contract. Retire it when PC-3 delivers `plugins/_echo/`, which supersedes it as the canonical reference.
+- `src/tools/builtin.py` — `search_documents` and `list_documents` do lazy singleton imports (`from ..rag import doc_processor`, `from ..db import db`) inside the function body. Migrate them to use the `retrieval` and `storage` service handles respectively so built-in tools follow the same contract as plugin tools.
+
+**Files:** `src/tools/plugin_loader.py`, new `src/plugins/services.py`, `src/config.py` (dynamic key registration), `src/tools/builtin.py`, `plugins/example_plugin.py`, `plugins/README.md`
 
 **Tests:** unit per service handle (mock backend); unit for manifest validation (good + malformed); manifest config keys land in config service with defaults.
 
@@ -474,8 +487,9 @@ The mechanism that lets plugins extend LocalChat without the core ever depending
 
 - `plugins/_echo/` — declares a manifest using all hooks, requests every service, and does nothing but echo. Lives in-core as a test fixture, not a private plugin.
 - Each service and hook gets a generic test driven by echo.
+- **Retire `plugins/example_plugin.py`** in this same PR: it predates the contract and is superseded by `_echo/` as the canonical reference. Remove it and update `plugins/README.md` to point to `_echo/` instead.
 
-**Files:** `plugins/_echo/`, `tests/plugins/test_echo_contract.py`
+**Files:** `plugins/_echo/`, `tests/plugins/test_echo_contract.py`, ~~`plugins/example_plugin.py`~~ (deleted)
 
 ---
 
@@ -522,12 +536,12 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 |---|---|---|
 | 1 | HK-1..HK-6 ✅ done & merged (#105): hygiene, config consolidation, Flask eliminated, docs synced, CI gate | — |
 | 1b | HK-7 ✅ (data-access boundary sealed, #116) + HK-8 ✅ (Ollama async/httpx) + HK-9 ✅ (handler boundary) — all done & merged | — |
-| 2 | 🚧 CW-1 (document soft-delete pilot) | 1 week |
+| 2 | CW-1 (document soft-delete pilot) ✅ done & merged (#119) | — |
 | 3 | CW-2a + CW-2b (conversations, users) | 1 week |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) | 1 week |
 | 5 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
 | 6 | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
-| 7 | MM-1 (environment-aware model availability) — independent, can run in parallel | 1 week |
+| 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) | — |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
@@ -536,7 +550,8 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 | **Total** | | **~13–14 weeks** |
 
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
-> MM-1 is independent of the CW/RBAC/GKB/PC chain — it touches only `src/gpu/`, `gpu_monitor.py`, `ollama_client.py`, and the model route. Shown at Sprint 7 but can run in parallel with any earlier sprint if a second hand is available.
+> **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
+> **Active:** Sprint 3 (CW-2a + CW-2b — conversations and users soft-delete).
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
 ---
