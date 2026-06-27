@@ -47,7 +47,7 @@ jobs:
       - name: Security scan (bandit)
         run: |
           pip install bandit
-          bandit -r src/ -ll -q
+          bandit -r src/ -ll -q -c pyproject.toml
 
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short -x
