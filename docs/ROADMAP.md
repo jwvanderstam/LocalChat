@@ -442,13 +442,26 @@ The mechanism that lets plugins extend LocalChat without the core ever depending
 
 ### PC-1 — Service catalogue and manifest loader
 
+**Current foundation (do not rebuild from scratch).** The following already exists and works:
+- `src/tools/registry.py` — `ToolRegistry` with `@register` decorator, JSON-schema export, execute-by-name, `unregister` for hot-reload.
+- `src/tools/plugin_loader.py` — file-based loader: scans `plugins/*.py`, dynamic import, per-plugin load/unload/hot-reload, error isolation, `PLUGIN_META` dict support.
+- `src/tools/builtin.py` — 4 built-in LLM tools (`search_documents`, `list_documents`, `get_current_datetime`, `calculate`) registered at import time.
+- `GET /api/plugins`, `POST /api/plugins/reload` — already live admin endpoints.
+- `plugins/example_plugin.py` — working demo (`word_count`, `reverse_text`).
+
+PC-1 **extends** this foundation: it adds the manifest contract, service injection, and the `PluginServices` provider. It does not replace or rewrite what is already there.
+
 **What it builds:** the inward-facing capability surface plugins request by name.
 
 - A `PluginServices` provider assembled at startup, exposing handles: `retrieval` (wraps `retrieve_context` incl. `scope`), `llm` (wraps `OllamaClient`), `storage` (namespaced DB handle + optional Clark-Wilson helpers), `config` (validated access to declared keys), `identity` (wraps `require_role_dep`).
 - Manifest reading in `src/tools/plugin_loader.py`: parse `PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_CONTRIBUTES`, `PLUGIN_HOOKS`, `PLUGIN_CONFIG`; validate; register config keys; inject service handles.
 - A malformed/failing manifest disables that plugin and logs; startup proceeds.
 
-**Files:** `src/tools/plugin_loader.py`, new `src/plugins/services.py`, `src/config.py` (dynamic key registration)
+**Migration items bundled into PC-1:**
+- `plugins/example_plugin.py` currently does `from src.tools.registry import tool_registry` directly — importing a core internal. When PC-1 lands, convert it to use the injected service handle and update `plugins/README.md` to reflect the new contract. Retire it when PC-3 delivers `plugins/_echo/`, which supersedes it as the canonical reference.
+- `src/tools/builtin.py` — `search_documents` and `list_documents` do lazy singleton imports (`from ..rag import doc_processor`, `from ..db import db`) inside the function body. Migrate them to use the `retrieval` and `storage` service handles respectively so built-in tools follow the same contract as plugin tools.
+
+**Files:** `src/tools/plugin_loader.py`, new `src/plugins/services.py`, `src/config.py` (dynamic key registration), `src/tools/builtin.py`, `plugins/example_plugin.py`, `plugins/README.md`
 
 **Tests:** unit per service handle (mock backend); unit for manifest validation (good + malformed); manifest config keys land in config service with defaults.
 
@@ -474,8 +487,9 @@ The mechanism that lets plugins extend LocalChat without the core ever depending
 
 - `plugins/_echo/` — declares a manifest using all hooks, requests every service, and does nothing but echo. Lives in-core as a test fixture, not a private plugin.
 - Each service and hook gets a generic test driven by echo.
+- **Retire `plugins/example_plugin.py`** in this same PR: it predates the contract and is superseded by `_echo/` as the canonical reference. Remove it and update `plugins/README.md` to point to `_echo/` instead.
 
-**Files:** `plugins/_echo/`, `tests/plugins/test_echo_contract.py`
+**Files:** `plugins/_echo/`, `tests/plugins/test_echo_contract.py`, ~~`plugins/example_plugin.py`~~ (deleted)
 
 ---
 
