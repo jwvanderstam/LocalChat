@@ -1,6 +1,6 @@
 # ROADMAP — v3.0
 
-> **Status:** Planning
+> **Status:** Active
 > **Predecessor:** v2.0 completed May 2026 (dual-stack migration, JWT revocation, Alembic migrations, CI integration tests, chat.js ES modules).
 
 v3.0 targets six workstreams: **repository hygiene & single-framework consolidation** (a clean, remnant-free codebase on one web framework, FastAPI), **data integrity hardening** (Clark-Wilson compliance), **role-based access control** (admin / user / viewer), **two-tier knowledge architecture** (Global Knowledge Base + workspace-scoped projects), **environment-aware model management** (only offer models that fit the hardware), and **a plugin contract** that lets plugins extend the application without destabilising the core.
@@ -114,14 +114,18 @@ Eliminating Flask (HK-4 ✅) gave one framework; it did not make the async/sync 
 
 ---
 
-### HK-7 — Seal the data-access boundary ⬜ (cheap; highest leverage)
+### HK-7 — Seal the data-access boundary ✅ (done, merged #116)
 
 The real insurance against async's contagion. Async is "colour": making the DB async forces every caller up the stack to become async too, and that call-graph **grows with the codebase** — so deferring the conversion makes it *more* expensive over time, not less. The fix is not "go async now" but to ensure all DB access already flows through the `db/` layer, so the async choice lives behind one boundary instead of every call-site.
 
-- Audit: confirm route handlers and RAG code touch the DB **only** via `db/` mixins — no stray `connection` calls outside the layer. *(Unverified: the `db/` mixins exist, but whether the boundary is leak-free is not yet confirmed — this audit may be a small cleanup or real work.)*
-- Close any leaks so the data-access interface is the single chokepoint.
-- Sync, low-risk, valuable on its own (testability, readability). Decouples the *cost* of a future async migration from its *timing*. Same inward-only discipline as the plugin contract.
-- **Acceptance:** no DB access bypasses the `db/` layer; documented as a rule in `.claude/rules/`.
+Full coupling audit completed (#116):
+- Confirmed all route handlers and RAG code reach the DB exclusively through `src/db/` mixins — no stray connection calls outside the layer.
+- `DocumentProcessor` and `retrieve_context` now receive `db` and `ollama_client` by constructor injection rather than importing module-level singletons, making them independently testable.
+- `ConnectorRegistry` access in `connector_routes.py` moved to `request.app.state.connector_registry` (was a direct module import).
+- `RetrievalResult` named tuple replaces bare tuples returned by `retrieve_context()` — typed, readable, future-proof.
+- `AppState` I/O extracted behind a `state_file` parameter — test runs skip all file I/O; production path unchanged.
+- `ChatService` extracted from `api_routes.py` into `src/services/chat.py` — route handlers are now thin HTTP plumbing; all business logic in the service layer.
+- Ollama liveness check and running-models cache made non-blocking: background daemon threads own all live HTTP; request path reads only cached values, eliminating head-of-line blocking when Ollama is loading a model.
 
 ---
 
@@ -517,8 +521,8 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 | Sprint | Tickets | Est. duration |
 |---|---|---|
 | 1 | HK-1..HK-6 ✅ done & merged (#105): hygiene, config consolidation, Flask eliminated, docs synced, CI gate | — |
-| 1b | HK-8 ✅ (Ollama async / httpx) + HK-9 ✅ (handler boundary) done & merged; **HK-7** (seal data-access boundary) ⬜ pending | — |
-| 2 | CW-1 (document soft-delete pilot) | 1 week |
+| 1b | HK-7 ✅ (data-access boundary sealed, #116) + HK-8 ✅ (Ollama async/httpx) + HK-9 ✅ (handler boundary) — all done & merged | — |
+| 2 | 🚧 CW-1 (document soft-delete pilot) | 1 week |
 | 3 | CW-2a + CW-2b (conversations, users) | 1 week |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) | 1 week |
 | 5 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
@@ -531,9 +535,9 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | **Total** | | **~13–14 weeks** |
 
-> HK runs first: tutorial-remnant removal and the `.claude/` ignore fix are done (commit `chore/repo-hygiene`); the MCP→FastAPI port is done (commit `refactor/mcp-servers-fastapi`). Remaining HK: config consolidation (HK-3), finishing Flask elimination with the port-or-delete investigation (HK-4), doc-rot sync (HK-5), and the CI guard (HK-6). HK-4 must precede HK-5 so docs describe the post-consolidation reality.
-> MM-1 is independent of the CW/RBAC/GKB/PC chain — it touches only `gpu_monitor.py`, `ollama_client.py`, and the model route. Shown at Sprint 7 but can run in parallel with any earlier sprint if a second hand is available.
-> The core is fully shippable at the end of Sprint 11 (numbering unchanged; HK-1b runs alongside Sprint 1). PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
+> **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
+> MM-1 is independent of the CW/RBAC/GKB/PC chain — it touches only `src/gpu/`, `gpu_monitor.py`, `ollama_client.py`, and the model route. Shown at Sprint 7 but can run in parallel with any earlier sprint if a second hand is available.
+> The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
 ---
 
