@@ -134,7 +134,7 @@ class WebhookConnector(BaseConnector):
             raise ValueError(f"No fetch_url in webhook event for {source.filename}")
         _validate_fetch_url(fetch_url)
         import urllib.request
-        with urllib.request.urlopen(fetch_url, timeout=30) as resp:  # noqa: S310
+        with urllib.request.urlopen(fetch_url, timeout=30) as resp:  # noqa: S310  # nosec B310
             return resp.read()
 
     # ------------------------------------------------------------------
