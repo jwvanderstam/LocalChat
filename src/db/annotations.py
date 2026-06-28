@@ -64,7 +64,7 @@ class AnnotationsMixin:
                            a.text, a.created_at, u.username
                     FROM annotations a
                     LEFT JOIN users u ON u.id = a.user_id
-                    WHERE a.chunk_id = %s
+                    WHERE a.chunk_id = %s AND a.deleted_at IS NULL
                     ORDER BY a.created_at
                     """,
                     (chunk_id,),
@@ -83,11 +83,16 @@ class AnnotationsMixin:
             for r in rows
         ]
 
-    def delete_annotation(self, annotation_id: str, user_id: str | None = None) -> bool:
-        """Delete an annotation.
+    def delete_annotation(
+        self,
+        annotation_id: str,
+        user_id: str | None = None,
+        deleted_by: str | None = None,
+    ) -> bool:
+        """Soft-delete an annotation.
 
         If *user_id* is provided, only deletes if the annotation belongs to that user.
-        Returns True if a row was deleted.
+        Returns True if a live row was retired.
         """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete annotation: DB not connected")
@@ -95,11 +100,16 @@ class AnnotationsMixin:
             with conn.cursor() as cur:
                 if user_id:
                     cur.execute(
-                        "DELETE FROM annotations WHERE id = %s AND user_id = %s",
-                        (annotation_id, user_id),
+                        "UPDATE annotations SET deleted_at = NOW(), deleted_by = %s "
+                        "WHERE id = %s AND user_id = %s AND deleted_at IS NULL",
+                        (deleted_by, annotation_id, user_id),
                     )
                 else:
-                    cur.execute("DELETE FROM annotations WHERE id = %s", (annotation_id,))
+                    cur.execute(
+                        "UPDATE annotations SET deleted_at = NOW(), deleted_by = %s "
+                        "WHERE id = %s AND deleted_at IS NULL",
+                        (deleted_by, annotation_id),
+                    )
                 deleted = cur.rowcount > 0
                 conn.commit()
         return deleted

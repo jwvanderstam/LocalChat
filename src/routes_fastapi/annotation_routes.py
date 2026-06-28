@@ -55,8 +55,11 @@ def list_chunk_annotations(chunk_id: int, request: Request) -> Any:
 @router.delete("/annotations/{annotation_id}")
 def delete_annotation(annotation_id: str, request: Request) -> Any:
     user_id = get_current_user_id(request)
+    deleted_by = user_id if user_id and user_id != "anonymous" else None
     try:
-        deleted = request.app.state.db.delete_annotation(annotation_id, user_id=user_id)
+        deleted = request.app.state.db.delete_annotation(
+            annotation_id, user_id=user_id, deleted_by=deleted_by
+        )
         if not deleted:
             return JSONResponse({"success": False, "message": "Annotation not found"}, status_code=404)
         return {"success": True}

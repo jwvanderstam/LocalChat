@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from .. import config
+from ..security_fastapi import get_current_user_id
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -75,8 +76,12 @@ async def extract_memories(request: Request) -> Any:
 
 @router.delete("/{memory_id}")
 def delete_memory(memory_id: str, request: Request) -> Any:
+    actor = get_current_user_id(request)
+    deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        request.app.state.db.delete_memory(memory_id)
+        deleted = request.app.state.db.delete_memory(memory_id, deleted_by=deleted_by)
+        if not deleted:
+            return JSONResponse({"success": False, "message": "Memory not found"}, status_code=404)
         return {"success": True}
     except Exception:
         logger.exception("[Memory] delete_memory error")
@@ -85,8 +90,10 @@ def delete_memory(memory_id: str, request: Request) -> Any:
 
 @router.delete("/")
 def delete_all_memories(request: Request) -> Any:
+    actor = get_current_user_id(request)
+    deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        count = request.app.state.db.delete_all_memories()
+        count = request.app.state.db.delete_all_memories(deleted_by=deleted_by)
         return {"success": True, "deleted": count}
     except Exception:
         logger.exception("[Memory] delete_all_memories error")

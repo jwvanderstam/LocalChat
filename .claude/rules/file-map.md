@@ -68,6 +68,10 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0005_document_soft_delete.py` | CW-1: adds documents.deleted_at, deleted_by; document_chunks.deleted_at |
 | `migrations/versions/0006_cw2a_conversations_soft_delete.py` | CW-2a: adds conversations.deleted_at, deleted_by |
 | `migrations/versions/0007_cw2b_users_soft_delete.py` | CW-2b: adds users.deleted_at, deleted_by |
+| `migrations/versions/0008_cw2c_workspaces_soft_delete.py` | CW-2c: adds workspaces.deleted_at, deleted_by |
+| `migrations/versions/0009_cw2d_memories_soft_delete.py` | CW-2d: adds memories.deleted_at, deleted_by |
+| `migrations/versions/0010_cw2e_annotations_soft_delete.py` | CW-2e: adds annotations.deleted_at, deleted_by |
+| `migrations/versions/0011_cw2f_connectors_soft_delete.py` | CW-2f: adds connectors.deleted_at, deleted_by |
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
 | **Agent** | |
 | `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); <1 ms |

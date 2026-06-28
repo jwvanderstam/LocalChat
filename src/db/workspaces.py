@@ -59,7 +59,7 @@ class WorkspacesMixin:
                 cur.execute(
                     """
                     SELECT id, name, description, system_prompt, model_class, created_at
-                    FROM workspaces WHERE id = %s
+                    FROM workspaces WHERE id = %s AND deleted_at IS NULL
                     """,
                     (workspace_id,),
                 )
@@ -81,8 +81,9 @@ class WorkspacesMixin:
                            COUNT(DISTINCT d.id)  AS document_count,
                            COUNT(DISTINCT c.id)  AS conversation_count
                     FROM   workspaces w
-                    LEFT JOIN documents     d ON d.workspace_id = w.id
-                    LEFT JOIN conversations c ON c.workspace_id = w.id
+                    LEFT JOIN documents     d ON d.workspace_id = w.id AND d.deleted_at IS NULL
+                    LEFT JOIN conversations c ON c.workspace_id = w.id AND c.deleted_at IS NULL
+                    WHERE  w.deleted_at IS NULL
                     GROUP BY w.id
                     ORDER BY w.created_at
                     """
@@ -99,7 +100,7 @@ class WorkspacesMixin:
             return None
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT id FROM workspaces ORDER BY created_at LIMIT 1")
+                cur.execute("SELECT id FROM workspaces WHERE deleted_at IS NULL ORDER BY created_at LIMIT 1")
                 row = cur.fetchone()
         return str(row[0]) if row else None
 
@@ -147,12 +148,40 @@ class WorkspacesMixin:
     # Delete
     # ------------------------------------------------------------------
 
-    def delete_workspace(self, workspace_id: str) -> bool:
-        """Delete a workspace (cascades to member rows). Returns True if deleted."""
+    def delete_workspace(self, workspace_id: str, deleted_by: str | None = None) -> bool:
+        """Soft-delete a workspace. Returns True if a live row was retired."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete workspace: DB not connected")
         with self.get_connection() as conn:
             with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE workspaces SET deleted_at = NOW(), deleted_by = %s "
+                    "WHERE id = %s AND deleted_at IS NULL",
+                    (deleted_by, workspace_id),
+                )
+                return cur.rowcount > 0
+
+    def purge_workspace(self, workspace_id: str) -> bool:
+        """Hard-delete a soft-deleted workspace if it has no live documents or conversations.
+
+        Returns False when blocked; True on success.
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot purge workspace: DB not connected")
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM documents WHERE workspace_id = %s AND deleted_at IS NULL LIMIT 1",
+                    (workspace_id,),
+                )
+                if cur.fetchone():
+                    return False
+                cur.execute(
+                    "SELECT 1 FROM conversations WHERE workspace_id = %s AND deleted_at IS NULL LIMIT 1",
+                    (workspace_id,),
+                )
+                if cur.fetchone():
+                    return False
                 cur.execute("DELETE FROM workspaces WHERE id = %s", (workspace_id,))
                 return cur.rowcount > 0
 
@@ -278,7 +307,7 @@ class WorkspacesMixin:
                     SELECT w.id, w.name, w.description, w.system_prompt, w.model_class,
                            w.created_at, wm.role
                     FROM workspace_members wm
-                    JOIN workspaces w ON w.id = wm.workspace_id
+                    JOIN workspaces w ON w.id = wm.workspace_id AND w.deleted_at IS NULL
                     WHERE wm.user_id = %s
                     ORDER BY w.created_at
                     """,

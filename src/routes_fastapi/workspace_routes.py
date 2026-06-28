@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import config
-from ..security_fastapi import get_current_user_id
+from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
 
@@ -134,15 +134,41 @@ async def update_workspace(workspace_id: str, request: Request) -> Any:
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
+@router.delete("/workspaces/{workspace_id}/purge")
+def purge_workspace(
+    workspace_id: str,
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+) -> Any:
+    try:
+        purged = request.app.state.db.purge_workspace(workspace_id)
+        if not purged:
+            return JSONResponse(
+                {
+                    "success": False,
+                    "message": (
+                        "Workspace cannot be purged: it still contains active documents "
+                        "or conversations. Soft-delete or purge those first."
+                    ),
+                },
+                status_code=409,
+            )
+        return {"success": True}
+    except Exception:
+        logger.exception("[Workspaces] purge error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
 @router.delete("/workspaces/{workspace_id}")
 def delete_workspace(workspace_id: str, request: Request) -> Any:
-    caller = get_current_user_id(request) or "admin"
+    caller = get_current_user_id(request)
+    deleted_by = caller if caller and caller != "anonymous" else None
     db = request.app.state.db
-    role = db.get_workspace_member_role(workspace_id, caller)
+    role = db.get_workspace_member_role(workspace_id, caller or "")
     if role is not None and role != "owner":
         return JSONResponse({"success": False, "message": _ERR_FORBIDDEN}, status_code=403)
     try:
-        deleted = db.delete_workspace(workspace_id)
+        deleted = db.delete_workspace(workspace_id, deleted_by=deleted_by)
         if not deleted:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         fallback_id = db.get_default_workspace_id()

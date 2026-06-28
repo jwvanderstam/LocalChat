@@ -72,25 +72,34 @@ class MemoriesMixin:
                 )
                 conn.commit()
 
-    def delete_memory(self, memory_id: str) -> None:
-        """Delete a single memory by UUID."""
+    def delete_memory(self, memory_id: str, deleted_by: str | None = None) -> bool:
+        """Soft-delete a single memory by UUID. Returns True if a live row was retired."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete memory: Database not connected")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("DELETE FROM memories WHERE id = %s::uuid", (memory_id,))
+                cursor.execute(
+                    "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
+                    "WHERE id = %s::uuid AND deleted_at IS NULL",
+                    (deleted_by, memory_id),
+                )
                 conn.commit()
+                return cursor.rowcount > 0
 
-    def delete_all_memories(self) -> int:
-        """Delete all memories. Returns count deleted."""
+    def delete_all_memories(self, deleted_by: str | None = None) -> int:
+        """Soft-delete all memories. Returns count retired."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete memories: Database not connected")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("DELETE FROM memories")
+                cursor.execute(
+                    "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
+                    "WHERE deleted_at IS NULL",
+                    (deleted_by,),
+                )
                 count = cursor.rowcount
                 conn.commit()
-        logger.info(f"Deleted {count} memories")
+        logger.info(f"Soft-deleted {count} memories")
         return count
 
     def mark_conversation_extracted(self, conversation_id: str) -> None:
@@ -126,6 +135,7 @@ class MemoriesMixin:
                            1 - (embedding <=> %s::vector) AS similarity
                     FROM memories
                     WHERE embedding IS NOT NULL
+                      AND deleted_at IS NULL
                       AND 1 - (embedding <=> %s::vector) >= %s
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s
@@ -157,6 +167,7 @@ class MemoriesMixin:
                     """
                     SELECT 1 FROM memories
                     WHERE embedding IS NOT NULL
+                      AND deleted_at IS NULL
                       AND 1 - (embedding <=> %s::vector) >= %s
                     LIMIT 1
                     """,
@@ -177,6 +188,7 @@ class MemoriesMixin:
                     SELECT id::text, content, memory_type, confidence,
                            created_at, last_used, use_count, source_conv::text
                     FROM memories
+                    WHERE deleted_at IS NULL
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
@@ -204,8 +216,8 @@ class MemoriesMixin:
                     """
                     SELECT id::text, title, updated_at
                     FROM conversations
-                    WHERE memory_extracted_at IS NULL
-                       OR memory_extracted_at < updated_at
+                    WHERE deleted_at IS NULL
+                      AND (memory_extracted_at IS NULL OR memory_extracted_at < updated_at)
                     ORDER BY updated_at DESC
                     LIMIT %s
                     """,
