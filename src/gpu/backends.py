@@ -146,8 +146,7 @@ def detect(force: str = "auto") -> GpuBackend:
         backend = NvidiaBackend.probe()
         return backend if backend is not None else CpuBackend.probe()
     if force == "amd":
-        backend = AmdBackend.probe()
-        return backend if backend is not None else CpuBackend.probe()
+        return CpuBackend.probe()  # AMD detection not yet implemented
     if force == "apple":
         backend = AppleBackend.probe()
         return backend if backend is not None else CpuBackend.probe()
@@ -159,10 +158,6 @@ def detect(force: str = "auto") -> GpuBackend:
     if nvidia is not None:
         logger.info("GPU backend: NVIDIA (%d MB total, %d MB free)", nvidia.total_mb, nvidia.free_mb)
         return nvidia
-    amd = AmdBackend.probe()
-    if amd is not None:
-        logger.info("GPU backend: AMD (%d MB total, %d MB free)", amd.total_mb, amd.free_mb)
-        return amd
     apple = AppleBackend.probe()
     if apple is not None:
         logger.info("GPU backend: Apple unified memory (%d MB total)", apple.total_mb)

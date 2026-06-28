@@ -8,7 +8,7 @@ import queue
 import threading
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -282,7 +282,7 @@ def api_clear_documents(request: Request) -> Any:
 def api_purge_document(
     doc_id: int,
     request: Request,
-    admin_user_id: str = Depends(require_admin_dep),  # noqa: B008
+    admin_user_id: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     """Hard-delete a soft-deleted document if no chunk_stats citation exists."""
     try:
@@ -312,7 +312,7 @@ def api_purge_document(
 def api_delete_document(
     doc_id: int,
     request: Request,
-    admin_user_id: str = Depends(require_admin_dep),  # noqa: B008
+    admin_user_id: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     """Soft-delete a document (sets deleted_at). Does not remove rows or files."""
     try:

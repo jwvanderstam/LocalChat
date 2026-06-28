@@ -109,7 +109,7 @@ class DocumentsMixin:
                     (deleted_by, doc_id),
                 )
                 conn.commit()
-        logger.info("Document %s soft-deleted by %s", doc_id, deleted_by)
+        logger.info("Document %s soft-deleted", doc_id)
 
     def purge_document(self, doc_id: int) -> bool:
         """
