@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 
+from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
 
@@ -40,7 +43,11 @@ async def create_conversation(request: Request) -> Any:
 
 @router.delete("/conversations")
 def delete_all_conversations(request: Request) -> Any:
-    deleted = request.app.state.db.delete_all_conversations(workspace_id=get_workspace_id(request))
+    actor = get_current_user_id(request)
+    deleted_by = actor if actor and actor != "anonymous" else None
+    deleted = request.app.state.db.delete_all_conversations(
+        workspace_id=get_workspace_id(request), deleted_by=deleted_by
+    )
     return {"success": True, "deleted": deleted}
 
 
@@ -150,9 +157,32 @@ async def update_conversation(conversation_id: str, request: Request) -> Any:
     return {"id": conversation_id, "title": title}
 
 
+@router.delete("/conversations/{conversation_id}/purge")
+def purge_conversation(
+    conversation_id: str,
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+) -> Any:
+    purged = request.app.state.db.purge_conversation(conversation_id)
+    if not purged:
+        return JSONResponse(
+            {
+                "success": False,
+                "message": (
+                    "Conversation cannot be purged: one or more memories cite it. "
+                    "Remove those memories first or leave the conversation soft-deleted."
+                ),
+            },
+            status_code=409,
+        )
+    return {"success": True}
+
+
 @router.delete("/conversations/{conversation_id}")
 def delete_conversation(conversation_id: str, request: Request) -> Any:
-    deleted = request.app.state.db.delete_conversation(conversation_id)
+    actor = get_current_user_id(request)
+    deleted_by = actor if actor and actor != "anonymous" else None
+    deleted = request.app.state.db.delete_conversation(conversation_id, deleted_by=deleted_by)
     if not deleted:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"success": True}

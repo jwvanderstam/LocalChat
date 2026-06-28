@@ -92,7 +92,7 @@ class UsersMixin:
                 cur.execute(
                     """
                     SELECT id, username, email, hashed_password, is_active, role, created_at
-                    FROM users WHERE username = %s
+                    FROM users WHERE username = %s AND deleted_at IS NULL
                     """,
                     (username.lower().strip(),),
                 )
@@ -108,7 +108,7 @@ class UsersMixin:
                 cur.execute(
                     """
                     SELECT id, username, email, hashed_password, is_active, role, created_at
-                    FROM users WHERE id = %s
+                    FROM users WHERE id = %s AND deleted_at IS NULL
                     """,
                     (user_id,),
                 )
@@ -116,7 +116,7 @@ class UsersMixin:
         return _row_to_user(row) if row else None
 
     def list_users(self) -> list[dict[str, Any]]:
-        """Return all users (hashed_password excluded)."""
+        """Return all live (non-deleted) users (hashed_password excluded)."""
         if not self.is_connected:
             return []
         with self.get_connection() as conn:
@@ -124,19 +124,19 @@ class UsersMixin:
                 cur.execute(
                     """
                     SELECT id, username, email, hashed_password, is_active, role, created_at
-                    FROM users ORDER BY created_at
+                    FROM users WHERE deleted_at IS NULL ORDER BY created_at
                     """
                 )
                 rows = cur.fetchall()
         return [_row_to_user(r) for r in rows]
 
     def count_users(self) -> int:
-        """Return total number of users."""
+        """Return count of live (non-deleted) users."""
         if not self.is_connected:
             return 0
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM users")
+                cur.execute("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
                 return cur.fetchone()[0]
 
     # ------------------------------------------------------------------
@@ -168,14 +168,36 @@ class UsersMixin:
     # Delete
     # ------------------------------------------------------------------
 
-    def delete_user(self, user_id: str) -> bool:
-        """Delete a user. Returns True if deleted."""
+    def delete_user(self, user_id: str, deleted_by: str | None = None) -> bool:
+        """Soft-delete a user. Returns True if a live row was retired."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete user: DB not connected")
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+                cur.execute(
+                    "UPDATE users SET deleted_at = NOW(), deleted_by = %s WHERE id = %s AND deleted_at IS NULL",
+                    (deleted_by, user_id),
+                )
                 return cur.rowcount > 0
+
+    def purge_user(self, user_id: str) -> bool:
+        """Hard-delete a soft-deleted user if no workspace memberships exist. Returns False when blocked."""
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot purge user: DB not connected")
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM workspace_members WHERE user_id = %s LIMIT 1",
+                    (user_id,),
+                )
+                if cur.fetchone():
+                    logger.debug(f"Purge blocked: user {user_id} has workspace memberships")
+                    return False
+                cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+                deleted = cur.rowcount > 0
+        if deleted:
+            logger.info(f"Purged user: {user_id}")
+        return deleted
 
     # ------------------------------------------------------------------
     # Password helpers
