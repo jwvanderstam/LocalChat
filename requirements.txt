@@ -18,7 +18,7 @@ psycopg[binary]>=3.3.4
 psycopg-pool>=3.3.1
 
 # Database migrations
-alembic>=1.18.4
+alembic>=1.18.5
 sqlalchemy>=2.0.51  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
