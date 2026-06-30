@@ -296,7 +296,7 @@ class TestLongtermMemoryRoutes:
         from src.routes_fastapi.longterm_memory_routes import router
 
         state = _base_state()
-        state.db.delete_memory.return_value = None
+        state.db.delete_memory.return_value = True
         client = _make_client(router, "/api/memory", state)
         resp = client.delete("/api/memory/mem-id-1")
         assert resp.status_code == 200

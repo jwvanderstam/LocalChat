@@ -62,7 +62,7 @@ class ConnectorsMixin:
                 cur.execute(
                     "SELECT id, workspace_id, connector_type, display_name, config, "
                     "enabled, sync_interval, last_sync_at, last_error, created_at "
-                    "FROM connectors WHERE id = %s",
+                    "FROM connectors WHERE id = %s AND deleted_at IS NULL",
                     (connector_id,),
                 )
                 row = cur.fetchone()
@@ -83,7 +83,8 @@ class ConnectorsMixin:
             params.append(workspace_id)
         if enabled_only:
             clauses.append("enabled = true")
-        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        clauses.append("deleted_at IS NULL")
+        where = "WHERE " + " AND ".join(clauses)
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -122,12 +123,36 @@ class ConnectorsMixin:
                 conn.commit()
         return updated
 
-    def delete_connector(self, connector_id: str) -> bool:
-        """Delete a connector and its sync log. Returns True if deleted."""
+    def delete_connector(self, connector_id: str, deleted_by: str | None = None) -> bool:
+        """Soft-delete a connector. Returns True if a live row was retired."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete connector: DB not connected")
         with self.get_connection() as conn:
             with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE connectors SET deleted_at = NOW(), deleted_by = %s "
+                    "WHERE id = %s AND deleted_at IS NULL",
+                    (deleted_by, connector_id),
+                )
+                deleted = cur.rowcount > 0
+                conn.commit()
+        return deleted
+
+    def purge_connector(self, connector_id: str) -> bool:
+        """Hard-delete a soft-deleted connector if it has no live synced documents.
+
+        Returns False when blocked; True on success.
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot purge connector: DB not connected")
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM documents WHERE source_id = %s AND deleted_at IS NULL LIMIT 1",
+                    (connector_id,),
+                )
+                if cur.fetchone():
+                    return False
                 cur.execute("DELETE FROM connectors WHERE id = %s", (connector_id,))
                 deleted = cur.rowcount > 0
                 conn.commit()
@@ -246,13 +271,15 @@ class ConnectorsMixin:
         ]
 
     def delete_document_by_filename(self, filename: str) -> bool:
-        """Delete a document and all its chunks by filename. Returns True if found."""
+        """Soft-delete a document by filename (used by SyncWorker). Returns True if found."""
         if not self.is_connected:
             return False
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM documents WHERE filename = %s", (filename,)
+                    "UPDATE documents SET deleted_at = NOW(), deleted_by = NULL "
+                    "WHERE filename = %s AND deleted_at IS NULL",
+                    (filename,),
                 )
                 deleted = cur.rowcount > 0
                 conn.commit()

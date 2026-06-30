@@ -45,6 +45,7 @@ def _make_app(
     test_app.state.db = mock_db
     test_app.state.startup_status = {"database": db_ok}
     test_app.state.ollama_client = MagicMock()
+    test_app.state.testing = True
     test_app._active_model = active_model
 
     client = TestClient(test_app, raise_server_exceptions=False)
@@ -194,7 +195,7 @@ class TestDeleteMemory:
     def test_calls_db_delete_with_id(self):
         app, client = _make_app()
         client.delete("/api/memory/abc-123")
-        app.state.db.delete_memory.assert_called_once_with("abc-123")
+        app.state.db.delete_memory.assert_called_once_with("abc-123", deleted_by=None)
 
     def test_db_raises_returns_500(self):
         app, client = _make_app()

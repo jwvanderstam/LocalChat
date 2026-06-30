@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import threading
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from ..security_fastapi import get_current_user_id
+from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
 
@@ -135,10 +135,37 @@ async def update_connector(connector_id: str, request: Request) -> Any:
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
+@router.delete("/connectors/{connector_id}/purge")
+def purge_connector(
+    connector_id: str,
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+) -> Any:
+    try:
+        purged = request.app.state.db.purge_connector(connector_id)
+        if not purged:
+            return JSONResponse(
+                {
+                    "success": False,
+                    "message": (
+                        "Connector cannot be purged: it has active synced documents. "
+                        "Soft-delete those documents first."
+                    ),
+                },
+                status_code=409,
+            )
+        return {"success": True}
+    except Exception:
+        logger.exception("[Connectors] purge error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
 @router.delete("/connectors/{connector_id}")
 def delete_connector(connector_id: str, request: Request) -> Any:
+    actor = get_current_user_id(request)
+    deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        deleted = request.app.state.db.delete_connector(connector_id)
+        deleted = request.app.state.db.delete_connector(connector_id, deleted_by=deleted_by)
         if not deleted:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         request.app.state.connector_registry.remove(connector_id)
