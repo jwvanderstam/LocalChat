@@ -100,10 +100,31 @@ async def update_user(user_id: str, request: Request, _admin: Annotated[str, Dep
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
-@router.delete("/users/{user_id}")
-def delete_user(user_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
+@router.delete("/users/{user_id}/purge")
+def purge_user(user_id: str, request: Request, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
-        deleted = request.app.state.db.delete_user(user_id)
+        purged = request.app.state.db.purge_user(user_id)
+        if not purged:
+            return JSONResponse(
+                {
+                    "success": False,
+                    "message": (
+                        "User cannot be purged: active workspace memberships exist. "
+                        "Remove the user from all workspaces first."
+                    ),
+                },
+                status_code=409,
+            )
+        return {"success": True}
+    except Exception:
+        logger.exception("[Users] purge error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: str, request: Request, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
+    try:
+        deleted = request.app.state.db.delete_user(user_id, deleted_by=admin_user_id)
         if not deleted:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True}

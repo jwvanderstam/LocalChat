@@ -111,7 +111,7 @@ class ConversationsMixin:
                                COUNT(cm.id) AS message_count
                         FROM conversations c
                         LEFT JOIN conversation_messages cm ON c.id = cm.conversation_id
-                        WHERE c.workspace_id = %s
+                        WHERE c.workspace_id = %s AND c.deleted_at IS NULL
                         GROUP BY c.id, c.title, c.created_at, c.updated_at
                         ORDER BY c.updated_at DESC
                         LIMIT %s OFFSET %s
@@ -122,6 +122,7 @@ class ConversationsMixin:
                                COUNT(cm.id) AS message_count
                         FROM conversations c
                         LEFT JOIN conversation_messages cm ON c.id = cm.conversation_id
+                        WHERE c.deleted_at IS NULL
                         GROUP BY c.id, c.title, c.created_at, c.updated_at
                         ORDER BY c.updated_at DESC
                         LIMIT %s OFFSET %s
@@ -151,13 +152,14 @@ class ConversationsMixin:
                     SELECT cm.role, cm.content, cm.created_at
                     FROM conversations c
                     JOIN conversation_messages cm ON cm.conversation_id = c.id
-                    WHERE c.id = %s
+                    WHERE c.id = %s AND c.deleted_at IS NULL
                     ORDER BY cm.created_at ASC, cm.id ASC
                 """, (conversation_id,))
                 rows = cursor.fetchall()
                 if not rows:
                     cursor.execute(
-                        "SELECT 1 FROM conversations WHERE id = %s", (conversation_id,)
+                        "SELECT 1 FROM conversations WHERE id = %s AND deleted_at IS NULL",
+                        (conversation_id,),
                     )
                     if not cursor.fetchone():
                         return None
@@ -224,7 +226,7 @@ class ConversationsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                    "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND deleted_at IS NULL",
                     (title[:255], conversation_id),
                 )
                 updated = cursor.rowcount > 0
@@ -239,7 +241,7 @@ class ConversationsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT document_ids FROM conversations WHERE id = %s",
+                    "SELECT document_ids FROM conversations WHERE id = %s AND deleted_at IS NULL",
                     (conversation_id,),
                 )
                 row = cursor.fetchone()
@@ -258,7 +260,7 @@ class ConversationsMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE conversations SET document_ids = %s::jsonb WHERE id = %s",
+                    "UPDATE conversations SET document_ids = %s::jsonb WHERE id = %s AND deleted_at IS NULL",
                     (_json.dumps(filenames), conversation_id),
                 )
                 updated = cursor.rowcount > 0
@@ -267,22 +269,24 @@ class ConversationsMixin:
             logger.debug(f"Set document filter for {conversation_id}: {filenames}")
         return updated
 
-    def delete_conversation(self, conversation_id: str) -> bool:
+    def delete_conversation(self, conversation_id: str, deleted_by: str | None = None) -> bool:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversation: Database is not connected")
 
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "DELETE FROM conversations WHERE id = %s", (conversation_id,)
+                    "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s WHERE id = %s AND deleted_at IS NULL",
+                    (deleted_by, conversation_id),
                 )
-                deleted = cursor.rowcount > 0
+                updated = cursor.rowcount > 0
                 conn.commit()
-        logger.debug(f"Deleted conversation: {conversation_id}")
-        return deleted
+        if updated:
+            logger.debug(f"Soft-deleted conversation: {conversation_id}")
+        return updated
 
-    def delete_all_conversations(self, workspace_id: str | None = None) -> int:
-        """Delete conversations and their messages (CASCADE); scoped to workspace when provided."""
+    def delete_all_conversations(self, workspace_id: str | None = None, deleted_by: str | None = None) -> int:
+        """Soft-delete conversations; scoped to workspace when provided."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversations: Database is not connected")
 
@@ -290,15 +294,39 @@ class ConversationsMixin:
             with conn.cursor() as cursor:
                 if workspace_id:
                     cursor.execute(
-                        "DELETE FROM conversations WHERE workspace_id = %s",
-                        (workspace_id,),
+                        "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s WHERE workspace_id = %s AND deleted_at IS NULL",
+                        (deleted_by, workspace_id),
                     )
                 else:
-                    logger.warning("Deleting ALL conversations across all workspaces")
-                    cursor.execute("DELETE FROM conversations")
-                deleted = cursor.rowcount
+                    logger.warning("Soft-deleting ALL conversations across all workspaces")
+                    cursor.execute(
+                        "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s WHERE deleted_at IS NULL",
+                        (deleted_by,),
+                    )
+                count = cursor.rowcount
                 conn.commit()
-        logger.info(f"Deleted {deleted} conversations (messages removed via cascade)")
+        logger.info(f"Soft-deleted {count} conversations")
+        return count
+
+    def purge_conversation(self, conversation_id: str) -> bool:
+        """Hard-delete a soft-deleted conversation if no memories cite it. Returns False when blocked."""
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot purge conversation: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT 1 FROM memories WHERE source_conv = %s LIMIT 1",
+                    (conversation_id,),
+                )
+                if cursor.fetchone():
+                    logger.debug(f"Purge blocked: memories cite conversation {conversation_id}")
+                    return False
+                cursor.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
+                deleted = cursor.rowcount > 0
+                conn.commit()
+        if deleted:
+            logger.info(f"Purged conversation: {conversation_id}")
         return deleted
 
     def get_low_confidence_queries(
@@ -314,6 +342,7 @@ class ConversationsMixin:
             return []
         try:
             ws_filter = "AND c.workspace_id = %s" if workspace_id else ""
+            live_filter = "AND c.deleted_at IS NULL"
             params: list[Any] = []
             if workspace_id:
                 params.append(workspace_id)
@@ -326,7 +355,7 @@ class ConversationsMixin:
                         SELECT um.content
                         FROM conversation_messages um
                         JOIN conversations c ON c.id = um.conversation_id
-                        WHERE um.role = 'user' {ws_filter}
+                        WHERE um.role = 'user' {ws_filter} {live_filter}
                           AND (
                             -- has feedback below threshold
                             EXISTS (
