@@ -31,7 +31,7 @@ def export_training_pairs(db: Any, days: int = 7) -> list[dict]:
 
 def write_jsonl(pairs: list[dict], path: str | Path) -> None:
     """Write training pairs to a JSON Lines file."""
-    path = Path(path)
+    path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
         for pair in pairs:

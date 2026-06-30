@@ -176,7 +176,7 @@ def _ollama_refresh_worker(app_state: Any) -> None:
 def check_ollama_live(app_state: Any) -> bool:
     global _ollama_refresh_thread
     with _ollama_status_lock:
-        if _ollama_status_cache[1] == 0.0:
+        if not _ollama_status_cache[1]:
             # First call: seed from bootstrap result so we don't briefly report False
             _ollama_status_cache[:] = [
                 app_state.startup_status.get("ollama", False),
