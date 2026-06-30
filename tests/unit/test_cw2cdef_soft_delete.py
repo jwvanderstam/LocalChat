@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 class TestDeleteWorkspace:
     def test_soft_delete_returns_200(self, client, app):
+        app.state.db.get_workspace_member_role = MagicMock(return_value=None)
         app.state.db.delete_workspace = MagicMock(return_value=True)
         app.state.db.get_default_workspace_id = MagicMock(return_value="fallback-id")
         resp = client.delete("/api/workspaces/some-ws-id")
@@ -15,11 +16,13 @@ class TestDeleteWorkspace:
         assert resp.json()["success"] is True
 
     def test_delete_missing_workspace_returns_404(self, client, app):
+        app.state.db.get_workspace_member_role = MagicMock(return_value=None)
         app.state.db.delete_workspace = MagicMock(return_value=False)
         resp = client.delete("/api/workspaces/ghost-id")
         assert resp.status_code == 404
 
     def test_delete_passes_deleted_by(self, client, app):
+        app.state.db.get_workspace_member_role = MagicMock(return_value=None)
         app.state.db.delete_workspace = MagicMock(return_value=True)
         app.state.db.get_default_workspace_id = MagicMock(return_value=None)
         client.delete("/api/workspaces/some-ws-id")
