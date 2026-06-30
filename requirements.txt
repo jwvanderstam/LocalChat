@@ -1,5 +1,5 @@
 # Web Framework — FastAPI (ASGI)
-fastapi>=0.138.0
+fastapi>=0.138.1
 uvicorn[standard]>=0.49.0
 httpx>=0.28.1          # FastAPI TestClient + async HTTP
 
@@ -7,7 +7,7 @@ gunicorn==26.0.0
 Werkzeug>=3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
 
 # Caching
-redis==8.0.0  # Redis cache backend (optional but recommended)
+redis==8.0.1  # Redis cache backend (optional but recommended)
 
 # Security
 python-jose[cryptography]>=3.5.0  # JWT
@@ -18,7 +18,7 @@ psycopg[binary]>=3.3.4
 psycopg-pool>=3.3.1
 
 # Database migrations
-alembic>=1.18.4
+alembic>=1.18.5
 sqlalchemy>=2.0.51  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
@@ -26,7 +26,7 @@ pydantic>=2.12.5  # Cannot bump past 2.12.5 until litellm drops its pydantic==2.
 email-validator==2.3.0
 
 # Document Processing
-pypdf>=6.13.3
+pypdf>=6.14.2
 pdfplumber==0.11.10  # Enhanced PDF extraction with table support
 pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
 pymupdf4llm>=1.27.2.3    # Layout-aware PDF extraction for column-heavy documents (optional)
@@ -68,8 +68,8 @@ python-dotenv>=1.2.2
 pytest==9.1.1
 pytest-cov==7.1.0
 pytest-mock==3.15.1
-pytest-asyncio>=0.24.0
+pytest-asyncio>=1.4.0
 faker==40.23.0
 responses==0.26.1
 freezegun==1.5.5
-coverage==7.14.2
+coverage==7.14.3

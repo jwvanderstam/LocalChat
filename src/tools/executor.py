@@ -147,27 +147,13 @@ class ToolExecutor:
                 f"[TOOLS] Round {round_num}/{self._max_rounds}: "
                 f"{len(working_messages)} messages, {len(schemas)} tool(s)"
             )
-
-            active_tools = None if inline_mode else schemas
-            response = await self._client.generate_chat_completion(
-                model, working_messages, tools=active_tools
+            done, answer, inline_mode = await self._execute_round(
+                model, working_messages, inline_mode, schemas
             )
-            assistant_msg = response.get("message", {})
-            tool_calls = assistant_msg.get("tool_calls")
-
-            if not tool_calls:
-                answer, tool_calls, inline_mode = self._handle_no_tool_calls(
-                    assistant_msg.get("content", ""), inline_mode
-                )
-                if answer is not None:
-                    if answer:
-                        yield answer
-                    return
-
-            if not inline_mode:
-                working_messages.append(assistant_msg)
-
-            self._append_tool_results(tool_calls, inline_mode, working_messages)
+            if done:
+                if answer:
+                    yield answer
+                return
 
         logger.warning(
             f"[TOOLS] Reached max rounds ({self._max_rounds}), "
@@ -181,6 +167,33 @@ class ToolExecutor:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    async def _execute_round(
+        self,
+        model: str,
+        working_messages: list[dict[str, Any]],
+        inline_mode: bool,
+        schemas: list[dict[str, Any]],
+    ) -> tuple[bool, str | None, bool]:
+        """Run one tool-call round. Returns (done, answer, new_inline_mode)."""
+        active_tools = None if inline_mode else schemas
+        response = await self._client.generate_chat_completion(
+            model, working_messages, tools=active_tools
+        )
+        assistant_msg = response.get("message", {})
+        tool_calls = assistant_msg.get("tool_calls")
+
+        if not tool_calls:
+            answer, tool_calls, inline_mode = self._handle_no_tool_calls(
+                assistant_msg.get("content", ""), inline_mode
+            )
+            if answer is not None:
+                return True, answer, inline_mode
+
+        if not inline_mode:
+            working_messages.append(assistant_msg)
+        self._append_tool_results(tool_calls, inline_mode, working_messages)
+        return False, None, inline_mode
 
     def _handle_no_tool_calls(
         self, content: str, inline_mode: bool
