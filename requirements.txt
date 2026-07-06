@@ -52,6 +52,9 @@ sentence-transformers>=5.6.0
 requests==2.34.2
 ddgs>=9.14.4
 
+# Hardware detection — CPU RAM probing for model-fit budget (src/gpu/backends.py)
+psutil>=6.1.0
+
 # Numerical processing for vector operations
 numpy>=2.5.0
 
