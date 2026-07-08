@@ -88,6 +88,7 @@ def _init_ollama_service(app: Any, ollama_client: Any) -> None:
         _warmup_embedding_model(ollama_client)
     else:
         logger.warning(ollama_message)
+    _warmup_reranker()
 
 
 def _warmup_embedding_model(ollama_client: Any) -> None:
@@ -107,6 +108,27 @@ def _warmup_embedding_model(ollama_client: Any) -> None:
                 logger.warning("Embedding model warm-up returned no data (non-fatal)")
     except Exception as e:
         logger.warning(f"Embedding model warm-up failed (non-fatal): {e}")
+
+
+def _warmup_reranker() -> None:
+    """Load the cross-encoder reranker at startup instead of on the first request.
+
+    RerankerModel is a lazily-initialised singleton (src/rag/reranker.py); loading
+    the CrossEncoder weights takes several seconds and would otherwise be charged
+    to whichever user's query triggers the first retrieval after process start.
+    """
+    if not config.RERANKER_ENABLED:
+        return
+    try:
+        from .rag.reranker import get_reranker
+        logger.info("Warming up cross-encoder reranker...")
+        reranker = get_reranker()
+        if reranker.is_available():
+            logger.info("Reranker warm-up complete")
+        else:
+            logger.warning("Reranker warm-up: no model available (non-fatal)")
+    except Exception as e:
+        logger.warning(f"Reranker warm-up failed (non-fatal): {e}")
 
 
 def _init_database_service(app: Any, db: Any) -> None:
