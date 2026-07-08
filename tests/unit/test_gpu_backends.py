@@ -392,6 +392,36 @@ class TestListModelsEnrichment:
         assert "budget_mb" in m
         assert "reason" in m
 
+    def test_loaded_true_when_model_is_running(self):
+        models = [{"name": "llama3.2:latest", "size": 2 * 1024 ** 3, "modified_at": "", "digest": ""}]
+        app, client = self._make_app_and_client(models)
+        app.state.ollama_client.get_running_models.return_value = [{"name": "llama3.2:latest"}]
+
+        from src.gpu.backends import CpuBackend
+
+        cpu = CpuBackend(total_mb=32768, free_mb=16384)
+        with patch("src.gpu.backends.detect", return_value=cpu):
+            app.state.ollama_client.estimate_model_footprint.return_value = 2000
+            response = client.get("/api/models")
+
+        data = response.json()
+        assert data["models"][0]["loaded"] is True
+
+    def test_loaded_false_when_model_not_running(self):
+        models = [{"name": "llama3.2:latest", "size": 2 * 1024 ** 3, "modified_at": "", "digest": ""}]
+        app, client = self._make_app_and_client(models)
+        app.state.ollama_client.get_running_models.return_value = []
+
+        from src.gpu.backends import CpuBackend
+
+        cpu = CpuBackend(total_mb=32768, free_mb=16384)
+        with patch("src.gpu.backends.detect", return_value=cpu):
+            app.state.ollama_client.estimate_model_footprint.return_value = 2000
+            response = client.get("/api/models")
+
+        data = response.json()
+        assert data["models"][0]["loaded"] is False
+
     def test_fits_false_when_oversized(self):
         models = [{"name": "huge:70b", "size": 40 * 1024 ** 3, "modified_at": "", "digest": ""}]
         app, client = self._make_app_and_client(models)
@@ -428,6 +458,7 @@ class TestListModelsEnrichment:
     def test_fallback_on_gpu_detection_failure(self):
         models = [{"name": "llama3.2:3b", "size": 2 * 1024 ** 3, "modified_at": "", "digest": ""}]
         app, client = self._make_app_and_client(models)
+        app.state.ollama_client.get_running_models.return_value = [{"name": "llama3.2:3b"}]
 
         with patch("src.gpu.backends.detect", side_effect=RuntimeError("gpu exploded")):
             response = client.get("/api/models")
@@ -436,3 +467,4 @@ class TestListModelsEnrichment:
         assert data["success"] is True
         # fallback: fits=True so UI doesn't block all models
         assert data["models"][0]["fits"] is True
+        assert data["models"][0]["loaded"] is True

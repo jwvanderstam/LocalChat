@@ -135,6 +135,7 @@
                     <h5 class="card-title mb-1">
                         <span class="model-name"></span>
                         <span class="badge bg-success active-badge ms-2" style="display: none;">Active</span>
+                        <span class="badge bg-warning text-dark loaded-badge ms-2" style="display: none;">Loaded</span>
                     </h5>
                     <p class="card-text text-muted small mb-2">
                         <span class="model-size"></span> -
@@ -151,6 +152,9 @@
                     </button>
                     <button class="btn btn-sm btn-info test-btn" title="Test model">
                         <i class="bi bi-play-circle"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning unload-btn" title="Unload from memory" style="display: none;">
+                        <i class="bi bi-eject"></i>
                     </button>
                     <button class="btn btn-sm btn-danger delete-btn" title="Delete model">
                         <i class="bi bi-trash"></i>
@@ -232,6 +236,11 @@
                     cardElement.classList.add('border-success');
                 }
 
+                if (model.loaded) {
+                    card.querySelector('.loaded-badge').style.display = 'inline';
+                    card.querySelector('.unload-btn').style.display = '';
+                }
+
                 if (model.fits === false) {
                     cardElement.style.opacity = '0.55';
                     card.querySelector('.model-warning').style.display = '';
@@ -244,6 +253,7 @@
 
                 card.querySelector('.activate-btn').onclick = () => activateModel(model.name);
                 card.querySelector('.test-btn').onclick = () => testModel(model.name);
+                card.querySelector('.unload-btn').onclick = () => unloadModel(model.name);
                 card.querySelector('.delete-btn').onclick = () => deleteModel(model.name);
 
                 modelsList.appendChild(card);
@@ -292,6 +302,28 @@
                 showToast('Success', `${modelName} is working! Response: ${data.result}`, 'success');
             } else {
                 showToast('Error', `Test failed: ${data.result}`, 'danger');
+            }
+        } catch (error) {
+            showToast('Error', error.message, 'danger');
+        }
+    }
+
+    // Unload model from memory
+    async function unloadModel(modelName) {
+        try {
+            const response = await fetch('/api/models/unload', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model: modelName})
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Success', `${modelName} unloaded from memory`, 'success');
+                loadModels();
+            } else {
+                showToast('Error', data.message, 'danger');
             }
         } catch (error) {
             showToast('Error', error.message, 'danger');
