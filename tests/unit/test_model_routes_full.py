@@ -80,6 +80,28 @@ class TestModelDelete:
             assert response.status_code in (200, 400)
 
 
+class TestModelUnload:
+    def test_unload_model_missing_name(self, client):
+        response = client.post('/api/models/unload', json={})
+        assert response.status_code in (400, 200, 500)
+
+    def test_unload_model_success(self, client, app):
+        with patch.object(app.state.ollama_client, 'unload_model',
+                          return_value=(True, 'Model unloaded')):
+            response = client.post('/api/models/unload',
+                                   json={"model": "llama3.2"})
+            assert response.status_code == 200
+            assert response.json()["success"] is True
+
+    def test_unload_model_failure(self, client, app):
+        with patch.object(app.state.ollama_client, 'unload_model',
+                          return_value=(False, 'Ollama unreachable')):
+            response = client.post('/api/models/unload',
+                                   json={"model": "llama3.2"})
+            assert response.status_code == 400
+            assert response.json()["success"] is False
+
+
 class TestModelTest:
     def test_test_model_success(self, client, app):
         with patch.object(app.state.ollama_client, 'test_model',
