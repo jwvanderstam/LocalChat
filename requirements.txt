@@ -1,5 +1,5 @@
 # Web Framework — FastAPI (ASGI)
-fastapi>=0.138.1
+fastapi>=0.139.0
 uvicorn[standard]>=0.50.0
 httpx>=0.28.1          # FastAPI TestClient + async HTTP
 
@@ -29,7 +29,7 @@ email-validator==2.3.0
 pypdf>=6.14.2
 pdfplumber==0.11.10  # Enhanced PDF extraction with table support
 pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
-pymupdf4llm>=1.27.2.3    # Layout-aware PDF extraction for column-heavy documents (optional)
+pymupdf4llm>=1.28.0    # Layout-aware PDF extraction for column-heavy documents (optional)
 langdetect>=1.0.9      # Language detection for multilingual document support
 python-docx==1.2.0
 python-pptx>=1.0.2
@@ -52,8 +52,11 @@ sentence-transformers>=5.6.0
 requests==2.34.2
 ddgs>=9.14.4
 
+# Hardware detection — CPU RAM probing for model-fit budget (src/gpu/backends.py)
+psutil>=6.1.0
+
 # Numerical processing for vector operations
-numpy>=2.5.0
+numpy>=2.5.1
 
 # Multipart form handling
 python-multipart==0.0.32
@@ -70,6 +73,6 @@ pytest-cov==7.1.0
 pytest-mock==3.15.1
 pytest-asyncio>=1.4.0
 faker==40.23.0
-responses==0.26.1
+responses==0.26.2
 freezegun==1.5.5
-coverage==7.14.3
+coverage==7.15.0

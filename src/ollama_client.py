@@ -255,6 +255,26 @@ class OllamaClient:
             logger.exception("Error deleting model")
             return False, str(e)
 
+    def unload_model(self, model_name: str) -> tuple[bool, str]:
+        """Evict a model from Ollama's in-memory cache without deleting it from disk."""
+        try:
+            logger.info("Unloading model from memory: %s", model_name)
+            response = self._session.post(
+                f"{self.base_url}/api/generate",
+                json={"model": model_name, "keep_alive": 0},
+                timeout=10,
+            )
+            success = response.status_code == 200
+            if success:
+                self._running_models_cache = None
+                logger.info("Unloaded model from memory: %s", model_name)
+            else:
+                logger.warning("Failed to unload model %s: %s", model_name, response.status_code)
+            return success, "Model unloaded" if success else "Failed to unload model"
+        except Exception as e:
+            logger.exception("Error unloading model")
+            return False, str(e)
+
     def get_vision_model(self) -> str | None:
         """
         Get a vision-capable model for image processing.
