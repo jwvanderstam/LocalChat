@@ -75,4 +75,4 @@ pytest-asyncio>=1.4.0
 faker==40.23.0
 responses==0.26.2
 freezegun==1.5.5
-coverage==7.14.3
+coverage==7.15.0
