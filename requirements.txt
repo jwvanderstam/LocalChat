@@ -56,7 +56,7 @@ ddgs>=9.14.4
 psutil>=6.1.0
 
 # Numerical processing for vector operations
-numpy>=2.5.0
+numpy>=2.5.1
 
 # Multipart form handling
 python-multipart==0.0.32
