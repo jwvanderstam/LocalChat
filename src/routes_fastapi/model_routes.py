@@ -34,6 +34,10 @@ def list_models(request: Request) -> Any:
         else:
             budget_mb = max(0, backend.total_mb - config.SHARED_POOL_OS_RESERVE_MB)
 
+        loaded_names = {
+            m["name"] for m in request.app.state.ollama_client.get_running_models()
+        }
+
         enriched = []
         for m in models:
             footprint_mb = request.app.state.ollama_client.estimate_model_footprint(m["name"])
@@ -42,6 +46,7 @@ def list_models(request: Request) -> Any:
                 {
                     **m,
                     "fits": fits,
+                    "loaded": m["name"] in loaded_names,
                     "footprint_mb": footprint_mb,
                     "budget_mb": budget_mb,
                     "reason": (
@@ -56,8 +61,11 @@ def list_models(request: Request) -> Any:
             )
     except Exception:
         logger.exception("GPU budget check failed — serving models without fit information")
+        loaded_names = {
+            m["name"] for m in request.app.state.ollama_client.get_running_models()
+        }
         enriched = [
-            {**m, "fits": True, "footprint_mb": 0, "budget_mb": 0, "reason": None}
+            {**m, "fits": True, "loaded": m["name"] in loaded_names, "footprint_mb": 0, "budget_mb": 0, "reason": None}
             for m in models
         ]
 
@@ -144,6 +152,24 @@ async def delete_model(request: Request) -> Any:
     success, message = request.app.state.ollama_client.delete_model(model_name)
     if not success:
         return JSONResponse({"success": False, "message": f"Failed to delete model: {message}"}, status_code=400)
+    return {"success": True, "message": message}
+
+
+@router.post("/unload")
+async def unload_model(request: Request) -> Any:
+    from ..models import ModelRequest
+    from ..utils.sanitization import sanitize_model_name
+
+    data = await request.json() if await request.body() else {}
+    try:
+        request_data = ModelRequest(**data)
+        model_name = sanitize_model_name(request_data.model)
+    except Exception:
+        return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
+
+    success, message = request.app.state.ollama_client.unload_model(model_name)
+    if not success:
+        return JSONResponse({"success": False, "message": f"Failed to unload model: {message}"}, status_code=400)
     return {"success": True, "message": message}
 
 

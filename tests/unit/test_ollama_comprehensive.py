@@ -266,6 +266,41 @@ class TestModelOperations:
         assert success is False
         assert "Failed" in message
 
+    def test_unload_model_success(self, ollama_client, mock_http):
+        """Should evict a model from memory and invalidate the running-models cache."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_http.post.return_value = mock_response
+        ollama_client._running_models_cache = [{"name": "test-model"}]
+
+        success, message = ollama_client.unload_model("test-model")
+
+        assert success is True
+        assert "unloaded" in message.lower()
+        assert ollama_client._running_models_cache is None
+        _, kwargs = mock_http.post.call_args
+        assert kwargs["json"] == {"model": "test-model", "keep_alive": 0}
+
+    def test_unload_model_failure(self, ollama_client, mock_http):
+        """Should report failure when Ollama rejects the unload request."""
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_http.post.return_value = mock_response
+
+        success, message = ollama_client.unload_model("test-model")
+
+        assert success is False
+        assert "Failed" in message
+
+    def test_unload_model_exception(self, ollama_client, mock_http):
+        """Should handle transport errors without raising."""
+        mock_http.post.side_effect = Exception("Connection refused")
+
+        success, message = ollama_client.unload_model("test-model")
+
+        assert success is False
+        assert "Connection refused" in message
+
 
 # ============================================================================
 # CHAT GENERATION TESTS (async — uses _async_client)
