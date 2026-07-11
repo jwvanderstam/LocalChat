@@ -45,9 +45,9 @@ logger = get_logger(__name__)
 try:
     from ..monitoring import counted, timed
 except ImportError:
-    def timed(_metric_name: str) -> Callable:  # noqa: E306
+    def timed(metric_name: str) -> Callable:  # noqa: E306
         return lambda func: func
-    def counted(_metric_name: str, _labels: dict | None = None) -> Callable:  # noqa: E306
+    def counted(metric_name: str, labels: dict | None = None) -> Callable:  # noqa: E306
         return lambda func: func
 
 
@@ -100,7 +100,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 logger.error(_NO_EMBEDDING_MODEL)
                 return [None] * len(texts)
 
-        batch_size_int = batch_size or getattr(config, 'BATCH_SIZE', 50)
+        batch_size_int: int = batch_size if batch_size is not None else config.BATCH_SIZE
 
         embeddings = []
         total = len(texts)
@@ -160,6 +160,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         chunker_fn, chunker_version = ChunkerRegistry.get_chunker(doc_type)
         ok, err, chunks, raw = chunker_fn(self, file_path, filename, progress_callback)
         if ok:
+            assert chunks is not None, "chunker guarantees chunks when ok=True"
             logger.info(f"Generated {len(chunks)} chunks via {chunker_version}")
         return ok, err, chunks, raw, doc_type.value, chunker_version
 
@@ -341,6 +342,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             if not ok:
                 logger.error(err)
                 return False, err, None
+            assert chunks_with_metadata is not None, "chunker guarantees chunks when ok=True"
 
             # Build content preview — reuse already-loaded data; no second file read.
             content_preview = (raw_content or (chunks_with_metadata[0]['text'] if chunks_with_metadata else ''))[:1000]

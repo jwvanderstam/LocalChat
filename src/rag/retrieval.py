@@ -49,9 +49,9 @@ _CONTRACTIONS: dict = {
 try:
     from ..monitoring import counted, timed
 except ImportError:
-    def timed(_metric_name: str) -> Callable:  # noqa: E306
+    def timed(metric_name: str) -> Callable:  # noqa: E306
         return lambda func: func
-    def counted(_metric_name: str, _labels: dict | None = None) -> Callable:  # noqa: E306
+    def counted(metric_name: str, labels: dict | None = None) -> Callable:  # noqa: E306
         return lambda func: func
 
 
@@ -60,6 +60,11 @@ class RetrievalMixin:
     Mixin providing retrieval, re-ranking, and context formatting
     methods for DocumentProcessor.
     """
+
+    # Provided by DocumentProcessor.__init__ at runtime; declared here so mypy can
+    # see them when type-checking this mixin in isolation.
+    _db: Any
+    _ollama_client: Any
 
     def _preprocess_query(self, query: str) -> str:
         """

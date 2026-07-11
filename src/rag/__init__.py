@@ -9,7 +9,6 @@ Re-exports all public symbols for backward compatibility with ``from src.rag imp
 """
 
 from collections.abc import Callable
-from typing import NoReturn
 
 from .. import config
 from ..db import db
@@ -23,14 +22,14 @@ from .scoring import BM25Scorer
 
 # Try to import monitoring - graceful degradation if not available
 try:
-    from ..monitoring import counted, get_metrics, timed
+    from ..monitoring import MetricsCollector, counted, get_metrics, timed
     MONITORING_AVAILABLE = True
 except ImportError:
-    def timed(_metric_name: str) -> Callable:  # noqa: E306
+    def timed(metric_name: str) -> Callable:  # noqa: E306
         return lambda func: func
-    def counted(_metric_name: str, _labels: dict | None = None) -> Callable:  # noqa: E306
+    def counted(metric_name: str, labels: dict | None = None) -> Callable:  # noqa: E306
         return lambda func: func
-    def get_metrics() -> NoReturn:  # noqa: E306
+    def get_metrics() -> "MetricsCollector":  # noqa: E306
         raise RuntimeError("Monitoring not available")
     MONITORING_AVAILABLE = False
 
