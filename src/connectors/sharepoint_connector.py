@@ -199,7 +199,7 @@ class SharePointConnector(BaseConnector):
             source_id=item['id'],
             filename=item.get('name', ''),
             last_modified=last_modified,
-            size_bytes=item.get('size'),
+            size_bytes=item.get('size', 0),
             metadata={
                 'drive_id': drive_id,
                 'web_url': item.get('webUrl', ''),

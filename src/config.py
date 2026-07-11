@@ -55,7 +55,7 @@ if not _SECRET_KEY_RAW or _SECRET_KEY_RAW == 'change-this-to-a-random-secret-key
     SECRET_KEY: str = secrets.token_hex(32)
     logger.warning("Using generated SECRET_KEY - set SECRET_KEY in .env for production")
 else:
-    SECRET_KEY: str = _SECRET_KEY_RAW
+    SECRET_KEY = _SECRET_KEY_RAW
 
 _JWT_SECRET_KEY_RAW: str | None = os.environ.get('JWT_SECRET_KEY')
 if not _JWT_SECRET_KEY_RAW or _JWT_SECRET_KEY_RAW == 'change-this-to-a-random-jwt-secret-in-production':
@@ -64,7 +64,7 @@ if not _JWT_SECRET_KEY_RAW or _JWT_SECRET_KEY_RAW == 'change-this-to-a-random-jw
     JWT_SECRET_KEY: str = secrets.token_hex(32)
     logger.warning("Using generated JWT_SECRET_KEY - set JWT_SECRET_KEY in .env for production")
 else:
-    JWT_SECRET_KEY: str = _JWT_SECRET_KEY_RAW
+    JWT_SECRET_KEY = _JWT_SECRET_KEY_RAW
 
 JWT_ACCESS_TOKEN_EXPIRES: int = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', '3600'))
 
@@ -92,7 +92,7 @@ if REDIS_ENABLED:
     _redis_auth = f":{REDIS_PASSWORD}@" if REDIS_PASSWORD else ""
     RATELIMIT_STORAGE_URI: str = f"redis://{_redis_auth}{REDIS_HOST}:{REDIS_PORT}/1"
 else:
-    RATELIMIT_STORAGE_URI: str = "memory://"
+    RATELIMIT_STORAGE_URI = "memory://"
 
 # CORS settings
 CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
@@ -144,7 +144,7 @@ try:
     PG_PORT: int = int(os.environ.get('PG_PORT', '5432'))
 except ValueError:
     logger.warning("Invalid PG_PORT value, defaulting to 5432")
-    PG_PORT: int = 5432
+    PG_PORT = 5432
 PG_USER: str = str(os.environ.get('PG_USER', 'postgres'))
 
 _PG_PASSWORD_RAW: str | None = os.environ.get('PG_PASSWORD')

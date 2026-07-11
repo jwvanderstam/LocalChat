@@ -315,20 +315,20 @@ def export_prometheus_metrics() -> str:
 
     # Counters — one TYPE declaration per base name, all label variants beneath it
     counter_groups: dict[str, dict[str, int]] = {}
-    for key, value in metrics['counters'].items():
-        counter_groups.setdefault(_base_metric_name(key), {})[key] = value
-    for base_name, entries in counter_groups.items():
+    for key, count_value in metrics['counters'].items():
+        counter_groups.setdefault(_base_metric_name(key), {})[key] = count_value
+    for base_name, counter_entries in counter_groups.items():
         lines.append(f'# TYPE {base_name} counter')
-        for key, value in entries.items():
-            lines.append(f'{key} {value}')
+        for key, count_value in counter_entries.items():
+            lines.append(f'{key} {count_value}')
 
     # Histograms
-    histogram_groups: dict[str, dict] = {}
+    histogram_groups: dict[str, dict[str, dict[str, Any]]] = {}
     for key, stats in metrics['histograms'].items():
         histogram_groups.setdefault(_base_metric_name(key), {})[key] = stats
-    for base_name, entries in histogram_groups.items():
+    for base_name, histogram_entries in histogram_groups.items():
         lines.append(f'# TYPE {base_name} histogram')
-        for key, stats in entries.items():
+        for key, stats in histogram_entries.items():
             raw = raw_histograms.get(key, [])
             lines.append(f'{key}_count {stats["count"]}')
             lines.append(f'{key}_sum {stats["sum"]}')
@@ -339,12 +339,12 @@ def export_prometheus_metrics() -> str:
 
     # Gauges
     gauge_groups: dict[str, dict[str, float]] = {}
-    for key, value in metrics['gauges'].items():
-        gauge_groups.setdefault(_base_metric_name(key), {})[key] = value
-    for base_name, entries in gauge_groups.items():
+    for key, gauge_value in metrics['gauges'].items():
+        gauge_groups.setdefault(_base_metric_name(key), {})[key] = gauge_value
+    for base_name, gauge_entries in gauge_groups.items():
         lines.append(f'# TYPE {base_name} gauge')
-        for key, value in entries.items():
-            lines.append(f'{key} {value}')
+        for key, gauge_value in gauge_entries.items():
+            lines.append(f'{key} {gauge_value}')
 
     # Uptime
     lines.append('# TYPE app_uptime_seconds gauge')

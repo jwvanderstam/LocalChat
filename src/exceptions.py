@@ -79,7 +79,7 @@ class FileUploadError(LocalChatException):
 
 
 # Exception mapping for HTTP status codes
-EXCEPTION_STATUS_CODES = {
+EXCEPTION_STATUS_CODES: dict[type[Exception], int] = {
     ValidationError: 400,
     InvalidModelError: 404,
     OllamaConnectionError: 503,
