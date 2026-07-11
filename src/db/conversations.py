@@ -9,17 +9,15 @@ from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
-    from .connection import DatabaseConnection
+    from .connection import MixinHost
+else:
+    MixinHost = object
 
 logger = get_logger(__name__)
 
 
-class ConversationsMixin:
+class ConversationsMixin(MixinHost):
     """Mixin that adds conversation and message operations to the Database class."""
-
-    # Provided by DatabaseConnection at runtime via MRO
-    is_connected: bool
-    get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
 
     def create_conversation(self, title: str = 'New Conversation', workspace_id: str | None = None) -> str:
         if not self.is_connected:
@@ -85,7 +83,9 @@ class ConversationsMixin:
                         conversation_id,
                     ),
                 )
-                message_id = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                message_id = row[0]
                 conn.commit()
         logger.debug(f"Created conversation {conversation_id} with first message (id={message_id})")
         return conversation_id, message_id
@@ -198,7 +198,9 @@ class ConversationsMixin:
                     """,
                     (conversation_id, role, _encrypt(content), Jsonb(plan_json) if plan_json else None, conversation_id),
                 )
-                message_id = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                message_id = row[0]
                 conn.commit()
         logger.debug(f"Saved {role} message (id={message_id}) to conversation {conversation_id}")
         return message_id

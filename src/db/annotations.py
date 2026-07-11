@@ -14,16 +14,15 @@ from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
-    from .connection import DatabaseConnection
+    from .connection import MixinHost
+else:
+    MixinHost = object
 
 logger = get_logger(__name__)
 
 
-class AnnotationsMixin:
+class AnnotationsMixin(MixinHost):
     """Mixin providing annotation CRUD operations."""
-
-    is_connected: bool
-    get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
 
     def add_annotation(
         self,
@@ -47,7 +46,9 @@ class AnnotationsMixin:
                     """,
                     (chunk_id, text.strip(), user_id, conversation_id),
                 )
-                annotation_id = str(cur.fetchone()[0])
+                row = cur.fetchone()
+                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                annotation_id = str(row[0])
                 conn.commit()
         logger.debug(f"[Annotations] Created {annotation_id} on chunk {chunk_id}")
         return annotation_id

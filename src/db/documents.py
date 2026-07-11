@@ -11,18 +11,15 @@ from ..utils.sanitization import escape_sql_like
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
-    from .connection import DatabaseConnection
+    from .connection import MixinHost
+else:
+    MixinHost = object
 
 logger = get_logger(__name__)
 
 
-class DocumentsMixin:
+class DocumentsMixin(MixinHost):
     """Mixin that adds document and chunk operations to the Database class."""
-
-    # Provided by DatabaseConnection at runtime via MRO
-    is_connected: bool
-    get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
-    _embedding_to_pg_array: DatabaseConnection._embedding_to_pg_array  # type: ignore[assignment]
 
     def insert_document(
         self,
@@ -52,7 +49,9 @@ class DocumentsMixin:
                     " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
                     (filename, _encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language, source_id),
                 )
-                doc_id = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                doc_id = row[0]
                 conn.commit()
         logger.info(f"Document inserted with ID: {doc_id}")
         return doc_id
@@ -133,7 +132,9 @@ class DocumentsMixin:
                     """,
                     (doc_id,),
                 )
-                if cursor.fetchone()[0]:
+                row = cursor.fetchone()
+                assert row is not None, "SELECT EXISTS always returns a row"
+                if row[0]:
                     logger.info("Purge of document %s blocked: chunk_stats references exist", doc_id)
                     return False
 
@@ -377,7 +378,9 @@ class DocumentsMixin:
                     )
                 else:
                     cursor.execute("SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL")
-                count = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                assert row is not None, "SELECT COUNT(*) always returns a row"
+                count = row[0]
                 logger.debug(f"Document count: {count}")
                 return count
 
@@ -405,7 +408,9 @@ class DocumentsMixin:
                         WHERE d.deleted_at IS NULL
                         """
                     )
-                count = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                assert row is not None, "SELECT COUNT(*) always returns a row"
+                count = row[0]
                 logger.debug(f"Chunk count: {count}")
                 return count
 
@@ -491,6 +496,7 @@ class DocumentsMixin:
                     FROM document_chunks
                 """)
                 row = cursor.fetchone()
+                assert row is not None, "SELECT COUNT(*)/AVG(...) always returns a row"
                 total = row[0]
                 with_embeddings = row[1]
                 avg_length = float(row[2]) if row[2] else 0.0

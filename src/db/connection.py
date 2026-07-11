@@ -26,6 +26,28 @@ _PG_TRANSACTION_IDLE = 0    # psycopg TransactionStatus.IDLE
 _PG_TRANSACTION_INTRANS = 2  # psycopg TransactionStatus.INTRANS
 
 
+class MixinHost:
+    """Type-checking-only stand-in for the attributes ``DatabaseConnection`` provides to
+    the ``*Mixin`` classes it's composed with on ``Database`` (see ``src/db/__init__.py``).
+
+    Each mixin is type-checked in isolation, so mypy can't otherwise see these
+    attributes; mixins inherit this only under ``TYPE_CHECKING`` (rebound to ``object``
+    otherwise), so it has no effect on the runtime MRO or behaviour — the bodies below
+    are never executed.
+    """
+
+    is_connected: bool = False
+
+    @contextmanager
+    def get_connection(self) -> Generator[psycopg.Connection, None, None]:
+        raise NotImplementedError
+        yield  # pragma: no cover — unreachable; satisfies the generator-function shape
+
+    @staticmethod
+    def _embedding_to_pg_array(embedding: list[float] | np.ndarray) -> str:
+        raise NotImplementedError
+
+
 # ============================================================================
 # CUSTOM EXCEPTIONS
 # ============================================================================
