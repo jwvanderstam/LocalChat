@@ -6,16 +6,15 @@ from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
-    from .connection import DatabaseConnection
+    from .connection import MixinHost
+else:
+    MixinHost = object
 
 logger = get_logger(__name__)
 
 
-class EntitiesMixin:
+class EntitiesMixin(MixinHost):
     """Mixin that adds knowledge-graph entity operations to the Database class."""
-
-    is_connected: bool
-    get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
 
     # ── Write operations ───────────────────────────────────────────────────────
 
@@ -45,7 +44,9 @@ class EntitiesMixin:
                     """,
                     (name[:255], entity_type[:50]),
                 )
-                entity_id: str = cursor.fetchone()[0]
+                row = cursor.fetchone()
+                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                entity_id: str = row[0]
                 conn.commit()
         return entity_id
 
@@ -164,9 +165,13 @@ class EntitiesMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT COUNT(*) FROM entities")
-                entity_count = cursor.fetchone()[0]
+                entity_row = cursor.fetchone()
+                assert entity_row is not None, "SELECT COUNT(*) always returns a row"
+                entity_count = entity_row[0]
                 cursor.execute("SELECT COUNT(*) FROM entity_relations")
-                relation_count = cursor.fetchone()[0]
+                relation_row = cursor.fetchone()
+                assert relation_row is not None, "SELECT COUNT(*) always returns a row"
+                relation_count = relation_row[0]
         return {"entity_count": entity_count, "relation_count": relation_count}
 
     def get_workspace_ontology(

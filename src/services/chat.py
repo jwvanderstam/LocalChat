@@ -4,11 +4,14 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .. import config, exceptions
 from ..rag.retrieval import RetrievalResult
 from ..utils.logging_config import get_logger
+
+if TYPE_CHECKING:
+    from ..agent.result import AgentResult
 
 logger = get_logger(__name__)
 
@@ -208,7 +211,7 @@ def get_filename_filter(fields: dict, db: Any) -> list[str]:
 
 def retrieve_via_aggregator(
     fields: dict, plan: Any, chunks_retrieved_ref: list[int]
-) -> tuple[str, str, list[dict]] | None:
+) -> tuple[tuple[str, str, list[dict]], AgentResult] | None:
     tools: list[str] = []
     if fields["use_rag"]:
         tools.append("local_docs")
@@ -233,7 +236,7 @@ def retrieve_via_aggregator(
             agent_result.contexts_by_tool.get("local_docs", ""),
             agent_result.contexts_by_tool.get("web_search", ""),
             agent_result.sources,
-        ), agent_result  # type: ignore[return-value]
+        ), agent_result
     except Exception as agent_err:
         logger.warning("[Agent] Failed, falling back to direct retrieval: %s", agent_err)
         return None
@@ -258,7 +261,7 @@ def retrieve_contexts(
 
     local_context = ""
     web_context = ""
-    sources: list[dict] = []
+    sources = []
 
     if fields["use_rag"]:
         try:
@@ -480,7 +483,7 @@ def apply_model_routing(
     if config.MODEL_ROUTER_ENABLED:
         try:
             from ..agent.router import ModelRouter
-            doc_types = [s.get("doc_type") for s in sources if s.get("doc_type")]
+            doc_types = [dt for s in sources if (dt := s.get("doc_type"))]
             return ModelRouter().select(fields["message"], plan=plan, doc_types=doc_types, active_model=active_model)
         except Exception as router_err:
             logger.warning("[Router] Selection failed, using active model: %s", router_err)

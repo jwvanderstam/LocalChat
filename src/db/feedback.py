@@ -7,16 +7,15 @@ from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
-    from .connection import DatabaseConnection
+    from .connection import MixinHost
+else:
+    MixinHost = object
 
 logger = get_logger(__name__)
 
 
-class FeedbackMixin:
+class FeedbackMixin(MixinHost):
     """Mixin that adds answer-feedback and chunk-stats operations to the Database class."""
-
-    is_connected: bool
-    get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
 
     # ── Feedback write operations ──────────────────────────────────────────────
 
@@ -135,6 +134,7 @@ class FeedbackMixin:
                     (days,),
                 )
                 row = cur.fetchone()
+                assert row is not None, "SELECT COUNT(*) always returns a row"
                 total, positive, negative = (row[0] or 0, row[1] or 0, row[2] or 0)
 
                 cur.execute(
@@ -196,6 +196,7 @@ class FeedbackMixin:
                     """,
                     (min_retrieved, max_positive_ratio, limit),
                 )
+                assert cur.description is not None, "SELECT always populates cursor.description"
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
@@ -259,6 +260,7 @@ class FeedbackMixin:
                     """,
                     (days,),
                 )
+                assert cur.description is not None, "SELECT always populates cursor.description"
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
@@ -313,7 +315,9 @@ class FeedbackMixin:
                             result.get("output_path"),
                         ),
                     )
-                    return str(cur.fetchone()[0])
+                    row = cur.fetchone()
+                    assert row is not None, "INSERT ... RETURNING id always returns a row"
+                    return str(row[0])
         except Exception as exc:
             logger.warning(f"[Reranker] Could not persist version: {exc}")
             return None

@@ -143,13 +143,13 @@ def detect(force: str = "auto") -> GpuBackend:
     Any other value selects that backend directly (falling back to CPU).
     """
     if force == "nvidia":
-        backend = NvidiaBackend.probe()
-        return backend if backend is not None else CpuBackend.probe()
+        nvidia_backend = NvidiaBackend.probe()
+        return nvidia_backend if nvidia_backend is not None else CpuBackend.probe()
     if force == "amd":
         return CpuBackend.probe()  # AMD detection not yet implemented
     if force == "apple":
-        backend = AppleBackend.probe()
-        return backend if backend is not None else CpuBackend.probe()
+        apple_backend = AppleBackend.probe()
+        return apple_backend if apple_backend is not None else CpuBackend.probe()
     if force == "cpu":
         return CpuBackend.probe()
 

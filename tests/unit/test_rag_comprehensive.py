@@ -149,6 +149,39 @@ class TestDocumentLoading:
         assert success is True
         assert "PDF content" in content
 
+    @patch('src.rag.loaders.PDF_AVAILABLE', True)
+    @patch('src.rag.loaders._pypdf')
+    def test_load_pdf_with_pages_falls_back_to_pypdf_when_no_pdfplumber(self, mock_pypdf2, doc_processor, temp_file):
+        """When pdfplumber isn't installed, _load_pdf_with_pages must fall back to
+        pypdf's page-by-page extraction (_load_pages_pypdf2)."""
+        mock_page = Mock()
+        mock_page.extract_text.return_value = "Page content"
+        mock_reader = Mock()
+        mock_reader.pages = [mock_page]
+        mock_pypdf2.PdfReader.return_value = mock_reader
+
+        with patch.object(doc_processor, '_try_pdfplumber_import', return_value=None):
+            success, pages = doc_processor._load_pdf_with_pages(temp_file)
+
+        assert success is True
+        assert len(pages) == 1
+        assert pages[0]['text'] == "Page content"
+
+    @patch('src.rag.loaders.PPTX_AVAILABLE', True)
+    @patch('src.rag.loaders.Presentation')
+    def test_load_pptx_file_success(self, mock_presentation_cls, doc_processor, temp_file):
+        """Should successfully load a PPTX file's slide text."""
+        mock_prs = Mock()
+        mock_prs.slides = [Mock()]
+        mock_presentation_cls.return_value = mock_prs
+
+        with patch.object(doc_processor, '_process_pptx_slide', return_value=(["Slide text"], "Title")):
+            success, slides = doc_processor.load_pptx_file(temp_file)
+
+        assert success is True
+        assert slides[0]['text'] == "Slide text"
+        assert slides[0]['title'] == "Title"
+
     @patch('src.rag.loaders.PDF_AVAILABLE', False)
     def test_load_pdf_file_unavailable(self, doc_processor):
         """Should handle PDF library not available."""

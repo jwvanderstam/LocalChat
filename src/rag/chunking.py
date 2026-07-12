@@ -7,10 +7,10 @@ and metadata tracking for enhanced citations.
 """
 
 import re
-from collections.abc import Callable
 from typing import Any
 
 from .. import config
+from ..monitoring import timed
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -29,13 +29,6 @@ def _is_cjk_dominant(text: str) -> bool:
     )
     return cjk / len(text) > 0.10
 
-
-# Try to import monitoring - graceful degradation if not available
-try:
-    from ..monitoring import timed
-except ImportError:
-    def timed(_metric_name: str) -> Callable:  # noqa: E306
-        return lambda func: func
 
 
 class TextChunkerMixin:

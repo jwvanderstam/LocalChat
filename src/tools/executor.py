@@ -51,7 +51,7 @@ class ToolExecutor:
     ) -> None:
         self._client = client
         self._registry = registry
-        self._max_rounds: int = max_rounds or getattr(config, "TOOL_MAX_ROUNDS", 5)
+        self._max_rounds: int = max_rounds if max_rounds is not None else config.TOOL_MAX_ROUNDS
 
     # ------------------------------------------------------------------
     # Public API

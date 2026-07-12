@@ -10,7 +10,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, UploadFile
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.datastructures import UploadFile as _StarletteUploadFile
 
@@ -29,7 +29,7 @@ router = APIRouter()
 _ERR_DB_UNAVAILABLE = "Database unavailable"
 
 
-def _save_upload_file(file: UploadFile) -> str | None:
+def _save_upload_file(file: _StarletteUploadFile) -> str | None:
     """Validate and save a single UploadFile; return path on success or None."""
     if not file.filename:
         return None

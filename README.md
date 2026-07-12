@@ -41,7 +41,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 
 ### Quality Assurance
 - **Comprehensive Tests**: Unit, integration, and comprehensive test suites
-- **Type Safety**: Full type hints across codebase
+- **Type Safety**: Full type hints across codebase, enforced by `mypy` in CI and pre-commit (zero errors)
 - **Modular Architecture**: Clean separation of concerns
 - **CI/CD Ready**: GitHub Actions configuration
 - **Error Handling**: Professional exception system with context preservation
@@ -404,7 +404,7 @@ LocalChat/
 │   └── example_plugin.py
 ├── tests/
 │   ├── conftest.py                 # Shared fixtures
-│   ├── unit/                       # 70+ modules, ~2,000 tests
+│   ├── unit/                       # 90+ modules, ~2,300 tests
 │   └── integration/                # 12 modules, requires running services
 └── helm/localchat/                 # Helm chart (app + PostgreSQL + Redis + MCP)
 ```
@@ -451,9 +451,10 @@ pytest --cov=src --cov-report=term
 
 ### Current Test Stats
 
-- **Unit Tests**: `tests/unit/` — 70+ modules covering all core components (~2,000 tests)
+- **Unit Tests**: `tests/unit/` — 90+ modules covering all core components (~2,300 tests)
 - **Integration Tests**: `tests/integration/` — 12 modules; require a live PostgreSQL + Ollama instance
-- **Quality Gate**: SonarCloud enforces ≥ 80% coverage on new code, 0 unreviewed hotspots
+- **Overall coverage**: ~78% (fast suite, `pytest -m "not (slow or ollama or db)" --cov=src --cov=app --cov=mcp_servers`)
+- **Quality Gates**: SonarCloud enforces ≥ 80% coverage on *new* code and 0 unreviewed hotspots (does not retroactively gate the existing baseline above); `mypy` and `ruff` run on the full codebase in CI and pre-commit
 
 ---
 

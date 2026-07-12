@@ -127,7 +127,7 @@ class MCPClient:
         if not self._cb.is_available():
             raise RuntimeError(f"[MCP:{self.name}] circuit open — server assumed unavailable")
 
-        payload = {
+        payload: dict[str, Any] = {
             "jsonrpc": "2.0",
             "id": self._next_id(),
             "method": method,

@@ -1,6 +1,7 @@
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 from .logging_config import get_logger
 
@@ -78,7 +79,7 @@ def sanitize_json_keys(data: dict, max_depth: int = 10) -> dict:
     if max_depth <= 0:
         logger.warning("Max recursion depth reached in sanitize_json_keys")
         return data
-    sanitized = {}
+    sanitized: dict[str, Any] = {}
     for key, value in data.items():
         clean_key = re.sub(r'[^\w\-]', '', str(key))
         if isinstance(value, dict):

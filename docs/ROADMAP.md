@@ -539,8 +539,8 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 | 1 | HK-1..HK-6 ✅ done & merged (#105): hygiene, config consolidation, Flask eliminated, docs synced, CI gate | — |
 | 1b | HK-7 ✅ (data-access boundary sealed, #116) + HK-8 ✅ (Ollama async/httpx) + HK-9 ✅ (handler boundary) — all done & merged | — |
 | 2 | CW-1 (document soft-delete pilot) ✅ done & merged (#119) | — |
-| 3 | CW-2a + CW-2b (conversations, users) | 1 week |
-| 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) | 1 week |
+| 3 | CW-2a + CW-2b (conversations, users) ✅ done & merged (#124) | — |
+| 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) ✅ done & merged (#126) | — |
 | 5 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
 | 6 | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) | — |
@@ -553,8 +553,10 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
 > **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
-> **Active:** Sprint 3 (CW-2a + CW-2b — conversations and users soft-delete).
-> **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 (viewer role) are end-to-end solid with full test coverage. The YTD fix-to-feature ratio (78:49) reflects a "governed after generation" tax that grows with breadth; Sprints 3–4 pay it down.
+> **Sprint 3 complete:** CW-2a + CW-2b (conversations and users soft-delete, #124). **Sprint 4 complete:** CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors soft-delete, #126).
+> **Also merged post-Sprint-7 (unplanned fixes):** model-management CPU memory budget + loaded-state fix (#146), cross-encoder reranker startup warm-up (#147).
+> **Active:** Sprint 5 (RBAC-1 — viewer role, pending scope confirmation).
+> **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 (viewer role) are end-to-end solid with full test coverage. Sprints 3–4 are now done; RBAC-1 (Sprint 5) remains the gate before new-feature work resumes.
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
 ---

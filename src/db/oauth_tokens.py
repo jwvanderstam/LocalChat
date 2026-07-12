@@ -9,17 +9,22 @@ same Fernet key covers all sensitive columns.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
+if TYPE_CHECKING:
+    from .connection import MixinHost
+else:
+    MixinHost = object
+
 logger = get_logger(__name__)
 
 
-class OAuthTokensMixin:
+class OAuthTokensMixin(MixinHost):
     """Mixin providing OAuth token storage with optional encryption."""
 
     def upsert_oauth_token(

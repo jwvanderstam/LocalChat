@@ -62,6 +62,9 @@ class RedisCache(CacheBackend):
                 self.stats.misses += 1
                 return None
             self.stats.hits += 1
+            # decode_responses=False guarantees bytes at runtime; narrow for pickle's typed signature
+            if isinstance(data, str):
+                data = data.encode()
             return pickle.loads(data)  # nosec B301
         except Exception:
             logger.exception("Redis get error")

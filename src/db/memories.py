@@ -11,7 +11,9 @@ from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
-    from .connection import DatabaseConnection
+    from .connection import MixinHost
+else:
+    MixinHost = object
 
 logger = get_logger(__name__)
 
@@ -19,12 +21,8 @@ _MIN_SIMILARITY_DEFAULT = 0.50
 _DEDUP_THRESHOLD = 0.92
 
 
-class MemoriesMixin:
+class MemoriesMixin(MixinHost):
     """Mixin that adds long-term memory operations to the Database class."""
-
-    is_connected: bool
-    get_connection: DatabaseConnection.get_connection  # type: ignore[assignment]
-    _embedding_to_pg_array: DatabaseConnection._embedding_to_pg_array  # type: ignore[assignment]
 
     # ── Write operations ───────────────────────────────────────────────────────
 

@@ -240,8 +240,8 @@ class RedisCache(CacheBackend):
                 self.stats.misses += 1
                 return None
 
-            # Deserialize
-            value = json.loads(data.decode("utf-8"))
+            # Deserialize — json.loads accepts str or bytes directly
+            value = json.loads(data)
             self.stats.hits += 1
             return value
 

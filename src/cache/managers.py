@@ -1,4 +1,5 @@
 import hashlib
+from collections.abc import Callable
 from typing import Any
 
 from ..utils.logging_config import get_logger
@@ -33,7 +34,7 @@ class EmbeddingCache:
         self,
         text: str,
         model: str,
-        generate_fn: callable
+        generate_fn: Callable[[str], list[float]]
     ) -> tuple[list[float], bool]:
         embedding = self.get(text, model)
         if embedding is not None:
@@ -79,7 +80,7 @@ class QueryCache:
         top_k: int,
         min_similarity: float,
         use_hybrid: bool,
-        retrieve_fn: callable
+        retrieve_fn: Callable[[], list[tuple]]
     ) -> tuple[list[tuple], bool]:
         results = self.get(query, top_k, min_similarity, use_hybrid)
         if results is not None:

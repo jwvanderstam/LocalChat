@@ -172,7 +172,11 @@ def finetune_reranker(
     )
 
     # Post-fine-tune NDCG
-    scores = model.predict([(s.texts[0], s.texts[1]) for s in eval_set])
+    eval_pairs = []
+    for s in eval_set:
+        assert s.texts is not None, "InputExample built with texts=[query, chunk_text] above"
+        eval_pairs.append((s.texts[0], s.texts[1]))
+    scores = model.predict(eval_pairs)
     ranked = [label for _, label in sorted(zip(scores, eval_labels, strict=False), reverse=True)]
     ndcg_after = _ndcg_at_k(ranked)
 

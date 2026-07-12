@@ -234,7 +234,8 @@ class OllamaClient:
         """
         try:
             logger.info(f"Deleting model: {model_name}")
-            response = self._session.delete(
+            response = self._session.request(
+                "DELETE",
                 f"{self.base_url}/api/delete",
                 json={"name": model_name},
                 timeout=30,

@@ -10,15 +10,20 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
+if TYPE_CHECKING:
+    from .connection import MixinHost
+else:
+    MixinHost = object
+
 logger = get_logger(__name__)
 
 
-class ConnectorsMixin:
+class ConnectorsMixin(MixinHost):
     """Mixin providing connector persistence operations."""
 
     # ------------------------------------------------------------------

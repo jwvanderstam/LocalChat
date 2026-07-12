@@ -7,15 +7,20 @@ needed to scope documents, conversations, and memories per workspace.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
+if TYPE_CHECKING:
+    from .connection import MixinHost
+else:
+    MixinHost = object
+
 logger = get_logger(__name__)
 
 
-class WorkspacesMixin:
+class WorkspacesMixin(MixinHost):
     """Mixin providing workspace CRUD operations."""
 
     # ------------------------------------------------------------------
@@ -42,7 +47,9 @@ class WorkspacesMixin:
                     """,
                     (name[:255], description, system_prompt, model_class),
                 )
-                workspace_id = str(cur.fetchone()[0])
+                row = cur.fetchone()
+                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                workspace_id = str(row[0])
         logger.info(f"[Workspace] Created '{name}' id={workspace_id}")
         return workspace_id
 

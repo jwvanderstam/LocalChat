@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .connection import MixinHost
+else:
+    MixinHost = object
 
 
-class TokensMixin:
+class TokensMixin(MixinHost):
     """Mixin that adds JWT revocation operations to the Database class."""
 
     def revoke_token(self, jti: str, expires_at: datetime) -> None:

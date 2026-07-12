@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
@@ -99,16 +99,25 @@ def _init_middlewares(app: FastAPI) -> None:
     logger.info("Observability middlewares registered")
 
 
-def _init_security(app: FastAPI, testing: bool) -> None:
-    from slowapi import _rate_limit_exceeded_handler
+def _handle_rate_limit_exceeded(request: Request, exc: Exception) -> Response:
+    """Adapt slowapi's narrowly-typed handler to Starlette's generic handler signature.
 
+    ``add_exception_handler(RateLimitExceeded, ...)`` guarantees Starlette only ever
+    dispatches ``RateLimitExceeded`` instances here.
+    """
+    from slowapi import _rate_limit_exceeded_handler
+    assert isinstance(exc, RateLimitExceeded)
+    return _rate_limit_exceeded_handler(request, exc)
+
+
+def _init_security(app: FastAPI, testing: bool) -> None:
     from .security_fastapi import limiter, setup_cors
 
     setup_cors(app)
 
     if not testing:
         app.state.limiter = limiter
-        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+        app.add_exception_handler(RateLimitExceeded, _handle_rate_limit_exceeded)
 
     @app.middleware("http")
     async def _log_requests(request: Request, call_next):

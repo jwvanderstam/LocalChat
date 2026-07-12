@@ -8,11 +8,9 @@ for the LocalChat RAG application.
 Re-exports all public symbols for backward compatibility with ``from src.rag import ...``.
 """
 
-from collections.abc import Callable
-from typing import NoReturn
-
 from .. import config
 from ..db import db
+from ..monitoring import counted, get_metrics, timed
 from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
 from .cache import EmbeddingCache
@@ -21,18 +19,10 @@ from .loaders import _pypdf as pypdf
 from .processor import DocumentProcessor, doc_processor
 from .scoring import BM25Scorer
 
-# Try to import monitoring - graceful degradation if not available
-try:
-    from ..monitoring import counted, get_metrics, timed
-    MONITORING_AVAILABLE = True
-except ImportError:
-    def timed(_metric_name: str) -> Callable:  # noqa: E306
-        return lambda func: func
-    def counted(_metric_name: str, _labels: dict | None = None) -> Callable:  # noqa: E306
-        return lambda func: func
-    def get_metrics() -> NoReturn:  # noqa: E306
-        raise RuntimeError("Monitoring not available")
-    MONITORING_AVAILABLE = False
+# src/monitoring.py only depends on stdlib + Starlette (always installed), so this
+# import never actually fails — the flag is kept for the small number of call sites
+# and tests that check it, but is no longer conditional.
+MONITORING_AVAILABLE = True
 
 logger = get_logger(__name__)
 

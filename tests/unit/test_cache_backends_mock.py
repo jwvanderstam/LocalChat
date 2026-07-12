@@ -89,6 +89,15 @@ class TestRedisCacheOperations:
         assert cache.get("k") is None
         assert cache.stats.misses == 1
 
+    def test_get_hit_narrows_str_response_to_bytes(self):
+        """decode_responses=False guarantees bytes at runtime, but the redis-py stub
+        types .get() as bytes | str; use pickle's ASCII-safe protocol 0 so the
+        str round-trips correctly through the str->bytes narrowing branch."""
+        cache, client = self._make_cache()
+        client.get.return_value = pickle.dumps("cached_value", protocol=0).decode("utf-8")
+        assert cache.get("k") == "cached_value"
+        assert cache.stats.hits == 1
+
     def test_get_error_returns_none(self):
         cache, client = self._make_cache()
         client.get.side_effect = Exception("conn lost")

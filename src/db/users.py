@@ -7,17 +7,22 @@ Passwords are hashed with Werkzeug's PBKDF2-SHA256 (stored hash includes salt).
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from ..utils.logging_config import get_logger
 from .connection import DatabaseUnavailableError
 
+if TYPE_CHECKING:
+    from .connection import MixinHost
+else:
+    MixinHost = object
+
 logger = get_logger(__name__)
 
 
-class UsersMixin:
+class UsersMixin(MixinHost):
     """Mixin providing user CRUD operations."""
 
     # ------------------------------------------------------------------
@@ -48,7 +53,9 @@ class UsersMixin:
                     """,
                     (username.lower().strip(), email, hashed_password, role),
                 )
-                user_id = str(cur.fetchone()[0])
+                row = cur.fetchone()
+                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                user_id = str(row[0])
         logger.info(f"[Users] Created user '{username}' id={user_id}")
         return user_id
 
@@ -137,7 +144,9 @@ class UsersMixin:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
-                return cur.fetchone()[0]
+                row = cur.fetchone()
+                assert row is not None, "SELECT COUNT(*) always returns a row"
+                return row[0]
 
     # ------------------------------------------------------------------
     # Update
