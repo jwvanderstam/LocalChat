@@ -41,7 +41,7 @@ class TestSharePointConnectorConfig:
         assert _make().connector_type == "sharepoint"
 
     def test_display_name_contains_site_url(self):
-        assert "contoso.sharepoint.com" in _make().display_name
+        assert _make().display_name == "SharePoint: https://contoso.sharepoint.com/sites/x"
 
     def test_validate_config_missing_site_url(self):
         c = SharePointConnector({"user_id": "u1"})

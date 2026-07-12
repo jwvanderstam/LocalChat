@@ -42,6 +42,7 @@ def mock_http():
         get = Mock()
         post = Mock()
         delete = Mock()
+        request = Mock()
         stream = Mock()
     return _MockHttp()
 
@@ -54,6 +55,7 @@ def ollama_client(mock_http):
     client._session.get = mock_http.get
     client._session.post = mock_http.post
     client._session.delete = mock_http.delete
+    client._session.request = mock_http.request
     client._session.stream = mock_http.stream
     return client
 
@@ -247,19 +249,21 @@ class TestModelOperations:
         """Should successfully delete a model."""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_http.delete.return_value = mock_response
+        mock_http.request.return_value = mock_response
 
         success, message = ollama_client.delete_model("test-model")
 
         assert success is True
         assert "deleted successfully" in message.lower()
-        mock_http.delete.assert_called_once()
+        mock_http.request.assert_called_once_with(
+            "DELETE", "http://localhost:11434/api/delete", json={"name": "test-model"}, timeout=30
+        )
 
     def test_delete_model_failure(self, ollama_client, mock_http):
         """Should handle delete failures."""
         mock_response = Mock()
         mock_response.status_code = 404
-        mock_http.delete.return_value = mock_response
+        mock_http.request.return_value = mock_response
 
         success, message = ollama_client.delete_model("nonexistent-model")
 

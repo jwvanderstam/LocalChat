@@ -122,12 +122,17 @@ class KuzuGraphStore(GraphStore):
         import hashlib
         entity_id = hashlib.sha256(f"{name}::{entity_type}".encode()).hexdigest()[:32]
         try:
-            result = self._conn.execute(
+            # kuzu's execute() is typed as QueryResult | list[QueryResult] (the list
+            # variant only occurs for multi-statement scripts, never for a single
+            # parameterized query like this one) and get_next()'s row shape isn't
+            # precisely stubbed — treat both as Any rather than assert a shape we
+            # can't verify against the real kuzu package in this environment.
+            result: Any = self._conn.execute(
                 "MATCH (e:Entity {id: $id}) RETURN e.doc_count",
                 {"id": entity_id},
             )
             if result.has_next():
-                row = result.get_next()
+                row: Any = result.get_next()
                 new_count = (row[0] or 0) + 1
                 self._conn.execute(
                     "MATCH (e:Entity {id: $id}) SET e.doc_count = $count",
@@ -169,14 +174,14 @@ class KuzuGraphStore(GraphStore):
         related: list[str] = []
         try:
             for name in entity_names:
-                result = self._conn.execute(
+                result: Any = self._conn.execute(
                     "MATCH (a:Entity {name: $name})-[:CoOccursWith]-(b:Entity) "
                     "WHERE b.name <> $name "
                     "RETURN DISTINCT b.name LIMIT $limit",
                     {"name": name, "limit": max_results},
                 )
                 while result.has_next():
-                    row = result.get_next()
+                    row: Any = result.get_next()
                     if row[0] and row[0] not in entity_names:
                         related.append(row[0])
         except Exception as exc:
