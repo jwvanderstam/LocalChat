@@ -199,6 +199,25 @@ class TestDetect:
 
         assert b is cpu
 
+    def test_force_apple_returns_apple_when_available(self):
+        from src.gpu.backends import AppleBackend, detect
+
+        apple = AppleBackend(16384, 16384)
+        with patch("src.gpu.backends.AppleBackend.probe", return_value=apple):
+            b = detect("apple")
+
+        assert b is apple
+
+    def test_force_apple_falls_back_to_cpu(self):
+        from src.gpu.backends import CpuBackend, detect
+
+        cpu = CpuBackend(16384, 8192)
+        with patch("src.gpu.backends.AppleBackend.probe", return_value=None):
+            with patch("src.gpu.backends.CpuBackend.probe", return_value=cpu):
+                b = detect("apple")
+
+        assert b is cpu
+
     def test_force_cpu_skips_probes(self):
         from src.gpu.backends import CpuBackend, detect
 

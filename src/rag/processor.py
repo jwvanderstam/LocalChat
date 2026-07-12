@@ -16,6 +16,7 @@ from typing import Any
 
 from .. import config
 from ..db import db
+from ..monitoring import counted, timed
 from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
 from .chunking import TextChunkerMixin
@@ -40,15 +41,6 @@ def _compute_file_hash(file_path: str) -> str:
     return h.hexdigest()
 
 logger = get_logger(__name__)
-
-# Try to import monitoring - graceful degradation if not available
-try:
-    from ..monitoring import counted, timed
-except ImportError:
-    def timed(metric_name: str) -> Callable:  # noqa: E306
-        return lambda func: func
-    def counted(metric_name: str, labels: dict | None = None) -> Callable:  # noqa: E306
-        return lambda func: func
 
 
 class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):

@@ -9,7 +9,7 @@ and database/schema initialisation.
 import socket
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import psycopg
@@ -40,8 +40,7 @@ class MixinHost:
 
     @contextmanager
     def get_connection(self) -> Generator[psycopg.Connection, None, None]:
-        raise NotImplementedError
-        yield  # pragma: no cover — unreachable; satisfies the generator-function shape
+        yield cast(psycopg.Connection, None)
 
     @staticmethod
     def _embedding_to_pg_array(embedding: list[float] | np.ndarray) -> str:

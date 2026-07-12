@@ -15,7 +15,7 @@ Covers:
 
 import json
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -306,6 +306,28 @@ class TestFeedbackPipeline:
         pairs = export_training_pairs(db, days=3)
         db.export_feedback_pairs.assert_called_once_with(days=3)
         assert len(pairs) == 1
+
+    def test_finetune_reranker_builds_eval_pairs_from_input_examples(self, tmp_path):
+        """Exercises the real sentence-transformers InputExample construction and the
+        post-fine-tune eval_pairs loop, mocking only the (slow) model fit/predict calls."""
+        from src.rag.feedback_pipeline import finetune_reranker
+
+        pairs = [
+            {"query": f"q{i}", "chunk_text": f"c{i}", "label": i % 2}
+            for i in range(10)
+        ]
+
+        mock_model = MagicMock()
+        mock_model.predict.return_value = [0.9, 0.1]
+        with patch("sentence_transformers.CrossEncoder", return_value=mock_model):
+            result = finetune_reranker(pairs, output_dir=str(tmp_path))
+
+        assert result["pair_count"] == 10
+        mock_model.fit.assert_called_once()
+        mock_model.predict.assert_called_once()
+        # eval_pairs must be (query, chunk_text) tuples pulled from the real InputExample.texts
+        called_eval_pairs = mock_model.predict.call_args[0][0]
+        assert all(isinstance(p, tuple) and len(p) == 2 for p in called_eval_pairs)
 
     def test_write_jsonl_creates_file(self, tmp_path):
         from src.rag.feedback_pipeline import write_jsonl

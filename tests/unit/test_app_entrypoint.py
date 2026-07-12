@@ -93,6 +93,56 @@ class TestCreateUvicornApp:
         assert result is mock_app
 
 
+class TestInitSecurity:
+    def test_registers_rate_limit_exception_handler_when_not_testing(self):
+        from fastapi import FastAPI
+        from slowapi.errors import RateLimitExceeded
+
+        from src.app_fastapi import _handle_rate_limit_exceeded, _init_security
+
+        app = FastAPI()
+        _init_security(app, testing=False)
+
+        assert app.exception_handlers[RateLimitExceeded] is _handle_rate_limit_exceeded
+
+    def test_skips_rate_limit_wiring_when_testing(self):
+        from fastapi import FastAPI
+        from slowapi.errors import RateLimitExceeded
+
+        from src.app_fastapi import _init_security
+
+        app = FastAPI()
+        _init_security(app, testing=True)
+
+        assert RateLimitExceeded not in app.exception_handlers
+
+
+class TestHandleRateLimitExceeded:
+    """src.app_fastapi._handle_rate_limit_exceeded — adapts slowapi's narrowly-typed
+    handler to Starlette's generic (Request, Exception) -> Response signature."""
+
+    def test_delegates_to_slowapi_handler_for_rate_limit_exceeded(self):
+        from slowapi.errors import RateLimitExceeded
+
+        from src.app_fastapi import _handle_rate_limit_exceeded
+
+        mock_request = Mock()
+        mock_response = Mock()
+        exc = RateLimitExceeded(Mock())
+
+        with patch("slowapi._rate_limit_exceeded_handler", return_value=mock_response) as mock_handler:
+            result = _handle_rate_limit_exceeded(mock_request, exc)
+
+        mock_handler.assert_called_once_with(mock_request, exc)
+        assert result is mock_response
+
+    def test_asserts_on_non_rate_limit_exception(self):
+        from src.app_fastapi import _handle_rate_limit_exceeded
+
+        with pytest.raises(AssertionError):
+            _handle_rate_limit_exceeded(Mock(), ValueError("not a rate limit error"))
+
+
 class TestMain:
     def test_starts_uvicorn_with_env_configured_host_and_port(self):
         with patch("app._ensure_db_running") as mock_ensure, \

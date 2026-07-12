@@ -9,11 +9,11 @@ diversity filtering, and context formatting for LLM prompts.
 import re
 import time
 from collections import defaultdict
-from collections.abc import Callable
 from typing import Any, NamedTuple
 
 from .. import config
 from ..db import db
+from ..monitoring import counted, timed
 from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
 from .cache import embedding_cache
@@ -46,13 +46,6 @@ _CONTRACTIONS: dict = {
     "they've": "they have", "i'll": "i will", "you'll": "you will",
     "we'll": "we will", "they'll": "they will",
 }
-try:
-    from ..monitoring import counted, timed
-except ImportError:
-    def timed(metric_name: str) -> Callable:  # noqa: E306
-        return lambda func: func
-    def counted(metric_name: str, labels: dict | None = None) -> Callable:  # noqa: E306
-        return lambda func: func
 
 
 class RetrievalMixin:

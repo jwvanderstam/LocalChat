@@ -9,11 +9,11 @@ Extracted from DocumentProcessor for modularity.
 import base64
 import os
 import re
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from .. import config
+from ..monitoring import counted, timed
 from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
 
@@ -69,15 +69,6 @@ try:
     logger.debug("pymupdf4llm available for layout-aware PDF extraction")
 except ImportError:
     logger.debug("pymupdf4llm not available — install for better column-heavy PDF support")
-
-# Try to import monitoring - graceful degradation if not available
-try:
-    from ..monitoring import counted, timed
-except ImportError:
-    def timed(metric_name: str) -> Callable:  # noqa: E306
-        return lambda func: func
-    def counted(metric_name: str, labels: dict | None = None) -> Callable:  # noqa: E306
-        return lambda func: func
 
 _PDF_NOT_INSTALLED = "pypdf not installed"
 _DOCX_NOT_INSTALLED = "python-docx not installed"
