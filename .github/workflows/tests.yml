@@ -52,6 +52,16 @@ jobs:
           pip install bandit
           bandit -r src/ -ll -q -c pyproject.toml
 
+      - name: Dependency vulnerability scan (pip-audit)
+        run: |
+          pip install pip-audit
+          # PYSEC-2026-1325: ecdsa timing side-channel, no upstream fix.
+          # This app hardcodes HS256 (src/security_fastapi.py _ALGORITHM)
+          # and passes algorithms=["HS256"] to jwt.decode(), so the
+          # vulnerable ECDSA path is unreachable. See SECURITY.md.
+          # All other CVEs still fail this step.
+          pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
+
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short -x
 
