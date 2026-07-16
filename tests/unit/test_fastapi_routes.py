@@ -329,3 +329,27 @@ class TestApiStatusRoute:
         body = resp.json()
         assert "ollama" in body
         assert "database" in body
+
+    def test_status_mcp_failure_does_not_leak_exception_message(self):
+        from src.routes_fastapi.api_routes import router
+
+        state = _base_state()
+        state.db.get_document_count.return_value = 3
+        state.ollama_client.check_connection.return_value = (True, None)
+
+        secret_detail = "connection refused to internal-host:5001"
+        with patch("src.routes_fastapi.api_routes.config") as mc, patch(
+            "src.mcp_client.mcp_registry.health_summary", side_effect=RuntimeError(secret_detail)
+        ):
+            mc.app_state.get_active_model.return_value = "llama3.2"
+            mc.MODEL_ROUTER_ENABLED = False
+            mc.AGGREGATOR_AGENT_ENABLED = False
+            mc.MCP_ENABLED = True
+            mc.GRAPH_RAG_ENABLED = False
+            mc.LONG_TERM_MEMORY_ENABLED = False
+            client = _make_client(router, "/api", state)
+            resp = client.get("/api/status")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert secret_detail not in body["mcp_servers"]["error"]

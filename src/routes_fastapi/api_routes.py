@@ -234,7 +234,7 @@ def api_status(request: Request) -> Any:
             response["mcp_servers"] = mcp_registry.health_summary()
         except Exception as mcp_err:
             logger.warning("[MCP] health_summary failed: %s", mcp_err)
-            response["mcp_servers"] = {"error": str(mcp_err)}
+            response["mcp_servers"] = {"error": "unavailable"}
 
     if config.MODEL_ROUTER_ENABLED:
         try:
