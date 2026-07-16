@@ -1,0 +1,43 @@
+# .gitleaks.toml
+#
+# Gitleaks secret-scanning configuration for LocalChat.
+#
+# Extends gitleaks' built-in default ruleset. There is a known, accepted
+# historical secret leak in early git history (see SECURITY.md, "Known &
+# Accepted Risks" #1) — it deliberately has NO allowlist entry here. Both
+# the CI workflow (.github/workflows/gitleaks.yml) and the local pre-commit
+# hook only scan the push/PR diff or staged changes respectively, never
+# full history, so they never re-encounter it; adding an allowlist entry
+# would require writing the plaintext credential into this tracked,
+# published file, which would make it *more* discoverable than it already
+# is, for no scanning benefit. If you ever need to run a one-off full-
+# history audit locally, pass `--exclude` on the command line instead of
+# adding a permanent entry here.
+#
+# One documented allowlist entry below, for non-secret CI placeholders:
+#
+#   The fixed, non-secret CI placeholder credentials set as env vars in
+#   .github/workflows/tests.yml and .github/workflows/sonarcloud.yml, so
+#   they don't false-positive as leaked secrets.
+#
+# Do NOT add new allowlist entries for real application secrets — rotate or
+# remove those instead of allowlisting them.
+
+title = "LocalChat gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Non-secret CI placeholder credentials (GitHub Actions test env vars only)"
+condition = "AND"
+paths = [
+  '''\.github/workflows/tests\.yml''',
+  '''\.github/workflows/sonarcloud\.yml''',
+]
+regexes = [
+  '''ci_test_password''',
+  '''ci-test-secret-key-32chars-minimum''',
+  '''ci-test-jwt-secret-key''',
+  '''ci-test-admin-password''',
+]

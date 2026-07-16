@@ -37,7 +37,9 @@ services:
       POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD must be set}
       POSTGRES_DB:       ${PG_DB:-rag_db}
     ports:
-      - "5432:5432"
+      # Bind to 127.0.0.1 by default so Postgres is NOT reachable from
+      # outside the host. See SECURITY.md ("Known & Accepted Risks" #1).
+      - "${BIND_HOST:-127.0.0.1}:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
