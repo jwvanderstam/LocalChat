@@ -129,6 +129,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
 | `.github/workflows/tests.yml` | CI: `unit-tests` (ruff + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) |
 | `docs/INTEGRATION_TESTS.md` | How to run integration tests locally and CI setup instructions |
+| `docs/TEST_QUALITY_AUDIT.md` | Mutation-testing (mutmut) methodology + per-module test-quality findings; environment setup notes (Docker, isolated worktree, mutmut 2.x vs 3.x) |
 | `docker-compose.nginx.yml` | Nginx TLS overlay — compose with `docker-compose.yml` to add HTTPS termination |
 | `nginx/nginx.conf` | Nginx config template — replace `YOUR_DOMAIN` and mount certs before use |
 | `tests/e2e/test_smoke.py` | Playwright smoke tests (`@pytest.mark.e2e`); require a live server + `pytest-playwright` |
