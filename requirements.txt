@@ -37,7 +37,7 @@ html2text>=2025.4.15          # Confluence HTML→plain-text conversion
 reportlab>=5.0.0             # PDF export for conversation download (optional)
 kuzu>=0.11.3               # Graph store backend (optional; set GRAPH_BACKEND=kuzu to activate)
 openpyxl>=3.1.5         # Excel (.xlsx) ingestion
-litellm>=1.83.7    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
+litellm>=1.93.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
 h11>=0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
 spacy>=3.8.14      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
