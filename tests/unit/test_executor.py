@@ -100,19 +100,23 @@ class TestFormatDataAsText:
         assert ToolExecutor._format_data_as_text(42) == "42"
 
     def test_flat_dict(self):
-        result = ToolExecutor._format_data_as_text({"revenue": 100})
-        assert "Revenue" in result
-        assert "100" in result
+        # Underscore key exercises the .replace("_", " ").title() label formatting.
+        result = ToolExecutor._format_data_as_text({"total_count": 100})
+        assert result == "- Total Count: 100"
 
     def test_list_of_scalars(self):
+        # Each item is recursively formatted at indent+1 *and* prefixed with
+        # "- " by the list join, so list items carry a doubled indent.
         result = ToolExecutor._format_data_as_text(["a", "b"])
-        assert "a" in result
-        assert "b" in result
+        assert result == "-   a\n-   b"
 
     def test_nested_dict(self):
         result = ToolExecutor._format_data_as_text({"data": {"key": "val"}})
-        assert "Data" in result
-        assert "val" in result
+        assert result == "**Data:**\n  - Key: val"
+
+    def test_list_of_dicts_nested_indent(self):
+        result = ToolExecutor._format_data_as_text([{"key": "val"}])
+        assert result == "-   - Key: val"
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +227,36 @@ class TestMaxRoundsExhaustion:
 
 
 # ---------------------------------------------------------------------------
+# Tool-result message structure — exact role/content, not just final text
+# ---------------------------------------------------------------------------
+
+class TestToolResultMessageRole:
+    """Verifies the actual message dict appended for a non-inline tool
+    result, not just the text eventually yielded to the caller."""
+
+    async def test_tool_result_appended_with_role_tool_not_user(self):
+        executor, client = _make_executor(max_rounds=3)
+
+        tool_call = {"function": {"name": "test_tool", "arguments": {"query": "x"}}}
+        client.generate_chat_completion = AsyncMock(side_effect=[
+            _chat_response(tool_calls=[tool_call]),
+            _chat_response(content="final"),
+        ])
+        client.generate_chat_response = _async_gen()
+
+        messages = [{"role": "user", "content": "test"}]
+        chunks = [c async for c in executor.execute("model", messages)]
+        assert "final" in chunks
+
+        # working_messages is mutated in place and passed by reference, so
+        # inspecting either recorded call gives the same final message list.
+        sent_messages = client.generate_chat_completion.call_args_list[-1].args[1]
+        tool_messages = [m for m in sent_messages if m.get("role") == "tool"]
+        assert len(tool_messages) == 1
+        assert tool_messages[0] == {"role": "tool", "content": "result for x"}
+
+
+# ---------------------------------------------------------------------------
 # Schema-dict guard — argument received as schema object instead of value
 # ---------------------------------------------------------------------------
 
@@ -260,8 +294,54 @@ class TestSchemaDictGuard:
 
         chunks = [c async for c in executor.execute("model", [{"role": "user", "content": "hi"}])]
         combined = "".join(chunks)
-        # The guard returns an error; the executor continues to a final streamed response
         assert combined  # something was yielded
+
+        # Assert the exact guard error text was appended as the tool result,
+        # not just that *something* non-empty eventually came out.
+        sent_messages = client.generate_chat_completion.call_args_list[-1].args[1]
+        tool_messages = [m for m in sent_messages if m.get("role") == "tool"]
+        assert tool_messages
+        assert tool_messages[0]["content"] == (
+            "Error: argument 'name' must be a plain string, not a schema "
+            "object. Call the tool again with the actual value as a string."
+        )
+
+    async def test_non_string_schema_type_does_not_trigger_guard(self):
+        """A dict argument is legitimate when the declared schema type is
+        not "string" — the guard must only fire on the string/dict mismatch,
+        proving `== "string"` isn't a typo'd/mismatched key check."""
+        client = MagicMock()
+        registry = ToolRegistry()
+
+        @registry.register(
+            name="configure",
+            description="Configure something",
+            parameters={
+                "type": "object",
+                "properties": {"options": {"type": "object"}},
+                "required": ["options"],
+            },
+        )
+        def configure(options: dict) -> str:
+            return f"configured with {options}"
+
+        executor = ToolExecutor(client=client, registry=registry, max_rounds=5)
+
+        tool_call = {
+            "function": {"name": "configure", "arguments": {"options": {"a": 1}}}
+        }
+        client.generate_chat_completion = AsyncMock(side_effect=[
+            _chat_response(tool_calls=[tool_call]),
+            _chat_response(content="done"),
+        ])
+        client.generate_chat_response = _async_gen()
+
+        chunks = [c async for c in executor.execute("model", [{"role": "user", "content": "hi"}])]
+        assert "done" in chunks
+
+        sent_messages = client.generate_chat_completion.call_args_list[-1].args[1]
+        tool_messages = [m for m in sent_messages if m.get("role") == "tool"]
+        assert tool_messages[0]["content"] == "configured with {'a': 1}"
 
 
 # ---------------------------------------------------------------------------

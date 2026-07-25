@@ -31,6 +31,64 @@ class TestBM25Scorer:
         assert abs(scorer.k1 - 2.0) < 1e-9
         assert abs(scorer.b - 0.5) < 1e-9
 
+    def test_fit_computes_idf_doc_freqs_avgdl(self):
+        """fit() must populate avgdl/doc_freqs/idf from the real corpus, not leave them empty."""
+        from src.rag import BM25Scorer
+
+        scorer = BM25Scorer()
+        scorer.fit(["the cat sat", "the dog ran"])
+        assert scorer.avgdl == 3.0
+        assert scorer.doc_freqs["the"] == 2
+        # "the" appears in every doc (low discriminative power) so its IDF
+        # must be lower than a term appearing in only one doc.
+        assert scorer.idf["the"] < scorer.idf["cat"]
+
+    def test_fit_empty_corpus_leaves_uninitialized(self):
+        """An empty corpus must short-circuit fit() and make score() a no-op."""
+        from src.rag import BM25Scorer
+
+        scorer = BM25Scorer()
+        scorer.fit([])
+        assert scorer.corpus_size == 0
+        assert scorer.score("cat", "cat sat") == 0.0
+
+    def test_score_unfitted_scorer_returns_zero(self):
+        """score() before fit() must return 0.0, not raise or compute garbage."""
+        from src.rag import BM25Scorer
+
+        scorer = BM25Scorer()
+        assert scorer.score("cat", "cat sat") == 0.0
+
+    def test_score_with_doc_idx_zero_uses_cached_tokens(self):
+        """doc_idx=0 is a valid index and must use the cached fitted tokens, not the empty-string fallback."""
+        from src.rag import BM25Scorer
+
+        scorer = BM25Scorer()
+        scorer.fit(["cat sat mat", "dog ran fast"])
+        score = scorer.score("cat", "", doc_idx=0)
+        assert score > 0.0
+
+    def test_score_out_of_range_doc_idx_falls_back_to_document_arg(self):
+        """An out-of-range doc_idx must re-tokenize the passed document text instead of silently returning 0."""
+        from src.rag import BM25Scorer
+
+        scorer = BM25Scorer()
+        scorer.fit(["cat sat mat"])
+        score_with_term = scorer.score("cat", "cat is great", doc_idx=99)
+        score_without_term = scorer.score("cat", "dog is bad", doc_idx=99)
+        assert score_with_term > 0.0
+        assert score_without_term == 0.0
+
+    def test_score_orders_by_term_frequency(self):
+        """A document that repeats the query term more often must score higher (BM25's core purpose)."""
+        from src.rag import BM25Scorer
+
+        scorer = BM25Scorer()
+        scorer.fit(["cat is here", "cat cat cat is here"])
+        low_freq_score = scorer.score("cat", "", doc_idx=0)
+        high_freq_score = scorer.score("cat", "", doc_idx=1)
+        assert high_freq_score > low_freq_score
+
 
 class TestTextChunking:
     """Test text chunking."""

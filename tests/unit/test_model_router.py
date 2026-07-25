@@ -155,6 +155,20 @@ class TestClassify:
         assert cls == ModelClass.CODE
         assert "code" in reason.lower()
 
+    def test_vision_from_lowercase_doc_type(self):
+        # _IMAGE_DOC_TYPES has 2 members (upper/lower "image") — the
+        # existing test only samples "IMAGE".
+        from src.agent.models import ModelClass
+        cls, _ = self._classify("explain this", doc_types=["image"])
+        assert cls == ModelClass.VISION
+
+    def test_code_from_lowercase_doc_type(self):
+        # _CODE_DOC_TYPES has 6 members — the existing test only samples
+        # "CODE_PYTHON". Exercise a lowercase, non-Python member too.
+        from src.agent.models import ModelClass
+        cls, _ = self._classify("explain this", doc_types=["code_ts"])
+        assert cls == ModelClass.CODE
+
     def test_code_from_query_python_def(self):
         from src.agent.models import ModelClass
         cls, _ = self._classify("def calculate(x): return x * 2")
@@ -236,11 +250,15 @@ class TestModelRouterSelect:
             assert model_id == "llama3.2:3b"
 
     def test_rationale_includes_class_name(self):
+        # "What is X?" is short with no plan, no code/vision markers, so it
+        # must classify as FAST specifically — pin the rationale to that
+        # exact class rather than accepting any of the 5 class names, which
+        # would pass even if the wrong class were embedded.
         from src.agent.models import ModelRegistry
         from src.agent.router import ModelRouter
         router = ModelRouter(registry=ModelRegistry())
         _, rationale = router.select("What is X?", active_model="m")
-        assert any(cls in rationale for cls in ["fast", "base", "large", "code", "vision"])
+        assert rationale.startswith("fast:")
 
     def test_fallback_to_active_when_no_model_configured(self):
         """All classes unconfigured → every query uses active model."""

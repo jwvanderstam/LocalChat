@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.rag.planner import QueryPlan, QueryPlanner
+from src.rag.planner import _PLAN_SYSTEM_PROMPT, QueryPlan, QueryPlanner
 
 # ===========================================================================
 # QueryPlan dataclass
@@ -158,6 +158,23 @@ class TestQueryPlannerParse:
         plan = self._parse(raw)
         assert plan.tools == ["local_docs"]
 
+    def test_explicit_non_default_tools_value_is_preserved(self):
+        # Every other test passes "local_docs" — the same value the fallback
+        # default produces — so a key typo on the read side would be
+        # invisible. Use a value that differs from the default to prove the
+        # real "tools" key is being read.
+        raw = json.dumps({"intent": "factual_lookup", "sub_questions": ["q"], "tools": ["web_search"], "synthesis_required": False, "estimated_hops": 1})
+        plan = self._parse(raw)
+        assert plan.tools == ["web_search"]
+
+    def test_synthesis_required_omitted_defaults_to_false(self):
+        # Every other test sets synthesis_required explicitly to a value
+        # matching the default (False) or its own coercion target — omit the
+        # key entirely to exercise the actual `.get(..., False)` default path.
+        raw = json.dumps({"intent": "factual_lookup", "sub_questions": ["q"], "tools": ["local_docs"], "estimated_hops": 1})
+        plan = self._parse(raw)
+        assert plan.synthesis_required is False
+
     # ── sub_questions capped at 3 ─────────────────────────────────────────────
 
     def test_sub_questions_capped_at_three(self):
@@ -286,10 +303,27 @@ class TestQueryPlannerPlan:
         assert called_args['model'] == "my-model"
         messages = called_args['messages']
         assert messages[0]["role"] == "system"
+        assert messages[0]["content"] == _PLAN_SYSTEM_PROMPT
         assert messages[1]["role"] == "user"
         assert "test query" in messages[1]["content"]
         assert called_args['kwargs'].get("stream") is False
         assert called_args['kwargs'].get("temperature") == 0.0
+
+    async def test_plan_accumulates_multiple_stream_chunks(self):
+        # Every other mock yields exactly one chunk, so `raw += chunk`
+        # (correct) and `raw = chunk` (bug, keeps only the last fragment)
+        # produce identical results. Split valid JSON across chunks so only
+        # the accumulating version parses successfully.
+        planner = self._planner()
+        full_json = self._valid_json_response(intent="synthesis")
+        midpoint = len(full_json) // 2
+        client = MagicMock()
+        client.generate_chat_response = _async_gen(full_json[:midpoint], full_json[midpoint:])
+
+        result = await planner.plan("query", "llama3", client)
+
+        assert result is not None
+        assert result.intent == "synthesis"
 
     async def test_returns_plan_with_correct_sub_questions(self):
         planner = self._planner()

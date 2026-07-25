@@ -320,3 +320,62 @@ class TestQueryExpanderExpand:
             result = e.expand("X Corp", db)
         # No entities passed the length filter → no DB call
         assert result == []
+
+    def test_filters_entity_at_lower_boundary_2_chars_kept(self):
+        """Exactly 2 chars is the inclusive lower boundary — must be kept."""
+        e = self._expander()
+        mock_nlp = _make_mock_nlp([("Hi", "ORG")])
+        db = _make_db()
+        db.get_related_entity_names.return_value = ["related"]
+        with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
+            result = e.expand("Hi Corp", db)
+        db.get_related_entity_names.assert_called_once()
+        assert db.get_related_entity_names.call_args.args[0] == ["Hi"]
+        assert result == ["related"]
+
+    def test_filters_entity_at_upper_boundary_200_chars_kept(self):
+        """Exactly 200 chars is the inclusive upper boundary — must be kept."""
+        e = self._expander()
+        entity_text = "A" * 200
+        mock_nlp = _make_mock_nlp([(entity_text, "ORG")])
+        db = _make_db()
+        db.get_related_entity_names.return_value = ["related"]
+        with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
+            result = e.expand("query", db)
+        db.get_related_entity_names.assert_called_once()
+        assert db.get_related_entity_names.call_args.args[0] == [entity_text]
+        assert result == ["related"]
+
+    def test_filters_entity_over_201_chars_excluded(self):
+        """201 chars is one past the inclusive upper boundary — must be filtered."""
+        e = self._expander()
+        entity_text = "A" * 201
+        mock_nlp = _make_mock_nlp([(entity_text, "ORG")])
+        db = _make_db()
+        with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
+            result = e.expand("query", db)
+        db.get_related_entity_names.assert_not_called()
+        assert result == []
+
+    def test_and_not_or_between_label_and_length_checks(self):
+        """A disallowed label with an otherwise-valid length must still be
+        filtered — proves the label and length checks are ANDed, not ORed."""
+        e = self._expander()
+        # "ADV" is not in _KEEP_TYPES; "Quickly Indeed" is a valid length (14 chars).
+        mock_nlp = _make_mock_nlp([("Quickly Indeed", "ADV")])
+        db = _make_db()
+        with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
+            result = e.expand("query", db)
+        db.get_related_entity_names.assert_not_called()
+        assert result == []
+
+    def test_default_max_extra_is_five(self):
+        """No explicit max_extra override — the default value (5) must be forwarded."""
+        e = self._expander()
+        mock_nlp = _make_mock_nlp([("Apple", "ORG")])
+        db = _make_db()
+        db.get_related_entity_names.return_value = []
+        with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
+            e.expand("Apple text", db)
+        call_kwargs = db.get_related_entity_names.call_args
+        assert call_kwargs.kwargs.get("max_results") == 5 or 5 in call_kwargs.args
