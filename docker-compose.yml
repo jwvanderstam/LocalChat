@@ -279,6 +279,15 @@ services:
       # ── Ollama ───────────────────────────────────────────
       OLLAMA_BASE_URL: http://ollama:11434
 
+      # ── GPU detection (MM-1) ─────────────────────────────
+      # The app itself doesn't run inference, but src/gpu/backends.py needs
+      # nvidia-smi visible in this container to report real VRAM budget for
+      # the model-fit check on /models. Without this, detect() silently
+      # falls back to CpuBackend (container RAM), producing a budget_mb
+      # that has nothing to do with the actual GPU the ollama service uses.
+      NVIDIA_VISIBLE_DEVICES:     all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+
       # ── Security ─────────────────────────────────────────
       RATELIMIT_ENABLED: ${RATELIMIT_ENABLED:-true}
       CORS_ENABLED:      ${CORS_ENABLED:-false}
@@ -305,6 +314,13 @@ services:
     volumes:
       - app_uploads:/app/uploads
       - app_logs:/app/logs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)"]
       interval: 30s
