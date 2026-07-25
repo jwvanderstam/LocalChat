@@ -6,6 +6,28 @@
 const navEl = document.getElementById('docs-nav');
 const contentEl = document.getElementById('docs-content');
 
+if (window.mermaid) {
+    window.mermaid.initialize({ startOnLoad: false });
+}
+
+async function renderMermaidBlocks() {
+    if (!window.mermaid) return;
+    const blocks = contentEl.querySelectorAll('pre code.language-mermaid');
+    blocks.forEach(function (code) {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = code.textContent;
+        code.closest('pre').replaceWith(div);
+    });
+    if (blocks.length > 0) {
+        try {
+            await window.mermaid.run({ querySelector: '#docs-content .mermaid' });
+        } catch (error) {
+            console.error('Mermaid render failed:', error);
+        }
+    }
+}
+
 function renderNav(docs) {
     navEl.innerHTML = '';
     docs.forEach(function (doc) {
@@ -40,6 +62,7 @@ async function selectDoc(slug) {
         }
         const data = await response.json();
         contentEl.innerHTML = data.html;
+        await renderMermaidBlocks();
     } catch (error) {
         console.error('Failed to load doc:', error);
         contentEl.innerHTML = '<p class="text-danger">Failed to load document.</p>';

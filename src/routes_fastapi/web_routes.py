@@ -43,11 +43,6 @@ def models(request: Request) -> HTMLResponse:
     return _templates(request).TemplateResponse(request, "models.html")
 
 
-@router.get("/overview", include_in_schema=False)
-def overview(request: Request) -> HTMLResponse:
-    return _templates(request).TemplateResponse(request, "overview.html")
-
-
 _SETTING_DOC_SLUGS = [
     "retrieval-candidates-top_k_results",
     "chunks-sent-to-llm-rerank_top_k",

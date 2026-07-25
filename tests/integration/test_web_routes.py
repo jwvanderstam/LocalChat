@@ -98,22 +98,6 @@ class TestModelsRoute:
         assert response.headers.get('content-type', '').startswith('text/html')
 
 
-class TestOverviewRoute:
-    """Test overview page."""
-
-    def test_overview_renders_template(self, client):
-        """Test overview route renders template."""
-        response = client.get('/overview')
-
-        assert response.status_code == 200
-
-    def test_overview_returns_html(self, client):
-        """Test overview returns HTML content."""
-        response = client.get('/overview')
-
-        assert response.headers.get('content-type', '').startswith('text/html')
-
-
 class TestSettingsRoute:
     """Test settings page route."""
 
@@ -176,7 +160,7 @@ class TestWebRoutesGeneral:
 
     def test_all_routes_accessible(self, client):
         """Test all web routes are accessible."""
-        routes = ['/', '/chat', '/documents', '/models', '/overview', '/settings', '/docs']
+        routes = ['/', '/chat', '/documents', '/models', '/settings', '/docs']
 
         for route in routes:
             response = client.get(route)
