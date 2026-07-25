@@ -81,7 +81,12 @@ services:
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      OLLAMA_KEEP_ALIVE: -1
+      # MM-2 (runtime resource isolation): cap concurrent loaded models at 1
+      # so requesting a second model evicts the first instead of both
+      # sharing VRAM and spilling onto CPU. 10m keep-alive frees VRAM after
+      # a period of inactivity instead of pinning a model forever (-1).
+      OLLAMA_MAX_LOADED_MODELS: 1
+      OLLAMA_KEEP_ALIVE: 10m
     volumes:
       - ollama_models:/root/.ollama
     deploy:
