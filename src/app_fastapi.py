@@ -47,6 +47,7 @@ def create_app(config_override: dict[str, Any] | None = None) -> FastAPI:
 
     # ── App state ──────────────────────────────────────────────────────────
     from .db import db
+    from .docs.service import DocsService
     from .ollama_client import ollama_client
     from .rag import doc_processor
 
@@ -58,6 +59,12 @@ def create_app(config_override: dict[str, Any] | None = None) -> FastAPI:
     app.state.upload_folder = upload_folder
     app.state.static_folder = str(root_dir / "static")
     app.state.template_folder = str(root_dir / "templates")
+
+    # Fixed catalogue of the repo's own markdown files — always present in a
+    # checkout, so this loads eagerly here rather than in bootstrap_app().
+    app.state.docs_service = DocsService(root_dir=root_dir)
+    if config.DOCS_ENABLED:
+        app.state.docs_service.load_all()
 
     # Placeholders overwritten by bootstrap
     app.state.sync_worker = None
@@ -157,6 +164,7 @@ def _register_routers(app: FastAPI) -> None:
         api_routes,
         auth_routes,
         connector_routes,
+        docs_routes,
         document_routes,
         feedback_routes,
         longterm_memory_routes,
@@ -181,6 +189,7 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(auth_routes.router, prefix="/api")
     app.include_router(oauth_routes.router, prefix="/api")
     app.include_router(annotation_routes.router, prefix="/api")
+    app.include_router(docs_routes.router, prefix="/api/repo-docs")
 
     logger.debug("Routers registered")
 

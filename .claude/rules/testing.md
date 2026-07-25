@@ -1,5 +1,21 @@
 # Testing Standards
 
+## Assertion-strength checklist
+
+Mutation testing (`docs/TEST_QUALITY_AUDIT.md`) found that coverage percentage
+hides weak tests — a line can execute inside a test with zero assertions on
+its actual behavior and still count as "covered." Root cause: test-writing
+sessions framed around a coverage-percentage target reward touching a line,
+not verifying it. Every new test should satisfy one of these four rules,
+matched to the failure mode it counters:
+
+| Root-cause shape | Corrective rule |
+|---|---|
+| **WEAK-SMOKE** — asserts "no exception," "not None," a type, or a truthy substring instead of a value | **Assert the exact expected value/state**, not its existence or shape. |
+| **Tautological assertion** — the check passes by construction regardless of correctness (a WEAK-SMOKE variant) | **Assert something that could only be true for the correct branch**, not something true for every branch. |
+| **MISSING-NEGATIVE-SPACE** — only one member of a set/boundary/branch is ever exercised, and it usually happens to equal the code's own fallback/default | **Add the case where the explicit value diverges from the fallback**, plus the untested side of every boundary and every set member. |
+| **Indistinguishable accumulation** — a loop/incremental build is only ever driven with one iteration, so `x += y` and `x = y` look identical | **Drive the loop with ≥2 iterations/chunks and assert the combined result**, and inspect the actual intermediate structure being built, not just a downstream summary of it. |
+
 ## What requires a test
 
 - New public functions and methods → unit test.

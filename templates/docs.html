@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2 mb-1">Documentation</h1>
+        <p class="text-muted small mb-0">Rendered live from the repository's own markdown files.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3 mb-3">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-list-ul me-2"></i>Documents</div>
+            <div class="list-group list-group-flush" id="docs-nav" style="max-height: 70vh; overflow-y: auto;">
+                <div class="list-group-item text-muted small">Loading&hellip;</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9 mb-3">
+        <div class="card">
+            <div class="card-body" id="docs-content">
+                <p class="text-muted">Select a document from the list.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script type="module" src="{{ url_for('static', path='js/docs.js') }}"></script>
+{% endblock %}

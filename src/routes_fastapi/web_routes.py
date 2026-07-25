@@ -48,6 +48,14 @@ def overview(request: Request) -> HTMLResponse:
     return _templates(request).TemplateResponse(request, "overview.html")
 
 
+_SETTING_DOC_SLUGS = [
+    "retrieval-candidates-top_k_results",
+    "chunks-sent-to-llm-rerank_top_k",
+    "diversity-threshold-diversity_threshold",
+    "semantic-weight-semantic_weight",
+]
+
+
 @router.get("/settings", include_in_schema=False)
 def settings(request: Request) -> HTMLResponse:
     try:
@@ -55,4 +63,16 @@ def settings(request: Request) -> HTMLResponse:
         stats = gather_admin_stats(request.app.state)
     except Exception:
         stats = {}
-    return _templates(request).TemplateResponse(request, "settings.html", {"stats": stats})
+    docs_service = request.app.state.docs_service
+    setting_docs = {
+        slug: (docs_service.get_fragment("docs-settings", slug) or "")
+        for slug in _SETTING_DOC_SLUGS
+    }
+    return _templates(request).TemplateResponse(
+        request, "settings.html", {"stats": stats, "setting_docs": setting_docs}
+    )
+
+
+@router.get("/docs", include_in_schema=False)
+def docs(request: Request) -> HTMLResponse:
+    return _templates(request).TemplateResponse(request, "docs.html")

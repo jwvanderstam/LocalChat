@@ -17,6 +17,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/gpu/backends.py` | `GpuBackend` Protocol + `NvidiaBackend`, `AmdBackend` (stub), `AppleBackend`, `CpuBackend`; `detect(force)` factory (MM-1) |
 | `src/gpu_monitor.py` | `GpuMonitor` — NVIDIA/AMD detection via `nvidia-smi`/`rocm-smi`, TTL 30 s (per-GPU detail for admin dashboard) |
 | `src/mcp_client.py` | MCP HTTP client; `MCPClientRegistry` singleton + per-server `CircuitBreaker` |
+| `src/exceptions.py` | `LocalChatException` hierarchy (`OllamaConnectionError`, `DatabaseConnectionError`, `DocNotFoundError`, etc.) + `EXCEPTION_STATUS_CODES` |
 | **Routes** | |
 | `src/routes_fastapi/api_routes.py` | Chat (SSE), status — HTTP plumbing only; delegates business logic to `src/services/chat.py` |
 | `src/services/chat.py` | Chat business logic: context retrieval, RAG, planning, memory, model routing, message persistence |
@@ -31,6 +32,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/auth_routes.py` | User management (admin) + self-service password change |
 | `src/routes_fastapi/oauth_routes.py` | OAuth2 flows for Microsoft (`/api/oauth/microsoft/*`) and Google (`/api/oauth/google/*`) |
 | `src/routes_fastapi/annotation_routes.py` | Annotation CRUD (`POST /api/annotations`, `GET /api/chunks/{id}/annotations`, `DELETE /api/annotations/{id}`) |
+| `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
 | `src/routes_fastapi/_request_state.py` | Per-request state helpers (request ID, workspace ID) |
 | **RAG** | |
@@ -58,6 +60,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/db/users.py` | `UsersMixin` — user CRUD, PBKDF2 password hashing |
 | `src/db/oauth_tokens.py` | `OAuthTokensMixin` — Fernet-encrypted OAuth token storage |
 | `src/db/tokens.py` | `TokensMixin` — JWT revocation deny-list (`revoked_tokens` table) |
+| `src/db/annotations.py` | `AnnotationsMixin` — annotation CRUD |
 | **Migrations** | |
 | `alembic.ini` | Alembic configuration — script_location, logging |
 | `migrations/env.py` | Alembic environment — builds SQLAlchemy URL from `src.config`, runs `upgrade head` |
@@ -73,6 +76,12 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0010_cw2e_annotations_soft_delete.py` | CW-2e: adds annotations.deleted_at, deleted_by |
 | `migrations/versions/0011_cw2f_connectors_soft_delete.py` | CW-2f: adds connectors.deleted_at, deleted_by |
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
+| `docs/OPERATIONS.md` | Backup/restore/maintenance runbook |
+| `docs/ROADMAP.md` | Living initiative/ticket plan (current: v3.0 — hygiene, Clark-Wilson, RBAC, GKB, model management, plugin contract) |
+| `docs/SCHEMA.md` | Database schema reference + ER diagram |
+| `docs/TROUBLESHOOTING.md` | Common issues and fixes |
+| `docs/LESSONS_LEARNED.md` | Chronological architecture/decision history, built from `git log` + `docs/ROADMAP.md` |
+| `docs/SETTINGS.md` | Per-RAG-parameter descriptions — source of truth for `templates/settings.html`'s help text via `DocsService` |
 | **Agent** | |
 | `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); <1 ms |
 | `src/agent/aggregator.py` | `AggregatorAgent` — parallel tool dispatch, retry, dedup |
@@ -84,6 +93,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/tools/registry.py` | Tool registration with JSON schemas |
 | `src/tools/builtin.py` | Built-in tools: document search, calculator, datetime |
 | `src/tools/plugin_loader.py` | Loads `.py` plugins from `plugins/` at startup |
+| `plugins/example_plugin.py` | Reference plugin demo (`word_count`, `reverse_text` tools) |
+| `plugins/README.md` | Plugin authoring guide |
 | **Graph / Memory / Performance** | |
 | `src/graph/store.py` | `GraphStore` ABC + `PostgresGraphStore` (default) + `KuzuGraphStore` (optional); `create_graph_store(db)` factory |
 | `src/graph/extractor.py` | spaCy entity extraction from document chunks; accepts `graph_store` injection |
@@ -91,6 +102,14 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/memory/extractor.py` | Extracts memorable facts from conversation turns |
 | `src/memory/retriever.py` | `MemoryRetriever` — vector-searches memories, injects top-K into LLM prompt |
 | `src/performance/batch_processor.py` | `BatchEmbeddingProcessor` — parallel batch embedding |
+| **Cache** | |
+| `src/cache/managers.py` | Cache manager selecting Redis/in-memory/DB backend by config |
+| `src/cache/backends/base.py` | `CacheBackend` ABC |
+| `src/cache/backends/memory.py` | In-memory TTL cache backend |
+| `src/cache/backends/redis_cache.py` | Redis-backed cache backend |
+| `src/cache/backends/database_cache.py` | PostgreSQL-backed (JSON, not pickle) L3 cache backend |
+| **Docs** | |
+| `src/docs/service.py` | `DocsService` — loads a fixed catalogue of repo markdown files (`CLAUDE.md`, `.claude/rules/*.md`, `docs/*.md`, `README.md`, `SECURITY.md`), splits into heading-keyed fragments, renders to HTML; backs the `/docs` viewer and `templates/settings.html`'s per-parameter help text |
 | **Connectors** | |
 | `src/connectors/base.py` | `BaseConnector` ABC + `DocumentSource`, `DocumentEvent`, `EventType` |
 | `src/connectors/local_folder.py` | Stat-based folder watcher |
@@ -98,7 +117,6 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/connectors/webhook.py` | Receives push events via HTTP POST |
 | `src/connectors/sharepoint_connector.py` | SharePoint connector — Graph API delta queries |
 | `src/connectors/onedrive_connector.py` | OneDrive connector — Graph API delta queries |
-| `src/db/annotations.py` | `AnnotationsMixin` — annotation CRUD |
 | `src/connectors/microsoft_auth.py` | `get_valid_access_token` — checks expiry, refreshes via Graph |
 | `src/connectors/google_drive_connector.py` | Google Drive connector — Drive API v3 changes feed |
 | `src/connectors/google_auth.py` | `get_valid_google_access_token` — checks expiry, refreshes via Google OAuth2 |
@@ -121,20 +139,31 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Infra / Config** | |
 | `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
-| `helm/localchat/` | Full Helm chart: app + PostgreSQL + Redis StatefulSets + MCP Deployments |
+| `helm/localchat/` | Full Helm chart: app + PostgreSQL + Redis StatefulSets + MCP Deployments; `templates/` includes `hpa.yaml`, `ingress.yaml`, and per-MCP-server subcharts |
 | `docs/DEPLOYMENT.md` | Helm install/upgrade/rollback guide, secrets management |
-| `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 7 panels) |
+| `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 16 panels) |
 | `tests/conftest.py` | Shared pytest fixtures |
+| `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
+| `tests/e2e/test_smoke.py` | Playwright smoke tests (`@pytest.mark.e2e`); require a live server + `pytest-playwright` |
+| `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
-| `.github/workflows/tests.yml` | CI: `unit-tests` (ruff + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) |
+| `.github/workflows/tests.yml` | CI: `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, Conventional Commits warning) |
+| `.github/workflows/sonarcloud.yml` | SonarCloud quality-gate scan on push/PR to main |
+| `.github/workflows/gitleaks.yml` | Secret-scanning on push/PR to main |
+| `.github/workflows/docker-publish.yml` | Builds and publishes the app's Docker image |
 | `docs/INTEGRATION_TESTS.md` | How to run integration tests locally and CI setup instructions |
 | `docs/TEST_QUALITY_AUDIT.md` | Mutation-testing (mutmut) methodology + per-module test-quality findings; environment setup notes (Docker, isolated worktree, mutmut 2.x vs 3.x) |
 | `docker-compose.nginx.yml` | Nginx TLS overlay — compose with `docker-compose.yml` to add HTTPS termination |
 | `nginx/nginx.conf` | Nginx config template — replace `YOUR_DOMAIN` and mount certs before use |
-| `tests/e2e/test_smoke.py` | Playwright smoke tests (`@pytest.mark.e2e`); require a live server + `pytest-playwright` |
 | **Frontend** | |
 | `static/js/ui.js` | Pure rendering helpers (no state): `escapeHtml`, `formatMessageText`, `buildSourcesPanel`, etc. |
 | `static/js/conversation.js` | Conversation state + sidebar + message DOM mutations; exports `getChatHistory`, `sendMessage` helpers |
 | `static/js/streaming.js` | SSE event loop and `sendMessage()`; owns `isStreaming` flag |
 | `static/js/chat.js` | Slim orchestrator (~90 lines) — wires event listeners to the three modules above |
+| `static/js/ingestion.js` | Document upload progress (SSE) on `templates/documents.html` |
+| `static/js/settings.js` | Theme picker + appearance settings on `templates/settings.html` |
+| `static/js/workspace.js` | Workspace switcher dropdown + create-workspace modal, wired into `templates/base.html` |
+| `static/js/docs.js` | Documentation viewer (`templates/docs.html`) — fetches `/api/repo-docs`, renders nav + selected doc HTML |
+| `static/js/bootstrap.bundle.min.js` | Vendored Bootstrap 5 JS bundle |
+| `templates/docs.html` | Documentation viewer shell — nav list + content pane, populated client-side by `docs.js` |

@@ -144,13 +144,39 @@ class TestSettingsRoute:
         assert b'Appearance' in response.content
         assert b'theme-swatches' in response.content
 
+    def test_settings_setting_docs_rendered_from_docs_settings_md(self, client):
+        """Regression check: the DocsService-sourced fragments (docs/SETTINGS.md)
+        are actually injected into the page, not just that the page loads."""
+        response = client.get('/settings')
+
+        assert response.status_code == 200
+        assert b'Initial number of chunks fetched from the vector index' in response.content
+        assert b'{{ setting_docs' not in response.content
+
+
+class TestDocsRoute:
+    """Test the /docs documentation-viewer page route."""
+
+    def test_docs_renders_template(self, client):
+        """Test /docs route renders the docs.html shell."""
+        response = client.get('/docs')
+
+        assert response.status_code == 200
+        assert response.headers.get('content-type', '').startswith('text/html')
+
+    def test_docs_references_docs_js(self, client):
+        """Test the rendered shell wires up static/js/docs.js."""
+        response = client.get('/docs')
+
+        assert b'js/docs.js' in response.content
+
 
 class TestWebRoutesGeneral:
     """Test general web route behavior."""
 
     def test_all_routes_accessible(self, client):
         """Test all web routes are accessible."""
-        routes = ['/', '/chat', '/documents', '/models', '/overview', '/settings']
+        routes = ['/', '/chat', '/documents', '/models', '/overview', '/settings', '/docs']
 
         for route in routes:
             response = client.get(route)

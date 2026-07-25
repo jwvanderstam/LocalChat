@@ -17,7 +17,7 @@ LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TX
 | Layer | Tech |
 |-------|------|
 | Web framework | FastAPI + Uvicorn |
-| Database | PostgreSQL 15 + pgvector (psycopg3 pool) |
+| Database | PostgreSQL 16 + pgvector (psycopg3 pool) |
 | LLM | Ollama (local); LiteLLM cloud fallback |
 | HTTP client | httpx — `httpx.Client` (sync admin/embedding); `httpx.AsyncClient` (async inference) |
 | Validation | Pydantic v2 |
@@ -79,7 +79,7 @@ Full rules across 4 files in `.claude/rules/` — short version here.
 **Testing** → [`.claude/rules/testing.md`](.claude/rules/testing.md)
 - New modules and non-trivial functions need unit tests. Coverage must not drop.
 - FastAPI routes: use `TestClient` from `fastapi.testclient` with a minimal mounted app.
-- MCP server routes (Flask): create a bare `Flask(__name__)` app in the test; `src/app_factory.py` is gone.
+- MCP server routes (FastAPI/Starlette, `mcp_servers/base.py`): use `fastapi.testclient.TestClient` against `server.get_asgi_app()`.
 
 **File map** → [`.claude/rules/file-map.md`](.claude/rules/file-map.md)
 - Full module index. Update it in the same commit when adding or removing a file.
@@ -134,10 +134,12 @@ Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
 
 ## Quality Gates
 
-Run both before every commit. Both must be clean.
+Run all before every commit. All must be clean — CI enforces the same set (`.github/workflows/tests.yml`).
 
 ```bash
 ruff check src/ tests/                       # install once: pip install ruff
+mypy src --ignore-missing-imports            # install once: pip install mypy
+bandit -r src/ -ll -q -c pyproject.toml      # install once: pip install bandit
 pytest -m "not (slow or ollama or db)"       # fast suite, no external services
 ```
 
@@ -148,7 +150,7 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Anti-patterns & Gotchas
 
 - **Never put SQL outside `src/db/`** — raw queries in routes have caused subtle transaction bugs.
-- **Never import `src/app.py`** — it doesn't export an app. Use `create_app()` from `src/app_fastapi.py`.
+- **Never import `src/app.py`** — it doesn't exist. Use `create_app()` from `src/app_fastapi.py`.
 - **SSE generators must handle disconnect** — wrap `async def _generate()` in `try/finally`; FastAPI silently drops broken generators.
 - **Register `/clear` before `/{id: int}` routes** — FastAPI matches path patterns in order; a literal `/clear` after `/{id}` is shadowed and returns 422.
 - **Don't mock `OllamaClient` at the wrong layer** — mock at the service boundary, not inside RAG internals.

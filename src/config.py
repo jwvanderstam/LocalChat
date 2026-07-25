@@ -388,6 +388,16 @@ PLUGINS_ENABLED: bool = os.environ.get('PLUGINS_ENABLED', 'True').lower() == 'tr
 PLUGINS_DIR: str = os.environ.get('PLUGINS_DIR', 'plugins')
 
 # ============================================================================
+# DOCS SYSTEM CONFIGURATION
+# ============================================================================
+
+# Set DOCS_ENABLED=false to skip loading the in-app documentation catalogue
+# (CLAUDE.md, .claude/rules/*.md, docs/*.md, README.md, SECURITY.md) at
+# startup. The catalogue itself is a fixed list of repo files, not
+# env-configurable — see src/docs/service.py.
+DOCS_ENABLED: bool = os.environ.get('DOCS_ENABLED', 'True').lower() == 'true'
+
+# ============================================================================
 # LLM CONFIGURATION - MAXIMUM QUALITY
 # ============================================================================
 

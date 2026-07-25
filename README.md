@@ -234,7 +234,7 @@ flowchart TD
 |-------|-----------|---------|
 | **Frontend** | HTML, CSS, JavaScript | Web interface |
 | **Backend** | FastAPI + Uvicorn | Web framework |
-| **Database** | PostgreSQL 15+ | Document storage |
+| **Database** | PostgreSQL 16+ | Document storage |
 | **Vector DB** | pgvector | Similarity search |
 | **Cache** | Redis / Memory | Performance optimization |
 | **LLM** | Ollama | Local inference |
@@ -293,6 +293,8 @@ LocalChat/
 │   ├── INTEGRATION_TESTS.md        # Integration test setup
 │   ├── TROUBLESHOOTING.md          # Common issues and fixes
 │   ├── ROADMAP.md                  # v3.0 initiative plan
+│   ├── LESSONS_LEARNED.md          # Architecture/decision history from git log
+│   ├── SETTINGS.md                 # Per-RAG-parameter docs (source for settings.html)
 │   └── grafana-dashboard.json      # Importable Grafana dashboard
 ├── src/
 │   ├── app_fastapi.py              # FastAPI application factory
@@ -332,6 +334,8 @@ LocalChat/
 │   │   ├── google_auth.py          # Google OAuth2 token refresh
 │   │   ├── registry.py             # ConnectorRegistry singleton
 │   │   └── worker.py               # SyncWorker daemon thread
+│   ├── docs/
+│   │   └── service.py              # DocsService — repo-markdown catalogue + HTML rendering
 │   ├── db/                         # PostgreSQL + pgvector layer
 │   │   ├── connection.py           # Connection pool, schema init, migrations
 │   │   ├── conversations.py        # Conversation + message CRUD
@@ -380,8 +384,11 @@ LocalChat/
 │   │   ├── oauth_routes.py         # Microsoft + Google OAuth2 flows
 │   │   ├── workspace_routes.py     # Workspace management
 │   │   ├── annotation_routes.py    # Annotation CRUD
+│   │   ├── docs_routes.py          # Repo-docs API (/api/repo-docs)
 │   │   ├── web_routes.py           # Frontend SPA + static assets
 │   │   └── _request_state.py       # Per-request state helpers
+│   ├── services/
+│   │   └── chat.py                 # ChatService — chat business logic (retrieval, planning, memory)
 │   ├── tools/
 │   │   ├── registry.py             # Tool registration + JSON schemas
 │   │   ├── executor.py             # Tool-call loop (multi-turn)
@@ -744,13 +751,14 @@ pytest tests/unit/ --cov=src --cov-report=term-missing
 
 ## CI/CD & Code Quality
 
-Two GitHub Actions workflows run on every push and pull request to `main`, plus automated dependency updates via Dependabot:
+Six GitHub Actions workflows run on every push and pull request to `main`, plus automated dependency updates via Dependabot:
 
 | Workflow / Config | File | Purpose |
 |---|---|---|
-| **Tests** | `.github/workflows/tests.yml` | Runs all unit tests on Python 3.11 |
+| **Tests** | `.github/workflows/tests.yml` | Runs ruff, mypy, bandit, pip-audit, and unit + integration tests on Python 3.12 |
 | **SonarCloud** | `.github/workflows/sonarcloud.yml` | Runs unit tests with coverage, then uploads results to SonarCloud |
 | **CodeQL** | `.github/workflows/codeql.yml` | Python `security-extended` static analysis on push/PR to main + weekly Monday scan |
+| **Gitleaks** | `.github/workflows/gitleaks.yml` | Secret-scanning on push/PR to main |
 | **Docker publish** | `.github/workflows/docker-publish.yml` | Builds and pushes image to `ghcr.io/jwvanderstam/localchat` on merge to main and version tags |
 | **Dependabot** | `.github/dependabot.yml` | Weekly PRs for pip and GitHub Actions version bumps; auto-assigned to `jwvanderstam` with labels `dependencies` / `ci` |
 

@@ -1,7 +1,7 @@
 """
 Exception hierarchy: LocalChatException → OllamaConnectionError, DatabaseConnectionError,
 DocumentProcessingError, EmbeddingGenerationError, InvalidModelError, ValidationError,
-ConfigurationError, ChunkingError, SearchError, FileUploadError.
+ConfigurationError, ChunkingError, SearchError, FileUploadError, DocNotFoundError.
 """
 
 from typing import Any
@@ -78,10 +78,16 @@ class FileUploadError(LocalChatException):
     pass
 
 
+class DocNotFoundError(LocalChatException):
+    """Requested repo-doc slug or fragment slug is not in the docs catalogue."""
+    pass
+
+
 # Exception mapping for HTTP status codes
 EXCEPTION_STATUS_CODES: dict[type[Exception], int] = {
     ValidationError: 400,
     InvalidModelError: 404,
+    DocNotFoundError: 404,
     OllamaConnectionError: 503,
     DatabaseConnectionError: 500,
     DocumentProcessingError: 500,

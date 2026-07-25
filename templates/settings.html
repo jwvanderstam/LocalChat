@@ -469,10 +469,7 @@
                                    min="10" max="50" step="1" value="30"
                                    oninput="document.getElementById('badge-top-k').textContent=this.value">
                             <div class="d-flex justify-content-between text-muted small"><span>10 (fast)</span><span>50 (thorough)</span></div>
-                            <p class="text-muted small mt-1 mb-0">
-                                Initial number of chunks fetched from the vector index before reranking.
-                                Higher values improve recall but add a few ms of latency.
-                            </p>
+                            <div class="text-muted small mt-1 mb-0 setting-doc">{{ setting_docs['retrieval-candidates-top_k_results'] | safe }}</div>
                         </div>
 
                         <!-- RERANK_TOP_K -->
@@ -485,10 +482,7 @@
                                    min="4" max="20" step="1" value="12"
                                    oninput="document.getElementById('badge-rerank-k').textContent=this.value">
                             <div class="d-flex justify-content-between text-muted small"><span>4 (concise)</span><span>20 (broad)</span></div>
-                            <p class="text-muted small mt-1 mb-0">
-                                Must be &le; TOP_K_RESULTS. Higher values give the LLM more evidence but consume
-                                more context window and slow generation slightly.
-                            </p>
+                            <div class="text-muted small mt-1 mb-0 setting-doc">{{ setting_docs['chunks-sent-to-llm-rerank_top_k'] | safe }}</div>
                         </div>
 
                         <!-- DIVERSITY_THRESHOLD -->
@@ -501,10 +495,7 @@
                                    min="0.50" max="0.90" step="0.05" value="0.70"
                                    oninput="document.getElementById('badge-diversity').textContent=parseFloat(this.value).toFixed(2)">
                             <div class="d-flex justify-content-between text-muted small"><span>0.50 (aggressive)</span><span>0.90 (permissive)</span></div>
-                            <p class="text-muted small mt-1 mb-0">
-                                Jaccard similarity threshold for duplicate-chunk filtering. Lower values prune
-                                more aggressively — can hurt domain docs where chapters share vocabulary.
-                            </p>
+                            <div class="text-muted small mt-1 mb-0 setting-doc">{{ setting_docs['diversity-threshold-diversity_threshold'] | safe }}</div>
                         </div>
 
                         <!-- SEMANTIC_WEIGHT -->
@@ -517,10 +508,7 @@
                                    min="0.30" max="0.90" step="0.05" value="0.70"
                                    oninput="document.getElementById('badge-semantic-w').textContent=parseFloat(this.value).toFixed(2)">
                             <div class="d-flex justify-content-between text-muted small"><span>0.30 (keyword-heavy)</span><span>0.90 (semantic-heavy)</span></div>
-                            <p class="text-muted small mt-1 mb-0">
-                                Blend of semantic cosine similarity vs. BM25 keyword score in hybrid search.
-                                Increase for conceptual queries; decrease for exact-term lookups.
-                            </p>
+                            <div class="text-muted small mt-1 mb-0 setting-doc">{{ setting_docs['semantic-weight-semantic_weight'] | safe }}</div>
                         </div>
 
                         <div class="d-flex gap-2 align-items-center">
@@ -615,6 +603,7 @@
 .progress { border-radius: 4px; }
 .nav-tabs .nav-link { color: #555; font-weight: 500; }
 .nav-tabs .nav-link.active { font-weight: 600; }
+.setting-doc p { margin: 0; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 {% endblock %}
