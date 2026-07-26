@@ -329,7 +329,6 @@ class TestLoadModelGuard:
                     client.load_model_guard("bigmodel", backend)
 
     def test_warns_but_does_not_raise_when_flag_true(self):
-        import logging
 
         from src import config
         from src.ollama_client import OllamaClient

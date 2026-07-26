@@ -2,8 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from src.tools.executor import ToolExecutor
 from src.tools.registry import ToolRegistry
 

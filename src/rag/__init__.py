@@ -10,7 +10,6 @@ Re-exports all public symbols for backward compatibility with ``from src.rag imp
 
 from .. import config
 from ..db import db
-from ..monitoring import counted, get_metrics, timed
 from ..ollama_client import ollama_client
 from ..utils.logging_config import get_logger
 from .cache import EmbeddingCache
@@ -38,4 +37,6 @@ __all__ = [
     'MONITORING_AVAILABLE',
     'logger',
     'config',
+    'db',
+    'ollama_client',
 ]

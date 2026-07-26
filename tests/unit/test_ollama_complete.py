@@ -11,9 +11,6 @@ pull_model uses client._session.stream() as a sync context manager.
 
 from unittest.mock import AsyncMock, Mock, patch
 
-import httpx
-import pytest
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

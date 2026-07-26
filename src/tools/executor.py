@@ -20,7 +20,7 @@ Usage:
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from .. import config

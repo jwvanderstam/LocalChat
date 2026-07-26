@@ -10,7 +10,6 @@ Run: pytest tests/unit/test_ollama_comprehensive.py -v --cov=src.ollama_client -
 """
 
 import os
-from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx

@@ -15,7 +15,9 @@ from typing import Any, NamedTuple
 from .. import config
 from ..db import db
 from ..monitoring import counted, timed
-from ..ollama_client import ollama_client
+from ..ollama_client import (
+    ollama_client,  # noqa: F401 — unused directly, but tests patch this module attribute via mock.patch("src.rag.retrieval.ollama_client")
+)
 from ..utils.logging_config import get_logger
 from .cache import embedding_cache
 from .scoring import BM25Scorer
