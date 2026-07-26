@@ -12,7 +12,7 @@ Classes:
 Constants:
     Database configuration (PG_HOST, PG_PORT, DB_POOL_MIN_CONN, DB_POOL_MAX_CONN)
     Ollama configuration (OLLAMA_BASE_URL, OLLAMA_NUM_GPU)
-    RAG configuration (CHUNK_SIZE, TOP_K_RESULTS, HYBRID_SEARCH_ENABLED, etc.)
+    RAG configuration (CHUNK_SIZE, TOP_K_RESULTS, SEMANTIC_WEIGHT, etc.)
     Application settings (SECRET_KEY, UPLOAD_FOLDER, APP_VERSION, etc.)
     Observability (METRICS_TOKEN, ENABLE_PERF_METRICS, SLOW_QUERY_THRESHOLD)
     Demo mode (DEMO_MODE — disables JWT authentication; never use in production)
@@ -226,9 +226,7 @@ RERANK_RESULTS: bool = True                  # Always re-rank for precision
 RERANK_TOP_K: int = int(os.environ.get("RERANK_TOP_K", "12"))   # 12 chunks cover multi-chapter docs (was 4)
 
 # Hybrid Search Configuration
-HYBRID_SEARCH_ENABLED: bool = True           # Enable semantic + BM25 hybrid search
 SEMANTIC_WEIGHT: float = float(os.environ.get("SEMANTIC_WEIGHT", "0.70"))  # Semantic similarity weight in hybrid
-BM25_ENABLED: bool = True                    # Enable BM25 keyword matching
 
 # Query Enhancement
 QUERY_EXPANSION_ENABLED: bool = False        # Expand queries with synonyms (opt-in; English business-domain only)
@@ -305,7 +303,7 @@ TOOL_MAX_ROUNDS: int = int(os.environ.get('TOOL_MAX_ROUNDS', '5'))
 QUERY_PLANNER_ENABLED: bool = os.environ.get('QUERY_PLANNER_ENABLED', 'True').lower() == 'true'
 
 # Set GRAPH_RAG_ENABLED=true to extract named entities on ingest and use graph
-# expansion to broaden BM25 query terms. Requires: pip install 'spacy>=3.7.0'
+# expansion to broaden lexical query terms. Requires: pip install 'spacy>=3.7.0'
 # and: python -m spacy download en_core_web_sm
 GRAPH_RAG_ENABLED: bool = os.environ.get('GRAPH_RAG_ENABLED', 'False').lower() == 'true'
 

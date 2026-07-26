@@ -383,19 +383,6 @@ class TestReranking:
         assert isinstance(reranked, dict)
         assert len(reranked) == len(results)
 
-    def test_compute_simple_bm25(self):
-        """Should compute BM25 score."""
-        from src.rag import DocumentProcessor
-        processor = DocumentProcessor()
-
-        query = "test document"
-        document = "this is a test document with some test words"
-
-        score = processor._compute_simple_bm25(query, document)
-
-        assert isinstance(score, float)
-        assert 0 <= score <= 1
-
 
 # ============================================================================
 # INTEGRATION TESTS
@@ -530,12 +517,3 @@ class TestRAGEdgeCases:
         reranked = processor._rerank_with_signals("query", {})
 
         assert reranked == {}
-
-    def test_bm25_with_empty_document(self):
-        """Should handle empty document."""
-        from src.rag import DocumentProcessor
-        processor = DocumentProcessor()
-
-        score = processor._compute_simple_bm25("query", "")
-
-        assert score == 0.0

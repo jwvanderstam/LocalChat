@@ -97,7 +97,7 @@ class EntitiesMixin(MixinHost):
         """
         Return names of entities co-occurring with any of the given entity names.
 
-        Used by the query expander to broaden BM25 search terms.
+        Used by the query expander to broaden lexical search terms.
         """
         if not entity_names or not self.is_connected:
             return []

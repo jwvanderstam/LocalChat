@@ -613,17 +613,6 @@ class TestUtilityMethods:
         assert "what is" in processed.lower()
         assert "  " not in processed  # No double spaces
 
-    def test_compute_simple_bm25(self, doc_processor):
-        """Should compute BM25 score."""
-        query = "test query"
-        document = "this is a test document with query terms"
-
-        # Access internal method
-        score = doc_processor._compute_simple_bm25(query, document)
-
-        assert isinstance(score, float)
-        assert 0 <= score <= 1  # Normalized
-
 
 # ============================================================================
 # SUMMARY

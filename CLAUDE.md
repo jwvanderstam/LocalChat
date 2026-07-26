@@ -6,7 +6,7 @@
 
 ## What This Project Is
 
-LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TXT, MD) and chat with them using a locally-running LLM via Ollama. Documents are chunked, embedded, and stored in PostgreSQL with pgvector for hybrid semantic + BM25 search. The LLM supports tool/function-calling and optional live web search.
+LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TXT, MD) and chat with them using a locally-running LLM via Ollama. Documents are chunked, embedded, and stored in PostgreSQL with pgvector for hybrid semantic + lexical (tsvector full-text) search. The LLM supports tool/function-calling and optional live web search.
 
 **Runtime deps:** PostgreSQL + pgvector, Ollama (local LLM server), Redis (optional caching).
 

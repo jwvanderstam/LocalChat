@@ -7,7 +7,7 @@ retrieval pipeline.  The core app communicates with this server via
 JSON-RPC 2.0 over HTTP when MCP_ENABLED=true.
 
 Exposes tools:
-  - search(query, filters, top_k) — hybrid semantic + BM25 retrieval
+  - search(query, filters, top_k) — hybrid semantic + lexical retrieval
   - list_sources()                 — list all ingested documents
 
 Run standalone:
@@ -47,7 +47,7 @@ def _get_services():
 
 def search(query: str, filters: dict | None = None, top_k: int = 10) -> dict:
     """
-    Search local documents using hybrid semantic + BM25 retrieval.
+    Search local documents using hybrid semantic + lexical retrieval.
 
     Returns a pre-formatted context block and source list so the caller
     does not need to re-implement formatting logic.
@@ -97,7 +97,7 @@ def list_sources() -> list[dict]:
 
 _server.register_tool(
     name="search",
-    description="Search local documents using hybrid semantic + BM25 retrieval",
+    description="Search local documents using hybrid semantic + lexical retrieval",
     input_schema={
         "type": "object",
         "properties": {

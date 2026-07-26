@@ -318,7 +318,7 @@ async function testRetrieval() {
                 
                 // Display Hybrid Results
                 if (hybridResults.length > 0) {
-                    html += '<h6>Hybrid Search Results (Semantic + BM25):</h6>';
+                    html += '<h6>Hybrid Search Results (Semantic + Lexical):</h6>';
                     hybridResults.forEach((result, idx) => {
                         html += `
                             <div class="card mb-2">

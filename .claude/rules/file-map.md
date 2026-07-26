@@ -45,7 +45,6 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/rag/doc_type.py` | `DocType` enum, `DocTypeClassifier`, `ChunkerRegistry` |
 | `src/rag/reranker.py` | `RerankerModel` singleton; fine-tuned cross-encoder with base fallback |
 | `src/rag/feedback_pipeline.py` | Weekly export + cross-encoder fine-tune; `promote_model`, `rollback_model` |
-| `src/rag/scoring.py` | BM25 implementation |
 | `src/rag/cache.py` | Embedding vector cache |
 | `src/rag/web_search.py` | Optional DuckDuckGo integration |
 | **Database** | |

@@ -23,7 +23,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Persistent Memory**: Conversation history stored in PostgreSQL
 - **Long-term Memory**: Cross-session fact extraction; top-K memories injected into every prompt
 - **Workspaces**: Isolated document + conversation namespaces per workspace
-- **GraphRAG**: spaCy entity extraction + 1-hop graph expansion of BM25 query terms
+- **GraphRAG**: spaCy entity extraction + 1-hop graph expansion of lexical query terms
 - **Document Connectors**: Local folder, S3/MinIO/R2, SharePoint, OneDrive — daemon-synced
 - **Multi-model Agent Routing**: Rule-based classifier routes queries to VISION/CODE/LARGE/FAST/BASE models
 - **Function Calling**: Built-in tools (document search, calculator, datetime) + drop-in plugin system
@@ -355,7 +355,7 @@ LocalChat/
 │   ├── graph/
 │   │   ├── store.py                # GraphStore ABC + Postgres/Kuzu backends
 │   │   ├── extractor.py            # spaCy entity extraction
-│   │   └── expander.py             # 1-hop term expansion for BM25
+│   │   └── expander.py             # 1-hop lexical term expansion
 │   ├── memory/
 │   │   ├── extractor.py            # Extract memorable facts from turns
 │   │   └── retriever.py            # Vector-search memories into LLM prompt
@@ -367,7 +367,6 @@ LocalChat/
 │   │   ├── chunking.py             # Intelligent overlapping chunking
 │   │   ├── loaders.py              # PDF/DOCX/TXT/MD/Excel loaders
 │   │   ├── active_learning.py      # Knowledge-gap document suggestions
-│   │   ├── scoring.py              # BM25 implementation
 │   │   ├── reranker.py             # Cross-encoder reranking
 │   │   ├── planner.py              # QueryPlanner — intent decomposition
 │   │   ├── doc_type.py             # DocType enum, ChunkerRegistry

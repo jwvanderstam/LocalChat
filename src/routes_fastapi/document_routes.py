@@ -213,7 +213,7 @@ async def api_test_retrieval(request: Request) -> Any:
             "success": True,
             "query": query,
             "results": {
-                "hybrid": _format_test_results(results_hybrid, "Hybrid (Semantic + BM25)"),
+                "hybrid": _format_test_results(results_hybrid, "Hybrid (Semantic + Lexical)"),
                 "semantic_only": _format_test_results(results_semantic, "Semantic Only"),
             },
             "diagnostic": {
@@ -352,5 +352,5 @@ def _get_search_recommendation(hybrid_results: list, semantic_results: list) -> 
     if len(hybrid_results) < len(semantic_results):
         return "Semantic-only search found more results. Your query may have no keyword matches - this is normal for conceptual questions."
     if len(hybrid_results) > len(semantic_results):
-        return "Hybrid search found more results. BM25 keyword matching is helping improve retrieval."
+        return "Hybrid search found more results. Lexical keyword matching is helping improve retrieval."
     return "Both modes returned same number of results. Query works well with either mode."

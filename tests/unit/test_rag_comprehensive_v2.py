@@ -12,7 +12,6 @@ Covers:
 - Embedding generation
 - Context retrieval
 - Hybrid search
-- BM25 scoring
 - Document loaders
 
 Author: LocalChat Team
@@ -129,17 +128,6 @@ class TestHybridSearch:
                     assert isinstance(result, (str, list))
                 except TypeError:
                     pass  # Method may not support this yet
-
-    def test_bm25_scoring_integration(self):
-        """Test BM25 scoring is integrated."""
-        from src.rag import BM25Scorer
-
-        scorer = BM25Scorer()
-
-        # Test scorer exists and can be initialized
-        assert scorer is not None
-        assert hasattr(scorer, 'k1')
-        assert hasattr(scorer, 'b')
 
 
 class TestDocumentLoaderIntegration:

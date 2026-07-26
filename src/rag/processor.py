@@ -53,7 +53,6 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
     Attributes:
         embedding_model (Optional[str]): Name of embedding model to use
-        bm25_scorer: BM25 scorer for keyword matching
     """
 
     def __init__(
@@ -67,7 +66,6 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         self._db = db if db is not None else _g['db']
         self._ollama_client = ollama_client if ollama_client is not None else _g['ollama_client']
         self.embedding_model: str | None = None
-        self.bm25_scorer = None
         self._corpus_chunks: list[str] = []
         self._corpus_metadata: list[dict[str, Any]] = []
         logger.info("DocumentProcessor initialized")

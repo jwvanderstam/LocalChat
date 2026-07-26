@@ -232,31 +232,3 @@ class TestModuleConstants:
         from src.rag import logger
 
         assert logger is not None
-
-
-class TestBM25ScorerEdgeCases:
-    """Test BM25 scorer edge cases."""
-
-    def test_bm25_with_zero_k1(self):
-        """Test BM25 with k1=0."""
-        from src.rag import BM25Scorer
-
-        scorer = BM25Scorer(k1=0, b=0.75)
-
-        assert scorer.k1 == 0
-
-    def test_bm25_with_b_zero(self):
-        """Test BM25 with b=0 (no length normalization)."""
-        from src.rag import BM25Scorer
-
-        scorer = BM25Scorer(k1=1.5, b=0)
-
-        assert scorer.b == 0
-
-    def test_bm25_with_b_one(self):
-        """Test BM25 with b=1 (full length normalization)."""
-        from src.rag import BM25Scorer
-
-        scorer = BM25Scorer(k1=1.5, b=1.0)
-
-        assert abs(scorer.b - 1.0) < 1e-9
