@@ -49,7 +49,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/rag/cache.py` | Embedding vector cache |
 | `src/rag/web_search.py` | Optional DuckDuckGo integration |
 | **Database** | |
-| `src/db/connection.py` | psycopg3 pool, pgvector HNSW index, `_init_schema()`, additive migrations |
+| `src/db/connection.py` | psycopg3 pool, pgvector HNSW index, `_ensure_extensions_and_tables()`, additive migrations |
 | `src/db/documents.py` | Document/chunk CRUD; `search_similar_chunks(filename_filter=)` |
 | `src/db/conversations.py` | Persistent conversation history; `get/set_conversation_document_filter` |
 | `src/db/entities.py` | `EntitiesMixin` — GraphRAG entity/relation CRUD |
@@ -64,7 +64,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Migrations** | |
 | `alembic.ini` | Alembic configuration — script_location, logging |
 | `migrations/env.py` | Alembic environment — builds SQLAlchemy URL from `src.config`, runs `upgrade head` |
-| `migrations/versions/0001_baseline.py` | Empty baseline migration (initial `_init_schema()` state) |
+| `migrations/versions/0001_baseline.py` | Empty baseline migration (initial `_ensure_extensions_and_tables()` state) |
 | `migrations/versions/0002_early_additive_columns.py` | Adds conversations/documents/messages early columns |
 | `migrations/versions/0003_workspace_columns.py` | Adds workspace_id FK to documents, conversations, memories, answer_feedback |
 | `migrations/versions/0004_documents_language_ingest_source.py` | Adds documents.language, last_ingested_at, source_id |
@@ -135,6 +135,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request |
 | **Infra / Config** | |
 | `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
+| `requirements.lock.txt` | Exact resolved versions from `requirements.txt` on the Dockerfile's target platform — reproducibility snapshot, not consumed by Docker/CI |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
 | `helm/localchat/` | Full Helm chart: app + PostgreSQL + Redis StatefulSets + MCP Deployments; `templates/` includes `hpa.yaml`, `ingress.yaml`, and per-MCP-server subcharts |
 | `docs/DEPLOYMENT.md` | Helm install/upgrade/rollback guide, secrets management |
