@@ -23,5 +23,6 @@ more aggressively — can hurt domain docs where chapters share vocabulary.
 
 ## Semantic weight (SEMANTIC_WEIGHT)
 
-Blend of semantic cosine similarity vs. BM25 keyword score in hybrid search.
-Increase for conceptual queries; decrease for exact-term lookups.
+Blend of semantic cosine similarity vs. lexical (Postgres tsvector full-text)
+score in hybrid search. Increase for conceptual queries; decrease for
+exact-term lookups.

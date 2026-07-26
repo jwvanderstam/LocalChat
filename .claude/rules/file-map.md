@@ -37,7 +37,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/_request_state.py` | Per-request state helpers (request ID, workspace ID) |
 | **RAG** | |
 | `src/rag/processor.py` | Ingest orchestration: load → chunk → embed → store |
-| `src/rag/retrieval.py` | Hybrid search (semantic + BM25); `retrieve_context(filename_filter=)` |
+| `src/rag/retrieval.py` | Hybrid search — independent semantic (pgvector) + lexical (Postgres tsvector/GIN) arms, weighted blend; `retrieve_context(filename_filter=)` |
 | `src/rag/chunking.py` | Overlapping chunking, preserves table structure |
 | `src/rag/loaders.py` | Multi-format document loading |
 | `src/rag/active_learning.py` | `suggest_documents()` — knowledge-gap topic suggestions from low-confidence queries |
@@ -98,7 +98,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Graph / Memory / Performance** | |
 | `src/graph/store.py` | `GraphStore` ABC + `PostgresGraphStore` (default) + `KuzuGraphStore` (optional); `create_graph_store(db)` factory |
 | `src/graph/extractor.py` | spaCy entity extraction from document chunks; accepts `graph_store` injection |
-| `src/graph/expander.py` | `QueryExpander` — 1-hop BM25 term expansion via entity co-occurrences; accepts `graph_store` injection |
+| `src/graph/expander.py` | `QueryExpander` — 1-hop lexical term expansion via entity co-occurrences, feeding both the embedding and the tsvector lexical arm; accepts `graph_store` injection |
 | `src/memory/extractor.py` | Extracts memorable facts from conversation turns |
 | `src/memory/retriever.py` | `MemoryRetriever` — vector-searches memories, injects top-K into LLM prompt |
 | `src/performance/batch_processor.py` | `BatchEmbeddingProcessor` — parallel batch embedding |

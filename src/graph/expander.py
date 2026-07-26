@@ -2,11 +2,13 @@
 Query Expander
 ==============
 
-Uses the entity knowledge graph to expand BM25 query terms.
+Uses the entity knowledge graph to expand the query's lexical terms.
 
 Given a user query, extracts named entities with spaCy, looks up
 1-hop co-occurrences from the ``entity_relations`` table, and returns
-additional entity names to include in BM25 scoring.
+additional entity names to append before the query reaches both the
+embedding model and the tsvector-based lexical retrieval arm
+(``RetrievalMixin._run_lexical_search``).
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ class QueryExpander:
         graph_store: Any | None = None,
     ) -> list[str]:
         """
-        Return additional entity-name strings for BM25 expansion.
+        Return additional entity-name strings for query expansion.
 
         Args:
             query: Raw user query.

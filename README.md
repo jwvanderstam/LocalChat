@@ -59,7 +59,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **Secret Scanning**: No credentials in source; placeholder examples only
 
 ### Performance Features
-- **Hybrid Search**: Combines semantic similarity with BM25 keyword matching
+- **Hybrid Search**: Independent semantic (pgvector) and lexical (Postgres tsvector/GIN full-text) retrieval arms, merged via a weighted blend
 - **Multi-level Caching**: 
   - Embedding cache (5000 capacity)
   - Query cache (1000 capacity)
@@ -185,7 +185,7 @@ Document Upload:
 
 RAG Query:
   Query -> Cache Check -> Generate Query Embedding ->
-  Hybrid Search (Semantic + BM25) -> Retrieve Chunks ->
+  Hybrid Search (Semantic + Lexical) -> Retrieve Chunks ->
   Rerank Results -> Format Context -> LLM Generation ->
   Stream Response -> Cache Result
 
@@ -363,7 +363,7 @@ LocalChat/
 │   │   └── batch_processor.py      # Parallel batch embedding processor
 │   ├── rag/
 │   │   ├── processor.py            # Ingest orchestrator
-│   │   ├── retrieval.py            # Hybrid search (semantic + BM25)
+│   │   ├── retrieval.py            # Hybrid search (semantic + tsvector lexical)
 │   │   ├── chunking.py             # Intelligent overlapping chunking
 │   │   ├── loaders.py              # PDF/DOCX/TXT/MD/Excel loaders
 │   │   ├── active_learning.py      # Knowledge-gap document suggestions
@@ -558,7 +558,7 @@ Core RAG parameters can be tuned **at runtime** in the Settings → RAG Paramete
 | `TOP_K_RESULTS` | 30 | `TOP_K_RESULTS` | 10–50 | Initial retrieval candidate pool |
 | `RERANK_TOP_K` | 12 | `RERANK_TOP_K` | 4–20 | Chunks passed to LLM after reranking |
 | `DIVERSITY_THRESHOLD` | 0.70 | *(UI only)* | 0.50–0.90 | Jaccard threshold for near-duplicate filtering |
-| `SEMANTIC_WEIGHT` | 0.70 | `SEMANTIC_WEIGHT` | 0.30–0.90 | Semantic vs. BM25 blend in hybrid search |
+| `SEMANTIC_WEIGHT` | 0.70 | `SEMANTIC_WEIGHT` | 0.30–0.90 | Semantic vs. lexical blend in hybrid search |
 | `RERANKER_ENABLED` | true | `RERANKER_ENABLED` | true/false | Neural cross-encoder re-ranking (see below) |
 
 Parameters that require re-ingesting documents (chunk size, overlap) are set via environment variables only:
