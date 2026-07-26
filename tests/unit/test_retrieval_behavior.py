@@ -134,6 +134,88 @@ class TestMergeSemanticAndLexical:
 
 
 # ---------------------------------------------------------------------------
+# _run_retrieval_pipeline — the threshold must gate on each arm's own score,
+# never on the blended combined_score. Regression coverage for a bug where
+# _merge_semantic_and_lexical was tested in isolation but the pipeline-level
+# filter that runs immediately after it was not: a lexical-only chunk's
+# semantic_score is 0.0, so combined_score = lexical_weight * lexical_score,
+# and ts_rank_cd's rank/(rank+1) normalization is always < 1.0 — at default
+# weights (0.70/0.30) and threshold (0.30), no lexical-only chunk could ever
+# reach 0.30, and any query with even one lexical hit silently shrank every
+# pure-semantic result by 30%, dropping previously-passing matches.
+# ---------------------------------------------------------------------------
+
+class TestRunRetrievalPipelineThreshold:
+    def test_lexical_only_chunk_survives_the_pipeline_filter(self, retriever):
+        """At default weights this chunk's combined_score (0.30 * 0.9 = 0.27)
+        is below min_similarity (0.30) — it must survive anyway, on
+        lexical_score > 0, not on the blended score."""
+        retriever._db = MagicMock()
+        retriever._db.search_similar_chunks.return_value = []
+        retriever._db.search_lexical_chunks.return_value = [
+            _lexical_row("only_lexical.pdf", 0, 0.9, chunk_id=1),
+        ]
+
+        filtered = retriever._run_retrieval_pipeline(
+            query_clean="exact identifier",
+            query_embedding=[0.0] * 768,
+            top_k=5,
+            min_similarity=0.30,
+            file_type_filter=None,
+            use_hybrid_search=True,
+        )
+
+        assert "only_lexical.pdf:0" in filtered
+
+    def test_pure_semantic_chunk_not_punished_by_unrelated_lexical_hit(self, retriever):
+        """A chunk found only by vector search, already above min_similarity
+        (search_similar_chunks applies the threshold at the SQL level), must
+        survive even though the lexical arm returned results — for a
+        different chunk entirely — for this query. Diluting this chunk's
+        own score by the blend (0.70 * 0.40 = 0.28 < 0.30) must not drop it."""
+        retriever._db = MagicMock()
+        retriever._db.search_similar_chunks.return_value = [
+            _semantic_row("semantic_only.pdf", 0, 0.40, chunk_id=2),
+        ]
+        retriever._db.search_lexical_chunks.return_value = [
+            _lexical_row("other_chunk.pdf", 0, 0.9, chunk_id=3),
+        ]
+
+        filtered = retriever._run_retrieval_pipeline(
+            query_clean="query",
+            query_embedding=[0.0] * 768,
+            top_k=5,
+            min_similarity=0.30,
+            file_type_filter=None,
+            use_hybrid_search=True,
+        )
+
+        assert "semantic_only.pdf:0" in filtered
+
+    def test_chunk_below_both_thresholds_is_still_dropped(self, retriever):
+        """The fix must not turn the filter into a no-op — a chunk with
+        neither a qualifying semantic score nor any lexical match at all
+        must still be excluded."""
+        retriever._db = MagicMock()
+        retriever._db.search_similar_chunks.return_value = [
+            _semantic_row("weak.pdf", 0, 0.10, chunk_id=4),
+        ]
+        retriever._db.search_lexical_chunks.return_value = []
+
+        filtered = retriever._run_retrieval_pipeline(
+            query_clean="query",
+            query_embedding=[0.0] * 768,
+            top_k=5,
+            min_similarity=0.30,
+            file_type_filter=None,
+            use_hybrid_search=True,
+        )
+
+        assert "weak.pdf:0" not in filtered
+        assert filtered == {}
+
+
+# ---------------------------------------------------------------------------
 # _deduplicate_results
 # ---------------------------------------------------------------------------
 

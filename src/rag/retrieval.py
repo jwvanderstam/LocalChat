@@ -288,7 +288,21 @@ class RetrievalMixin:
         all_results = self._merge_semantic_and_lexical(semantic_results, lexical_results)
         logger.debug(f"[RAG] Merged into {len(all_results)} candidate results")
 
-        filtered = {k: v for k, v in all_results.items() if v['combined_score'] >= min_similarity}
+        # Survival is decided per-arm, never by the blended score: semantic_score
+        # already cleared min_similarity at the SQL level (search_similar_chunks
+        # applies it), and lexical_score > 0 means the row survived chunk_tsv @@
+        # tsquery's boolean match. combined_score is a weighted average of a
+        # cosine similarity and a ts_rank_cd score on an unrelated scale — a
+        # lexical-only chunk's semantic_score is 0.0, so filtering on the blend
+        # made survival mathematically impossible for the exact chunks the
+        # lexical arm exists to surface, and it silently punished pure-semantic
+        # matches the moment any lexical result existed for the query at all.
+        # combined_score is still used below for ranking/dedup/answer_confidence
+        # among whatever survives this filter — only membership changed.
+        filtered = {
+            k: v for k, v in all_results.items()
+            if v['semantic_score'] >= min_similarity or v['lexical_score'] > 0
+        }
         if not filtered:
             self._log_similarity_miss(all_results, min_similarity)
         return filtered
