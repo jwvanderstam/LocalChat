@@ -172,6 +172,9 @@ Once running, open your browser at `http://localhost:5000`.
 +---------------------------------------------------------------+
 ```
 
+LocalChat runs as a single process. Horizontal scaling is not supported —
+see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for why.
+
 ### Data Flow
 
 ```

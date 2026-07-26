@@ -1,4 +1,4 @@
-replicaCount: 2
+replicaCount: 1  # LocalChat runs as a single process — see README's Deployment section
 
 image:
   repository: localchat
@@ -71,14 +71,6 @@ ingress:
   tls: true
   annotations: {}
 
-# --------------------------------------------------------------------------
-# Autoscaling / HPA
-# --------------------------------------------------------------------------
-autoscaling:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 6
-  targetCPUUtilizationPercentage: 70
 
 # --------------------------------------------------------------------------
 # Resource requests / limits

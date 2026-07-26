@@ -1,5 +1,10 @@
 # LocalChat — Production Deployment (Helm)
 
+> LocalChat runs as a single process. Horizontal scaling is not supported —
+> AppState, metrics, the DB migration runner, connector polling, and the
+> reranker's scheduler are all in-process state with no cross-instance
+> coordination. `replicaCount` is fixed at `1`.
+
 ## Prerequisites
 
 - Kubernetes 1.25+
@@ -28,7 +33,7 @@ helm install localchat helm/localchat/ \
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `replicaCount` | `2` | App pod replicas (ignored when autoscaling enabled) |
+| `replicaCount` | `1` | App pod replicas — fixed at 1, horizontal scaling is not supported |
 | `image.repository` | `localchat` | Container image |
 | `image.tag` | `latest` | Image tag |
 | `postgresql.enabled` | `true` | Deploy bundled PostgreSQL StatefulSet |
@@ -36,7 +41,6 @@ helm install localchat helm/localchat/ \
 | `redis.enabled` | `true` | Deploy bundled Redis StatefulSet |
 | `ingress.enabled` | `false` | Create Nginx Ingress resource |
 | `ingress.host` | `localchat.example.com` | Public hostname |
-| `autoscaling.enabled` | `true` | Enable HPA (2–6 replicas) |
 | `mcp.localDocs.enabled` | `true` | Deploy local-docs MCP server |
 | `mcp.webSearch.enabled` | `true` | Deploy web-search MCP server |
 | `mcp.cloudConnectors.enabled` | `false` | Deploy cloud-connectors MCP server |
