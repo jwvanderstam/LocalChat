@@ -1,7 +1,7 @@
 # Lessons Learned
 
 A chronological account of LocalChat's architecture and process decisions,
-built from `git log` (908 commits, 2025-12-28 → present) and
+built from `git log` (924 commits, 2025-12-28 → present) and
 [`docs/ROADMAP.md`](ROADMAP.md). Each chapter cites the commits it's built
 from so the rationale stays traceable back to source, the same way this
 project's own root-cause investigations are expected to work
@@ -192,6 +192,93 @@ written docs used to be two hand-authored copies of the same information;
 after this change, one is generated from the other, so they cannot silently
 diverge again the way Chapters 5 and 8 both show they can.
 
+## 9. An external audit, triaged into four buckets, and the bugs it didn't predict
+
+A 2026-07 external code-quality/architecture review produced a long list of
+findings. Rather than working the list top to bottom, it was explicitly
+triaged into four buckets — fix now, do next, schedule deliberately, park
+and say so in writing — with the reasoning that most of the value was in
+one cheap change: `a9d9ed4` ("fix: default UVICORN_WORKERS to 1") retires
+AppState divergence, split metrics, the Alembic migration race, duplicate
+connector polling, and a duplicate reranker scheduler in one line, because
+all five are symptoms of the same root cause (per-process state with no
+cross-process coordination) rather than five separate bugs. The chart was
+then made to match that reality rather than advertise a capability that
+didn't exist: `d68620a` fixed `replicaCount` and deleted `hpa.yaml`.
+
+The audit's own bug list turned out to be less interesting than what
+implementing its fixes surfaced. Two real defects were found only by
+re-reading the exact code path the "atomic ingest" ticket touched, not by
+the audit itself:
+
+- `14cdfe4` — `document_exists()` never took a `workspace_id` parameter,
+  so two workspaces uploading a same-named file collided: a hash match
+  returned the *other* workspace's document id, and a hash mismatch
+  soft-deleted the *other* workspace's live document. Neither the audit
+  nor the original ticket ("make delete+insert atomic") mentioned this —
+  it surfaced only from reading `document_exists()` cold before extending
+  it, per the explicit instruction to re-read cold rather than trust the
+  existing scoping.
+- The same commit replaced re-ingest's soft-delete-old-insert-new with an
+  UPDATE in place. The old behavior wasn't a deliberate design — it was
+  whatever `_prepare_for_ingestion` happened to do, and it silently
+  accumulated one tombstone document row per re-ingest forever, with no
+  constraint to catch it. Making "what does replace mean" an explicit,
+  answered design question (not an accident of write order) is the
+  difference between `14cdfe4`'s fix and a narrower one that only added a
+  transaction around the existing behavior.
+
+Two self-corrections are worth recording precisely because they were
+*corrections*, not clean first passes: the `STATE_FILE` entry in
+`docs/ROADMAP.md`'s Known Accepted Debt section (`c3ed064`) originally
+assumed a Helm replica-count fix would close the `readOnlyRootFilesystem`
+issue too — re-checking the actual `deployment.yaml` found the two settings
+are independent, and the entry was corrected before being trusted. And
+`delete_document`'s severity was initially overstated as data loss when it
+is soft-delete (chunks survive, recoverable) — caught by re-reading the
+method instead of re-asserting the earlier claim.
+
+Not every suspected gap was real. The Helm chart's `APP_ENV` looked
+missing from `values.yaml`'s `env:` map — a plausible production
+misconfiguration risk, since `validate_secrets()`'s secret-strength checks
+are gated on `APP_ENV == 'production'`. Before writing a fix, a throwaway
+Docker image (`ENV APP_ENV=production` + `docker run` with no override)
+confirmed empirically that a container's baked-in `ENV` survives when
+Kubernetes' `envFrom` doesn't mention that key — the Dockerfile already
+sets it, so there was no gap. The lesson isn't "gaps are usually
+imaginary" — `document_exists()` above was real — it's that a plausible
+gap and a confirmed one require the same amount of verification either
+way, and the empirical check was cheaper than the alternative of shipping
+an unneeded fix or leaving a real one undiagnosed.
+
+`e34e2d0`'s lockfile generation hit the same "verify against the real
+target" theme from a different angle: a local Windows venv failed to
+build a transitive dependency requiring Rust, which the actual deployment
+target (the Dockerfile's `python:3.12-slim` Linux builder stage) already
+builds successfully in CI every run. Generating the snapshot from
+`docker build --target builder` + `pip freeze` rather than fighting the
+Windows toolchain produced a more accurate result *and* less work — the
+dev machine's OS was never the right thing to snapshot in the first place.
+
+Finally, a small process failure worth keeping: the first attempt to split
+this session's changes into separate commits accidentally swept in
+unrelated file deletions that an earlier `git rm` had already staged and
+left sitting in the index. `git reset HEAD~1` undid it before it was
+pushed, and every subsequent `git add` was done by explicit path with a
+`git status` check in between. The fix was mechanical; the reason it was
+needed — assuming a clean staging area instead of checking — is the part
+worth remembering.
+
+**Lesson:** an audit is a hypothesis list, not a verified bug list — some
+items were real and became worse on inspection (`document_exists`, the
+tombstone accumulation), some were true-but-incomplete (`STATE_FILE`'s
+first-drafted rationale), and at least one was a false positive that only
+looked real until it was actually run (`APP_ENV`). The common thread
+across all of them is the same one from Chapter 5 and Chapter 8: reading
+the actual current code, or actually running the actual target
+environment, beats reasoning from what a document (an audit, a ticket, an
+earlier paragraph in this same document) says should be true.
+
 ---
 
 ## Patterns that recurred
@@ -221,3 +308,17 @@ diverge again the way Chapters 5 and 8 both show they can.
 - **Security fixes cite a specific finding, not a vague sweep** (Chapter 7)
   — every hardening commit names the CWE, the tool, or the exact log line,
   which is what makes them verifiable after the fact.
+- **An external finding is a hypothesis until re-derived from the current
+  code.** Chapter 9's audit produced real bugs (`document_exists`), a claim
+  that was true but incomplete until combined with an adjacent fact
+  (`STATE_FILE`'s first-drafted rationale), and one false positive that
+  only looked real until it was actually run (`APP_ENV`). Re-reading the
+  exact function cold, or actually executing the actual target environment,
+  is what told these apart — trusting the finding's own framing would not
+  have.
+- **A default behavior is not the same as a decided one.** Chapter 9's
+  tombstone-accumulation bug existed because "replace" had never been an
+  answered design question — it was just whatever the original write order
+  happened to do. Making the implicit choice explicit (soft-delete-old vs.
+  update-in-place) was the actual fix; adding a transaction around the old,
+  undecided behavior would not have been.
