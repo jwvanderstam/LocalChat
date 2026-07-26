@@ -411,7 +411,7 @@ class OllamaClient:
         """Build the options dict for /api/chat requests."""
         options: dict[str, Any] = {
             "num_gpu": config.OLLAMA_NUM_GPU,
-            "num_ctx": config.MAX_CONTEXT_LENGTH,
+            "num_ctx": config.OLLAMA_NUM_CTX,
             "temperature": temperature,
         }
         if max_tokens is not None:
@@ -494,7 +494,7 @@ class OllamaClient:
             "stream": False,
             "options": {
                 "num_gpu": config.OLLAMA_NUM_GPU,
-                "num_ctx": config.MAX_CONTEXT_LENGTH,
+                "num_ctx": config.OLLAMA_NUM_CTX,
             },
         }
         if tools:
