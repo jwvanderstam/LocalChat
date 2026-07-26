@@ -6,7 +6,7 @@ import urllib.parse
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 
 alembic_cfg = context.config
 
