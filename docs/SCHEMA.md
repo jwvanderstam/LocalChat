@@ -192,7 +192,16 @@ Stores the original documents ingested into the system.
 | `chunker_version` | `VARCHAR(50)` | Chunker version used at ingest time |
 | `local_only` | `BOOLEAN` | `true` = not synced from a connector |
 | `workspace_id` | `UUID` | FK → `workspaces.id` (SET NULL on delete) |
+| `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson CW-1); `NULL` = live |
+| `deleted_by` | `UUID` | FK → `users.id`; who triggered the retirement |
 | `created_at` | `TIMESTAMP` | Ingestion timestamp (UTC) |
+
+One live row per `(filename, workspace_id)` is enforced by
+`documents_filename_workspace_uidx`, a partial unique index on
+`(filename, COALESCE(workspace_id, <sentinel-uuid>))  WHERE deleted_at IS NULL`
+— re-ingesting a changed file updates the existing row in place rather than
+inserting a new one, so the document `id` (and anything that cites it)
+never changes across a content update.
 
 ### `document_chunks`
 
@@ -205,7 +214,9 @@ Each document is split into overlapping text chunks. Embeddings live here.
 | `chunk_text` | `TEXT` | Raw chunk content |
 | `chunk_index` | `INTEGER` | 0-based position within the document |
 | `embedding` | `vector(768)` | nomic-embed-text embedding; NULL until generated |
+| `chunk_tsv` | `tsvector` | `GENERATED ALWAYS AS (to_tsvector('simple', chunk_text)) STORED` — feeds the independent lexical retrieval arm |
 | `metadata` | `JSONB` | Chunk-level metadata: `page_number`, `section_title`, `has_table` |
+| `deleted_at` | `TIMESTAMPTZ` | Per-chunk retirement — set when a document is re-ingested with changed content, so the old chunk set is excluded from retrieval while the row (and any citation to it) is kept |
 | `created_at` | `TIMESTAMP` | Chunking timestamp (UTC) |
 
 ### `chunk_stats`
@@ -427,6 +438,8 @@ Encrypted OAuth access and refresh tokens for cloud connector providers.
 | `document_chunks_embedding_hnsw_idx` | `document_chunks` | `embedding vector_cosine_ops` | HNSW | Approximate nearest-neighbour search |
 | `document_chunks_document_id_idx` | `document_chunks` | `document_id` | B-tree | Chunk lookup by document |
 | `document_chunks_chunk_index_idx` | `document_chunks` | `(document_id, chunk_index)` | B-tree | Ordered chunk retrieval |
+| `document_chunks_tsv_gin_idx` | `document_chunks` | `chunk_tsv` | GIN | Independent lexical retrieval arm (full-text search) |
+| `documents_filename_workspace_uidx` | `documents` | `(filename, COALESCE(workspace_id, sentinel))` | Unique, partial (`WHERE deleted_at IS NULL`) | One live document per filename per workspace |
 | `conversation_messages_conv_id_idx` | `conversation_messages` | `(conversation_id, created_at)` | B-tree | Ordered message history |
 | `memories_embedding_hnsw_idx` | `memories` | `embedding vector_cosine_ops` | HNSW | Memory similarity retrieval |
 | `entity_relations_source_idx` | `entity_relations` | `source_id` | B-tree | Outgoing relation lookup |
