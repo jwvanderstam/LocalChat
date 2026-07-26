@@ -103,11 +103,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/memory/retriever.py` | `MemoryRetriever` — vector-searches memories, injects top-K into LLM prompt |
 | `src/performance/batch_processor.py` | `BatchEmbeddingProcessor` — parallel batch embedding |
 | **Cache** | |
-| `src/cache/managers.py` | Cache manager selecting Redis/in-memory/DB backend by config |
-| `src/cache/backends/base.py` | `CacheBackend` ABC |
-| `src/cache/backends/memory.py` | In-memory TTL cache backend |
-| `src/cache/backends/redis_cache.py` | Redis-backed cache backend |
-| `src/cache/backends/database_cache.py` | PostgreSQL-backed (JSON, not pickle) L3 cache backend |
+| `src/cache/__init__.py` | `CacheBackend` ABC, `MemoryCache`, `RedisCache`, `create_cache_backend()` factory |
+| `src/cache/managers.py` | Cache manager selecting Redis/in-memory backend by config |
 | **Docs** | |
 | `src/docs/service.py` | `DocsService` — loads a fixed catalogue of repo markdown files (`CLAUDE.md`, `.claude/rules/*.md`, `docs/*.md`, `README.md`, `SECURITY.md`), splits into heading-keyed fragments, renders to HTML; backs the `/docs` viewer and `templates/settings.html`'s per-parameter help text |
 | **Connectors** | |
