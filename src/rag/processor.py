@@ -274,7 +274,11 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         exists, doc_info = self._db.document_exists(filename)
         if not exists:
             return None
-        if doc_info.get('content_hash') == file_hash:
+        # A zero-chunk document means a prior ingestion died between
+        # insert_document() and insert_chunks_batch() — matching content_hash
+        # alone would otherwise report "already up to date" forever and never
+        # retry, a permanent silent-corruption state. Fall through to replace.
+        if doc_info.get('content_hash') == file_hash and doc_info.get('chunk_count', 0) > 0:
             message = (
                 f"Document '{filename}' is already up to date "
                 f"(ID: {doc_info['id']}, {doc_info['chunk_count']} chunks). "
@@ -284,10 +288,11 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             if progress_callback:
                 progress_callback(message)
             return True, message, doc_info['id']
-        # Same filename, different content — replace.
+        # Same filename, different content (or a previously-failed, chunkless
+        # ingestion of the same content) — replace.
         logger.info(
-            f"Document '{filename}' has changed (hash mismatch). "
-            f"Replacing ID {doc_info['id']}."
+            f"Document '{filename}' has changed or is incomplete "
+            f"(chunk_count={doc_info.get('chunk_count', 0)}). Replacing ID {doc_info['id']}."
         )
         if progress_callback:
             progress_callback(f"Replacing existing document '{filename}'...")

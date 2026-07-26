@@ -144,6 +144,33 @@ class TestIngestDocumentDedup:
         mock_db.delete_document.assert_called_once_with(3)
         mock_db.insert_document.assert_called_once()
 
+    def test_same_hash_but_zero_chunks_replaces_document(self, processor, txt_file):
+        """A prior ingestion that died between insert_document() and
+        insert_chunks_batch() leaves chunk_count=0 with a matching hash —
+        this must not be reported as 'up to date' forever."""
+        mock_db = processor._db
+        mock_ollama = processor._ollama_client
+        mock_db.document_exists.return_value = (
+            True,
+            {"id": 5, "chunk_count": 0, "content_hash": FILE_HASH},
+        )
+        mock_db.insert_document.return_value = 55
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+
+        with (
+            patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
+            patch.object(processor, "_load_document_chunks",
+                         return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content", "TXT", "text-v1")),
+            patch.object(processor, "_run_embedding_pipeline",
+                         return_value=([{"chunk_text": "chunk"}], 0)),
+        ):
+            success, msg, doc_id = processor.ingest_document(txt_file)
+
+        assert success is True
+        assert doc_id == 55
+        mock_db.delete_document.assert_called_once_with(5)
+        mock_db.insert_document.assert_called_once()
+
     def test_replace_progress_callback_called(self, processor, txt_file):
         old_hash = "b" * 64
         progress_calls = []
