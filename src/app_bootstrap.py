@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 def _run_alembic_migrations() -> None:
-    """Apply any pending Alembic migrations after _init_schema() succeeds."""
+    """Apply any pending Alembic migrations after _ensure_extensions_and_tables() succeeds."""
     from pathlib import Path
     try:
         import alembic.command

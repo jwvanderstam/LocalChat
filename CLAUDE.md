@@ -155,7 +155,7 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 - **Register `/clear` before `/{id: int}` routes** — FastAPI matches path patterns in order; a literal `/clear` after `/{id}` is shadowed and returns 422.
 - **Don't mock `OllamaClient` at the wrong layer** — mock at the service boundary, not inside RAG internals.
 - **Don't call `os.getenv` in business logic** — every value that skips `config.py` is invisible to config review.
-- **Don't write destructive migrations** — schema changes use `ALTER TABLE IF NOT EXISTS`; `_init_schema()` owns the DDL.
+- **Don't write destructive migrations** — schema changes use `ALTER TABLE IF NOT EXISTS`; `_ensure_extensions_and_tables()` owns the DDL.
 
 ---
 

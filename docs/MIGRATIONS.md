@@ -4,13 +4,13 @@ LocalChat uses [Alembic](https://alembic.sqlalchemy.org/) for versioned schema m
 
 ## How it works
 
-On every startup, after the initial schema is verified by `_init_schema()`, the app
+On every startup, after the initial schema is verified by `_ensure_extensions_and_tables()`, the app
 automatically runs `alembic upgrade head`. This is idempotent — already-applied
 migrations are skipped.
 
 | Layer | Responsibility |
 |-------|---------------|
-| `_init_schema()` | Creates all tables (`CREATE TABLE IF NOT EXISTS`) on first boot |
+| `_ensure_extensions_and_tables()` | Creates all tables (`CREATE TABLE IF NOT EXISTS`) on first boot |
 | Alembic migrations | Adds columns and indexes to existing tables (`ALTER TABLE IF NOT EXISTS`) |
 
 ## Migration files

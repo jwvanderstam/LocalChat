@@ -1,7 +1,7 @@
-"""Baseline — marks the initial schema created by _init_schema().
+"""Baseline — marks the initial schema created by _ensure_extensions_and_tables().
 
 All tables exist at this point. Subsequent migrations add columns
-and indexes that were previously applied inline in _init_schema().
+and indexes that were previously applied inline in _ensure_extensions_and_tables().
 
 Revision ID: 0001
 Revises:
