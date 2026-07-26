@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import ValidationError
 
 from .. import config
 from ..utils.logging_config import get_logger
@@ -17,6 +18,23 @@ router = APIRouter()
 
 _ERR_INTERNAL = "Internal server error"
 _ERR_MODEL_REQUIRED = "model is required"
+
+
+def _validation_error_message(exc: Exception, default: str) -> str:
+    """Surface a ModelXRequest field-validator's actual message (e.g. "Model
+    name contains invalid characters") instead of a generic fallback that
+    doesn't tell the caller what was wrong with the name they entered.
+
+    Only overrides the default for our own @field_validator-raised errors
+    (Pydantic's error "type" is "value_error"); a field that's missing
+    entirely gets Pydantic's own "Field required", which doesn't name the
+    field and is less clear here than the endpoint-specific default.
+    """
+    if isinstance(exc, ValidationError) and exc.errors():
+        error = exc.errors()[0]
+        if error["type"] == "value_error":
+            return error["msg"].removeprefix("Value error, ")
+    return default
 
 
 @router.get("")
@@ -87,8 +105,9 @@ async def set_active_model(request: Request) -> Any:
     try:
         request_data = ModelRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception:
-        return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
+    except Exception as exc:
+        message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
+        return JSONResponse({"success": False, "message": message}, status_code=400)
 
     success, models = request.app.state.ollama_client.list_models()
     if not success:
@@ -115,8 +134,9 @@ async def pull_model(request: Request) -> Any:
     try:
         request_data = ModelPullRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception:
-        return JSONResponse({"success": False, "message": "Model name required"}, status_code=400)
+    except Exception as exc:
+        message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
+        return JSONResponse({"success": False, "message": message}, status_code=400)
 
     ollama_client = request.app.state.ollama_client
 
@@ -146,8 +166,9 @@ async def delete_model(request: Request) -> Any:
     try:
         request_data = ModelDeleteRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception:
-        return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
+    except Exception as exc:
+        message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
+        return JSONResponse({"success": False, "message": message}, status_code=400)
 
     success, message = request.app.state.ollama_client.delete_model(model_name)
     if not success:
@@ -164,8 +185,9 @@ async def unload_model(request: Request) -> Any:
     try:
         request_data = ModelRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception:
-        return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
+    except Exception as exc:
+        message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
+        return JSONResponse({"success": False, "message": message}, status_code=400)
 
     success, message = request.app.state.ollama_client.unload_model(model_name)
     if not success:
@@ -182,8 +204,9 @@ async def test_model(request: Request) -> Any:
     try:
         request_data = ModelRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception:
-        return JSONResponse({"success": False, "message": _ERR_MODEL_REQUIRED}, status_code=400)
+    except Exception as exc:
+        message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
+        return JSONResponse({"success": False, "message": message}, status_code=400)
 
     try:
         success, result = await request.app.state.ollama_client.test_model(model_name)

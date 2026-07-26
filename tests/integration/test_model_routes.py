@@ -182,6 +182,25 @@ class TestPullModel:
 
         assert response.status_code in [400, 500]
 
+    def test_pull_model_reports_invalid_characters_specifically(self, client):
+        """A human-readable name like 'Qwen 2.5 14B' (spaces) must surface the
+        actual validation reason, not a generic 'model is required' message
+        that doesn't tell the caller a name was provided but malformed."""
+        response = client.post('/api/models/pull', json={
+            'model': 'Qwen 2.5 14B'
+        })
+
+        assert response.status_code == 400
+        assert response.json()['message'] == 'Model name contains invalid characters'
+
+    def test_pull_model_missing_field_reports_model_required(self, client):
+        """A request with no model field at all keeps the endpoint-specific
+        default rather than Pydantic's generic 'Field required'."""
+        response = client.post('/api/models/pull', json={})
+
+        assert response.status_code == 400
+        assert 'model' in response.json()['message'].lower()
+
     def test_pull_model_returns_sse_stream(self, client, mock_ollama):
         """Test pull model returns Server-Sent Events stream."""
         response = client.post('/api/models/pull', json={

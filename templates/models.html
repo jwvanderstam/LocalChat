@@ -81,10 +81,11 @@
                     <!-- Custom model name input (hidden by default) -->
                     <div class="mb-3" id="custom-model-group" style="display: none;">
                         <label for="custom-model-name" class="form-label">Custom Model Name</label>
-                        <input type="text" class="form-control" id="custom-model-name" 
-                               placeholder="e.g., llama2:13b, custom-model">
+                        <input type="text" class="form-control" id="custom-model-name"
+                               placeholder="e.g., qwen2.5:14b">
                         <div class="form-text">
-                            Enter the exact model name with tag (e.g., model:version)
+                            Use the exact tag from <a href="https://ollama.com/library" target="_blank" rel="noopener">ollama.com/library</a> —
+                            lowercase, <code>name:tag</code> format, no spaces (e.g. <code>qwen2.5:14b</code>, not "Qwen 2.5 14B").
                         </div>
                     </div>
                     
@@ -397,7 +398,12 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({model: modelName})
             });
-            
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Request failed (${response.status})`);
+            }
+
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             
