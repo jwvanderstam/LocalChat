@@ -149,6 +149,124 @@ class TestDocumentOperations:
             assert count == 5
             assert isinstance(count, int)
 
+    def test_document_exists_scopes_query_by_workspace_id(self):
+        """document_exists must filter by workspace_id — a filename collision
+        across two workspaces must not read the wrong workspace's document."""
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = mock_conn
+            mock_get_conn.return_value.__exit__.return_value = None
+
+            db_module.db.document_exists("report.txt", workspace_id="ws-1")
+
+            args, _ = mock_cursor.execute.call_args
+            query, params = args
+            assert "workspace_id" in query
+            assert params == ("report.txt", "ws-1")
+
+    def test_insert_document_with_conn_does_not_commit_or_acquire_pool_connection(self):
+        """When conn is supplied, insert_document must use it directly and
+        leave commit/rollback/pool-return to the caller's transaction."""
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = (7,)
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            doc_id = db_module.db.insert_document(
+                filename="test.pdf", content="content", conn=mock_conn
+            )
+
+            assert doc_id == 7
+            mock_conn.commit.assert_not_called()
+            mock_get_conn.assert_not_called()
+
+    def test_update_document_updates_by_id_and_preserves_it(self):
+        """update_document must UPDATE the existing row, not create a new one."""
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+        mock_conn.commit = MagicMock()
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = mock_conn
+            mock_get_conn.return_value.__exit__.return_value = None
+
+            db_module.db.update_document(
+                3, content="new content", content_hash="newhash"
+            )
+
+            args, params = mock_cursor.execute.call_args[0]
+            assert "UPDATE documents" in args
+            assert params[-1] == 3  # doc_id is the WHERE-clause parameter
+            mock_conn.commit.assert_called_once()
+
+    def test_update_document_with_conn_does_not_commit(self):
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            db_module.db.update_document(3, content="new content", conn=mock_conn)
+
+            mock_conn.commit.assert_not_called()
+            mock_get_conn.assert_not_called()
+
+    def test_soft_delete_chunks_for_document_sets_deleted_at(self):
+        """Old chunks must be retired (deleted_at set), not removed — rows are
+        kept so citations referencing them still resolve."""
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+        mock_conn.commit = MagicMock()
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = mock_conn
+            mock_get_conn.return_value.__exit__.return_value = None
+
+            db_module.db.soft_delete_chunks_for_document(3)
+
+            args, params = mock_cursor.execute.call_args[0]
+            assert "UPDATE document_chunks" in args
+            assert "deleted_at" in args
+            assert "DELETE" not in args
+            assert params == (3,)
+            mock_conn.commit.assert_called_once()
+
+    def test_soft_delete_chunks_for_document_with_conn_does_not_commit(self):
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            db_module.db.soft_delete_chunks_for_document(3, conn=mock_conn)
+
+            mock_conn.commit.assert_not_called()
+            mock_get_conn.assert_not_called()
+
 
 class TestChunkOperations:
     """Test chunk-related operations."""
@@ -185,6 +303,26 @@ class TestChunkOperations:
 
             # Verify cursor was used
             assert mock_cursor.execute.called
+
+    def test_insert_chunks_batch_with_conn_does_not_commit_or_acquire_pool_connection(self):
+        """When conn is supplied, insert_chunks_batch must use it directly and
+        leave commit/rollback/pool-return to the caller's transaction."""
+        from src import db as db_module
+
+        chunks_data = [(1, "chunk 1", 0, [0.1] * 768)]
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [(11,)]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            chunk_ids = db_module.db.insert_chunks_batch(chunks_data, conn=mock_conn)
+
+            assert chunk_ids == [11]
+            mock_conn.commit.assert_not_called()
+            mock_get_conn.assert_not_called()
 
     def test_get_chunk_count_returns_integer(self):
         """Test chunk count retrieval."""

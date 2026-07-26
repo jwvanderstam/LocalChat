@@ -263,21 +263,25 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         self,
         filename: str,
         file_hash: str,
+        workspace_id: str | None,
         progress_callback: Callable[[str], None] | None,
-    ) -> tuple[bool, str, int | None] | None:
-        """Check for an existing document with this filename.
+    ) -> tuple[tuple[bool, str, int | None] | None, int | None]:
+        """Check for an existing document with this filename in this workspace.
 
-        Returns a finished result tuple if ingestion should be skipped,
-        or ``None`` if ingestion should continue (old copy already deleted
-        when content changed).
+        Returns ``(finished_result, None)`` if ingestion should be skipped, or
+        ``(None, replace_doc_id)`` if ingestion should continue — ``replace_doc_id``
+        is the id of an existing document to update in place once the new content
+        is ready. The update is deferred (no DB write happens here) so it lands
+        atomically with the fresh chunk insert, after slow chunking/embedding I/O
+        has already completed.
         """
-        exists, doc_info = self._db.document_exists(filename)
+        exists, doc_info = self._db.document_exists(filename, workspace_id)
         if not exists:
-            return None
-        # A zero-chunk document means a prior ingestion died between
-        # insert_document() and insert_chunks_batch() — matching content_hash
-        # alone would otherwise report "already up to date" forever and never
-        # retry, a permanent silent-corruption state. Fall through to replace.
+            return None, None
+        # A zero-chunk document means a prior ingestion died between the document
+        # write and insert_chunks_batch() — matching content_hash alone would
+        # otherwise report "already up to date" forever and never retry, a
+        # permanent silent-corruption state. Fall through to replace.
         if doc_info.get('content_hash') == file_hash and doc_info.get('chunk_count', 0) > 0:
             message = (
                 f"Document '{filename}' is already up to date "
@@ -287,7 +291,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             logger.info(message)
             if progress_callback:
                 progress_callback(message)
-            return True, message, doc_info['id']
+            return (True, message, doc_info['id']), None
         # Same filename, different content (or a previously-failed, chunkless
         # ingestion of the same content) — replace.
         logger.info(
@@ -296,8 +300,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         )
         if progress_callback:
             progress_callback(f"Replacing existing document '{filename}'...")
-        self._db.delete_document(doc_info['id'])
-        return None
+        return None, doc_info['id']
 
     @timed('rag.ingest_document')
     @counted('rag.document_ingestions')
@@ -324,7 +327,9 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
             file_hash = _compute_file_hash(file_path)
 
-            early = self._prepare_for_ingestion(filename, file_hash, progress_callback)
+            early, replace_doc_id = self._prepare_for_ingestion(
+                filename, file_hash, workspace_id, progress_callback
+            )
             if early is not None:
                 return early
 
@@ -332,6 +337,11 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 error_msg = f"File not found: {file_path}"
                 logger.error(error_msg)
                 return False, error_msg, None
+
+            embedding_model = self._ollama_client.get_embedding_model()
+            if not embedding_model:
+                logger.error(_NO_EMBEDDING_MODEL)
+                return False, _NO_EMBEDDING_MODEL, None
 
             ext = Path(file_path).suffix.lower()
             ok, err, chunks_with_metadata, raw_content, doc_type_str, chunker_version = \
@@ -345,30 +355,17 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             content_preview = (raw_content or (chunks_with_metadata[0]['text'] if chunks_with_metadata else ''))[:1000]
             language = _detect_language(raw_content) if raw_content else None
 
-            doc_id = self._db.insert_document(
-                filename=filename,
-                content=content_preview,
-                metadata={'total_chunks': len(chunks_with_metadata), 'file_path': file_path},
-                content_hash=file_hash,
-                doc_type=doc_type_str,
-                chunker_version=chunker_version,
-                workspace_id=workspace_id,
-                language=language,
-                source_id=source_id,
-            )
-            logger.debug(f"Document ID: {doc_id}")
-
-            embedding_model = self._ollama_client.get_embedding_model()
-            if not embedding_model:
-                logger.error(_NO_EMBEDDING_MODEL)
-                return False, _NO_EMBEDDING_MODEL, None
-
             logger.info(f"Using embedding model: {embedding_model}")
             if progress_callback:
                 progress_callback(f"Generating embeddings for {len(chunks_with_metadata)} chunks...")
 
+            # Placeholder id for a brand-new document (no row exists yet — the
+            # real id comes from insert_document() below); when replacing, the
+            # id is already known and used directly. Embedding never touches
+            # the DB, so no other DB state depends on which id is used here.
+            working_doc_id = replace_doc_id if replace_doc_id is not None else 0
             chunks_data, failed_chunks = self._run_embedding_pipeline(
-                chunks_with_metadata, doc_id, embedding_model, filename, progress_callback
+                chunks_with_metadata, working_doc_id, embedding_model, filename, progress_callback
             )
 
             logger.info(f"Successfully processed {len(chunks_data)} chunks ({failed_chunks} failed)")
@@ -378,7 +375,43 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 logger.error(error_msg)
                 return False, error_msg, None
 
-            chunk_ids = self._db.insert_chunks_batch(chunks_data)
+            # The only DB mutation in the whole ingest: retire superseded chunks
+            # (if replacing) + write the document row (update in place — same
+            # id, so citations stay valid — or insert new) + insert the fresh
+            # chunk batch, as one short transaction. Runs only after all slow
+            # I/O (chunking, embedding) has already completed.
+            metadata = {'total_chunks': len(chunks_data), 'file_path': file_path}
+            with self._db.get_connection() as conn:
+                if replace_doc_id is not None:
+                    self._db.soft_delete_chunks_for_document(replace_doc_id, conn=conn)
+                    self._db.update_document(
+                        replace_doc_id,
+                        content=content_preview,
+                        metadata=metadata,
+                        content_hash=file_hash,
+                        doc_type=doc_type_str,
+                        chunker_version=chunker_version,
+                        language=language,
+                        conn=conn,
+                    )
+                    doc_id = replace_doc_id
+                else:
+                    doc_id = self._db.insert_document(
+                        filename=filename,
+                        content=content_preview,
+                        metadata=metadata,
+                        content_hash=file_hash,
+                        doc_type=doc_type_str,
+                        chunker_version=chunker_version,
+                        workspace_id=workspace_id,
+                        language=language,
+                        source_id=source_id,
+                        conn=conn,
+                    )
+                for chunk in chunks_data:
+                    chunk['doc_id'] = doc_id
+                chunk_ids = self._db.insert_chunks_batch(chunks_data, conn=conn)
+            logger.debug(f"Document ID: {doc_id}")
             logger.info("Chunks inserted successfully")
 
             # ── GraphRAG entity extraction (optional) ─────────────────────

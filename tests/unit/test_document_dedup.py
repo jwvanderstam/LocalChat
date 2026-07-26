@@ -7,7 +7,10 @@ Unit tests for duplicate detection via SHA-256 file hash.
 Scenarios tested:
 - New document (no prior record) → ingested normally
 - Same filename + same hash → skipped, existing doc_id returned
-- Same filename + different hash → old doc deleted, re-ingested (replaced)
+- Same filename + different hash → existing document updated in place
+  (same doc_id preserved — citations that reference it stay valid);
+  old chunks retired, new chunks inserted
+- workspace_id is threaded through to document_exists (dedup is per-workspace)
 - _compute_file_hash produces consistent SHA-256 hex digest
 """
 
@@ -98,10 +101,31 @@ class TestIngestDocumentDedup:
 
         assert success is True
         assert doc_id == 42
-        mock_db.delete_document.assert_not_called()
+        mock_db.document_exists.assert_called_once_with("report.txt", None)
+        mock_db.soft_delete_chunks_for_document.assert_not_called()
+        mock_db.update_document.assert_not_called()
         mock_db.insert_document.assert_called_once()
         _, kwargs = mock_db.insert_document.call_args
         assert kwargs.get("content_hash") == FILE_HASH
+
+    def test_new_document_passes_workspace_id_to_document_exists(self, processor, txt_file):
+        """Dedup must be scoped per-workspace, not global by filename alone."""
+        mock_db = processor._db
+        mock_ollama = processor._ollama_client
+        mock_db.document_exists.return_value = (False, {})
+        mock_db.insert_document.return_value = 42
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+
+        with (
+            patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
+            patch.object(processor, "_load_document_chunks",
+                         return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content", "TXT", "text-v1")),
+            patch.object(processor, "_run_embedding_pipeline",
+                         return_value=([{"chunk_text": "chunk"}], 0)),
+        ):
+            processor.ingest_document(txt_file, workspace_id="ws-1")
+
+        mock_db.document_exists.assert_called_once_with("report.txt", "ws-1")
 
     def test_same_hash_skips_ingestion(self, processor, txt_file):
         mock_db = processor._db
@@ -116,10 +140,14 @@ class TestIngestDocumentDedup:
         assert success is True
         assert doc_id == 7
         assert "up to date" in msg
-        mock_db.delete_document.assert_not_called()
+        mock_db.soft_delete_chunks_for_document.assert_not_called()
+        mock_db.update_document.assert_not_called()
         mock_db.insert_document.assert_not_called()
 
-    def test_different_hash_replaces_document(self, processor, txt_file):
+    def test_different_hash_updates_document_in_place(self, processor, txt_file):
+        """Replacing changed content must preserve the document id (UPDATE,
+        not soft-delete + insert-new) — citations referencing this id must
+        stay valid, and no tombstone row should accumulate."""
         old_hash = "a" * 64
         mock_db = processor._db
         mock_ollama = processor._ollama_client
@@ -127,7 +155,6 @@ class TestIngestDocumentDedup:
             True,
             {"id": 3, "chunk_count": 10, "content_hash": old_hash},
         )
-        mock_db.insert_document.return_value = 99
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
 
         with (
@@ -140,12 +167,21 @@ class TestIngestDocumentDedup:
             success, msg, doc_id = processor.ingest_document(txt_file)
 
         assert success is True
-        assert doc_id == 99
-        mock_db.delete_document.assert_called_once_with(3)
-        mock_db.insert_document.assert_called_once()
+        assert doc_id == 3
+        mock_db.delete_document.assert_not_called()
+        mock_db.insert_document.assert_not_called()
+        mock_db.soft_delete_chunks_for_document.assert_called_once()
+        args, kwargs = mock_db.soft_delete_chunks_for_document.call_args
+        assert args[0] == 3
+        assert "conn" in kwargs
+        mock_db.update_document.assert_called_once()
+        args, kwargs = mock_db.update_document.call_args
+        assert args[0] == 3
+        assert kwargs.get("content_hash") == FILE_HASH
+        assert "conn" in kwargs
 
-    def test_same_hash_but_zero_chunks_replaces_document(self, processor, txt_file):
-        """A prior ingestion that died between insert_document() and
+    def test_same_hash_but_zero_chunks_updates_document_in_place(self, processor, txt_file):
+        """A prior ingestion that died between the document write and
         insert_chunks_batch() leaves chunk_count=0 with a matching hash —
         this must not be reported as 'up to date' forever."""
         mock_db = processor._db
@@ -154,7 +190,6 @@ class TestIngestDocumentDedup:
             True,
             {"id": 5, "chunk_count": 0, "content_hash": FILE_HASH},
         )
-        mock_db.insert_document.return_value = 55
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
 
         with (
@@ -167,9 +202,36 @@ class TestIngestDocumentDedup:
             success, msg, doc_id = processor.ingest_document(txt_file)
 
         assert success is True
-        assert doc_id == 55
-        mock_db.delete_document.assert_called_once_with(5)
-        mock_db.insert_document.assert_called_once()
+        assert doc_id == 5
+        mock_db.insert_document.assert_not_called()
+        mock_db.soft_delete_chunks_for_document.assert_called_once()
+        mock_db.update_document.assert_called_once()
+        args, _ = mock_db.update_document.call_args
+        assert args[0] == 5
+
+    def test_chunks_data_tagged_with_replace_doc_id_before_insert(self, processor, txt_file):
+        """Each chunk dict must carry the real (replaced) doc_id when insert_chunks_batch runs."""
+        old_hash = "a" * 64
+        mock_db = processor._db
+        mock_ollama = processor._ollama_client
+        mock_db.document_exists.return_value = (
+            True, {"id": 3, "chunk_count": 10, "content_hash": old_hash}
+        )
+        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
+
+        with (
+            patch("src.rag.processor._compute_file_hash", return_value=FILE_HASH),
+            patch.object(processor, "_load_document_chunks",
+                         return_value=(True, None, [{"text": "chunk", "metadata": {}}], "content", "TXT", "text-v1")),
+            patch.object(processor, "_run_embedding_pipeline",
+                         return_value=([{"chunk_text": "chunk", "doc_id": 0}], 0)),
+        ):
+            processor.ingest_document(txt_file)
+
+        mock_db.insert_chunks_batch.assert_called_once()
+        (chunks_data,), kwargs = mock_db.insert_chunks_batch.call_args
+        assert chunks_data[0]["doc_id"] == 3
+        assert "conn" in kwargs
 
     def test_replace_progress_callback_called(self, processor, txt_file):
         old_hash = "b" * 64
@@ -179,7 +241,6 @@ class TestIngestDocumentDedup:
         mock_db.document_exists.return_value = (
             True, {"id": 1, "chunk_count": 2, "content_hash": old_hash}
         )
-        mock_db.insert_document.return_value = 10
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
 
         with (

@@ -11,6 +11,8 @@ from ..utils.sanitization import escape_sql_like
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
+    import psycopg
+
     from .connection import MixinHost
 else:
     MixinHost = object
@@ -32,29 +34,117 @@ class DocumentsMixin(MixinHost):
         workspace_id: str | None = None,
         language: str | None = None,
         source_id: str | None = None,
+        conn: psycopg.Connection | None = None,
     ) -> int:
-        if not self.is_connected:
-            raise DatabaseUnavailableError("Cannot insert document: Database is not connected")
+        """Insert a new document row.
 
+        Pass ``conn`` to run as part of a caller-owned transaction (e.g. the
+        ingest pipeline's final delete+insert+insert-chunks block) — the
+        caller is then responsible for commit/rollback.
+        """
         # PostgreSQL text columns reject NUL (0x00) bytes; strip them defensively.
         filename = filename.replace('\x00', '')
         content = content.replace('\x00', '')
 
         logger.debug(f"Inserting document: {filename}")
+
+        def _insert(cursor: Any) -> int:
+            cursor.execute(
+                "INSERT INTO documents"
+                " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id, language, source_id)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                (filename, _encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language, source_id),
+            )
+            row = cursor.fetchone()
+            assert row is not None, "INSERT ... RETURNING id always returns a row"
+            return row[0]
+
+        if conn is not None:
+            with conn.cursor() as cursor:
+                doc_id = _insert(cursor)
+            logger.info(f"Document inserted with ID: {doc_id}")
+            return doc_id
+
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot insert document: Database is not connected")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO documents"
-                    " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id, language, source_id)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                    (filename, _encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language, source_id),
-                )
-                row = cursor.fetchone()
-                assert row is not None, "INSERT ... RETURNING id always returns a row"
-                doc_id = row[0]
-                conn.commit()
+                doc_id = _insert(cursor)
+            conn.commit()
         logger.info(f"Document inserted with ID: {doc_id}")
         return doc_id
+
+    def update_document(
+        self,
+        doc_id: int,
+        content: str,
+        metadata: dict[str, Any] | None = None,
+        content_hash: str | None = None,
+        doc_type: str | None = None,
+        chunker_version: str | None = None,
+        language: str | None = None,
+        conn: psycopg.Connection | None = None,
+    ) -> None:
+        """Update an existing document's content in place — used when re-ingesting
+        a changed file under the same filename. The document id is preserved so
+        citations that reference it stay valid; only the chunks underneath are
+        replaced (see ``soft_delete_chunks_for_document``).
+
+        Pass ``conn`` to run as part of a caller-owned transaction.
+        """
+        content = content.replace('\x00', '')
+
+        def _update(cursor: Any) -> None:
+            cursor.execute(
+                "UPDATE documents SET content = %s, metadata = %s, content_hash = %s,"
+                " doc_type = %s, chunker_version = %s, language = %s WHERE id = %s",
+                (_encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, language, doc_id),
+            )
+
+        if conn is not None:
+            with conn.cursor() as cursor:
+                _update(cursor)
+            logger.info(f"Document {doc_id} updated in place")
+            return
+
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot update document: Database is not connected")
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                _update(cursor)
+            conn.commit()
+        logger.info(f"Document {doc_id} updated in place")
+
+    def soft_delete_chunks_for_document(
+        self,
+        doc_id: int,
+        conn: psycopg.Connection | None = None,
+    ) -> None:
+        """Retire all live chunks of a document ahead of inserting its replacement
+        set — used when re-ingesting changed content under the same document id.
+        Rows are kept (not DELETEd) so existing citations still resolve.
+
+        Pass ``conn`` to run as part of a caller-owned transaction.
+        """
+        def _retire(cursor: Any) -> None:
+            cursor.execute(
+                "UPDATE document_chunks SET deleted_at = NOW()"
+                " WHERE document_id = %s AND deleted_at IS NULL",
+                (doc_id,),
+            )
+
+        if conn is not None:
+            with conn.cursor() as cursor:
+                _retire(cursor)
+            return
+
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot retire chunks: Database is not connected")
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                _retire(cursor)
+            conn.commit()
+        logger.info(f"Retired existing chunks for document {doc_id}")
 
     def any_local_only_sources(self, filenames: list[str]) -> bool:
         """Used by cloud fallback to block cloud calls when context includes local-only documents."""
@@ -147,12 +237,16 @@ class DocumentsMixin(MixinHost):
     def insert_chunks_batch(
         self,
         chunks_data: list[tuple[int, str, int, list[float] | np.ndarray] | dict[str, Any]],
+        conn: psycopg.Connection | None = None,
     ) -> list[int]:
-        """Accepts ``(doc_id, chunk_text, chunk_index, embedding)`` tuples or equivalent dicts with optional metadata."""
+        """Accepts ``(doc_id, chunk_text, chunk_index, embedding)`` tuples or equivalent dicts with optional metadata.
+
+        Pass ``conn`` to run as part of a caller-owned transaction.
+        """
         if not chunks_data:
             return []
 
-        if not self.is_connected:
+        if conn is None and not self.is_connected:
             raise DatabaseUnavailableError("Cannot insert chunks: Database is not connected")
 
         logger.debug(f"Inserting batch of {len(chunks_data)} chunks")
@@ -186,15 +280,22 @@ class DocumentsMixin(MixinHost):
 
         # Pipeline mode batches all INSERT statements in one round-trip.
         # RETURNING id is collected after the pipeline flushes.
-        chunk_ids: list[int] = []
-        with self.get_connection() as conn:
+        def _insert_all(active_conn: psycopg.Connection, cursor: Any) -> list[int]:
+            with active_conn.pipeline():
+                for row in rows:
+                    cursor.execute(insert_sql, row)
+            # Fetch RETURNING results after pipeline flush (outside pipeline block).
+            return [r[0] for r in cursor.fetchall()]
+
+        chunk_ids: list[int]
+        if conn is not None:
             with conn.cursor() as cursor:
-                with conn.pipeline():
-                    for row in rows:
-                        cursor.execute(insert_sql, row)
-                # Fetch RETURNING results after pipeline flush (outside pipeline block).
-                chunk_ids = [r[0] for r in cursor.fetchall()]
-            conn.commit()
+                chunk_ids = _insert_all(conn, cursor)
+        else:
+            with self.get_connection() as owned_conn:
+                with owned_conn.cursor() as cursor:
+                    chunk_ids = _insert_all(owned_conn, cursor)
+                owned_conn.commit()
         logger.info(f"Successfully inserted {len(chunks_data)} chunks")
         return chunk_ids
 
@@ -246,6 +347,7 @@ class DocumentsMixin(MixinHost):
                     JOIN documents d ON dc.document_id = d.id
                     CROSS JOIN q
                     WHERE dc.embedding IS NOT NULL
+                      AND dc.deleted_at IS NULL
                       AND d.deleted_at IS NULL
                     {where_extra}  AND (dc.embedding <=> q.emb) <= %s
                     ORDER BY dc.embedding <=> q.emb
@@ -311,6 +413,7 @@ class DocumentsMixin(MixinHost):
                     JOIN documents d ON dc.document_id = d.id
                     CROSS JOIN q
                     WHERE dc.chunk_tsv @@ q.tsq
+                      AND dc.deleted_at IS NULL
                       AND d.deleted_at IS NULL
                     {where_extra}
                     ORDER BY score DESC
@@ -518,21 +621,31 @@ class DocumentsMixin(MixinHost):
                 logger.debug(f"Retrieved {len(documents)} documents")
                 return documents
 
-    def document_exists(self, filename: str) -> tuple[bool, dict[str, Any]]:
-        """Return ``(exists, doc_info)``; doc_info has id, created_at, chunk_count, content_hash."""
+    def document_exists(
+        self,
+        filename: str,
+        workspace_id: str | None = None,
+    ) -> tuple[bool, dict[str, Any]]:
+        """Return ``(exists, doc_info)``; doc_info has id, created_at, chunk_count, content_hash.
+
+        Scoped to ``workspace_id`` — filename uniqueness is per-workspace, not
+        global. ``IS NOT DISTINCT FROM`` matches NULL-workspace_id documents
+        against each other without matching a real workspace's documents.
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot check document existence: Database is not connected")
 
-        logger.debug(f"Checking if document exists: {filename}")
+        logger.debug(f"Checking if document exists: {filename} (workspace={workspace_id})")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT d.id, d.created_at, COUNT(dc.id) AS chunk_count, d.content_hash
                     FROM documents d
-                    LEFT JOIN document_chunks dc ON d.id = dc.document_id
+                    LEFT JOIN document_chunks dc ON d.id = dc.document_id AND dc.deleted_at IS NULL
                     WHERE d.filename = %s AND d.deleted_at IS NULL
+                      AND d.workspace_id IS NOT DISTINCT FROM %s
                     GROUP BY d.id, d.created_at, d.content_hash
-                """, (filename,))
+                """, (filename, workspace_id))
                 row = cursor.fetchone()
                 if row:
                     doc_info = {
