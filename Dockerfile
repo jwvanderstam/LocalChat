@@ -87,6 +87,6 @@ CMD ["sh", "-c", \
         --factory \
         --host 0.0.0.0 \
         --port ${SERVER_PORT:-5000} \
-        --workers ${UVICORN_WORKERS:-2} \
+        --workers ${UVICORN_WORKERS:-1} \
         --timeout-keep-alive ${UVICORN_TIMEOUT:-600} \
         --log-level info"]

@@ -81,11 +81,16 @@ services:
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      # MM-2 (runtime resource isolation): cap concurrent loaded models at 1
-      # so requesting a second model evicts the first instead of both
-      # sharing VRAM and spilling onto CPU. 10m keep-alive frees VRAM after
-      # a period of inactivity instead of pinning a model forever (-1).
-      OLLAMA_MAX_LOADED_MODELS: 1
+      # MM-2 (runtime resource isolation): cap concurrent loaded models at 2.
+      # RAG needs a dedicated embedding model (nomic-embed-text) resident
+      # alongside the active chat model on every retrieval turn -- capping
+      # at 1 forces a full model swap (evict + reload) on every single
+      # message (confirmed: ~5s of pure reload overhead per chat turn).
+      # 2 lets that pair coexist (~1.8GB + ~3-6GB, well within a 12GB card)
+      # while still stopping unbounded stacking if several large chat
+      # models get manually tested back-to-back via /models. 10m keep-alive
+      # frees VRAM after a period of inactivity instead of pinning forever (-1).
+      OLLAMA_MAX_LOADED_MODELS: 2
       OLLAMA_KEEP_ALIVE: 10m
     volumes:
       - ollama_models:/root/.ollama
@@ -299,7 +304,16 @@ services:
       METRICS_TOKEN:     ${METRICS_TOKEN:-}
 
       # ── Performance ──────────────────────────────────────
-      UVICORN_WORKERS:      ${UVICORN_WORKERS:-2}
+      # Single worker by design: AppState, MetricsCollector, the Alembic
+      # migration runner, SyncWorker's connector polling, and the reranker's
+      # weekly threading.Timer are all in-process/per-worker state with no
+      # cross-process coordination. At >1 worker each of these silently
+      # diverges or races (stale config reads on other workers, split
+      # metrics, duplicate migrations/syncs). A GPU-bound Ollama backend
+      # means this process is never CPU-bound, so a second worker buys
+      # nothing. See docs/ROADMAP.md's "known accepted debt" for the
+      # multi-instance ticket if this ever needs to change.
+      UVICORN_WORKERS:      ${UVICORN_WORKERS:-1}
       UVICORN_TIMEOUT:      ${UVICORN_TIMEOUT:-600}
       OLLAMA_EMBED_TIMEOUT: ${OLLAMA_EMBED_TIMEOUT:-600}
       DEFAULT_MODEL:        ${DEFAULT_MODEL:-llama3.1}
