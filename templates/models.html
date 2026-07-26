@@ -171,13 +171,21 @@
     let currentActiveModel = null;
     let ollamaUrl = 'Ollama';
 
-    // Fetch actual Ollama URL from server config
-    fetch('/api/admin/stats')
+    // Fetch actual Ollama URL and connection status from server config
+    fetch('/api/settings/stats')
         .then(r => r.json())
         .then(d => {
             if (d.system?.ollama_url) {
                 ollamaUrl = d.system.ollama_url;
                 document.getElementById('ollama-url-display').textContent = ollamaUrl;
+            }
+            const statusSpan = document.getElementById('connection-status');
+            if (d.system?.ollama_available) {
+                statusSpan.className = 'badge bg-success';
+                statusSpan.textContent = 'Connected';
+            } else {
+                statusSpan.className = 'badge bg-danger';
+                statusSpan.textContent = 'Disconnected';
             }
         })
         .catch(() => {
