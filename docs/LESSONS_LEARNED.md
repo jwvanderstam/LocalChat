@@ -1,7 +1,7 @@
 # Lessons Learned
 
 A chronological account of LocalChat's architecture and process decisions,
-built from `git log` (924 commits, 2025-12-28 → present) and
+built from `git log` (935 commits, 2025-12-28 → present) and
 [`docs/ROADMAP.md`](ROADMAP.md). Each chapter cites the commits it's built
 from so the rationale stays traceable back to source, the same way this
 project's own root-cause investigations are expected to work
@@ -279,6 +279,68 @@ the actual current code, or actually running the actual target
 environment, beats reasoning from what a document (an audit, a ticket, an
 earlier paragraph in this same document) says should be true.
 
+## 10. A shipped fix gets a second bug, and a live app gets a stopwatch
+
+Two more defects surfaced the same night, through two different discovery
+modes than Chapter 9's audit — worth recording separately because neither
+was found by reviewing a finding; both were found by re-deriving behavior
+from the running system.
+
+A follow-up, independent review of `08237a9` (Chapter 9's hybrid-search
+fix) found that the fix itself was numerically dead. At the shipped
+defaults (`SEMANTIC_WEIGHT=0.70`, `MIN_SIMILARITY_THRESHOLD=0.30`), filtering
+on the blended score made survival mathematically impossible for the exact
+case the fix was written to solve: a lexical-only chunk's `semantic_score`
+is `0.0`, so `combined_score = 0.30 × lexical_score`, and `ts_rank_cd`'s
+`rank/(rank+1)` normalization never reaches `1.0` — no lexical-only chunk
+could ever clear the threshold, regardless of match quality. Worse, the
+same blend diluted *every* pure-semantic result the moment the lexical arm
+returned anything at all for that query, so hybrid search could return
+*fewer* correct results than plain semantic search did before it existed —
+a regression hiding inside a fix. `ce2e4ee` decoupled survival from
+ranking (`semantic_score >= min_similarity OR lexical_score > 0`) rather
+than adjusting the blend weights, because the bug was in *what gated
+membership*, not in the numbers themselves. The existing test for this
+code path checked `_merge_semantic_and_lexical` in isolation and never
+exercised the pipeline-level filter three lines later — coverage of the
+unit, no assertion on the behavior, the exact failure mode
+`docs/TEST_QUALITY_AUDIT.md` was written to catch, recurring in code that
+audit didn't touch.
+
+Separately, a plain "why is this slow" question was answered entirely from
+data already being collected: `/api/metrics.json`'s histograms showed
+`/api/chat` at 8.65s, and `docker exec localchat-ollama-1 ollama ps` showed
+the active model running a 29%/71% GPU/CPU split at a 24576-token context —
+three times the intended 8192. `771d420` found why: `_build_chat_options`
+sent `config.MAX_CONTEXT_LENGTH` as Ollama's `num_ctx`, but
+`MAX_CONTEXT_LENGTH` is a *character* limit for prompt-formatting
+truncation (`OLLAMA_NUM_CTX × 3`, by its own comment) — never meant to
+size the model's context window. The correct value, `OLLAMA_NUM_CTX`, was
+sitting unused the whole time. Fixed, rebuilt, and measured on the next
+real request: 100% GPU, 8192 context, 1.15s. The same confusion had a
+second, quieter instance: `.env.example` hardcoded `MAX_CONTEXT_LENGTH=8192`
+(silently overriding its own intended `OLLAMA_NUM_CTX × 3` default) and
+never mentioned `OLLAMA_NUM_CTX` at all — so a fresh setup following the
+example file would have reproduced a version of the same mix-up in a
+different place.
+
+A smaller, related pair: the models page's "Connection Info" box called
+`/api/admin/stats`, a route that had never existed under that path (the
+data lives at `/api/settings/stats`); and the model-pull form never checked
+`response.ok` before treating the body as an SSE stream, so a validation
+error's plain JSON response fell through the empty parse loop into the
+success path and displayed "Pull completed!" for a request rejected before
+it reached Ollama. Neither `fetch()` call would ever throw on an HTTP error
+status — that's not a bug in either call site alone, it's the same
+unchecked assumption in two unrelated files.
+
+**Lesson:** an audit or a fix is a claim about behavior, and the only way
+to close the loop is to run the actual system and read what it actually
+did — a merge function's own unit test, a shipped fix's commit message, and
+an unread histogram are all, in their own way, a description standing in
+for an observation. `ce2e4ee` and `771d420` were both found by preferring
+the observation.
+
 ---
 
 ## Patterns that recurred
@@ -322,3 +384,15 @@ earlier paragraph in this same document) says should be true.
   happened to do. Making the implicit choice explicit (soft-delete-old vs.
   update-in-place) was the actual fix; adding a transaction around the old,
   undecided behavior would not have been.
+- **A test that covers the unit can still miss the behavior.** Chapter 8's
+  coverage-percentage failure and Chapter 10's hybrid-search regression are
+  the same gap at different scales: `_merge_semantic_and_lexical` had a
+  passing, specific test, and the pipeline-level filter that undid its
+  result three lines later had none. Coverage answers "did this line run,"
+  never "was the outcome correct" — only an assertion on the actual output
+  answers that.
+- **A shipped fix is a new claim, not a closed question.** Chapter 10's
+  hybrid-search regression was found by re-deriving the fix's own math, not
+  by trusting that "fixed and tested" meant done — the same discipline
+  Chapter 9 applied to the audit's findings, turned on this session's own
+  output.
