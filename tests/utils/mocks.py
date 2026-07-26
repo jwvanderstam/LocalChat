@@ -168,8 +168,5 @@ def create_mock_config():
     config.EMBEDDING_MODEL = 'nomic-embed-text'
     config.MAX_WORKERS = 4
     config.RERANK_RESULTS = True
-    config.SIMILARITY_WEIGHT = 0.5
-    config.KEYWORD_WEIGHT = 0.2
-    config.BM25_WEIGHT = 0.2
     config.POSITION_WEIGHT = 0.1
     return config

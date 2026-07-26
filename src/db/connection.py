@@ -368,6 +368,20 @@ class DatabaseConnection:
                 """)
                 logger.debug("Document ID and chunk indexes ensured")
 
+                # Full-text search column for the independent lexical retrieval
+                # arm (hybrid search). 'simple' config (no stemming) so exact
+                # codes/identifiers aren't mangled and it's not English-only.
+                cursor.execute("""
+                    ALTER TABLE document_chunks
+                    ADD COLUMN IF NOT EXISTS chunk_tsv tsvector
+                    GENERATED ALWAYS AS (to_tsvector('simple', chunk_text)) STORED
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS document_chunks_tsv_gin_idx
+                    ON document_chunks USING GIN (chunk_tsv)
+                """)
+                logger.debug("Full-text search column and GIN index ensured")
+
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS conversations (
                         id UUID PRIMARY KEY,

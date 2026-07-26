@@ -2,8 +2,9 @@
 Retrieval & Context Formatting
 ===============================
 
-Handles query processing, hybrid search (semantic + BM25), re-ranking,
-diversity filtering, and context formatting for LLM prompts.
+Handles query processing, hybrid search (independent semantic + full-text
+lexical retrieval arms, merged), re-ranking, diversity filtering, and
+context formatting for LLM prompts.
 """
 
 import re
@@ -132,24 +133,76 @@ class RetrievalMixin:
 
         return queries
 
-    def _apply_hybrid_scoring(
+    def _run_lexical_search(
         self,
-        all_results: dict,
         query_clean: str,
-        use_hybrid_search: bool,
-    ) -> None:
-        """Apply BM25 scores and blend them with semantic scores (in-place)."""
-        if not (use_hybrid_search and len(all_results) > 1):
-            logger.debug("[RAG] Skipped hybrid scoring (BM25 disabled or insufficient results)")
-            return
-        bm25_scores = self._compute_bm25_scores(query_clean, all_results)
-        semantic_weight = config.SIMILARITY_WEIGHT
-        bm25_weight = config.BM25_WEIGHT + config.KEYWORD_WEIGHT
-        for chunk_id, data in all_results.items():
-            bm25_norm = bm25_scores.get(chunk_id, 0.0)
-            data['bm25_score'] = bm25_norm
-            data['combined_score'] = semantic_weight * data['semantic_score'] + bm25_weight * bm25_norm
-        logger.debug("[RAG] Applied hybrid BM25 scoring")
+        top_k: int,
+        file_type_filter: str | None,
+        filename_filter: list[str] | None,
+        workspace_id: str | None,
+        source_ids: list[str] | None,
+    ) -> list:
+        """Run the independent full-text lexical search arm; degrades to [] on any failure."""
+        try:
+            results = self._db.search_lexical_chunks(
+                query_clean,
+                top_k=top_k,
+                file_type_filter=file_type_filter,
+                filename_filter=filename_filter or [],
+                workspace_id=workspace_id,
+                source_ids=source_ids or [],
+            )
+            return list(results) if results else []
+        except Exception as lex_exc:
+            logger.debug(f"[RAG] Lexical search skipped: {lex_exc}")
+            return []
+
+    def _merge_semantic_and_lexical(
+        self,
+        semantic_results: list,
+        lexical_results: list,
+    ) -> dict[str, dict[str, Any]]:
+        """Merge two independently-retrieved candidate sets (in-place-free).
+
+        A chunk found only by lexical search (semantic_score=0.0, never
+        returned by vector search at all) survives here instead of being
+        silently dropped — this is the fix for hybrid search only ever
+        reordering vector search's own candidates rather than running a
+        genuine second retrieval path.
+        """
+        merged: dict[str, dict[str, Any]] = {}
+
+        for chunk_text, filename, chunk_index, similarity, metadata, chunk_id in semantic_results:
+            key = f"{filename}:{chunk_index}"
+            merged[key] = {
+                'chunk_text': chunk_text, 'filename': filename, 'chunk_index': chunk_index,
+                'semantic_score': similarity, 'lexical_score': 0.0,
+                'combined_score': similarity,
+                'metadata': metadata or {}, 'chunk_id': chunk_id,
+            }
+
+        for chunk_text, filename, chunk_index, lexical_score, metadata, chunk_id in lexical_results:
+            key = f"{filename}:{chunk_index}"
+            if key in merged:
+                merged[key]['lexical_score'] = lexical_score
+            else:
+                merged[key] = {
+                    'chunk_text': chunk_text, 'filename': filename, 'chunk_index': chunk_index,
+                    'semantic_score': 0.0, 'lexical_score': lexical_score,
+                    'combined_score': 0.0,
+                    'metadata': metadata or {}, 'chunk_id': chunk_id,
+                }
+
+        if lexical_results:
+            semantic_weight = config.app_state.get_rag_param("SEMANTIC_WEIGHT")
+            lexical_weight = 1.0 - semantic_weight
+            for data in merged.values():
+                data['combined_score'] = (
+                    semantic_weight * data['semantic_score'] + lexical_weight * data['lexical_score']
+                )
+            logger.debug("[RAG] Applied hybrid semantic+lexical blend")
+
+        return merged
 
     def _deduplicate_results(self, sorted_results: list) -> list:
         """Remove exact duplicates and adjacent chunks (within 2 positions)."""
@@ -202,11 +255,11 @@ class RetrievalMixin:
         workspace_id: str | None = None,
         source_ids: list[str] | None = None,
     ) -> dict[str, dict[str, Any]]:
-        """Run semantic search, hybrid scoring, and similarity filtering.
+        """Run semantic search, an independent lexical search, merge, and filter.
 
         Returns:
             Filtered results dict mapping chunk_id to result data, or empty dict
-            when no chunks pass the similarity threshold.
+            when nothing passes the similarity threshold.
         """
         semantic_results = self._db.search_similar_chunks(
             query_embedding,
@@ -218,21 +271,22 @@ class RetrievalMixin:
             source_ids=source_ids or [],
         )
         logger.debug(f"[RAG] Semantic search returned {len(semantic_results)} results")
-        if not semantic_results:
-            logger.warning("[RAG] No semantic search results")
+
+        lexical_results: list = []
+        if use_hybrid_search:
+            lexical_results = self._run_lexical_search(
+                query_clean, top_k * 2, file_type_filter, filename_filter, workspace_id, source_ids
+            )
+            logger.debug(f"[RAG] Lexical search returned {len(lexical_results)} results")
+
+        if not semantic_results and not lexical_results:
+            logger.warning("[RAG] No semantic or lexical search results")
             return {}
-        all_results: dict[str, dict[str, Any]] = {
-            f"{filename}:{chunk_index}": {
-                'chunk_text': chunk_text, 'filename': filename,
-                'chunk_index': chunk_index, 'semantic_score': similarity,
-                'bm25_score': 0.0, 'combined_score': similarity,
-                'metadata': metadata or {}, 'chunk_id': chunk_id,
-            }
-            for chunk_text, filename, chunk_index, similarity, metadata, chunk_id in semantic_results
-        }
-        logger.debug(f"[RAG] Collected {len(all_results)} results for hybrid scoring")
-        self._apply_hybrid_scoring(all_results, query_clean, use_hybrid_search)
-        filtered = {k: v for k, v in all_results.items() if v['semantic_score'] >= min_similarity}
+
+        all_results = self._merge_semantic_and_lexical(semantic_results, lexical_results)
+        logger.debug(f"[RAG] Merged into {len(all_results)} candidate results")
+
+        filtered = {k: v for k, v in all_results.items() if v['combined_score'] >= min_similarity}
         if not filtered:
             self._log_similarity_miss(all_results, min_similarity)
         return filtered
@@ -319,7 +373,8 @@ class RetrievalMixin:
             top_k: Number of chunks to retrieve (default from config)
             min_similarity: Minimum similarity threshold (0.0-1.0)
             file_type_filter: Filter by file extension (e.g., '.pdf', '.docx')
-            use_hybrid_search: Enable BM25 + semantic hybrid search
+            use_hybrid_search: Enable the independent full-text lexical search
+                arm, merged with semantic search (see _merge_semantic_and_lexical)
             expand_context: Enable context window expansion
 
         Returns:
@@ -449,66 +504,6 @@ class RetrievalMixin:
         scorer.fit([document])
         raw_score = scorer.score(query, document, 0)
         return raw_score / (raw_score + 1.0) if raw_score > 0 else 0.0
-
-    def _normalize_bm25_scores(self, scores: dict[str, float]) -> dict[str, float]:
-        """Normalize BM25 scores to [0, 1] range."""
-        max_score = max(scores.values())
-        min_score = min(scores.values())
-        score_range = max_score - min_score
-        if score_range > 0:
-            normalized = {k: (v - min_score) / score_range for k, v in scores.items()}
-            logger.debug(f"[BM25] Normalized {len(normalized)} scores (range was {score_range:.3f})")
-            return normalized
-        if max_score > 0:
-            logger.debug(f"[BM25] All scores equal ({max_score:.3f}), using 0.5 for all")
-            return dict.fromkeys(scores, 0.5)
-        logger.info("[BM25] No keyword matches found (query terms not in documents)")
-        logger.info("[BM25] Falling back to semantic similarity only - this is expected for abstract/conceptual queries")
-        return dict.fromkeys(scores, 0.0)
-
-    def _compute_bm25_scores(
-        self,
-        query: str,
-        results: dict[str, dict[str, Any]]
-    ) -> dict[str, float]:
-        """
-        Compute normalized BM25 scores for result chunks.
-
-        Args:
-            query: Query text
-            results: Dictionary of chunk_id -> result data
-
-        Returns:
-            Dictionary of chunk_id -> normalized BM25 score
-        """
-        if not results:
-            return {}
-
-        # Create mini-corpus from results
-        corpus = [data['chunk_text'] for data in results.values()]
-
-        # Fit BM25 on this corpus
-        scorer = BM25Scorer()
-        scorer.fit(corpus)
-
-        # Score each document
-        scores = {}
-        for i, (chunk_id, data) in enumerate(results.items()):
-            score = scorer.score(query, data['chunk_text'], i)
-            scores[chunk_id] = score
-        logger.debug("[BM25] Scored %d chunks", len(scores))
-
-        # Normalize scores to [0, 1]
-        if scores:
-            max_score = max(scores.values())
-            min_score = min(scores.values())
-            avg_score = sum(scores.values()) / len(scores)
-            non_zero_count = sum(1 for s in scores.values() if s > 0)
-            logger.debug(f"[BM25] Raw scores: min={min_score:.3f}, max={max_score:.3f}, avg={avg_score:.3f}")
-            logger.debug(f"[BM25] Non-zero scores: {non_zero_count}/{len(scores)}")
-            scores = self._normalize_bm25_scores(scores)
-
-        return scores
 
     def _is_diverse(self, chunk_words: set[str], selected_words: list[set[str]]) -> bool:
         """Return True when chunk_words is sufficiently different from every selected chunk."""

@@ -258,6 +258,71 @@ class DocumentsMixin(MixinHost):
                 logger.debug(f"Found {len(results)} similar chunks")
                 return [(r[0], r[1], r[2], r[3], r[4] or {}, r[5]) for r in results]
 
+    def search_lexical_chunks(
+        self,
+        query: str,
+        top_k: int = 5,
+        file_type_filter: str | None = None,
+        filename_filter: list[str] | None = None,
+        workspace_id: str | None = None,
+        source_ids: list[str] | None = None,
+    ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
+        """Full-corpus lexical search via tsvector/GIN — an independent retrieval
+        arm, not a rerank of vector-search candidates. A chunk can surface here
+        even if vector search never returned it (e.g. an exact code/identifier
+        the embedding model doesn't represent well).
+
+        Returns the same (chunk_text, filename, chunk_index, score, metadata,
+        chunk_id) shape as search_similar_chunks so callers can merge both sets.
+        score is ts_rank_cd normalized to [0, 1) via rank-normalization option 32,
+        comparable in scale to search_similar_chunks' cosine similarity.
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
+        if not query or not query.strip():
+            return []
+
+        logger.debug(f"Lexical search for top {top_k} chunks")
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                where_extra = ""
+                params: list = [query]
+                if file_type_filter:
+                    where_extra += "  AND d.filename LIKE %s\n"
+                    params.append(f'%{file_type_filter}')
+                if filename_filter:
+                    where_extra += "  AND d.filename = ANY(%s)\n"
+                    params.append(filename_filter)
+                if workspace_id:
+                    where_extra += "  AND d.workspace_id = %s\n"
+                    params.append(workspace_id)
+                if source_ids:
+                    where_extra += "  AND d.source_id = ANY(%s)\n"
+                    params.append(source_ids)
+                params.append(top_k)
+
+                cursor.execute(
+                    f"""
+                    WITH q AS (SELECT plainto_tsquery('simple', %s) AS tsq)
+                    SELECT dc.chunk_text, d.filename, dc.chunk_index,
+                           ts_rank_cd(dc.chunk_tsv, q.tsq, 32) AS score,
+                           dc.metadata, dc.id
+                    FROM document_chunks dc
+                    JOIN documents d ON dc.document_id = d.id
+                    CROSS JOIN q
+                    WHERE dc.chunk_tsv @@ q.tsq
+                      AND d.deleted_at IS NULL
+                    {where_extra}
+                    ORDER BY score DESC
+                    LIMIT %s
+                    """,
+                    params,
+                )
+
+                results = cursor.fetchall()
+                logger.debug(f"Found {len(results)} lexical matches")
+                return [(r[0], r[1], r[2], r[3], r[4] or {}, r[5]) for r in results]
+
     def search_similar_chunks_with_scores(
         self,
         query_embedding: list[float] | np.ndarray,

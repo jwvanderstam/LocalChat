@@ -35,96 +35,102 @@ def _result(filename, chunk_index, semantic_score=0.8, text="some chunk content 
         "filename": filename,
         "chunk_index": chunk_index,
         "semantic_score": semantic_score,
-        "bm25_score": 0.0,
+        "lexical_score": 0.0,
         "combined_score": semantic_score,
         "metadata": {},
     }
 
 
 def _results_dict(*args):
-    """Build the dict[chunk_id → result] structure used by _apply_hybrid_scoring."""
+    """Build the dict[chunk_id → result] structure used by _merge_semantic_and_lexical."""
     d = {}
     for r in args:
         d[f"{r['filename']}:{r['chunk_index']}"] = r
     return d
 
 
+def _semantic_row(filename, chunk_index, similarity, chunk_id=1, text="some chunk content here"):
+    """Row shape returned by db.search_similar_chunks."""
+    return (text, filename, chunk_index, similarity, {}, chunk_id)
+
+
+def _lexical_row(filename, chunk_index, score, chunk_id=1, text="some chunk content here"):
+    """Row shape returned by db.search_lexical_chunks."""
+    return (text, filename, chunk_index, score, {}, chunk_id)
+
+
 # ---------------------------------------------------------------------------
-# _apply_hybrid_scoring
+# _merge_semantic_and_lexical
 # ---------------------------------------------------------------------------
 
-class TestApplyHybridScoring:
-    def test_skipped_when_hybrid_disabled(self, retriever):
-        """BM25 computation is not called when use_hybrid_search=False."""
-        results = _results_dict(
-            _result("a.pdf", 0, 0.9),
-            _result("b.pdf", 0, 0.7),
-        )
-        with patch.object(retriever, "_compute_bm25_scores") as mock_bm25:
-            retriever._apply_hybrid_scoring(results, "query", use_hybrid_search=False)
-        mock_bm25.assert_not_called()
+class TestMergeSemanticAndLexical:
+    def test_semantic_only_when_lexical_empty(self, retriever):
+        """With no lexical results, combined_score stays exactly the semantic score
+        (preserves non-hybrid ranking) — proves the blend is skipped, not applied
+        with a zero lexical contribution."""
+        semantic = [_semantic_row("a.pdf", 0, 0.8), _semantic_row("b.pdf", 0, 0.6)]
 
-    def test_skipped_with_single_result(self, retriever):
-        """BM25 computation is not called when there is only one result."""
-        results = _results_dict(_result("a.pdf", 0, 0.9))
-        with patch.object(retriever, "_compute_bm25_scores") as mock_bm25:
-            retriever._apply_hybrid_scoring(results, "query", use_hybrid_search=True)
-        mock_bm25.assert_not_called()
+        merged = retriever._merge_semantic_and_lexical(semantic, [])
 
-    def test_combined_score_blends_semantic_and_bm25_at_configured_weights(self, retriever):
-        """combined_score = SIMILARITY_WEIGHT * semantic + (BM25_WEIGHT + KEYWORD_WEIGHT) * bm25."""
-        r_a = _result("a.pdf", 0, semantic_score=0.8)
-        r_b = _result("b.pdf", 0, semantic_score=0.6)
-        results = _results_dict(r_a, r_b)
-        bm25_scores = {"a.pdf:0": 0.5, "b.pdf:0": 1.0}
+        assert merged["a.pdf:0"]["combined_score"] == 0.8
+        assert merged["b.pdf:0"]["combined_score"] == 0.6
 
-        with patch.object(retriever, "_compute_bm25_scores", return_value=bm25_scores):
-            with patch("src.rag.retrieval.config") as cfg:
-                cfg.SIMILARITY_WEIGHT = 0.7
-                cfg.BM25_WEIGHT = 0.2
-                cfg.KEYWORD_WEIGHT = 0.1
-                retriever._apply_hybrid_scoring(results, "query", use_hybrid_search=True)
+    def test_lexical_only_chunk_is_included(self, retriever):
+        """A chunk found ONLY by lexical search (never returned by vector search
+        at all) must survive into the merged set — this is the fix for hybrid
+        search only ever reordering vector search's own candidates."""
+        semantic = [_semantic_row("a.pdf", 0, 0.8)]
+        lexical = [_lexical_row("rare-code.pdf", 3, 0.9)]
+
+        merged = retriever._merge_semantic_and_lexical(semantic, lexical)
+
+        assert "rare-code.pdf:3" in merged
+        assert merged["rare-code.pdf:3"]["semantic_score"] == 0.0
+        assert merged["rare-code.pdf:3"]["lexical_score"] == 0.9
+        assert merged["rare-code.pdf:3"]["combined_score"] > 0.0
+
+    def test_combined_score_blends_at_configured_semantic_weight(self, retriever):
+        """combined_score = SEMANTIC_WEIGHT * semantic + (1 - SEMANTIC_WEIGHT) * lexical."""
+        semantic = [_semantic_row("a.pdf", 0, 0.8), _semantic_row("b.pdf", 0, 0.6)]
+        lexical = [_lexical_row("a.pdf", 0, 0.5), _lexical_row("b.pdf", 0, 1.0)]
+
+        with patch("src.rag.retrieval.config") as cfg:
+            cfg.app_state.get_rag_param.return_value = 0.7
+            merged = retriever._merge_semantic_and_lexical(semantic, lexical)
 
         expected_a = 0.7 * 0.8 + 0.3 * 0.5
         expected_b = 0.7 * 0.6 + 0.3 * 1.0
-        assert abs(results["a.pdf:0"]["combined_score"] - expected_a) < 1e-9
-        assert abs(results["b.pdf:0"]["combined_score"] - expected_b) < 1e-9
+        assert abs(merged["a.pdf:0"]["combined_score"] - expected_a) < 1e-9
+        assert abs(merged["b.pdf:0"]["combined_score"] - expected_b) < 1e-9
 
-    def test_bm25_score_is_stored_on_each_result(self, retriever):
-        """The per-result bm25_score field must be updated, not just combined_score."""
-        r_a = _result("a.pdf", 0, 0.8)
-        r_b = _result("b.pdf", 0, 0.6)
-        results = _results_dict(r_a, r_b)
-        bm25_scores = {"a.pdf:0": 0.4, "b.pdf:0": 0.9}
+    def test_chunk_in_both_arms_records_both_scores(self, retriever):
+        """A chunk present in both result sets keeps its real semantic_score
+        and gets lexical_score populated (not left at the semantic-only default)."""
+        semantic = [_semantic_row("a.pdf", 0, 0.8)]
+        lexical = [_lexical_row("a.pdf", 0, 0.4)]
 
-        with patch.object(retriever, "_compute_bm25_scores", return_value=bm25_scores):
-            with patch("src.rag.retrieval.config") as cfg:
-                cfg.SIMILARITY_WEIGHT = 0.7
-                cfg.BM25_WEIGHT = 0.2
-                cfg.KEYWORD_WEIGHT = 0.1
-                retriever._apply_hybrid_scoring(results, "query", use_hybrid_search=True)
+        with patch("src.rag.retrieval.config") as cfg:
+            cfg.app_state.get_rag_param.return_value = 0.7
+            merged = retriever._merge_semantic_and_lexical(semantic, lexical)
 
-        assert results["a.pdf:0"]["bm25_score"] == pytest.approx(0.4)
-        assert results["b.pdf:0"]["bm25_score"] == pytest.approx(0.9)
+        assert merged["a.pdf:0"]["semantic_score"] == 0.8
+        assert merged["a.pdf:0"]["lexical_score"] == 0.4
 
-    def test_missing_bm25_score_treated_as_zero(self, retriever):
-        """A chunk absent from bm25_scores gets bm25_score=0 and combined=semantic only."""
-        r = _result("a.pdf", 0, semantic_score=0.75)
-        results = _results_dict(r)
-        r2 = _result("b.pdf", 0, semantic_score=0.5)
-        results.update(_results_dict(r2))
+    def test_semantic_only_chunk_gets_discounted_when_hybrid_active(self, retriever):
+        """Once the lexical arm contributes anything, a chunk with NO lexical
+        match must still go through the same blend formula (semantic_weight *
+        semantic + 0), not keep its full undiluted semantic score — otherwise
+        chunks with zero lexical evidence would rank artificially higher than
+        chunks with some lexical evidence."""
+        semantic = [_semantic_row("a.pdf", 0, 0.8), _semantic_row("b.pdf", 0, 0.8)]
+        lexical = [_lexical_row("b.pdf", 0, 1.0)]  # only b.pdf:0 has a lexical match
 
-        # bm25_scores only covers one of the two chunks
-        with patch.object(retriever, "_compute_bm25_scores", return_value={"a.pdf:0": 0.6}):
-            with patch("src.rag.retrieval.config") as cfg:
-                cfg.SIMILARITY_WEIGHT = 0.7
-                cfg.BM25_WEIGHT = 0.2
-                cfg.KEYWORD_WEIGHT = 0.1
-                retriever._apply_hybrid_scoring(results, "query", use_hybrid_search=True)
+        with patch("src.rag.retrieval.config") as cfg:
+            cfg.app_state.get_rag_param.return_value = 0.7
+            merged = retriever._merge_semantic_and_lexical(semantic, lexical)
 
-        # b.pdf:0 has no BM25 score — contribution should be 0
-        expected_b = 0.7 * 0.5 + 0.3 * 0.0
-        assert abs(results["b.pdf:0"]["combined_score"] - expected_b) < 1e-9
+        expected_a = 0.7 * 0.8 + 0.3 * 0.0
+        assert abs(merged["a.pdf:0"]["combined_score"] - expected_a) < 1e-9
 
 
 # ---------------------------------------------------------------------------

@@ -233,9 +233,6 @@ CONTEXT_WINDOW_SIZE: int = 2                 # 2 chunks before/after (increased 
 USE_RECIPROCAL_RANK_FUSION: bool = True      # Combine multiple ranking signals
 
 # Re-ranking weights - BALANCED FOR QUALITY
-SIMILARITY_WEIGHT: float = 0.50              # Semantic similarity
-KEYWORD_WEIGHT: float = 0.20                 # Exact term matches (increased)
-BM25_WEIGHT: float = 0.20                    # BM25 score
 POSITION_WEIGHT: float = 0.05                # Early chunks bonus
 LENGTH_WEIGHT: float = 0.05                  # Chunk length preference
 

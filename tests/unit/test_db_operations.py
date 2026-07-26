@@ -289,6 +289,83 @@ class TestVectorSearch:
             assert results == []
 
 
+class TestLexicalSearch:
+    """Test the independent full-text lexical search arm (hybrid retrieval fix)."""
+
+    def test_search_lexical_chunks_returns_results(self):
+        """Lexical search returns the same 6-tuple shape as vector search."""
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [
+            ("chunk text 1", "doc1.pdf", 0, 0.55, {}, 1),
+            ("chunk text 2", "doc1.pdf", 1, 0.30, {}, 2),
+        ]
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = mock_conn
+            mock_get_conn.return_value.__exit__.return_value = None
+
+            results = db_module.db.search_lexical_chunks(query="exact code ABC-123", top_k=5)
+
+            assert len(results) == 2
+            assert results[0] == ("chunk text 1", "doc1.pdf", 0, 0.55, {}, 1)
+
+    def test_search_lexical_chunks_handles_empty_results(self):
+        """No lexical matches returns an empty list, not None or an error."""
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = mock_conn
+            mock_get_conn.return_value.__exit__.return_value = None
+
+            results = db_module.db.search_lexical_chunks(query="nothing matches this")
+
+            assert results == []
+
+    def test_search_lexical_chunks_returns_empty_for_blank_query(self):
+        """A blank/whitespace-only query short-circuits before hitting the DB."""
+        from src import db as db_module
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            results = db_module.db.search_lexical_chunks(query="   ")
+
+            assert results == []
+            mock_get_conn.assert_not_called()
+
+    def test_search_lexical_chunks_applies_filename_filter(self):
+        """filename_filter is forwarded as a query parameter, not silently dropped."""
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = []
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = mock_conn
+            mock_get_conn.return_value.__exit__.return_value = None
+
+            db_module.db.search_lexical_chunks(query="term", filename_filter=["a.pdf", "b.pdf"])
+
+            executed_sql, params = mock_cursor.execute.call_args.args
+            assert "d.filename = ANY(%s)" in executed_sql
+            assert ["a.pdf", "b.pdf"] in params
+
+
 class TestErrorHandling:
     """Test error handling in database operations."""
 
