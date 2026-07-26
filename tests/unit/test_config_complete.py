@@ -18,6 +18,8 @@ Created: January 2025
 import os
 from unittest.mock import patch
 
+import pytest
+
 
 class TestConfigValidation:
     """Test configuration validation paths."""
@@ -202,3 +204,76 @@ class TestRerankerConfig:
     def test_reranker_weight_default(self):
         from src import config
         assert 0.0 < config.RERANKER_WEIGHT <= 1.0
+
+
+class TestValidateSecrets:
+    """validate_secrets() reads module-level constants at call time, so
+    patching them directly on the module (no reload needed) exercises the
+    real function body in isolation."""
+
+    def _set(self, monkeypatch, **kwargs):
+        from src import config
+        for key, value in kwargs.items():
+            monkeypatch.setattr(config, key, value)
+        return config
+
+    def _strong_defaults(self) -> dict:
+        return {
+            'SECRET_KEY': 'a' * 32,
+            'JWT_SECRET_KEY': 'b' * 32,
+            'ADMIN_PASSWORD': 'a-real-password',
+            'CORS_ENABLED': False,
+            'CORS_ORIGINS': ['example.com'],
+        }
+
+    def test_noop_outside_production(self, monkeypatch):
+        config = self._set(
+            monkeypatch, APP_ENV='development', SECRET_KEY='short', JWT_SECRET_KEY='short',
+            ADMIN_PASSWORD='', CORS_ENABLED=True, CORS_ORIGINS=['*'],
+        )
+        config.validate_secrets()  # must not raise — weak values ignored outside production
+
+    def test_raises_on_placeholder_secret_key_in_production(self, monkeypatch):
+        config = self._set(
+            monkeypatch, APP_ENV='production',
+            **{**self._strong_defaults(), 'SECRET_KEY': 'changeme'},
+        )
+        with pytest.raises(SystemExit):
+            config.validate_secrets()
+
+    def test_raises_on_empty_admin_password_in_production(self, monkeypatch):
+        config = self._set(
+            monkeypatch, APP_ENV='production',
+            **{**self._strong_defaults(), 'ADMIN_PASSWORD': ''},
+        )
+        with pytest.raises(SystemExit):
+            config.validate_secrets()
+
+    def test_raises_on_wildcard_cors_with_cors_enabled_in_production(self, monkeypatch):
+        """setup_cors() always sets allow_credentials=True, so a wildcard
+        origin lets any site make authenticated cross-origin requests."""
+        config = self._set(
+            monkeypatch, APP_ENV='production',
+            **{**self._strong_defaults(), 'CORS_ENABLED': True, 'CORS_ORIGINS': ['*']},
+        )
+        with pytest.raises(SystemExit):
+            config.validate_secrets()
+
+    def test_allows_wildcard_cors_when_cors_disabled_in_production(self, monkeypatch):
+        """The wildcard only matters once CORSMiddleware is actually mounted."""
+        config = self._set(
+            monkeypatch, APP_ENV='production',
+            **{**self._strong_defaults(), 'CORS_ENABLED': False, 'CORS_ORIGINS': ['*']},
+        )
+        config.validate_secrets()  # must not raise
+
+    def test_allows_specific_cors_origins_in_production(self, monkeypatch):
+        config = self._set(
+            monkeypatch, APP_ENV='production',
+            **{**self._strong_defaults(), 'CORS_ENABLED': True, 'CORS_ORIGINS': ['app.example.com']},
+        )
+        config.validate_secrets()  # must not raise — no wildcard present
+
+    def test_passes_with_all_strong_values_in_production(self, monkeypatch):
+        config = self._set(monkeypatch, APP_ENV='production', **self._strong_defaults())
+        config.validate_secrets()  # must not raise

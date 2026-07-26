@@ -110,10 +110,13 @@ _WEAK_PLACEHOLDERS: frozenset[str] = frozenset({
 
 
 def validate_secrets() -> None:
-    """Abort startup if production secrets are weak or missing.
+    """Abort startup if production secrets or CORS config are weak or missing.
 
     Enforces: minimum 32-char length for SECRET_KEY / JWT_SECRET_KEY,
-    rejection of known placeholder values, and a non-empty ADMIN_PASSWORD.
+    rejection of known placeholder values, a non-empty ADMIN_PASSWORD, and
+    no wildcard CORS origin (setup_cors() always sets allow_credentials=True,
+    and a wildcard origin combined with credentialed requests lets any site
+    make authenticated cross-origin calls against this API).
     Raises SystemExit(1) so uvicorn startup aborts cleanly.
     """
     if APP_ENV != 'production':
@@ -129,6 +132,11 @@ def validate_secrets() -> None:
         errors.append("JWT_SECRET_KEY is too short (minimum 32 characters)")
     if not ADMIN_PASSWORD:
         errors.append("ADMIN_PASSWORD must be set in production")
+    if CORS_ENABLED and '*' in CORS_ORIGINS:
+        errors.append(
+            "CORS_ORIGINS is wildcarded ('*') with CORS enabled — set specific "
+            "origin domains for production"
+        )
     if errors:
         for msg in errors:
             logger.critical("[Security] %s", msg)
