@@ -532,6 +532,35 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 
 ---
 
+## Initiative 8 — Bug Fixes (found during Discord bridge integration, 2026-07-27)
+
+Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` via n8n. Both confirmed by code inspection plus a live curl test against the running instance, not just symptom reports.
+
+---
+
+### BUG-1 — Long-term memory is not scoped to workspace ⬜
+
+**Confirmed:** `MemoryRetriever.retrieve()` (`src/memory/retriever.py`) takes no `workspace_id` parameter at all, and is called from `chat.py`'s `retrieve_plan_and_memory()` with no workspace argument. This is asymmetric with document RAG: `get_rag_context()` / `doc_processor.retrieve_context()` correctly filter by `workspace_id` (verified live — a curl call scoped to the "Localchat" workspace with the `X-Workspace-ID` header returned only Localchat-tagged document sources, correctly excluding "Default"-workspace docs on the same instance). Long-term memory has no equivalent filter, so it is effectively database-global regardless of which workspace a request is scoped to.
+
+**Effect:** a client scoped to one workspace (e.g. the Discord bridge, scoped to "Localchat") can have memories formed in a completely different workspace's conversations surface in `memory_context` and bleed into the answer.
+
+**Fix:**
+- Add `workspace_id` (and likely `additional_workspace_ids`, mirroring the doc-RAG signature) to `MemoryRetriever.retrieve()`.
+- Thread it through from `retrieve_plan_and_memory()` (needs its own new `workspace_id` param) up to the `api_chat` call site in `api_routes.py`, where `workspace_id` is already resolved via `get_workspace_id(request)`.
+- Check whether the `memories` table already has a `workspace_id` column; if not, this is a migration, not just a query change — follow the CW-2 soft-delete migration pattern for consistency.
+
+---
+
+### BUG-2 — Enhanced web search (DuckDuckGo) results never reach citations ⬜
+
+**Confirmed:** `WebSearchProvider.search()` (`src/rag/web_search.py`) returns `WebSearchResult` objects carrying full `title` / `url` / `snippet` metadata. But `get_web_context()` (`src/services/chat.py`) discards that structure — it calls `format_web_context()` and returns only a formatted text blob for the LLM prompt. `retrieve_contexts()` populates the `sources` list solely from `get_rag_context()` (local documents); no equivalent source entries are ever created for web results.
+
+**Effect:** in "enhance" mode, the model's answer is genuinely grounded in fetched web content (the data does reach the prompt), but the citation/source list returned to the client never reflects the web sources used — content without attribution.
+
+**Fix:** extend `retrieve_contexts()` so that when `fields["enhance"]` is true, it appends web-derived entries (title, url) to `sources`, shaped closely enough to the existing local-doc source dicts that the frontend citation renderer can handle both without a special case.
+
+---
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -542,7 +571,7 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 | 3 | CW-2a + CW-2b (conversations, users) ✅ done & merged (#124) | — |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) ✅ done & merged (#126) | — |
 | 5 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
-| 6 | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
+| 6 | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) + BUG-1 (memory workspace scoping) + BUG-2 (web citation loss) | 1 week |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) | — |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
@@ -556,6 +585,7 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 > **Sprint 3 complete:** CW-2a + CW-2b (conversations and users soft-delete, #124). **Sprint 4 complete:** CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors soft-delete, #126).
 > **Also merged post-Sprint-7 (unplanned fixes):** model-management CPU memory budget + loaded-state fix (#146), cross-encoder reranker startup warm-up (#147).
 > **Active:** Sprint 5 (RBAC-1 — viewer role, pending scope confirmation).
+> **Sprint 6 additions (2026-07-27):** BUG-1 (long-term memory not scoped to workspace) and BUG-2 (web-search results never reach citations) added — both found and confirmed during Discord bridge integration testing; see Initiative 8.
 > **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 (viewer role) are end-to-end solid with full test coverage. Sprints 3–4 are now done; RBAC-1 (Sprint 5) remains the gate before new-feature work resumes.
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
