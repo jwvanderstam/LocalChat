@@ -88,7 +88,7 @@ nvidia-cuda-cupti==13.0.85
 nvidia-cuda-nvrtc==13.0.88
 nvidia-cuda-runtime==13.0.96
 nvidia-cudnn-cu13==9.20.0.48
-nvidia-cufft==12.0.0.61
+nvidia-cufft==12.3.0.29
 nvidia-cufile==1.15.1.6
 nvidia-curand==10.4.0.35
 nvidia-cusolver==12.0.4.66
