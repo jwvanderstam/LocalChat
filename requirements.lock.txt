@@ -85,7 +85,7 @@ networkx==3.6.1
 numpy==2.5.1
 nvidia-cublas==13.6.0.2
 nvidia-cuda-cupti==13.0.85
-nvidia-cuda-nvrtc==13.0.88
+nvidia-cuda-nvrtc==13.3.33
 nvidia-cuda-runtime==13.0.96
 nvidia-cudnn-cu13==9.24.0.43
 nvidia-cufft==12.0.0.61
