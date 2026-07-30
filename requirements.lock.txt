@@ -39,7 +39,7 @@ ecdsa==0.19.2
 email-validator==2.3.0
 et_xmlfile==2.0.0
 fake-useragent==2.2.0
-Faker==40.31.0
+Faker==40.36.0
 fastapi==0.140.0
 fastuuid==0.14.0
 filelock==3.32.0
