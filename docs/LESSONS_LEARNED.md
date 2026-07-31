@@ -413,6 +413,39 @@ order. The corollary is that a fix at the level of the individual artifact
 the next batch identical — grouping was the only change made that day that
 will still be working next Monday.
 
+**Postscript, same day.** Two things above did not survive the afternoon, and
+saying so is the point of this document. `requirements.lock.txt` is gone
+(`ff73d3c`), and the `nvidia-cuda` group with it — those packages reach the
+tree only transitively, so with no lock file they never appear in a manifest
+Dependabot reads. The trigger was asking why the file existed at all.
+`e34e2d0` had introduced it five days earlier as a reproducibility snapshot,
+not as the security control it was half-remembered as — the actual
+supply-chain findings were the Docker digest pin (`e63cb11`) and the Actions
+SHA pins (`d6248e8`), both untouched and still in place. Its own commit
+message assumed "Dependabot keeps managing requirements.txt's ranges exactly
+as before," which was false within days: 17 of the file's lines had been
+hand-edited by Dependabot since generation, so it described no build that had
+ever run, and four open PRs would each have broken a parent's constraint
+(`thinc` vs spaCy `<8.4.0`, `tokenizers` vs transformers `<=0.23.0`,
+`pydantic-core` vs pydantic's exact `==2.46.4`, `mpmath` vs sympy `<1.4`)
+with nothing to catch it, since neither Docker nor CI installed the file.
+
+Two further corrections landed the same afternoon. Requiring status checks
+was added to the ruleset — merges had never been gated on CI, so every green
+merge that day was green because a human checked, not because anything
+enforced it. And the first attempt scoped that rule to `~ALL` branches, which
+rejected the push of every *new* branch (no checks exist yet on a fresh one)
+until it was narrowed to the default branch. Both are recorded in `CLAUDE.md`
+under "Pull Requests and Merging."
+
+The generalisable part is not the lock file. It is that a fix and the belief
+that justified it decay at different rates: the belief here ("Dependabot will
+keep to `requirements.txt`") was already false while the artifact it produced
+still looked reasonable, and nothing re-checked it until someone asked the
+question out loud. A rationale is a claim with a shelf life, and Chapter 9's
+rule — re-derive it from the current system rather than trusting its framing —
+applies to this project's own decisions, not only to an external auditor's.
+
 ---
 
 ## Patterns that recurred
@@ -501,4 +534,5 @@ guard are marked as such honestly.
 | The unit of change ≠ the unit of correctness (Ch. 11) | `222788d` bumped all three `codeql-action` steps atomically | `532fd28` added `groups:` to `dependabot.yml` — the generator no longer emits splittable sets |
 | Config that never runs fails silently (Ch. 11) | Created the three missing labels; corrected the doubled ruleset prefix | Ruleset verified by reading it back through the API, not by trusting the UI's rendering |
 | A limit hides what it suppresses (Ch. 11) | Grouping freed nine of ten PR slots, surfacing a `thinc` major bump behind CUDA noise | `tests.yml` reports full version drift on every run, majors called out separately — visibility no longer depends on a PR existing. `minor`/`patch` are grouped so the limit stops binding |
-| Merges are not gated on CI (Ch. 11) | Every merge that day was verified by hand before merging | No guard — the ruleset defines no required status checks, so a red PR is still mergeable |
+| Merges are not gated on CI (Ch. 11) | Every merge that day was verified by hand before merging | Ruleset requires `unit-tests`, `integration-tests`, `repo-hygiene` on the default branch. Auto-merge stays off deliberately — the gate proves the tests ran, a human still decides |
+| A rationale has a shelf life (Ch. 11) | The lock file's justification was false within days of being written, while the file still looked reasonable | Asking why an artifact exists is a periodic check, not a one-off; `CLAUDE.md` records the *reason* a rule exists so a stale one is recognisable |
