@@ -12,6 +12,13 @@ updates:
     labels:
       - "dependencies"
       - "automated"
+    # These sort to adjacent lines in requirements.lock.txt, so separate PRs
+    # conflict with each other as soon as one merges.
+    groups:
+      nvidia-cuda:
+        patterns:
+          - "nvidia-*"
+          - "cuda-*"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -25,5 +32,12 @@ updates:
     labels:
       - "ci"
       - "automated"
+    # init/autobuild/analyze must run the same version — a workflow left on
+    # mixed versions fails with "Loaded a configuration file for version X,
+    # but running version Y".
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
     commit-message:
       prefix: "ci"
