@@ -147,6 +147,53 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 
 ---
 
+## Pull Requests and Merging
+
+**`main` is gated.** The "Code Verification" ruleset targets the default branch
+and requires three checks to pass before anything merges: `unit-tests`,
+`integration-tests`, `repo-hygiene`. A PR with red or missing checks cannot be
+merged — this is enforced, not a convention.
+
+Deliberately *not* required: `build-and-push` (15–20 min, would block every
+merge) and `SonarCloud Scan` (reports `skipping` on some PRs, and a required
+check that never runs blocks the PR forever).
+
+**The ruleset targets the default branch only.** It once targeted `~ALL`, which
+made `required_status_checks` reject the push of any *new* branch — a fresh
+branch has no checks yet. Scope branch-protection rules to `main`; feature
+branches stay free.
+
+**Merging is a human decision.** Repository auto-merge is off on purpose. Green
+checks mean the tests passed, not that the change is right — a PR whose only
+changed file no job installs will be green and still wrong. Someone looks
+before it lands.
+
+**Never merge with checks still running**, even when the change "cannot"
+affect them. Wait, or ask.
+
+### Dependabot
+
+- Updates are **grouped** (`.github/dependabot.yml`): `minor`+`patch` collapse
+  into one PR per ecosystem, and `github/codeql-action*` moves as a set.
+  Majors stay ungrouped — those need a human.
+- **A set that must be correct together must move together.** Three
+  `codeql-action` steps split across three PRs each produced a workflow on
+  mixed versions that failed every run. If a change is only correct as a whole,
+  it is one PR.
+- **Only `requirements.txt` is managed.** There is no lock file; one existed
+  briefly and was removed (see LESSONS_LEARNED Ch. 11) because Dependabot bumped
+  transitive pins in it without resolving the graph, producing combinations pip
+  refuses to install — which nothing caught, since neither Docker nor CI
+  installed that file.
+- `refs/heads/dependabot/**` is excluded from force-push protection; a rebase
+  *is* a force-push, so without the exclusion Dependabot cannot update its own
+  PRs.
+- The `unit-tests` job prints a **dependency drift report** every run: what is
+  outdated, with breaking bumps called out. A `0.x` minor counts as breaking.
+  Visibility does not depend on a PR existing.
+
+---
+
 ## Anti-patterns & Gotchas
 
 - **Never put SQL outside `src/db/`** — raw queries in routes have caused subtle transaction bugs.
