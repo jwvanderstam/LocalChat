@@ -8,6 +8,17 @@ project's own root-cause investigations are expected to work
 (see Chapter 7). This is a history, not a changelog — `git log` already
 gives you the changelog; this document exists for the *why*.
 
+**On reading this document:** the chapters are not equal in length, and
+length here is not weight. The later chapters run longer because they were
+written within hours of the events they describe, while the early ones
+compress months into a paragraph reconstructed from `git log` alone.
+Proximity inflates detail. Chapter 1's 45-file restructure and Chapter 6's
+soft-delete pattern shaped more of this codebase than anything in the
+recent chapters, and they get a fraction of the words. Read the density as
+a record of when something was written down, not of how much it mattered —
+the same proxy-for-the-real-thing trap Chapter 8 describes, applied to this
+document itself.
+
 ---
 
 ## 1. Scaffolding and the first structural correction
@@ -341,6 +352,67 @@ an unread histogram are all, in their own way, a description standing in
 for an observation. `ce2e4ee` and `771d420` were both found by preferring
 the observation.
 
+## 11. Sixteen dependency PRs, and the unit-of-change problem
+
+A routine "check for PRs" found 16 open Dependabot PRs. Thirteen were
+green. The three that weren't shared one cause, and it was structural
+rather than a bad release: Dependabot had split a single `codeql-action`
+upgrade across three PRs (#170 `init`, #171 `analyze`, #173 `autobuild`),
+each bumping one workflow step from 4.37.1 to 4.37.3. Because `init`
+writes a config file stamped with its own version, every one of the three
+produced a workflow running mixed versions and failing identically —
+`Loaded a configuration file for version '4.37.3', but running version
+'4.37.1'`. None could go green alone, and merging them one at a time would
+have left `main` red in between. `222788d` (#186) bumped all three in one
+commit; the same check that had been failing in 26 seconds passed in 1m6s.
+
+The same shape appeared again in a different file. Ten of the green PRs
+each edited a single line of `requirements.lock.txt`, and the `nvidia-*`
+packages sort to adjacent lines — so merging any one of them made the rest
+conflict. Eight merged; #175 and #181 became unmergeable, exactly as
+predicted before the first merge.
+
+Those two then could not fix themselves, for a reason that had nothing to
+do with dependencies. The repository ruleset applied `non_fast_forward` to
+`~ALL` branches, and a rebase *is* a force-push — so Dependabot's own
+branches were protected against Dependabot. It said so plainly in a PR
+comment, which is the only place that failure was ever reported. Excluding
+`refs/heads/dependabot/**` fixed it, but the first attempt silently did
+not: the settings UI prepends `refs/heads/` to whatever is typed, so
+entering the full path stored `refs/heads/refs/heads/dependabot/**` — a
+pattern matching no branch that can exist. The UI rendered it as though it
+were correct. Only reading the ruleset back through the API showed the
+doubled prefix. A neighbouring instance of the same class: `dependabot.yml`
+had requested the labels `dependencies`, `automated`, and `ci` since it was
+written, none of which existed in the repository, so every Dependabot PR
+carried a "labels could not be found" error that nothing acted on.
+
+The durable fix was to stop splitting atomic changes. `532fd28` (#187)
+added two `groups:` blocks — `nvidia-*`/`cuda-*` for pip, and
+`github/codeql-action*` for Actions — so members of each set always move
+together. It validated itself in about two minutes rather than on the next
+scheduled run: Dependabot closed both stuck PRs as "Superseded by #188" and
+opened one grouped PR in their place, resolving by root cause what two
+rebase attempts and a proposed manual bump had not.
+
+That grouped PR then exposed a second-order effect nobody had asked about.
+It carried **nine** updates, not the two outstanding — seven `nvidia-*`
+packages had never received a PR at all, because `open-pull-requests-limit:
+10` was fully consumed by one-package-per-PR churn. The limit had been
+silently suppressing updates, and one-per-PR made that invisible. Merging
+the group freed the slots, and ten further suppressed updates surfaced
+immediately (#189–#198) — including a `thinc` 8.3.13 → 9.1.1 *major* bump,
+spaCy's core ML library, which the noise had been hiding behind nine
+CUDA-driver version numbers.
+
+**Lesson:** the unit a tool changes must match the unit that has to be
+correct. Splitting one atomic upgrade into three PRs does not produce three
+small safe changes; it produces three broken states and no good merge
+order. The corollary is that a fix at the level of the individual artifact
+(rebase it, resolve it, bump it by hand) leaves the generator untouched and
+the next batch identical — grouping was the only change made that day that
+will still be working next Monday.
+
 ---
 
 ## Patterns that recurred
@@ -396,3 +468,37 @@ the observation.
   by trusting that "fixed and tested" meant done — the same discipline
   Chapter 9 applied to the audit's findings, turned on this session's own
   output.
+- **The unit of change must match the unit of correctness.** Chapter 11's
+  `codeql-action` split is the sharpest instance: three separately-correct
+  PRs that were each individually broken, because the thing that had to be
+  atomic was the set, not the member. Fixing the members (rebase, resolve,
+  bump by hand) would have left the generator producing the same batch next
+  week; changing what the generator emits was the only durable fix.
+- **Configuration that is never exercised fails silently.** Chapter 11's
+  doubled `refs/heads/` prefix rendered as correct in the UI that created
+  it, and `dependabot.yml` requested three labels that had never existed.
+  Neither surfaced as a failure — one produced an inert rule, the other a
+  comment nobody read. Config is only verified by reading back the stored
+  state, or by watching it actually do its job.
+
+### What each pattern produced
+
+The mechanism column is the point: a pattern that recurred and produced
+only a resolution is one that will recur again. Rows without a durable
+guard are marked as such honestly.
+
+| Pattern | What was done | What now prevents recurrence |
+|---|---|---|
+| Prove it small, then repeat mechanically (Ch. 3, 6) | Clark-Wilson applied to `documents` first, then the other eight CDIs | Migrations `0005`–`0011` follow the proven shape; `plugins.md` requires the echo plugin to prove a capability before a domain plugin uses it |
+| A roadmap is a checkpoint, not a contract (Ch. 3) | v1.0 → v1.0.1 and v2.0 → v3.0 replaced "complete" roadmaps mid-session | `ROADMAP.md` carries its own predecessor note; roadmaps are read as of-this-commit |
+| Docs lag code silently (Ch. 5, 8) | ~17 drift items fixed in an explicit audit | `src/docs/service.py` renders the same markdown the humans read, so settings help text and docs cannot diverge |
+| A proxy metric replaces the goal (Ch. 3, 8) | Mutation testing found 5 modules with executing-but-unverifying tests; fixed in `613d7ab` | `.claude/rules/testing.md` assertion-strength checklist, written against the four observed root-cause shapes |
+| Security fixes cite a specific finding (Ch. 7) | Every hardening commit names the CWE, tool, or log line | Convention holds because it is what makes a fix verifiable afterwards — no automated guard |
+| An external finding is a hypothesis (Ch. 9) | Audit triaged into four buckets; each finding re-derived from current code | Re-derivation is the standing rule; one false positive (`APP_ENV`) is the worked example |
+| A default is not a decision (Ch. 9) | Tombstone accumulation fixed by deciding soft-delete-old vs. update-in-place | Clark-Wilson section of `CLAUDE.md` makes the delete semantics an explicit design question |
+| A test can cover the unit and miss the behavior (Ch. 8, 10) | `ce2e4ee` decoupled survival from ranking; regression test added at pipeline level | Assertion-strength checklist; coverage is treated as necessary, never sufficient |
+| A shipped fix is a new claim (Ch. 10) | Independent re-review of `08237a9` found the fix numerically dead | Follow-up review of the fix itself, not just the original bug |
+| The unit of change ≠ the unit of correctness (Ch. 11) | `222788d` bumped all three `codeql-action` steps atomically | `532fd28` added `groups:` to `dependabot.yml` — the generator no longer emits splittable sets |
+| Config that never runs fails silently (Ch. 11) | Created the three missing labels; corrected the doubled ruleset prefix | Ruleset verified by reading it back through the API, not by trusting the UI's rendering |
+| A limit hides what it suppresses (Ch. 11) | Grouping freed nine of ten PR slots, surfacing a `thinc` major bump behind CUDA noise | No guard yet — `open-pull-requests-limit` still silently drops updates; grouping only reduces the pressure |
+| Merges are not gated on CI (Ch. 11) | Every merge that day was verified by hand before merging | No guard — the ruleset defines no required status checks, so a red PR is still mergeable |
