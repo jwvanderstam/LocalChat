@@ -134,7 +134,6 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request |
 | **Infra / Config** | |
 | `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
-| `requirements.lock.txt` | Exact resolved versions from `requirements.txt` on the Dockerfile's target platform — reproducibility snapshot, not consumed by Docker/CI |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
 | `helm/localchat/` | Full Helm chart: app + PostgreSQL + Redis StatefulSets + MCP Deployments; `templates/` includes `hpa.yaml`, `ingress.yaml`, and per-MCP-server subcharts |
 | `docs/DEPLOYMENT.md` | Helm install/upgrade/rollback guide, secrets management |

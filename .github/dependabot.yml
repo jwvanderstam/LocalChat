@@ -12,13 +12,7 @@ updates:
     labels:
       - "dependencies"
       - "automated"
-    # These sort to adjacent lines in requirements.lock.txt, so separate PRs
-    # conflict with each other as soon as one merges.
     groups:
-      nvidia-cuda:
-        patterns:
-          - "nvidia-*"
-          - "cuda-*"
       # Collapses routine bumps so open-pull-requests-limit stops binding and
       # never silently suppresses an update. Majors stay ungrouped — those are
       # the ones that need a human.
