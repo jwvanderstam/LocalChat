@@ -117,7 +117,7 @@ psycopg-pool==3.3.1
 pyasn1==0.6.4
 pycparser==3.0
 pydantic==2.13.4
-pydantic_core==2.46.4
+pydantic_core==2.47.0
 Pygments==2.20.0
 pymupdf==1.28.0
 pymupdf-layout==1.28.0
