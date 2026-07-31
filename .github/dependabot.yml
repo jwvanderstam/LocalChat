@@ -19,6 +19,13 @@ updates:
         patterns:
           - "nvidia-*"
           - "cuda-*"
+      # Collapses routine bumps so open-pull-requests-limit stops binding and
+      # never silently suppresses an update. Majors stay ungrouped — those are
+      # the ones that need a human.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -39,5 +46,9 @@ updates:
       codeql-action:
         patterns:
           - "github/codeql-action*"
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "ci"

@@ -62,6 +62,34 @@ jobs:
           # All other CVEs still fail this step.
           pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
 
+      # pip-audit only reports CVEs. This reports plain version drift, which
+      # Dependabot's open-pull-requests-limit can silently suppress — an
+      # update with no PR was previously invisible. Never fails the build.
+      - name: Dependency drift report
+        if: always()
+        run: |
+          pip list --outdated --format=json > outdated.json || echo '[]' > outdated.json
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          pkgs = json.load(open("outdated.json"))
+          def breaking(p):
+              cur, new = p["version"].split("."), p["latest_version"].split(".")
+              if cur[0] != new[0]:
+                  return True
+              # Under semver a 0.x minor bump is the breaking one.
+              return cur[0] == "0" and cur[1:2] != new[1:2]
+          majors = sorted((p for p in pkgs if breaking(p)), key=lambda p: p["name"])
+          print("### Dependency drift")
+          print()
+          print(f"{len(pkgs)} outdated, **{len(majors)} major**")
+          if majors:
+              print()
+              print("| Package | Current | Latest |")
+              print("|---|---|---|")
+              for p in majors:
+                  print(f"| `{p['name']}` | {p['version']} | {p['latest_version']} |")
+          PY
+
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short -x
 
