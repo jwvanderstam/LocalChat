@@ -99,7 +99,7 @@ nvidia-nvjitlink==13.3.33
 nvidia-nvshmem-cu13==3.4.5
 nvidia-nvtx==13.0.85
 onnxruntime==1.28.0
-openai==2.48.0
+openai==2.49.0
 openpyxl==3.1.5
 packaging==26.2
 pdfminer.six==20260107
