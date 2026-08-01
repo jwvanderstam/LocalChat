@@ -109,7 +109,7 @@ export function updateModeBadge() {
 export function buildSourcesPanel(sources) {
     const byFile = new Map();
     sources.forEach(src => {
-        if (!byFile.has(src.filename)) byFile.set(src.filename, { chunk_id: src.chunk_id, pages: new Set() });
+        if (!byFile.has(src.filename)) byFile.set(src.filename, { chunk_id: src.chunk_id, url: src.url, pages: new Set() });
         if (src.page_number) byFile.get(src.filename).pages.add(src.page_number);
     });
 
@@ -125,7 +125,7 @@ export function buildSourcesPanel(sources) {
     const list = document.createElement('ul');
     list.className = 'list-unstyled mb-0 mt-1';
 
-    byFile.forEach(({ chunk_id, pages }, filename) => {
+    byFile.forEach(({ chunk_id, url, pages }, filename) => {
         const li = document.createElement('li');
         li.className = 'small text-muted mb-1';
 
@@ -135,6 +135,19 @@ export function buildSourcesPanel(sources) {
             label += ` <span class="opacity-75">p.${sorted.join(', ')}</span>`;
         }
         li.innerHTML = label;
+
+        // Web sources carry a url instead of a chunk_id — link out to the page
+        // they were quoted from, so the citation is verifiable.
+        if (url) {
+            li.innerHTML = '';
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'text-decoration-none';
+            a.innerHTML = label;
+            li.appendChild(a);
+        }
 
         if (chunk_id) {
             const link       = document.createElement('a');

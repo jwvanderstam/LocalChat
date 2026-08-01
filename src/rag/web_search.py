@@ -38,6 +38,23 @@ class WebSearchResult:
     page_text: str | None = field(default=None, repr=False)
 
 
+def to_source_dict(title: str, url: str) -> dict:
+    """Shape a web result like a document source so one renderer handles both.
+
+    The document keys are present but null: `filename` is the grouping key the
+    citation panel uses, and a null `chunk_id` stops it offering a chunk-context
+    link, which only exists for ingested documents.
+    """
+    return {
+        "filename": title or url,
+        "url": url,
+        "chunk_index": None,
+        "page_number": None,
+        "section_title": None,
+        "chunk_id": None,
+    }
+
+
 class WebSearchProvider:
     """
     Performs web searches via DuckDuckGo and optionally fetches page content

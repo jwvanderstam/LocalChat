@@ -112,13 +112,21 @@ class ToolRouter:
 
     def _web_search(self, query: str) -> dict:
         from .. import config
+        from ..rag.web_search import to_source_dict
 
         if config.MCP_ENABLED:
             try:
                 from ..mcp_client import mcp_registry
                 result = mcp_registry.web_search.call_tool("search", {"query": query})
                 if isinstance(result, dict):
-                    return {"context": result.get("context") or "", "sources": []}
+                    return {
+                        "context": result.get("context") or "",
+                        "sources": [
+                            to_source_dict(r.get("title", ""), r.get("url", ""))
+                            for r in (result.get("results") or [])
+                            if r.get("url")
+                        ],
+                    }
                 logger.warning("[ToolRouter] web_search MCP returned unexpected shape — falling back")
             except Exception as exc:
                 logger.warning(f"[ToolRouter] web_search MCP failed — falling back to direct: {exc}")
@@ -129,7 +137,7 @@ class ToolRouter:
         web_results = searcher.search(query)
         return {
             "context": searcher.format_web_context(web_results, max_length=4000),
-            "sources": [],
+            "sources": [to_source_dict(r.title, r.url) for r in web_results if r.url],
         }
 
     def _cloud_connectors(self, query: str, filters: dict | None, top_k: int) -> dict:

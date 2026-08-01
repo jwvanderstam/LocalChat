@@ -123,7 +123,8 @@ def get_rag_context(
     return doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH), sources
 
 
-def get_web_context(message: str) -> str:
+def get_web_context(message: str) -> tuple[str, list[dict]]:
+    """Return (context_for_prompt, source_entries) for a web-enhanced query."""
     if config.MCP_ENABLED:
         try:
             from ..mcp_client import mcp_registry
@@ -131,20 +132,27 @@ def get_web_context(message: str) -> str:
             if isinstance(result, dict):
                 context = result.get("context", "")
                 if context:
-                    return context
+                    from ..rag.web_search import to_source_dict
+                    sources = [
+                        to_source_dict(r.get("title", ""), r.get("url", ""))
+                        for r in (result.get("results") or [])
+                        if r.get("url")
+                    ]
+                    return context, sources
                 logger.warning("[ENHANCED/MCP] Web search server returned no results")
-                return ""
+                return "", []
         except Exception as mcp_err:
             logger.warning("[ENHANCED/MCP] web-search call failed, falling back: %s", mcp_err)
 
-    from ..rag.web_search import WebSearchProvider
+    from ..rag.web_search import WebSearchProvider, to_source_dict
     searcher = WebSearchProvider()
     web_results = searcher.search(message)
     if not web_results:
         logger.warning("[ENHANCED] Web search returned no results")
-        return ""
+        return "", []
     logger.info("[ENHANCED] Got %d web result(s)", len(web_results))
-    return searcher.format_web_context(web_results, max_length=4000)
+    context = searcher.format_web_context(web_results, max_length=4000)
+    return context, [to_source_dict(r.title, r.url) for r in web_results if r.url]
 
 
 def get_doc_count_cached(db: Any, workspace_id: str | None) -> tuple[int, bool]:
@@ -285,7 +293,8 @@ def retrieve_contexts(
 
     if fields["enhance"]:
         try:
-            web_context = get_web_context(fields["message"])
+            web_context, web_sources = get_web_context(fields["message"])
+            sources.extend(web_sources)
         except Exception as web_err:
             logger.warning("[ENHANCED] Web search failed, continuing without: %s", web_err)
 
