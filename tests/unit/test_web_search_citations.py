@@ -110,6 +110,85 @@ class TestGetWebContextReturnsSources:
         assert chat.get_web_context("q") == ("", [])
 
 
+class TestGetWebContextMcpPath:
+    """The MCP branch parses a different payload and had no coverage at all."""
+
+    def test_mcp_results_become_sources(self, monkeypatch):
+        from src.services import chat
+
+        monkeypatch.setattr(chat.config, "MCP_ENABLED", True)
+        registry = MagicMock()
+        registry.web_search.call_tool.return_value = {
+            "context": "mcp ctx",
+            "results": [
+                {"title": "MCP One", "url": "https://m1.example", "snippet": "s"},
+                {"title": "MCP Two", "url": "https://m2.example", "snippet": "s"},
+            ],
+        }
+        monkeypatch.setattr("src.mcp_client.mcp_registry", registry)
+
+        context, sources = chat.get_web_context("q")
+        assert context == "mcp ctx"
+        assert [s["filename"] for s in sources] == ["MCP One", "MCP Two"]
+        assert [s["url"] for s in sources] == ["https://m1.example", "https://m2.example"]
+
+    def test_mcp_result_without_a_url_is_dropped(self, monkeypatch):
+        from src.services import chat
+
+        monkeypatch.setattr(chat.config, "MCP_ENABLED", True)
+        registry = MagicMock()
+        registry.web_search.call_tool.return_value = {
+            "context": "mcp ctx",
+            "results": [
+                {"title": "Good", "url": "https://m1.example"},
+                {"title": "No URL", "url": ""},
+            ],
+        }
+        monkeypatch.setattr("src.mcp_client.mcp_registry", registry)
+
+        _, sources = chat.get_web_context("q")
+        assert [s["filename"] for s in sources] == ["Good"]
+
+    def test_mcp_missing_results_key_yields_context_without_sources(self, monkeypatch):
+        from src.services import chat
+
+        monkeypatch.setattr(chat.config, "MCP_ENABLED", True)
+        registry = MagicMock()
+        registry.web_search.call_tool.return_value = {"context": "mcp ctx"}
+        monkeypatch.setattr("src.mcp_client.mcp_registry", registry)
+
+        assert chat.get_web_context("q") == ("mcp ctx", [])
+
+    def test_mcp_empty_context_returns_nothing(self, monkeypatch):
+        from src.services import chat
+
+        monkeypatch.setattr(chat.config, "MCP_ENABLED", True)
+        registry = MagicMock()
+        registry.web_search.call_tool.return_value = {"context": "", "results": []}
+        monkeypatch.setattr("src.mcp_client.mcp_registry", registry)
+
+        assert chat.get_web_context("q") == ("", [])
+
+    def test_mcp_failure_falls_back_to_the_direct_provider(self, monkeypatch):
+        from src.services import chat
+
+        monkeypatch.setattr(chat.config, "MCP_ENABLED", True)
+        registry = MagicMock()
+        registry.web_search.call_tool.side_effect = RuntimeError("mcp down")
+        monkeypatch.setattr("src.mcp_client.mcp_registry", registry)
+
+        provider = MagicMock()
+        provider.search.return_value = [_Result("Fallback", "https://f.example")]
+        provider.format_web_context.return_value = "direct ctx"
+        monkeypatch.setattr(
+            "src.rag.web_search.WebSearchProvider", MagicMock(return_value=provider)
+        )
+
+        context, sources = chat.get_web_context("q")
+        assert context == "direct ctx"
+        assert [s["filename"] for s in sources] == ["Fallback"]
+
+
 # ---------------------------------------------------------------------------
 # retrieve_contexts — where the bug was actually visible
 # ---------------------------------------------------------------------------
