@@ -420,7 +420,9 @@ NVIDIA and Apple together validate the abstraction: they exercise both memory mo
 
 ---
 
-### MM-2 — Runtime resource isolation ⬜
+### MM-2 — Runtime resource isolation ◐ (half done, unscheduled)
+
+> **Status (2026-08-01):** the Ollama-lifecycle bullet is **done** — `d548f4d` set `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_KEEP_ALIVE`, both live in `docker-compose.yml` (the limit was subsequently raised from 1 to 2). The container-limits bullet is **not** done: the `deploy:` blocks in `docker-compose.yml` reserve GPU devices, they do not cap memory or CPU, so the starvation risk this ticket exists for is still open. MM-2 also appears in no sprint — it needs one, or an explicit deferral with a trigger like HK-10's.
 
 MM-1 stops you selecting a model too large to *load*. MM-2 stops a *running* model from starving the rest of the stack. Distinct risk: an Ollama generation that consumes all memory can take down PostgreSQL or the ingestion worker on the same host. MM-1 is about fit-at-load; MM-2 is about isolation-at-runtime.
 
@@ -536,6 +538,8 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 
 Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` via n8n. Both confirmed by code inspection plus a live curl test against the running instance, not just symptom reports.
 
+**Scheduled as Sprint 5 (re-evaluated 2026-08-01).** Both were originally queued in Sprint 6 behind RBAC-1, a ticket blocked on an open scope question. Neither bug depends on that question, and both affect answers users are getting now — one silently crosses a workspace boundary, the other drops attribution. They run first.
+
 ---
 
 ### BUG-1 — Long-term memory is not scoped to workspace ⬜
@@ -570,23 +574,27 @@ Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` v
 | 2 | CW-1 (document soft-delete pilot) ✅ done & merged (#119) | — |
 | 3 | CW-2a + CW-2b (conversations, users) ✅ done & merged (#124) | — |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) ✅ done & merged (#126) | — |
-| 5 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
-| 6 | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) + BUG-1 (memory workspace scoping) + BUG-2 (web citation loss) | 1 week |
+| 5 | **BUG-1 + BUG-2** (memory workspace scoping, web citation loss) — pulled forward 2026-08-01 | 2–3 days |
+| 6 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
+| 6b | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) | — |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
 | 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
-| **Total** | | **~13–14 weeks** |
+| **Total** | | **~14 weeks** |
 
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
 > **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
 > **Sprint 3 complete:** CW-2a + CW-2b (conversations and users soft-delete, #124). **Sprint 4 complete:** CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors soft-delete, #126).
 > **Also merged post-Sprint-7 (unplanned fixes):** model-management CPU memory budget + loaded-state fix (#146), cross-encoder reranker startup warm-up (#147).
-> **Active:** Sprint 5 (RBAC-1 — viewer role, pending scope confirmation).
-> **Sprint 6 additions (2026-07-27):** BUG-1 (long-term memory not scoped to workspace) and BUG-2 (web-search results never reach citations) added — both found and confirmed during Discord bridge integration testing; see Initiative 8.
-> **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 (viewer role) are end-to-end solid with full test coverage. Sprints 3–4 are now done; RBAC-1 (Sprint 5) remains the gate before new-feature work resumes.
+> **Active:** Sprint 5 (BUG-1 + BUG-2).
+> **Re-evaluated 2026-08-01 — bugs first.** BUG-1 and BUG-2 were sitting in Sprint 6 behind RBAC-1, which has been blocked on scope confirmation since it was written. Two confirmed defects were therefore queued behind an unanswered question they have no dependency on: BUG-1 leaks one workspace's memories into another's answers, and BUG-2 serves web-grounded content with no attribution. Both are self-contained and neither needs a design decision, so neither has a reason to wait. They become Sprint 5; RBAC-1 moves to Sprint 6 and keeps its gate.
+> **Sprint 6 additions (2026-07-27):** BUG-1 and BUG-2 were originally added here — both found and confirmed during Discord bridge integration testing; see Initiative 8.
+> **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 (viewer role) are end-to-end solid with full test coverage. Sprints 3–4 are now done; RBAC-1 (now Sprint 6) remains the gate before new-feature work resumes. Bug fixes are not new-feature work and do not wait on that gate — which is exactly why they moved ahead of it.
+> **MM-2 is not in this table.** It has no sprint and never did, so it has quietly not been scheduled since MM-1 shipped. It is also *partly done*: the Ollama-lifecycle half landed in `d548f4d` (2026-07-25) and is live in `docker-compose.yml` (`OLLAMA_MAX_LOADED_MODELS`, `OLLAMA_KEEP_ALIVE`), while the container `mem_limit`/`cpus` half is still open — the existing `deploy:` blocks are GPU device reservations, not resource limits. Needs a sprint or an explicit deferral; see its ticket.
+> **Unplanned work merged 2026-07-30/31 (not a sprint):** dependency-pipeline repair — grouped Dependabot updates, `requirements.lock.txt` removed, CI-required status checks on `main`, dependency-drift reporting. See LESSONS_LEARNED Ch. 11.
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
 ---
