@@ -22,7 +22,7 @@ alembic>=1.18.5
 sqlalchemy>=2.0.51  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
-pydantic>=2.12.5  # Cannot bump past 2.12.5 until litellm drops its pydantic==2.12.5 exact pin
+pydantic>=2.12.5
 email-validator==2.3.0
 
 # Document Processing
