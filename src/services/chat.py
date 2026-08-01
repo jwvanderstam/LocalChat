@@ -451,7 +451,8 @@ async def stream_chunks_with_fallback(
 
 
 async def retrieve_plan_and_memory(
-    fields: dict, active_model: str, ollama_client: Any, db: Any
+    fields: dict, active_model: str, ollama_client: Any, db: Any,
+    workspace_id: str | None = None,
 ) -> tuple[Any, str]:
     plan = None
     query_words = len(fields["message"].split())
@@ -466,7 +467,11 @@ async def retrieve_plan_and_memory(
     if config.LONG_TERM_MEMORY_ENABLED:
         try:
             from ..memory.retriever import MemoryRetriever
-            memories = MemoryRetriever().retrieve(fields["message"], ollama_client, db)
+            memories = MemoryRetriever().retrieve(
+                fields["message"], ollama_client, db,
+                workspace_id=workspace_id,
+                additional_workspace_ids=fields.get("additional_workspace_ids") or [],
+            )
             memory_context = MemoryRetriever.format_for_prompt(memories)
         except Exception as mem_err:
             logger.debug("[Memory] Retrieval skipped: %s", mem_err)
