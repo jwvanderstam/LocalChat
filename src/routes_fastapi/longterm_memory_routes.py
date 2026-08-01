@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from .. import config
 from ..security_fastapi import get_current_user_id
 from ..utils.logging_config import get_logger
+from ..utils.workspace import get_workspace_id
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -22,7 +23,9 @@ def list_memories(request: Request, limit: int = 100, offset: int = 0) -> Any:
     limit = min(limit, 500)
     offset = max(offset, 0)
     try:
-        memories = request.app.state.db.get_all_memories(limit=limit, offset=offset)
+        memories = request.app.state.db.get_all_memories(
+            limit=limit, offset=offset, workspace_id=get_workspace_id(request)
+        )
         return {"success": True, "memories": memories, "count": len(memories)}
     except Exception:
         logger.exception("[Memory] list_memories error")
@@ -63,6 +66,7 @@ async def extract_memories(request: Request) -> Any:
                     model=active_model,
                     ollama_client=app.state.ollama_client,
                     db=app.state.db,
+                    workspace_id=conv.get("workspace_id"),
                 )
                 processed += 1
             except Exception:

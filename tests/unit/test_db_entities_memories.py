@@ -322,10 +322,13 @@ class TestGetUnextractedConversations:
     def test_returns_list_of_dicts(self):
         from datetime import datetime
         cid = str(uuid.uuid4())
+        ws_id = str(uuid.uuid4())
         m, _, cur = _memories_mixin(
-            fetchall_return=[(cid, "My Conversation", datetime(2025, 3, 1))]
+            fetchall_return=[(cid, "My Conversation", datetime(2025, 3, 1), ws_id)]
         )
         results = m.get_unextracted_conversations()
         assert len(results) == 1
         assert results[0]["id"] == cid
         assert results[0]["title"] == "My Conversation"
+        # Carried so an extracted memory inherits the conversation's workspace.
+        assert results[0]["workspace_id"] == ws_id

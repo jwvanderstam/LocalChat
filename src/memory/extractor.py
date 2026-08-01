@@ -48,6 +48,7 @@ class MemoryExtractor:
         model: str,
         ollama_client: Any,
         db: Any,
+        workspace_id: str | None = None,
     ) -> int:
         """
         Extract and persist memories from a conversation (async).
@@ -58,6 +59,8 @@ class MemoryExtractor:
             model: Active Ollama model name.
             ollama_client: OllamaClient instance.
             db: Database instance.
+            workspace_id: Workspace the source conversation belongs to; the
+                memory inherits it, so retrieval can scope to it later.
 
         Returns:
             Number of new memories stored.
@@ -89,7 +92,9 @@ class MemoryExtractor:
 
         inserted = 0
         for item in raw_memories:
-            if self._try_persist_memory_item(item, conversation_id, ollama_client, db):
+            if self._try_persist_memory_item(
+                item, conversation_id, ollama_client, db, workspace_id
+            ):
                 inserted += 1
 
         db.mark_conversation_extracted(conversation_id)
@@ -102,6 +107,7 @@ class MemoryExtractor:
         conversation_id: str,
         ollama_client: Any,
         db: Any,
+        workspace_id: str | None = None,
     ) -> bool:
         """Embed and store one memory item. Returns True if a new memory was inserted."""
         content = str(item.get("content") or "").strip()
@@ -115,7 +121,7 @@ class MemoryExtractor:
             )
             if not ok or not embedding:
                 return False
-            if db.is_duplicate_memory(embedding):
+            if db.is_duplicate_memory(embedding, workspace_id=workspace_id):
                 logger.debug(f"[Memory] Skipping duplicate: {content[:60]}")
                 return False
             db.insert_memory(
@@ -124,6 +130,7 @@ class MemoryExtractor:
                 source_conv_id=conversation_id,
                 memory_type=memory_type,
                 confidence=confidence,
+                workspace_id=workspace_id,
             )
             return True
         except Exception as exc:

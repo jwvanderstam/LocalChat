@@ -278,11 +278,12 @@ async def api_chat(request: Request) -> Any:
         )
 
         app_state = request.app.state
+        workspace_id = get_workspace_id(request)
         plan, memory_context = await chat.retrieve_plan_and_memory(
-            fields, active_model, app_state.ollama_client, app_state.db
+            fields, active_model, app_state.ollama_client, app_state.db,
+            workspace_id=workspace_id,
         )
 
-        workspace_id = get_workspace_id(request)
         messages = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in fields["chat_history"]]
 
         chunks_retrieved_ref = [0]
