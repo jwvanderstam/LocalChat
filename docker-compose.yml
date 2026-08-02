@@ -42,15 +42,16 @@ services:
       - "${BIND_HOST:-127.0.0.1}:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # MM-2: a reservation, not just a limit — capping Ollama does not help if
-    # Postgres can still be squeezed out of the memory it needs to stay up.
+    # MM-2. Postgres is protected by bounding the services that would crowd it
+    # out, not by anything set here — Compose's `reservations.memory` maps to
+    # Docker's --memory-reservation, a *soft limit* the kernel reclaims toward
+    # under pressure, so it would make this container a likelier victim rather
+    # than a protected one.
     deploy:
       resources:
         limits:
           memory: ${DB_MEM_LIMIT:-2g}
           cpus: "${DB_CPU_LIMIT:-4}"
-        reservations:
-          memory: ${DB_MEM_RESERVATION:-512m}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres} -d ${PG_DB:-rag_db}"]
       interval: 10s
@@ -115,7 +116,8 @@ services:
       - ollama_models:/root/.ollama
     # MM-2: OLLAMA_MAX_LOADED_MODELS above caps VRAM residency; these cap host
     # RAM and CPU. Different failures: when a model does not fit in VRAM Ollama
-    # spills to CPU, and host RAM then grows with nothing to stop it.
+    # spills to CPU, and host RAM then grows with nothing to stop it. Bounding
+    # this service is what leaves room for PostgreSQL.
     # Set generously — a limit turns "slow generation" into "killed
     # mid-generation", so it should only catch genuine runaway.
     deploy:
@@ -124,7 +126,6 @@ services:
           memory: ${OLLAMA_MEM_LIMIT:-8g}
           cpus: "${OLLAMA_CPU_LIMIT:-12}"
         reservations:
-          memory: ${OLLAMA_MEM_RESERVATION:-1g}
           devices:
             - driver: nvidia
               count: all
@@ -389,7 +390,6 @@ services:
           memory: ${APP_MEM_LIMIT:-3g}
           cpus: "${APP_CPU_LIMIT:-8}"
         reservations:
-          memory: ${APP_MEM_RESERVATION:-512m}
           devices:
             - driver: nvidia
               count: all

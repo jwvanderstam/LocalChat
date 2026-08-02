@@ -159,15 +159,22 @@ equivalent from the Helm chart's per-component `resources:` and ignore these.
 All values are `.env` overrides (see `.env.example`), sized by default for a
 ~16 GB host:
 
-| Service | Memory | CPUs | Reservation |
-|---|---|---|---|
-| `ollama` | `8g` | 12 | `1g` |
-| `app` | `3g` | 8 | `512m` |
-| `db` | `2g` | 4 | `512m` |
-| `redis` | `512m` | 2 | — |
-| `mcp-*` | `512m` | 2 | — |
+| Service | Memory | CPUs |
+|---|---|---|
+| `ollama` | `8g` | 12 |
+| `app` | `3g` | 8 |
+| `db` | `2g` | 4 |
+| `redis` | `512m` | 2 |
+| `mcp-*` | `512m` | 2 |
 
 Limits are ceilings, not allocations — a container only uses what it needs.
+
+**There is no way to guarantee a container its memory.** Docker's
+`--memory-reservation` (Compose's `reservations.memory`) is a *soft limit*,
+not a floor: under host pressure the kernel reclaims the container **toward**
+that value, which would make PostgreSQL a likelier victim rather than a
+protected one. What keeps the database alive is the ceiling on everything that
+would otherwise crowd it out — `ollama` above all.
 
 ### Two things that are easy to get wrong
 
