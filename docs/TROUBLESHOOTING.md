@@ -169,6 +169,33 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 **Fix:** Reduce `EMBEDDING_CACHE_MAX_SIZE` (default 5000) or switch to Redis cache which uses less application memory.
 
+### A container restarts or disappears mid-request
+
+**Symptom:** Ollama dies during a long generation, or the app restarts while
+ingesting a large document. Logs stop abruptly with no traceback — the process
+was killed, so it never got to log anything.
+
+**Confirm it:**
+```bash
+docker inspect localchat-ollama-1 --format '{{.State.OOMKilled}}'   # true = hit its limit
+docker stats --no-stream                                            # usage vs. ceiling
+```
+
+**Cause:** every compose service now has a memory ceiling (see OPERATIONS.md,
+"Container Resource Limits"). This is deliberate — before, an over-large model
+could spill to CPU and grow until it took PostgreSQL down with it. The limit
+converts that into one killed container instead of a downed stack.
+
+**Fix:** raise that service's limit in `.env` rather than removing it, e.g.
+`OLLAMA_MEM_LIMIT=10g`, then `docker compose up -d`. If Ollama is the one being
+killed, the underlying cause is usually a model too large for VRAM spilling to
+host RAM — check `docker exec localchat-ollama-1 ollama ps` for a CPU/GPU
+split, and prefer a smaller model or a lower `OLLAMA_NUM_CTX`.
+
+**Redis is the exception:** it should evict, not die. If Redis is being
+OOM-killed, `REDIS_MAXMEMORY` is set at or above `REDIS_MEM_LIMIT` — lower it
+so Redis hits its own limit first.
+
 ### `ruff check` fails in CI
 
 Run locally before pushing:
