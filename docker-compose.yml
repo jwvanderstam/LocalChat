@@ -42,6 +42,15 @@ services:
       - "${BIND_HOST:-127.0.0.1}:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # MM-2: a reservation, not just a limit — capping Ollama does not help if
+    # Postgres can still be squeezed out of the memory it needs to stay up.
+    deploy:
+      resources:
+        limits:
+          memory: ${DB_MEM_LIMIT:-2g}
+          cpus: "${DB_CPU_LIMIT:-4}"
+        reservations:
+          memory: ${DB_MEM_RESERVATION:-512m}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres} -d ${PG_DB:-rag_db}"]
       interval: 10s
@@ -57,13 +66,23 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # maxmemory must stay below the container limit below: Redis then evicts
+    # its own coldest keys and keeps serving, instead of growing until Docker
+    # OOM-kills it. This is a cache — eviction is the correct failure mode.
     command: >
       redis-server
         --save 60 1
         --loglevel warning
+        --maxmemory ${REDIS_MAXMEMORY:-384mb}
+        --maxmemory-policy ${REDIS_MAXMEMORY_POLICY:-allkeys-lru}
         ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     volumes:
       - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: ${REDIS_MEM_LIMIT:-512m}
+          cpus: "${REDIS_CPU_LIMIT:-2}"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -94,9 +113,18 @@ services:
       OLLAMA_KEEP_ALIVE: 10m
     volumes:
       - ollama_models:/root/.ollama
+    # MM-2: OLLAMA_MAX_LOADED_MODELS above caps VRAM residency; these cap host
+    # RAM and CPU. Different failures: when a model does not fit in VRAM Ollama
+    # spills to CPU, and host RAM then grows with nothing to stop it.
+    # Set generously — a limit turns "slow generation" into "killed
+    # mid-generation", so it should only catch genuine runaway.
     deploy:
       resources:
+        limits:
+          memory: ${OLLAMA_MEM_LIMIT:-8g}
+          cpus: "${OLLAMA_CPU_LIMIT:-12}"
         reservations:
+          memory: ${OLLAMA_MEM_RESERVATION:-1g}
           devices:
             - driver: nvidia
               count: all
@@ -134,6 +162,11 @@ services:
       MCP_PORT:        3001
     ports:
       - "0.0.0.0:3001:3001"
+    deploy:
+      resources:
+        limits:
+          memory: ${MCP_MEM_LIMIT:-512m}
+          cpus: "${MCP_CPU_LIMIT:-2}"
     networks:
       - backend
     healthcheck:
@@ -183,6 +216,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: ${MCP_MEM_LIMIT:-512m}
+          cpus: "${MCP_CPU_LIMIT:-2}"
     networks:
       - backend
 
@@ -209,6 +247,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: ${MCP_MEM_LIMIT:-512m}
+          cpus: "${MCP_CPU_LIMIT:-2}"
     networks:
       - backend
 
@@ -244,6 +287,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: ${MCP_MEM_LIMIT:-512m}
+          cpus: "${MCP_CPU_LIMIT:-2}"
     networks:
       - backend
 
@@ -333,9 +381,15 @@ services:
     volumes:
       - app_uploads:/app/uploads
       - app_logs:/app/logs
+    # MM-2: ingestion (chunk + batch-embed) is the spiky path here, so the
+    # limit sits above the idle footprint with room for a large upload.
     deploy:
       resources:
+        limits:
+          memory: ${APP_MEM_LIMIT:-3g}
+          cpus: "${APP_CPU_LIMIT:-8}"
         reservations:
+          memory: ${APP_MEM_RESERVATION:-512m}
           devices:
             - driver: nvidia
               count: all

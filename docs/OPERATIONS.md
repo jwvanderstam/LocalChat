@@ -150,6 +150,65 @@ docker compose exec ollama ollama pull llama3.2   # or your configured model
 
 ---
 
+## Container Resource Limits
+
+Every `docker-compose.yml` service declares a memory and CPU ceiling, so no
+single container can exhaust the host. Kubernetes deployments get the
+equivalent from the Helm chart's per-component `resources:` and ignore these.
+
+All values are `.env` overrides (see `.env.example`), sized by default for a
+~16 GB host:
+
+| Service | Memory | CPUs | Reservation |
+|---|---|---|---|
+| `ollama` | `8g` | 12 | `1g` |
+| `app` | `3g` | 8 | `512m` |
+| `db` | `2g` | 4 | `512m` |
+| `redis` | `512m` | 2 | — |
+| `mcp-*` | `512m` | 2 | — |
+
+Limits are ceilings, not allocations — a container only uses what it needs.
+
+### Two things that are easy to get wrong
+
+**A memory limit turns "slow" into "killed".** Without one, a model too large
+for VRAM spills to CPU and runs slowly. With one, the OOM killer stops it
+mid-generation instead. That is the intended trade — it protects PostgreSQL —
+but set the limit generously so only genuine runaway reaches it.
+
+**`OLLAMA_MEM_LIMIT` does not cap VRAM.** It caps host RAM. VRAM residency is
+governed by `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_KEEP_ALIVE`, and the
+per-model fit check lives in the application (`load_model_guard`). The three
+protect against different failures; none substitutes for another.
+
+### Redis evicts rather than dying
+
+`REDIS_MAXMEMORY` (default `384mb`) sits deliberately below `REDIS_MEM_LIMIT`
+(`512m`). Redis reaching its own limit evicts its coldest keys under
+`allkeys-lru` and keeps serving; Redis reaching the *container* limit is
+OOM-killed. Keep that ordering when tuning — this is a cache, so eviction is
+the correct failure mode.
+
+### Checking and tuning
+
+```bash
+# What the limits actually render to (catches .env typos)
+docker compose config | grep -A4 'resources:'
+
+# Live usage against those ceilings
+docker stats --no-stream
+```
+
+If a container is repeatedly OOM-killed (`docker inspect <name> --format
+'{{.State.OOMKilled}}'` returns `true`), raise that service's limit rather
+than removing it — an unbounded container is what this section exists to
+prevent.
+
+On a smaller host, lower `OLLAMA_MEM_LIMIT` first: it is by far the largest
+single ceiling.
+
+---
+
 ## Routine Maintenance
 
 ### Vacuum and analyse PostgreSQL
