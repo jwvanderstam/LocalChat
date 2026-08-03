@@ -7,7 +7,7 @@ gunicorn==26.0.0
 Werkzeug>=3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
 
 # Caching
-redis==8.0.1  # Redis cache backend (optional but recommended)
+redis==8.1.0  # Redis cache backend (optional but recommended)
 
 # Security
 python-jose[cryptography]>=3.5.0  # JWT — pulls in ecdsa; PYSEC-2026-1325 is an accepted risk, see SECURITY.md
@@ -62,7 +62,7 @@ numpy>=2.5.1
 python-multipart==0.0.32
 
 # Markdown rendering
-markdown==3.10.2
+markdown==3.10.3
 
 # Environment configuration
 python-dotenv>=1.2.2
