@@ -11,7 +11,12 @@ from sqlalchemy import create_engine
 alembic_cfg = context.config
 
 if alembic_cfg.config_file_name is not None:
-    fileConfig(alembic_cfg.config_file_name)
+    # disable_existing_loggers defaults to True, which would switch off every logger
+    # not named in alembic.ini — that file declares only root, sqlalchemy and alembic.
+    # Migrations run in-process at startup (app_bootstrap._run_alembic_migrations), so
+    # the default silenced src.*, uvicorn.access and the request log for the whole
+    # lifetime of the process: the app kept serving and stopped saying anything.
+    fileConfig(alembic_cfg.config_file_name, disable_existing_loggers=False)
 
 
 def _db_url() -> str:
