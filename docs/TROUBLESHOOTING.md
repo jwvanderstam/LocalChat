@@ -156,6 +156,57 @@ To rotate the JWT secret (invalidates all existing tokens):
 
 ## General
 
+### The app serves requests but logs nothing after startup
+
+**Symptom:** the log stops partway through boot — typically just after the Alembic
+banner — yet `/api/health` returns 200 and the container is healthy. No access logs,
+no errors, no warnings, for as long as the process runs. It looks like a hang; it is
+not. Only logging stopped.
+
+**Confirm it:**
+```bash
+docker compose logs app --no-color | tail -20      # last line is alembic, then silence
+curl.exe -s -o /dev/null -w "%{http_code}" http://localhost:5000/api/health   # 200
+```
+
+**Cause:** `logging.config.fileConfig()` damages logging in **two** independent ways,
+and migrations run in-process at startup (`app_bootstrap._run_alembic_migrations`),
+so both fire on every boot and last the whole life of the process:
+
+1. It defaults to `disable_existing_loggers=True`, switching off every logger not
+   named in the ini. `alembic.ini` declares only `root`, `sqlalchemy`, `alembic` — so
+   all of `src.*`, `uvicorn.access` and the request log are disabled outright.
+2. It rewrites the **root** logger: `alembic.ini` sets `[logger_root] level = WARN`
+   and installs its own handler. Application loggers carry no handlers of their own
+   and inherit that level, so `ERROR` still passes and `INFO` is dropped.
+
+**Two distinct symptoms, so match yours before assuming which half is broken:**
+
+| What you see | Which half |
+|---|---|
+| Nothing at all after the alembic banner — not even errors | 1 |
+| Errors and `Uvicorn running` appear, but no `src.*` `INFO` lines | 2 (uvicorn owns its handlers, so it is unaffected) |
+
+**Fix:** `migrations/env.py` passes `disable_existing_loggers=False`, and
+`_preserve_root_logging()` in `src/app_bootstrap.py` restores root's level and
+handlers around the upgrade call. Both are pinned by regression tests
+(`tests/unit/test_alembic_env_logging.py`, `tests/unit/test_bootstrap_logging_preserved.py`).
+
+**Confirming which half quickly**, inside the app container:
+```bash
+python -c "
+import logging; from logging.config import fileConfig
+l = logging.getLogger('src.app_bootstrap'); logging.basicConfig(level=logging.INFO)
+fileConfig('/app/alembic.ini', disable_existing_loggers=False)
+print('disabled:', l.disabled, '| INFO enabled:', l.isEnabledFor(logging.INFO))"
+```
+`disabled: True` means half 1; `INFO enabled: False` means half 2.
+
+**Why it matters beyond the missing lines:** anything the app logs after migrations
+is discarded, including its own failures. This masked a real
+`MultipleHeads` migration error that was raised and logged on every boot for days.
+An app that cannot report a failure looks identical to one that has none.
+
 ### App won't start: "SECRET_KEY must be at least 32 characters"
 
 Set `SECRET_KEY` to a random 32+ character string in `.env`:

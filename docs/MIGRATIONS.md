@@ -61,6 +61,42 @@ Alembic's `op.add_column()` helpers.
 - Data backfills belong in the same migration as the column that requires them.
 - Update [`file-map.md`](.claude/rules/file-map.md) when adding a new migration file.
 
+### Getting the revision number right
+
+`revision` / `down_revision` are hand-written in this repo, so a wrong number is
+easy to introduce and hard to see. **Read the number from the directory, never from
+a doc:**
+
+```bash
+ls migrations/versions/          # the only authority on what exists
+alembic heads                    # must print exactly one head
+```
+
+`file-map.md` is a convenience index and has been out of date before. In August 2026
+a backfill migration was numbered from that table while the table was missing two
+existing migrations; the new file collided with an existing `0012`.
+
+**Two revisions sharing an id do not fail loudly.** Alembic emits a
+`UserWarning: Revision NNNN is present more than once` through Python's `warnings`
+module — not the app logger — and then `upgrade head` aborts with:
+
+```
+alembic.script.revision.MultipleHeads: Multiple heads are present for given argument 'head'
+```
+
+`_run_alembic_migrations()` catches that and logs it, so the app still starts and
+**no migration is applied at all** — including every previously pending one. Verify a
+new migration by running it, not by reading it:
+
+```bash
+alembic heads                    # exactly one line
+alembic upgrade head             # expect "Running upgrade X -> Y"
+alembic current                  # expect your new revision
+```
+
+No CI job executes migrations (see "How it works"), so this check is manual and it is
+the only thing that catches a broken chain before a deployment does.
+
 ## Upgrade path for existing installations
 
 1. Pull the new code.

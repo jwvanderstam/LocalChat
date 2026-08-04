@@ -171,6 +171,21 @@ before it lands.
 **Never merge with checks still running**, even when the change "cannot"
 affect them. Wait, or ask.
 
+**A PR that does not target `main` runs no CI at all.** `tests.yml` triggers on
+`pull_request: branches: [main]`, so a PR based on a feature branch — a stacked
+PR — reports *no required checks* and still shows `MERGEABLE / CLEAN`. That is
+not a green build; it is the absence of one. Retarget to `main` and wait for a
+real run before merging. Four stacked PRs sat "clean" and untested this way in
+August 2026.
+
+**Retarget child PRs before merging their base.** Merging with
+`--delete-branch` deletes the base branch, and GitHub *closes* any PR still
+pointing at it rather than retargeting. Point children at `main` first, then
+merge the parent. Squash-merging also rewrites the parent's commits, so each
+child then needs `git rebase --onto main <old-base-sha>` before it is reviewable —
+verify with `git cherry main <branch>` (a `-` prefix means the patch is already
+upstream).
+
 ### Dependabot
 
 - Updates are **grouped** (`.github/dependabot.yml`): `minor`+`patch` collapse
