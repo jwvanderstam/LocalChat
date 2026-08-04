@@ -102,6 +102,10 @@ class TestCreateWorkspace:
             description="Legal docs",
             system_prompt="You are a legal assistant.",
             model_class="LARGE",
+            # None here because the fixture runs with the RBAC bypass on, so there is
+            # no caller to own the workspace. Creator-ownership is covered against a
+            # real token in tests/unit/test_workspace_creator_ownership.py.
+            owner_id=None,
         )
 
 

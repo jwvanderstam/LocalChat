@@ -284,18 +284,24 @@ Global-tier capabilities are unchanged and remain `admin`-only: system settings,
 
 Verified 2026-08-04: `create_workspace` (`src/db/workspaces.py:30`) inserts into `workspaces` and returns; it never writes a `workspace_members` row, and the route (`workspace_routes.py:67`) does not either. The auto-created `Default` workspace (`src/db/connection.py:473`) has no members by construction. `add_workspace_member` is reachable only through the member routes.
 
-So enforcing membership across the route surface — which is precisely what this ticket does — **locks every non-admin user out of every workspace**. This is not a backfill footnote; it is a code defect that must land first or in the same change:
+So enforcing membership across the route surface — which is precisely what this ticket does — **locks every non-admin user out of every workspace**. This is not a backfill footnote; it is a code defect.
 
-- `create_workspace` must record its creator as `owner`. Needs the caller's identity threaded into the route, which currently does not resolve it at all.
-- Existing workspaces and users need a backfill: decide per workspace who becomes `owner`, and whether all existing users get `editor` or `viewer` on `Default`.
-- **Clark-Wilson interaction:** `purge_user` (`src/db/users.py:191`) refuses to purge any user holding a membership row. A blanket backfill therefore makes every user unpurgeable until their memberships are removed. Decide deliberately whether that is the intended precondition or whether purge should ignore membership.
+**Resolved 2026-08-04 (done, ahead of the rest of RBAC-1):**
+
+- ✅ `create_workspace` now records its creator as `owner`, in the same transaction as the workspace insert — a committed workspace with no owner is the unreachable state the parameter exists to prevent. The route resolves the caller and passes it.
+- ✅ Backfill migration `0012_rbac1_backfill_workspace_members.py`, per the decisions below. There is no `created_by` column on `workspaces` (only `deleted_by`, from CW-2c), so ownership of existing workspaces could not be inferred from data — it had to be chosen.
+  - Every global **admin** becomes `owner` of every live workspace. Admins already short-circuit workspace checks, so this grants no new access; it makes ownership explicit and leaves no workspace unmanageable.
+  - Every other live user becomes `editor` on the default workspace — exactly what they can do today, so the upgrade is behaviour-neutral rather than a silent removal of upload rights.
+  - `ON CONFLICT DO NOTHING` throughout, so an explicitly assigned role always beats a backfilled one and re-running can neither promote nor demote.
+  - The default workspace is resolved as the oldest live one, matching `get_default_workspace_id()`, rather than by matching the name `Default`, which can be renamed.
+- ✅ **Clark-Wilson interaction, decided:** `purge_user` (`src/db/users.py:191`) keeps its precondition — it still refuses to purge a user holding any membership row. Purging becomes a deliberate two-step TP: revoke memberships, then purge. Cascading the delete was rejected because the precondition exists precisely to stop a referenced entity vanishing, and weakening it for convenience is what Clark-Wilson is meant to prevent.
 
 ---
 
 **Implementation:**
 - Wire `check_workspace_access` (or `require_workspace_role_dep` where the route has no path `workspace_id`) into every workspace-scoped route, at the minimum role from the matrix above.
 - **Mind the binding trap:** a dependency that declares its own `workspace_id` parameter has it bound as a *query* parameter, so a route with `workspace_id` in its **path** must pass the value explicitly. BUG-3 documents this; it is the reason `check_workspace_access` takes the id as an argument.
-- Fix `create_workspace` to assign creator-ownership; add the backfill migration.
+- ~~Fix `create_workspace` to assign creator-ownership; add the backfill migration.~~ ✅ done — see the prerequisite above.
 - Delete any remaining ad-hoc role comparisons so there is one mechanism.
 - UI: hide upload, delete, annotate, and workspace-settings controls for a `viewer` session; the member list stays visible.
 

@@ -74,6 +74,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0009_cw2d_memories_soft_delete.py` | CW-2d: adds memories.deleted_at, deleted_by |
 | `migrations/versions/0010_cw2e_annotations_soft_delete.py` | CW-2e: adds annotations.deleted_at, deleted_by |
 | `migrations/versions/0011_cw2f_connectors_soft_delete.py` | CW-2f: adds connectors.deleted_at, deleted_by |
+| `migrations/versions/0012_rbac1_backfill_workspace_members.py` | RBAC-1: backfills workspace_members — admins own every live workspace, other users get editor on the default one |
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
 | `docs/OPERATIONS.md` | Backup/restore/maintenance runbook |
 | `docs/ROADMAP.md` | Living initiative/ticket plan (current: v3.0 — hygiene, Clark-Wilson, RBAC, GKB, model management, plugin contract) |

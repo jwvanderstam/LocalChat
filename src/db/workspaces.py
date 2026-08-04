@@ -33,8 +33,14 @@ class WorkspacesMixin(MixinHost):
         description: str = '',
         system_prompt: str = '',
         model_class: str | None = None,
+        owner_id: str | None = None,
     ) -> str:
-        """Create a new workspace and return its UUID string."""
+        """Create a new workspace and return its UUID string.
+
+        *owner_id* is recorded as the workspace's first ``owner`` member in the same
+        transaction. Without it a workspace has no members at all, so once membership
+        is enforced its own creator cannot reach it.
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot create workspace: DB not connected")
         with self.get_connection() as conn:
@@ -50,7 +56,18 @@ class WorkspacesMixin(MixinHost):
                 row = cur.fetchone()
                 assert row is not None, "INSERT ... RETURNING id always returns a row"
                 workspace_id = str(row[0])
-        logger.info(f"[Workspace] Created '{name}' id={workspace_id}")
+                # Same transaction as the workspace insert: a committed workspace with
+                # no owner is exactly the unreachable state this parameter exists to stop.
+                if owner_id:
+                    cur.execute(
+                        """
+                        INSERT INTO workspace_members (workspace_id, user_id, role)
+                        VALUES (%s, %s, 'owner')
+                        ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = 'owner'
+                        """,
+                        (workspace_id, owner_id),
+                    )
+        logger.info(f"[Workspace] Created '{name}' id={workspace_id} owner={owner_id or 'none'}")
         return workspace_id
 
     # ------------------------------------------------------------------
