@@ -11,7 +11,11 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import config
-from ..security_fastapi import get_current_user_id, require_admin_dep
+from ..security_fastapi import (
+    check_workspace_access,
+    get_current_user_id,
+    require_admin_dep,
+)
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
 
@@ -20,10 +24,18 @@ router = APIRouter()
 
 _NOT_FOUND = "Workspace not found"
 _ERR_INTERNAL = "Internal server error"
-_ERR_FORBIDDEN = "Only workspace owners can perform this action"
 
 # In-process presence store: workspace_id → {user_id → expires_at (epoch float)}
 _presence: dict[str, dict[str, float]] = {}
+
+
+def _deny(request: Request, workspace_id: str, min_role: str) -> JSONResponse | None:
+    """Return an error response when the caller lacks *min_role* in this workspace."""
+    denial = check_workspace_access(request, workspace_id, min_role)
+    if denial is None:
+        return None
+    code, message = denial
+    return JSONResponse({"success": False, "message": message}, status_code=code)
 
 
 def _presence_event(workspace_id: str, user_id: str | None) -> str:
@@ -161,12 +173,12 @@ def purge_workspace(
 
 @router.delete("/workspaces/{workspace_id}")
 def delete_workspace(workspace_id: str, request: Request) -> Any:
+    denied = _deny(request, workspace_id, "owner")
+    if denied:
+        return denied
     caller = get_current_user_id(request)
     deleted_by = caller if caller and caller != "anonymous" else None
     db = request.app.state.db
-    role = db.get_workspace_member_role(workspace_id, caller or "")
-    if role is not None and role != "owner":
-        return JSONResponse({"success": False, "message": _ERR_FORBIDDEN}, status_code=403)
     try:
         deleted = db.delete_workspace(workspace_id, deleted_by=deleted_by)
         if not deleted:
@@ -180,6 +192,9 @@ def delete_workspace(workspace_id: str, request: Request) -> Any:
 
 @router.get("/workspaces/{workspace_id}/members")
 def list_workspace_members(workspace_id: str, request: Request) -> Any:
+    denied = _deny(request, workspace_id, "viewer")
+    if denied:
+        return denied
     try:
         members = request.app.state.db.list_workspace_members(workspace_id)
         return {"success": True, "members": members}
@@ -190,6 +205,9 @@ def list_workspace_members(workspace_id: str, request: Request) -> Any:
 
 @router.post("/workspaces/{workspace_id}/members")
 async def add_workspace_member(workspace_id: str, request: Request) -> Any:
+    denied = _deny(request, workspace_id, "owner")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
     user_id = (data.get("user_id") or "").strip()
     role = data.get("role", "viewer")
@@ -207,10 +225,9 @@ async def add_workspace_member(workspace_id: str, request: Request) -> Any:
 
 @router.put("/workspaces/{workspace_id}/members/{user_id}")
 async def update_workspace_member(workspace_id: str, user_id: str, request: Request) -> Any:
-    caller = get_current_user_id(request) or "admin"
-    role_check = request.app.state.db.get_workspace_member_role(workspace_id, caller)
-    if role_check is not None and role_check != "owner":
-        return JSONResponse({"success": False, "message": _ERR_FORBIDDEN}, status_code=403)
+    denied = _deny(request, workspace_id, "owner")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
     role = data.get("role", "")
     if role not in ("viewer", "editor", "owner"):
@@ -225,10 +242,9 @@ async def update_workspace_member(workspace_id: str, user_id: str, request: Requ
 
 @router.delete("/workspaces/{workspace_id}/members/{user_id}")
 def remove_workspace_member(workspace_id: str, user_id: str, request: Request) -> Any:
-    caller = get_current_user_id(request) or "admin"
-    role_check = request.app.state.db.get_workspace_member_role(workspace_id, caller)
-    if role_check is not None and role_check != "owner":
-        return JSONResponse({"success": False, "message": _ERR_FORBIDDEN}, status_code=403)
+    denied = _deny(request, workspace_id, "owner")
+    if denied:
+        return denied
     try:
         removed = request.app.state.db.remove_workspace_member(workspace_id, user_id)
         if not removed:

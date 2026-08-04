@@ -138,7 +138,9 @@ def get_current_user_id(
     """
     if _is_testing(request) or config.DEMO_MODE:
         return None
-    token = credentials.credentials if credentials else _extract_bearer_token(request)
+    # getattr, not truthiness: called directly rather than via Depends, *credentials*
+    # is the unresolved Depends sentinel — truthy, but with no .credentials attribute.
+    token = getattr(credentials, "credentials", None) or _extract_bearer_token(request)
     if not token:
         return None
     try:
@@ -204,6 +206,53 @@ def require_admin_dep(
     return claims.get("sub", "admin")
 
 
+def _claims_from_request(request: Request) -> dict[str, Any]:
+    """Return JWT claims from the request's Authorization header, or ``{}``."""
+    token = _extract_bearer_token(request)
+    if not token:
+        return {}
+    try:
+        return _decode_token(token)
+    except Exception:
+        return {}
+
+
+def check_workspace_access(
+    request: Request,
+    workspace_id: str | None,
+    min_role: str,
+) -> tuple[int, str] | None:
+    """Return ``(status, message)`` when the caller may not act at *min_role* here, else ``None``.
+
+    Safe to call directly with just a request — it reads the bearer token from the
+    Authorization header rather than requiring a Depends-injected credential, so a
+    route with ``workspace_id`` as a *path* parameter can pass that value explicitly.
+    That matters: a dependency declaring its own ``workspace_id`` would have it bound
+    as a query parameter, silently authorising against the wrong workspace.
+    """
+    if _is_rbac_bypassed(request):
+        return None
+    claims = _claims_from_request(request)
+    if not claims:
+        return (status.HTTP_401_UNAUTHORIZED, _ERR_AUTH_REQUIRED)
+    if claims.get("role") == "admin":
+        return None
+    ws_id = workspace_id or request.headers.get("X-Workspace-ID")
+    if not ws_id:
+        return (status.HTTP_400_BAD_REQUEST, "No workspace context")
+    db = getattr(request.app.state, "db", None)
+    if db is None or not db.is_connected:
+        return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+    role = db.get_workspace_member_role(ws_id, claims.get("sub"))
+    # A non-member gets None here. Denying is the whole point: treating None as
+    # "no role to object to" is what let non-members through (BUG-3).
+    if role is None:
+        return (status.HTTP_403_FORBIDDEN, "Access denied: not a workspace member")
+    if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
+        return (status.HTTP_403_FORBIDDEN, f"Requires {min_role} role or higher")
+    return None
+
+
 def _enforce_workspace_role(
     request: Request,
     workspace_id: str | None,
@@ -213,25 +262,12 @@ def _enforce_workspace_role(
     """Enforce workspace membership; returns user_id or raises 4xx."""
     if _is_rbac_bypassed(request):
         return "anonymous"
-    claims = _get_token_claims(credentials)
-    if not claims:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
-    user_id = claims.get("sub")
-    if claims.get("role") == "admin":
-        return user_id or "admin"
-    # Resolve workspace_id from header when not in query
-    ws_id = workspace_id or request.headers.get("X-Workspace-ID")
-    if not ws_id:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail={"message": "No workspace context"})
-    db = getattr(request.app.state, "db", None)
-    if db is None or not db.is_connected:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail={"message": "Database unavailable"})
-    role = db.get_workspace_member_role(ws_id, user_id)
-    if role is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": "Access denied: not a workspace member"})
-    if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": f"Requires {min_role} role or higher"})
-    return user_id or ""
+    denial = check_workspace_access(request, workspace_id, min_role)
+    if denial is not None:
+        code, message = denial
+        raise HTTPException(code, detail={"message": message})
+    claims = _get_token_claims(credentials) or _claims_from_request(request)
+    return claims.get("sub") or "admin"
 
 
 def require_workspace_role_dep(min_role: str):

@@ -575,6 +575,30 @@ Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` v
 
 ---
 
+### BUG-3 — Workspace member routes had no authorisation ⬜
+
+**Found 2026-08-04** while confirming RBAC-1's scope. Five workspace routes were reachable without membership. Confirmed by probing the pre-fix code directly, not by inspection alone:
+
+| Route | Pre-fix behaviour |
+|---|---|
+| `POST /api/workspaces/{id}/members`, no token | **200** — member written |
+| `GET /api/workspaces/{id}/members`, no token | **200** — members disclosed |
+| `DELETE /api/workspaces/{id}`, authenticated non-member | **500** |
+| `PUT`/`DELETE /api/workspaces/{id}/members/{uid}`, authenticated non-member | **500** |
+
+Two distinct defects, and the second masked the first:
+
+1. **No check at all** on the two `/members` routes. `POST` is a privilege-escalation primitive — an unauthenticated caller adds themselves as `owner`, then legitimately passes every later owner check. Neither route declared a `Depends`, and no router- or app-level auth dependency backs them up.
+2. **Fail-open role check** on the other three: `if role is not None and role != "owner"`. A non-member gets `role is None`, skips the branch, and proceeds. Unreachable in practice, because `get_current_user_id(request)` — called directly rather than via `Depends` — hit `credentials.credentials` on an unresolved `Depends` sentinel and raised `AttributeError` first. So those three routes never worked at all outside demo/test mode.
+
+**Why the tests never caught it:** the whole existing suite runs with `state.testing = True`, which trips `_is_rbac_bypassed` and short-circuits every check. The routes had coverage; none of it exercised authorisation.
+
+**Fix:** a single `check_workspace_access(request, workspace_id, min_role)` in `src/security_fastapi.py`, called by all five routes. It denies on `role is None`, honours the bypass consistently with `require_admin_dep`, and takes `workspace_id` explicitly — a dependency declaring its own would have it bound as a *query* parameter and authorise against the wrong workspace. `_enforce_workspace_role` delegates to it so the dep RBAC-1 will adopt cannot drift from the fix.
+
+> **Scope note:** deliberately narrow. It does not wire `require_workspace_role_dep` into routes or audit the rest of the surface — that is RBAC-1 and RBAC-2. The ad-hoc checks this deletes were going to be replaced anyway; closing a live hole two weeks earlier was worth the throwaway. The regression tests are not throwaway — they become the proof that RBAC-1 wired the dependency correctly.
+
+---
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -585,7 +609,8 @@ Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` v
 | 3 | CW-2a + CW-2b (conversations, users) ✅ done & merged (#124) | — |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) ✅ done & merged (#126) | — |
 | 5 | BUG-1 + BUG-2 (memory workspace scoping, web citation loss) ✅ done & merged (#208, #209) | — |
-| 6 | **RBAC-1 (viewer role) — pending scope confirmation** | 1 week |
+| 5b | **BUG-3** (workspace member routes had no authorisation) — pulled forward 2026-08-04 | 1 day |
+| 6 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
 | 6b | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
@@ -600,6 +625,7 @@ Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` v
 > **Sprint 3 complete:** CW-2a + CW-2b (conversations and users soft-delete, #124). **Sprint 4 complete:** CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors soft-delete, #126).
 > **Also merged post-Sprint-7 (unplanned fixes):** model-management CPU memory budget + loaded-state fix (#146), cross-encoder reranker startup warm-up (#147).
 > **Sprint 5 complete (2026-08-02):** BUG-1 (#208) and BUG-2 (#209). **MM-2 complete (2026-08-03, #210)** — its container-limits half, the part still open when MM-1 shipped.
+> **Sprint 5b (2026-08-04):** BUG-3, found while confirming RBAC-1's scope — two workspace member routes had no authorisation check at all. Same precedent as Sprint 5: a confirmed defect does not queue behind a design question it has no dependency on. Also the same lesson as MM-2, one layer down — `require_workspace_role_dep` had been written, was correct, and had zero call sites, so the mechanism existed while the routes it was written for kept their own broken checks.
 > **Active: Sprint 6 (RBAC-1) — and it is gated, not started.** The three scope questions in the RBAC-1 ticket ("Key design decisions to confirm") have been open since the ticket was written and still are. Nothing downstream moves until they are answered: RBAC-1 builds `require_role_dep`, which PC-1 exposes as the `identity` service and PR-1 depends on, and the depth-sprint declaration blocks new-feature work behind it. **GKB-1 is the only unblocked workstream** if the questions stay open.
 > **Re-evaluated 2026-08-01 — bugs first.** BUG-1 and BUG-2 were sitting in Sprint 6 behind RBAC-1, which has been blocked on scope confirmation since it was written. Two confirmed defects were therefore queued behind an unanswered question they have no dependency on: BUG-1 leaked one workspace's memories into another's answers, and BUG-2 served web-grounded content with no attribution. Both were self-contained and neither needed a design decision, so neither had a reason to wait. They became Sprint 5; RBAC-1 moved to Sprint 6 and keeps its gate.
 > **Sprint 6 additions (2026-07-27):** BUG-1 and BUG-2 were originally added here — both found and confirmed during Discord bridge integration testing; see Initiative 8.
