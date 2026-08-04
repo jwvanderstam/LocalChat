@@ -11,7 +11,7 @@ Covers the full REST surface:
   POST /api/workspaces/switch
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -175,8 +175,23 @@ class TestDeleteWorkspace:
         assert resp.json()["fallback_workspace_id"] == "ws-default"
 
     def test_non_owner_member_returns_403(self, client, app):
+        # Needs the RBAC bypass off to mean anything. It previously passed with the
+        # bypass on only because the old inline check ignored it — unlike
+        # require_admin_dep and _enforce_workspace_role, which have always returned
+        # early under bypass. The check is centralised now and consistent with them,
+        # so the role assertion has to run on the authenticated path to be real.
+        from src.security_fastapi import create_access_token
+
+        app.state.testing = False
+        app.state.db.is_connected = True
         app.state.db.get_workspace_member_role = MagicMock(return_value="editor")
-        resp = client.delete("/api/workspaces/ws-1")
+        token = create_access_token("33333333-3333-3333-3333-333333333333", {"role": "user"})
+        with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"), \
+             patch("src.security_fastapi.config.DEMO_MODE", False):
+            resp = client.delete(
+                "/api/workspaces/ws-1", headers={"Authorization": f"Bearer {token}"}
+            )
+        app.state.testing = True
         assert resp.status_code == 403
 
     def test_owner_can_delete(self, client, app):
