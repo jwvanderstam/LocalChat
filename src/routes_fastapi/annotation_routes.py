@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from ..security_fastapi import get_current_user_id
 from ..utils.logging_config import get_logger
+from ._authz import deny as _deny
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -18,6 +19,9 @@ _ERR_INTERNAL = "Internal server error"
 
 @router.post("/annotations", status_code=201)
 async def create_annotation(request: Request) -> Any:
+    denied = _deny(request, None, "editor")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
     chunk_id = data.get("chunk_id")
     text = (data.get("text") or "").strip()
@@ -44,6 +48,9 @@ async def create_annotation(request: Request) -> Any:
 
 @router.get("/chunks/{chunk_id}/annotations")
 def list_chunk_annotations(chunk_id: int, request: Request) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     try:
         annotations = request.app.state.db.get_annotations_for_chunk(chunk_id)
         return {"success": True, "annotations": annotations}
@@ -54,6 +61,9 @@ def list_chunk_annotations(chunk_id: int, request: Request) -> Any:
 
 @router.delete("/annotations/{annotation_id}")
 def delete_annotation(annotation_id: str, request: Request) -> Any:
+    denied = _deny(request, None, "editor")
+    if denied:
+        return denied
     user_id = get_current_user_id(request)
     deleted_by = user_id if user_id and user_id != "anonymous" else None
     try:

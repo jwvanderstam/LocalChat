@@ -7,7 +7,7 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import config
@@ -18,6 +18,7 @@ from ..security_fastapi import (
 )
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
+from ._authz import deny as _deny
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -27,15 +28,6 @@ _ERR_INTERNAL = "Internal server error"
 
 # In-process presence store: workspace_id → {user_id → expires_at (epoch float)}
 _presence: dict[str, dict[str, float]] = {}
-
-
-def _deny(request: Request, workspace_id: str, min_role: str) -> JSONResponse | None:
-    """Return an error response when the caller lacks *min_role* in this workspace."""
-    denial = check_workspace_access(request, workspace_id, min_role)
-    if denial is None:
-        return None
-    code, message = denial
-    return JSONResponse({"success": False, "message": message}, status_code=code)
 
 
 def _presence_event(workspace_id: str, user_id: str | None) -> str:
@@ -119,6 +111,9 @@ async def switch_workspace(request: Request) -> Any:
 
 @router.get("/workspaces/{workspace_id}")
 def get_workspace(workspace_id: str, request: Request) -> Any:
+    denied = _deny(request, workspace_id, "viewer")
+    if denied:
+        return denied
     try:
         workspace = request.app.state.db.get_workspace(workspace_id)
         if workspace is None:
@@ -132,6 +127,9 @@ def get_workspace(workspace_id: str, request: Request) -> Any:
 
 @router.put("/workspaces/{workspace_id}")
 async def update_workspace(workspace_id: str, request: Request) -> Any:
+    denied = _deny(request, workspace_id, "owner")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
     allowed = {"name", "description", "system_prompt", "model_class"}
     fields = {k: v for k, v in data.items() if k in allowed}
@@ -262,6 +260,12 @@ def remove_workspace_member(workspace_id: str, user_id: str, request: Request) -
 
 @router.get("/workspaces/{workspace_id}/presence")
 async def workspace_presence(workspace_id: str, request: Request) -> StreamingResponse:
+    # Raised, not returned: this route's contract is a stream, and refusing before
+    # the generator starts keeps the failure a plain 403 rather than an SSE error event.
+    denial = check_workspace_access(request, workspace_id, "viewer")
+    if denial is not None:
+        code, message = denial
+        raise HTTPException(code, detail={"message": message})
     user_id = get_current_user_id(request)
     heartbeat = config.PRESENCE_TTL_SECONDS
 
@@ -287,6 +291,9 @@ async def workspace_presence(workspace_id: str, request: Request) -> StreamingRe
 
 @router.get("/workspaces/{workspace_id}/suggestions")
 def workspace_suggestions(workspace_id: str, request: Request, top_k: int = 10) -> Any:
+    denied = _deny(request, workspace_id, "viewer")
+    if denied:
+        return denied
     top_k = min(top_k, 50)
     try:
         from ..rag.active_learning import suggest_documents
@@ -299,6 +306,9 @@ def workspace_suggestions(workspace_id: str, request: Request, top_k: int = 10) 
 
 @router.get("/workspaces/{workspace_id}/ontology")
 def workspace_ontology(workspace_id: str, request: Request, top_n: int = 20) -> Any:
+    denied = _deny(request, workspace_id, "viewer")
+    if denied:
+        return denied
     top_n = min(top_n, 100)
     try:
         ontology = request.app.state.db.get_workspace_ontology(workspace_id, top_n=top_n)
