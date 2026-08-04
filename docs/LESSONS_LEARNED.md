@@ -448,6 +448,123 @@ applies to this project's own decisions, not only to an external auditor's.
 
 ---
 
+## 12. RBAC-1, and two defects that hid each other
+
+The session began as "check PRs and merge them" — five grouped Dependabot
+updates, all green, merged in an hour. Then "check where we are on the
+roadmap", which found `ROADMAP.md` three tickets behind `main`: BUG-1
+(#208), BUG-2 (#209) and MM-2 (#210) had all shipped without the roadmap
+moving in the same PR. #216 corrected it. The interesting part was not the
+drift but its shape — each of those three had shipped *differently* from how
+it was written, and none of the differences had been recorded. MM-2 used
+`deploy.resources.limits` rather than the proposed top-level `mem_limit`;
+BUG-1's real defect was on the write path (`insert_memory` never wrote
+`workspace_id` at all), not the read path the ticket described; BUG-2
+existed a second time in the aggregator path the ticket never mentioned.
+
+Then RBAC-1, blocked since it was written on three scope questions. Reading
+the code before asking them made two of the three moot: a workspace-scoped
+`viewer`/`editor`/`owner` tier **already existed** — table, mixin, member
+routes, `_ROLE_LEVELS`, and a correct enforcement dependency,
+`require_workspace_role_dep`, with **zero call sites**. The ticket proposed
+adding `viewer` as a third `users.role` plus a new `require_role_dep`, which
+would have produced two different roles named "viewer" at different tiers.
+Adopting the existing tier deleted most of the ticket.
+
+The dead dependency was not merely unused. The five workspace routes it was
+written for had grown their own checks, and those checks were wrong:
+`if role is not None and role != "owner"` — a non-member gets `role is None`,
+skips the branch, and proceeds. Two `/members` routes had no check at all,
+making `POST` an unauthenticated privilege grant: add yourself as `owner`,
+then pass every later owner check legitimately.
+
+Severity was initially ranked from reading the code, and that ranking was
+wrong. Probing the pre-fix routes directly gave a different answer: the two
+unguarded routes returned **200**, but the three fail-open routes returned
+**500** — `get_current_user_id(request)`, called directly rather than through
+`Depends`, hit `.credentials` on an unresolved `Depends` sentinel and raised
+before reaching the fail-open branch. The dangerous logic was real but
+unreachable, masked by a second bug; those three routes had simply never
+worked outside demo mode. Inspection produced a plausible story, execution
+produced the true one (#217).
+
+Why no test caught any of it: the entire suite runs with `state.testing =
+True`, which trips `_is_rbac_bypassed` and short-circuits every check. The
+routes had coverage. None of it reached authorisation.
+
+Enforcing membership then required a prerequisite the ticket never
+anticipated. `create_workspace` wrote no `workspace_members` row, the route
+did not either, and the auto-created `Default` workspace has none — so
+**nobody was a member of anything**. Enforcing membership as written would
+have locked every non-admin out of every workspace, including ones they had
+just created. #219 added creator-ownership and a backfill; #220 wired
+`check_workspace_access` into 33 routes.
+
+Then the part worth the chapter. The backfill was numbered from
+`file-map.md`, which listed migrations only up to `0011` and was already
+missing two that existed. The new file collided with `0012_hybrid_search_tsvector.py`.
+Starting the stack showed `alembic_version = 0013` and `workspace_members = 0
+rows`: the backfill had never run. The first explanation — that Alembic had
+silently resolved the duplicate id in favour of one file — was stated with
+more confidence than the evidence supported, and it was wrong.
+
+The actual behaviour only became visible after fixing something else.
+`migrations/env.py` called `fileConfig(alembic.ini)` without
+`disable_existing_loggers=False`; that parameter defaults to `True` and
+`alembic.ini` names only `root`, `sqlalchemy`, `alembic`. Every other logger —
+all of `src.*`, `uvicorn.access`, the request log — was switched off, on every
+boot, for the life of the process. The app kept serving and stopped saying
+anything. Adding the keyword surfaced, immediately, an error that had been
+raised and logged on every boot for days:
+
+```
+ERROR [src.app_bootstrap] Alembic migration failed
+alembic.script.revision.MultipleHeads: Multiple heads are present for given argument 'head'; 0012, 0013
+```
+
+Nothing had been silent except the logger. Two defects had been concealing
+each other: no migrations applied, and no evidence that none had.
+
+The fix was then declared complete a second time, prematurely. `fileConfig`
+damages logging in **two** ways, and `disable_existing_loggers=False` addresses
+only the first. It also rewrites the *root* logger: `alembic.ini` sets
+`[logger_root] level = WARN` and installs its own handler. Application loggers
+carry no handlers of their own, so they inherit that level — `ERROR` passes,
+`INFO` does not. That is why the post-#223 boot looked repaired: the
+`MultipleHeads` traceback appeared, and `Uvicorn running` appeared because
+uvicorn installs its own handlers, while `Alembic migrations applied` and
+`Documents in database` were still being dropped. The check that was run
+("did log lines come back?") returned true; the check that mattered ("did
+*this application's* `INFO` come back?") had not been run. #225 added
+`_preserve_root_logging()`, restoring root's level and handlers in a `finally`
+around the upgrade — the `finally` mattering on its own, since a migration that
+raises must not leave the process unable to log for the rest of its life.
+
+Three one-line fixes in the end (#222, #223, #225); the diagnosis was the
+entire cost. The premature all-clear is the more useful half of the story:
+a verification that checks a proxy for the thing ("some logs returned") rather
+than the thing itself is the same failure this chapter is about, committed
+while documenting it. Along the way
+two other hypotheses — a hung migration, then stdout buffering — were raised
+and killed by evidence (`PYTHONUNBUFFERED=1` was set, no query was blocked,
+one healthy process, zero restarts).
+
+A process lesson arrived alongside. The four RBAC PRs were stacked on each
+other's branches, and `tests.yml` triggers on `pull_request: branches: [main]`
+only — so all four reported *no required checks* while showing `MERGEABLE /
+CLEAN` for hours. Not a green build: the absence of one. Merging the base with
+`--delete-branch` then auto-**closed** the PR pointing at it, because GitHub
+closes rather than retargets. Both are now written into `CLAUDE.md`.
+
+The through-line is one claim in three costumes: *an absent signal reads
+exactly like a negative one*. A test that never runs its check, a PR whose CI
+never fires, and an error whose logger is disabled all present as "fine". The
+only reliable counter is to make the system produce the signal in front of you
+— probe the route, run the migration, read the check list — rather than
+reasoning about what it would produce.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents
@@ -536,3 +653,9 @@ guard are marked as such honestly.
 | A limit hides what it suppresses (Ch. 11) | Grouping freed nine of ten PR slots, surfacing a `thinc` major bump behind CUDA noise | `tests.yml` reports full version drift on every run, majors called out separately — visibility no longer depends on a PR existing. `minor`/`patch` are grouped so the limit stops binding |
 | Merges are not gated on CI (Ch. 11) | Every merge that day was verified by hand before merging | Ruleset requires `unit-tests`, `integration-tests`, `repo-hygiene` on the default branch. Auto-merge stays off deliberately — the gate proves the tests ran, a human still decides |
 | A rationale has a shelf life (Ch. 11) | The lock file's justification was false within days of being written, while the file still looked reasonable | Asking why an artifact exists is a periodic check, not a one-off; `CLAUDE.md` records the *reason* a rule exists so a stale one is recognisable |
+| An absent signal reads as a negative one (Ch. 12) | A disabled logger, a PR whose CI never fired, and a suite that bypassed every auth check all presented as "fine" | `migrations/env.py` keeps its loggers and `_preserve_root_logging()` keeps root's level (both pinned by tests); `CLAUDE.md` records that a non-`main` PR runs no CI. The general case has no automated guard — the standing rule is to make the system emit the signal, not to reason about what it would emit |
+| Verifying a proxy instead of the thing (Ch. 12) | The logging fix was called complete when *some* lines returned; the app's own INFO was still being dropped, and it took a second pass (#225) to notice | The verification has to name the specific line expected, not "logs are back". `TROUBLESHOOTING.md` splits the symptom into the two halves so the wrong one cannot be matched by accident |
+| Inspection yields a plausible story; execution yields the true one (Ch. 12) | BUG-3 severity was mis-ranked from reading code — probing showed 200s where 500s were assumed, and vice versa; the migration looked correct and had never run | `docs/MIGRATIONS.md` now requires `alembic heads` / `upgrade` / `current` against a real database before trusting a new revision. No CI job runs migrations, so this stays manual and explicit |
+| A stale index becomes an authority (Ch. 12) | A migration was numbered from `file-map.md` while that table was missing two existing migrations, producing a duplicate revision id | `MIGRATIONS.md` states the directory is the only authority for revision numbers; `file-map.md` is a convenience index and is documented as such |
+| Coverage without authorisation (Ch. 12) | Every route test ran with `state.testing = True`, tripping the RBAC bypass — the checks were executed by nothing | New auth tests run with the bypass **off**; RBAC-2 must verify each route has a check *and* a test that exercises it unbypassed |
+| A dead abstraction is worse than none (Ch. 12) | `require_workspace_role_dep` was correct and had zero call sites while the routes it was written for ran their own fail-open checks | The dependency is now the single mechanism behind `check_workspace_access`, used by all 33 workspace-scoped routes — no parallel implementation to drift from |

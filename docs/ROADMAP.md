@@ -616,7 +616,7 @@ Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` v
 
 ---
 
-### BUG-3 — Workspace member routes had no authorisation ⬜
+### BUG-3 — Workspace member routes had no authorisation ✅ (done, merged #217)
 
 **Found 2026-08-04** while confirming RBAC-1's scope. Five workspace routes were reachable without membership. Confirmed by probing the pre-fix code directly, not by inspection alone:
 
@@ -650,8 +650,8 @@ Two distinct defects, and the second masked the first:
 | 3 | CW-2a + CW-2b (conversations, users) ✅ done & merged (#124) | — |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) ✅ done & merged (#126) | — |
 | 5 | BUG-1 + BUG-2 (memory workspace scoping, web citation loss) ✅ done & merged (#208, #209) | — |
-| 5b | **BUG-3** (workspace member routes had no authorisation) — pulled forward 2026-08-04 | 1 day |
-| 6 | **RBAC-1 (enforce the workspace role tier)** — scope confirmed, ticket rewritten 2026-08-04 | 1 week |
+| 5b | BUG-3 (workspace member routes had no authorisation) ✅ done & merged (#217) | — |
+| 6 | RBAC-1 (enforce the workspace role tier) — backend ✅ merged (#221, #219, #220; fixes #222, #223). **UI half + `DELETE /documents/{id}` decision still open** | ~2 days left |
 | 6b | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
@@ -666,6 +666,7 @@ Two distinct defects, and the second masked the first:
 > **Sprint 3 complete:** CW-2a + CW-2b (conversations and users soft-delete, #124). **Sprint 4 complete:** CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors soft-delete, #126).
 > **Also merged post-Sprint-7 (unplanned fixes):** model-management CPU memory budget + loaded-state fix (#146), cross-encoder reranker startup warm-up (#147).
 > **Sprint 5 complete (2026-08-02):** BUG-1 (#208) and BUG-2 (#209). **MM-2 complete (2026-08-03, #210)** — its container-limits half, the part still open when MM-1 shipped.
+> **Sprint 6 (RBAC-1) — backend complete 2026-08-04.** Shipped as #217 (BUG-3), #221 (ticket rewrite), #219 (creator-ownership + backfill `0014`) and #220 (enforcement wired into 33 routes across 6 routers). Two follow-up fixes were needed after the first real `docker compose up`: #222 renumbered the backfill off a duplicate revision id, and #223 stopped Alembic's `fileConfig` disabling every application logger — the second had been discarding the first's error on every boot. See LESSONS_LEARNED Ch. 12. **Still open:** the UI half (viewers see controls that 403; needs an endpoint exposing the caller's workspace role), the `DELETE /api/documents/{id}` admin-vs-editor decision, and RBAC-2's full-surface audit.
 > **Sprint 5b (2026-08-04):** BUG-3, found while confirming RBAC-1's scope — two workspace member routes had no authorisation check at all. Same precedent as Sprint 5: a confirmed defect does not queue behind a design question it has no dependency on. Also the same lesson as MM-2, one layer down — `require_workspace_role_dep` had been written, was correct, and had zero call sites, so the mechanism existed while the routes it was written for kept their own broken checks.
 > **Sprint 6 (RBAC-1) — ungated 2026-08-04 and rewritten.** The three scope questions that had blocked this ticket since it was written are answered: adopt the existing workspace tier rather than adding a global `viewer`; membership is the document boundary; viewers may export (that last one an assumption, flagged in the ticket). Answering them shrank the ticket — the global role, `require_role_dep`, and the JWT-claim change are all gone — and surfaced a blocking prerequisite the original never anticipated: `create_workspace` writes no membership row, so enforcing membership today would lock every non-admin out of every workspace. That must land first.
 > **Re-evaluated 2026-08-01 — bugs first.** BUG-1 and BUG-2 were sitting in Sprint 6 behind RBAC-1, which has been blocked on scope confirmation since it was written. Two confirmed defects were therefore queued behind an unanswered question they have no dependency on: BUG-1 leaked one workspace's memories into another's answers, and BUG-2 served web-grounded content with no attribution. Both were self-contained and neither needed a design decision, so neither had a reason to wait. They became Sprint 5; RBAC-1 moved to Sprint 6 and keeps its gate.
