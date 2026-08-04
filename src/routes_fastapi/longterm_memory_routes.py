@@ -11,6 +11,7 @@ from .. import config
 from ..security_fastapi import get_current_user_id
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
+from ._authz import deny as _deny
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -20,6 +21,9 @@ _ERR_INTERNAL = "Internal server error"
 
 @router.get("/")
 def list_memories(request: Request, limit: int = 100, offset: int = 0) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     limit = min(limit, 500)
     offset = max(offset, 0)
     try:
@@ -34,6 +38,9 @@ def list_memories(request: Request, limit: int = 100, offset: int = 0) -> Any:
 
 @router.post("/extract")
 async def extract_memories(request: Request) -> Any:
+    denied = _deny(request, None, "editor")
+    if denied:
+        return denied
     body = await request.json() if await request.body() else {}
     limit = min(int(body.get("limit", 10)), 50)
     app = request.app
@@ -80,6 +87,9 @@ async def extract_memories(request: Request) -> Any:
 
 @router.delete("/{memory_id}")
 def delete_memory(memory_id: str, request: Request) -> Any:
+    denied = _deny(request, None, "editor")
+    if denied:
+        return denied
     actor = get_current_user_id(request)
     deleted_by = actor if actor and actor != "anonymous" else None
     try:
@@ -94,6 +104,9 @@ def delete_memory(memory_id: str, request: Request) -> Any:
 
 @router.delete("/")
 def delete_all_memories(request: Request) -> Any:
+    denied = _deny(request, None, "editor")
+    if denied:
+        return denied
     actor = get_current_user_id(request)
     deleted_by = actor if actor and actor != "anonymous" else None
     try:

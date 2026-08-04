@@ -299,7 +299,9 @@ So enforcing membership across the route surface — which is precisely what thi
 ---
 
 **Implementation:**
-- Wire `check_workspace_access` (or `require_workspace_role_dep` where the route has no path `workspace_id`) into every workspace-scoped route, at the minimum role from the matrix above.
+- ✅ Wire `check_workspace_access` into every workspace-scoped route at the matrix role — done, 33 routes across 6 routers via the shared `routes_fastapi/_authz.deny()` helper. Header-scoped routes (documents, conversations, chat, annotations) pass `workspace_id=None`; scope resolves through `get_workspace_id` and **falls back to the default workspace** when the client sends no `X-Workspace-ID`. That fallback is deliberate: the header is optional and the frontend omits it until `localStorage` holds an active workspace, so erroring instead would break every fresh browser session.
+
+> **One conflict left open on purpose.** The matrix says `editor` may soft-delete a document, but `DELETE /api/documents/{id}` currently requires **admin** (`require_admin_dep`). Implementing the matrix there would *loosen* an existing restriction rather than tighten it, so it was left as-is: every other change in this pass adds a check where there was none. Decide deliberately whether document deletion should drop from admin to editor — it is a product decision, not a wiring detail. Same question applies to `DELETE /api/conversations/{id}/purge`, though there the matrix and code agree (purge stays admin).
 - **Mind the binding trap:** a dependency that declares its own `workspace_id` parameter has it bound as a *query* parameter, so a route with `workspace_id` in its **path** must pass the value explicitly. BUG-3 documents this; it is the reason `check_workspace_access` takes the id as an argument.
 - ~~Fix `create_workspace` to assign creator-ownership; add the backfill migration.~~ ✅ done — see the prerequisite above.
 - Delete any remaining ad-hoc role comparisons so there is one mechanism.

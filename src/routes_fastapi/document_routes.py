@@ -22,6 +22,7 @@ from ..utils.logging_config import get_logger
 from ..utils.logging_config import sanitize_log_value as _slv
 from ..utils.sanitization import sanitize_filename, validate_path
 from ..utils.workspace import get_workspace_id
+from ._authz import deny as _deny
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -135,6 +136,9 @@ async def _generate_upload_sse(
 
 @router.post("/upload")
 async def api_upload_documents(request: Request) -> Any:
+    denied = _deny(request, None, "editor")
+    if denied:
+        return denied
     form = await request.form()
     uploaded_files = form.getlist("files")
     if not uploaded_files:
@@ -159,6 +163,9 @@ async def api_upload_documents(request: Request) -> Any:
 
 @router.get("/list")
 def api_list_documents(request: Request) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     try:
         documents = request.app.state.db.get_all_documents(workspace_id=get_workspace_id(request))
         return {"success": True, "documents": documents}
@@ -172,6 +179,9 @@ def api_list_documents(request: Request) -> Any:
 
 @router.get("/stats")
 def api_document_stats(request: Request) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     workspace_id = get_workspace_id(request)
     try:
         db = request.app.state.db
@@ -192,6 +202,9 @@ def api_document_stats(request: Request) -> Any:
 
 @router.post("/test")
 async def api_test_retrieval(request: Request) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
     query = data.get("query", "").strip()
     if not query:
@@ -229,6 +242,9 @@ async def api_test_retrieval(request: Request) -> Any:
 
 @router.post("/search-text")
 async def api_search_text(request: Request) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
     search_text = data.get("search_text", "").strip()
     limit = data.get("limit", 10)
@@ -244,6 +260,9 @@ async def api_search_text(request: Request) -> Any:
 
 @router.get("/chunks/{chunk_id}/context")
 def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     window = min(window, 5)
     try:
         db = request.app.state.db
@@ -266,6 +285,9 @@ def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> A
 
 @router.delete("/clear")
 def api_clear_documents(request: Request) -> Any:
+    denied = _deny(request, None, "editor")
+    if denied:
+        return denied
     try:
         logger.warning("Clearing all documents from database")
         request.app.state.db.delete_all_documents()

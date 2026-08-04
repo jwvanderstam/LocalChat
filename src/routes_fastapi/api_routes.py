@@ -13,6 +13,7 @@ from .. import config, exceptions
 from ..services import chat
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
+from ._authz import deny as _deny
 
 try:
     from pydantic import ValidationError as PydanticValidationError
@@ -248,6 +249,9 @@ def api_status(request: Request) -> Any:
 
 @router.post("/chat")
 async def api_chat(request: Request) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     try:
         body = await request.body()
         if not body:

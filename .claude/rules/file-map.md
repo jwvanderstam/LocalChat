@@ -35,6 +35,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
 | `src/routes_fastapi/_request_state.py` | Per-request state helpers (request ID, workspace ID) |
+| `src/routes_fastapi/_authz.py` | `deny()` — wraps `check_workspace_access` in the route layer's JSON envelope; shared by every workspace-scoped router |
 | **RAG** | |
 | `src/rag/processor.py` | Ingest orchestration: load → chunk → embed → store |
 | `src/rag/retrieval.py` | Hybrid search — independent semantic (pgvector) + lexical (Postgres tsvector/GIN) arms, weighted blend; `retrieve_context(filename_filter=)` |

@@ -32,6 +32,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import config
 from .utils.logging_config import get_logger
+from .utils.workspace import get_workspace_id
 
 logger = get_logger(__name__)
 
@@ -229,6 +230,9 @@ def check_workspace_access(
     route with ``workspace_id`` as a *path* parameter can pass that value explicitly.
     That matters: a dependency declaring its own ``workspace_id`` would have it bound
     as a query parameter, silently authorising against the wrong workspace.
+
+    Pass ``workspace_id=None`` for a header-scoped route; scope then resolves via
+    ``get_workspace_id`` and falls back to the default workspace.
     """
     if _is_rbac_bypassed(request):
         return None
@@ -237,12 +241,18 @@ def check_workspace_access(
         return (status.HTTP_401_UNAUTHORIZED, _ERR_AUTH_REQUIRED)
     if claims.get("role") == "admin":
         return None
-    ws_id = workspace_id or request.headers.get("X-Workspace-ID")
-    if not ws_id:
-        return (status.HTTP_400_BAD_REQUEST, "No workspace context")
+    ws_id = workspace_id or get_workspace_id(request)
     db = getattr(request.app.state, "db", None)
     if db is None or not db.is_connected:
         return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+    if not ws_id:
+        # X-Workspace-ID is optional and the frontend omits it until localStorage
+        # holds an active workspace, so a fresh session sends none. Falling back to
+        # the default workspace keeps those requests working exactly as they did
+        # before this check existed; erroring here would break them on first load.
+        ws_id = db.get_default_workspace_id()
+    if not ws_id:
+        return (status.HTTP_400_BAD_REQUEST, "No workspace context")
     role = db.get_workspace_member_role(ws_id, claims.get("sub"))
     # A non-member gets None here. Denying is the whole point: treating None as
     # "no role to object to" is what let non-members through (BUG-3).
