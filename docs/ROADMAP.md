@@ -235,58 +235,91 @@ Once soft-delete is in place everywhere, a single `audit_log` table can record a
 
 ## Initiative 3 — Role-Based Access Control
 
-The current system has two application-level roles: `admin` and `user`. A `viewer` role is needed for read-only access — consumers of the knowledge base who should not be able to modify it.
+LocalChat has **two** role tiers, and the distinction is the whole initiative:
+
+| Tier | Column | Vocabulary | Answers | Enforced by |
+|---|---|---|---|---|
+| Global | `users.role` | `admin`, `user` | "what may you do to the system?" | `require_admin_dep` — 23 call sites |
+| Per-workspace | `workspace_members.role` | `viewer`, `editor`, `owner` | "what may you do *in this workspace*?" | `check_workspace_access` — 5 call sites (BUG-3) |
+
+Read-only access is a **workspace** concern, so it is the workspace tier that needs enforcing. The global tier stays `admin`/`user` and is not extended.
 
 ---
 
-### RBAC-1 — Viewer role definition and enforcement
+### RBAC-1 — Enforce the workspace role tier
 
-**Proposed role matrix** *(scope to be confirmed before implementation)*
+> **Rewritten 2026-08-04.** The original ticket proposed adding `viewer` as a third `users.role` plus a new `require_role_dep`. That is superseded: a workspace-scoped `viewer`/`editor`/`owner` tier already exists — table, DB mixin, member-management routes, `_ROLE_LEVELS` hierarchy, and a correct enforcement dependency. Building a global `viewer` alongside it would have created two different roles with the same name at different tiers. This ticket adopts what exists instead of duplicating it. The original text is in git history at `961d0bd`.
 
-| Capability | admin | user | viewer |
+**Scope decisions (confirmed 2026-08-04):**
+
+1. **Adopt the workspace tier.** No global `viewer`; `users.role` stays `admin`/`user`. RBAC-1 wires the existing mechanism into routes rather than inventing a parallel one.
+2. **A viewer sees every document in workspaces they belong to.** Membership is the boundary. No per-document ACL, no sharing concept — retrieval already filters on `workspace_id` alone, and adding an ACL check inside the hot RAG query is not warranted.
+3. **A viewer may export conversations they participated in.** *(Assumption, not yet confirmed — flip this one row if wrong.)* Export reformats content the viewer can already read on screen, so blocking it restricts the format rather than the access. **Re-review trigger:** if a workspace is ever shared with someone outside the organisation — an external client, an auditor — revisit whether export is a capability separate from read.
+
+**Permission matrix — workspace tier**
+
+Global `admin` short-circuits all of these, as it already does in `check_workspace_access`.
+
+| Capability | owner | editor | viewer |
 |---|---|---|---|
-| Chat / query the knowledge base | ✓ | ✓ | ✓ |
-| View document list | ✓ | ✓ | ✓ |
+| Chat / query the workspace | ✓ | ✓ | ✓ |
+| View document list and all workspace documents | ✓ | ✓ | ✓ |
 | View own conversation history | ✓ | ✓ | ✓ |
+| Export own conversations | ✓ | ✓ | ✓ |
+| List workspace members | ✓ | ✓ | ✓ |
 | Upload documents | ✓ | ✓ | — |
-| Delete (soft) own documents | ✓ | ✓ | — |
+| Delete (soft) documents | ✓ | ✓ | — |
 | Manage own conversations | ✓ | ✓ | — |
-| Change own password | ✓ | ✓ | — |
-| Create / manage workspaces | ✓ | ✓ | — |
-| View system settings | ✓ | — | — |
-| Change RAG parameters | ✓ | — | — |
-| User management | ✓ | — | — |
-| Purge (hard-delete) any CDI | ✓ | — | — |
-| Trigger reranker training | ✓ | — | — |
+| Annotate chunks | ✓ | ✓ | — |
+| Edit workspace settings / system prompt | ✓ | — | — |
+| Add / remove / re-role members | ✓ | — | — |
+| Delete the workspace | ✓ | — | — |
+| Contribute to the GKB (GKB-2) | ✓ | — | — |
 
-**Key design decisions to confirm:**
-- Can a viewer see *all* documents in a workspace, or only documents uploaded by others that are explicitly shared?
-- Can a viewer export conversations they participated in?
-- Is the viewer role workspace-scoped (a user can be a viewer in workspace A and a user in workspace B) or global?
+Global-tier capabilities are unchanged and remain `admin`-only: system settings, RAG parameters, user management, purge of any CDI, reranker training.
+
+---
+
+**Blocking prerequisite — today nobody is a member of anything.**
+
+Verified 2026-08-04: `create_workspace` (`src/db/workspaces.py:30`) inserts into `workspaces` and returns; it never writes a `workspace_members` row, and the route (`workspace_routes.py:67`) does not either. The auto-created `Default` workspace (`src/db/connection.py:473`) has no members by construction. `add_workspace_member` is reachable only through the member routes.
+
+So enforcing membership across the route surface — which is precisely what this ticket does — **locks every non-admin user out of every workspace**. This is not a backfill footnote; it is a code defect that must land first or in the same change:
+
+- `create_workspace` must record its creator as `owner`. Needs the caller's identity threaded into the route, which currently does not resolve it at all.
+- Existing workspaces and users need a backfill: decide per workspace who becomes `owner`, and whether all existing users get `editor` or `viewer` on `Default`.
+- **Clark-Wilson interaction:** `purge_user` (`src/db/users.py:191`) refuses to purge any user holding a membership row. A blanket backfill therefore makes every user unpurgeable until their memberships are removed. Decide deliberately whether that is the intended precondition or whether purge should ignore membership.
+
+---
 
 **Implementation:**
-- Add `"viewer"` as valid role value in `src/db/users.py` `create_user` and `update_user`
-- Add `require_role_dep(min_role: Literal["viewer", "user", "admin"])` to `src/security_fastapi.py`
-- Audit every route handler and replace `require_admin_dep` / open access with the appropriate `require_role_dep` call
-- Update `POST /api/users` validation: accept `"viewer"` in addition to `"admin"` and `"user"`
-- Update JWT claims: `role` claim carries the user's global role
-- UI: hide upload, delete, and settings controls for viewer-role sessions
+- Wire `check_workspace_access` (or `require_workspace_role_dep` where the route has no path `workspace_id`) into every workspace-scoped route, at the minimum role from the matrix above.
+- **Mind the binding trap:** a dependency that declares its own `workspace_id` parameter has it bound as a *query* parameter, so a route with `workspace_id` in its **path** must pass the value explicitly. BUG-3 documents this; it is the reason `check_workspace_access` takes the id as an argument.
+- Fix `create_workspace` to assign creator-ownership; add the backfill migration.
+- Delete any remaining ad-hoc role comparisons so there is one mechanism.
+- UI: hide upload, delete, annotate, and workspace-settings controls for a `viewer` session; the member list stays visible.
 
-> **Note for the plugin contract:** `require_role_dep` is the mechanism behind the `identity` service that plugins consume (`require_role(min_role)`). RBAC-1 builds it for core routes; the plugin contract (PC-1) exposes it as a service. Plugins never read JWT claims directly.
+> **Note for the plugin contract:** the `identity` service that plugins consume (`require_role(min_role)`, `.claude/rules/plugins.md`) is backed by the **workspace** dependency, not a global one — a plugin declaring `PLUGIN_MIN_ROLE = "viewer"` means viewer *in the active workspace*. PC-1 exposes it as a service; plugins never read JWT claims directly.
 
-**Files:** `src/security_fastapi.py`, `src/db/users.py`, `src/routes_fastapi/auth_routes.py`, all route modules, `static/js/`
+**Files:** `src/security_fastapi.py`, `src/db/workspaces.py`, `src/routes_fastapi/*.py`, a backfill migration under `migrations/versions/`, `static/js/`
 
 **Tests required:**
-- Unit: `require_role_dep("user")` rejects viewer token
-- Unit: `require_role_dep("viewer")` accepts viewer, user, and admin tokens
-- Integration: viewer can call `GET /api/chat` but receives 403 on `POST /api/documents/upload`
-- Integration: admin can promote a user to viewer and back
+- Unit: each workspace-scoped route rejects a caller below its matrix role, and accepts at or above it
+- Unit: `create_workspace` records the creator as `owner`
+- Unit: global `admin` passes every workspace check without a membership row
+- Unit: a viewer may export a conversation; an editor may upload; a viewer may not
+- Integration: a freshly created workspace is immediately usable by its creator — the regression that the missing membership row would cause
+- Migration: backfill produces exactly one `owner` per existing workspace
+
+**Out of scope:** the global tier (`users.role` gains no values); per-document ACLs; the full route-surface audit (that is RBAC-2).
 
 ---
 
 ### RBAC-2 — Route permission audit
 
-A systematic pass over every route to assign the correct minimum role. This is separate from RBAC-1 (which adds the mechanism) — this ticket applies it consistently and documents the result in a permission matrix in `docs/`.
+A systematic pass over every route — not just workspace-scoped ones — to assign the correct minimum role at the correct tier, and to document the result as a permission matrix in `docs/`.
+
+Two inputs from BUG-3 that this ticket exists to generalise: routes had *coverage* without having *authorisation* (the whole suite runs with the RBAC bypass on, so tests passed through checks that never ran), and a correct enforcement dependency sat with zero call sites while the routes it was written for kept their own broken checks. The audit must therefore check that each route has a check **and** that a test exercises it with the bypass off.
 
 ---
 
@@ -457,7 +490,7 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 
 **What it builds:** the inward-facing capability surface plugins request by name.
 
-- A `PluginServices` provider assembled at startup, exposing handles: `retrieval` (wraps `retrieve_context` incl. `scope`), `llm` (wraps `OllamaClient`), `storage` (namespaced DB handle + optional Clark-Wilson helpers), `config` (validated access to declared keys), `identity` (wraps `require_role_dep`).
+- A `PluginServices` provider assembled at startup, exposing handles: `retrieval` (wraps `retrieve_context` incl. `scope`), `llm` (wraps `OllamaClient`), `storage` (namespaced DB handle + optional Clark-Wilson helpers), `config` (validated access to declared keys), `identity` (wraps the workspace-tier check — `check_workspace_access` / `require_workspace_role_dep`; there is no global `require_role_dep`, see RBAC-1).
 - Manifest reading in `src/tools/plugin_loader.py`: parse `PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_CONTRIBUTES`, `PLUGIN_HOOKS`, `PLUGIN_CONFIG`; validate; register config keys; inject service handles.
 - A malformed/failing manifest disables that plugin and logs; startup proceeds.
 
@@ -610,7 +643,7 @@ Two distinct defects, and the second masked the first:
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) ✅ done & merged (#126) | — |
 | 5 | BUG-1 + BUG-2 (memory workspace scoping, web citation loss) ✅ done & merged (#208, #209) | — |
 | 5b | **BUG-3** (workspace member routes had no authorisation) — pulled forward 2026-08-04 | 1 day |
-| 6 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
+| 6 | **RBAC-1 (enforce the workspace role tier)** — scope confirmed, ticket rewritten 2026-08-04 | 1 week |
 | 6b | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
@@ -626,10 +659,10 @@ Two distinct defects, and the second masked the first:
 > **Also merged post-Sprint-7 (unplanned fixes):** model-management CPU memory budget + loaded-state fix (#146), cross-encoder reranker startup warm-up (#147).
 > **Sprint 5 complete (2026-08-02):** BUG-1 (#208) and BUG-2 (#209). **MM-2 complete (2026-08-03, #210)** — its container-limits half, the part still open when MM-1 shipped.
 > **Sprint 5b (2026-08-04):** BUG-3, found while confirming RBAC-1's scope — two workspace member routes had no authorisation check at all. Same precedent as Sprint 5: a confirmed defect does not queue behind a design question it has no dependency on. Also the same lesson as MM-2, one layer down — `require_workspace_role_dep` had been written, was correct, and had zero call sites, so the mechanism existed while the routes it was written for kept their own broken checks.
-> **Active: Sprint 6 (RBAC-1) — and it is gated, not started.** The three scope questions in the RBAC-1 ticket ("Key design decisions to confirm") have been open since the ticket was written and still are. Nothing downstream moves until they are answered: RBAC-1 builds `require_role_dep`, which PC-1 exposes as the `identity` service and PR-1 depends on, and the depth-sprint declaration blocks new-feature work behind it. **GKB-1 is the only unblocked workstream** if the questions stay open.
+> **Sprint 6 (RBAC-1) — ungated 2026-08-04 and rewritten.** The three scope questions that had blocked this ticket since it was written are answered: adopt the existing workspace tier rather than adding a global `viewer`; membership is the document boundary; viewers may export (that last one an assumption, flagged in the ticket). Answering them shrank the ticket — the global role, `require_role_dep`, and the JWT-claim change are all gone — and surfaced a blocking prerequisite the original never anticipated: `create_workspace` writes no membership row, so enforcing membership today would lock every non-admin out of every workspace. That must land first.
 > **Re-evaluated 2026-08-01 — bugs first.** BUG-1 and BUG-2 were sitting in Sprint 6 behind RBAC-1, which has been blocked on scope confirmation since it was written. Two confirmed defects were therefore queued behind an unanswered question they have no dependency on: BUG-1 leaked one workspace's memories into another's answers, and BUG-2 served web-grounded content with no attribution. Both were self-contained and neither needed a design decision, so neither had a reason to wait. They became Sprint 5; RBAC-1 moved to Sprint 6 and keeps its gate.
 > **Sprint 6 additions (2026-07-27):** BUG-1 and BUG-2 were originally added here — both found and confirmed during Discord bridge integration testing; see Initiative 8.
-> **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 (viewer role) are end-to-end solid with full test coverage. Sprints 3–4 are now done; RBAC-1 (now Sprint 6) remains the gate before new-feature work resumes. Bug fixes are not new-feature work and do not wait on that gate — which is exactly why they moved ahead of it.
+> **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 are end-to-end solid with full test coverage. Sprints 3–4 are now done; RBAC-1 (now Sprint 6) remains the gate before new-feature work resumes. Bug fixes are not new-feature work and do not wait on that gate — which is exactly why BUG-1, BUG-2 and BUG-3 all moved ahead of it.
 > **MM-2 closed 2026-08-03 (#210), having never been in this table.** It had no sprint and never did, so it went unscheduled from the moment MM-1 shipped and was only caught by an audit of this document — it shipped despite the plan, not because of it. Both halves are now done (Ollama lifecycle in `d548f4d`, container `mem_limit`/`cpus` in `#210`); it is recorded against Sprint 7 above so it stops being invisible. The lesson is about this file, not the ticket: an item present in the initiatives but absent from the sprint table has no scheduled moment when anyone looks at it.
 > **Unplanned work merged 2026-07-30/31 (not a sprint):** dependency-pipeline repair — grouped Dependabot updates, `requirements.lock.txt` removed, CI-required status checks on `main`, dependency-drift reporting. See LESSONS_LEARNED Ch. 11.
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
