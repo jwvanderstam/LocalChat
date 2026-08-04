@@ -71,11 +71,13 @@ async def create_workspace(request: Request) -> Any:
         return JSONResponse({"success": False, "message": "name is required"}, status_code=400)
     try:
         db = request.app.state.db
+        caller = get_current_user_id(request)
         workspace_id = db.create_workspace(
             name=name,
             description=data.get("description", ""),
             system_prompt=data.get("system_prompt", ""),
             model_class=data.get("model_class"),
+            owner_id=caller if caller and caller != "anonymous" else None,
         )
         workspace = db.get_workspace(workspace_id)
         return JSONResponse({"success": True, "workspace": workspace}, status_code=201)
