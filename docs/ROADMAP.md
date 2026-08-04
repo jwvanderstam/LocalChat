@@ -420,9 +420,11 @@ NVIDIA and Apple together validate the abstraction: they exercise both memory mo
 
 ---
 
-### MM-2 — Runtime resource isolation ◐ (half done, unscheduled)
+### MM-2 — Runtime resource isolation ✅ (done, merged #210)
 
-> **Status (2026-08-01):** the Ollama-lifecycle bullet is **done** — `d548f4d` set `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_KEEP_ALIVE`, both live in `docker-compose.yml` (the limit was subsequently raised from 1 to 2). The container-limits bullet is **not** done: the `deploy:` blocks in `docker-compose.yml` reserve GPU devices, they do not cap memory or CPU, so the starvation risk this ticket exists for is still open. MM-2 also appears in no sprint — it needs one, or an explicit deferral with a trigger like HK-10's.
+> **Status (2026-08-03):** both halves are now done. The Ollama-lifecycle bullet landed in `d548f4d` — `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_KEEP_ALIVE`, live in `docker-compose.yml` (the limit was subsequently raised from 1 to 2). The container-limits bullet landed in `#210`, though not via the `mem_limit`/`cpus` keys this ticket proposed: limits are set as `deploy.resources.limits.memory` + `cpus` on all nine services, each overridable per-environment (`DB_MEM_LIMIT`, `OLLAMA_CPU_LIMIT`, `APP_MEM_LIMIT`, …). That places them *inside* the existing `deploy:` blocks rather than beside them — Ollama's GPU `reservations.devices` and its new `limits` now sit in one block, which is why the ticket's "the `deploy:` blocks are reservations, not limits" framing no longer describes the file.
+>
+> Memory *reservations* were tried and reverted within the PR (`13f037f`). `reservations.memory` maps to Docker's `--memory-reservation`, a soft floor the kernel reclaims toward under pressure — setting it on PostgreSQL would have made it a *likelier* eviction victim, the opposite of the intent. Postgres is instead protected by bounding the services that would crowd it out. The reasoning is recorded inline in `docker-compose.yml` so it isn't re-litigated.
 
 MM-1 stops you selecting a model too large to *load*. MM-2 stops a *running* model from starving the rest of the stack. Distinct risk: an Ollama generation that consumes all memory can take down PostgreSQL or the ingestion worker on the same host. MM-1 is about fit-at-load; MM-2 is about isolation-at-runtime.
 
@@ -538,11 +540,11 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 
 Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` via n8n. Both confirmed by code inspection plus a live curl test against the running instance, not just symptom reports.
 
-**Scheduled as Sprint 5 (re-evaluated 2026-08-01).** Both were originally queued in Sprint 6 behind RBAC-1, a ticket blocked on an open scope question. Neither bug depends on that question, and both affect answers users are getting now — one silently crosses a workspace boundary, the other drops attribution. They run first.
+**Scheduled as Sprint 5 (re-evaluated 2026-08-01); both shipped 2026-08-02.** Both were originally queued in Sprint 6 behind RBAC-1, a ticket blocked on an open scope question. Neither bug depended on that question, and both affected answers users were getting then — one silently crossed a workspace boundary, the other dropped attribution. They ran first, and the re-evaluation was borne out: each turned out to have a second, undescribed half (see the outcome notes below) that would have kept growing behind an unrelated gate.
 
 ---
 
-### BUG-1 — Long-term memory is not scoped to workspace ⬜
+### BUG-1 — Long-term memory is not scoped to workspace ✅ (done, merged #208)
 
 **Confirmed:** `MemoryRetriever.retrieve()` (`src/memory/retriever.py`) takes no `workspace_id` parameter at all, and is called from `chat.py`'s `retrieve_plan_and_memory()` with no workspace argument. This is asymmetric with document RAG: `get_rag_context()` / `doc_processor.retrieve_context()` correctly filter by `workspace_id` (verified live — a curl call scoped to the "Localchat" workspace with the `X-Workspace-ID` header returned only Localchat-tagged document sources, correctly excluding "Default"-workspace docs on the same instance). Long-term memory has no equivalent filter, so it is effectively database-global regardless of which workspace a request is scoped to.
 
@@ -553,15 +555,23 @@ Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` v
 - Thread it through from `retrieve_plan_and_memory()` (needs its own new `workspace_id` param) up to the `api_chat` call site in `api_routes.py`, where `workspace_id` is already resolved via `get_workspace_id(request)`.
 - Check whether the `memories` table already has a `workspace_id` column; if not, this is a migration, not just a query change — follow the CW-2 soft-delete migration pattern for consistency.
 
+> **Outcome (#208):** the fix was larger than this ticket described, in a way worth recording. The roadmap framed BUG-1 as a *read*-path problem, but `insert_memory` never wrote `workspace_id` at all — the column has existed since migration `0003` and was always NULL. Adding the read filter alone would have "fixed" the leak by making every memory invisible, so both directions had to move together: the write path now records the workspace, `is_duplicate_memory` is scoped to it (unscoped, a memory in one workspace suppressed creating the same one in another — the write-side face of the same isolation failure), and `get_unextracted_conversations` returns it so an extracted memory inherits its conversation's workspace. `get_all_memories` needed the filter too; the management listing leaked the same rows.
+>
+> No migration was required — the column already existed and the instance holds zero memories (the feature is off by default), so nothing to backfill. Memories with no workspace stay invisible to a scoped query because `ANY(...)` never matches NULL, which follows from construction rather than an added clause. Unscoped callers still see everything, matching `documents.py`'s existing convention rather than inventing a stricter one. 22 new tests, 18 of which fail against the pre-fix code.
+
 ---
 
-### BUG-2 — Enhanced web search (DuckDuckGo) results never reach citations ⬜
+### BUG-2 — Enhanced web search (DuckDuckGo) results never reach citations ✅ (done, merged #209)
 
 **Confirmed:** `WebSearchProvider.search()` (`src/rag/web_search.py`) returns `WebSearchResult` objects carrying full `title` / `url` / `snippet` metadata. But `get_web_context()` (`src/services/chat.py`) discards that structure — it calls `format_web_context()` and returns only a formatted text blob for the LLM prompt. `retrieve_contexts()` populates the `sources` list solely from `get_rag_context()` (local documents); no equivalent source entries are ever created for web results.
 
 **Effect:** in "enhance" mode, the model's answer is genuinely grounded in fetched web content (the data does reach the prompt), but the citation/source list returned to the client never reflects the web sources used — content without attribution.
 
 **Fix:** extend `retrieve_contexts()` so that when `fields["enhance"]` is true, it appends web-derived entries (title, url) to `sources`, shaped closely enough to the existing local-doc source dicts that the frontend citation renderer can handle both without a special case.
+
+> **Outcome (#209):** done as described, plus a second occurrence this ticket missed. The same omission existed independently in the aggregator path — `ToolRouter._web_search()` hardcoded `"sources": []` on both its MCP and direct branches. Fixing only `retrieve_contexts()` would have left the bug reachable by turning `AGGREGATOR_AGENT_ENABLED` on. Telling detail: `AggregatorAgent._dedup_sources` already carried a branch for sources without a `chunk_id`, commented "(e.g. web results)" — the consumer had been written for data the producer never sent.
+>
+> Both call sites now share `to_source_dict()` in `src/rag/web_search.py`, placed next to `WebSearchResult` so neither consumer imports the other's internals. A web result is shaped like a document source: `filename` carries the title (url as fallback) so the existing grouping key works, and `chunk_id` is null so the panel doesn't offer a chunk-context link that only exists for ingested documents. `ui.js` renders a source carrying a url as a link, making a web citation verifiable rather than just named. 20 new tests (15 initially, 5 more after SonarCloud's new-code gate correctly caught that every existing test set `MCP_ENABLED=False`, leaving the MCP branch — the one parsing the structured `results` array — entirely uncovered).
 
 ---
 
@@ -574,10 +584,10 @@ Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` v
 | 2 | CW-1 (document soft-delete pilot) ✅ done & merged (#119) | — |
 | 3 | CW-2a + CW-2b (conversations, users) ✅ done & merged (#124) | — |
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) ✅ done & merged (#126) | — |
-| 5 | **BUG-1 + BUG-2** (memory workspace scoping, web citation loss) — pulled forward 2026-08-01 | 2–3 days |
-| 6 | RBAC-1 (viewer role) — pending scope confirmation | 1 week |
+| 5 | BUG-1 + BUG-2 (memory workspace scoping, web citation loss) ✅ done & merged (#208, #209) | — |
+| 6 | **RBAC-1 (viewer role) — pending scope confirmation** | 1 week |
 | 6b | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
-| 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) | — |
+| 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
@@ -589,11 +599,12 @@ Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` v
 > **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
 > **Sprint 3 complete:** CW-2a + CW-2b (conversations and users soft-delete, #124). **Sprint 4 complete:** CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors soft-delete, #126).
 > **Also merged post-Sprint-7 (unplanned fixes):** model-management CPU memory budget + loaded-state fix (#146), cross-encoder reranker startup warm-up (#147).
-> **Active:** Sprint 5 (BUG-1 + BUG-2).
-> **Re-evaluated 2026-08-01 — bugs first.** BUG-1 and BUG-2 were sitting in Sprint 6 behind RBAC-1, which has been blocked on scope confirmation since it was written. Two confirmed defects were therefore queued behind an unanswered question they have no dependency on: BUG-1 leaks one workspace's memories into another's answers, and BUG-2 serves web-grounded content with no attribution. Both are self-contained and neither needs a design decision, so neither has a reason to wait. They become Sprint 5; RBAC-1 moves to Sprint 6 and keeps its gate.
+> **Sprint 5 complete (2026-08-02):** BUG-1 (#208) and BUG-2 (#209). **MM-2 complete (2026-08-03, #210)** — its container-limits half, the part still open when MM-1 shipped.
+> **Active: Sprint 6 (RBAC-1) — and it is gated, not started.** The three scope questions in the RBAC-1 ticket ("Key design decisions to confirm") have been open since the ticket was written and still are. Nothing downstream moves until they are answered: RBAC-1 builds `require_role_dep`, which PC-1 exposes as the `identity` service and PR-1 depends on, and the depth-sprint declaration blocks new-feature work behind it. **GKB-1 is the only unblocked workstream** if the questions stay open.
+> **Re-evaluated 2026-08-01 — bugs first.** BUG-1 and BUG-2 were sitting in Sprint 6 behind RBAC-1, which has been blocked on scope confirmation since it was written. Two confirmed defects were therefore queued behind an unanswered question they have no dependency on: BUG-1 leaked one workspace's memories into another's answers, and BUG-2 served web-grounded content with no attribution. Both were self-contained and neither needed a design decision, so neither had a reason to wait. They became Sprint 5; RBAC-1 moved to Sprint 6 and keeps its gate.
 > **Sprint 6 additions (2026-07-27):** BUG-1 and BUG-2 were originally added here — both found and confirmed during Discord bridge integration testing; see Initiative 8.
 > **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 (viewer role) are end-to-end solid with full test coverage. Sprints 3–4 are now done; RBAC-1 (now Sprint 6) remains the gate before new-feature work resumes. Bug fixes are not new-feature work and do not wait on that gate — which is exactly why they moved ahead of it.
-> **MM-2 is not in this table.** It has no sprint and never did, so it has quietly not been scheduled since MM-1 shipped. It is also *partly done*: the Ollama-lifecycle half landed in `d548f4d` (2026-07-25) and is live in `docker-compose.yml` (`OLLAMA_MAX_LOADED_MODELS`, `OLLAMA_KEEP_ALIVE`), while the container `mem_limit`/`cpus` half is still open — the existing `deploy:` blocks are GPU device reservations, not resource limits. Needs a sprint or an explicit deferral; see its ticket.
+> **MM-2 closed 2026-08-03 (#210), having never been in this table.** It had no sprint and never did, so it went unscheduled from the moment MM-1 shipped and was only caught by an audit of this document — it shipped despite the plan, not because of it. Both halves are now done (Ollama lifecycle in `d548f4d`, container `mem_limit`/`cpus` in `#210`); it is recorded against Sprint 7 above so it stops being invisible. The lesson is about this file, not the ticket: an item present in the initiatives but absent from the sprint table has no scheduled moment when anyone looks at it.
 > **Unplanned work merged 2026-07-30/31 (not a sprint):** dependency-pipeline repair — grouped Dependabot updates, `requirements.lock.txt` removed, CI-required status checks on `main`, dependency-drift reporting. See LESSONS_LEARNED Ch. 11.
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
