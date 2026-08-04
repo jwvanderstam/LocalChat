@@ -4,13 +4,37 @@ Call bootstrap_app(app) after create_app() in production. Never call from tests.
 Every function here performs network or filesystem I/O (Ollama, DB, Redis, plugins, connectors).
 """
 
+import contextlib
+import logging
 import threading
+from collections.abc import Iterator
 from typing import Any
 
 from . import config
 from .utils.logging_config import get_logger, setup_logging
 
 logger = get_logger(__name__)
+
+
+@contextlib.contextmanager
+def _preserve_root_logging() -> Iterator[None]:
+    """Restore the root logger's level and handlers around an Alembic run.
+
+    ``migrations/env.py`` calls ``fileConfig(alembic.ini)``, which rewrites the root
+    logger even with ``disable_existing_loggers=False``: alembic.ini sets
+    ``[logger_root] level = WARN`` and swaps in its own console handler. Application
+    loggers carry no handlers of their own and inherit that level, so every INFO line
+    after migrations was dropped — including this module's own "migrations applied".
+    ERROR still got through, which is why the failure mode looked like partial
+    logging rather than none.
+    """
+    root = logging.getLogger()
+    level, handlers = root.level, root.handlers[:]
+    try:
+        yield
+    finally:
+        root.setLevel(level)
+        root.handlers[:] = handlers
 
 
 def _run_alembic_migrations() -> None:
@@ -30,7 +54,8 @@ def _run_alembic_migrations() -> None:
 
     try:
         cfg = alembic_config.Config(str(ini_path))
-        alembic.command.upgrade(cfg, "head")
+        with _preserve_root_logging():
+            alembic.command.upgrade(cfg, "head")
         logger.info("Alembic migrations applied (or already at head)")
     except Exception:
         logger.exception("Alembic migration failed")
