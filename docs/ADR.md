@@ -34,10 +34,12 @@ Redis-mandatory shared state, a distributed lock for migrations and the sync wor
 cross-process metrics aggregator. That is months of work this deployment does not need.
 
 **Consequences to execute:**
-- The Helm chart is either downgraded to "single-replica only, experimental" in its README
-  or deleted in favour of docker-compose. Decided in PG-1; **deletion is the default**
-  unless a concrete Kubernetes deployment exists.
-- `README.md` stops claiming "production-ready" until the PG Exit Criteria pass.
+- ✅ **Helm chart deleted** (2026-08-05). Confirmed with the owner that no concrete Kubernetes
+  deployment exists, so the stated default applied: 19 files, 755 lines removed, and
+  `DEPLOYMENT.md` rewritten for Docker Compose. Restoration is a `git revert` — but
+  reinstating the chart means superseding this ADR first, not just restoring files.
+- ✅ **`README.md` now reads "production-patterned"**, with the scope (≤ 25 users, single node)
+  and the exit criteria named inline, so the claim and the code match.
 - The README and the wiki must describe the *same* product. They currently do not: the wiki
   says "learning journey / reference implementation", the README says "production-ready".
   Two claims means two obligation levels, and the lower one is the honest one today.

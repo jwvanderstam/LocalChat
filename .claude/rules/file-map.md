@@ -141,8 +141,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Infra / Config** | |
 | `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
-| `helm/localchat/` | Full Helm chart: app + PostgreSQL + Redis StatefulSets + MCP Deployments; `templates/` includes `hpa.yaml`, `ingress.yaml`, and per-MCP-server subcharts |
-| `docs/DEPLOYMENT.md` | Helm install/upgrade/rollback guide, secrets management |
+| `docs/DEPLOYMENT.md` | Docker Compose deployment: secrets, resource limits, upgrade/rollback, TLS, security checklist |
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 16 panels) |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
