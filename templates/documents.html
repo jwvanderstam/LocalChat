@@ -7,6 +7,14 @@
 
 <div class="row">
     <!-- Upload Section -->
+    <div class="col-12">
+        <!-- Shown by ingestion.js when the server reports the user cannot write here.
+             Hidden by default so a failed permission check never implies read-only. -->
+        <div id="readonly-banner" class="alert alert-secondary d-flex align-items-center" style="display: none;">
+            <i class="bi bi-eye me-2"></i>
+            <div>You have <strong>read-only</strong> access to this workspace. You can search and read documents; uploading and deleting are not available.</div>
+        </div>
+    </div>
     <div class="col-md-6">
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">

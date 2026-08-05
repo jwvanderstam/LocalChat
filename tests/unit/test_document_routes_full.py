@@ -45,8 +45,12 @@ class TestDocumentDeleteRoute:
         app.state.db.delete_document = MagicMock()
         app.state.db.get_document_count = MagicMock(return_value=0)
         client.delete('/api/documents/42')
-        # require_admin_dep returns 'anonymous' in test/demo mode
-        app.state.db.delete_document.assert_called_once_with(42, 'anonymous')
+        # None, not 'anonymous'. The route now resolves the caller itself rather than
+        # taking require_admin_dep's return value, which was the literal string
+        # 'anonymous' under the RBAC bypass — and deleted_by is
+        # `UUID REFERENCES users(id)`, so that string could never have been stored.
+        # With no identity there is no deleter, and NULL says exactly that.
+        app.state.db.delete_document.assert_called_once_with(42, None)
 
     def test_delete_document_returns_success(self, client, app):
         app.state.db.delete_document = MagicMock()

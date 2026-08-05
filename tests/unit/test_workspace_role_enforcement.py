@@ -155,3 +155,27 @@ class TestBypassKeepsDemoWorking:
         client.app.state.testing = True
         resp = client.delete("/api/documents/clear")
         assert resp.status_code != 403
+
+
+@pytest.mark.unit
+class TestDocumentDeleteIsEditorNotAdmin:
+    """Sprint 6 decision: whoever may upload may also retire. Purge stays admin-only."""
+
+    def test_editor_may_soft_delete(self):
+        client = _documents("editor")
+        resp = client.delete("/api/documents/42", headers=_auth())
+        assert resp.status_code == 200
+
+    def test_editor_soft_delete_records_the_caller(self):
+        client = _documents("editor")
+        client.delete("/api/documents/42", headers=_auth())
+        client.app.state.db.delete_document.assert_called_once_with(42, USER)
+
+    def test_viewer_may_not_soft_delete(self):
+        resp = _documents("viewer").delete("/api/documents/42", headers=_auth())
+        assert resp.status_code == 403
+
+    def test_purge_still_requires_global_admin(self):
+        """The irreversible operation did not move with the reversible one."""
+        resp = _documents("owner").delete("/api/documents/42/purge", headers=_auth())
+        assert resp.status_code == 403

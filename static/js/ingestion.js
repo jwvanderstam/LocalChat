@@ -37,15 +37,47 @@ function init() {
         await testRetrieval();
     });
     
-    // Load documents on page load
-    loadDocuments();
+    // applyWritePermission() renders the document list itself once permission is
+    // known, so loadDocuments() is not called separately here.
+    applyWritePermission();
     loadStats();
 
-    // Reload documents when the user switches workspace
+    // Permission is re-fetched on switch because it is per-workspace: the same user
+    // may be editor in one workspace and viewer in another.
     document.addEventListener('workspace-switched', function () {
-        loadDocuments();
+        applyWritePermission();
         loadStats();
     });
+}
+
+// Whether the current user may write in the active workspace. Starts true so a
+// slow or failed permission check never hides controls from someone entitled to
+// them — the server still refuses the write, so the cost of being wrong here is a
+// 403 the user can see, not silent data loss.
+let canWrite = true;
+
+async function applyWritePermission() {
+    try {
+        const response = await fetch('/api/users/me', { headers: _wsHeaders() });
+        if (!response.ok) return;
+        const data = await response.json();
+        canWrite = data.can_write !== false;
+    } catch (e) {
+        return;  // leave controls as they are; the server remains the authority
+    }
+
+    // The server decides; the UI only reflects it. No role names are compared here,
+    // so the matrix cannot drift between frontend and backend.
+    const uploadCard = uploadForm ? uploadForm.closest('.card') : null;
+    if (uploadCard) uploadCard.style.display = canWrite ? '' : 'none';
+
+    const clearBtn = document.getElementById('clear-db-btn');
+    if (clearBtn) clearBtn.style.display = canWrite ? '' : 'none';
+
+    const banner = document.getElementById('readonly-banner');
+    if (banner) banner.style.display = canWrite ? 'none' : '';
+
+    loadDocuments();  // re-render so per-document delete buttons follow suit
 }
 
 // Upload documents
@@ -398,11 +430,12 @@ async function loadDocuments() {
                             <h6 class="mb-1">
                                 <i class="bi bi-file-text me-2"></i>${escapeHtml(doc.filename)}
                             </h6>
+                            ${canWrite ? `
                             <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0"
                                     onclick="deleteDocument(${doc.id}, '${escapeHtml(doc.filename).replace(/'/g, "\\'")}')"
                                     title="Delete document">
                                 <i class="bi bi-trash"></i>
-                            </button>
+                            </button>` : ''}
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
                             <p class="mb-0 text-muted small">

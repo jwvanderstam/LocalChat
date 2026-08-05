@@ -9,12 +9,14 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ..security_fastapi import (
+    check_workspace_access,
     decode_token_for_revocation,
     extract_bearer_token,
     get_current_user_id,
     require_admin_dep,
 )
 from ..utils.logging_config import get_logger
+from ..utils.workspace import get_workspace_id
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -64,6 +66,39 @@ def list_users(request: Request, _admin: Annotated[str, Depends(require_admin_de
     except Exception:
         logger.exception("[Users] list error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
+@router.get("/users/me")
+def get_own_identity(request: Request) -> Any:
+    """Return the caller's identity and whether they may write in the active workspace.
+
+    ``can_write`` is decided by the same ``check_workspace_access`` the routes
+    themselves call, so the UI never reimplements the role hierarchy — a second
+    copy of that rule is exactly what let the member routes drift (BUG-3).
+    """
+    user_id = get_current_user_id(request)
+    workspace_id = get_workspace_id(request)
+    db = getattr(request.app.state, "db", None)
+
+    workspace_role = None
+    if user_id and user_id != "anonymous" and db is not None and db.is_connected:
+        ws_id = workspace_id or db.get_default_workspace_id()
+        if ws_id:
+            workspace_role = db.get_workspace_member_role(ws_id, user_id)
+
+    global_role = None
+    if user_id and user_id != "anonymous" and db is not None and db.is_connected:
+        user = db.get_user_by_id(user_id)
+        global_role = user.get("role") if user else None
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "role": global_role,
+        "workspace_id": workspace_id,
+        "workspace_role": workspace_role,
+        "can_write": check_workspace_access(request, None, "editor") is None,
+    }
 
 
 @router.get("/users/{user_id}")

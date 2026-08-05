@@ -16,7 +16,7 @@ from starlette.datastructures import UploadFile as _StarletteUploadFile
 
 from .. import config
 from ..db.connection import DatabaseUnavailableError
-from ..security_fastapi import require_admin_dep
+from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.logging_config import sanitize_log_value as _slv
@@ -331,14 +331,21 @@ def api_purge_document(
 
 
 @router.delete("/{doc_id}")
-def api_delete_document(
-    doc_id: int,
-    request: Request,
-    admin_user_id: Annotated[str, Depends(require_admin_dep)],
-) -> Any:
-    """Soft-delete a document (sets deleted_at). Does not remove rows or files."""
+def api_delete_document(doc_id: int, request: Request) -> Any:
+    """Soft-delete a document (sets deleted_at). Does not remove rows or files.
+
+    Requires ``editor`` in the workspace, not global admin: whoever may upload may
+    also retire. This is reversible by design — the row stays, `deleted_at` is set,
+    and citations still resolve. The irreversible operation is ``/purge`` below,
+    which remains admin-only.
+    """
+    denied = _deny(request, None, "editor")
+    if denied:
+        return denied
+    caller = get_current_user_id(request)
+    deleted_by = caller if caller and caller != "anonymous" else None
     try:
-        request.app.state.db.delete_document(doc_id, admin_user_id)
+        request.app.state.db.delete_document(doc_id, deleted_by)
         return {"success": True}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable deleting document %s", _slv(str(doc_id)))
