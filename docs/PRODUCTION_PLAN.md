@@ -89,16 +89,25 @@ Login → upload document → ask question → receive answer with citation. **T
 
 **Delete, don't flag.** Flagged-off code still passes through every future authz audit, every Dependabot bump, every mutation run, every CodeQL scan. Git history preserves everything; re-adding a connector later costs days, while carrying it costs a tax on every sprint forever. The counterargument is real — the project's stated purpose is learning, and deletion destroys playgrounds — but the production claim was chosen over it, and depth on the retained core *is* the learning this project's own lessons file keeps pointing back to.
 
-### DEL-1 — Remove non-core subsystems ⬜
+### DEL-1a — Remove the self-contained subsystems ⬜ (no gate; runs alongside PG-0)
 
-**Delete** (with a short tombstone note in this file recording the removal commit, so restoration is a `git revert` away):
-- `src/rag/active_learning.py` and its routes/tests
-- `src/rag/feedback_pipeline.py` (feedback *collection* in `db/feedback.py` stays — it feeds chunk stats; the fine-tune pipeline goes)
-- Kuzu graph backend (`graph/store.py` keeps the Postgres backend only; `kuzu` leaves `requirements.txt`)
-- Connectors: `google_drive_connector.py`, `onedrive_connector.py`, `confluence_connector.py`, `google_auth.py`, and their routes/tests/OAuth flows
+Measured 2026-08-05 against `main` @ `7679939`: these have no route surface and no OAuth flow, so removing them is a `git rm` plus an import sweep, not surgery.
+
+- `src/rag/active_learning.py` (63 lines, **no test module references it at all**)
+- `src/rag/feedback_pipeline.py` (187 lines; feedback *collection* in `src/db/feedback.py` stays — it feeds chunk stats, the fine-tune pipeline on top of it goes)
+- Kuzu graph backend (`src/graph/store.py` keeps the Postgres backend only; `kuzu` leaves `requirements.txt` line 38)
+
+Tombstone the removal commits here so restoration is a `git revert` away.
+
+### DEL-1b — Remove the unused cloud connectors ⬜ (**must land after TQ-1**)
+
+**Delete:** `google_drive_connector.py` (197), `onedrive_connector.py` (158), `confluence_connector.py` (160), `google_auth.py` (66), plus their routes, tests and OAuth flows.
 
 **Keep:** local folder, S3/MinIO/R2, webhook, SharePoint (+ `microsoft_auth.py`) — the ones with a real user. The plugin contract (PC initiative) and the three MCP servers stay: they are the architecture, not the sprawl.
 
+**Why this half is sequenced behind TQ-1, and DEL-1a is not.** These four files are not isolated. They are threaded through `oauth_routes.py` (3 sites), `settings_routes.py` (3), `workspace_routes.py`, `connector_routes.py`, and are covered by 4 test modules with ~97 references. That is the same shared route surface RBAC-1 just rewrote and TQ-1 will mechanically enforce. Cutting OAuth paths out of those files *before* the authz CI job exists means doing it without the net that proves no route was left unprotected — and then touching the same files again when TQ-1 lands. Cut once, with the test that checks it already in place.
+
+**What is deliberately not an argument here:** `test_confluence_connector.py` has the largest test investment of the three (42 references). That is sunk cost, and if anything it is evidence *for* removal — those tests run on every suite execution, every Dependabot bump and every mutation sweep, for a connector with no user. The only valid reason to drop DEL-1b is a concrete intent to use one of these connectors; absent that, invested test code is a carrying cost, not an asset.
 ### DEL-2 — GraphRAG: earn its place or leave 🔬
 
 Build a small retrieval eval set first (20–30 question/expected-source pairs over the real document corpus — this asset outlives the decision and later serves RAG-tuning work). Measure retrieval quality with GraphRAG expansion on vs off. If 1-hop expansion does not measurably lift answer grounding on our own documents, `src/graph/` goes the way of DEL-1. No sentiment: the eval decides.
@@ -140,13 +149,13 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 
 | Sprint | Tickets | Est. duration |
 |---|---|---|
-| PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) | 1 day |
+| PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) | 1-2 days |
 | PG-1 | SEC-1 + SEC-2 (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | 3–4 days |
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
 | PG-3 | TQ-1 (authz CI job; then delete the testing bypass and repair fallout) | 1 week |
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) | 1 week |
 | PG-5 | TQ-3 + TQ-4 (scoped mutation gate; Playwright smoke) | 1 week |
-| PG-6 | DEL-1 + DEL-2 (deletion sprint; GraphRAG eval verdict) | 1 week |
+| PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
 | PG-7 | OPS-1 + OPS-2 (uv lock; bounded de-globalisation) | 1 week |
 | PG-8 | OPS-3 + OPS-4 + OPS-5 (docs mechanism, restore proof, release + topology) | 1 week |
 | **Total** | | **~8 weeks** |
