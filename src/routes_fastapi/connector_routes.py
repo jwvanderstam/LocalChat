@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
+from ._authz import deny as _deny
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -21,6 +22,9 @@ _NOT_FOUND = "Connector not found"
 
 @router.get("/connectors/available")
 def list_available_connectors(request: Request) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     user_id = get_current_user_id(request)
     available = []
     for provider in ("google_drive", "microsoft", "onedrive"):
@@ -36,11 +40,17 @@ def list_available_connectors(request: Request) -> Any:
 
 @router.get("/connectors/types")
 def list_connector_types(request: Request) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     return {"success": True, "types": request.app.state.connector_registry.available_types()}
 
 
 @router.get("/connectors")
 def list_connectors(request: Request) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     workspace_id = get_workspace_id(request)
     try:
         connectors = request.app.state.db.list_connectors(workspace_id=workspace_id)
@@ -52,6 +62,9 @@ def list_connectors(request: Request) -> Any:
 
 @router.post("/connectors", status_code=201)
 async def create_connector(request: Request) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
     connector_type = (data.get("connector_type") or "").strip()
     display_name = (data.get("display_name") or "").strip()
@@ -101,6 +114,9 @@ async def create_connector(request: Request) -> Any:
 
 @router.get("/connectors/{connector_id}")
 def get_connector(connector_id: str, request: Request) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     try:
         connector = request.app.state.db.get_connector(connector_id)
         if connector is None:
@@ -113,6 +129,9 @@ def get_connector(connector_id: str, request: Request) -> Any:
 
 @router.put("/connectors/{connector_id}")
 async def update_connector(connector_id: str, request: Request) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
     allowed = {"display_name", "config", "enabled", "sync_interval"}
     fields = {k: v for k, v in data.items() if k in allowed}
@@ -162,6 +181,9 @@ def purge_connector(
 
 @router.delete("/connectors/{connector_id}")
 def delete_connector(connector_id: str, request: Request) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     actor = get_current_user_id(request)
     deleted_by = actor if actor and actor != "anonymous" else None
     try:
@@ -177,6 +199,9 @@ def delete_connector(connector_id: str, request: Request) -> Any:
 
 @router.post("/connectors/{connector_id}/sync")
 def trigger_sync(connector_id: str, request: Request) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     connector_instance = request.app.state.connector_registry.get(connector_id)
     if connector_instance is None:
         return JSONResponse({"success": False, "message": "Connector not found or not loaded"}, status_code=404)
@@ -194,6 +219,9 @@ def trigger_sync(connector_id: str, request: Request) -> Any:
 
 @router.get("/connectors/{connector_id}/history")
 def sync_history(connector_id: str, request: Request, limit: int = 20) -> Any:
+    denied = _deny(request, None, "owner")
+    if denied:
+        return denied
     limit = min(limit, 100)
     try:
         history = request.app.state.db.get_connector_sync_history(connector_id, limit=limit)

@@ -15,6 +15,7 @@ from ..security_fastapi import (
     check_workspace_access,
     get_current_user_id,
     require_admin_dep,
+    require_auth,
 )
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
@@ -44,6 +45,7 @@ def _presence_event(workspace_id: str, user_id: str | None) -> str:
 
 @router.get("/workspaces")
 def list_workspaces(request: Request) -> Any:
+    require_auth(request)
     try:
         workspaces = request.app.state.db.list_workspaces()
         active_id = get_workspace_id(request)
@@ -57,6 +59,7 @@ def list_workspaces(request: Request) -> Any:
 
 @router.post("/workspaces", status_code=201)
 async def create_workspace(request: Request) -> Any:
+    require_auth(request)
     data = await request.json() if await request.body() else {}
     name = (data.get("name") or "").strip()
     if not name:
@@ -80,6 +83,7 @@ async def create_workspace(request: Request) -> Any:
 
 @router.get("/workspaces/active")
 def get_active_workspace(request: Request) -> Any:
+    require_auth(request)
     active_id = get_workspace_id(request)
     if not active_id:
         return {"success": True, "workspace": None}
@@ -93,6 +97,7 @@ def get_active_workspace(request: Request) -> Any:
 
 @router.post("/workspaces/switch")
 async def switch_workspace(request: Request) -> Any:
+    require_auth(request)
     data = await request.json() if await request.body() else {}
     workspace_id = (data.get("workspace_id") or "").strip()
     if not workspace_id:

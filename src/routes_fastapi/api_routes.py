@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import config, exceptions
+from ..security_fastapi import require_admin_dep, require_auth
 from ..services import chat
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
@@ -201,6 +202,7 @@ async def _generate_sse(
 
 @router.get("/status")
 def api_status(request: Request) -> Any:
+    require_auth(request)
     app_state = request.app.state
     db_available = app_state.startup_status.get("database", False)
     workspace_id = get_workspace_id(request)
@@ -332,7 +334,7 @@ async def api_chat(request: Request) -> Any:
 
 
 @router.get("/plugins")
-def list_plugins(request: Request) -> Any:
+def list_plugins(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
         from ..tools import plugin_loader, tool_registry
         plugins = plugin_loader.list_plugins()
@@ -354,7 +356,7 @@ def list_plugins(request: Request) -> Any:
 
 
 @router.post("/plugins/reload")
-def reload_plugins(request: Request) -> Any:
+def reload_plugins(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
         from ..tools import plugin_loader
         if not config.PLUGINS_ENABLED:

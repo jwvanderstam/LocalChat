@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
+from ..security_fastapi import require_admin_dep
 from ..utils.logging_config import get_logger
+from ._authz import deny as _deny
 
 logger = get_logger(__name__)
 
@@ -16,6 +18,9 @@ router = APIRouter()
 
 @router.post("/feedback", status_code=201)
 async def submit_feedback(request: Request) -> Any:
+    denied = _deny(request, None, "viewer")
+    if denied:
+        return denied
     data = await request.json() if await request.body() else {}
 
     rating = data.get("rating")
@@ -52,7 +57,7 @@ async def submit_feedback(request: Request) -> Any:
 
 
 @router.get("/feedback/stats")
-def feedback_stats(request: Request, days: int = 7) -> Any:
+def feedback_stats(request: Request, _admin: Annotated[str, Depends(require_admin_dep)], days: int = 7) -> Any:
     days = max(1, min(days, 365))
     if not request.app.state.startup_status.get("database", False):
         return JSONResponse({"error": "database unavailable"}, status_code=503)

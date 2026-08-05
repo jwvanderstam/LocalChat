@@ -82,7 +82,7 @@ class TestRequireAuthRevocation:
 
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get(
-                "/api/models/active",
+                "/api/workspaces",
                 headers={"Authorization": f"Bearer {token}"},
             )
 
