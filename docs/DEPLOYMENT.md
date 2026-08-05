@@ -1,173 +1,145 @@
-# LocalChat — Production Deployment (Helm)
+# LocalChat — Deployment (Docker Compose)
 
-> LocalChat runs as a single process. Horizontal scaling is not supported —
-> AppState, metrics, the DB migration runner, connector polling, and the
-> reranker's scheduler are all in-process state with no cross-instance
-> coordination. `replicaCount` is fixed at `1`.
+> **Single-node by design.** LocalChat runs as one process for a small team
+> (≤ 25 users) — see [ADR-1](ADR.md). `AppState`, metrics, the migration runner,
+> connector polling and the reranker's scheduler are all in-process state with no
+> cross-instance coordination. Running a second instance does not fail loudly; the
+> two silently disagree about the active model, rate limits and cached state.
+>
+> The Helm chart was removed in PG-0 (2026-08-05). It implied a multi-replica
+> topology the code does not support, and no Kubernetes deployment existed. It is
+> one `git revert` away if that changes — but reinstating it means superseding
+> ADR-1 first, not just restoring the files.
 
 ## Prerequisites
 
-- Kubernetes 1.25+
-- Helm 3.10+
-- `kubectl` configured for the target cluster
-- A built and pushed Docker image (or use `image.pullPolicy: IfNotPresent` with a local image for dev)
+- Docker Engine 24+ with the Compose plugin
+- An NVIDIA GPU with the Container Toolkit for GPU inference (optional — `GPU_BACKEND=cpu` works)
+- ~20 GB disk for models, images and Postgres data
 
 ## Quick start
 
 ```bash
-# 1. Lint the chart
-helm lint helm/localchat/
-
-# 2. Dry-run to check rendered manifests
-helm template localchat helm/localchat/ \
-  --set postgresql.auth.password=changeme | kubectl apply --dry-run=client -f -
-
-# 3. Install
-helm install localchat helm/localchat/ \
-  --namespace localchat --create-namespace \
-  --set postgresql.auth.password=changeme \
-  --set "env.SECRET_KEY=<random-32-char-string>"
+cp .env.example .env         # then edit — see "Required secrets" below
+docker compose up -d
+docker compose logs -f app   # watch migrations apply and the app come up
 ```
 
-## Values overview
+A healthy boot ends with:
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `replicaCount` | `1` | App pod replicas — fixed at 1, horizontal scaling is not supported |
-| `image.repository` | `localchat` | Container image |
-| `image.tag` | `latest` | Image tag |
-| `postgresql.enabled` | `true` | Deploy bundled PostgreSQL StatefulSet |
-| `postgresql.auth.password` | `""` | **Must be set** |
-| `redis.enabled` | `true` | Deploy bundled Redis StatefulSet |
-| `ingress.enabled` | `false` | Create Nginx Ingress resource |
-| `ingress.host` | `localchat.example.com` | Public hostname |
-| `mcp.localDocs.enabled` | `true` | Deploy local-docs MCP server |
-| `mcp.webSearch.enabled` | `true` | Deploy web-search MCP server |
-| `mcp.cloudConnectors.enabled` | `false` | Deploy cloud-connectors MCP server |
+```
+INFO - src.app_bootstrap - Alembic migrations applied (or already at head)
+INFO - src.app_bootstrap - Application bootstrap complete
+INFO:     Uvicorn running on http://0.0.0.0:5000
+```
 
-## Using an external database
+If migrations fail the app **still starts** — `_run_alembic_migrations()` catches and
+logs the error rather than aborting. Check for `Alembic migration failed` before
+assuming a green container means a migrated schema.
+
+## Services
+
+| Service | Purpose | Exposed |
+|---|---|---|
+| `app` | FastAPI + Uvicorn | `127.0.0.1:5000` |
+| `db` | PostgreSQL 16 + pgvector | `127.0.0.1:5432` |
+| `redis` | Cache and rate-limit backend | internal |
+| `ollama` | Local LLM inference | internal |
+
+The three MCP servers are behind a profile: `docker compose --profile mcp up -d`.
+
+Ports bind to `127.0.0.1` deliberately. Put a TLS proxy in front rather than binding
+`0.0.0.0` — see [TLS](#tls) below.
+
+## Required secrets
+
+Set these in `.env` before first start.
+
+| Key | Purpose |
+|-----|---------|
+| `SECRET_KEY` | Session signing key — 32+ random bytes |
+| `JWT_SECRET_KEY` | JWT signing key — 32+ random bytes |
+| `ADMIN_PASSWORD` | Initial admin password. **Leaving it empty disables authorisation entirely** (`_is_rbac_bypassed`), so set it before exposing the app to anything. |
+| `PG_PASSWORD` | PostgreSQL password |
+| `TOKEN_ENCRYPTION_KEY` | Fernet key for OAuth token encryption at rest |
+| `MICROSOFT_CLIENT_ID` / `_SECRET` | Azure AD app, only for the SharePoint/OneDrive connectors |
+| `METRICS_TOKEN` | Bearer token for the metrics endpoints. **Empty means they are public.** |
+
+Generate keys:
 
 ```bash
-helm install localchat helm/localchat/ \
-  --set postgresql.enabled=false \
-  --set postgresql.external.host=my-postgres.example.com \
-  --set postgresql.auth.password=<db-password>
+python -c "import secrets; print(secrets.token_hex(32))"
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-## Production values override
+Beyond a single trusted host, keep `.env` out of the image and inject secrets from your
+platform's secret store instead.
 
-Create a `values.prod.yaml`:
+## Resource limits
 
-```yaml
-replicaCount: 4
-image:
-  repository: registry.example.com/localchat
-  tag: 1.0.0
-  pullPolicy: Always
+Every service carries `deploy.resources.limits` (memory and CPU) in `docker-compose.yml`,
+overridable per environment: `OLLAMA_MEM_LIMIT`, `DB_MEM_LIMIT`, `APP_CPU_LIMIT` and so
+on. They exist so one runaway model cannot take PostgreSQL down with it. Raise a limit
+rather than removing it — see [OPERATIONS.md](OPERATIONS.md) and the OOM entry in
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-ingress:
-  enabled: true
-  host: chat.example.com
-  tls: true
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-
-postgresql:
-  auth:
-    password: "<strong-password>"
-  persistence:
-    size: 50Gi
-    storageClass: premium-ssd
-
-redis:
-  auth:
-    password: "<strong-password>"
-
-mcp:
-  cloudConnectors:
-    enabled: true
-```
-
-Install with:
-
-```bash
-helm install localchat helm/localchat/ -f values.prod.yaml --namespace localchat
-```
+Memory *reservations* are deliberately not set: a reservation is a soft floor the kernel
+reclaims toward, which would make a service a likelier eviction victim, not a protected one.
 
 ## Upgrade
 
 ```bash
-helm upgrade localchat helm/localchat/ -f values.prod.yaml --namespace localchat
+git pull
+docker compose up -d --build
+docker compose logs -f app     # confirm migrations applied
 ```
 
-Deployments use `RollingUpdate` strategy; the app stays available during upgrades.
+Migrations run automatically at startup. Back up first — see [OPERATIONS.md](OPERATIONS.md).
 
 ## Rollback
 
 ```bash
-# List revisions
-helm history localchat -n localchat
-
-# Roll back to previous
-helm rollback localchat -n localchat
+git checkout <previous-tag>
+docker compose up -d --build
 ```
 
-## Secrets management
+Schema migrations are additive (`ADD COLUMN IF NOT EXISTS`), so an older application
+generally runs against a newer schema. Alembic `downgrade` is **not** part of the supported
+path — see [MIGRATIONS.md](MIGRATIONS.md).
 
-The chart creates a `Secret` resource from `values.yaml`. For production, use an
-external secrets manager (e.g. Vault, AWS Secrets Manager with ESO) and patch or
-replace the Secret rather than storing passwords in values files.
+## Security checklist
 
-Required secret keys:
-
-| Key | Purpose |
-|-----|---------|
-| `POSTGRES_PASSWORD` | PostgreSQL password |
-| `REDIS_PASSWORD` | Redis password (optional) |
-| `SECRET_KEY` | JWT signing key |
-| `ADMIN_PASSWORD` | Initial admin user password |
-| `TOKEN_ENCRYPTION_KEY` | Fernet key for OAuth token encryption (base64url, 32 bytes) |
-| `MICROSOFT_CLIENT_ID` | Azure AD app client ID (SharePoint/OneDrive) |
-| `MICROSOFT_CLIENT_SECRET` | Azure AD app client secret |
-
-Generate a Fernet key:
-
-```python
-from cryptography.fernet import Fernet
-print(Fernet.generate_key().decode())
-```
-
-## Uninstall
-
-```bash
-helm uninstall localchat -n localchat
-# PVCs are retained by default — delete manually if no longer needed:
-kubectl delete pvc -n localchat -l app.kubernetes.io/instance=localchat
-```
-
-## Security Checklist
-
-Before exposing LocalChat to any network beyond localhost, verify these settings:
+Before exposing LocalChat beyond localhost:
 
 | Item | Env var | Requirement |
 |------|---------|-------------|
-| JWT secret | `JWT_SECRET_KEY` | Minimum 32 random bytes. Never use the default placeholder. |
-| Metrics endpoint | `METRICS_TOKEN` | Must be set; without it `/api/metrics` is public. |
-| Admin password | `ADMIN_PASSWORD` | Change from default before first use. |
-| CORS origins | `CORS_ORIGINS` | Set to specific domains; avoid `*` in production. |
-| Token encryption | `TOKEN_ENCRYPTION_KEY` | Required if using OAuth connectors (SharePoint/OneDrive/Google Drive). |
-| TLS | — | Terminate TLS at the ingress/proxy layer; see [TLS with Docker Compose](#tls-with-docker-compose) below. |
+| Admin password | `ADMIN_PASSWORD` | **Must be non-empty.** Empty disables all authorisation, including admin routes. |
+| JWT secret | `JWT_SECRET_KEY` | 32+ random bytes. Never the placeholder. |
+| Session secret | `SECRET_KEY` | 32+ random bytes. |
+| Demo mode | `DEMO_MODE` | Must be `false`. It disables authentication outright. |
+| Metrics endpoints | `METRICS_TOKEN` | Set it, or `/api/metrics` and `/api/metrics.json` are public. |
+| CORS origins | `CORS_ORIGINS` | Specific domains; never `*`. |
+| Token encryption | `TOKEN_ENCRYPTION_KEY` | Required for the OAuth connectors. |
+| TLS | — | Terminate at a proxy; see below. |
 
-### TLS with Docker Compose
+Which routes require which role is documented in [PERMISSIONS.md](PERMISSIONS.md).
 
-Add an Nginx TLS termination proxy via the override file:
+## TLS
+
+Add an Nginx termination proxy with the override file:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
 ```
 
-The override (`docker-compose.nginx.yml`) adds an `nginx:alpine` service that:
-- Listens on 443, terminates TLS with your certificate
-- Proxies to the app on port 5000
+The override adds an `nginx:alpine` service that listens on 443, terminates TLS and
+proxies to the app on port 5000. Mount your certificate and key into the container and
+replace the `server_name`, `ssl_certificate` and `ssl_certificate_key` placeholders in
+`nginx/nginx.conf`.
 
-Provide your certificate and key by mounting them into the Nginx container and editing `nginx/nginx.conf` (replace the `server_name`, `ssl_certificate`, and `ssl_certificate_key` placeholders).
+## Uninstall
+
+```bash
+docker compose down            # keeps volumes
+docker compose down -v         # deletes Postgres data, uploads and pulled models
+```

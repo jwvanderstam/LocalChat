@@ -7,7 +7,9 @@
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 
-A production-ready Retrieval-Augmented Generation (RAG) application built with FastAPI, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers. Supports documents up to 15 MB with tunable RAG parameters configurable at runtime from the Settings UI.
+A **production-patterned** Retrieval-Augmented Generation (RAG) application built with FastAPI, Ollama, PostgreSQL (pgvector), and Redis. Features comprehensive document processing, PDF table extraction, intelligent chunking, streaming responses, and accurate context-based answers. Supports documents up to 15 MB with tunable RAG parameters configurable at runtime from the Settings UI.
+
+> **On "production-patterned".** LocalChat is a **single-node, self-hosted appliance for a small team (≤ 25 users)** — see [ADR-1](docs/ADR.md). It follows production patterns throughout, and it is being hardened toward a defensible production claim against the exit criteria in [PRODUCTION_PLAN.md](docs/PRODUCTION_PLAN.md). Until those pass, "production-ready" would overstate it. Multi-tenant SaaS and horizontal scaling are explicitly out of scope; running more than one replica breaks cache coherence and rate limiting silently.
 
 See the [Architecture](#architecture) and [Project Structure](#project-structure) sections below for a full overview.
 
@@ -55,7 +57,7 @@ See the [Architecture](#architecture) and [Project Structure](#project-structure
 - **JWT Authentication**: Token-based auth for admin endpoints
 - **Input Sanitization**: Pydantic validation + server-side sanitization on all inputs
 - **Supply Chain**: Pinned Docker image SHA256 digest; `litellm>=1.83.7`, `h11>=0.16.0`
-- **Container Hardening**: Non-root user (UID 1000), `allowPrivilegeEscalation: false`, `drop: ALL` capabilities in Helm charts
+- **Container Hardening**: Non-root user (UID 1000), read-only root filesystem, and per-service memory/CPU limits in `docker-compose.yml`
 - **Secret Scanning**: No credentials in source; placeholder examples only
 
 ### Performance Features
@@ -254,7 +256,7 @@ flowchart TD
 
 | Document | Purpose |
 |----------|---------|
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Helm install/upgrade/rollback, secrets management |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker Compose deployment, TLS termination, secrets management |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore, and maintenance procedures |
 | [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema, ER diagram, index rationale |
 | [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | How to apply, write, and roll back Alembic migrations |
@@ -289,7 +291,7 @@ LocalChat/
 ├── alembic.ini                     # Alembic migration runner config
 ├── .env.example                    # Environment variable template
 ├── docs/
-│   ├── DEPLOYMENT.md               # Helm install/upgrade/rollback
+│   ├── DEPLOYMENT.md               # Compose deployment, TLS, secrets
 │   ├── OPERATIONS.md               # Backup, restore, maintenance
 │   ├── SCHEMA.md                   # DB schema and ER diagram
 │   ├── MIGRATIONS.md               # Alembic migration guide
@@ -415,7 +417,6 @@ LocalChat/
 │   ├── conftest.py                 # Shared fixtures
 │   ├── unit/                       # 90+ modules, ~2,300 tests
 │   └── integration/                # 12 modules, requires running services
-└── helm/localchat/                 # Helm chart (app + PostgreSQL + Redis + MCP)
 ```
 
 ---

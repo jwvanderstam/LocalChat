@@ -4,6 +4,13 @@
 present in the handler, read from source — not an intention. Regenerate after changing any
 route; drift between this file and the code is the failure mode it exists to prevent.
 
+> **Known limitation of the generator.** It detects guards declared in the handler —
+> `require_admin_dep`, `require_auth`, and `check_workspace_access` via `_authz.deny()`. It does
+> **not** see authorisation performed inside a called helper. One route pair does exactly that:
+> `/metrics` and `/metrics.json` enforce `METRICS_TOKEN` through `_check_metrics_auth()` and were
+> initially listed here as plain `public`. Corrected below. Treat `public` as "no *declared*
+> guard", and check the handler body before concluding a route is open.
+
 ## The levels
 
 | Level | Meaning | Mechanism |
@@ -39,7 +46,7 @@ These 18 are unauthenticated **by decision**, each for a stated reason:
 |---|---|
 | `web`: `/`, `/chat`, `/documents`, `/models`, `/settings`, `/docs`, `/favicon.ico` | SPA shells. They carry no data; every API call they make is itself guarded. |
 | `settings`: `/health` | The container healthcheck calls it with no credentials. |
-| `settings`: `/metrics`, `/metrics.json` | Prometheus scrapes without an auth header. Accepted trade-off: metrics reveal usage volumes. Single-node deployment (ADR-1) makes the network the intended boundary. |
+| `settings`: `/metrics`, `/metrics.json` | **Conditionally public.** Both call `_check_metrics_auth()` (`settings_routes.py:158,170`) and return 403 unless a `Bearer` token matching `METRICS_TOKEN` is supplied. With `METRICS_TOKEN` empty — the default — they are open, so Prometheus can scrape without a header. Set it to close them. |
 | `docs`: `/`, `/{slug}`, `/{slug}/fragments/{...}` | Serves the same markdown that is public in the repository. |
 | `oauth`: `microsoft/callback`, `google/callback` | The identity provider redirects here and carries no bearer token. `authorize`, `status` and `disconnect` **do** require authentication. |
 | `connector`: `/connectors/{id}/webhook` | External systems POST here. Authenticity is the webhook's own concern, not the session's. |
