@@ -84,15 +84,23 @@ itself is deleted. That is the goal: **not a safer bypass, no bypass.**
 > **identically** to production, so an authorisation defect shows up while you are working
 > rather than during an audit.
 
-**Open decision — what happens outside production when `ADMIN_PASSWORD` is empty:**
+**Decided 2026-08-05 — seed and start.** Outside production with an empty `ADMIN_PASSWORD`,
+generate a random password, create the admin, and log the credentials once at startup. A fresh
+clone still comes up with `docker compose up` and no `.env` edit, and it comes up with
+authorisation **on** rather than off — which is the whole point of the change.
 
-- **(a) Seed and start, recommended.** Generate a random password, create the admin, print it
-  once to the log. `docker compose up` still works on a fresh clone with no `.env` edit, and
-  the instance runs with authorisation **on**. Cost: the password lives in the startup log
-  until you set one.
-- **(b) Refuse to start, matching production.** Fewer modes, one rule everywhere. Cost: a
-  fresh clone no longer starts without editing `.env` first, which is a real regression in
-  getting-started friction.
+Two consequences to handle in the implementation, both of which make the difference between
+this being a convenience and being a new hole:
+
+- The generated password is in the startup log. That is acceptable on a local box and not
+  acceptable anywhere else, so the seed must refuse to run when `APP_ENV=production` — the
+  guard is the environment, not the emptiness of `ADMIN_PASSWORD`.
+- Re-running must be inert. Seed only when the user table is empty; never reset an existing
+  account's password, or a restart silently hands out a known credential for a real user.
+
+Rejected alternative: refusing to start outside production too. One rule everywhere is tidier,
+but it turns a fresh clone into a `.env`-editing exercise before anything runs, and the getting-
+started friction buys nothing — a local instance with a seeded admin is already authorised.
 
 **Files:** `src/config.py`, `src/security_fastapi.py`, `src/routes_fastapi/settings_routes.py`,
 `src/db/users.py` (seed), `src/app_bootstrap.py` (call the seed), `.env.example`,
