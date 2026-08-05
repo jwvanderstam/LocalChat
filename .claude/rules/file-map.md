@@ -81,6 +81,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
 | `docs/OPERATIONS.md` | Backup/restore/maintenance runbook |
 | `docs/ROADMAP.md` | Living initiative/ticket plan (current: v3.0 — hygiene, Clark-Wilson, RBAC, GKB, model management, plugin contract) |
+| `docs/ADR.md` | Architecture Decision Records — ADR-1 (single-node appliance) and ADR-2 (sync DB layer), each with the condition that would reopen it |
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |
 | `docs/SCHEMA.md` | Database schema reference + ER diagram |
 | `docs/TROUBLESHOOTING.md` | Common issues and fixes |

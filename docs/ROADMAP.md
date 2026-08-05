@@ -227,11 +227,18 @@ Apply the same pattern to all remaining CDIs. Each sub-item is one migration + o
 
 ---
 
-### CW-3 — Audit log
+### CW-3 — Audit log ⏭️ (deferred to v4.0)
 
 Once soft-delete is in place everywhere, a single `audit_log` table can record all CDI state transitions (create, update, retire, purge) with actor, timestamp, and before/after state snapshot. This is the IVP layer — a query over `audit_log` can reconstruct the integrity state at any point in time.
 
-**This ticket is a stretch goal for v3.0 and may slip to v4.0.**
+**Deferred to v4.0 — decided 2026-08-05.** It was always written as a stretch goal; this records the decision rather than leaving it to drift.
+
+Two reasons, in order of weight:
+
+1. **It would be built on a moving foundation.** `TQ-1` deletes the testing bypass (`app.state.testing` in `_is_rbac_bypassed()`), which changes who the *actor* is on an unauthenticated request. An audit log whose actor column is populated before that lands would record `NULL`/`'anonymous'` for a class of transitions that will shortly have a real identity — and a backfill of an audit trail is a contradiction in terms.
+2. **The integrity property it verifies already holds without it.** Soft-delete is complete across all nine CDIs (CW-1, CW-2a–f), so no IVP currently fails for want of history. `deleted_at` + `deleted_by` is the minimum the Clark-Wilson section of `CLAUDE.md` requires, and that minimum is met.
+
+**Re-review trigger:** the first time a question is asked that `deleted_at`/`deleted_by` cannot answer — "who changed this document's content, and when" rather than "who retired it" — or before any multi-user deployment where non-repudiation matters. Revisit after `TQ-1`, not before.
 
 ---
 
@@ -658,7 +665,7 @@ Two distinct defects, and the second masked the first:
 | 5 | BUG-1 + BUG-2 (memory workspace scoping, web citation loss) ✅ done & merged (#208, #209) | — |
 | 5b | BUG-3 (workspace member routes had no authorisation) ✅ done & merged (#217) | — |
 | 6 | RBAC-1 (enforce the workspace role tier) ✅ done & merged (#221, #219, #220, UI half; fixes #222, #223, #225) | — |
-| 6b | RBAC-2 (route permission audit) ✅ done — see [PERMISSIONS.md](PERMISSIONS.md) + CW-3 (audit log, stretch) ⬜ | CW-3 open |
+| 6b | RBAC-2 (route permission audit) ✅ done — see [PERMISSIONS.md](PERMISSIONS.md); CW-3 (audit log) ⏭️ deferred to v4.0 | — |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | PG-0..PG-8 | **Production-grade hardening** — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gates everything below. | ~8 weeks |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
