@@ -79,6 +79,29 @@ Nightly, core modules only: `security_fastapi.py`, workspace scoping, `db/docume
 
 **Explicitly out of scope:** wholesale remediation of the ~31k-line test suite. That is a quarter of solo effort with diffuse payoff. The mutation gate concentrates effort exactly where the three confirmed bugs lived.
 
+### TQ-5a — Alembic chain integrity check ⬜ (no gate; runs alongside PG-0)
+
+A pure-Python assertion in the fast suite, no database required:
+
+- `ScriptDirectory.from_config()` resolves to **exactly one head**.
+- The number of revisions equals the number of files in `migrations/versions/`, so a duplicate `revision = "NNNN"` cannot hide.
+
+**Why this is its own ticket and not a line in TQ-5b:** it costs ~20 lines, needs no infrastructure, and catches the failure that actually occurred. On 2026-08-05 a backfill migration was numbered `0012`, colliding with the existing `0012_hybrid_search_tsvector.py`. Alembic does not error on a duplicate id — it emits `UserWarning: Revision 0012 is present more than once` through Python's `warnings` module, then `upgrade head` aborts with `MultipleHeads`, so **no migration applies at all**, including previously pending ones. It shipped through review, CI and merge (#219) and was found only by starting the stack (#222).
+
+### TQ-5b — Migrations execute against a real database in CI ⬜ (**after TQ-2**)
+
+Reuses TQ-2's Postgres service container:
+
+- `alembic upgrade head` against an **empty** database; assert `alembic current` equals the single head.
+- Run it a second time; assert it is a no-op. Idempotency is the property the "additive migrations only" rule claims and nothing checks.
+- Assert on the **command's exit status**, never on log output — see below.
+
+**The gap this closes.** Migrations run only via `bootstrap_app()` at real startup; CI's integration tests use `create_app()`; and no test in the repo connects to Postgres at all, even though the integration job already starts one. So **no CI job has ever executed a migration.** Every migration in `versions/` reached `main` unexecuted, and the first run happens on a deployment.
+
+**Why exit status, not logs.** `_run_alembic_migrations()` catches the exception and logs it, so a failed migration is non-fatal by design — the app serves normally with an unmigrated schema. Worse, until #223/#225 that log line went to a logger Alembic itself had just disabled, so the failure produced *no output at all* for days. A check that greps logs would have passed throughout. The assertion must be the process exit code.
+
+**Acceptance:** deliberately break a migration (duplicate id, or invalid SQL) and confirm CI goes red; revert.
+
 ### TQ-4 — One Playwright smoke test ⬜
 
 Login → upload document → ask question → receive answer with citation. **That is the entire frontend test strategy**, deliberately. The vanilla-JS frontend (9 files + an 867-line `settings.html`) is not worth a component-test investment at this scope; one end-to-end proof that the golden path works catches the regressions that matter.
@@ -149,11 +172,11 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 
 | Sprint | Tickets | Est. duration |
 |---|---|---|
-| PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) | 1-2 days |
+| PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) + TQ-5a (alembic chain check, no gate) | 1-2 days |
 | PG-1 | SEC-1 + SEC-2 (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | 3–4 days |
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
 | PG-3 | TQ-1 (authz CI job; then delete the testing bypass and repair fallout) | 1 week |
-| PG-4 | TQ-2 (fake-Ollama deterministic integration CI) | 1 week |
+| PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
 | PG-5 | TQ-3 + TQ-4 (scoped mutation gate; Playwright smoke) | 1 week |
 | PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
 | PG-7 | OPS-1 + OPS-2 (uv lock; bounded de-globalisation) | 1 week |
@@ -166,7 +189,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 
 ## Exit criteria — the definition of "production grade"
 
-v3.0 ships when **all seven** hold, and not before:
+v3.0 ships when **all eight** hold, and not before:
 
 1. **Fail-closed boot** — no configuration path exists in which `APP_ENV=production` runs with authorisation off. (SEC-1, SEC-2)
 2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI. Testing bypass deleted. (TQ-1)
@@ -175,5 +198,6 @@ v3.0 ships when **all seven** hold, and not before:
 5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4)
 6. **Reproducible release** — tagged version, changelog, uv lock file, published image from the tag. (OPS-1/5)
 7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time.
+8. **Migrations are executed, not merely written** — CI applies the full chain to an empty database, proves it idempotent, and fails on a broken or duplicated revision. No migration reaches a tag having never run. (TQ-5a/TQ-5b)
 
 When these are green: un-queue ROADMAP Sprints 8–12 and resume feature work on a codebase that has earned its first line.
