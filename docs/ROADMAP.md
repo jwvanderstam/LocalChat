@@ -303,11 +303,7 @@ So enforcing membership across the route surface — which is precisely what thi
 **Implementation:**
 - ✅ Wire `check_workspace_access` into every workspace-scoped route at the matrix role — done, 33 routes across 6 routers via the shared `routes_fastapi/_authz.deny()` helper. Header-scoped routes (documents, conversations, chat, annotations) pass `workspace_id=None`; scope resolves through `get_workspace_id` and **falls back to the default workspace** when the client sends no `X-Workspace-ID`. That fallback is deliberate: the header is optional and the frontend omits it until `localStorage` holds an active workspace, so erroring instead would break every fresh browser session.
 
-> **One conflict left open on purpose.** The matrix says `editor` may soft-delete a document, but `DELETE /api/documents/{id}` currently requires **admin** (`require_admin_dep`). Implementing the matrix there would *loosen* an existing restriction rather than tighten it, so it was left as-is: every other change in this pass adds a check where there was none. Decide deliberately whether document deletion should drop from admin to editor — it is a product decision, not a wiring detail. Same question applies to `DELETE /api/conversations/{id}/purge`, though there the matrix and code agree (purge stays admin).
-- **Mind the binding trap:** a dependency that declares its own `workspace_id` parameter has it bound as a *query* parameter, so a route with `workspace_id` in its **path** must pass the value explicitly. BUG-3 documents this; it is the reason `check_workspace_access` takes the id as an argument.
-- ~~Fix `create_workspace` to assign creator-ownership; add the backfill migration.~~ ✅ done — see the prerequisite above.
-- Delete any remaining ad-hoc role comparisons so there is one mechanism.
-- UI: hide upload, delete, annotate, and workspace-settings controls for a `viewer` session; the member list stays visible.
+> **Resolved 2026-08-05.** `DELETE /api/documents/{id}` now requires `editor` in the workspace rather than global `admin`, matching the matrix: whoever may upload may also retire. The operation is a soft-delete — the row stays, `deleted_at` is set, citations still resolve — so it is reversible by design. `/purge`, which is not, remains admin-only. The route also stopped taking its `deleted_by` from `require_admin_dep`, which under the RBAC bypass returned the literal string `'anonymous'` into a `UUID REFERENCES users(id)` column; with no identity it now writes NULL.
 
 > **Note for the plugin contract:** the `identity` service that plugins consume (`require_role(min_role)`, `.claude/rules/plugins.md`) is backed by the **workspace** dependency, not a global one — a plugin declaring `PLUGIN_MIN_ROLE = "viewer"` means viewer *in the active workspace*. PC-1 exposes it as a service; plugins never read JWT claims directly.
 
@@ -653,7 +649,7 @@ Two distinct defects, and the second masked the first:
 | 4 | CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors) ✅ done & merged (#126) | — |
 | 5 | BUG-1 + BUG-2 (memory workspace scoping, web citation loss) ✅ done & merged (#208, #209) | — |
 | 5b | BUG-3 (workspace member routes had no authorisation) ✅ done & merged (#217) | — |
-| 6 | RBAC-1 (enforce the workspace role tier) — backend ✅ merged (#221, #219, #220; fixes #222, #223). **UI half + `DELETE /documents/{id}` decision still open** | ~2 days left |
+| 6 | RBAC-1 (enforce the workspace role tier) ✅ done & merged (#221, #219, #220, UI half; fixes #222, #223, #225) | — |
 | 6b | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | PG-0..PG-8 | **Production-grade hardening** — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gates everything below. | ~8 weeks |
