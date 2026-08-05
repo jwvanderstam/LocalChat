@@ -7,6 +7,8 @@ v3.0 targets six workstreams: **repository hygiene & single-framework consolidat
 
 The guiding constraint across all of them: **the core stays stable and clean.** Plugins may request services and hooks; they may never define core interfaces or become a dependency the core cannot build without. See the "Plugin Contract" section in `CLAUDE.md` and [`.claude/rules/plugins.md`](.claude/rules/plugins.md).
 
+**Hardening plan:** [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) holds the production-grade hardening track (ADR-1/ADR-2 and sprints PG-0..PG-8) from the 2026-08-04 external audit. It is a *gate on this roadmap*, not a parallel one: Sprints 8-12 below do not start until its Exit Criteria are green. Confirmed bugs remain exempt from that gate, per the Sprint 5 precedent.
+
 ---
 
 ## Initiative 1 — Repository Hygiene and Web-Stack Coherence
@@ -654,12 +656,13 @@ Two distinct defects, and the second masked the first:
 | 6 | RBAC-1 (enforce the workspace role tier) — backend ✅ merged (#221, #219, #220; fixes #222, #223). **UI half + `DELETE /documents/{id}` decision still open** | ~2 days left |
 | 6b | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
+| PG-0..PG-8 | **Production-grade hardening** — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gates everything below. | ~8 weeks |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
 | 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
-| **Total** | | **~14 weeks** |
+| **Total** | | **~14 weeks** (+ ~8 weeks PG-0..PG-8, which gates Sprints 8-12) |
 
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
 > **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
