@@ -79,7 +79,7 @@ Nightly, core modules only: `security_fastapi.py`, workspace scoping, `db/docume
 
 **Explicitly out of scope:** wholesale remediation of the ~31k-line test suite. That is a quarter of solo effort with diffuse payoff. The mutation gate concentrates effort exactly where the three confirmed bugs lived.
 
-### TQ-5a — Alembic chain integrity check ⬜ (no gate; runs alongside PG-0)
+### TQ-5a — Alembic chain integrity check ✅ (done)
 
 A pure-Python assertion in the fast suite, no database required:
 
@@ -172,7 +172,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 
 | Sprint | Tickets | Est. duration |
 |---|---|---|
-| PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) + TQ-5a (alembic chain check, no gate) | 1-2 days |
+| PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) + TQ-5a ✅ (alembic chain check) | 1-2 days |
 | PG-1 | SEC-1 + SEC-2 (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | 3–4 days |
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
 | PG-3 | TQ-1 (authz CI job; then delete the testing bypass and repair fallout) | 1 week |
