@@ -14,7 +14,7 @@
 
 ## Phase 0 — The governing decision (Sprint PG-0, before any code)
 
-### ADR-1 — Single-node appliance scope ⬜
+### ADR-1 — Single-node appliance scope ✅ (recorded in [ADR.md](ADR.md))
 
 **Decision:** LocalChat v3.0 is a single-node, self-hosted RAG appliance for a small team (≤ 25 users).
 Multi-tenant SaaS and horizontal scaling are explicitly out of scope.
@@ -26,7 +26,7 @@ This is the decision the codebase has been avoiding. The Helm chart, distributed
 - README first line changes from "production-ready" to "production-patterned, hardening toward v3.0" until the Exit Criteria pass. The claim and the code must match; today they don't.
 - Wiki Home and README must state the *same* product. Currently the wiki says "learning journey / reference implementation" and the README says "production-ready" — two products, two obligation levels. The honest position is both: a learning-driven project being hardened to a defensible production claim, for a defined scope.
 
-### ADR-2 — No async database rewrite ⬜
+### ADR-2 — No async database rewrite ✅ (recorded in [ADR.md](ADR.md))
 
 **Decision:** the sync psycopg pool stays. Blocking work is offloaded to the threadpool (PERF-1); async psycopg / asyncpg is **rejected**, not deferred.
 
@@ -114,13 +114,37 @@ Login → upload document → ask question → receive answer with citation. **T
 
 ### DEL-1a — Remove the self-contained subsystems ⬜ (no gate; runs alongside PG-0)
 
-Measured 2026-08-05 against `main` @ `7679939`: these have no route surface and no OAuth flow, so removing them is a `git rm` plus an import sweep, not surgery.
+> **Measurement corrected 2026-08-05.** The original ticket claimed all three had "no route
+> surface and no OAuth flow, so removing them is a `git rm` plus an import sweep, not surgery."
+> Re-checked against `main` @ `c750dac` before acting, and two of the three were wrong — following
+> the ticket as written would have broken four endpoints. Only the Kuzu backend is actually
+> self-contained. The rest is not cleanup; it is a product decision about live features, so it is
+> reclassified below rather than deleted.
 
-- `src/rag/active_learning.py` (63 lines, **no test module references it at all**)
-- `src/rag/feedback_pipeline.py` (187 lines; feedback *collection* in `src/db/feedback.py` stays — it feeds chunk stats, the fine-tune pipeline on top of it goes)
-- Kuzu graph backend (`src/graph/store.py` keeps the Postgres backend only; `kuzu` leaves `requirements.txt` line 38)
+**Genuinely self-contained — safe to remove (this is DEL-1a):**
 
-Tombstone the removal commits here so restoration is a `git revert` away.
+- **Kuzu graph backend.** `src/graph/store.py` keeps `PostgresGraphStore` only; `KuzuGraphStore`
+  is reachable solely via `GRAPH_BACKEND=kuzu`, has no route and no caller outside the factory.
+  `kuzu>=0.11.3` leaves `requirements.txt` line 38. Tombstone the removal commit so restoration
+  is a `git revert` away.
+
+**Not self-contained — reclassified, do not `git rm`:**
+
+| Module | What the ticket claimed | What is actually there |
+|---|---|---|
+| `src/rag/active_learning.py` | no route surface; "**no test module references it at all**" | `GET /api/workspaces/{id}/suggestions` calls `suggest_documents` (`workspace_routes.py:304`), and six tests exercise it in `test_utils_encryption_export.py` |
+| `src/rag/feedback_pipeline.py` | no route surface | **four** admin endpoints depend on it — `/reranker/train`, `/reranker/promote/{id}`, `/reranker/rollback/{id}` (`settings_routes.py:259-292`) — plus the scheduler wiring in `app_bootstrap.py:227` and tests in two modules |
+
+Removing either means removing a feature users can reach: knowledge-gap suggestions, and the
+adaptive-reranker fine-tune loop. That may still be the right call — neither has a known user —
+but it is a scope decision with UI and admin consequences, not a deletion sprint item. **Decide
+explicitly before either is touched; the default is that they stay.**
+
+> The generalisable point, and the reason this correction is recorded rather than quietly applied:
+> a plan is not evidence. This ticket carried a date, a commit hash and the word "measured", and was
+> still wrong about the codebase it described — the same shape as the stale `file-map.md` that
+> produced the duplicate revision id a day earlier. Re-derive from the code at the moment of acting,
+> per Chapter 9's rule applied to this project's own documents.
 
 ### DEL-1b — Remove the unused cloud connectors ⬜ (**must land after TQ-1**)
 
