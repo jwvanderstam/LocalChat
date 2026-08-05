@@ -1,0 +1,170 @@
+# PRODUCTION_PLAN — hardening LocalChat to a defensible production claim
+
+> **Provenance:** written in the 2026-08-04 external code-audit session; reconstructed and committed 2026-08-05.
+> The ADR-1 decision line and the TQ-1/TQ-2 ticket bodies were re-derived from the session's prose plan; all
+> other sections are recovered verbatim. All code-level claims re-verified against `main` @ `7679939`
+> (2026-08-05): `_is_rbac_bypassed()` fail-open on empty `ADMIN_PASSWORD` / `DEMO_MODE`, the
+> `app.state.testing` bypass, and `_verify_jti_not_revoked()`'s silent no-op on DB unavailability are all
+> still present.
+>
+> **Position in the plan of record:** runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1)
+> queue behind the Exit Criteria at the bottom of this document.
+
+---
+
+## Phase 0 — The governing decision (Sprint PG-0, before any code)
+
+### ADR-1 — Single-node appliance scope ⬜
+
+**Decision:** LocalChat v3.0 is a single-node, self-hosted RAG appliance for a small team (≤ 25 users).
+Multi-tenant SaaS and horizontal scaling are explicitly out of scope.
+
+This is the decision the codebase has been avoiding. The Helm chart, distributed cache backends and JWT/RBAC layers imply multi-replica scale; module-level TTL caches, the per-process admin salt and in-memory rate limiting assume one process. Run two replicas today and cache coherence and rate limits silently break. Choosing single-node makes the in-process state model *legitimate architecture* instead of a latent bug, and deletes months of solo work (Redis-mandatory state, sticky-session SSE, distributed rate limiting) that no actual deployment needs.
+
+**Consequences:**
+- Helm chart: downgrade to "single-replica only, experimental" in its README, or delete in favour of docker-compose. Decide during PG-1; deletion is the default unless a concrete k8s deployment exists.
+- README first line changes from "production-ready" to "production-patterned, hardening toward v3.0" until the Exit Criteria pass. The claim and the code must match; today they don't.
+- Wiki Home and README must state the *same* product. Currently the wiki says "learning journey / reference implementation" and the README says "production-ready" — two products, two obligation levels. The honest position is both: a learning-driven project being hardened to a defensible production claim, for a defined scope.
+
+### ADR-2 — No async database rewrite ⬜
+
+**Decision:** the sync psycopg pool stays. Blocking work is offloaded to the threadpool (PERF-1); async psycopg / asyncpg is **rejected**, not deferred.
+
+This ratifies and strengthens the existing HK-10 deferral ("deliberately deferred — see its ticket for the scale trigger"). At ≤ 25 users the threadpool is the correct production answer, and with ADR-1 in force the scale trigger can no longer fire. Recording it as an ADR stops the question from being re-litigated every time the async-purity itch returns.
+
+---
+
+## Phase 1 — Safe and correct (Sprints PG-1..PG-2)
+
+Order matters: safety before performance, because the auth fixes change what the tests must assert. BUG-3 (Sprint 5b) and RBAC-1 (Sprint 6) land first per the existing ROADMAP; nothing here duplicates them.
+
+### SEC-1 — Fail-closed boot; delete DEMO_MODE ⬜
+
+- Extend the existing startup secrets validation in `config.py`: `APP_ENV=production` with an empty `ADMIN_PASSWORD` **refuses to start**. Today `_is_rbac_bypassed()` returns True when `ADMIN_PASSWORD` is unset — a default install runs with all auth off, including `/admin`. That is a fail-open default on the exact subsystem (authz) that has produced BUG-1, BUG-3 and the RBAC-1 prerequisite gap.
+- **Delete `DEMO_MODE` entirely.** Do not deprecate, do not flag. Replace it with a network-layer rule: when no auth is configured, the server binds `127.0.0.1` only and refuses to start on a non-loopback interface. This corrects a layer error worth recording in LESSONS_LEARNED: the March-2026 assessment proposed demo mode *to reduce* the risk of production running with development defaults; implemented at the RBAC layer instead of the exposure layer, it became that exact risk. The safety mechanism inverted into the vulnerability because it gated authorisation instead of gating reachability.
+- Remove `DEMO_MODE` from `_is_rbac_bypassed()`; the testing bypass (`app.state.testing`) survives only until TQ-1 lands, then dies too (see TQ-1).
+
+### SEC-2 — Token revocation fails closed ⬜
+
+`_verify_jti_not_revoked()` currently swallows DB errors and lets the request through ("fail open rather than locking out users"). For a production claim, revocation that is advisory is not revocation. Change to fail-closed with a **60-second in-process cache of recent revocation-check results** so a DB blip degrades to slightly-stale-but-enforced rather than to open. Single-node (ADR-1) makes the in-process cache correct.
+
+### PERF-1 — Unblock the event loop in `api_chat` ⬜
+
+`api_chat` is `async def` but inline-calls sync `chat.retrieve_contexts` (sync psycopg, sync httpx embedding call, cross-encoder inference) and sync `persist_user_message` / `persist_assistant_message`. One slow retrieval stalls **every** concurrent request, including SSE streams already mid-flight. The inference path is properly async (HK-8); retrieval never got the same treatment — the migration stopped halfway.
+
+Fix: wrap `retrieve_contexts`, `retrieve_plan_and_memory`'s sync internals, and both persist calls in `starlette.concurrency.run_in_threadpool`. Audit the other async routes for the same pattern while in there (upload path in `document_routes.py` is the next most likely offender 🔬). Per ADR-2, this is the *final* fix, not a stopgap.
+
+### PERF-2 — Concurrency benchmark, committed to the repo ⬜
+
+There is currently no measurement of behaviour under concurrency, which is why PERF-1's defect survived this long. Add `scripts/bench_concurrency.py` (or a k6/locust config): **10 concurrent SSE chat clients, record p95 time-to-first-token and p95 total stream time**, against a seeded test corpus. Run before and after PERF-1 and record both numbers in this document. Wire it as a manually-triggered CI job so it becomes a permanent regression check, not a one-off proof.
+
+---
+
+## Phase 2 — Prove behaviour, not coverage (Sprints PG-3..PG-5)
+
+The mutation audit (`TEST_QUALITY_AUDIT.md`) already established internally what the external audit confirmed from the outside: coverage-driven sessions produced tests that run code without checking behaviour, and the whole suite runs with the RBAC bypass on — *coverage without authorisation*. So stop gating on coverage percentage and gate on behaviour.
+
+### TQ-1 — Authz-by-default CI job ⬜
+
+- Add a CI job that boots the app in production-like config (`APP_ENV=production`, auth configured), **introspects the FastAPI route table**, and asserts 401/403 on every route not on an explicit public allowlist. The introspection is the point: a new route added without auth *fails CI by default*. This mechanises the BUG-3 / RBAC-1 lesson — correct enforcement code existing with zero call sites is caught by a mechanism, not a memory.
+- Then **delete the testing bypass** (`app.state.testing` in `_is_rbac_bypassed()`) and repair the fallout: every route-authorisation test runs with the bypass OFF. "Coverage without authorisation" ends with this ticket.
+
+### TQ-2 — Deterministic integration CI ⬜
+
+Postgres service container plus a **fake Ollama** — a ~100-line stub returning canned embeddings and completions. The full ingest → ask → cite path runs in CI without a GPU, deterministically. This is the harness TQ-1's production-config boot and OPS-4's restore proof both reuse.
+
+### TQ-3 — Mutation gate, scoped ruthlessly ⬜
+
+Nightly, core modules only: `security_fastapi.py`, workspace scoping, `db/documents.py` filters, retrieval scoping. Gate at an agreed threshold; rewrite tests only where surviving mutants point.
+
+**Explicitly out of scope:** wholesale remediation of the ~31k-line test suite. That is a quarter of solo effort with diffuse payoff. The mutation gate concentrates effort exactly where the three confirmed bugs lived.
+
+### TQ-4 — One Playwright smoke test ⬜
+
+Login → upload document → ask question → receive answer with citation. **That is the entire frontend test strategy**, deliberately. The vanilla-JS frontend (9 files + an 867-line `settings.html`) is not worth a component-test investment at this scope; one end-to-end proof that the golden path works catches the regressions that matter.
+
+---
+
+## Phase 3 — The deletion sprint (Sprint PG-6)
+
+**Delete, don't flag.** Flagged-off code still passes through every future authz audit, every Dependabot bump, every mutation run, every CodeQL scan. Git history preserves everything; re-adding a connector later costs days, while carrying it costs a tax on every sprint forever. The counterargument is real — the project's stated purpose is learning, and deletion destroys playgrounds — but the production claim was chosen over it, and depth on the retained core *is* the learning this project's own lessons file keeps pointing back to.
+
+### DEL-1 — Remove non-core subsystems ⬜
+
+**Delete** (with a short tombstone note in this file recording the removal commit, so restoration is a `git revert` away):
+- `src/rag/active_learning.py` and its routes/tests
+- `src/rag/feedback_pipeline.py` (feedback *collection* in `db/feedback.py` stays — it feeds chunk stats; the fine-tune pipeline goes)
+- Kuzu graph backend (`graph/store.py` keeps the Postgres backend only; `kuzu` leaves `requirements.txt`)
+- Connectors: `google_drive_connector.py`, `onedrive_connector.py`, `confluence_connector.py`, `google_auth.py`, and their routes/tests/OAuth flows
+
+**Keep:** local folder, S3/MinIO/R2, webhook, SharePoint (+ `microsoft_auth.py`) — the ones with a real user. The plugin contract (PC initiative) and the three MCP servers stay: they are the architecture, not the sprawl.
+
+### DEL-2 — GraphRAG: earn its place or leave 🔬
+
+Build a small retrieval eval set first (20–30 question/expected-source pairs over the real document corpus — this asset outlives the decision and later serves RAG-tuning work). Measure retrieval quality with GraphRAG expansion on vs off. If 1-hop expansion does not measurably lift answer grounding on our own documents, `src/graph/` goes the way of DEL-1. No sentiment: the eval decides.
+
+---
+
+## Phase 4 — Operate like a product (Sprints PG-7..PG-8)
+
+### OPS-1 — Reproducible builds: uv + lock file ⬜
+
+Adopt `uv` with a committed lock file. **Note the history:** `requirements.lock.txt` was removed in the 2026-07-30 dependency-pipeline repair (LESSONS_LEARNED Ch. 11) — that was the right call for a hand-maintained lock text next to grouped Dependabot. This is a different mechanism: a tool-managed lockfile that Dependabot/Renovate understands, giving reproducible installs without the manual-drift failure that killed the last attempt.
+
+### OPS-2 — Bounded de-globalisation of `config.app_state` ⬜
+
+Migrate **only auth- and workspace-relevant state** from the `config.app_state` singleton to `request.app.state` via FastAPI dependencies. The singleton is the hidden global that let bypass state leak everywhere and made tests lie. RAG tuning parameters (`get_rag_param`) may stay global — they are not security-relevant, and full DI purity is not worth solo months. Scope is the ticket: when the auth and workspace paths no longer touch `config.app_state`, this is done.
+
+### OPS-3 — Docs inside the drift mechanism ⬜
+
+The wiki is the one documentation surface outside every drift-catching mechanism this project built after the Flask-era doc-drift lesson — and it drifted: the March-2026 assessment describes the Flask architecture, cites ~1,000 tests against today's ~2,300, and recommends features that now exist.
+- Shrink the wiki to Home + a link to `docs/ROADMAP.md`.
+- Date-stamp the March-2026 assessment as a historical snapshot of the Flask-era codebase, or delete it.
+- Move `Improvement-feedback` to `.github/ISSUE_TEMPLATE/improvement.md`, where GitHub actually renders the front-matter.
+- Add the DEMO_MODE layer-inversion lesson (SEC-1) to `LESSONS_LEARNED.md`.
+
+### OPS-4 — Prove restore in CI ⬜
+
+`OPERATIONS.md` describes backup and restore; an untested restore procedure is a wish. Add a CI job (can share TQ-2's Postgres service): seed data → `pg_dump` per the documented procedure → drop schema → restore → assert row counts and a sample vector query. Green means the ops doc is true.
+
+### OPS-5 — Release discipline + production topology ⬜
+
+- Tag `v3.0.0-beta.1`; the tag-triggered `docker-publish.yml` finally runs; start `CHANGELOG.md` (README's changelog link currently points at zero releases).
+- Document the recommended topology in `DEPLOYMENT.md`: nginx/Traefik TLS termination in front, app bound to loopback/internal network behind it, `METRICS_TOKEN` set. One page, one diagram.
+
+---
+
+## Sprint plan
+
+Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behind the Exit Criteria.
+
+| Sprint | Tickets | Est. duration |
+|---|---|---|
+| PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) | 1 day |
+| PG-1 | SEC-1 + SEC-2 (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | 3–4 days |
+| PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
+| PG-3 | TQ-1 (authz CI job; then delete the testing bypass and repair fallout) | 1 week |
+| PG-4 | TQ-2 (fake-Ollama deterministic integration CI) | 1 week |
+| PG-5 | TQ-3 + TQ-4 (scoped mutation gate; Playwright smoke) | 1 week |
+| PG-6 | DEL-1 + DEL-2 (deletion sprint; GraphRAG eval verdict) | 1 week |
+| PG-7 | OPS-1 + OPS-2 (uv lock; bounded de-globalisation) | 1 week |
+| PG-8 | OPS-3 + OPS-4 + OPS-5 (docs mechanism, restore proof, release + topology) | 1 week |
+| **Total** | | **~8 weeks** |
+
+> **Freeze rule:** the last depth sprint leaked — connectors and features landed during it. This one has a backstop: until the Exit Criteria below are green, the only valid ticket sources are this table and confirmed bug fixes (bugs never queue behind the gate, per the Sprint 5 precedent).
+
+---
+
+## Exit criteria — the definition of "production grade"
+
+v3.0 ships when **all seven** hold, and not before:
+
+1. **Fail-closed boot** — no configuration path exists in which `APP_ENV=production` runs with authorisation off. (SEC-1, SEC-2)
+2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI. Testing bypass deleted. (TQ-1)
+3. **Concurrency budget met** — p95 time-to-first-token under the agreed budget at 10 concurrent SSE users; benchmark and numbers committed to the repo. (PERF-1/2)
+4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3)
+5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4)
+6. **Reproducible release** — tagged version, changelog, uv lock file, published image from the tag. (OPS-1/5)
+7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time.
+
+When these are green: un-queue ROADMAP Sprints 8–12 and resume feature work on a codebase that has earned its first line.
