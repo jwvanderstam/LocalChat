@@ -38,11 +38,86 @@ This ratifies and strengthens the existing HK-10 deferral ("deliberately deferre
 
 Order matters: safety before performance, because the auth fixes change what the tests must assert. BUG-3 (Sprint 5b) and RBAC-1 (Sprint 6) land first per the existing ROADMAP; nothing here duplicates them.
 
-### SEC-1 — Fail-closed boot; delete DEMO_MODE ⬜
+### SEC-1 — Delete every authorisation bypass; seed a dev admin instead ⬜
 
-- Extend the existing startup secrets validation in `config.py`: `APP_ENV=production` with an empty `ADMIN_PASSWORD` **refuses to start**. Today `_is_rbac_bypassed()` returns True when `ADMIN_PASSWORD` is unset — a default install runs with all auth off, including `/admin`. That is a fail-open default on the exact subsystem (authz) that has produced BUG-1, BUG-3 and the RBAC-1 prerequisite gap.
-- **Delete `DEMO_MODE` entirely.** Do not deprecate, do not flag. Replace it with a network-layer rule: when no auth is configured, the server binds `127.0.0.1` only and refuses to start on a non-loopback interface. This corrects a layer error worth recording in LESSONS_LEARNED: the March-2026 assessment proposed demo mode *to reduce* the risk of production running with development defaults; implemented at the RBAC layer instead of the exposure layer, it became that exact risk. The safety mechanism inverted into the vulnerability because it gated authorisation instead of gating reachability.
-- Remove `DEMO_MODE` from `_is_rbac_bypassed()`; the testing bypass (`app.state.testing`) survives only until TQ-1 lands, then dies too (see TQ-1).
+> **Rewritten 2026-08-05** after checking the code the original ticket described, and after
+> the owner chose the dev-seed approach over the loopback-binding one it proposed.
+
+**Correction first: the production half is already done.** The ticket asked to "extend the
+existing startup secrets validation so `APP_ENV=production` with an empty `ADMIN_PASSWORD`
+refuses to start". `validate_secrets()` (`config.py:112-143`) already appends
+`"ADMIN_PASSWORD must be set in production"` and raises `SystemExit(1)`, and it is called
+from `create_app()` (`app_fastapi.py:32`). **Production cannot boot without an admin
+password today.** No work remains there.
+
+**What actually remains is that development runs with authorisation switched off**, through
+three separate mechanisms, and that is why defects in this exact subsystem keep reaching
+`main`. `_is_rbac_bypassed()` returns True when *any* of these hold:
+
+| Bypass | Reachable in production? | Dies in |
+|---|---|---|
+| `not _ADMIN_PASSWORD_RAW` | No — `validate_secrets()` blocks the boot | SEC-1 |
+| `config.DEMO_MODE` | Yes, if someone sets it | SEC-1 |
+| `_is_testing(request)` (`app.state.testing`) | No — test-only flag | TQ-1 |
+
+When all three are gone, `_is_rbac_bypassed()` has no remaining branch and the function
+itself is deleted. That is the goal: **not a safer bypass, no bypass.**
+
+**The approach: seed, don't bypass.**
+
+- Delete `DEMO_MODE` entirely — config constant, `_is_rbac_bypassed()` branch, the
+  `get_current_user_id()` early return (`security_fastapi.py:140`), the `demo_mode` field in
+  the status payload (`settings_routes.py:108`), the `.env.example`/compose/Dockerfile entries,
+  and the stale comment at `config.py:520` claiming it "suppresses web search" — **there is no
+  such code**; `web_search.py` has never referenced it.
+- Outside production, when the user table is empty, seed one admin account with a known
+  password and log the credentials once at startup. The developer logs in **through the real
+  login form**, against the real JWT issuance, and every subsequent request carries a real
+  token.
+- Remove the `not _ADMIN_PASSWORD_RAW` branch. With a seed, there is always an account.
+
+> **Explicitly rejected: auto-login.** An earlier phrasing of this ticket said the UI would
+> "log itself in locally". That is the same defect wearing a different hat — a code path that
+> behaves differently in dev than in production, which is precisely what let BUG-3, the
+> fail-open membership checks and the 49 unguarded routes stay invisible. The cost of the
+> honest version is one login per session. The benefit is that a local instance behaves
+> **identically** to production, so an authorisation defect shows up while you are working
+> rather than during an audit.
+
+**Decided 2026-08-05 — seed and start.** Outside production with an empty `ADMIN_PASSWORD`,
+generate a random password, create the admin, and log the credentials once at startup. A fresh
+clone still comes up with `docker compose up` and no `.env` edit, and it comes up with
+authorisation **on** rather than off — which is the whole point of the change.
+
+Two consequences to handle in the implementation, both of which make the difference between
+this being a convenience and being a new hole:
+
+- The generated password is in the startup log. That is acceptable on a local box and not
+  acceptable anywhere else, so the seed must refuse to run when `APP_ENV=production` — the
+  guard is the environment, not the emptiness of `ADMIN_PASSWORD`.
+- Re-running must be inert. Seed only when the user table is empty; never reset an existing
+  account's password, or a restart silently hands out a known credential for a real user.
+
+Rejected alternative: refusing to start outside production too. One rule everywhere is tidier,
+but it turns a fresh clone into a `.env`-editing exercise before anything runs, and the getting-
+started friction buys nothing — a local instance with a seeded admin is already authorised.
+
+**Files:** `src/config.py`, `src/security_fastapi.py`, `src/routes_fastapi/settings_routes.py`,
+`src/db/users.py` (seed), `src/app_bootstrap.py` (call the seed), `.env.example`,
+`docker-compose.yml`, `Dockerfile`, `docs/DEPLOYMENT.md`.
+
+**Tests required:**
+- `_is_rbac_bypassed` no longer exists, or returns False for every input — assert the absence
+- a guarded route returns 401 unauthenticated with `DEMO_MODE=true` still set in the
+  environment, proving the variable is inert rather than merely undocumented
+- the seed creates exactly one admin when the user table is empty, and **does nothing** when it
+  is not (re-running must never reset a real password)
+- the seed does not run when `APP_ENV=production`
+- a token issued after logging in as the seeded admin passes `require_admin_dep`
+
+**Acceptance:** delete the `state.testing = True` line from one existing route test and confirm
+it now fails with 401 rather than passing. That is the property being bought: tests can no
+longer pass through checks that never ran.
 
 ### SEC-2 — Token revocation fails closed ⬜
 
