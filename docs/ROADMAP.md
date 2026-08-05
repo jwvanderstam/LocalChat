@@ -321,11 +321,19 @@ So enforcing membership across the route surface — which is precisely what thi
 
 ---
 
-### RBAC-2 — Route permission audit
+### RBAC-2 — Route permission audit ✅ (done)
 
 A systematic pass over every route — not just workspace-scoped ones — to assign the correct minimum role at the correct tier, and to document the result as a permission matrix in `docs/`.
 
 Two inputs from BUG-3 that this ticket exists to generalise: routes had *coverage* without having *authorisation* (the whole suite runs with the RBAC bypass on, so tests passed through checks that never ran), and a correct enforcement dependency sat with zero call sites while the routes it was written for kept their own broken checks. The audit must therefore check that each route has a check **and** that a test exercises it with the bypass off.
+
+> **Outcome (2026-08-05).** The route table was enumerated from source, not from memory: **102 routes, of which 49 had no authorisation check at all** — and none of those did an internal check either. The sharpest were `POST /api/models/pull` and `DELETE /api/models/delete` (anyone could fill the disk or delete the model everyone uses) and `POST /api/plugins/reload` (re-executes plugin code in-process). Result: 18 public by decision, 11 authenticated, 46 workspace-scoped, 27 admin. Documented in [`PERMISSIONS.md`](PERMISSIONS.md), generated from the handlers so it records what is enforced rather than what was intended.
+>
+> Decisions taken: model management is admin (node-wide — disk, VRAM, everyone's model); connectors are workspace-`owner` (they hold credentials and feed one workspace); `/metrics` and the repo-docs viewer stay public.
+>
+> **A first attempt broke every guarded route.** `require_auth(request)`, called directly rather than through `Depends`, hit the unresolved `Depends` sentinel and returned 401 for *every* caller including valid tokens — the same defect fixed in `get_current_user_id` in #217, still present in its sibling. Caught by the one test asserting a permitted caller still passes. That is the half of a security test suite that is easy to omit and the only half that catches over-tightening.
+>
+> **Not done here:** the mechanical version. TQ-1 in [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) introspects the route table in CI so a new unguarded route fails by default. This audit is a snapshot; TQ-1 is the ratchet, and it deletes the testing bypass that hid all of this.
 
 ---
 
@@ -650,7 +658,7 @@ Two distinct defects, and the second masked the first:
 | 5 | BUG-1 + BUG-2 (memory workspace scoping, web citation loss) ✅ done & merged (#208, #209) | — |
 | 5b | BUG-3 (workspace member routes had no authorisation) ✅ done & merged (#217) | — |
 | 6 | RBAC-1 (enforce the workspace role tier) ✅ done & merged (#221, #219, #220, UI half; fixes #222, #223, #225) | — |
-| 6b | RBAC-2 (route permission audit) + CW-3 (audit log, stretch) | 1 week |
+| 6b | RBAC-2 (route permission audit) ✅ done — see [PERMISSIONS.md](PERMISSIONS.md) + CW-3 (audit log, stretch) ⬜ | CW-3 open |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | PG-0..PG-8 | **Production-grade hardening** — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gates everything below. | ~8 weeks |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |

@@ -168,13 +168,20 @@ def require_auth(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008
 ) -> str:
-    """FastAPI dependency — return user_id or raise 401."""
+    """FastAPI dependency — return user_id or raise 401.
+
+    Safe to call directly with just a request, like ``get_current_user_id``.
+    """
     if _is_rbac_bypassed(request):
         return "anonymous"
-    if not credentials:
+    # getattr, not truthiness: called directly rather than via Depends, *credentials*
+    # is the unresolved Depends sentinel — truthy, but with no .credentials attribute.
+    # Left as `if not credentials` this rejected every caller, valid token included.
+    token = getattr(credentials, "credentials", None) or _extract_bearer_token(request)
+    if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
     try:
-        payload = _decode_token(credentials.credentials)
+        payload = _decode_token(token)
     except Exception:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Invalid or expired token"}) from None
     jti = payload.get("jti")

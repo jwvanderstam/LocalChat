@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
 from .. import config
+from ..security_fastapi import require_admin_dep
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -38,7 +39,7 @@ def _validation_error_message(exc: Exception, default: str) -> str:
 
 
 @router.get("")
-def list_models(request: Request) -> Any:
+def list_models(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..gpu.backends import detect
 
     success, models = request.app.state.ollama_client.list_models()
@@ -91,13 +92,13 @@ def list_models(request: Request) -> Any:
 
 
 @router.get("/active")
-def get_active_model(request: Request) -> Any:
+def get_active_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     active_model = config.app_state.get_active_model()
     return {"model": active_model}
 
 
 @router.post("/active")
-async def set_active_model(request: Request) -> Any:
+async def set_active_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelRequest
     from ..utils.sanitization import sanitize_model_name
 
@@ -126,7 +127,7 @@ async def set_active_model(request: Request) -> Any:
 
 
 @router.post("/pull")
-async def pull_model(request: Request) -> Any:
+async def pull_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelPullRequest
     from ..utils.sanitization import sanitize_model_name
 
@@ -158,7 +159,7 @@ async def pull_model(request: Request) -> Any:
 
 
 @router.delete("/delete")
-async def delete_model(request: Request) -> Any:
+async def delete_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelDeleteRequest
     from ..utils.sanitization import sanitize_model_name
 
@@ -177,7 +178,7 @@ async def delete_model(request: Request) -> Any:
 
 
 @router.post("/unload")
-async def unload_model(request: Request) -> Any:
+async def unload_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelRequest
     from ..utils.sanitization import sanitize_model_name
 
@@ -196,7 +197,7 @@ async def unload_model(request: Request) -> Any:
 
 
 @router.post("/test")
-async def test_model(request: Request) -> Any:
+async def test_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelRequest
     from ..utils.sanitization import sanitize_model_name
 

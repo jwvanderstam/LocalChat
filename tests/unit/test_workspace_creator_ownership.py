@@ -92,6 +92,7 @@ def _client(testing: bool):
     state.db.is_connected = True
     state.db.create_workspace.return_value = "ws-new"
     state.db.get_workspace.return_value = {"id": "ws-new", "name": "Acme"}
+    state.db.is_token_revoked.return_value = False  # require_auth now runs on this route
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.state = state

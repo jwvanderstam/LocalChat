@@ -202,6 +202,9 @@ def _make_fastapi_app(db_ok=True, insert_raises=False, stats=None, trend=None, s
 
     test_app.state.db = mock_db
     test_app.state.startup_status = {"database": db_ok}
+    # Per .claude/rules/testing.md. These are route-behaviour tests, not authorisation
+    # tests; RBAC-2 gave /feedback a viewer guard, and without this they assert 401.
+    test_app.state.testing = True
 
     client = TestClient(test_app, raise_server_exceptions=False)
     return test_app, client
