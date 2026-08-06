@@ -57,7 +57,11 @@ credential, and two screens.
 
 ## Decisions taken (2026-08-06)
 
-1. **Local password *and* OIDC (Entra ID + Google), both now.**
+1. **Local password now; OIDC (Entra ID + Google) designed now, built on a trigger.**
+   The original decision was "both now"; revised the same day on the advice that AUTH-1 plus
+   AUTH-2 already yield a working, authorised application for this user count, and that the
+   four OIDC security decisions are better taken with real users in view. The design is
+   complete and the decisions are recorded — only the build waits. See Phase 3.
 2. **httpOnly cookie**, not `localStorage`.
 3. **No temporary workaround** — no revert of RBAC-2, no throwaway bypass.
 
@@ -118,7 +122,22 @@ Two things the UI must get right because the API allows them:
 the UI's calls); demoting the last admin is refused server-side; the screen renders soft-
 deleted users distinctly rather than hiding them.
 
-## Phase 3 — AUTH-3: OIDC login (Entra ID + Google)
+## Phase 3 — AUTH-3: OIDC login (Entra ID + Google) ⏸️ built on a trigger, not on a date
+
+> **Sequenced behind a condition, decided 2026-08-06.** After AUTH-1 and AUTH-2 you have a
+> working, authorised application with user management, on local passwords — which is
+> appropriate for the user count ADR-1 describes. AUTH-3 is a further 3–5 days, four security
+> decisions that can grant access silently if taken carelessly, and an external dependency in
+> the login path of an application that otherwise runs local and offline.
+>
+> The real argument for OIDC is not convenience, it is **offboarding**: when someone leaves,
+> their access disappears with their IdP account instead of depending on someone remembering.
+> That argument strengthens with headcount and is weak at one user.
+>
+> **Trigger:** build it when there is a second and third real user, or when someone whose
+> access must be revocable centrally needs an account. Take the four decisions below with
+> those actual people in mind rather than hypothetical ones. The design below stays valid;
+> only the timing is conditional.
 
 **Use `authlib`.** Do not hand-roll this. `id_token` validation has requirements that are
 easy to get subtly wrong — issuer and audience checks, `nonce` binding, `at_hash`, clock
@@ -140,34 +159,44 @@ user is". Sharing the app registration is fine; sharing the code path is not.
   care how you authenticated. This is what makes OIDC a second issuance path rather than a
   second auth system.
 
-### Security decisions this phase forces — open, and they are not details
+### Security decisions — decided 2026-08-06
 
-**(a) Which tenant may log in.** `MICROSOFT_TENANT_ID` currently defaults to `'common'`.
-For connector data access that is merely permissive; **as a login path it means any
-Microsoft account in the world can authenticate.** Login must be restricted to a named
-tenant, and the `tid` claim verified on every `id_token`. Recommendation: require an
-explicit `OIDC_MICROSOFT_TENANT_ID`, and refuse to enable Microsoft login if it is
-`common`.
+All four take the restrictive option. The asymmetry is the reason: loosening any of these
+later is a config change, while tightening one after people rely on it means revoking access
+someone already has.
 
-**(b) May an unknown user log in at all?** Two models:
+**(a) Only a named tenant may log in.** `MICROSOFT_TENANT_ID` defaults to `'common'`. For
+connector data access that merely lets a user link their own OneDrive. **As a login path it
+means authentication succeeds for any Microsoft account in existence**, personal Outlook
+addresses included — the "Log in with Microsoft" button becomes an open registration form.
 
-- *Invite-only* — OIDC authenticates, but the user must already exist locally. An unknown
-  subject is refused. Recommended for ≤ 25 users: it keeps the user list an explicit
-  decision, which is what ADR-1's scope implies.
-- *Just-in-time provisioning* — first successful OIDC login creates the account, with a
-  default role. Convenient at larger scale; here it means anyone in the tenant silently
-  becomes a user of your knowledge base.
+Requires a separate `OIDC_MICROSOFT_TENANT_ID`, verifies the `tid` claim on every
+`id_token`, and **refuses to start** if it is set to `common`. Refusing rather than warning:
+a logged warning on a fail-open default is exactly the pattern removed this week.
 
-**(c) How does an OIDC user get a role?** Recommendation: no automatic elevation. JIT or
-invited users land as ordinary users; admin is granted in the Users screen by an existing
-admin. Group-claim mapping is a v4.0 concern — it needs claim configuration in the IdP that
-does not exist yet, and getting it wrong grants admin silently.
+**(b) Invite-only. An unknown subject is refused.** At ≤ 25 users, inviting costs one action
+per person per engagement, and it keeps the user list a decision rather than a by-product of
+tenant membership. With JIT provisioning, everyone in the tenant becomes a user of the
+knowledge base as soon as they learn the URL — and that knowledge base is the reason the
+application exists. JIT becomes reasonable in the hundreds; that is a different product from
+the one ADR-1 describes.
 
-**(d) Linking to an existing local account.** If an OIDC identity presents an email that
-matches a local user, do **not** link automatically unless `email_verified` is true *and*
-the issuer is trusted for that domain. Unverified-email linking is a documented account
-takeover path. Recommendation: match on `(issuer, subject)` stored on the user row; treat
-email as a display attribute only.
+**(c) Roles are never granted automatically.** No group-claim mapping. Admin is granted by
+an admin in the Users screen (AUTH-2).
+
+Group mapping is not wrong in principle; it has a *silent* failure mode. A misconfigured
+group in the IdP grants admin with nothing changing visibly inside this application, so it
+surfaces at audit time rather than at grant time. Manual granting is visible, attributable,
+and trivial at this size. Revisit when the user list is too large to maintain by hand.
+
+**(d) Identities link on `(issuer, subject)`, never on email alone.** Email in an `id_token`
+is a claim, and whether it was verified depends on the provider. An IdP that issues
+unverified addresses lets someone register with an existing admin's email and take the
+account over — a known, exploited path.
+
+`oidc_issuer` + `oidc_subject` are stable and unique per IdP; email is a display attribute.
+Deliberate linking is still possible and is explicit: an admin invites by email, and the
+first successful OIDC login carrying `email_verified: true` binds that identity to the row.
 
 **Schema:** `users` gains `oidc_issuer` and `oidc_subject` (nullable, unique together), so
 an account can have a password, an external identity, or both. Additive migration; follows
@@ -193,12 +222,17 @@ was not reachable while the only way to use the app was through a bypass.
 |---|---|---|---|
 | 1 | AUTH-1 local login + cookie + frontend | the application itself | 1–2 days |
 | 2 | AUTH-2 Users screen in Settings | admin self-service | 1–2 days |
-| 3 | AUTH-3 OIDC (Entra + Google) | SSO | 3–5 days |
 | 4 | AUTH-4 delete the bypasses | SEC-1, TQ-1 | folded into those |
+| 3 | AUTH-3 OIDC ⏸️ | SSO, central offboarding | 3–5 days, **on trigger** |
 
-Phase 1 first because the app is unusable until it lands. Phase 3 is deliberately after
-Phase 2: the Users screen is where an OIDC user's role gets granted, so building it first
-means Phase 3 has somewhere to land.
+AUTH-4 moves ahead of AUTH-3: deleting `DEMO_MODE` and `app.state.testing` only needs a way
+to authenticate, which AUTH-1 provides. Waiting for OIDC would leave the bypasses in place
+for no reason.
+
+Phase 1 first because the app is unusable until it lands. AUTH-3, when its trigger fires,
+still comes after AUTH-2: the Users screen is where an OIDC user's role gets granted and
+where invitations are issued, so it must exist before an external identity has anywhere to
+land.
 
 ## What this changes in PRODUCTION_PLAN.md
 
