@@ -40,6 +40,10 @@ Order matters: safety before performance, because the auth fixes change what the
 
 ### SEC-1 — Delete every authorisation bypass; seed a dev admin instead ⬜
 
+> **Blocked on AUTH-1** (see [AUTH_PLAN.md](AUTH_PLAN.md)). There is currently no login route
+> and no way to obtain a token, so removing the bypasses would leave the application with no
+> way in at all. The seed-and-start decision below stands; it just cannot land first.
+
 > **Rewritten 2026-08-05** after checking the code the original ticket described, and after
 > the owner chose the dev-seed approach over the loopback-binding one it proposed.
 
@@ -140,6 +144,10 @@ There is currently no measurement of behaviour under concurrency, which is why P
 The mutation audit (`TEST_QUALITY_AUDIT.md`) already established internally what the external audit confirmed from the outside: coverage-driven sessions produced tests that run code without checking behaviour, and the whole suite runs with the RBAC bypass on — *coverage without authorisation*. So stop gating on coverage percentage and gate on behaviour.
 
 ### TQ-1 — Authz-by-default CI job ⬜
+
+> **Partly blocked on AUTH-1.** The route-table introspection can be built now; deleting the
+> `app.state.testing` bypass cannot, because route tests would then have no way to
+> authenticate. See [AUTH_PLAN.md](AUTH_PLAN.md).
 
 - Add a CI job that boots the app in production-like config (`APP_ENV=production`, auth configured), **introspects the FastAPI route table**, and asserts 401/403 on every route not on an explicit public allowlist. The introspection is the point: a new route added without auth *fails CI by default*. This mechanises the BUG-3 / RBAC-1 lesson — correct enforcement code existing with zero call sites is caught by a mechanism, not a memory.
 - Then **delete the testing bypass** (`app.state.testing` in `_is_rbac_bypassed()`) and repair the fallout: every route-authorisation test runs with the bypass OFF. "Coverage without authorisation" ends with this ticket.
