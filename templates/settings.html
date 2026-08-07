@@ -607,34 +607,111 @@
          USERS TAB (admin only)
          ══════════════════════════════════════════════════════════════════════ -->
     <div class="tab-pane fade" id="users" role="tabpanel" aria-labelledby="users-tab">
-        <div class="card mt-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-people me-2"></i>Users</span>
-                <button class="btn btn-sm btn-primary" id="user-create-btn">
-                    <i class="bi bi-plus-lg me-1"></i>New user
-                </button>
-            </div>
-            <div class="card-body">
-                <div id="users-alert" class="alert py-2 small" style="display:none" role="alert"></div>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>Username</th><th>Email</th><th>Role</th>
-                                <th>Status</th><th class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="users-tbody"></tbody>
-                    </table>
-                </div>
-                <p class="text-muted small mb-0 mt-3">
-                    Retiring a user is reversible — the account is kept so their documents and
-                    conversations still resolve. Purging is permanent and is refused while the
-                    user still belongs to a workspace.
+        <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+            <div>
+                <h5 class="mb-1">Users</h5>
+                <p class="text-muted small mb-0">
+                    A user needs a workspace to do anything — without one they can sign in and see nothing.
                 </p>
             </div>
+            <button class="btn btn-primary" id="user-create-btn">
+                <i class="bi bi-person-plus me-1"></i>New user
+            </button>
         </div>
+
+        <div id="users-alert" class="alert py-2 small d-none" role="alert" aria-live="polite"></div>
+
+        <div class="row g-3" id="users-grid"></div>
     </div><!-- /users tab-pane -->
+
+    <!-- Create user -->
+    <div class="modal fade" id="user-create-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="user-create-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>New user</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="nu-username">Username</label>
+                            <input class="form-control" id="nu-username" autocomplete="off" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="nu-password">Initial password</label>
+                            <input type="password" class="form-control" id="nu-password"
+                                   autocomplete="new-password" required>
+                            <div class="form-text">They can change it themselves after signing in.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="nu-role">Account type</label>
+                            <select class="form-select" id="nu-role">
+                                <option value="user" selected>User — normal access</option>
+                                <option value="admin">Admin — can manage users, models and settings</option>
+                            </select>
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label" for="nu-workspace">Workspace access</label>
+                            <select class="form-select" id="nu-workspace"></select>
+                            <div class="form-text">
+                                Required for the account to be usable. You can add more afterwards.
+                            </div>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label" for="nu-wsrole">Role in that workspace</label>
+                            <select class="form-select" id="nu-wsrole">
+                                <option value="viewer">Viewer — read and chat</option>
+                                <option value="editor" selected>Editor — also upload and delete</option>
+                                <option value="owner">Owner — also manage the workspace</option>
+                            </select>
+                        </div>
+                        <div id="nu-error" class="alert alert-danger py-2 small mt-3 d-none" role="alert"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="nu-submit">Create user</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grant workspace access to an existing user -->
+    <div class="modal fade" id="user-grant-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="user-grant-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-folder-plus me-2"></i>Add workspace access</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small">For <strong id="ug-username"></strong></p>
+                        <input type="hidden" id="ug-userid">
+                        <div class="mb-3">
+                            <label class="form-label" for="ug-workspace">Workspace</label>
+                            <select class="form-select" id="ug-workspace"></select>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label" for="ug-role">Role</label>
+                            <select class="form-select" id="ug-role">
+                                <option value="viewer">Viewer — read and chat</option>
+                                <option value="editor" selected>Editor — also upload and delete</option>
+                                <option value="owner">Owner — also manage the workspace</option>
+                            </select>
+                        </div>
+                        <div id="ug-error" class="alert alert-danger py-2 small mt-3 d-none" role="alert"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Grant access</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
 </div><!-- /tab-content -->
 {% endblock %}
