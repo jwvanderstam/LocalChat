@@ -8,13 +8,16 @@ from fastapi import Request
 def get_workspace_id(request: Request) -> str | None:
     """Return the workspace scope for this request.
 
-    A workspace API key pins the scope: ``check_workspace_access`` records the key's
-    own workspace on ``request.state`` and it wins over anything the client sent.
-    Without that, a key-authenticated request omitting ``X-Workspace-ID`` would fall
-    through to the *default* workspace downstream — the key would authorise against
-    one workspace and then read another.
+    ``check_workspace_access`` records the workspace it authorised against on
+    ``request.state``, and that wins over anything the client sent. Two cases need it:
+
+    * An API key names its own workspace, and a client-supplied one must never widen it.
+    * A user request that omits ``X-Workspace-ID`` resolves to one of their workspaces.
+      Without pinning, the check passes against that workspace while this function
+      still returns ``None`` — and a query scoped by ``None`` runs unscoped, so a
+      viewer saw documents from workspaces they are not a member of.
     """
-    pinned = getattr(request.state, "api_key_workspace_id", None)
+    pinned = getattr(request.state, "resolved_workspace_id", None)
     if pinned:
         return str(pinned)
     return (

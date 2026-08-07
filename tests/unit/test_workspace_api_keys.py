@@ -123,7 +123,7 @@ class TestKeyIsConfinedToItsWorkspace:
         db = _db()
         req = _request({"X-API-Key": "lcw_secret"}, db)
         assert check_workspace_access(req, None, "viewer") is None
-        assert req.state.api_key_workspace_id == WS_A
+        assert req.state.resolved_workspace_id == WS_A
 
     def test_pinned_scope_wins_in_get_workspace_id(self):
         from src.utils.workspace import get_workspace_id

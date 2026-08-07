@@ -37,16 +37,20 @@ function init() {
         await testRetrieval();
     });
     
-    // applyWritePermission() renders the document list itself once permission is
-    // known, so loadDocuments() is not called separately here.
-    applyWritePermission();
+    // Loaded unconditionally. Hanging this off applyWritePermission() coupled "show
+    // the documents" to "the permission check succeeded", so any failure there left
+    // the list stuck on its loading spinner — a viewer is entitled to see documents
+    // whether or not we managed to work out that they cannot upload.
+    loadDocuments();
     loadStats();
+    applyWritePermission();
 
     // Permission is re-fetched on switch because it is per-workspace: the same user
     // may be editor in one workspace and viewer in another.
     document.addEventListener('workspace-switched', function () {
-        applyWritePermission();
+        loadDocuments();
         loadStats();
+        applyWritePermission();
     });
 }
 
