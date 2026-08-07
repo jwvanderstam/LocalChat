@@ -23,6 +23,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import threading
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -169,17 +171,69 @@ def get_current_user_id(
         return None
 
 
+#: How long a successful "not revoked" answer stays usable when the database cannot be
+#: reached. Long enough to ride out a restart or a brief blip, short enough that a
+#: revocation takes effect within a minute even during one.
+_REVOCATION_CACHE_TTL = 60.0
+#: Bounded so a stream of distinct tokens cannot grow this without limit.
+_REVOCATION_CACHE_MAX = 4096
+
+_revocation_cache: dict[str, float] = {}
+_revocation_cache_lock = threading.Lock()
+
+
+def _remember_not_revoked(jti: str) -> None:
+    with _revocation_cache_lock:
+        if len(_revocation_cache) >= _REVOCATION_CACHE_MAX:
+            cutoff = time.monotonic() - _REVOCATION_CACHE_TTL
+            for key in [k for k, seen in _revocation_cache.items() if seen < cutoff]:
+                del _revocation_cache[key]
+            if len(_revocation_cache) >= _REVOCATION_CACHE_MAX:
+                _revocation_cache.clear()  # nothing stale to drop; start over
+        _revocation_cache[jti] = time.monotonic()
+
+
+def _recently_verified(jti: str) -> bool:
+    with _revocation_cache_lock:
+        seen = _revocation_cache.get(jti)
+    return seen is not None and (time.monotonic() - seen) < _REVOCATION_CACHE_TTL
+
+
 def _verify_jti_not_revoked(jti: str, db: Any) -> None:
-    """Raise 401 if the token is revoked; silently no-op when DB is unavailable."""
-    if db is None or not getattr(db, "is_connected", False):
+    """Raise 401 unless this token is known not to be revoked.
+
+    Fail-closed (SEC-2). Revocation that stops applying the moment the database
+    hiccups is advisory, not revocation — and it bought nothing: every
+    workspace-scoped route already answers 503 without a database, so the
+    application is unusable in that state either way. The old behaviour left a
+    window in which a token revoked minutes ago was accepted again.
+
+    The cache keeps that from being brittle: a token verified within the last
+    minute stays usable through a blip, so an outage degrades to
+    slightly-stale-but-enforced instead of to open. Anything not recently verified
+    is refused. In-process is the right place for it under ADR-1 — one node, one
+    process.
+    """
+    if db is not None and getattr(db, "is_connected", False):
+        try:
+            if db.is_token_revoked(jti):
+                raise HTTPException(
+                    status.HTTP_401_UNAUTHORIZED, detail={"message": "Token has been revoked"}
+                )
+            _remember_not_revoked(jti)
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            logger.warning("[Auth] Revocation check failed; falling back to cache")
+
+    if _recently_verified(jti):
         return
-    try:
-        if db.is_token_revoked(jti):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Token has been revoked"})
-    except HTTPException:
-        raise
-    except Exception:
-        pass  # DB unavailable — fail open rather than locking out users
+
+    raise HTTPException(
+        status.HTTP_401_UNAUTHORIZED,
+        detail={"message": "Could not verify token status"},
+    )
 
 
 def require_auth(
