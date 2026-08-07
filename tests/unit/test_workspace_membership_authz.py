@@ -53,8 +53,8 @@ def _auth(role: str = "user") -> dict[str, str]:
 @pytest.fixture(autouse=True)
 def _rbac_on():
     """Force the real authorisation path; an empty admin password bypasses everything."""
-    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"), \
-         patch("src.security_fastapi.config.DEMO_MODE", False):
+    # DEMO_MODE is gone (SEC-1); only the admin-password branch remains to neutralise.
+    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
         yield
 
 

@@ -73,8 +73,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=production \
     SERVER_HOST=0.0.0.0 \
     SERVER_PORT=5000 \
-    LOG_FORMAT=json \
-    DEMO_MODE=false
+    LOG_FORMAT=json
 
 EXPOSE 5000
 

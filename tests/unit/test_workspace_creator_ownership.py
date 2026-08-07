@@ -104,8 +104,7 @@ class TestCreateWorkspaceRoutePassesCaller:
     def test_route_forwards_the_authenticated_caller_as_owner(self):
         client = _client(testing=False)
         token = create_access_token(OWNER, {"role": "user"})
-        with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"), \
-             patch("src.security_fastapi.config.DEMO_MODE", False):
+        with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
             resp = client.post(
                 "/api/workspaces",
                 json={"name": "Acme"},

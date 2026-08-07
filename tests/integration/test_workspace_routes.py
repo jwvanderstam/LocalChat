@@ -190,8 +190,7 @@ class TestDeleteWorkspace:
         app.state.db.is_connected = True
         app.state.db.get_workspace_member_role = MagicMock(return_value="editor")
         token = create_access_token("33333333-3333-3333-3333-333333333333", {"role": "user"})
-        with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"), \
-             patch("src.security_fastapi.config.DEMO_MODE", False):
+        with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
             resp = client.delete(
                 "/api/workspaces/ws-1", headers={"Authorization": f"Bearer {token}"}
             )

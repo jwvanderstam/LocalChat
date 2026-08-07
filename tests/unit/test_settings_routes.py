@@ -141,7 +141,7 @@ class TestCollectSystemInfo:
 
         assert "app_version" in result
         assert "active_model" in result
-        assert "demo_mode" in result
+        # demo_mode is deliberately absent: DEMO_MODE was deleted in SEC-1.
         assert "ollama_available" in result
         assert "timestamp" in result
         assert "loaded_models" in result
@@ -225,7 +225,6 @@ class TestCollectSystemInfo:
         with patch("src.routes_fastapi.settings_routes.config") as mock_cfg:
             mock_cfg.app_state.get_active_model.side_effect = Exception("fail")
             mock_cfg.APP_VERSION = "1.0"
-            mock_cfg.DEMO_MODE = False
 
             result = _collect_system_info(app)
 
@@ -239,7 +238,6 @@ class TestCollectSystemInfo:
         with patch("src.routes_fastapi.settings_routes.config") as mock_cfg:
             mock_cfg.app_state.get_active_model.return_value = "llama3"
             mock_cfg.APP_VERSION = "2.0"
-            mock_cfg.DEMO_MODE = True
 
             result = _collect_system_info(app)
 

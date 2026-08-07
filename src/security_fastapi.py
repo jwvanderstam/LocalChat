@@ -101,11 +101,18 @@ def _is_testing(request: Request) -> bool:
 
 
 def _is_rbac_bypassed(request: Request) -> bool:
-    return (
-        not _ADMIN_PASSWORD_RAW
-        or config.DEMO_MODE
-        or _is_testing(request)
-    )
+    """The last remaining authorisation bypass, and it is test-only.
+
+    SEC-1 removed the other two. ``not _ADMIN_PASSWORD_RAW`` went because an admin
+    account is now always seeded, so an empty password no longer means "no way in";
+    ``DEMO_MODE`` went because it disabled authorisation rather than reachability —
+    a safety flag implemented at the wrong layer, which made it the risk it was
+    meant to reduce.
+
+    ``app.state.testing`` survives only until TQ-1 replaces it with route tests that
+    authenticate for real. At that point this function has no branch left and goes.
+    """
+    return _is_testing(request)
 
 
 #: Name of the httpOnly cookie the browser session uses. Not configurable —
@@ -148,7 +155,7 @@ def get_current_user_id(
 
     Safe to call both as a FastAPI Depends and directly with just request.
     """
-    if _is_testing(request) or config.DEMO_MODE:
+    if _is_testing(request):
         return None
     # getattr, not truthiness: called directly rather than via Depends, *credentials*
     # is the unresolved Depends sentinel — truthy, but with no .credentials attribute.

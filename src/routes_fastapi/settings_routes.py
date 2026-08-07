@@ -105,7 +105,6 @@ def _collect_system_info(app_state: Any) -> dict:
     return {
         "app_version": config.APP_VERSION,
         "active_model": active_model,
-        "demo_mode": config.DEMO_MODE,
         "ollama_url": config.OLLAMA_BASE_URL,
         "ollama_available": getattr(app_state, "startup_status", {}).get("ollama", False),
         "timestamp": datetime.now().isoformat(),
