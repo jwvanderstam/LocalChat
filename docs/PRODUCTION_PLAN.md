@@ -135,9 +135,13 @@ started friction buys nothing — a local instance with a seeded admin is alread
 it now fails with 401 rather than passing. That is the property being bought: tests can no
 longer pass through checks that never ran.
 
-### SEC-2 — Token revocation fails closed ⬜
+### SEC-2 — Token revocation fails closed ✅ (done)
 
-`_verify_jti_not_revoked()` currently swallows DB errors and lets the request through ("fail open rather than locking out users"). For a production claim, revocation that is advisory is not revocation. Change to fail-closed with a **60-second in-process cache of recent revocation-check results** so a DB blip degrades to slightly-stale-but-enforced rather than to open. Single-node (ADR-1) makes the in-process cache correct.
+`_verify_jti_not_revoked()` swallowed DB errors and let the request through ("fail open rather than locking out users"). For a production claim, revocation that is advisory is not revocation. Now fail-closed, with a 60-second in-process cache of successful checks so a DB blip degrades to slightly-stale-but-enforced rather than to open. Single-node (ADR-1) makes the in-process cache correct.
+
+> **The trade was smaller than it looked.** Failing open was justified as avoiding a lockout, but it prevented nothing: every workspace-scoped route already answers 503 without a database, so the application is unusable in that state either way. What it did buy was a window in which a token revoked minutes earlier was accepted again. Checked before implementing rather than assumed.
+>
+> The cache is a fallback for outages, never a shortcut past a working check — a live `is_token_revoked` still wins over a warm entry, and a refusal is never cached as usable. It is bounded (4096 entries, stale-first eviction) so a stream of distinct tokens cannot turn it into a leak.
 
 ### PERF-1 — Unblock the event loop in `api_chat` ⬜
 
@@ -331,7 +335,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | Sprint | Tickets | Est. duration |
 |---|---|---|
 | PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) + TQ-5a ✅ (alembic chain check) | 1-2 days |
-| PG-1 | SEC-1 + SEC-2 (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | 3–4 days |
+| PG-1 | SEC-1 ✅ + SEC-2 ✅ (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | — |
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
 | PG-3 | TQ-1a ✅ (authz-by-default introspection) + TQ-1b (delete the testing bypass, 23 call sites) | ~3 days left |
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
@@ -349,7 +353,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 
 v3.0 ships when **all eight** hold, and not before:
 
-1. **Fail-closed boot** — no configuration path exists in which `APP_ENV=production` runs with authorisation off. (SEC-1, SEC-2)
+1. **Fail-closed boot** — no configuration path exists in which `APP_ENV=production` runs with authorisation off. (SEC-1 ✅, SEC-2 ✅)
 2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI (TQ-1a ✅). Testing bypass deleted (TQ-1b).
 3. **Concurrency budget met** — p95 time-to-first-token under the agreed budget at 10 concurrent SSE users; benchmark and numbers committed to the repo. (PERF-1/2)
 4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3)
