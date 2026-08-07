@@ -50,6 +50,8 @@ These 18 are unauthenticated **by decision**, each for a stated reason:
 | `docs`: `/`, `/{slug}`, `/{slug}/fragments/{...}` | Serves the same markdown that is public in the repository. |
 | `oauth`: `microsoft/callback`, `google/callback` | The identity provider redirects here and carries no bearer token. `authorize`, `status` and `disconnect` **do** require authentication. |
 | `connector`: `/connectors/{id}/webhook` | External systems POST here. Authenticity is the webhook's own concern, not the session's. |
+| `auth`: `/auth/login` | The route that establishes a session cannot require one. Rate-limited (`RATELIMIT_LOGIN`, 10/min) and returns one message for both unknown-user and wrong-password, so it is not a username oracle. |
+| `web`: `/login` | The login page must render without a session, or the 401 redirect loops. |
 | `auth`: `/logout`, `/users/me/password` | Self-service; both resolve and verify the caller internally. |
 
 ## Full table

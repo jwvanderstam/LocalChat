@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in — LocalChat</title>
+
+    <!-- Same theme bootstrap as base.html so login does not flash a different skin -->
+    <script>(function(){var t=localStorage.getItem('lc-theme');if(t)document.documentElement.setAttribute('data-theme',t);var d=localStorage.getItem('lc-dark');if(d!=='0')document.documentElement.setAttribute('data-bs-theme','dark');})();</script>
+
+    <link href="{{ url_for('static', path='css/bootstrap.min.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/bootstrap-icons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+</head>
+<body>
+<div class="container" style="max-width: 24rem; margin-top: 12vh;">
+    <div class="text-center mb-4">
+        <h1 class="h4"><i class="bi bi-chat-square-text me-2"></i>LocalChat</h1>
+        <p class="text-muted small mb-0">Sign in to continue</p>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form id="login-form" novalidate>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username"
+                           autocomplete="username" autofocus required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password"
+                           autocomplete="current-password" required>
+                </div>
+
+                <div id="login-error" class="alert alert-danger py-2 small" style="display: none;"
+                     role="alert" aria-live="polite"></div>
+
+                <button type="submit" class="btn btn-primary w-100" id="login-submit">
+                    <i class="bi bi-box-arrow-in-right me-1"></i>Sign in
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', path='js/auth.js') }}"></script>
+</body>
+</html>

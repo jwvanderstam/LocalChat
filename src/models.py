@@ -330,3 +330,19 @@ class ErrorResponse(BaseModel):
 
 
 logger.info("Validation models loaded")
+
+
+class LoginRequest(BaseModel):
+    """Credentials for POST /api/auth/login."""
+
+    username: str = Field(..., min_length=1, max_length=150, description="Username")
+    # No max_length on the password: a length cap here would leak the storage
+    # constraint, and PBKDF2 hashes any input to a fixed size anyway.
+    password: str = Field(..., min_length=1, description="Password")
+
+    @field_validator('username')
+    @classmethod
+    def username_normalised(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Username cannot be empty")
+        return v.strip().lower()

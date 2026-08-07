@@ -28,6 +28,12 @@ def index(request: Request) -> HTMLResponse:
     return _templates(request).TemplateResponse(request, "chat.html")
 
 
+@router.get("/login", include_in_schema=False)
+def login_page(request: Request) -> HTMLResponse:
+    """The one page that must render without a session, or the redirect loops."""
+    return _templates(request).TemplateResponse(request, "login.html")
+
+
 @router.get("/chat", include_in_schema=False)
 def chat(request: Request) -> HTMLResponse:
     return _templates(request).TemplateResponse(request, "chat.html")

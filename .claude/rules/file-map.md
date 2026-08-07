@@ -29,7 +29,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/workspace_routes.py` | `GET/POST /api/workspaces`, `GET/PUT/DELETE /api/workspaces/{id}`, active, switch |
 | `src/routes_fastapi/feedback_routes.py` | `POST /api/feedback`, `GET /api/feedback/stats` |
 | `src/routes_fastapi/connector_routes.py` | Connector REST API + webhook receiver; `GET /api/connectors/available` |
-| `src/routes_fastapi/auth_routes.py` | User management (admin) + self-service: `GET /api/users/me` (identity + `can_write` for the active workspace), password change |
+| `src/routes_fastapi/auth_routes.py` | `POST /api/auth/login` (issues the session cookie), logout, user management (admin), self-service: `GET /api/users/me`, password change |
 | `src/routes_fastapi/oauth_routes.py` | OAuth2 flows for Microsoft (`/api/oauth/microsoft/*`) and Google (`/api/oauth/google/*`) |
 | `src/routes_fastapi/annotation_routes.py` | Annotation CRUD (`POST /api/annotations`, `GET /api/chunks/{id}/annotations`, `DELETE /api/annotations/{id}`) |
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
@@ -166,6 +166,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `static/js/ingestion.js` | Document upload progress (SSE) on `templates/documents.html` |
 | `static/js/settings.js` | Theme picker + appearance settings on `templates/settings.html` |
 | `static/js/workspace.js` | Workspace switcher dropdown + create-workspace modal, wired into `templates/base.html` |
+| `static/js/auth.js` | Session handling — wraps `fetch` to redirect to `/login` on 401, drives the login form, exposes `localchatLogout()` |
+| `templates/login.html` | Login page — the one template that renders without a session |
 | `static/js/docs.js` | Documentation viewer (`templates/docs.html`) — fetches `/api/repo-docs`, renders nav + selected doc HTML |
 | `static/js/bootstrap.bundle.min.js` | Vendored Bootstrap 5 JS bundle |
 | `templates/docs.html` | Documentation viewer shell — nav list + content pane, populated client-side by `docs.js` |
