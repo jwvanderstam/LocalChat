@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .. import config
+from ..db.users import LastAdminError
 from ..models import LoginRequest
 from ..security_fastapi import (
     SESSION_COOKIE,
@@ -125,9 +126,13 @@ async def create_user(request: Request, _admin: Annotated[str, Depends(require_a
 
 
 @router.get("/users")
-def list_users(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def list_users(
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+    include_retired: bool = False,
+) -> Any:
     try:
-        users = request.app.state.db.list_users()
+        users = request.app.state.db.list_users(include_retired=include_retired)
         return {"success": True, "users": [_public(u) for u in users]}
     except Exception:
         logger.exception("[Users] list error")
@@ -196,6 +201,9 @@ async def update_user(user_id: str, request: Request, _admin: Annotated[str, Dep
         if not updated:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "user": _public(db.get_user_by_id(user_id))}
+    except LastAdminError as exc:
+        # 409, not 400: the request is well-formed, the current state forbids it.
+        return JSONResponse({"success": False, "message": str(exc)}, status_code=409)
     except Exception:
         logger.exception("[Users] update error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
@@ -229,6 +237,8 @@ def delete_user(user_id: str, request: Request, admin_user_id: Annotated[str, De
         if not deleted:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True}
+    except LastAdminError as exc:
+        return JSONResponse({"success": False, "message": str(exc)}, status_code=409)
     except Exception:
         logger.exception("[Users] delete error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

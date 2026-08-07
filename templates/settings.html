@@ -31,6 +31,14 @@
             <i class="bi bi-sliders me-1"></i>RAG Parameters
         </a>
     </li>
+    <!-- Revealed by users.js only when the server reports the caller is an admin.
+         Hiding is presentation; the routes behind it are admin-guarded regardless. -->
+    <li class="nav-item d-none" role="presentation" id="users-tab-item">
+        <a class="nav-link" id="users-tab" data-bs-toggle="tab" href="#users" role="tab"
+           aria-controls="users" aria-selected="false">
+            <i class="bi bi-people me-1"></i>Users
+        </a>
+    </li>
 </ul>
 
 <div class="tab-content" id="settingsTabContent">
@@ -595,6 +603,39 @@
 
     </div><!-- /rag-params tab-pane -->
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         USERS TAB (admin only)
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div class="tab-pane fade" id="users" role="tabpanel" aria-labelledby="users-tab">
+        <div class="card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people me-2"></i>Users</span>
+                <button class="btn btn-sm btn-primary" id="user-create-btn">
+                    <i class="bi bi-plus-lg me-1"></i>New user
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="users-alert" class="alert py-2 small" style="display:none" role="alert"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Username</th><th>Email</th><th>Role</th>
+                                <th>Status</th><th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-tbody"></tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mb-0 mt-3">
+                    Retiring a user is reversible — the account is kept so their documents and
+                    conversations still resolve. Purging is permanent and is refused while the
+                    user still belongs to a workspace.
+                </p>
+            </div>
+        </div>
+    </div><!-- /users tab-pane -->
+
 </div><!-- /tab-content -->
 {% endblock %}
 
@@ -606,6 +647,7 @@
 .setting-doc p { margin: 0; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', path='js/users.js') }}"></script>
 {% endblock %}
 
 {% block extra_scripts %}
