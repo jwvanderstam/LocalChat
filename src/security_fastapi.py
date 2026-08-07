@@ -108,12 +108,23 @@ def _is_rbac_bypassed(request: Request) -> bool:
     )
 
 
+#: Name of the httpOnly cookie the browser session uses. Not configurable —
+#: a renamed cookie would silently log everyone out with no other symptom.
+SESSION_COOKIE = "localchat_session"
+
+
 def _extract_bearer_token(request: Request) -> str | None:
-    """Extract Bearer token from Authorization header without DI."""
+    """Return the caller's JWT from the Authorization header, else the session cookie.
+
+    Header first so API clients, tests and any curl/n8n integration keep working
+    exactly as before; the cookie exists for the browser, which must not be able to
+    read its own token (AUTH-1: httpOnly, so an XSS in rendered LLM output cannot
+    exfiltrate it).
+    """
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return auth[7:]
-    return None
+    return request.cookies.get(SESSION_COOKIE) or None
 
 
 def extract_bearer_token(request: Request) -> str | None:
@@ -206,7 +217,10 @@ def require_admin_dep(
     """FastAPI dependency — require admin role or raise 403."""
     if _is_rbac_bypassed(request):
         return "anonymous"
-    claims = _get_token_claims(credentials)
+    # Falls back to the request so a browser session (httpOnly cookie, no
+    # Authorization header) reaches admin routes too. Without the fallback every
+    # admin route 401s for a correctly authenticated cookie session.
+    claims = _get_token_claims(credentials) or _claims_from_request(request)
     if not claims:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
     if claims.get("role") != "admin":

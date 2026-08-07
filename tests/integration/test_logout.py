@@ -12,9 +12,16 @@ from src.security_fastapi import create_access_token
 @pytest.mark.integration
 class TestLogout:
 
-    def test_logout_without_token_returns_400(self, client):
+    def test_logout_without_token_succeeds(self, client):
+        """Logging out with no session is idempotent, not a client error.
+
+        Changed in AUTH-1, deliberately. A caller asking to log out must end up
+        logged out; with cookie sessions the response also carries the cookie
+        deletion, so a stale or expired cookie is cleared rather than left in place
+        alongside a 400 the browser ignores.
+        """
         resp = client.post("/api/logout")
-        assert resp.status_code == 400
+        assert resp.status_code == 200
 
     def test_logout_with_invalid_token_returns_400(self, client):
         resp = client.post(

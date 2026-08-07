@@ -79,7 +79,7 @@ is not loopback.
 
 ---
 
-## Phase 1 — AUTH-1: local login (restores the application)
+## Phase 1 — AUTH-1: local login ✅ (done)
 
 **Deliverable:** you can log in and use the app again.
 
@@ -220,7 +220,7 @@ was not reachable while the only way to use the app was through a bypass.
 
 | Phase | Ticket | Unblocks | Est. |
 |---|---|---|---|
-| 1 | AUTH-1 local login + cookie + frontend | the application itself | 1–2 days |
+| 1 | AUTH-1 local login + cookie + frontend ✅ done | the application itself | — |
 | 2 | AUTH-2 Users screen in Settings | admin self-service | 1–2 days |
 | 4 | AUTH-4 delete the bypasses | SEC-1, TQ-1 | folded into those |
 | 3 | AUTH-3 OIDC ⏸️ | SSO, central offboarding | 3–5 days, **on trigger** |

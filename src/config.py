@@ -66,7 +66,10 @@ if not _JWT_SECRET_KEY_RAW or _JWT_SECRET_KEY_RAW == 'change-this-to-a-random-jw
 else:
     JWT_SECRET_KEY = _JWT_SECRET_KEY_RAW
 
-JWT_ACCESS_TOKEN_EXPIRES: int = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', '3600'))
+# 2 hours. There is no refresh token, so this is literally how often a user is
+# asked to sign in again; it trades a longer useful life for a stolen token
+# against re-authenticating mid-task.
+JWT_ACCESS_TOKEN_EXPIRES: int = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', '7200'))
 
 # Rate limiting settings
 RATELIMIT_ENABLED: bool = os.environ.get('RATELIMIT_ENABLED', 'True').lower() == 'true'
@@ -74,6 +77,10 @@ RATELIMIT_CHAT: str = str(os.environ.get('RATELIMIT_CHAT', '10 per minute'))
 RATELIMIT_UPLOAD: str = str(os.environ.get('RATELIMIT_UPLOAD', '5 per hour'))
 RATELIMIT_MODELS: str = str(os.environ.get('RATELIMIT_MODELS', '20 per minute'))
 RATELIMIT_GENERAL: str = str(os.environ.get('RATELIMIT_GENERAL', '60 per minute'))
+# Tighter than the rest: login is the one endpoint where repetition is the attack.
+# Per source address, so one attacker cannot lock out a legitimate user by
+# exhausting a shared budget.
+RATELIMIT_LOGIN: str = str(os.environ.get('RATELIMIT_LOGIN', '10 per minute'))
 
 # Redis settings (shared by cache layer and rate limiting storage)
 REDIS_ENABLED: bool = os.environ.get('REDIS_ENABLED', 'False').lower() == 'true'

@@ -1,4 +1,4 @@
-"""Auth routes — user management (admin) + self-service password change."""
+"""Auth routes — login/logout, user management (admin), self-service password change."""
 
 from __future__ import annotations
 
@@ -7,13 +7,20 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
+from .. import config
+from ..models import LoginRequest
 from ..security_fastapi import (
+    SESSION_COOKIE,
     check_workspace_access,
+    create_access_token,
     decode_token_for_revocation,
     extract_bearer_token,
     get_current_user_id,
+    limiter,
     require_admin_dep,
+    verify_credentials_db,
 )
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
@@ -23,10 +30,69 @@ router = APIRouter()
 
 _NOT_FOUND = "User not found"
 _ERR_INTERNAL = "Internal server error"
+#: One message for "no such user" and "wrong password" alike — distinguishing them
+#: turns the login form into a username oracle.
+_ERR_BAD_CREDENTIALS = "Invalid username or password"
+
+
+def _set_session_cookie(response: JSONResponse, token: str, request: Request) -> None:
+    """Attach the session JWT as an httpOnly cookie.
+
+    httpOnly so JavaScript cannot read it: this app renders LLM output into the DOM,
+    which is the one place an XSS is most likely to appear, and a readable token there
+    would be exfiltrable. SameSite=strict is sufficient CSRF protection because the UI
+    and API share an origin and nothing posts into this app cross-site.
+    """
+    # Secure would make the cookie undeliverable over plain http, which is how the
+    # app is reached on a developer machine. Loopback is already a trusted transport.
+    is_loopback = (request.url.hostname or "") in ("localhost", "127.0.0.1", "::1")
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=config.JWT_ACCESS_TOKEN_EXPIRES,
+        httponly=True,
+        samesite="strict",
+        secure=not is_loopback,
+        path="/",
+    )
 
 
 def _public(user: dict) -> dict:
     return {k: v for k, v in user.items() if k != "hashed_password"}
+
+
+@router.post("/auth/login")
+@limiter.limit(config.RATELIMIT_LOGIN)
+async def login(request: Request) -> Any:
+    """Verify credentials and issue a session JWT as an httpOnly cookie.
+
+    Rate-limited because this is the one endpoint where guessing is the attack.
+    """
+    data = await request.json() if await request.body() else {}
+    try:
+        creds = LoginRequest(**data)
+    except (ValidationError, TypeError):
+        return JSONResponse({"success": False, "message": _ERR_BAD_CREDENTIALS}, status_code=401)
+
+    db = getattr(request.app.state, "db", None)
+    result = verify_credentials_db(creds.username, creds.password, db)
+    if result is None:
+        # Deliberately no username in the log: failed logins are the one place a
+        # log becomes a list of attempted accounts.
+        logger.warning("[Auth] Failed login attempt")
+        return JSONResponse({"success": False, "message": _ERR_BAD_CREDENTIALS}, status_code=401)
+
+    user_id, role = result
+    token = create_access_token(user_id, {"role": role})
+    response = JSONResponse({
+        "success": True,
+        "user_id": user_id,
+        "role": role,
+        "username": creds.username,
+    })
+    _set_session_cookie(response, token, request)
+    logger.info("[Auth] Login succeeded for user %s", user_id)
+    return response
 
 
 @router.post("/users", status_code=201)
@@ -199,15 +265,26 @@ async def logout(request: Request) -> Any:
     """Revoke the caller's current JWT so it cannot be reused."""
     token = extract_bearer_token(request)
     if not token:
-        return JSONResponse({"success": False, "message": "No token provided"}, status_code=400)
+        # Nothing to revoke, but still clear the cookie: a caller asking to log out
+        # must end up logged out, not told their request was malformed.
+        cleared = JSONResponse({"success": True})
+        cleared.delete_cookie(SESSION_COOKIE, path="/")
+        return cleared
     payload = decode_token_for_revocation(token)
     if payload is None:
-        return JSONResponse({"success": False, "message": "Invalid token"}, status_code=400)
+        # Still clear it. The token is unusable either way, and leaving a known-bad
+        # cookie in the browser serves nobody — the status stays 400 because the
+        # caller did send something invalid.
+        invalid = JSONResponse({"success": False, "message": "Invalid token"}, status_code=400)
+        invalid.delete_cookie(SESSION_COOKIE, path="/")
+        return invalid
 
     jti = payload.get("jti")
     if not jti:
-        # Token predates jti support — nothing to revoke, still report success.
-        return {"success": True}
+        # Token predates jti support — nothing to revoke, still end the session.
+        cleared = JSONResponse({"success": True})
+        cleared.delete_cookie(SESSION_COOKIE, path="/")
+        return cleared
 
     exp_ts = payload.get("exp")
     expires_at = datetime.fromtimestamp(exp_ts, tz=UTC) if exp_ts else datetime.now(UTC)
@@ -222,4 +299,6 @@ async def logout(request: Request) -> Any:
         logger.exception("[Auth] logout revoke error")
         return JSONResponse({"success": False, "message": "Failed to revoke token"}, status_code=500)
 
-    return {"success": True}
+    response = JSONResponse({"success": True})
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return response
