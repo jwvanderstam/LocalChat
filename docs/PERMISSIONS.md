@@ -20,6 +20,12 @@ route; drift between this file and the code is the failure mode it exists to pre
 | `ws:viewer` / `ws:editor` / `ws:owner` | Membership of the active workspace, at that level or higher. | `check_workspace_access` via `_authz.deny()` |
 | **`admin`** | Global `users.role = 'admin'`. Node-wide operations. | `require_admin_dep` |
 
+**Two kinds of principal reach the `ws:*` levels.** A *user*, whose role comes from
+`workspace_members`; and a *workspace API key*, which carries its own role and is pinned to
+one workspace (see [WORKSPACE_API_KEYS.md](WORKSPACE_API_KEYS.md)). A key never receives the
+global-admin short-circuit and can never reach a second workspace, so every `admin` row below
+is closed to keys by construction.
+
 Global `admin` short-circuits every workspace check, so an admin passes all `ws:*` rows.
 
 ## Distribution

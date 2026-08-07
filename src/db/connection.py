@@ -575,6 +575,28 @@ class DatabaseConnection:
                     CREATE INDEX IF NOT EXISTS idx_workspace_members_user
                     ON workspace_members (user_id)
                 """)
+                # Workspace API keys: a non-human principal scoped to one workspace.
+                # Not a user — no password, no session; created, used, revoked.
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS workspace_api_keys (
+                        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                        name         TEXT NOT NULL,
+                        key_prefix   TEXT NOT NULL,
+                        key_hash     TEXT NOT NULL,
+                        role         TEXT NOT NULL DEFAULT 'viewer',
+                        created_at   TIMESTAMPTZ DEFAULT NOW(),
+                        created_by   UUID REFERENCES users(id),
+                        last_used_at TIMESTAMPTZ,
+                        deleted_at   TIMESTAMPTZ,
+                        revoked_at   TIMESTAMPTZ,
+                        revoked_by   UUID REFERENCES users(id)
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_workspace_api_keys_prefix
+                    ON workspace_api_keys (key_prefix) WHERE revoked_at IS NULL
+                """)
                 logger.debug("users and workspace_members tables ensured")
 
                 # ── Feature 5.2: Reranker versioning ─────────────────────────

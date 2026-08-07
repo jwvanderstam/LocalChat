@@ -102,6 +102,38 @@ presented as a cookie; login is rate-limited.
 **Acceptance:** on a fresh `docker compose up`, log in as the seeded admin through the
 browser and load every page without a 401.
 
+## Phase 1b — AUTH-5: workspace API keys ✅ (done)
+
+Added out of sequence because a real consumer was broken by RBAC-2: a Discord bridge
+(n8n → LocalChat → Discord) had been calling the API unauthenticated, and the guarded
+routes stopped it.
+
+The first framing was a *service user* — a flagged non-human account. The better one, and
+the one built, is that **a workspace is an endpoint**: the credential belongs to the
+workspace, not to a person standing in for a machine. That removes the objections rather
+than accommodating them — there is no password to reset because there is no password, no
+session to expire because keys are revoked, and the audit trail names the key.
+
+Per the plugin contract, this is a **core capability, not a plugin**. The contract's own
+test — *would this be reasonable if the requesting consumer vanished?* — passes: Slack,
+Teams, cron and n8n all want the same thing. A `discord_bridge` service would have been a
+leak. When PC-1..PC-4 land, a chatbot plugin consumes this rather than replacing it.
+
+Design decisions worth keeping:
+
+- **The key's workspace is authoritative.** A client-supplied workspace is only ever
+  compared against it, never substituted. The scope is pinned onto the request so a call
+  omitting `X-Workspace-ID` cannot drift to the *default* workspace downstream after
+  authorising against the key's — that path would have been silently wrong rather than
+  refused.
+- **A key is never a global admin**, and cannot be issued at `owner` — a key that mints
+  keys turns one leak into permanent control.
+- **sha256, not PBKDF2.** Slow hashing exists because passwords are low-entropy; a
+  32-byte random key is not brute-forced, and a slow hash would tax every request.
+- **Revocation is soft-delete**, so the audit trail outlives the credential.
+
+See [WORKSPACE_API_KEYS.md](WORKSPACE_API_KEYS.md).
+
 ## Phase 2 — AUTH-2: user management in Settings
 
 The backend is done; this is the screen. A **Users** tab in `templates/settings.html`,

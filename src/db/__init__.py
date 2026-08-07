@@ -27,12 +27,13 @@ from .memories import MemoriesMixin
 from .oauth_tokens import OAuthTokensMixin
 from .tokens import TokensMixin
 from .users import UsersMixin
+from .workspace_keys import WorkspaceKeysMixin
 from .workspaces import WorkspacesMixin
 
 logger = get_logger(__name__)
 
 
-class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, UsersMixin, WorkspacesMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, TokensMixin, DatabaseConnection):
+class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, UsersMixin, WorkspacesMixin, WorkspaceKeysMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, TokensMixin, DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 

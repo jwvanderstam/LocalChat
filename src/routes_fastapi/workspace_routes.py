@@ -321,3 +321,74 @@ def workspace_ontology(workspace_id: str, request: Request, top_n: int = 20) -> 
     except Exception:
         logger.exception("[Workspaces] ontology error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
+# ── Workspace API keys ─────────────────────────────────────────────────────────
+# A key addresses one workspace programmatically: a chatbot bridge, a scheduled
+# job, an n8n flow. It is not a user — no password, no session — so it is created,
+# used and revoked, and the audit trail names the key rather than borrowing a
+# person's account.
+
+
+@router.get("/workspaces/{workspace_id}/keys")
+def list_workspace_keys(workspace_id: str, request: Request) -> Any:
+    denied = _deny(request, workspace_id, "owner")
+    if denied:
+        return denied
+    try:
+        keys = request.app.state.db.list_workspace_api_keys(workspace_id)
+        return {"success": True, "keys": keys}
+    except Exception:
+        logger.exception("[WorkspaceKeys] list error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
+@router.post("/workspaces/{workspace_id}/keys", status_code=201)
+async def create_workspace_key(workspace_id: str, request: Request) -> Any:
+    denied = _deny(request, workspace_id, "owner")
+    if denied:
+        return denied
+    data = await request.json() if await request.body() else {}
+    name = (data.get("name") or "").strip()
+    role = data.get("role", "viewer")
+    if not name:
+        return JSONResponse({"success": False, "message": "name is required"}, status_code=400)
+    # owner is deliberately not offered: a key that can hand out further keys turns
+    # one leaked credential into permanent control of the workspace.
+    if role not in ("viewer", "editor"):
+        return JSONResponse(
+            {"success": False, "message": "role must be viewer or editor"}, status_code=400
+        )
+    try:
+        caller = get_current_user_id(request)
+        full_key, row = request.app.state.db.create_workspace_api_key(
+            workspace_id=workspace_id,
+            name=name,
+            role=role,
+            created_by=caller if caller and caller != "anonymous" else None,
+        )
+        # The only time the plaintext key exists outside the caller's hands.
+        return JSONResponse({"success": True, "key": full_key, "info": row}, status_code=201)
+    except Exception:
+        logger.exception("[WorkspaceKeys] create error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
+@router.delete("/workspaces/{workspace_id}/keys/{key_id}")
+def revoke_workspace_key(workspace_id: str, key_id: str, request: Request) -> Any:
+    denied = _deny(request, workspace_id, "owner")
+    if denied:
+        return denied
+    try:
+        caller = get_current_user_id(request)
+        revoked = request.app.state.db.revoke_workspace_api_key(
+            key_id=key_id,
+            workspace_id=workspace_id,
+            revoked_by=caller if caller and caller != "anonymous" else None,
+        )
+        if not revoked:
+            return JSONResponse({"success": False, "message": "Key not found"}, status_code=404)
+        return {"success": True}
+    except Exception:
+        logger.exception("[WorkspaceKeys] revoke error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
