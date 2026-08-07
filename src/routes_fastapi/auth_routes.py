@@ -113,9 +113,23 @@ async def create_user(request: Request, _admin: Annotated[str, Depends(require_a
     if role not in ("admin", "user"):
         return JSONResponse({"success": False, "message": "role must be 'admin' or 'user'"}, status_code=400)
 
+    # Membership is granted in the same request, not as a follow-up call. After RBAC-1
+    # a user with no workspace is refused everything, so a create that succeeds and a
+    # grant that never happens produces an account that can log in and do nothing —
+    # exactly what the first version of this screen shipped.
+    workspace_id = (data.get("workspace_id") or "").strip() or None
+    workspace_role = data.get("workspace_role", "editor")
+    if workspace_role not in ("viewer", "editor", "owner"):
+        return JSONResponse(
+            {"success": False, "message": "workspace_role must be viewer, editor or owner"},
+            status_code=400,
+        )
+
     try:
         db = request.app.state.db
         user_id = db.create_user(username=username, hashed_password=hash_user_password(password), email=email, role=role)
+        if workspace_id:
+            db.add_workspace_member(workspace_id, user_id, workspace_role)
         user = db.get_user_by_id(user_id)
         return JSONResponse({"success": True, "user": _public(user)}, status_code=201)
     except Exception as exc:
@@ -170,6 +184,63 @@ def get_own_identity(request: Request) -> Any:
         "workspace_role": workspace_role,
         "can_write": check_workspace_access(request, None, "editor") is None,
     }
+
+
+@router.get("/users/{user_id}/workspaces")
+def list_user_workspaces(
+    user_id: str,
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+) -> Any:
+    """Which workspaces this user belongs to, and at what role."""
+    try:
+        return {"success": True, "workspaces": request.app.state.db.get_user_workspaces(user_id)}
+    except Exception:
+        logger.exception("[Users] list user workspaces error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
+@router.post("/users/{user_id}/workspaces")
+async def grant_user_workspace(
+    user_id: str,
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+) -> Any:
+    """Grant or change this user's role in a workspace."""
+    data = await request.json() if await request.body() else {}
+    workspace_id = (data.get("workspace_id") or "").strip()
+    role = data.get("role", "editor")
+    if not workspace_id:
+        return JSONResponse({"success": False, "message": "workspace_id is required"}, status_code=400)
+    if role not in ("viewer", "editor", "owner"):
+        return JSONResponse({"success": False, "message": "role must be viewer, editor or owner"}, status_code=400)
+    try:
+        request.app.state.db.add_workspace_member(workspace_id, user_id, role)
+        return {"success": True}
+    except Exception:
+        logger.exception("[Users] grant workspace error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
+
+
+@router.delete("/users/{user_id}/workspaces/{workspace_id}")
+def revoke_user_workspace(
+    user_id: str,
+    workspace_id: str,
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+) -> Any:
+    """Remove this user from a workspace. Refuses to remove its last owner."""
+    try:
+        removed = request.app.state.db.remove_workspace_member(workspace_id, user_id)
+        if not removed:
+            return JSONResponse({"success": False, "message": "Membership not found"}, status_code=404)
+        return {"success": True}
+    except ValueError as exc:
+        # remove_workspace_member refuses to strip a workspace of its last owner.
+        return JSONResponse({"success": False, "message": str(exc)}, status_code=409)
+    except Exception:
+        logger.exception("[Users] revoke workspace error")
+        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.get("/users/{user_id}")

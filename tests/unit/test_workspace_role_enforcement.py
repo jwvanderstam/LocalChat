@@ -41,6 +41,10 @@ def _client(router, prefix: str, member_role: str | None):
     state.db.is_connected = True
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = DEFAULT_WS
+    # Explicit: this caller belongs to no workspace of their own, so scope resolution
+    # falls through to the global default. A MagicMock would return a truthy stand-in
+    # here and quietly become the answer.
+    state.db.get_user_workspaces.return_value = []
     app = FastAPI()
     app.include_router(router, prefix=prefix)
     app.state = state
@@ -136,10 +140,23 @@ class TestWorkspaceScopeResolution:
         assert client.app.state.db.get_workspace_member_role.call_args[0][0] == WS
 
     def test_missing_header_falls_back_to_the_default_workspace(self):
-        """The frontend sends no header until localStorage holds one — that must still work."""
+        """The frontend sends no header until localStorage holds one — that must still work.
+
+        This is the case where the caller has no workspace of their own; see
+        test_user_workspace_membership.py for the case where they do, which now takes
+        precedence over the global default.
+        """
         client = _documents("viewer")
         client.get("/api/documents/list", headers=_auth())
         assert client.app.state.db.get_workspace_member_role.call_args[0][0] == DEFAULT_WS
+
+    def test_the_callers_own_workspace_beats_the_default(self):
+        """Added 2026-08-07: falling straight to the default refused everything to a
+        user who was a member of some other workspace."""
+        client = _documents("viewer")
+        client.app.state.db.get_user_workspaces.return_value = [{"id": WS}]
+        client.get("/api/documents/list", headers=_auth())
+        assert client.app.state.db.get_workspace_member_role.call_args[0][0] == WS
 
     def test_no_workspaces_at_all_is_a_clear_error(self):
         client = _documents("viewer")

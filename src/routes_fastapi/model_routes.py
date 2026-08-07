@@ -21,6 +21,26 @@ _ERR_INTERNAL = "Internal server error"
 _ERR_MODEL_REQUIRED = "model is required"
 
 
+def _resolve_model_name(requested: str, available: list[str]) -> str | None:
+    """Return the installed model matching *requested*, or None.
+
+    Ollama stores an untagged pull as ``name:latest``, but the pull menu, DEFAULT_MODEL
+    and anything a user types are usually untagged. Without this, activating the model
+    you just installed reports "not found" and the active model shown on the page does
+    not appear in the list beside it.
+
+    Matching is exact first, so an explicit tag is never silently redirected to another.
+    """
+    if requested in available:
+        return requested
+    if ":" not in requested and f"{requested}:latest" in available:
+        return f"{requested}:latest"
+    # "llama3.2:latest" asked for while only "llama3.2" is installed — the mirror case.
+    if requested.endswith(":latest") and requested[: -len(":latest")] in available:
+        return requested[: -len(":latest")]
+    return None
+
+
 def _validation_error_message(exc: Exception, default: str) -> str:
     """Surface a ModelXRequest field-validator's actual message (e.g. "Model
     name contains invalid characters") instead of a generic fallback that
@@ -115,15 +135,18 @@ async def set_active_model(request: Request, _admin: Annotated[str, Depends(requ
         return JSONResponse({"success": False, "message": "Failed to list models"}, status_code=503)
 
     model_names = [m["name"] for m in models]
-    if model_name not in model_names:
+    resolved = _resolve_model_name(model_name, model_names)
+    if resolved is None:
         return JSONResponse(
             {"success": False, "message": f"Model '{model_name}' not found", "available": model_names[:10]},
             status_code=404,
         )
 
-    config.app_state.set_active_model(model_name)
-    logger.info("Active model changed to: %s", model_name)
-    return {"success": True, "model": model_name}
+    # Store the name Ollama actually uses, so the value round-trips and the page can
+    # match it against the list it renders.
+    config.app_state.set_active_model(resolved)
+    logger.info("Active model changed to: %s", resolved)
+    return {"success": True, "model": resolved}
 
 
 @router.post("/pull")

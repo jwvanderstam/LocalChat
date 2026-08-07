@@ -360,6 +360,22 @@ def _check_api_key_access(
     return None
 
 
+def _first_workspace_for(db: Any, user_id: str | None) -> str | None:
+    """The caller's own workspace to use when the request names none.
+
+    Best-effort: a failure here falls through to the global default rather than
+    denying a request, because this is a convenience for an omitted header and not
+    an authorisation decision — the membership check still runs on whatever it returns.
+    """
+    if not user_id:
+        return None
+    try:
+        owned = db.get_user_workspaces(user_id)
+    except Exception:
+        return None
+    return str(owned[0]["id"]) if owned else None
+
+
 def check_workspace_access(
     request: Request,
     workspace_id: str | None,
@@ -396,10 +412,14 @@ def check_workspace_access(
         return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
     if not ws_id:
         # X-Workspace-ID is optional and the frontend omits it until localStorage
-        # holds an active workspace, so a fresh session sends none. Falling back to
-        # the default workspace keeps those requests working exactly as they did
-        # before this check existed; erroring here would break them on first load.
-        ws_id = db.get_default_workspace_id()
+        # holds an active workspace, so a fresh session sends none. Fall back to a
+        # workspace this caller can actually use — one of their own first, and only
+        # then the global default.
+        #
+        # Falling straight to the default was wrong for anyone not a member of it:
+        # a user granted access to a second workspace saw 403 everywhere until they
+        # switched manually, which on a fresh login they had no way to discover.
+        ws_id = _first_workspace_for(db, claims.get("sub")) or db.get_default_workspace_id()
     if not ws_id:
         return (status.HTTP_400_BAD_REQUEST, "No workspace context")
     role = db.get_workspace_member_role(ws_id, claims.get("sub"))

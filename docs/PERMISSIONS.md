@@ -9,6 +9,12 @@ route; drift between this file and the code is the failure mode it exists to pre
 > caught the `require_admin_dep` of the *following* route. Found by TQ-1a's introspection,
 > which walks the live route table instead of reading source — the reason that check exists.
 >
+> **Fallback when no workspace is named (2026-08-07).** A request that sends no
+> `X-Workspace-ID` resolves to *the caller's own first workspace*, and only then to the
+> global default. Falling straight to the default refused everything to a user who was a
+> member of some other workspace — on a fresh login, with no hint that switching was
+> required, so granting them access looked like it had not worked.
+>
 > **Known limitation of the generator.** It detects guards declared in the handler —
 > `require_admin_dep`, `require_auth`, and `check_workspace_access` via `_authz.deny()`. It does
 > **not** see authorisation performed inside a called helper. One route pair does exactly that:
