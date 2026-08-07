@@ -38,11 +38,23 @@ This ratifies and strengthens the existing HK-10 deferral ("deliberately deferre
 
 Order matters: safety before performance, because the auth fixes change what the tests must assert. BUG-3 (Sprint 5b) and RBAC-1 (Sprint 6) land first per the existing ROADMAP; nothing here duplicates them.
 
-### SEC-1 — Delete every authorisation bypass; seed a dev admin instead ⬜
+### SEC-1 — Delete every authorisation bypass; seed a dev admin instead ◐ (mostly done)
 
-> **Blocked on AUTH-1** (see [AUTH_PLAN.md](AUTH_PLAN.md)). There is currently no login route
-> and no way to obtain a token, so removing the bypasses would leave the application with no
-> way in at all. The seed-and-start decision below stands; it just cannot land first.
+> **Unblocked and largely done (2026-08-07).** AUTH-1 added the login route, so the bypasses
+> could go. `DEMO_MODE` is deleted outright — constant, branch, status payload, compose,
+> Dockerfile, `.env.example`, and the stale comment claiming it suppressed web search, which
+> no code ever did. The `not _ADMIN_PASSWORD_RAW` branch is gone too, because an admin is now
+> always seeded, so an empty password no longer means "no way in".
+>
+> Seed-and-start is implemented as decided: outside production an unset `ADMIN_PASSWORD`
+> generates one and logs it once, guarded on `APP_ENV` rather than on the password being
+> empty, and seeding only when the account does not exist so a restart cannot reset a real
+> password.
+>
+> **Remaining:** `app.state.testing`, which 23 call sites across 17 test files depend on.
+> That is TQ-1's job — it deletes the bypass *and* supplies the authz-by-default CI job that
+> makes the rewritten tests worth having. `_is_rbac_bypassed()` now has exactly one branch
+> left; when TQ-1 lands it has none and the function goes.
 
 > **Rewritten 2026-08-05** after checking the code the original ticket described, and after
 > the owner chose the dev-seed approach over the loopback-binding one it proposed.

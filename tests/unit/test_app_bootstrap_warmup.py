@@ -456,12 +456,36 @@ class TestWeeklyRerankerTrain:
 class TestSeedAdminUser:
     """Test _seed_admin_user (src/app_bootstrap.py)."""
 
-    def test_skips_when_no_admin_password_configured(self):
+    def test_generates_a_password_when_none_is_configured(self):
+        """Changed in SEC-1: an empty ADMIN_PASSWORD used to mean "skip seeding".
+
+        That was safe only because an empty password *also* disabled authorisation, so
+        there was nothing to log into. With that bypass gone, skipping would leave an
+        installation with no account and no way in. Outside production the password is
+        now generated and logged once instead.
+        """
         from src.app_bootstrap import _seed_admin_user
 
         db = MagicMock()
         with patch("src.app_bootstrap.config") as mock_config:
             mock_config.ADMIN_PASSWORD = ""
+            mock_config.APP_ENV = "development"
+            mock_config.ADMIN_USERNAME = "admin"
+            _seed_admin_user(db)
+
+        db.seed_admin_user.assert_called_once()
+
+    def test_still_skips_in_production_when_no_password_configured(self):
+        """The generated value goes to the log, which is a developer-machine trade only.
+
+        Production never reaches this: validate_secrets() aborts the boot first.
+        """
+        from src.app_bootstrap import _seed_admin_user
+
+        db = MagicMock()
+        with patch("src.app_bootstrap.config") as mock_config:
+            mock_config.ADMIN_PASSWORD = ""
+            mock_config.APP_ENV = "production"
             _seed_admin_user(db)
 
         db.seed_admin_user.assert_not_called()

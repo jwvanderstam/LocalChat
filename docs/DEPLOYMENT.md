@@ -116,7 +116,6 @@ Before exposing LocalChat beyond localhost:
 | Admin password | `ADMIN_PASSWORD` | **Must be non-empty.** Empty disables all authorisation, including admin routes. |
 | JWT secret | `JWT_SECRET_KEY` | 32+ random bytes. Never the placeholder. |
 | Session secret | `SECRET_KEY` | 32+ random bytes. |
-| Demo mode | `DEMO_MODE` | Must be `false`. It disables authentication outright. |
 | Metrics endpoints | `METRICS_TOKEN` | Set it, or `/api/metrics` and `/api/metrics.json` are public. |
 | CORS origins | `CORS_ORIGINS` | Specific domains; never `*`. |
 | Token encryption | `TOKEN_ENCRYPTION_KEY` | Required for the OAuth connectors. |

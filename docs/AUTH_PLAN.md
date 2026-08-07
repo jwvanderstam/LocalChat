@@ -248,7 +248,7 @@ first successful OIDC login carrying `email_verified: true` binds that identity 
 an account can have a password, an external identity, or both. Additive migration; follows
 the existing `ADD COLUMN IF NOT EXISTS` rule.
 
-## Phase 4 — AUTH-4: close the loop with the existing plan
+## Phase 4 — AUTH-4: close the loop with the existing plan ◐ (SEC-1 done, TQ-1 open)
 
 Once login exists, two already-written tickets become implementable as intended:
 

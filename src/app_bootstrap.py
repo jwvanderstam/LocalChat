@@ -6,6 +6,7 @@ Every function here performs network or filesystem I/O (Ollama, DB, Redis, plugi
 
 import contextlib
 import logging
+import secrets
 import threading
 from collections.abc import Iterator
 from typing import Any
@@ -256,21 +257,48 @@ def _init_reranker_scheduler(app: Any, db: Any) -> None:
 
 
 def _seed_admin_user(db: Any) -> None:
-    """Idempotently seed the admin user if ADMIN_PASSWORD is configured.
+    """Idempotently seed the admin account.
 
-    Uses an upsert so concurrent uvicorn workers are all safe to call this.
+    With ADMIN_PASSWORD set, that password is used. Without it — outside production
+    only — a random one is generated and logged once, so a fresh clone still comes
+    up with `docker compose up` and no .env edit, and comes up with authorisation
+    ON rather than off. Before SEC-1 an empty ADMIN_PASSWORD disabled authorisation
+    entirely; now it simply means the password is generated for you.
+
+    Guarded on APP_ENV, not on the password being empty: the generated value lands
+    in the startup log, which is acceptable on a developer machine and nowhere else.
+    Production already refuses to boot without ADMIN_PASSWORD (config.validate_secrets).
+
+    Uses an upsert, so concurrent workers are safe and a restart never resets an
+    existing account's password to a freshly generated one.
     """
+    from .db.users import hash_user_password
+
     admin_password = config.ADMIN_PASSWORD
+    generated = False
     if not admin_password:
-        return
+        if config.APP_ENV == 'production':
+            return  # unreachable in practice; validate_secrets aborts the boot first
+        admin_password = secrets.token_urlsafe(18)
+        generated = True
+
     try:
-        from .db.users import hash_user_password
         db.seed_admin_user(
             username=config.ADMIN_USERNAME,
             hashed_password=hash_user_password(admin_password),
         )
     except Exception as exc:
         logger.warning(f"[Auth] Admin seeding skipped: {exc}")
+        return
+
+    if generated:
+        # Only meaningful on the first boot: seed_admin_user does nothing when the
+        # account already exists, so on later boots this password is not the live one.
+        logger.warning(
+            "[Auth] ADMIN_PASSWORD was not set. If '%s' was created just now, its "
+            "password is: %s — set ADMIN_PASSWORD in .env to choose your own.",
+            config.ADMIN_USERNAME, admin_password,
+        )
 
 
 def _init_connectors(app: Any, db: Any, doc_processor: Any) -> None:

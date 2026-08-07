@@ -20,7 +20,6 @@
 #   * Place Nginx / Traefik in front of the app service for TLS
 #     termination.  Bind the app to 127.0.0.1:5000 and expose only
 #     the reverse-proxy port (443) to the outside world.
-#   * NEVER set DEMO_MODE=true in production.
 #   * Rotate all secrets before exposing any port externally.
 # ============================================================
 
@@ -320,7 +319,6 @@ services:
       JWT_SECRET_KEY:  ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       ADMIN_PASSWORD:  ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
       LOG_FORMAT:      ${LOG_FORMAT:-json}
-      DEMO_MODE:       ${DEMO_MODE:-false}
 
       # ── Database ─────────────────────────────────────────
       PG_HOST:         db

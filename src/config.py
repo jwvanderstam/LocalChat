@@ -15,7 +15,6 @@ Constants:
     RAG configuration (CHUNK_SIZE, TOP_K_RESULTS, SEMANTIC_WEIGHT, etc.)
     Application settings (SECRET_KEY, UPLOAD_FOLDER, APP_VERSION, etc.)
     Observability (METRICS_TOKEN, ENABLE_PERF_METRICS, SLOW_QUERY_THRESHOLD)
-    Demo mode (DEMO_MODE — disables JWT authentication; never use in production)
 
 Example:
     >>> from config import app_state, CHUNK_SIZE, OLLAMA_NUM_GPU
@@ -519,20 +518,6 @@ ENCRYPTION_KEY: str = (
     os.environ.get('ENCRYPTION_KEY', '') or os.environ.get('TOKEN_ENCRYPTION_KEY', '')
 )
 TOKEN_ENCRYPTION_KEY: str = ENCRYPTION_KEY
-
-# ============================================================================
-# DEMO MODE
-# ============================================================================
-# DEMO_MODE=true is intended ONLY for single-user local evaluation.
-# It disables JWT authentication and suppresses web search.
-# NEVER enable demo mode in a network-accessible or multi-user deployment.
-
-DEMO_MODE: bool = os.environ.get('DEMO_MODE', 'false').lower() == 'true'
-if DEMO_MODE:
-    logger.warning(
-        "DEMO_MODE is ON — authentication is disabled. "
-        "Do not expose this instance to untrusted networks."
-    )
 
 # ============================================================================
 # METRICS / OBSERVABILITY

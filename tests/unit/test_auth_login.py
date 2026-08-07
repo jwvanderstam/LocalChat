@@ -24,8 +24,8 @@ WS = "11111111-1111-1111-1111-111111111111"
 
 @pytest.fixture(autouse=True)
 def _rbac_on():
-    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"), \
-         patch("src.security_fastapi.config.DEMO_MODE", False):
+    # DEMO_MODE is gone (SEC-1); only the admin-password branch remains to neutralise.
+    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
         yield
 
 

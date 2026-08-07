@@ -92,9 +92,9 @@ class TestGetCurrentUserId:
     def test_no_credentials_no_header_returns_none(self):
         from src.security_fastapi import get_current_user_id
 
-        with patch("src.security_fastapi._is_testing", return_value=False), \
-             patch("src.security_fastapi.config") as mc:
-            mc.DEMO_MODE = False
+        # config no longer needs patching here: the DEMO_MODE branch it stood in for
+        # was removed in SEC-1.
+        with patch("src.security_fastapi._is_testing", return_value=False):
             req = self._make_request(testing=False)
             result = get_current_user_id(req, credentials=None)
         assert result is None
@@ -105,7 +105,6 @@ class TestGetCurrentUserId:
         token = create_access_token("user-xyz")
         with patch("src.security_fastapi._is_testing", return_value=False), \
              patch("src.security_fastapi.config") as mc:
-            mc.DEMO_MODE = False
             mc.JWT_SECRET_KEY = "test-secret"
             req = self._make_request(testing=False, auth_header=f"Bearer {token}")
             # credentials=None forces fallback to header extraction

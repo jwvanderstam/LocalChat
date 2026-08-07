@@ -380,7 +380,6 @@ class TestSettingsRoutesExtended:
             mc.CHUNK_SIZE = 1200
             mc.CHUNK_OVERLAP = 200
             mc.APP_VERSION = "1.0.0"
-            mc.DEMO_MODE = False
             mc.OLLAMA_BASE_URL = "http://localhost:11434"
             mc.app_state = MagicMock()
             mc.app_state.get_active_model.return_value = "llama3.2"
