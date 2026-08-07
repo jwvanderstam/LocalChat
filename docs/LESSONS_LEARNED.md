@@ -565,6 +565,48 @@ reasoning about what it would produce.
 
 ---
 
+## 13. Authentication was never built, and three green signals said otherwise
+
+RBAC-1 and RBAC-2 guarded 82 routes. Then the browser UI returned 401 on every
+call, because **there was no login route** — nothing outside `security_fastapi.py`
+had ever called `create_access_token`, no frontend request carried an
+`Authorization` header, and `POST /api/logout` had no counterpart. Not in the
+FastAPI routes, not in the Flask routes before them. The authorisation system had
+always been theoretical; it only looked complete while most routes were open, and
+I closed them without checking there was a way in.
+
+What followed was AUTH-1 (login, httpOnly cookie), AUTH-2 (users screen, plus the
+precondition stopping the last admin from deleting themselves), workspace API keys
+(a chatbot bridge is a *workspace endpoint*, not a person's account), and SEC-1
+(`DEMO_MODE` deleted — it disabled authorisation when it meant to limit
+reachability, so the safety flag was the risk).
+
+The transferable part is not the features. It is that **three different signals
+looked exactly like success and were not**:
+
+| Signal | Why it was empty |
+|---|---|
+| A green test suite | started *before* the fix it was meant to cover. Happened three times; the count only gave it away — 2471 where 2473 was expected |
+| `docker compose up -d --build` | the Dockerfile no longer built, and compose kept serving the previous container without a word. `docker compose ps` said "Up About an hour" |
+| A `MERGEABLE / CLEAN` PR | stacked on a feature branch, so `tests.yml` never triggered at all |
+
+Each was indistinguishable from the real thing at a glance, and each needed a
+*different* second question: how many tests, when did the container start, which
+checks actually ran.
+
+The same shape appeared inside the code. Mocked tests confirmed what I already
+believed and hid what was there: a `MagicMock` returning a plain dict never
+produced psycopg's `UUID`/`datetime`, so key creation 500'd only against a real
+database; `_row_to_user` maps positionally and silently dropped a newly selected
+column, so every retired user came back looking live. Both were found by comparing
+the API's output to the database, not by reading either.
+
+**Rule taken from this:** verification must name the specific thing expected — this
+log line, this container start time, this row shape — because "it looked fine" is
+what all three failures produced.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents
@@ -654,6 +696,9 @@ guard are marked as such honestly.
 | Merges are not gated on CI (Ch. 11) | Every merge that day was verified by hand before merging | Ruleset requires `unit-tests`, `integration-tests`, `repo-hygiene` on the default branch. Auto-merge stays off deliberately — the gate proves the tests ran, a human still decides |
 | A rationale has a shelf life (Ch. 11) | The lock file's justification was false within days of being written, while the file still looked reasonable | Asking why an artifact exists is a periodic check, not a one-off; `CLAUDE.md` records the *reason* a rule exists so a stale one is recognisable |
 | An absent signal reads as a negative one (Ch. 12) | A disabled logger, a PR whose CI never fired, and a suite that bypassed every auth check all presented as "fine" | `migrations/env.py` keeps its loggers and `_preserve_root_logging()` keeps root's level (both pinned by tests); `CLAUDE.md` records that a non-`main` PR runs no CI. The general case has no automated guard — the standing rule is to make the system emit the signal, not to reason about what it would emit |
+| A green signal that predates the change (Ch. 13) | A suite started before the fix, a build that never ran, a PR whose CI never fired — three times, all indistinguishable from success | Each needs its own second question: how many tests ran, when the container started, which checks are listed. `CLAUDE.md` records the non-`main` PR case; the others have no automated guard and rely on naming the expected value before looking |
+| Authorisation without authentication (Ch. 13) | 82 routes were guarded while no login route existed — the system was theoretical and looked complete only because most routes were open | `docs/AUTH_PLAN.md` sequences login before enforcement work; SEC-1 and TQ-1 are marked blocked on it rather than silently reordered |
+| A machine wearing a person's schema (Ch. 13) | A chatbot bridge had to log in as a user — no reset path, a session that expires mid-conversation, an audit trail naming someone asleep | Workspace API keys: the credential belongs to the workspace, so there is no password to reset and the log names the key. `WORKSPACE_API_KEYS.md` |
 | Verifying a proxy instead of the thing (Ch. 12) | The logging fix was called complete when *some* lines returned; the app's own INFO was still being dropped, and it took a second pass (#225) to notice | The verification has to name the specific line expected, not "logs are back". `TROUBLESHOOTING.md` splits the symptom into the two halves so the wrong one cannot be matched by accident |
 | Inspection yields a plausible story; execution yields the true one (Ch. 12) | BUG-3 severity was mis-ranked from reading code — probing showed 200s where 500s were assumed, and vice versa; the migration looked correct and had never run | `docs/MIGRATIONS.md` now requires `alembic heads` / `upgrade` / `current` against a real database before trusting a new revision. No CI job runs migrations, so this stays manual and explicit |
 | A stale index becomes an authority (Ch. 12) | A migration was numbered from `file-map.md` while that table was missing two existing migrations, producing a duplicate revision id | `MIGRATIONS.md` states the directory is the only authority for revision numbers; `file-map.md` is a convenience index and is documented as such |
