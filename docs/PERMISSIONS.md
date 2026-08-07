@@ -4,6 +4,11 @@
 present in the handler, read from source — not an intention. Regenerate after changing any
 route; drift between this file and the code is the failure mode it exists to prevent.
 
+> **Corrected 2026-08-07.** This file listed `GET /api/settings/stats` as `admin`. It had no
+> guard at all and served admin statistics to anyone. The generator's 14-line window had
+> caught the `require_admin_dep` of the *following* route. Found by TQ-1a's introspection,
+> which walks the live route table instead of reading source — the reason that check exists.
+>
 > **Known limitation of the generator.** It detects guards declared in the handler —
 > `require_admin_dep`, `require_auth`, and `check_workspace_access` via `_authz.deny()`. It does
 > **not** see authorisation performed inside a called helper. One route pair does exactly that:

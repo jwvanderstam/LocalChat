@@ -155,14 +155,53 @@ There is currently no measurement of behaviour under concurrency, which is why P
 
 The mutation audit (`TEST_QUALITY_AUDIT.md`) already established internally what the external audit confirmed from the outside: coverage-driven sessions produced tests that run code without checking behaviour, and the whole suite runs with the RBAC bypass on — *coverage without authorisation*. So stop gating on coverage percentage and gate on behaviour.
 
-### TQ-1 — Authz-by-default CI job ⬜
+### TQ-1a — Authz-by-default route introspection ✅ (done)
 
-> **Partly blocked on AUTH-1.** The route-table introspection can be built now; deleting the
-> `app.state.testing` bypass cannot, because route tests would then have no way to
-> authenticate. See [AUTH_PLAN.md](AUTH_PLAN.md).
+`tests/unit/test_authz_by_default.py` walks the route table of the real application and
+asserts every route refuses an unauthenticated caller, unless it is on an explicit
+allowlist carrying a reason. A new route added without a guard fails by default.
 
-- Add a CI job that boots the app in production-like config (`APP_ENV=production`, auth configured), **introspects the FastAPI route table**, and asserts 401/403 on every route not on an explicit public allowlist. The introspection is the point: a new route added without auth *fails CI by default*. This mechanises the BUG-3 / RBAC-1 lesson — correct enforcement code existing with zero call sites is caught by a mechanism, not a memory.
-- Then **delete the testing bypass** (`app.state.testing` in `_is_rbac_bypassed()`) and repair the fallout: every route-authorisation test runs with the bypass OFF. "Coverage without authorisation" ends with this ticket.
+**It found a real gap on its first run.** `GET /api/settings/stats` served admin
+statistics to anyone. RBAC-2's manual audit had recorded it as `admin` — a false
+positive, because the classifier's 14-line window caught the `require_admin_dep` of the
+*next* route. That is the case for introspection over counting: 102 routes read by hand
+produce mistakes that a walk of the actual table does not.
+
+Two traps this had to avoid, either of which yields a check that passes while verifying
+nothing:
+
+- **`app.routes` is not the route table.** This FastAPI version wraps includes in
+  `_IncludedRouter`, so a naive walk finds four routes — the built-in docs pages — and
+  pronounces the application clean. Paths come from `app.openapi()`.
+- **`openapi()` omits `include_in_schema=False` routes.** Those are the eight SPA shells;
+  they are enumerated separately and pinned as a set, so a new hidden route fails the
+  test rather than slipping past the half of the check that cannot see it.
+
+Placeholder values are type-correct (`int` where the route expects `int`), because a 422
+from validation is neither a pass nor a refusal and would hide whether the route is
+guarded at all.
+
+**Verified by breaking it:** removing the guard from `POST /api/feedback` turns the check
+red and names the route; restoring it turns it green.
+
+### TQ-1b — Delete the `app.state.testing` bypass ⬜
+
+The last branch of `_is_rbac_bypassed()`. When it goes, the function has no branch left
+and goes with it.
+
+**Scope, measured 2026-08-07: 23 call sites across 17 test files.** Each has to move from
+"bypass on" to authenticating for real. This is deliberately *not* bundled with TQ-1a,
+because the risk is specific: a test converted carelessly gets quietly weaker rather than
+loudly red — the exact failure mode this whole initiative exists to remove. It wants a
+session of its own, not the tail end of one.
+
+**Reduced urgency, stated honestly.** TQ-1a already guarantees the property that matters —
+every route is guarded, verified with the bypass off, mechanically, on every run. What
+remains is that an *individual* route test can still pass through a check that never ran.
+That is worth fixing and it is no longer the hole it was.
+
+**Acceptance unchanged:** delete `state.testing = True` from a route test and confirm it
+fails with 401 rather than passing.
 
 ### TQ-2 — Deterministic integration CI ⬜
 
@@ -294,7 +333,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) + TQ-5a ✅ (alembic chain check) | 1-2 days |
 | PG-1 | SEC-1 + SEC-2 (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | 3–4 days |
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
-| PG-3 | TQ-1 (authz CI job; then delete the testing bypass and repair fallout) | 1 week |
+| PG-3 | TQ-1a ✅ (authz-by-default introspection) + TQ-1b (delete the testing bypass, 23 call sites) | ~3 days left |
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
 | PG-5 | TQ-3 + TQ-4 (scoped mutation gate; Playwright smoke) | 1 week |
 | PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
@@ -311,7 +350,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 v3.0 ships when **all eight** hold, and not before:
 
 1. **Fail-closed boot** — no configuration path exists in which `APP_ENV=production` runs with authorisation off. (SEC-1, SEC-2)
-2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI. Testing bypass deleted. (TQ-1)
+2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI (TQ-1a ✅). Testing bypass deleted (TQ-1b).
 3. **Concurrency budget met** — p95 time-to-first-token under the agreed budget at 10 concurrent SSE users; benchmark and numbers committed to the repo. (PERF-1/2)
 4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3)
 5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4)

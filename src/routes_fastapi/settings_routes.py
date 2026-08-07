@@ -172,7 +172,10 @@ def metrics_json_endpoint(request: Request) -> Any:
 
 
 @router.get("/settings/stats")
-def settings_stats_api(request: Request) -> Any:
+def settings_stats_api(
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+) -> Any:
     return gather_admin_stats(request.app.state)
 
 
