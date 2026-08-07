@@ -66,7 +66,10 @@ if not _JWT_SECRET_KEY_RAW or _JWT_SECRET_KEY_RAW == 'change-this-to-a-random-jw
 else:
     JWT_SECRET_KEY = _JWT_SECRET_KEY_RAW
 
-JWT_ACCESS_TOKEN_EXPIRES: int = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', '3600'))
+# 2 hours. There is no refresh token, so this is literally how often a user is
+# asked to sign in again; it trades a longer useful life for a stolen token
+# against re-authenticating mid-task.
+JWT_ACCESS_TOKEN_EXPIRES: int = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', '7200'))
 
 # Rate limiting settings
 RATELIMIT_ENABLED: bool = os.environ.get('RATELIMIT_ENABLED', 'True').lower() == 'true'
