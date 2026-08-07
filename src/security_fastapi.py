@@ -239,6 +239,66 @@ def _claims_from_request(request: Request) -> dict[str, Any]:
         return {}
 
 
+def _extract_api_key(request: Request) -> str | None:
+    """Return a workspace API key from ``X-API-Key`` or a ``Bearer lcw_...`` header.
+
+    Accepting it as a Bearer token as well means an HTTP client that only offers an
+    Authorization field — n8n, most webhook tools — needs no special handling. The
+    ``lcw_`` prefix is what distinguishes it from a JWT, so the two never collide.
+    """
+    from .db.workspace_keys import KEY_PREFIX
+
+    header = request.headers.get("X-API-Key", "").strip()
+    if header.startswith(KEY_PREFIX):
+        return header
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        candidate = auth[7:].strip()
+        if candidate.startswith(KEY_PREFIX):
+            return candidate
+    return None
+
+
+def _check_api_key_access(
+    request: Request,
+    api_key: str,
+    workspace_id: str | None,
+    min_role: str,
+) -> tuple[int, str] | None:
+    """Authorise a workspace API key.
+
+    The key's own workspace is authoritative. A caller-supplied workspace — path
+    parameter, ``X-Workspace-ID`` header, query string — is only ever compared
+    against it, never substituted for it. Without that rule a key issued for one
+    workspace could read any other simply by changing a header, which would make
+    the key a credential for the whole installation rather than for one workspace.
+
+    A key also never receives the global-admin short-circuit: it is scoped to a
+    workspace by construction, and nothing about it should be able to escape that.
+    """
+    db = getattr(request.app.state, "db", None)
+    if db is None or not db.is_connected:
+        return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+
+    resolved = db.resolve_workspace_api_key(api_key)
+    if resolved is None:
+        return (status.HTTP_401_UNAUTHORIZED, "Invalid or revoked API key")
+    key_workspace, key_role = resolved
+
+    requested = workspace_id or get_workspace_id(request)
+    if requested and requested != key_workspace:
+        return (status.HTTP_403_FORBIDDEN, "API key is not valid for this workspace")
+
+    if _ROLE_LEVELS.get(key_role, -1) < _ROLE_LEVELS.get(min_role, 0):
+        return (status.HTTP_403_FORBIDDEN, f"API key requires {min_role} role or higher")
+
+    # Pin the scope for everything downstream. get_workspace_id() prefers this over
+    # the header, so a request that omits X-Workspace-ID cannot fall through to the
+    # default workspace after authorising against the key's.
+    request.state.api_key_workspace_id = key_workspace
+    return None
+
+
 def check_workspace_access(
     request: Request,
     workspace_id: str | None,
@@ -257,6 +317,13 @@ def check_workspace_access(
     """
     if _is_rbac_bypassed(request):
         return None
+
+    # A workspace API key is a principal in its own right, checked before user
+    # claims because it is not a user and must not fall through to user handling.
+    api_key = _extract_api_key(request)
+    if api_key:
+        return _check_api_key_access(request, api_key, workspace_id, min_role)
+
     claims = _claims_from_request(request)
     if not claims:
         return (status.HTTP_401_UNAUTHORIZED, _ERR_AUTH_REQUIRED)

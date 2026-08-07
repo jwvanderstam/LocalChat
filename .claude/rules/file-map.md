@@ -55,6 +55,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/db/entities.py` | `EntitiesMixin` — GraphRAG entity/relation CRUD |
 | `src/db/memories.py` | `MemoriesMixin` — long-term memory CRUD + vector search |
 | `src/db/feedback.py` | `FeedbackMixin` — `answer_feedback` + `chunk_stats` CRUD |
+| `src/db/workspace_keys.py` | `WorkspaceKeysMixin` — workspace API keys: create/resolve/list/revoke; sha256-hashed, prefix-indexed |
 | `src/db/workspaces.py` | `WorkspacesMixin` — workspace CRUD with doc/conversation counts |
 | `src/db/connectors.py` | `ConnectorsMixin` — connector CRUD, sync log, `delete_document_by_filename` |
 | `src/db/users.py` | `UsersMixin` — user CRUD, PBKDF2 password hashing |
@@ -78,9 +79,11 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0012_hybrid_search_tsvector.py` | Adds the tsvector column + GIN index backing the lexical arm of hybrid search |
 | `migrations/versions/0013_documents_unique_filename_workspace.py` | Enforces one live document per (filename, workspace_id) |
 | `migrations/versions/0014_rbac1_backfill_workspace_members.py` | RBAC-1: backfills workspace_members — admins own every live workspace, other users get editor on the default one |
+| `migrations/versions/0015_workspace_api_keys.py` | Adds workspace_api_keys — scoped, revocable credentials for programmatic workspace access |
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
 | `docs/OPERATIONS.md` | Backup/restore/maintenance runbook |
 | `docs/ROADMAP.md` | Living initiative/ticket plan (current: v3.0 — hygiene, Clark-Wilson, RBAC, GKB, model management, plugin contract) |
+| `docs/WORKSPACE_API_KEYS.md` | How to give a chatbot/n8n bridge scoped access to one workspace — create, use, revoke, and why the scope cannot be overridden |
 | `docs/AUTH_PLAN.md` | Authentication build plan — AUTH-1..4: local login, Users screen, OIDC (Entra/Google), then deleting the bypasses |
 | `docs/ADR.md` | Architecture Decision Records — ADR-1 (single-node appliance) and ADR-2 (sync DB layer), each with the condition that would reopen it |
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |
