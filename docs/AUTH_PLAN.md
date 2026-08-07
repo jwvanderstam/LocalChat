@@ -134,7 +134,7 @@ Design decisions worth keeping:
 
 See [WORKSPACE_API_KEYS.md](WORKSPACE_API_KEYS.md).
 
-## Phase 2 — AUTH-2: user management in Settings
+## Phase 2 — AUTH-2: user management in Settings ✅ (done)
 
 The backend is done; this is the screen. A **Users** tab in `templates/settings.html`,
 admin-only, using the existing routes: list, create, edit role, deactivate (soft-delete),
@@ -153,6 +153,20 @@ Two things the UI must get right because the API allows them:
 **Tests:** a non-admin gets 403 on every user route (already true, asserted again through
 the UI's calls); demoting the last admin is refused server-side; the screen renders soft-
 deleted users distinctly rather than hiding them.
+
+> **Outcome.** Both preconditions landed server-side, in `src/db/users.py`, raising
+> `LastAdminError` which the routes translate to 409 — the request is well-formed, the
+> current state forbids it. Enforced there and not in the UI because a greyed-out button is
+> a courtesy, not a precondition: curl has to hit the same wall. `test_refusal_writes_nothing`
+> pins that the guard runs *before* the UPDATE, and five tests cover the negative space,
+> since a guard that also blocks ordinary administration is a different bug.
+>
+> Three defects surfaced in my own work while checking it, each invisible to a mocked test:
+> `list_users()` filtered `deleted_at IS NULL`, so the purge button rendered for data that
+> never arrived; `_row_to_user` maps positionally and silently dropped the new eighth column,
+> so every retired user came back looking live; and `users.js` resolved its DOM elements
+> before optionally waiting for `DOMContentLoaded`, which would have left them `null`. The
+> first two are now covered by tests that construct a real row rather than mocking one.
 
 ## Phase 3 — AUTH-3: OIDC login (Entra ID + Google) ⏸️ built on a trigger, not on a date
 
@@ -253,7 +267,7 @@ was not reachable while the only way to use the app was through a bypass.
 | Phase | Ticket | Unblocks | Est. |
 |---|---|---|---|
 | 1 | AUTH-1 local login + cookie + frontend ✅ done | the application itself | — |
-| 2 | AUTH-2 Users screen in Settings | admin self-service | 1–2 days |
+| 2 | AUTH-2 Users screen in Settings ✅ done | admin self-service | — |
 | 4 | AUTH-4 delete the bypasses | SEC-1, TQ-1 | folded into those |
 | 3 | AUTH-3 OIDC ⏸️ | SSO, central offboarding | 3–5 days, **on trigger** |
 

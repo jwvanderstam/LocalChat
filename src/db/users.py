@@ -22,6 +22,15 @@ else:
 logger = get_logger(__name__)
 
 
+class LastAdminError(Exception):
+    """Raised when an operation would leave the installation with no live admin.
+
+    A precondition in the Clark-Wilson sense: the transformation is refused rather
+    than allowed to produce a state no integrity check could repair — there would be
+    nobody able to grant the role back.
+    """
+
+
 class UsersMixin(MixinHost):
     """Mixin providing user CRUD operations."""
 
@@ -122,17 +131,27 @@ class UsersMixin(MixinHost):
                 row = cur.fetchone()
         return _row_to_user(row) if row else None
 
-    def list_users(self) -> list[dict[str, Any]]:
-        """Return all live (non-deleted) users (hashed_password excluded)."""
+    def list_users(self, include_retired: bool = False) -> list[dict[str, Any]]:
+        """Return users, hashed_password excluded.
+
+        *include_retired* also returns soft-deleted rows so a management screen can
+        show them distinctly rather than hiding them — a retired user is still
+        referenced by their documents and conversations, so a list that omits them
+        disagrees with the data.
+        """
         if not self.is_connected:
             return []
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, username, email, hashed_password, is_active, role, created_at
-                    FROM users WHERE deleted_at IS NULL ORDER BY created_at
-                    """
+                    SELECT id, username, email, hashed_password, is_active, role,
+                           created_at, deleted_at
+                    FROM users
+                    WHERE (deleted_at IS NULL OR %s)
+                    ORDER BY created_at
+                    """,
+                    (include_retired,),
                 )
                 rows = cur.fetchall()
         return [_row_to_user(r) for r in rows]
@@ -148,6 +167,32 @@ class UsersMixin(MixinHost):
                 assert row is not None, "SELECT COUNT(*) always returns a row"
                 return row[0]
 
+    def count_live_admins(self) -> int:
+        """Number of live users holding the global admin role."""
+        if not self.is_connected:
+            return 0
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM users WHERE role = 'admin' AND deleted_at IS NULL"
+                )
+                row = cur.fetchone()
+                assert row is not None, "SELECT COUNT(*) always returns a row"
+                return row[0]
+
+    def _would_remove_last_admin(self, user_id: str) -> bool:
+        """True when this user is the only remaining live admin.
+
+        Enforced here rather than in the UI: a greyed-out button is a courtesy, not
+        a precondition. Without this the API happily leaves an installation with no
+        one able to manage users, models or settings — recoverable only by editing
+        the database directly.
+        """
+        user = self.get_user_by_id(user_id)
+        if not user or user.get("role") != "admin":
+            return False
+        return self.count_live_admins() <= 1
+
     # ------------------------------------------------------------------
     # Update
     # ------------------------------------------------------------------
@@ -160,6 +205,12 @@ class UsersMixin(MixinHost):
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot update user: DB not connected")
         allowed = {'email', 'hashed_password', 'is_active', 'role'}
+        # Demoting or deactivating the last admin locks everyone out of user,
+        # model and settings management.
+        demotes = fields.get('role') not in (None, 'admin')
+        deactivates = fields.get('is_active') is False
+        if (demotes or deactivates) and self._would_remove_last_admin(user_id):
+            raise LastAdminError("Cannot remove the last remaining admin")
         sets = [f"{k} = %s" for k in fields if k in allowed]
         params = [v for k, v in fields.items() if k in allowed]
         if not sets:
@@ -181,6 +232,8 @@ class UsersMixin(MixinHost):
         """Soft-delete a user. Returns True if a live row was retired."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete user: DB not connected")
+        if self._would_remove_last_admin(user_id):
+            raise LastAdminError("Cannot delete the last remaining admin")
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -233,7 +286,15 @@ def hash_user_password(password: str) -> str:
 
 
 def _row_to_user(row: tuple) -> dict[str, Any]:
-    return {
+    """Map a users row positionally.
+
+    ``deleted_at`` is optional because only list_users(include_retired=True)
+    selects it; the single-row lookups filter retired users out entirely, so an
+    eighth column would always be NULL there. Reading it defensively keeps this
+    mapper usable from both without a second function — and silently dropping a
+    selected column is how the retired badge first failed to appear.
+    """
+    user = {
         'id': str(row[0]),
         'username': row[1],
         'email': row[2],
@@ -242,3 +303,6 @@ def _row_to_user(row: tuple) -> dict[str, Any]:
         'role': row[5],
         'created_at': row[6].isoformat() if row[6] else None,
     }
+    if len(row) > 7:
+        user['deleted_at'] = row[7].isoformat() if row[7] else None
+    return user

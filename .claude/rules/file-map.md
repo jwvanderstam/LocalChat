@@ -169,6 +169,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `static/js/ingestion.js` | Document upload progress (SSE) on `templates/documents.html` |
 | `static/js/settings.js` | Theme picker + appearance settings on `templates/settings.html` |
 | `static/js/workspace.js` | Workspace switcher dropdown + create-workspace modal, wired into `templates/base.html` |
+| `static/js/users.js` | Users tab in Settings (AUTH-2) — admin-only list, role change, retire, purge |
 | `static/js/auth.js` | Session handling — wraps `fetch` to redirect to `/login` on 401, drives the login form, exposes `localchatLogout()` |
 | `templates/login.html` | Login page — the one template that renders without a session |
 | `static/js/docs.js` | Documentation viewer (`templates/docs.html`) — fetches `/api/repo-docs`, renders nav + selected doc HTML |
