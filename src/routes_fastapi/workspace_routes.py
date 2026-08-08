@@ -45,9 +45,28 @@ def _presence_event(workspace_id: str, user_id: str | None) -> str:
 
 @router.get("/workspaces")
 def list_workspaces(request: Request) -> Any:
-    require_auth(request)
+    """List the workspaces this caller may actually use.
+
+    Everyone used to see every workspace. Selecting one you were not a member of
+    produced a correct Access Denied, but the list had already told you the names of
+    workspaces you have no business knowing about — and offered them as choices,
+    which reads as a broken switcher rather than a boundary.
+
+    A global admin still sees all of them; they can reach any workspace anyway.
+    """
+    user_id = require_auth(request)
+    db = request.app.state.db
     try:
-        workspaces = request.app.state.db.list_workspaces()
+        # "anonymous" means the RBAC bypass is on and there is no caller to scope by;
+        # narrowing to their memberships would empty the switcher entirely.
+        anonymous = not user_id or user_id == "anonymous"
+        # Role from the database rather than the token, matching /api/users/me: a
+        # demotion takes effect immediately instead of at the next login.
+        caller = None if anonymous else db.get_user_by_id(user_id)
+        if anonymous or (caller and caller.get("role") == "admin"):
+            workspaces = db.list_workspaces()
+        else:
+            workspaces = db.get_user_workspaces(user_id)
         active_id = get_workspace_id(request)
         for ws in workspaces:
             ws["active"] = ws["id"] == active_id
