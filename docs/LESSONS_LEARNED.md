@@ -601,6 +601,26 @@ database; `_row_to_user` maps positionally and silently dropped a newly selected
 column, so every retired user came back looking live. Both were found by comparing
 the API's output to the database, not by reading either.
 
+**Then the owner opened the application.** Four defects in two short messages, none
+of which 2545 passing tests had seen:
+
+| Reported as | Actually |
+|---|---|
+| "creating a user doesn't let me grant workspace access" | true — and even after granting it, the user was still refused everything, because a request without `X-Workspace-ID` fell through to the *global* default workspace |
+| "the model page says Ollama is not there" | a 403 rendered as a connection failure. Ollama was running throughout |
+| "you don't need Prometheus observability as a viewer" | right, and broader: three Settings tabs answered 403 and rendered empty, which reads as broken rather than as not-for-you |
+| "why do I see workspaces I have no access to?" | the switcher listed every workspace on the instance, disclosing names before the correct Access Denied ever fired |
+
+Chasing the second of those uncovered a cross-workspace read: a viewer's document
+list returned 26 documents where their workspace holds 20. Authorisation resolved to
+a workspace they belonged to, and the query behind it then ran unscoped. It is the
+same defect fixed for API keys one day earlier — I had pinned the resolved workspace
+for keys and not carried it across to user sessions. Recognising a pattern is not the
+same as finishing it.
+
+The tests could not have caught most of these. They assert what the API returns to a
+caller the test constructs; nobody had constructed a viewer and looked at the screen.
+
 **Rule taken from this:** verification must name the specific thing expected — this
 log line, this container start time, this row shape — because "it looked fine" is
 what all three failures produced.
@@ -698,6 +718,7 @@ guard are marked as such honestly.
 | An absent signal reads as a negative one (Ch. 12) | A disabled logger, a PR whose CI never fired, and a suite that bypassed every auth check all presented as "fine" | `migrations/env.py` keeps its loggers and `_preserve_root_logging()` keeps root's level (both pinned by tests); `CLAUDE.md` records that a non-`main` PR runs no CI. The general case has no automated guard — the standing rule is to make the system emit the signal, not to reason about what it would emit |
 | A green signal that predates the change (Ch. 13) | A suite started before the fix, a build that never ran, a PR whose CI never fired — three times, all indistinguishable from success | Each needs its own second question: how many tests ran, when the container started, which checks are listed. `CLAUDE.md` records the non-`main` PR case; the others have no automated guard and rely on naming the expected value before looking |
 | Authorisation without authentication (Ch. 13) | 82 routes were guarded while no login route existed — the system was theoretical and looked complete only because most routes were open | `docs/AUTH_PLAN.md` sequences login before enforcement work; SEC-1 and TQ-1 are marked blocked on it rather than silently reordered |
+| Tests answer the question you wrote down (Ch. 13) | 2545 passing tests missed four defects the owner found in two messages, including a cross-workspace read — nobody had constructed a viewer and looked at the screen | No automated guard, and probably none possible: the standing rule is that a feature is not done until someone has used it as the role it was built for. TQ-4's Playwright smoke test is the nearest mechanical approximation |
 | A machine wearing a person's schema (Ch. 13) | A chatbot bridge had to log in as a user — no reset path, a session that expires mid-conversation, an audit trail naming someone asleep | Workspace API keys: the credential belongs to the workspace, so there is no password to reset and the log names the key. `WORKSPACE_API_KEYS.md` |
 | Verifying a proxy instead of the thing (Ch. 12) | The logging fix was called complete when *some* lines returned; the app's own INFO was still being dropped, and it took a second pass (#225) to notice | The verification has to name the specific line expected, not "logs are back". `TROUBLESHOOTING.md` splits the symptom into the two halves so the wrong one cannot be matched by accident |
 | Inspection yields a plausible story; execution yields the true one (Ch. 12) | BUG-3 severity was mis-ranked from reading code — probing showed 200s where 500s were assumed, and vice versa; the migration looked correct and had never run | `docs/MIGRATIONS.md` now requires `alembic heads` / `upgrade` / `current` against a real database before trusting a new revision. No CI job runs migrations, so this stays manual and explicit |
