@@ -622,7 +622,113 @@
         <div id="users-alert" class="alert py-2 small d-none" role="alert" aria-live="polite"></div>
 
         <div class="row g-3" id="users-grid"></div>
+
+        <hr class="my-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="mb-1">Integrations</h5>
+                <p class="text-muted small mb-0">
+                    A key lets a bot or workflow reach one workspace. It is a principal in its
+                    own right — use a key rather than lending a machine someone's account.
+                </p>
+            </div>
+            <button class="btn btn-primary" id="key-create-btn">
+                <i class="bi bi-key me-1"></i>New key
+            </button>
+        </div>
+
+        <div id="keys-alert" class="alert py-2 small d-none" role="alert" aria-live="polite"></div>
+
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr class="small text-muted">
+                        <th>Name</th><th>Workspace</th><th>Access</th>
+                        <th>Key</th><th>Last used</th><th></th>
+                    </tr>
+                </thead>
+                <tbody id="keys-body"></tbody>
+            </table>
+        </div>
     </div><!-- /users tab-pane -->
+
+    <!-- Create key -->
+    <div class="modal fade" id="key-create-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form id="key-create-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-key me-2"></i>New API key</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="nk-error" class="alert alert-danger py-2 small d-none"></div>
+                        <div class="mb-3">
+                            <label class="form-label" for="nk-name">Name</label>
+                            <input type="text" class="form-control" id="nk-name" required
+                                   placeholder="discord-bridge">
+                            <div class="form-text">What uses this key. It appears in the logs.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="nk-workspace">Workspace</label>
+                            <select class="form-select" id="nk-workspace" required></select>
+                            <div class="form-text">
+                                The key reaches this workspace and no other. That cannot be overridden by the caller.
+                            </div>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label" for="nk-role">Access</label>
+                            <select class="form-select" id="nk-role">
+                                <option value="viewer" selected>Viewer — read and chat</option>
+                                <option value="editor">Editor — also upload and delete</option>
+                            </select>
+                            <div class="form-text">
+                                Owner is not offered: a key that can mint further keys turns one leak into permanent control.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create key</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- The key, shown once -->
+    <div class="modal fade" id="key-reveal-modal" tabindex="-1" aria-hidden="true"
+         data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-clipboard-check me-2"></i>Copy this key now</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning py-2 small">
+                        This is the only time the key is shown. Only its hash is stored, so a lost
+                        key is replaced, never recovered.
+                    </div>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace small" id="kr-value" readonly>
+                        <button class="btn btn-outline-primary" type="button" id="kr-copy">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                    <p class="text-muted small mt-3 mb-1">Send it on either header:</p>
+<pre class="small bg-body-secondary p-2 rounded mb-0"><code>Authorization: Bearer &lt;key&gt;
+X-API-Key: &lt;key&gt;</code></pre>
+                    <p class="text-muted small mt-2 mb-0">
+                        Do not send <code>X-Workspace-ID</code> — the key already names its workspace.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Create user -->
     <div class="modal fade" id="user-create-modal" tabindex="-1" aria-hidden="true">
