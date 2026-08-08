@@ -13,7 +13,16 @@
     </button>
 </div>
 
-<div class="row">
+<!-- Shown when the API answers 403: model management is node-wide, so it is admin-only. -->
+<div id="models-admin-notice" class="alert alert-secondary d-none">
+    <i class="bi bi-lock me-2"></i>
+    <strong>Admin access required.</strong>
+    Pulling, deleting and switching models affects the whole installation — disk, memory,
+    and which model everyone gets — so it is restricted to administrators.
+    Ask an admin if you need a different model.
+</div>
+
+<div class="row" id="models-admin-content">
     <!-- Available Models -->
     <div class="col-md-8">
         <div class="card">
@@ -174,13 +183,29 @@
 
     // Fetch actual Ollama URL and connection status from server config
     fetch('/api/settings/stats')
-        .then(r => r.json())
-        .then(d => {
+        .then(async (r) => {
+            const statusSpan = document.getElementById('connection-status');
+            if (r.status === 403) {
+                // Not a connectivity problem. Model management is admin-only, and
+                // reporting that as "Disconnected" sent people looking for a broken
+                // Ollama that was running fine.
+                document.getElementById('ollama-url-display').textContent = 'hidden';
+                statusSpan.className = 'badge bg-secondary';
+                statusSpan.textContent = 'Admin access required';
+                document.getElementById('models-admin-notice')?.classList.remove('d-none');
+                document.getElementById('models-admin-content')?.classList.add('d-none');
+                return;
+            }
+            if (!r.ok) {
+                statusSpan.className = 'badge bg-danger';
+                statusSpan.textContent = 'Unavailable';
+                return;
+            }
+            const d = await r.json();
             if (d.system?.ollama_url) {
                 ollamaUrl = d.system.ollama_url;
                 document.getElementById('ollama-url-display').textContent = ollamaUrl;
             }
-            const statusSpan = document.getElementById('connection-status');
             if (d.system?.ollama_available) {
                 statusSpan.className = 'badge bg-success';
                 statusSpan.textContent = 'Connected';

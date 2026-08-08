@@ -93,4 +93,46 @@ async function logout() {
 
 window.localchatLogout = logout;
 
-document.addEventListener('DOMContentLoaded', initLoginForm);
+// ---- role-aware chrome ------------------------------------------------------
+
+// Elements marked `admin-only` start hidden and are revealed once the server says
+// the caller is an admin. Presentation only — every route behind them is guarded
+// regardless. Hiding them beats letting them render empty: a tab that shows nothing
+// reads as broken, when the truth is that it was never meant for you.
+async function revealAdminChrome() {
+    const hidden = document.querySelectorAll('.admin-only');
+    if (!hidden.length) return;
+    try {
+        const resp = await _originalFetch('/api/users/me');
+        if (!resp.ok) return;
+        const me = await resp.json();
+        if (me.role !== 'admin') return;
+    } catch (e) {
+        selectFirstVisibleTab();
+        return;  // a failed check must not reveal an admin surface
+    }
+    hidden.forEach((el) => el.classList.remove('d-none'));
+}
+
+// The first Settings tab is admin-only, and it is also the one marked active. Hiding
+// it without moving the selection leaves a non-admin staring at an empty panel.
+function selectFirstVisibleTab() {
+    const list = document.getElementById('settingsTabs') || document.querySelector('.nav-tabs');
+    if (!list) return;
+    const activeItem = list.querySelector('.nav-link.active')?.closest('.nav-item');
+    if (activeItem && !activeItem.classList.contains('d-none')) return;  // still visible
+
+    list.querySelectorAll('.nav-link.active').forEach((el) => el.classList.remove('active'));
+    document.querySelectorAll('.tab-pane.show.active').forEach((el) => el.classList.remove('show', 'active'));
+
+    const firstVisible = [...list.querySelectorAll('.nav-item:not(.d-none) .nav-link')][0];
+    if (!firstVisible) return;
+    firstVisible.classList.add('active');
+    const pane = document.querySelector(firstVisible.getAttribute('href'));
+    if (pane) pane.classList.add('show', 'active');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initLoginForm();
+    revealAdminChrome().then(selectFirstVisibleTab);
+});

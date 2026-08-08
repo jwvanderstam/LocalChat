@@ -356,7 +356,7 @@ def _check_api_key_access(
     # Pin the scope for everything downstream. get_workspace_id() prefers this over
     # the header, so a request that omits X-Workspace-ID cannot fall through to the
     # default workspace after authorising against the key's.
-    request.state.api_key_workspace_id = key_workspace
+    request.state.resolved_workspace_id = key_workspace
     return None
 
 
@@ -429,6 +429,15 @@ def check_workspace_access(
         return (status.HTTP_403_FORBIDDEN, "Access denied: not a workspace member")
     if _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
         return (status.HTTP_403_FORBIDDEN, f"Requires {min_role} role or higher")
+
+    # Pin the workspace this request was authorised for, exactly as an API key pins
+    # its own. Without it, a request that omitted X-Workspace-ID authorises against
+    # one workspace while get_workspace_id() downstream still returns None — and a
+    # query scoped by None is scoped to nothing, so a viewer saw documents from
+    # workspaces they are not a member of.
+    #
+    # Set only after the checks pass: a refusal has no authorised workspace to name.
+    request.state.resolved_workspace_id = ws_id
     return None
 
 
