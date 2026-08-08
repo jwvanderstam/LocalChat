@@ -149,6 +149,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 16 panels) |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
+| `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; how frontend branch logic is tested |
 | `tests/e2e/test_smoke.py` | Playwright smoke tests (`@pytest.mark.e2e`); require a live server + `pytest-playwright` |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
@@ -169,7 +170,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `static/js/ingestion.js` | Document upload progress (SSE) on `templates/documents.html` |
 | `static/js/settings.js` | Theme picker + appearance settings on `templates/settings.html` |
 | `static/js/workspace.js` | Workspace switcher dropdown + create-workspace modal, wired into `templates/base.html` |
-| `static/js/users.js` | Users tab in Settings — admin-only; user cards with workspace access, create/grant modals, role change, retire, purge |
+| `static/js/users.js` | Users tab in Settings — admin-only; user cards with workspace access, create/grant modals, role change, retire, purge; Integrations section for workspace API keys (create, list, revoke) |
 | `static/js/auth.js` | Session handling — wraps `fetch` to redirect to `/login` on 401, drives the login form, exposes `localchatLogout()` |
 | `templates/login.html` | Login page — the one template that renders without a session |
 | `static/js/docs.js` | Documentation viewer (`templates/docs.html`) — fetches `/api/repo-docs`, renders nav + selected doc HTML |

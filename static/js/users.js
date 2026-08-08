@@ -121,6 +121,54 @@ async function loadUsers() {
     }
 }
 
+// ---- API keys --------------------------------------------------------------
+
+function keysNotify(message, kind = 'danger') {
+    const box = document.getElementById('keys-alert');
+    if (!box) return;
+    box.className = `alert alert-${kind} py-2 small`;
+    box.textContent = message;
+    setTimeout(() => box.classList.add('d-none'), kind === 'success' ? 4000 : 8000);
+}
+
+function renderKeyRow(key, workspace) {
+    const used = key.last_used_at
+        ? new Date(key.last_used_at).toLocaleString()
+        : '<span class="text-muted">never</span>';
+    return `
+    <tr>
+      <td>${esc(key.name)}</td>
+      <td><span class="badge bg-light text-dark border">${esc(workspace.name)}</span></td>
+      <td><span class="badge ${ROLE_BADGE[key.role] || 'bg-secondary'}">${esc(key.role)}</span></td>
+      <td><code class="small">${esc(key.key_prefix)}…</code></td>
+      <td class="small">${used}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-danger" data-revoke-key="${key.id}"
+                data-ws="${workspace.id}" data-name="${esc(key.name)}" title="Revoke">
+          <i class="bi bi-x-circle"></i>
+        </button>
+      </td>
+    </tr>`;
+}
+
+async function loadKeys() {
+    const body = document.getElementById('keys-body');
+    if (!body) return;
+    // One request per workspace: the endpoint is workspace-scoped, and at ADR-1's
+    // scale that is cheaper than inventing a cross-workspace listing route.
+    const perWorkspace = await Promise.all(
+        workspaces.map((w) =>
+            api(`/api/workspaces/${w.id}/keys`)
+                .then((d) => (d.keys || []).map((k) => renderKeyRow(k, w)))
+                .catch(() => [])),
+    );
+    const rows = perWorkspace.flat();
+    body.innerHTML = rows.length ? rows.join('') : `
+      <tr><td colspan="6" class="text-muted small py-3">
+        No keys yet. A bot or workflow needs one to reach a workspace.
+      </td></tr>`;
+}
+
 async function loadWorkspaces() {
     try {
         workspaces = (await api('/api/workspaces')).workspaces || [];
@@ -231,6 +279,74 @@ function initUsers() {
         });
     }
 
+    const keyCreateBtn = document.getElementById('key-create-btn');
+    if (keyCreateBtn) {
+        keyCreateBtn.addEventListener('click', () => {
+            document.getElementById('key-create-form').reset();
+            document.getElementById('nk-error').classList.add('d-none');
+            fillWorkspaceSelect(document.getElementById('nk-workspace'));
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('key-create-modal')).show();
+        });
+    }
+
+    const keyForm = document.getElementById('key-create-form');
+    if (keyForm) {
+        keyForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const errorBox = document.getElementById('nk-error');
+            errorBox.classList.add('d-none');
+            const workspaceId = document.getElementById('nk-workspace').value;
+            try {
+                const data = await api(`/api/workspaces/${workspaceId}/keys`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('nk-name').value.trim(),
+                        role: document.getElementById('nk-role').value,
+                    }),
+                });
+                bootstrap.Modal.getInstance(document.getElementById('key-create-modal')).hide();
+                // The server returns the key once and stores only its hash; if this
+                // modal does not show it, it is gone.
+                document.getElementById('kr-value').value = data.key || '';
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('key-reveal-modal')).show();
+                await loadKeys();
+            } catch (err) {
+                inlineError(errorBox, err.message);
+            }
+        });
+    }
+
+    const copyBtn = document.getElementById('kr-copy');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+            const field = document.getElementById('kr-value');
+            try {
+                await navigator.clipboard.writeText(field.value);
+            } catch (err) {
+                field.select();  // clipboard needs HTTPS or localhost; selecting still works
+            }
+            copyBtn.innerHTML = '<i class="bi bi-check2"></i> Copied';
+        });
+    }
+
+    const keysBody = document.getElementById('keys-body');
+    if (keysBody) {
+        keysBody.addEventListener('click', async (event) => {
+            const el = event.target.closest('[data-revoke-key]');
+            if (!el) return;
+            if (!confirm(`Revoke ${el.dataset.name}?\n\nAnything using this key stops working immediately.`)) return;
+            try {
+                await api(`/api/workspaces/${el.dataset.ws}/keys/${el.dataset.revokeKey}`,
+                    { method: 'DELETE' });
+                keysNotify('Key revoked.', 'success');
+                await loadKeys();
+            } catch (err) {
+                keysNotify(err.message);
+            }
+        });
+    }
+
     const grantForm = document.getElementById('user-grant-form');
     if (grantForm) {
         grantForm.addEventListener('submit', async (event) => {
@@ -270,6 +386,7 @@ async function start() {
     tabItem.classList.remove('d-none');
     await loadWorkspaces();
     await loadUsers();
+    await loadKeys();  // after loadWorkspaces: keys are listed per workspace
 }
 
 // Elements are resolved inside initUsers, not here: when the DOM is still parsing we
