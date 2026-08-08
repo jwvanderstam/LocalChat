@@ -55,6 +55,13 @@ function initLoginForm() {
             });
 
             if (response.ok) {
+                // localStorage is per browser, not per user. Whoever signs in next must
+                // not inherit the previous account's active workspace: they may have no
+                // access to it, and the pages that read this key send it as
+                // X-Workspace-ID before the switcher has loaded anything to correct it.
+                localStorage.removeItem('localchat_active_workspace_id');
+                localStorage.removeItem('localchat_active_workspace');
+
                 const params = new URLSearchParams(window.location.search);
                 const next = params.get('next');
                 // Only relative paths: an attacker-supplied absolute URL here would

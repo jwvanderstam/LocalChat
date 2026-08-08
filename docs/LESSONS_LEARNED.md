@@ -627,6 +627,36 @@ what all three failures produced.
 
 ---
 
+## 14. The fifth defect was in the browser, one layer below the fourth
+
+The switcher fix in Ch. 13 scoped `/api/workspaces` to the caller's memberships. The
+owner then signed in as an editor and landed in a workspace that editor had no access
+to, collecting 403s until they picked the right one by hand.
+
+The fix was not wrong; it was one layer too high. `static/js/workspace.js` reads the
+active workspace from `localStorage`, which is **scoped to the browser, not to the
+session**. Signing out as an admin working in *Default* and in as an editor without
+access to it left that id in place — and the branch that picks a workspace only ran
+when nothing was stored, so it never got a turn. Two other modules read the same key
+and sent it as `X-Workspace-ID` before the switcher had loaded anything to correct it.
+
+Fixed at both ends: the stored choice is honoured only while it is still one the
+server just offered, and signing in clears it before any request can carry it.
+
+**Two frontend defects in two days, both invisible to a green Python suite.** The
+suites assert what the API returns; neither could reach a branch that lives in
+`localStorage`. So this one shipped with `tests/unit/test_frontend_workspace_selection.py`,
+which runs the real `static/js` files under node with stubbed browser globals. Asserting
+on the source text — the repo's existing habit for frontend checks — would only have
+restated the code I had just written. Verified the way any regression test should be:
+5 of the 7 fail with the fix reverted, and the 2 that still pass are the ones guarding
+against over-correction.
+
+**Rule taken from this:** when a fix targets what the server *sends*, check what the
+client *keeps*. Browser-scoped state outlives the session that wrote it.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents

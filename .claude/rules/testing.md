@@ -60,6 +60,21 @@ Never import from `src/app.py` — it doesn't export an app.
 - Utilities live in `tests/utils/`.
 - Don't duplicate fixtures `conftest.py` already provides.
 
+## Frontend logic
+
+Branch logic in `static/js/` is unreachable from the Python suites — two workspace
+defects shipped past a green run for exactly that reason. Test it by executing the
+real file under node with stubbed browser globals; see
+`tests/unit/test_frontend_workspace_selection.py` for the harness (stub `localStorage`,
+a proxy DOM, a canned `fetch`; assert the resulting state).
+
+- Skip with `pytest.mark.skipif(shutil.which("node") is None, ...)` — node ships on
+  GitHub-hosted runners, but a local environment may not have it.
+- **Don't assert on the source text.** A regex over the file you just wrote restates
+  the code instead of checking it; that is the tautological case the table above names.
+- Confirm the test fails with the fix reverted. Tests that guard against
+  *over*-correction should pass both ways — that is what makes them worth keeping.
+
 ## Coverage
 
 - The fast suite is the coverage baseline: `pytest -m "not (slow or ollama or db)"`.

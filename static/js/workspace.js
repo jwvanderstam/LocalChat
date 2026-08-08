@@ -97,12 +97,20 @@
                 if (!data.success) return;
                 const workspaces = data.workspaces || [];
 
-                // First-load: no workspace stored yet — default to first in list.
-                if (!cachedId && workspaces.length > 0) {
+                // localStorage is per browser, not per user: sign out as an admin whose
+                // active workspace is Default, sign in as someone without access to it,
+                // and that stale id rides along on every X-Workspace-ID until they pick
+                // again — the server answering 403 the whole way. So the stored choice is
+                // only honoured while it is still one the server just offered.
+                const usable = cachedId && workspaces.some(function (w) { return w.id === cachedId; });
+                if (!usable && workspaces.length > 0) {
                     const first = workspaces[0];
                     localStorage.setItem(ACTIVE_WS_ID_KEY, first.id);
                     localStorage.setItem(ACTIVE_WS_KEY,    first.name);
                     first.active = true;
+                } else if (!usable) {
+                    localStorage.removeItem(ACTIVE_WS_ID_KEY);
+                    localStorage.removeItem(ACTIVE_WS_KEY);
                 }
 
                 renderWorkspaceList(workspaces);
