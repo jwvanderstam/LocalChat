@@ -59,7 +59,7 @@ Alembic's `op.add_column()` helpers.
 - Never use destructive DDL in `upgrade()` (no `DROP COLUMN`, `DROP TABLE`).
   Use a follow-up migration after confirming all instances are on the new schema.
 - Data backfills belong in the same migration as the column that requires them.
-- Update [`file-map.md`](.claude/rules/file-map.md) when adding a new migration file.
+- Update [`file-map.md`](../.claude/rules/file-map.md) when adding a new migration file.
 
 ### Getting the revision number right
 
