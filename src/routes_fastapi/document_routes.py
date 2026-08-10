@@ -12,6 +12,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile as _StarletteUploadFile
 
 from .. import config
@@ -119,7 +120,14 @@ async def _generate_upload_sse(
 ) -> AsyncGenerator[str, None]:
     try:
         for file_path in file_paths:
-            for event in _stream_file_ingest(app_state, file_path, workspace_id):
+            # Load, chunk, embed and store — seconds to minutes for a large document,
+            # all of it synchronous. It already returns a completed list rather than
+            # streaming, so moving it to a thread costs no progress detail and stops an
+            # upload from freezing every other request for its duration.
+            events = await run_in_threadpool(
+                _stream_file_ingest, app_state, file_path, workspace_id
+            )
+            for event in events:
                 yield event
         doc_count = app_state.db.get_document_count(workspace_id=workspace_id)
         yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
@@ -220,8 +228,13 @@ async def api_test_retrieval(request: Request) -> Any:
 
     try:
         doc_processor = request.app.state.doc_processor
-        results_hybrid = doc_processor.retrieve_context(query, use_hybrid_search=True)
-        results_semantic = doc_processor.retrieve_context(query, use_hybrid_search=False)
+        # Two full retrievals — embedding call, pgvector scan and reranking, twice.
+        results_hybrid = await run_in_threadpool(
+            doc_processor.retrieve_context, query, use_hybrid_search=True
+        )
+        results_semantic = await run_in_threadpool(
+            doc_processor.retrieve_context, query, use_hybrid_search=False
+        )
         return {
             "success": True,
             "query": query,

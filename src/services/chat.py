@@ -6,6 +6,8 @@ import time
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
+from starlette.concurrency import run_in_threadpool
+
 from .. import config, exceptions
 from ..rag.retrieval import RetrievalResult
 from ..utils.logging_config import get_logger
@@ -476,7 +478,10 @@ async def retrieve_plan_and_memory(
     if config.LONG_TERM_MEMORY_ENABLED:
         try:
             from ..memory.retriever import MemoryRetriever
-            memories = MemoryRetriever().retrieve(
+            # Embeds the query and vector-searches, both synchronously — the one piece
+            # of this async function that still held the event loop.
+            memories = await run_in_threadpool(
+                MemoryRetriever().retrieve,
                 fields["message"], ollama_client, db,
                 workspace_id=workspace_id,
                 additional_workspace_ids=fields.get("additional_workspace_ids") or [],

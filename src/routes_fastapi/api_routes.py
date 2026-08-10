@@ -8,6 +8,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
 from .. import config, exceptions
 from ..security_fastapi import require_admin_dep, require_auth
@@ -183,8 +184,13 @@ async def _generate_sse(
             model_used = chunk_model
             yield f"data: {json.dumps({'content': chunk})}\n\n"
 
-        asst_message_id = chat.persist_assistant_message(app_state, conversation_id, "".join(full_response))
-        chat.update_chunk_stats(app_state, sources or [])
+        # Both write to Postgres. They run after the last token is streamed, so blocking
+        # here delays every *other* request rather than this one — the cost is invisible
+        # from the client that caused it, which is why it went unnoticed.
+        asst_message_id = await run_in_threadpool(
+            chat.persist_assistant_message, app_state, conversation_id, "".join(full_response)
+        )
+        await run_in_threadpool(chat.update_chunk_stats, app_state, sources or [])
         done_payload = _build_done_payload(
             conversation_id, asst_message_id, sources, cloud_client, model_used,
             agent_result, active_model if routed_rationale else None, routed_rationale,
@@ -293,7 +299,12 @@ async def api_chat(request: Request) -> Any:
         messages = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in fields["chat_history"]]
 
         chunks_retrieved_ref = [0]
-        local_ctx, web_ctx, sources, agent_result = chat.retrieve_contexts(
+        # Sync psycopg, a sync httpx embedding call and cross-encoder inference. Called
+        # inline in an async route it holds the event loop for the whole retrieval, so
+        # one slow query stalls every other request — including SSE streams mid-flight.
+        # Per ADR-2 the threadpool is the final answer here, not a stopgap.
+        local_ctx, web_ctx, sources, agent_result = await run_in_threadpool(
+            chat.retrieve_contexts,
             fields, app_state.doc_processor, app_state.db, chunks_retrieved_ref,
             plan=plan, workspace_id=workspace_id,
             additional_workspace_ids=fields.get("additional_workspace_ids") or None,
@@ -307,7 +318,8 @@ async def api_chat(request: Request) -> Any:
         )
         messages.append(_build_user_message(final_message, fields["images"]))
 
-        conversation_id, _msg_id = chat.persist_user_message(
+        conversation_id, _msg_id = await run_in_threadpool(
+            chat.persist_user_message,
             app_state, fields["conversation_id"], fields["message"],
             plan=plan, agent_result=agent_result, workspace_id=workspace_id,
         )
