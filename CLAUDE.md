@@ -57,7 +57,9 @@ LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TX
 
 Full module index: [`.claude/rules/file-map.md`](.claude/rules/file-map.md)
 
-**Config** (`src/config.py`): all parameters from `.env`. Key RAG defaults: `CHUNK_SIZE=1200`, `TOP_K_RESULTS=30`, `MIN_SIMILARITY_THRESHOLD=0.30`, `SEMANTIC_WEIGHT=0.70`.
+**Config** (`src/config.py`): every parameter loads from `.env` there, and nowhere else
+calls `os.getenv`. Read the defaults from that file or from
+[`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — they were duplicated here and drifted.
 
 ---
 
