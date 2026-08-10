@@ -68,6 +68,12 @@ class ChatRequest(BaseModel):
     def valid_uuid(cls, v: str | None) -> str | None:
         """Validate conversation_id is a well-formed UUID if provided."""
         import uuid as _uuid
+        # An empty value means "no conversation yet", not "a conversation named ''".
+        # API clients that always send the field — an n8n HTTP node filling it from a
+        # stored id that does not exist on the first message — send '' rather than
+        # omitting it, and that must start a new conversation like any absent id.
+        if v is not None and not v.strip():
+            return None
         if v is not None:
             try:
                 _uuid.UUID(v)
