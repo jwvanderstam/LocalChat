@@ -84,6 +84,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/OPERATIONS.md` | Backup/restore/maintenance runbook |
 | `docs/ROADMAP.md` | Living initiative/ticket plan (current: v3.0 — hygiene, Clark-Wilson, RBAC, GKB, model management, plugin contract) |
 | `docs/WORKSPACE_API_KEYS.md` | How to give a chatbot/n8n bridge scoped access to one workspace — create, use, revoke, and why the scope cannot be overridden |
+| `docs/n8n-discord-setup.md` | Werkende n8n → LocalChat → Discord opzet: Header Auth, SSE-respons als tekst parsen, valkuilen |
+| `docs/bugreport-n8n-localchat.md` | Bevindingen bij het opzetten van die koppeling — 2 opgelost, 1 open (`conversation_id` → 500) |
 | `docs/AUTH_PLAN.md` | Authentication build plan — AUTH-1..4: local login, Users screen, OIDC (Entra/Google), then deleting the bypasses |
 | `docs/ADR.md` | Architecture Decision Records — ADR-1 (single-node appliance) and ADR-2 (sync DB layer), each with the condition that would reopen it |
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |

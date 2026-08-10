@@ -325,7 +325,13 @@ async def api_chat(request: Request) -> Any:
         )
 
     except PydanticValidationError as exc:
-        return JSONResponse({"error": "ValidationError", "success": False, "message": "Invalid request", "details": exc.errors()}, status_code=422)
+        # include_context=False drops the originating ValueError object, which is not
+        # JSON-serialisable: rendering it raised TypeError *inside* this handler, so
+        # every rejected field answered 500 "unexpected error" instead of 422. The
+        # validation was working; only reporting it was broken, which sends the caller
+        # looking in the wrong place. include_url drops a docs link of no use here.
+        details = exc.errors(include_context=False, include_url=False)
+        return JSONResponse({"error": "ValidationError", "success": False, "message": "Invalid request", "details": details}, status_code=422)
     except exceptions.LocalChatException as exc:
         return JSONResponse({"success": False, "message": exc.message}, status_code=500)
     except Exception:
