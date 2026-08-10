@@ -232,11 +232,18 @@ red and names the route; restoring it turns it green.
 The last branch of `_is_rbac_bypassed()`. When it goes, the function has no branch left
 and goes with it.
 
-**Scope, measured 2026-08-07: 23 call sites across 17 test files.** Each has to move from
-"bypass on" to authenticating for real. This is deliberately *not* bundled with TQ-1a,
-because the risk is specific: a test converted carelessly gets quietly weaker rather than
-loudly red — the exact failure mode this whole initiative exists to remove. It wants a
-session of its own, not the tail end of one.
+**Scope, re-measured 2026-08-11: 39 call sites across 23 test files** (was 23 across 17 on
+2026-08-07). Each has to move from "bypass on" to authenticating for real.
+
+**The scope grows while the ticket stays open**, and that is the argument for doing it
+next rather than later. Nearly doubling in four days is not drift in the estimate; it is
+every new route test reaching for the same bypass, because it is there and it works.
+Re-measure before starting — this number will be stale again.
+
+This is deliberately *not* bundled with TQ-1a, because the risk is specific: a test
+converted carelessly gets quietly weaker rather than loudly red — the exact failure mode
+this whole initiative exists to remove. It wants a session of its own, not the tail end
+of one.
 
 **Reduced urgency, stated honestly.** TQ-1a already guarantees the property that matters —
 every route is guarded, verified with the bypass off, mechanically, on every run. What
