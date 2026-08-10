@@ -5,7 +5,7 @@
 
 v3.0 targets six workstreams: **repository hygiene & single-framework consolidation** (a clean, remnant-free codebase on one web framework, FastAPI), **data integrity hardening** (Clark-Wilson compliance), **role-based access control** (admin / user / viewer), **two-tier knowledge architecture** (Global Knowledge Base + workspace-scoped projects), **environment-aware model management** (only offer models that fit the hardware), and **a plugin contract** that lets plugins extend the application without destabilising the core.
 
-The guiding constraint across all of them: **the core stays stable and clean.** Plugins may request services and hooks; they may never define core interfaces or become a dependency the core cannot build without. See the "Plugin Contract" section in `CLAUDE.md` and [`.claude/rules/plugins.md`](.claude/rules/plugins.md).
+The guiding constraint across all of them: **the core stays stable and clean.** Plugins may request services and hooks; they may never define core interfaces or become a dependency the core cannot build without. See the "Plugin Contract" section in `CLAUDE.md` and [`.claude/rules/plugins.md`](../.claude/rules/plugins.md).
 
 **Hardening plan:** [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) holds the production-grade hardening track (ADR-1/ADR-2 and sprints PG-0..PG-8) from the 2026-08-04 external audit. It is a *gate on this roadmap*, not a parallel one: Sprints 8-12 below do not start until its Exit Criteria are green. Confirmed bugs remain exempt from that gate, per the Sprint 5 precedent.
 

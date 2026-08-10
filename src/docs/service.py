@@ -53,6 +53,15 @@ _CATALOGUE: list[tuple[str, str]] = [
     ("docs-troubleshooting", "docs/TROUBLESHOOTING.md"),
     ("docs-lessons-learned", "docs/LESSONS_LEARNED.md"),
     ("docs-settings", "docs/SETTINGS.md"),
+    ("docs-index", "docs/README.md"),
+    ("docs-adr", "docs/ADR.md"),
+    ("docs-auth-plan", "docs/AUTH_PLAN.md"),
+    ("docs-configuration", "docs/CONFIGURATION.md"),
+    ("docs-permissions", "docs/PERMISSIONS.md"),
+    ("docs-production-plan", "docs/PRODUCTION_PLAN.md"),
+    ("docs-workspace-api-keys", "docs/WORKSPACE_API_KEYS.md"),
+    ("docs-n8n-discord-setup", "docs/n8n-discord-setup.md"),
+    ("docs-n8n-report", "docs/bugreport-n8n-localchat.md"),
 ]
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$", re.MULTILINE)

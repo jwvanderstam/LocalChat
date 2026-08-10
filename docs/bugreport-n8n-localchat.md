@@ -1,38 +1,69 @@
-# Bugrapport: n8n LocalChat-Discord integratie
+# Integration report: n8n → LocalChat → Discord
 
-## Samenvatting
-Bij het opzetten van de n8n-workflow die Discord-berichten doorstuurt naar de LocalChat API zijn drie problemen gevonden en (deels) opgelost.
+**Explanation.** What broke while wiring the first external client to the API, and what
+each failure turned out to be. Two were configuration; the third was a defect in
+LocalChat that had been hiding every validation message on `/api/chat`.
 
-## Issue 1 — 401 Authorization failed: "Authentication required"
-**Symptoom:** HTTP Request node gaf `Authorization failed - please check your credentials` / `Authentication required`.
-**Oorzaak:** Authentication stond op "None" en er werd een overbodige `X-Workspace-ID` header meegestuurd in plaats van een geldige Authorization-header.
-**Oplossing:** Authentication ingesteld op Generic Credential Type → Header Auth, met header `Authorization: Bearer <key>`. De `X-Workspace-ID` header verwijderd.
-**Status:** Opgelost.
+The working setup is [Connect a Discord bot to LocalChat with n8n](n8n-discord-setup.md).
 
-## Issue 2 — 401 Authorization failed: "Invalid or revoked API key"
-**Symptoom:** Na het toevoegen van de Header Auth credential veranderde de foutmelding naar "Invalid or revoked API key".
-**Oorzaak:** De eerst ingevulde API-key was ongeldig/verlopen.
-**Oplossing:** Nieuwe API-key gegenereerd in LocalChat en met het `Bearer `-voorvoegsel opgeslagen in het credential.
-**Status:** Opgelost.
+## 1 — 401 "Authentication required"
 
-## Issue 3 — 500 InternalServerError bij meesturen van conversation_id
-**Symptoom:** Zodra de body een `conversation_id`-veld bevatte (bedoeld om `null`/leeg te zijn bij een nieuw gesprek), antwoordde de API met:
+**Symptom.** The HTTP Request node reported `Authorization failed - please check your
+credentials`.
 
-    { "success": false, "error": "InternalServerError", "message": "An unexpected error occurred" }
+**Cause.** Authentication was set to "None", and an `X-Workspace-ID` header was being sent
+instead of a credential.
 
-**Oorzaak (serverzijdig bevestigd, reproductie: `null` → 200, `""` → 500, `"null"` → 500):** de server zocht het gesprek nooit op. Validatie werkte en gaf een 422; het *opstellen* van die 422 crashte. `exc.errors()` bevat het oorspronkelijke `ValueError`-object, `JSONResponse` kan dat niet serialiseren, en de resulterende `TypeError` ontsnapte uit de except-tak en werd een generieke 500.
+**Resolution.** Generic Credential Type → Header Auth, with `Authorization: Bearer <key>`.
+The `X-Workspace-ID` header was removed. **Fixed.**
 
-Dit was dus niet specifiek voor `conversation_id`: élke afgekeurde invoer op `/api/chat` gaf 500 "unexpected error" in plaats van te zeggen welk veld fout was.
+## 2 — 401 "Invalid or revoked API key"
 
-**Oplossing (PR #256):**
-1. De foutdetails worden zonder het contextobject opgebouwd, zodat een afgekeurd veld een echte 422 met bruikbare details geeft.
-2. Een leeg of whitespace-`conversation_id` wordt gelezen als "nog geen gesprek" en start een nieuw gesprek — dit was aanbeveling 1 hieronder.
+**Symptom.** With the credential in place, the error changed.
 
-De letterlijke tekst `"null"` geeft nog steeds 422. Daar stilletjes een nieuw gesprek starten zou de draad elke beurt kwijtraken en eruitzien als een model dat vergeet.
+**Cause.** The key that had been pasted in was no longer valid.
 
-**Nog te doen in n8n:** een opslagmechanisme (bijv. workflow static data, een database- of key/value-node) dat `conversation_id` per Discord-kanaal/thread bijhoudt. Het veld mag nu altijd worden meegestuurd, ook leeg.
-**Status:** Serverzijdig opgelost. Gesprekscontinuïteit per Discord-kanaal staat nog open aan de n8n-kant.
+**Resolution.** A new key, stored with the `Bearer ` prefix. **Fixed.**
 
-## Overige observaties
-- De HTTP Request node reageerde traag/bleef "wachten op Test URL" wanneer de node los werd uitgevoerd zonder gebruik te maken van "Debug in editor" met bestaande executiedata — geen bug, maar wel een aandachtspunt voor testen.
-- Response Format van de HTTP Request node moet op "Text" staan (niet JSON), omdat `/api/chat` een Server-Sent-Events-stream teruggeeft in plaats van een enkel JSON-object.
+## 3 — 500 on any `conversation_id` value
+
+**Symptom.** Adding `conversation_id` to the body — intended to be empty for a new
+conversation — produced:
+
+```json
+{ "success": false, "error": "InternalServerError", "message": "An unexpected error occurred" }
+```
+
+**Cause.** Confirmed server-side by reproduction: JSON `null` returned 200, `""` returned
+500, and `"null"` returned 500.
+
+The server never looked the conversation up. Validation worked and raised a 422 — building
+that response is what failed. `exc.errors()` carries the originating `ValueError` object,
+`JSONResponse` cannot serialise it, and the resulting `TypeError` escaped the handler and
+became a generic 500.
+
+**This was never specific to `conversation_id`.** Every rejected field on `/api/chat`
+answered 500 "unexpected error" instead of naming the problem, which pointed the caller at
+the server when the fix was in their request.
+
+**Resolution** (PR #256):
+
+1. Error details are built without the context object, so a rejected field returns a real
+   422 with usable details.
+2. An empty or whitespace `conversation_id` is read as "no conversation yet" and starts a
+   new one.
+
+The literal string `"null"` still returns 422. Silently starting a new conversation there
+would drop the thread on every turn and look like the model forgetting. **Fixed.**
+
+## Still open, on the n8n side
+
+Per-conversation memory needs the client to store `conversation_id` per Discord channel or
+thread and send it back. The field can now always be included, empty or not.
+
+## What this cost, and why
+
+The two authentication failures were self-describing and took minutes. The third took far
+longer, because the message named the wrong side of the connection: a client-side mistake
+was reported as a server fault, so the search started in the wrong place. An error that
+misdirects is more expensive than an error that simply fails.

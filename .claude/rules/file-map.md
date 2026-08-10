@@ -80,6 +80,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0013_documents_unique_filename_workspace.py` | Enforces one live document per (filename, workspace_id) |
 | `migrations/versions/0014_rbac1_backfill_workspace_members.py` | RBAC-1: backfills workspace_members — admins own every live workspace, other users get editor on the default one |
 | `migrations/versions/0015_workspace_api_keys.py` | Adds workspace_api_keys — scoped, revocable credentials for programmatic workspace access |
+| `docs/README.md` | Documentation index — Diátaxis quadrants; the map every other doc is reached from |
+| `docs/CONFIGURATION.md` | Configuration reference — every env var, default and effect (lifted out of README) |
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
 | `docs/OPERATIONS.md` | Backup/restore/maintenance runbook |
 | `docs/ROADMAP.md` | Living initiative/ticket plan (current: v3.0 — hygiene, Clark-Wilson, RBAC, GKB, model management, plugin contract) |

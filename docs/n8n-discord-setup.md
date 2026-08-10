@@ -1,73 +1,104 @@
-# n8n → LocalChat → Discord: werkende opzet
+# Connect a Discord bot to LocalChat with n8n
 
-## Doel
-Discord-berichten via een n8n-webhook doorsturen naar de LocalChat API (`/api/chat`), de streaming-SSE-respons parsen, en het antwoord terugsturen naar Discord.
+**How-to guide.** Forwards Discord messages through an n8n webhook to LocalChat's
+`/api/chat`, parses the streaming response, and replies in the channel.
 
-## Workflow-opbouw
-Webhook (Discord) → HTTP Request (LocalChat API) → Code (JavaScript, SSE-parser) → Send a message (Discord)
+**Before you start:** a workspace API key. Create one in **Settings → Users →
+Integrations → New key** — see [Workspace API keys](WORKSPACE_API_KEYS.md).
 
-## Belangrijk inzicht: de respons is SSE, geen JSON
-`/api/chat` streamt tekstregels in het formaat:
+## The workflow
 
-    data: {"content": "..."}
-    data: {"done": true, "conversation_id": "...", "message_id": ..., "sources": [...]}
+Webhook (Discord) → HTTP Request (LocalChat) → Code (SSE parser) → Send a message (Discord)
 
-Als de HTTP Request node op JSON-respons staat, crasht de node. Oplossing: zet in de node onder **Options → Response → Response Format** de waarde op **Text**, met **Put Output in Field** op `data`.
+## Key point: the response is SSE, not JSON
 
-## Stap 1 — Credential (Header Auth)
-In n8n: Credentials → New → Header Auth
-- Name (header): `Authorization`
-- Value: `Bearer <jouw-lcw_-key>` (met het woord "Bearer" ervoor)
+`/api/chat` streams. The body is a sequence of text lines:
 
-Alternatief is de header `X-API-Key` met alleen de key als waarde.
+```
+data: {"content": "..."}
+data: {"done": true, "conversation_id": "...", "message_id": ..., "sources": [...]}
+```
 
-## Stap 2 — HTTP Request node
-- Method: POST
-- URL: interne LocalChat-URL (bijv. `http://localchat-app-1:5000/api/chat`)
-- Authentication: Generic Credential Type → Header Auth → bovenstaand credential
-- Send Body: aan, JSON:
+An HTTP Request node set to a JSON response fails on this. Set **Options → Response →
+Response Format** to **Text**, with **Put Output in Field** set to `data`.
 
-    {
-      "message": "={{ $json.body.content }}",
-      "use_rag": true
-    }
+## 1. Create the credential
 
-- Options → Response → Response Format: Text
-- Options → Response → Put Output in Field: data
-- Options → Timeout: 120000 (eerste antwoord kan traag zijn doordat het model moet laden)
+In n8n: **Credentials → New → Header Auth**
 
-**Let op:** stuur geen `X-Workspace-ID` header mee. De API-key legt zijn eigen workspace al vast en dat wint sowieso — de header zorgde in onze opzet voor conflicten.
+| Field | Value |
+|---|---|
+| Name | `Authorization` |
+| Value | `Bearer <your-lcw_-key>` — keep the word `Bearer` |
 
-**Let op 2:** `conversation_id` in de body gaf eerder een 500-fout zodra de waarde leeg/null was. Dat is serverzijdig opgelost (zie bugrapport); een leeg veld start nu gewoon een nieuw gesprek. Je mag het dus altijd meesturen:
+`X-API-Key` with the bare key works too. Both are accepted, because most webhook tools
+offer only one header field.
 
-    {
-      "message": "={{ $json.body.content }}",
-      "use_rag": true,
-      "conversation_id": "={{ $json.conversation_id }}"
-    }
+## 2. Configure the HTTP Request node
 
-## Stap 3 — Code-node om de SSE-stream te parsen
+| Setting | Value |
+|---|---|
+| Method | `POST` |
+| URL | your internal LocalChat URL, for example `http://localchat-app-1:5000/api/chat` |
+| Authentication | Generic Credential Type → Header Auth → the credential above |
+| Send Body | on, JSON |
+| Options → Response → Response Format | `Text` |
+| Options → Response → Put Output in Field | `data` |
+| Options → Timeout | `120000` — the first answer is slow while the model loads |
 
-    const raw = $input.first().json.data;
-    let answer = '';
-    let done = null;
-    for (const line of raw.split('\n')) {
-      if (!line.startsWith('data: ')) continue;
-      const p = JSON.parse(line.slice(6));
-      if (p.error) throw new Error(p.message);
-      if (p.content) answer += p.content;
-      if (p.done) done = p;
-    }
-    return [{ json: {
-      answer,
-      conversation_id: done?.conversation_id,
-      sources: (done?.sources || []).map(s => s.filename),
-    }}];
+Body:
 
-## Stap 4 — Terug naar Discord
-Stuur `answer` terug naar het kanaal. Let op de Discord-limiet van 2000 tekens (knip/kort in indien nodig). `sources` kan als voetnoot met bestandsnamen worden meegestuurd.
+```json
+{
+  "message": "={{ $json.body.content }}",
+  "use_rag": true,
+  "conversation_id": "={{ $json.conversation_id }}"
+}
+```
 
-## Veelvoorkomende valkuilen
-- `localhost` werkt niet als n8n in een Docker-container draait — dat verwijst dan naar de n8n-container zelf, niet naar de LocalChat-app. Gebruik `http://host.docker.internal:5000` of het interne compose-netwerkadres (bijv. `http://app:5000` of `http://localchat-app-1:5000`).
-- Geheugen per gesprek werkt serverzijdig, maar n8n moet de `conversation_id` uit het antwoord zelf bewaren per Discord-kanaal/thread en de volgende keer meesturen — zie bugrapport.
-- Test HTTP Request/Code-nodes met "Debug in editor" op een bestaande (gefaalde) executie om snel te itereren zonder een echt Discord-bericht te hoeven sturen.
+**Do not send an `X-Workspace-ID` header.** The key already names its workspace and that
+value wins over anything the client sends; sending the header caused conflicts here.
+
+An empty `conversation_id` starts a new conversation, so the field can always be
+included. This was not always true — see [the integration bug report](bugreport-n8n-localchat.md).
+
+## 3. Parse the stream in a Code node
+
+```js
+const raw = $input.first().json.data;
+let answer = '';
+let done = null;
+for (const line of raw.split('\n')) {
+  if (!line.startsWith('data: ')) continue;
+  const p = JSON.parse(line.slice(6));
+  if (p.error) throw new Error(p.message);
+  if (p.content) answer += p.content;
+  if (p.done) done = p;
+}
+return [{ json: {
+  answer,
+  conversation_id: done?.conversation_id,
+  sources: (done?.sources || []).map(s => s.filename),
+}}];
+```
+
+## 4. Reply in Discord
+
+Send `answer` back to the channel. Discord truncates at 2000 characters, so split or
+shorten longer replies. `sources` holds the filenames the answer drew on, which works
+well as a footnote.
+
+## Common problems
+
+**`localhost` does not reach LocalChat when n8n runs in Docker.** It resolves to the n8n
+container itself. Use `http://host.docker.internal:5000`, or put n8n on the same compose
+network and use the service address (`http://app:5000`, `http://localchat-app-1:5000`).
+This is the most frequent cause of "connection refused".
+
+**Per-conversation memory needs storage on the n8n side.** LocalChat returns a
+`conversation_id`; keep it per Discord channel or thread (workflow static data is enough)
+and send it with the next message. Without it, every message starts a new conversation.
+
+**Testing.** Use "Debug in editor" against an existing execution to iterate on the HTTP
+Request and Code nodes without sending a real Discord message. Running the node standalone
+leaves it waiting on the Test URL.
