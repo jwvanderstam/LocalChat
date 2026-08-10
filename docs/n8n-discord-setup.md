@@ -38,7 +38,13 @@ Alternatief is de header `X-API-Key` met alleen de key als waarde.
 
 **Let op:** stuur geen `X-Workspace-ID` header mee. De API-key legt zijn eigen workspace al vast en dat wint sowieso — de header zorgde in onze opzet voor conflicten.
 
-**Let op 2:** we hebben geprobeerd `conversation_id` in de body mee te sturen voor gesprekscontinuïteit (zie bugrapport), maar dat veroorzaakte een 500-fout zodra de waarde leeg/null was. Voorlopig laten we dit veld weg; de body bevat alleen `message` en `use_rag`.
+**Let op 2:** `conversation_id` in de body gaf eerder een 500-fout zodra de waarde leeg/null was. Dat is serverzijdig opgelost (zie bugrapport); een leeg veld start nu gewoon een nieuw gesprek. Je mag het dus altijd meesturen:
+
+    {
+      "message": "={{ $json.body.content }}",
+      "use_rag": true,
+      "conversation_id": "={{ $json.conversation_id }}"
+    }
 
 ## Stap 3 — Code-node om de SSE-stream te parsen
 
@@ -63,5 +69,5 @@ Stuur `answer` terug naar het kanaal. Let op de Discord-limiet van 2000 tekens (
 
 ## Veelvoorkomende valkuilen
 - `localhost` werkt niet als n8n in een Docker-container draait — dat verwijst dan naar de n8n-container zelf, niet naar de LocalChat-app. Gebruik `http://host.docker.internal:5000` of het interne compose-netwerkadres (bijv. `http://app:5000` of `http://localchat-app-1:5000`).
-- Geheugen per gesprek (conversation_id) is in deze versie nog niet geïmplementeerd — zie bugrapport.
+- Geheugen per gesprek werkt serverzijdig, maar n8n moet de `conversation_id` uit het antwoord zelf bewaren per Discord-kanaal/thread en de volgende keer meesturen — zie bugrapport.
 - Test HTTP Request/Code-nodes met "Debug in editor" op een bestaande (gefaalde) executie om snel te itereren zonder een echt Discord-bericht te hoeven sturen.

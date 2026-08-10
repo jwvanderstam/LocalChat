@@ -20,12 +20,18 @@ Bij het opzetten van de n8n-workflow die Discord-berichten doorstuurt naar de Lo
 
     { "success": false, "error": "InternalServerError", "message": "An unexpected error occurred" }
 
-**Oorzaak (vermoeden, niet serverzijdig bevestigd):** De API lijkt een lege string of de letterlijke tekst "null" als `conversation_id` niet netjes af te handelen — mogelijk probeert de server dit als bestaand gesprek op te zoeken en faalt daarop, in plaats van een nieuw gesprek te starten.
-**Tijdelijke workaround:** Het `conversation_id`-veld volledig weglaten uit de request body wanneer er nog geen eerder gesprek is. De node stuurt nu alleen `message` en `use_rag`.
-**Aanbevolen structurele oplossing (nog niet geïmplementeerd):**
-1. Valideer serverzijdig dat een ontbrekende/lege/`null` `conversation_id` altijd een nieuw gesprek start zonder 500-fout.
-2. Implementeer in n8n een opslagmechanisme (bijv. workflow static data, een database- of key/value-node) dat `conversation_id` per Discord-kanaal/thread bijhoudt, en stuur het veld alleen mee wanneer er al een waarde bekend is.
-**Status:** Open — workaround actief, structurele fix nodig voor gesprekscontinuïteit (geheugen) per Discord-kanaal.
+**Oorzaak (serverzijdig bevestigd, reproductie: `null` → 200, `""` → 500, `"null"` → 500):** de server zocht het gesprek nooit op. Validatie werkte en gaf een 422; het *opstellen* van die 422 crashte. `exc.errors()` bevat het oorspronkelijke `ValueError`-object, `JSONResponse` kan dat niet serialiseren, en de resulterende `TypeError` ontsnapte uit de except-tak en werd een generieke 500.
+
+Dit was dus niet specifiek voor `conversation_id`: élke afgekeurde invoer op `/api/chat` gaf 500 "unexpected error" in plaats van te zeggen welk veld fout was.
+
+**Oplossing (PR #256):**
+1. De foutdetails worden zonder het contextobject opgebouwd, zodat een afgekeurd veld een echte 422 met bruikbare details geeft.
+2. Een leeg of whitespace-`conversation_id` wordt gelezen als "nog geen gesprek" en start een nieuw gesprek — dit was aanbeveling 1 hieronder.
+
+De letterlijke tekst `"null"` geeft nog steeds 422. Daar stilletjes een nieuw gesprek starten zou de draad elke beurt kwijtraken en eruitzien als een model dat vergeet.
+
+**Nog te doen in n8n:** een opslagmechanisme (bijv. workflow static data, een database- of key/value-node) dat `conversation_id` per Discord-kanaal/thread bijhoudt. Het veld mag nu altijd worden meegestuurd, ook leeg.
+**Status:** Serverzijdig opgelost. Gesprekscontinuïteit per Discord-kanaal staat nog open aan de n8n-kant.
 
 ## Overige observaties
 - De HTTP Request node reageerde traag/bleef "wachten op Test URL" wanneer de node los werd uitgevoerd zonder gebruik te maken van "Debug in editor" met bestaande executiedata — geen bug, maar wel een aandachtspunt voor testen.
