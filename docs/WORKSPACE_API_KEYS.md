@@ -12,6 +12,14 @@ what actually made the call.
 
 ## Creating a key
 
+**Settings -> Users -> Integrations -> New key.** Pick the workspace and the access
+level, and the key appears once, with a copy button. That screen is the right home for
+it: it answers "who can reach this workspace", and a key is one of the answers.
+
+The key is shown exactly once — see below for why.
+
+### From the API instead
+
 Workspace **owner** or global admin, from the workspace's own endpoint:
 
 ```bash
