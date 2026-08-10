@@ -154,6 +154,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; how frontend branch logic is tested |
 | `tests/e2e/test_smoke.py` | Playwright smoke tests (`@pytest.mark.e2e`); require a live server + `pytest-playwright` |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
+| `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
 | `.github/workflows/tests.yml` | CI: `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, Conventional Commits warning) |

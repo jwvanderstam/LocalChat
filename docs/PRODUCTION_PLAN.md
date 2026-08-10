@@ -143,15 +143,54 @@ longer pass through checks that never ran.
 >
 > The cache is a fallback for outages, never a shortcut past a working check — a live `is_token_revoked` still wins over a warm entry, and a refusal is never cached as usable. It is bounded (4096 entries, stale-first eviction) so a stream of distinct tokens cannot turn it into a leak.
 
-### PERF-1 — Unblock the event loop in `api_chat` ⬜
+### PERF-1 — Unblock the event loop in `api_chat` ✅
 
 `api_chat` is `async def` but inline-calls sync `chat.retrieve_contexts` (sync psycopg, sync httpx embedding call, cross-encoder inference) and sync `persist_user_message` / `persist_assistant_message`. One slow retrieval stalls **every** concurrent request, including SSE streams already mid-flight. The inference path is properly async (HK-8); retrieval never got the same treatment — the migration stopped halfway.
 
-Fix: wrap `retrieve_contexts`, `retrieve_plan_and_memory`'s sync internals, and both persist calls in `starlette.concurrency.run_in_threadpool`. Audit the other async routes for the same pattern while in there (upload path in `document_routes.py` is the next most likely offender 🔬). Per ADR-2, this is the *final* fix, not a stopgap.
+Fixed: `retrieve_contexts`, `retrieve_plan_and_memory`'s sync `MemoryRetriever.retrieve`, both persist calls and `update_chunk_stats` now run via `starlette.concurrency.run_in_threadpool`. The audit also moved the upload ingest and `api_test_retrieval` in `document_routes.py`. It found ~20 further async routes with an inline `db.` call, all single indexed writes of a few ms — left alone deliberately, since wrapping them tripled the diff for no measurable gain. Per ADR-2 this is the *final* fix. Measured before/after: see PERF-2.
 
-### PERF-2 — Concurrency benchmark, committed to the repo ⬜
+### PERF-2 — Concurrency benchmark, committed to the repo ✅
 
-There is currently no measurement of behaviour under concurrency, which is why PERF-1's defect survived this long. Add `scripts/bench_concurrency.py` (or a k6/locust config): **10 concurrent SSE chat clients, record p95 time-to-first-token and p95 total stream time**, against a seeded test corpus. Run before and after PERF-1 and record both numbers in this document. Wire it as a manually-triggered CI job so it becomes a permanent regression check, not a one-off proof.
+`scripts/bench_concurrency.py`. Drives N concurrent SSE chat clients and reports p50/p95
+time-to-first-token and total stream time — **plus a canary** that polls `/api/health`
+every 100 ms throughout and reports how long that cheap call took.
+
+**Measured, 5 concurrent clients / 10 requests, same corpus, one uvicorn worker:**
+
+| | without PERF-1 | with PERF-1 |
+|---|---|---|
+| TTFT p50 / p95 | 4.33s / 9.19s | 3.91s / 8.82s |
+| loop responsiveness p50 / p95 | 3ms / 6ms | 3ms / 5ms |
+| **loop responsiveness max** | **848ms** | **305ms** |
+
+**Two findings that change how this should be measured.**
+
+*Chat latency cannot see this defect.* TTFT is dominated by the queue at Ollama, which
+serialises generation regardless of the event loop. Three runs of the same build gave
+p95 TTFT of 8.25s, 9.38s and 8.82s — the between-build difference is smaller than the
+between-run spread, so any TTFT-based verdict here is noise. The canary is the metric
+that discriminates: a request that should take milliseconds cannot hide a stalled loop.
+
+*The win is in the tail, not the average.* p50/p95 were already healthy; only the worst
+case moved. Retrieval on this corpus takes a few hundred ms, so the loop was held
+briefly and rarely. The gap widens with a larger corpus, a slower reranker or more
+clients — the fix is right, but the ticket's framing ("one slow retrieval stalls every
+concurrent request") overstates the impact at current scale.
+
+*Still open:* 305 ms of worst-case stall remains after the fix, so something in the chat
+path still blocks. Not chased in this PR.
+
+*CI wiring waits on TQ-2.* A `workflow_dispatch` job needs a live Ollama, which means a
+multi-gigabyte model pull per run — slow, and flaky in a way that teaches people to
+ignore the job. TQ-2's fake Ollama fixes that, and fixes it in the right direction: with
+generation stubbed, TTFT becomes meaningless but **the canary stays valid**, so the one
+metric that actually catches this class of regression is also the one that survives a
+deterministic environment. Wire it there, with `--max-p95-ttft` replaced by a canary
+budget.
+
+> **The success criterion below should be restated.** "p95 time-to-first-token at 10
+> concurrent users" measures Ollama's throughput, not the application's concurrency. The
+> canary max is the number that would have caught PERF-1.
 
 ---
 
