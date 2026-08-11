@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+from tests.utils.auth import ADMIN_ID
+
 
 class TestDocumentListRoute:
     def test_list_documents_returns_200(self, client, app):
@@ -45,12 +47,10 @@ class TestDocumentDeleteRoute:
         app.state.db.delete_document = MagicMock()
         app.state.db.get_document_count = MagicMock(return_value=0)
         client.delete('/api/documents/42')
-        # None, not 'anonymous'. The route now resolves the caller itself rather than
-        # taking require_admin_dep's return value, which was the literal string
-        # 'anonymous' under the RBAC bypass — and deleted_by is
-        # `UUID REFERENCES users(id)`, so that string could never have been stored.
-        # With no identity there is no deleter, and NULL says exactly that.
-        app.state.db.delete_document.assert_called_once_with(42, None)
+        # deleted_by names the caller who retired the document — the Clark-Wilson
+        # audit trail. It read None while the RBAC bypass supplied no identity, so
+        # this assertion used to prove the trail was empty.
+        app.state.db.delete_document.assert_called_once_with(42, ADMIN_ID)
 
     def test_delete_document_returns_success(self, client, app):
         app.state.db.delete_document = MagicMock()

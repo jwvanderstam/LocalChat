@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.utils.auth import admin_headers, authenticated_state
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -377,7 +379,6 @@ class TestLoadModelGuard:
 @pytest.mark.unit
 class TestListModelsEnrichment:
     def _make_app_and_client(self, models):
-        from unittest.mock import MagicMock
 
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -386,9 +387,11 @@ class TestListModelsEnrichment:
 
         app = FastAPI()
         app.include_router(router, prefix="/api/models")
-        app.state = MagicMock()
+        app.state = authenticated_state(role="admin")
         app.state.ollama_client.list_models.return_value = (True, models)
-        return app, TestClient(app, raise_server_exceptions=True)
+        client = TestClient(app, raise_server_exceptions=True)
+        client.headers.update(admin_headers())
+        return app, client
 
     def test_enriched_fields_present(self):
         models = [{"name": "llama3.1:8b", "size": 4 * 1024 ** 3, "modified_at": "", "digest": ""}]

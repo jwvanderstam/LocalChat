@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.db.users import LastAdminError, UsersMixin
+from tests.utils.auth import admin_headers, authenticated_state
 
 ADMIN = "11111111-1111-1111-1111-111111111111"
 OTHER = "22222222-2222-2222-2222-222222222222"
@@ -97,9 +98,7 @@ class TestRouteTranslatesTheRefusal:
     def _client(self, exc: Exception | None):
         from src.routes_fastapi.auth_routes import router
 
-        state = MagicMock()
-        state.testing = True
-        state.db.is_connected = True
+        state = authenticated_state(role="admin")
         if exc:
             state.db.update_user.side_effect = exc
             state.db.delete_user.side_effect = exc
@@ -110,7 +109,9 @@ class TestRouteTranslatesTheRefusal:
         app = FastAPI()
         app.include_router(router, prefix="/api")
         app.state = state
-        return TestClient(app, raise_server_exceptions=False)
+        client = TestClient(app, raise_server_exceptions=False)
+        client.headers.update(admin_headers())
+        return client
 
     def test_demotion_refusal_is_409_not_500(self):
         """The request is well-formed; the current state forbids it."""
@@ -169,27 +170,25 @@ class TestRetiredUsersRemainVisible:
         """A retired user still owns documents; hiding them makes the list lie."""
         from src.routes_fastapi.auth_routes import router
 
-        state = MagicMock()
-        state.testing = True
-        state.db.is_connected = True
+        state = authenticated_state(role="admin")
         state.db.list_users.return_value = []
         app = FastAPI()
         app.include_router(router, prefix="/api")
         app.state = state
         client = TestClient(app, raise_server_exceptions=False)
+        client.headers.update(admin_headers())
         client.get("/api/users?include_retired=true")
         assert state.db.list_users.call_args.kwargs["include_retired"] is True
 
     def test_listing_excludes_them_by_default(self):
         from src.routes_fastapi.auth_routes import router
 
-        state = MagicMock()
-        state.testing = True
-        state.db.is_connected = True
+        state = authenticated_state(role="admin")
         state.db.list_users.return_value = []
         app = FastAPI()
         app.include_router(router, prefix="/api")
         app.state = state
         client = TestClient(app, raise_server_exceptions=False)
+        client.headers.update(admin_headers())
         client.get("/api/users")
         assert state.db.list_users.call_args.kwargs["include_retired"] is False

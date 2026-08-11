@@ -63,7 +63,6 @@ def _app():
     state_db.get_default_workspace_id.return_value = "ws-1"
     state_db.resolve_workspace_api_key.return_value = None
     app.state.db = state_db
-    app.state.testing = False
     return app
 
 

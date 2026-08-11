@@ -22,18 +22,10 @@ USER = "33333333-3333-3333-3333-333333333333"
 WS = "11111111-1111-1111-1111-111111111111"
 
 
-@pytest.fixture(autouse=True)
-def _rbac_on():
-    # DEMO_MODE is gone (SEC-1); only the admin-password branch remains to neutralise.
-    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
-        yield
-
-
 def _client(*, verify_result=(USER, "user"), member_role: str | None = "editor"):
     from src.routes_fastapi.auth_routes import router
 
     state = MagicMock()
-    state.testing = False
     state.db.is_connected = True
     state.db.is_token_revoked.return_value = False
     state.db.get_workspace_member_role.return_value = member_role
@@ -123,7 +115,6 @@ class TestSessionCookieAuthenticates:
         from src.routes_fastapi.model_routes import router as model_router
 
         state = MagicMock()
-        state.testing = False
         state.db.is_connected = True
         state.db.is_token_revoked.return_value = False
         app = FastAPI()

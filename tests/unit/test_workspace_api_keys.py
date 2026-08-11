@@ -12,7 +12,7 @@ proving it cannot reach a second one.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI, Request
@@ -20,16 +20,10 @@ from fastapi.testclient import TestClient
 
 from src.db.workspace_keys import KEY_PREFIX, _hash_key, generate_api_key
 from src.security_fastapi import check_workspace_access
+from tests.utils.auth import admin_headers, authenticated_state
 
 WS_A = "11111111-1111-1111-1111-111111111111"
 WS_B = "22222222-2222-2222-2222-222222222222"
-
-
-@pytest.fixture(autouse=True)
-def _rbac_on():
-    # DEMO_MODE is gone (SEC-1); only the admin-password branch remains to neutralise.
-    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
-        yield
 
 
 def _request(headers: dict[str, str], db) -> Request:
@@ -43,7 +37,6 @@ def _request(headers: dict[str, str], db) -> Request:
     }
     req = Request(scope)
     req.scope["app"].state.db = db
-    req.scope["app"].state.testing = False
     return req
 
 
@@ -181,10 +174,9 @@ class TestKeyManagementRoutes:
     def _client(self, member_role: str = "owner"):
         from src.routes_fastapi.workspace_routes import router
 
-        state = MagicMock()
-        state.testing = True  # these assert route wiring, not authorisation
-        state.db.is_connected = True
-        state.db.get_workspace_member_role.return_value = member_role
+        # Route wiring, not authorisation — so sign in as an owner rather than
+        # switching the check off.
+        state = authenticated_state(role="admin", member_role=member_role)
         state.db.create_workspace_api_key.return_value = (
             "lcw_plaintext_shown_once",
             {"id": "k1", "name": "discord-bridge", "key_prefix": "lcw_plain", "role": "viewer"},
@@ -196,7 +188,9 @@ class TestKeyManagementRoutes:
         app = FastAPI()
         app.include_router(router, prefix="/api")
         app.state = state
-        return TestClient(app, raise_server_exceptions=False)
+        client = TestClient(app, raise_server_exceptions=False)
+        client.headers.update(admin_headers())
+        return client
 
     def test_create_returns_the_plaintext_key_once(self):
         resp = self._client().post(f"/api/workspaces/{WS_A}/keys", json={"name": "discord-bridge"})

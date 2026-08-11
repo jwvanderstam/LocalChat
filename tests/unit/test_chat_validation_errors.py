@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import uuid
-from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -24,6 +23,7 @@ from pydantic import ValidationError
 
 from src.models import ChatRequest
 from src.routes_fastapi.api_routes import router
+from tests.utils.auth import auth_headers, authenticated_state
 
 VALID_ID = str(uuid.uuid4())
 
@@ -32,9 +32,10 @@ VALID_ID = str(uuid.uuid4())
 def client():
     app = FastAPI()
     app.include_router(router, prefix="/api")
-    app.state = MagicMock()
-    app.state.testing = True
-    return TestClient(app, raise_server_exceptions=False)
+    app.state = authenticated_state()
+    client = TestClient(app, raise_server_exceptions=False)
+    client.headers.update(auth_headers())
+    return client
 
 
 @pytest.mark.unit

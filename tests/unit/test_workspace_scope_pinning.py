@@ -12,7 +12,7 @@ authorised against is pinned on the request, and `get_workspace_id()` returns it
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import Request
@@ -23,12 +23,6 @@ from src.utils.workspace import get_workspace_id
 OWN_WS = "11111111-1111-1111-1111-111111111111"
 OTHER_WS = "22222222-2222-2222-2222-222222222222"
 USER = "33333333-3333-3333-3333-333333333333"
-
-
-@pytest.fixture(autouse=True)
-def _rbac_on():
-    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
-        yield
 
 
 def _request(headers: dict[str, str], *, member_of: list[str], default_ws: str):
@@ -48,7 +42,6 @@ def _request(headers: dict[str, str], *, member_of: list[str], default_ws: str):
     }
     req = Request(scope)
     req.scope["app"].state.db = db
-    req.scope["app"].state.testing = False
     return req
 
 

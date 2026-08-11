@@ -13,6 +13,8 @@ Covers the full REST surface:
 
 from unittest.mock import MagicMock, patch
 
+from tests.utils.auth import ADMIN_ID
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -102,10 +104,10 @@ class TestCreateWorkspace:
             description="Legal docs",
             system_prompt="You are a legal assistant.",
             model_class="LARGE",
-            # None here because the fixture runs with the RBAC bypass on, so there is
-            # no caller to own the workspace. Creator-ownership is covered against a
-            # real token in tests/unit/test_workspace_creator_ownership.py.
-            owner_id=None,
+            # The authenticated caller owns what they create. This read None while
+            # the fixture ran with the RBAC bypass on — there was no caller to be
+            # the owner, so the assertion recorded the bypass rather than the rule.
+            owner_id=ADMIN_ID,
         )
 
 
@@ -186,7 +188,6 @@ class TestDeleteWorkspace:
         # so the role assertion has to run on the authenticated path to be real.
         from src.security_fastapi import create_access_token
 
-        app.state.testing = False
         app.state.db.is_connected = True
         app.state.db.get_workspace_member_role = MagicMock(return_value="editor")
         token = create_access_token("33333333-3333-3333-3333-333333333333", {"role": "user"})
@@ -194,7 +195,6 @@ class TestDeleteWorkspace:
             resp = client.delete(
                 "/api/workspaces/ws-1", headers={"Authorization": f"Bearer {token}"}
             )
-        app.state.testing = True
         assert resp.status_code == 403
 
     def test_owner_can_delete(self, client, app):

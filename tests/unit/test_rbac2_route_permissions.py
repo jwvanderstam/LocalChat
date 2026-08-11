@@ -4,14 +4,15 @@ Before this pass 49 of 102 routes carried no authorisation check at all, includi
 `POST /api/models/pull`, `DELETE /api/models/delete` and `POST /api/plugins/reload`.
 None of them did an internal check either.
 
-Every test runs with the RBAC bypass OFF. The existing suite runs with
-`state.testing = True`, which short-circuits every check — that is why these routes
-had coverage and no authorisation (LESSONS_LEARNED Ch. 12).
+These tests were written to run with the RBAC bypass off, at a time when the rest of
+the suite ran with it on — which is how these routes had coverage and no
+authorisation (LESSONS_LEARNED Ch. 12). TQ-1b removed the bypass, so that is no
+longer a distinction: every test authenticates now.
 """
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -23,13 +24,6 @@ WS = "11111111-1111-1111-1111-111111111111"
 USER = "33333333-3333-3333-3333-333333333333"
 
 
-@pytest.fixture(autouse=True)
-def _rbac_on():
-    # DEMO_MODE is gone (SEC-1); only the admin-password branch remains to neutralise.
-    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
-        yield
-
-
 def _auth(role: str = "user") -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(USER, {'role': role})}"}
 
@@ -38,7 +32,6 @@ def _client(module: str, prefix: str, member_role: str | None = None):
     import importlib
     router = importlib.import_module(f"src.routes_fastapi.{module}").router
     state = MagicMock()
-    state.testing = False
     state.db.is_connected = True
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = WS

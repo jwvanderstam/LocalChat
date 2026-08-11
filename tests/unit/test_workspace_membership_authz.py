@@ -31,7 +31,6 @@ OTHER_USER = "22222222-2222-2222-2222-222222222222"
 def _client(member_role: str | None) -> TestClient:
     """App whose caller has *member_role* in workspace WS (None = not a member)."""
     state = MagicMock()
-    state.testing = False
     state.db.is_connected = True
     state.db.get_workspace_member_role.return_value = member_role
     state.db.list_workspace_members.return_value = [{"user_id": OTHER_USER, "role": "owner"}]
@@ -193,12 +192,3 @@ class TestPermittedCallersStillPass:
         checked_ws = client.app.state.db.get_workspace_member_role.call_args[0][0]
         assert checked_ws == WS
 
-
-@pytest.mark.unit
-class TestBypassStillHonoured:
-    def test_testing_flag_bypasses_authorisation(self):
-        """Demo/test deployments keep working — the existing suite depends on this."""
-        client = _client(member_role=None)
-        client.app.state.testing = True
-        resp = client.get(f"/api/workspaces/{WS}/members")
-        assert resp.status_code == 200

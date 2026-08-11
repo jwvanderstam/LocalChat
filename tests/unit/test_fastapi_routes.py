@@ -16,25 +16,27 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from tests.utils.auth import admin_headers, authenticated_state
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _base_state() -> MagicMock:
-    """Minimal app.state mock used by most routes."""
-    state = MagicMock()
-    state.testing = True
+    state = authenticated_state(role="admin")
     state.startup_status = {"database": True, "ollama": True, "ready": True}
-    state.db.is_connected = True
     return state
 
 
 def _make_client(router, prefix: str, state: MagicMock | None = None) -> TestClient:
-    """Return a TestClient for a single-router FastAPI app."""
     app = FastAPI()
     app.include_router(router, prefix=prefix)
     app.state = state or _base_state()
-    return TestClient(app, raise_server_exceptions=True)
+    client = TestClient(app, raise_server_exceptions=True)
+    # Every request carries a real signed token: TQ-1b removed the bypass that used
+    # to let these routes answer an unauthenticated caller.
+    client.headers.update(admin_headers())
+    return client
 
 
 # ---------------------------------------------------------------------------

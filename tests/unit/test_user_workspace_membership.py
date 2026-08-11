@@ -11,11 +11,11 @@ workspace access so an account without one is visible rather than merely broken.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from tests.utils.auth import admin_headers, authenticated_state
 
 WS = "11111111-1111-1111-1111-111111111111"
 USER = "33333333-3333-3333-3333-333333333333"
@@ -24,9 +24,7 @@ USER = "33333333-3333-3333-3333-333333333333"
 def _client():
     from src.routes_fastapi.auth_routes import router
 
-    state = MagicMock()
-    state.testing = True
-    state.db.is_connected = True
+    state = authenticated_state(role="admin")
     state.db.create_user.return_value = USER
     state.db.get_user_by_id.return_value = {"id": USER, "username": "jo", "role": "user"}
     state.db.get_user_workspaces.return_value = [{"id": WS, "name": "Default", "role": "editor"}]
@@ -34,7 +32,9 @@ def _client():
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.state = state
-    return TestClient(app, raise_server_exceptions=False)
+    client = TestClient(app, raise_server_exceptions=False)
+    client.headers.update(admin_headers())
+    return client
 
 
 @pytest.mark.unit
@@ -138,7 +138,6 @@ class TestFallbackPicksAUsableWorkspace:
         }
         req = Request(scope)
         req.scope["app"].state.db = db
-        req.scope["app"].state.testing = False
         return req, db
 
     def test_a_member_of_only_a_second_workspace_is_allowed(self):

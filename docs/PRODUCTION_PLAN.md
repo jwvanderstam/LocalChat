@@ -227,31 +227,39 @@ guarded at all.
 **Verified by breaking it:** removing the guard from `POST /api/feedback` turns the check
 red and names the route; restoring it turns it green.
 
-### TQ-1b — Delete the `app.state.testing` bypass ⬜
+### TQ-1b — Delete the `app.state.testing` bypass ✅
 
 The last branch of `_is_rbac_bypassed()`. When it goes, the function has no branch left
 and goes with it.
 
-**Scope, re-measured 2026-08-11: 39 call sites across 23 test files** (was 23 across 17 on
-2026-08-07). Each has to move from "bypass on" to authenticating for real.
+**Done 2026-08-11.** `_is_rbac_bypassed()` and `_is_testing()` are gone, with all five
+of their branches. `TESTING` still disables rate limiting — a legitimate test concern —
+but no longer touches authorisation, and `app.state.testing` is not written or read
+anywhere.
 
-**The scope grows while the ticket stays open**, and that is the argument for doing it
-next rather than later. Nearly doubling in four days is not drift in the estimate; it is
-every new route test reaching for the same bypass, because it is there and it works.
-Re-measure before starting — this number will be stale again.
+**The count was measuring the wrong thing.** The ticket tracked explicit uses: 23 call
+sites, then 39. The real dependency was **290 tests across 30 files**, and *17 of those
+files never mentioned the flag*. They built an app with `app.state = MagicMock()`, and
+`getattr(state, "testing", False)` reads truthy on a mock. Authorisation-off was not
+something a test opted into — it was the default, and a test had to opt *out* to check
+authorisation at all. That is the shape of the problem RBAC-2 and BUG-3 were symptoms of.
 
-This is deliberately *not* bundled with TQ-1a, because the risk is specific: a test
-converted carelessly gets quietly weaker rather than loudly red — the exact failure mode
-this whole initiative exists to remove. It wants a session of its own, not the tail end
-of one.
+**Verified against the failure mode the ticket named** — "a test converted carelessly
+gets quietly weaker rather than loudly red". The first conversion attempt passed while
+authenticating nothing, because the `MagicMock` state kept the bypass alive. So the
+order was inverted: delete the bypass first, then fix what falls over, which fails
+loudly by construction. The finished conversion was then checked by sabotaging token
+verification — 95 of 148 tests in the converted files go red, so they genuinely depend
+on a valid token.
 
-**Reduced urgency, stated honestly.** TQ-1a already guarantees the property that matters —
-every route is guarded, verified with the bypass off, mechanically, on every run. What
-remains is that an *individual* route test can still pass through a check that never ran.
-That is worth fixing and it is no longer the hole it was.
+Three assertions changed meaning rather than being repaired, and all three were
+recording the bypass instead of the rule: `deleted_by`, `owner_id` and
+`create_workspace(owner_id=…)` now name the authenticated caller instead of `None`.
+That is the Clark-Wilson audit trail working for the first time in the tests.
 
-**Acceptance unchanged:** delete `state.testing = True` from a route test and confirm it
-fails with 401 rather than passing.
+Also removed: 14 dead flag assignments and 7 `_rbac_on` fixtures that neutralised a
+bypass SEC-1 had already deleted. `tests/utils/auth.py` holds the replacement, and
+`TestNoBypassRemains` fails if `src/` ever consults a testing flag again.
 
 ### TQ-2 — Deterministic integration CI ⬜
 
@@ -383,7 +391,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) + TQ-5a ✅ (alembic chain check) | 1-2 days |
 | PG-1 | SEC-1 ✅ + SEC-2 ✅ (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | — |
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
-| PG-3 | TQ-1a ✅ (authz-by-default introspection) + TQ-1b (delete the testing bypass, 23 call sites) | ~3 days left |
+| PG-3 | TQ-1a ✅ (authz-by-default introspection) + TQ-1b ✅ (bypass deleted; 290 tests converted, not the 39 the ticket counted) | done |
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
 | PG-5 | TQ-3 + TQ-4 (scoped mutation gate; Playwright smoke) | 1 week |
 | PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
@@ -400,7 +408,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 v3.0 ships when **all eight** hold, and not before:
 
 1. **Fail-closed boot** — no configuration path exists in which `APP_ENV=production` runs with authorisation off. (SEC-1 ✅, SEC-2 ✅)
-2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI (TQ-1a ✅). Testing bypass deleted (TQ-1b).
+2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI (TQ-1a ✅). Testing bypass deleted (TQ-1b ✅).
 3. **Concurrency budget met** — p95 time-to-first-token under the agreed budget at 10 concurrent SSE users; benchmark and numbers committed to the repo. (PERF-1/2)
 4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3)
 5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4)

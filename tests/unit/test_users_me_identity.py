@@ -8,7 +8,7 @@ answered by the same ``check_workspace_access`` the write routes call.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -21,17 +21,10 @@ WS = "11111111-1111-1111-1111-111111111111"
 USER = "33333333-3333-3333-3333-333333333333"
 
 
-@pytest.fixture(autouse=True)
-def _rbac_on():
-    # DEMO_MODE is gone (SEC-1); only the admin-password branch remains to neutralise.
-    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
-        yield
-
-
-def _client(member_role: str | None, global_role: str = "user", *, testing: bool = False):
+def _client(member_role: str | None, global_role: str = "user"):
     state = MagicMock()
-    state.testing = testing
     state.db.is_connected = True
+    state.db.is_token_revoked.return_value = False
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = WS
     state.db.get_user_by_id.return_value = {"id": USER, "username": "jo", "role": global_role}
@@ -103,10 +96,3 @@ class TestRouteOrdering:
         resp = _client(None).get("/api/users/me")
         assert resp.json()["can_write"] is False
 
-
-@pytest.mark.unit
-class TestBypassKeepsDemoUsable:
-    def test_bypass_reports_write_access(self):
-        """Demo/test deployments have no identity; controls must stay usable."""
-        resp = _client(None, testing=True).get("/api/users/me")
-        assert resp.json()["can_write"] is True

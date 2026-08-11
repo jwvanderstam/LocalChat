@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.utils.auth import ADMIN_ID, admin_headers, authorise_db
+
 # ---------------------------------------------------------------------------
 # Helper — build a minimal FastAPI test app with the router
 # ---------------------------------------------------------------------------
@@ -42,13 +44,13 @@ def _make_app(
     ]
     mock_db.delete_all_memories.return_value = delete_count
 
-    test_app.state.db = mock_db
+    test_app.state.db = authorise_db(mock_db, role="admin")
     test_app.state.startup_status = {"database": db_ok}
     test_app.state.ollama_client = MagicMock()
-    test_app.state.testing = True
     test_app._active_model = active_model
 
     client = TestClient(test_app, raise_server_exceptions=False)
+    client.headers.update(admin_headers())
     return test_app, client
 
 
@@ -203,7 +205,10 @@ class TestDeleteMemory:
     def test_calls_db_delete_with_id(self):
         app, client = _make_app()
         client.delete("/api/memory/abc-123")
-        app.state.db.delete_memory.assert_called_once_with("abc-123", deleted_by=None)
+        # deleted_by names the authenticated caller. It read None while the RBAC
+        # bypass was on, so this assertion documented the bypass rather than the
+        # Clark-Wilson audit trail it exists for.
+        app.state.db.delete_memory.assert_called_once_with("abc-123", deleted_by=ADMIN_ID)
 
     def test_db_raises_returns_500(self):
         app, client = _make_app()

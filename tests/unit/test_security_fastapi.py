@@ -73,93 +73,74 @@ class TestVerifyCredentialsDb:
 
 @pytest.mark.unit
 class TestGetCurrentUserId:
-    def _make_request(self, testing=True, auth_header=None):
+    def _make_request(self, auth_header=None, revoked=False):
         req = MagicMock()
-        req.app.state.testing = testing
+        req.app.state.db.is_connected = True
+        req.app.state.db.is_token_revoked.return_value = revoked
         headers = {}
         if auth_header:
             headers["Authorization"] = auth_header
         req.headers.get = lambda k, default="": headers.get(k, default)
+        req.cookies = {}
         return req
-
-    def test_testing_mode_returns_none(self):
-        from src.security_fastapi import get_current_user_id
-
-        req = self._make_request(testing=True)
-        result = get_current_user_id(req)
-        assert result is None
 
     def test_no_credentials_no_header_returns_none(self):
         from src.security_fastapi import get_current_user_id
 
-        # config no longer needs patching here: the DEMO_MODE branch it stood in for
-        # was removed in SEC-1.
-        with patch("src.security_fastapi._is_testing", return_value=False):
-            req = self._make_request(testing=False)
-            result = get_current_user_id(req, credentials=None)
-        assert result is None
+        assert get_current_user_id(self._make_request(), credentials=None) is None
 
-    def test_valid_token_in_bearer_header(self):
+    def test_valid_token_in_bearer_header_resolves_to_its_subject(self):
+        """Previously `result is None or result == "user-xyz"` — true either way, so it
+        proved nothing. With the bypass gone the real subject can be asserted."""
         from src.security_fastapi import create_access_token, get_current_user_id
 
         token = create_access_token("user-xyz")
-        with patch("src.security_fastapi._is_testing", return_value=False), \
-             patch("src.security_fastapi.config") as mc:
-            mc.JWT_SECRET_KEY = "test-secret"
-            req = self._make_request(testing=False, auth_header=f"Bearer {token}")
-            # credentials=None forces fallback to header extraction
-            result = get_current_user_id(req, credentials=None)
-        # Either "user-xyz" or None (if secret differs); just check no exception
-        assert result is None or result == "user-xyz"
+        req = self._make_request(auth_header=f"Bearer {token}")
+        assert get_current_user_id(req, credentials=None) == "user-xyz"
+
+    def test_a_garbage_token_resolves_to_nobody(self):
+        from src.security_fastapi import get_current_user_id
+
+        req = self._make_request(auth_header="Bearer not-a-token")
+        assert get_current_user_id(req, credentials=None) is None
 
 
 @pytest.mark.unit
 class TestRequireAuth:
-    def _make_testing_request(self):
+    """The "testing mode returns anonymous" cases are deleted, not rewritten: TQ-1b
+    removed the mode. There is no longer a caller the application trusts by default."""
+
+    def _anonymous_request(self):
         req = MagicMock()
-        req.app.state.testing = True
+        req.headers.get = lambda k, default="": default
+        req.cookies = {}
         return req
-
-    def test_testing_mode_returns_anonymous(self):
-        from src.security_fastapi import require_auth
-
-        req = self._make_testing_request()
-        result = require_auth(req, credentials=None)
-        assert result == "anonymous"
 
     def test_no_credentials_raises_401(self):
         from fastapi import HTTPException
 
         from src.security_fastapi import require_auth
 
-        req = MagicMock()
-        req.app.state.testing = False
-        with patch("src.security_fastapi._is_rbac_bypassed", return_value=False):
-            with pytest.raises(HTTPException) as exc_info:
-                require_auth(req, credentials=None)
+        with pytest.raises(HTTPException) as exc_info:
+            require_auth(self._anonymous_request(), credentials=None)
         assert exc_info.value.status_code == 401
 
 
 @pytest.mark.unit
 class TestRequireAdminDep:
-    def test_testing_mode_returns_anonymous(self):
-        from src.security_fastapi import require_admin_dep
-
+    def _anonymous_request(self):
         req = MagicMock()
-        req.app.state.testing = True
-        result = require_admin_dep(req, credentials=None)
-        assert result == "anonymous"
+        req.headers.get = lambda k, default="": default
+        req.cookies = {}
+        return req
 
     def test_no_credentials_raises_401(self):
         from fastapi import HTTPException
 
         from src.security_fastapi import require_admin_dep
 
-        req = MagicMock()
-        req.app.state.testing = False
-        with patch("src.security_fastapi._is_rbac_bypassed", return_value=False):
-            with pytest.raises(HTTPException) as exc_info:
-                require_admin_dep(req, credentials=None)
+        with pytest.raises(HTTPException) as exc_info:
+            require_admin_dep(self._anonymous_request(), credentials=None)
         assert exc_info.value.status_code == 401
 
 

@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
+
+from tests.utils.auth import auth_headers, authenticated_state
 
 BLOCK_SECONDS = 0.4
 
@@ -50,8 +52,7 @@ def _app():
 
     app = FastAPI()
     app.include_router(router, prefix="/api")
-    app.state = MagicMock()
-    app.state.testing = True
+    app.state = authenticated_state()
     return app
 
 
@@ -61,7 +62,8 @@ async def _elapsed_for_two_concurrent_chats() -> float:
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
         started = time.perf_counter()
         responses = await asyncio.gather(*(
-            client.post("/api/chat", json={"message": f"vraag {i}"}) for i in range(2)
+            client.post("/api/chat", json={"message": f"vraag {i}"}, headers=auth_headers())
+            for i in range(2)
         ))
         elapsed = time.perf_counter() - started
     assert all(r.status_code == 200 for r in responses), [r.status_code for r in responses]
