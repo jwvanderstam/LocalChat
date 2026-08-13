@@ -98,25 +98,6 @@ def verify_credentials_db(username: str, password: str, db: Any) -> tuple[str, s
 
 # ── Auth dependencies ──────────────────────────────────────────────────────────
 
-def _is_testing(request: Request) -> bool:
-    return getattr(request.app.state, "testing", False)
-
-
-def _is_rbac_bypassed(request: Request) -> bool:
-    """The last remaining authorisation bypass, and it is test-only.
-
-    SEC-1 removed the other two. ``not _ADMIN_PASSWORD_RAW`` went because an admin
-    account is now always seeded, so an empty password no longer means "no way in";
-    ``DEMO_MODE`` went because it disabled authorisation rather than reachability —
-    a safety flag implemented at the wrong layer, which made it the risk it was
-    meant to reduce.
-
-    ``app.state.testing`` survives only until TQ-1 replaces it with route tests that
-    authenticate for real. At that point this function has no branch left and goes.
-    """
-    return _is_testing(request)
-
-
 #: Name of the httpOnly cookie the browser session uses. Not configurable —
 #: a renamed cookie would silently log everyone out with no other symptom.
 SESSION_COOKIE = "localchat_session"
@@ -157,8 +138,6 @@ def get_current_user_id(
 
     Safe to call both as a FastAPI Depends and directly with just request.
     """
-    if _is_testing(request):
-        return None
     # getattr, not truthiness: called directly rather than via Depends, *credentials*
     # is the unresolved Depends sentinel — truthy, but with no .credentials attribute.
     token = getattr(credentials, "credentials", None) or _extract_bearer_token(request)
@@ -244,8 +223,6 @@ def require_auth(
 
     Safe to call directly with just a request, like ``get_current_user_id``.
     """
-    if _is_rbac_bypassed(request):
-        return "anonymous"
     # getattr, not truthiness: called directly rather than via Depends, *credentials*
     # is the unresolved Depends sentinel — truthy, but with no .credentials attribute.
     # Left as `if not credentials` this rejected every caller, valid token included.
@@ -276,8 +253,6 @@ def require_admin_dep(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008
 ) -> str:
     """FastAPI dependency — require admin role or raise 403."""
-    if _is_rbac_bypassed(request):
-        return "anonymous"
     # Falls back to the request so a browser session (httpOnly cookie, no
     # Authorization header) reaches admin routes too. Without the fallback every
     # admin route 401s for a correctly authenticated cookie session.
@@ -392,9 +367,6 @@ def check_workspace_access(
     Pass ``workspace_id=None`` for a header-scoped route; scope then resolves via
     ``get_workspace_id`` and falls back to the default workspace.
     """
-    if _is_rbac_bypassed(request):
-        return None
-
     # A workspace API key is a principal in its own right, checked before user
     # claims because it is not a user and must not fall through to user handling.
     api_key = _extract_api_key(request)
@@ -448,8 +420,6 @@ def _enforce_workspace_role(
     min_role: str,
 ) -> str:
     """Enforce workspace membership; returns user_id or raises 4xx."""
-    if _is_rbac_bypassed(request):
-        return "anonymous"
     denial = check_workspace_access(request, workspace_id, min_role)
     if denial is not None:
         code, message = denial

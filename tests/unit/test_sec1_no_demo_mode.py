@@ -31,7 +31,6 @@ class TestDemoModeIsRemoved:
         from src.routes_fastapi.document_routes import router
 
         state = MagicMock()
-        state.testing = False
         state.db.is_connected = True
         state.db.get_workspace_member_role.return_value = None
         state.db.get_default_workspace_id.return_value = "ws-1"
@@ -66,7 +65,6 @@ class TestEmptyAdminPasswordNoLongerBypasses:
         from src.routes_fastapi.document_routes import router
 
         state = MagicMock()
-        state.testing = False
         state.db.is_connected = True
         state.db.get_workspace_member_role.return_value = None
         state.db.get_default_workspace_id.return_value = "ws-1"
@@ -81,26 +79,34 @@ class TestEmptyAdminPasswordNoLongerBypasses:
 
 
 @pytest.mark.unit
-class TestOnlyTheTestingBypassRemains:
-    def test_bypass_is_exactly_the_testing_flag(self):
-        from src.security_fastapi import _is_rbac_bypassed
+class TestNoBypassRemains:
+    """TQ-1b removed the last one. This class exists to keep it removed.
 
-        req = MagicMock()
-        req.app.state.testing = True
-        assert _is_rbac_bypassed(req) is True
+    It used to assert the opposite — that `app.state.testing` bypassed authorisation —
+    and predicted its own replacement. The bypass was worse than its call count
+    suggested: `getattr(state, "testing", False)` reads truthy on a `MagicMock`, so it
+    was active in every test with a mocked app state, whether that test asked for it or
+    not. Authorisation-off was the default, and 290 tests depended on it without saying
+    so.
+    """
 
-        req.app.state.testing = False
-        assert _is_rbac_bypassed(req) is False
+    def test_the_bypass_helpers_are_gone(self):
+        import src.security_fastapi as sec
 
-    def test_testing_bypass_is_the_last_one(self):
-        """When TQ-1 removes this, the function has no branch left and goes with it."""
-        import inspect
+        assert not hasattr(sec, "_is_rbac_bypassed")
+        assert not hasattr(sec, "_is_testing")
 
-        from src.security_fastapi import _is_rbac_bypassed
+    def test_no_module_consults_a_testing_flag(self):
+        """A re-added bypass would most likely wear the same name."""
+        import subprocess
+        from pathlib import Path
 
-        body = inspect.getsource(_is_rbac_bypassed)
-        assert "DEMO_MODE" not in body.split('"""')[-1]
-        assert "_ADMIN_PASSWORD_RAW" not in body.split('"""')[-1]
+        root = Path(__file__).resolve().parents[2]
+        hits = subprocess.run(
+            ["git", "grep", "-n", "-e", r"state\.testing", "-e", r'state, "testing"', "--", "src/"],
+            cwd=root, capture_output=True, text=True,
+        ).stdout.strip()
+        assert not hits, f"src/ reads a testing flag again:\n{hits}"
 
 
 @pytest.mark.unit

@@ -11,7 +11,7 @@ default workspace when the client sends none.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -24,20 +24,12 @@ DEFAULT_WS = "00000000-0000-0000-0000-0000000000ff"
 USER = "33333333-3333-3333-3333-333333333333"
 
 
-@pytest.fixture(autouse=True)
-def _rbac_on():
-    # DEMO_MODE is gone (SEC-1); only the admin-password branch remains to neutralise.
-    with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
-        yield
-
-
 def _auth(role: str = "user") -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(USER, {'role': role})}"}
 
 
 def _client(router, prefix: str, member_role: str | None):
     state = MagicMock()
-    state.testing = False
     state.db.is_connected = True
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = DEFAULT_WS
@@ -169,7 +161,6 @@ class TestWorkspaceScopeResolution:
 class TestBypassKeepsDemoWorking:
     def test_testing_bypass_allows_an_unauthenticated_write(self):
         client = _documents("viewer")
-        client.app.state.testing = True
         resp = client.delete("/api/documents/clear")
         assert resp.status_code != 403
 

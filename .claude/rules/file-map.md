@@ -154,6 +154,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/conftest.py` | Shared pytest fixtures |
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
 | `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; how frontend branch logic is tested |
+| `tests/utils/auth.py` | `auth_headers()`, `authorise_db()`, `authenticated_state()` — how a test authenticates for real; replaced the `app.state.testing` bypass (TQ-1b) |
 | `tests/e2e/test_smoke.py` | Playwright smoke tests (`@pytest.mark.e2e`); require a live server + `pytest-playwright` |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop |

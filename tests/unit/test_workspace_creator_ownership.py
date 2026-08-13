@@ -86,9 +86,8 @@ class TestCreateWorkspaceRecordsOwner:
         assert db.create_workspace("Acme", owner_id=None)
 
 
-def _client(testing: bool):
+def _client():
     state = MagicMock()
-    state.testing = testing
     state.db.is_connected = True
     state.db.create_workspace.return_value = "ws-new"
     state.db.get_workspace.return_value = {"id": "ws-new", "name": "Acme"}
@@ -102,7 +101,7 @@ def _client(testing: bool):
 @pytest.mark.unit
 class TestCreateWorkspaceRoutePassesCaller:
     def test_route_forwards_the_authenticated_caller_as_owner(self):
-        client = _client(testing=False)
+        client = _client()
         token = create_access_token(OWNER, {"role": "user"})
         with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
             resp = client.post(
@@ -113,8 +112,10 @@ class TestCreateWorkspaceRoutePassesCaller:
         assert resp.status_code == 201
         assert client.app.state.db.create_workspace.call_args.kwargs["owner_id"] == OWNER
 
-    def test_route_passes_none_when_there_is_no_caller(self):
-        client = _client(testing=True)
+    def test_an_unauthenticated_caller_creates_nothing(self):
+        """Replaces a case that asserted owner_id=None under the RBAC bypass. Without
+        a bypass there is no callerless create: the request is refused instead."""
+        client = _client()
         resp = client.post("/api/workspaces", json={"name": "Acme"})
-        assert resp.status_code == 201
-        assert client.app.state.db.create_workspace.call_args.kwargs["owner_id"] is None
+        assert resp.status_code == 401
+        client.app.state.db.create_workspace.assert_not_called()

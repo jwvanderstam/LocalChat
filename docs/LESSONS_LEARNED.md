@@ -657,6 +657,47 @@ client *keeps*. Browser-scoped state outlives the session that wrote it.
 
 ---
 
+## 15. The bypass nobody used, that everything depended on
+
+TQ-1b's job was to delete `app.state.testing`, the last authorisation bypass. The ticket
+sized it by counting the tests that set the flag: 23 in August, 39 by the time it was
+picked up. Both numbers were right and both measured the wrong thing.
+
+Removing it broke **290 tests across 30 files — and 17 of those files never mentioned the
+flag.** They built an app with `app.state = MagicMock()`, and `getattr(state, "testing",
+False)` returns a truthy `Mock`. The bypass was not something a test opted into. It was
+the default, and a test had to opt *out* to exercise authorisation at all.
+
+That reframes three earlier findings. BUG-3's fail-open membership check, RBAC-2's 49
+unguarded routes, and the cross-workspace document leak were not separate lapses in
+care. They are what a suite produces when authorisation-off is the default state: the
+tests were accurate reports of a system nobody was testing.
+
+**The failure mode the ticket warned about happened on the first attempt.** It said a
+carelessly converted test "gets quietly weaker rather than loudly red". The first file
+converted was green, and authenticated nothing — the `MagicMock` state kept the bypass
+alive underneath the new code. Ten passing tests, proving nothing, indistinguishable in
+CI from ten real ones.
+
+The fix was to invert the order: **delete the bypass first, then repair what falls over.**
+Deletion cannot be faked, and every consequence announces itself. Converting first means
+grading your own work against a system that has not changed.
+
+Then the finished conversion was checked the only way that settles it — sabotage token
+verification and see whether the tests notice. 95 of 148 went red. Tests that pass with
+authentication broken are not testing authentication.
+
+Three assertions changed meaning rather than being fixed. `deleted_by`, `owner_id` and
+`create_workspace(owner_id=…)` all asserted `None`, each with a comment explaining that
+there was no caller under the bypass. They were faithful records of the wrong system;
+they now name the authenticated caller, which is the Clark-Wilson audit trail working in
+the tests for the first time.
+
+**Rule taken from this:** count what a mechanism *reaches*, not who invokes it by name.
+A default is used by everything that never mentions it.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents

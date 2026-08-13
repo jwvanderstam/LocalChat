@@ -14,6 +14,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from tests.utils.auth import auth_headers, authorise_db
+
 pytestmark = [pytest.mark.unit]
 
 
@@ -319,7 +321,7 @@ class TestStreamChatResponseTemperature:
         test_app.include_router(router, prefix="/api")
 
         test_app.state.startup_status = {"database": True, "ollama": True, "ready": True}
-        test_app.state.db = Mock()
+        test_app.state.db = authorise_db(Mock())
         test_app.state.db.save_message = Mock(return_value=1)
         test_app.state.db.create_conversation_with_message = Mock(return_value=("conv-123", 1))
         test_app.state.db.get_conversation_document_filter = Mock(return_value=[])
@@ -334,12 +336,13 @@ class TestStreamChatResponseTemperature:
 
         test_app.state.ollama_client.generate_chat_response.side_effect = _default_gen
         test_app.state.cloud_client = None
-        test_app.state.testing = True
         test_app.state.embedding_cache = None
         test_app.state.query_cache = None
         test_app.state.connector_registry = None
 
-        return test_app, TestClient(test_app, raise_server_exceptions=False)
+        client = TestClient(test_app, raise_server_exceptions=False)
+        client.headers.update(auth_headers())
+        return test_app, client
 
     def _config_ctx(self, active_model="llama3.2"):
         import contextlib

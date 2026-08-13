@@ -4,7 +4,8 @@ Call create_app() to get a fully wired FastAPI app.  For production,
 follow up with bootstrap_app(app) from src.app_bootstrap.
 
 Tests call only create_app(), which is safe with zero mocking.
-Pass config_override={'TESTING': True} to disable JWT and rate limiting.
+Pass config_override={'TESTING': True} to disable rate limiting. It does *not*
+affect authorisation: TQ-1b removed that bypass, so tests authenticate for real.
 """
 
 from __future__ import annotations
@@ -55,7 +56,6 @@ def create_app(config_override: dict[str, Any] | None = None) -> FastAPI:
     app.state.ollama_client = ollama_client
     app.state.doc_processor = doc_processor
     app.state.cloud_client = _init_cloud_client()
-    app.state.testing = testing
     app.state.upload_folder = upload_folder
     app.state.static_folder = str(root_dir / "static")
     app.state.template_folder = str(root_dir / "templates")

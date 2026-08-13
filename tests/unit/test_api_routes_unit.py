@@ -20,6 +20,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.utils.auth import auth_headers, authorise_db
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -44,7 +46,7 @@ def _make_chat_app(active_model="llama3.2", db_ok=True, ollama_ok=True, chunks=N
     test_app.include_router(router, prefix="/api")
 
     test_app.state.startup_status = {"database": db_ok, "ollama": ollama_ok, "ready": db_ok and ollama_ok}
-    test_app.state.db = MagicMock()
+    test_app.state.db = authorise_db(MagicMock())
     test_app.state.db.get_document_count.return_value = 5
     test_app.state.db.save_message.return_value = 42
     test_app.state.db.create_conversation_with_message.return_value = ("conv-1", 1)
@@ -63,13 +65,13 @@ def _make_chat_app(active_model="llama3.2", db_ok=True, ollama_ok=True, chunks=N
     # tests that need errors can replace side_effect with an Exception instance.
     test_app.state.ollama_client.generate_chat_response.side_effect = _default_generate
     test_app.state.cloud_client = None
-    test_app.state.testing = True
     test_app.state.embedding_cache = None
     test_app.state.query_cache = None
     test_app.state.connector_registry = None
     test_app._active_model = active_model
 
     client = TestClient(test_app, raise_server_exceptions=False)
+    client.headers.update(auth_headers())
     return test_app, client
 
 

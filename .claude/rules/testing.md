@@ -54,6 +54,29 @@ client = TestClient(app, raise_server_exceptions=True)
 
 Never import from `src/app.py` — it doesn't export an app.
 
+## Authentication in tests
+
+There is no bypass. TQ-1b deleted `app.state.testing`, so a route test that does not
+authenticate gets a 401 — which is what the application does.
+
+Use `tests/utils/auth.py`: `auth_headers()` / `admin_headers()` for the token,
+`authenticated_state()` for a fresh `app.state`, `authorise_db(db)` to add the
+authorisation answers to a database mock a test already built. Pass `monkeypatch=` when
+the database is the real singleton (the shared `app` fixture), or its bound methods
+cannot be replaced reversibly.
+
+Three answers are not obvious, and each fails looking like the route is broken:
+`is_token_revoked` (fail-closed, so a bare mock reads every token as revoked),
+`get_user_workspaces` (a truthy mock silently becomes the workspace under test), and
+`get_workspace_member_role` (`None` means non-member, which is a 403).
+
+`conftest.py` provides `client` (signed in as admin) and `unauthenticated_client` (for
+asserting a route refuses).
+
+**When converting a test away from a bypass, prove it still tests something.** Break
+token verification and confirm the test goes red. A conversion that passes either way
+is weaker than what it replaced, and looks identical in CI.
+
 ## Fixtures
 
 - Shared fixtures live in `tests/conftest.py`. Add new shared ones there, not in individual test files.

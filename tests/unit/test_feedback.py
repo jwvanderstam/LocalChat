@@ -19,6 +19,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.utils.auth import admin_headers, authorise_db
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -200,13 +202,12 @@ def _make_fastapi_app(db_ok=True, insert_raises=False, stats=None, trend=None, s
     mock_db.get_feedback_trend.return_value = trend or []
     mock_db.get_stale_chunks.return_value = stale or []
 
-    test_app.state.db = mock_db
+    test_app.state.db = authorise_db(mock_db, role="admin")
     test_app.state.startup_status = {"database": db_ok}
-    # Per .claude/rules/testing.md. These are route-behaviour tests, not authorisation
-    # tests; RBAC-2 gave /feedback a viewer guard, and without this they assert 401.
-    test_app.state.testing = True
-
+    # Route-behaviour tests, not authorisation tests — so they sign in as a real
+    # viewer rather than switching the guard off.
     client = TestClient(test_app, raise_server_exceptions=False)
+    client.headers.update(admin_headers())
     return test_app, client
 
 

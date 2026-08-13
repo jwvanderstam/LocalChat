@@ -168,8 +168,31 @@ def app():
 
 
 @pytest.fixture
-def client(app):
-    """Provide a FastAPI TestClient."""
+def client(app, monkeypatch):
+    """A TestClient that signs in as an admin, rather than one authorisation ignores.
+
+    Before TQ-1b this client was anonymous and every check short-circuited, so the
+    suite proved behaviour in a state the application never runs in. It now carries a
+    real signed token, and `app.state.db` answers the calls the security layer makes —
+    see tests/utils/auth.py for why those three answers are not obvious.
+
+    Use `unauthenticated_client` for tests that assert a route *refuses* a caller.
+    """
+    from fastapi.testclient import TestClient
+
+    from tests.utils.auth import admin_headers, authorise_db
+
+    # monkeypatch, not assignment: app.state.db is the real singleton here, so its
+    # methods are bound and shared across tests. This restores them afterwards.
+    authorise_db(app.state.db, role="admin", monkeypatch=monkeypatch)
+    test_client = TestClient(app, raise_server_exceptions=True)
+    test_client.headers.update(admin_headers())
+    return test_client
+
+
+@pytest.fixture
+def unauthenticated_client(app):
+    """A TestClient with no credentials — for asserting that a route refuses."""
     from fastapi.testclient import TestClient
 
     return TestClient(app, raise_server_exceptions=True)
