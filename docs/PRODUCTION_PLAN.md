@@ -261,9 +261,34 @@ Also removed: 14 dead flag assignments and 7 `_rbac_on` fixtures that neutralise
 bypass SEC-1 had already deleted. `tests/utils/auth.py` holds the replacement, and
 `TestNoBypassRemains` fails if `src/` ever consults a testing flag again.
 
-### TQ-2 — Deterministic integration CI ⬜
+### TQ-2 — Deterministic integration CI ✅
 
-Postgres service container plus a **fake Ollama** — a ~100-line stub returning canned embeddings and completions. The full ingest → ask → cite path runs in CI without a GPU, deterministically. This is the harness TQ-1's production-config boot and OPS-4's restore proof both reuse.
+`tests/utils/fake_ollama.py` (the stub) and `tests/integration/test_ingest_ask_cite.py`
+(the path). Ingest → chunk → embed over HTTP → pgvector → hybrid retrieval → rank →
+cite → workspace isolation, all real except the model process. Runs in the existing
+integration job; no GPU, no new service container.
+
+**The embeddings are a bag of words, not noise.** With random vectors the harness would
+"work" while making every ranking assertion arbitrary — the expected chunk would come
+first by luck. Bag-of-words makes cosine similarity track word overlap, so the ordering
+is a property of the retrieval code. `TestTheHarnessIsWhatIsUnderTest` guards that
+property, because a stub that answers wrongly makes every test above it vacuous.
+
+**It found two defects on its first real run**, both invisible while the layer above was
+mocked:
+
+- `processor.py` passed the *module-global* Ollama client to `BatchEmbeddingProcessor`
+  instead of the injected one. A caller supplying a client got it for some calls and the
+  global for the batch. Verified by restoring the bug: the whole file goes red.
+- A database built by `_ensure_extensions_and_tables()` alone is missing every column
+  added since — it failed on `document_chunks.deleted_at` from migration 0005.
+  Production applies migrations at startup, so the test now does too. That closes
+  TQ-5b's *premise* — a CI job now executes migrations against a real database — but
+  not TQ-5b itself, which additionally wants a head assertion, an idempotency run and
+  a check on exit status rather than side effects.
+
+Also recorded in TROUBLESHOOTING: on Windows, `PG_HOST=localhost` resolves to IPv6 while
+Docker publishes on `127.0.0.1`, so every connection costs 5 s and the pool times out.
 
 ### TQ-3 — Mutation gate, scoped ruthlessly ⬜
 
@@ -288,7 +313,12 @@ Reuses TQ-2's Postgres service container:
 - Run it a second time; assert it is a no-op. Idempotency is the property the "additive migrations only" rule claims and nothing checks.
 - Assert on the **command's exit status**, never on log output — see below.
 
-**The gap this closes.** Migrations run only via `bootstrap_app()` at real startup; CI's integration tests use `create_app()`; and no test in the repo connects to Postgres at all, even though the integration job already starts one. So **no CI job has ever executed a migration.** Every migration in `versions/` reached `main` unexecuted, and the first run happens on a deployment.
+**The gap this closes.** *Updated after TQ-2:* migrations now do execute in CI —
+`test_ingest_ask_cite.py` applies them so it can run against the schema production has.
+That was a side effect of needing a correct schema, not a check: nothing asserts the
+head is single, that a second run is a no-op, or that a failure fails the job. Those
+three are what remains, and they are the properties the "additive migrations only" rule
+claims and nothing verifies.
 
 **Why exit status, not logs.** `_run_alembic_migrations()` catches the exception and logs it, so a failed migration is non-fatal by design — the app serves normally with an unmigrated schema. Worse, until #223/#225 that log line went to a logger Alembic itself had just disabled, so the failure produced *no output at all* for days. A check that greps logs would have passed throughout. The assertion must be the process exit code.
 
