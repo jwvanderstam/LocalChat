@@ -17,7 +17,10 @@ from typing import Any
 from .. import config
 from ..db import db
 from ..monitoring import counted, timed
-from ..ollama_client import ollama_client
+
+# Read via globals() in __init__ so tests can patch src.rag.processor.ollama_client;
+# ruff cannot see that access, hence the noqa.
+from ..ollama_client import ollama_client  # noqa: F401
 from ..utils.logging_config import get_logger
 from .chunking import TextChunkerMixin
 from .doc_type import ChunkerRegistry, DocTypeClassifier
@@ -167,7 +170,12 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
 
         batch_size = getattr(config, 'BATCH_SIZE', 64)
         max_workers = getattr(config, 'BATCH_MAX_WORKERS', 8)
-        processor = BatchEmbeddingProcessor(ollama_client, batch_size=batch_size, max_workers=max_workers)
+        # self._ollama_client, not the module global: this path ignored an injected
+        # client entirely, so a caller that supplied one got it for some calls and the
+        # global for the batch. Invisible while every test mocked the layer above.
+        processor = BatchEmbeddingProcessor(
+            self._ollama_client, batch_size=batch_size, max_workers=max_workers
+        )
         embeddings = processor.process_batch([c['text'] for c in chunks_with_metadata], embedding_model)
 
         chunks_data = []

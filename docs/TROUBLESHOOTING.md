@@ -45,6 +45,26 @@ Set `OLLAMA_MODEL` and `OLLAMA_EMBED_MODEL` in `.env` to match what you pulled.
 
 ## PostgreSQL / pgvector
 
+### Connections take exactly 5 seconds, or the pool times out
+
+**Symptom:** `PoolTimeout: couldn't get a connection after 5.00 sec` when running the
+app or the `db`-marked tests from the host, while `psql` connects instantly. Each
+individual connection succeeds but takes ~5 s.
+
+**Cause:** `PG_HOST=localhost` resolves to IPv6 (`::1`) first, and `docker-compose.yml`
+publishes the port on `127.0.0.1` only. Every connection waits for the IPv6 attempt to
+time out before falling back to IPv4. The pool opens `DB_POOL_MIN_CONN` connections
+with a 5 s budget, so it never finishes. Common on Windows.
+
+**Fix:** use the address rather than the name.
+
+```bash
+PG_HOST=127.0.0.1
+```
+
+Nothing is wrong in the container: this affects host processes only. Inside Docker,
+service names resolve directly.
+
 ### `pgvector` extension missing
 
 **Symptom:** `ERROR: type "vector" does not exist` on startup.
