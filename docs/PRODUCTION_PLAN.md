@@ -284,8 +284,7 @@ mocked:
   added since — it failed on `document_chunks.deleted_at` from migration 0005.
   Production applies migrations at startup, so the test now does too. That closes
   TQ-5b's *premise* — a CI job now executes migrations against a real database — but
-  not TQ-5b itself, which additionally wants a head assertion, an idempotency run and
-  a check on exit status rather than side effects.
+  not TQ-5b itself, whose head, idempotency and exit-status assertions came next.
 
 Also recorded in TROUBLESHOOTING: on Windows, `PG_HOST=localhost` resolves to IPv6 while
 Docker publishes on `127.0.0.1`, so every connection costs 5 s and the pool times out.
@@ -305,24 +304,35 @@ A pure-Python assertion in the fast suite, no database required:
 
 **Why this is its own ticket and not a line in TQ-5b:** it costs ~20 lines, needs no infrastructure, and catches the failure that actually occurred. On 2026-08-05 a backfill migration was numbered `0012`, colliding with the existing `0012_hybrid_search_tsvector.py`. Alembic does not error on a duplicate id — it emits `UserWarning: Revision 0012 is present more than once` through Python's `warnings` module, then `upgrade head` aborts with `MultipleHeads`, so **no migration applies at all**, including previously pending ones. It shipped through review, CI and merge (#219) and was found only by starting the stack (#222).
 
-### TQ-5b — Migrations execute against a real database in CI ⬜ (**after TQ-2**)
+### TQ-5b — Migrations execute against a real database in CI ✅
 
-Reuses TQ-2's Postgres service container:
+`tests/integration/test_migrations_apply.py`, on a database it creates and drops, so no
+assertion depends on what an earlier test left behind:
 
-- `alembic upgrade head` against an **empty** database; assert `alembic current` equals the single head.
-- Run it a second time; assert it is a no-op. Idempotency is the property the "additive migrations only" rule claims and nothing checks.
-- Assert on the **command's exit status**, never on log output — see below.
+- The upgrade succeeds, judged by **exit status**. `_run_alembic_migrations()` catches
+  and logs failures, so the application starts happily on an unmigrated schema — and for
+  several days in August 2026 that log line went to a logger Alembic had just disabled,
+  producing no output at all. A check reading output would have passed throughout.
+- The database lands on the single head the script directory declares, and `current`
+  reports it as `(head)` rather than some revision partway along.
+- A second upgrade exits zero, leaves the revision alone, and **runs no revision at
+  all** — the stronger form, since an identical end state can also mean both runs
+  failed the same way.
+- A fourth class guards the other three: a bad revision target and an unmigratable
+  database must both exit non-zero. A runner that reports success regardless would make
+  everything above vacuous.
 
-**The gap this closes.** *Updated after TQ-2:* migrations now do execute in CI —
-`test_ingest_ask_cite.py` applies them so it can run against the schema production has.
-That was a side effect of needing a correct schema, not a check: nothing asserts the
-head is single, that a second run is a no-op, or that a failure fails the job. Those
-three are what remains, and they are the properties the "additive migrations only" rule
-claims and nothing verifies.
+**Correction: "against an empty database" was wrong**, and measuring said so.
+`alembic upgrade head` on a genuinely empty database fails at `0002`, which opens with
+`ALTER TABLE conversations` — `IF NOT EXISTS` guards the column, not the table. The base
+schema comes from `_ensure_extensions_and_tables()` and the migrations are additive on
+top; two halves of one schema, by design (CLAUDE.md). The test therefore runs the
+sequence production runs. The empty-database case is kept, as the assertion that it
+*fails*.
 
-**Why exit status, not logs.** `_run_alembic_migrations()` catches the exception and logs it, so a failed migration is non-fatal by design — the app serves normally with an unmigrated schema. Worse, until #223/#225 that log line went to a logger Alembic itself had just disabled, so the failure produced *no output at all* for days. A check that greps logs would have passed throughout. The assertion must be the process exit code.
+**Acceptance met:** invalid SQL added to `0012` turns 5 of the 8 tests red; the 3 that
+stay green are the guards, which assert failures and so pass either way. Reverted.
 
-**Acceptance:** deliberately break a migration (duplicate id, or invalid SQL) and confirm CI goes red; revert.
 
 ### TQ-4 — One Playwright smoke test ⬜
 
