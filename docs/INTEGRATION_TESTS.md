@@ -48,6 +48,28 @@ ollama pull llama3.2
 pytest tests/integration/ -v
 ```
 
+### End-to-end, through a browser
+
+`tests/e2e/` drives the golden path — sign in, upload, ask, cited answer — in Chromium.
+It starts its own LocalChat, so nothing needs to be running first except PostgreSQL:
+
+```bash
+pip install pytest-playwright && playwright install chromium
+pytest tests/e2e/ -v
+```
+
+The model is stubbed (`tests/utils/fake_ollama.py`), so no Ollama and no GPU are needed.
+
+**Point `PG_*` at a throwaway database.** The test signs in as `e2e-admin`, seeded on
+first boot, and ingests a document into the default workspace. It retires that document
+afterwards, but it is still writing to whatever database `.env` names:
+
+```bash
+docker run -d --name lc-e2e-pg -e POSTGRES_PASSWORD=e2e_test_password \
+  -e POSTGRES_DB=rag_db -p 127.0.0.1:55432:5432 pgvector/pgvector:pg16
+PG_HOST=127.0.0.1 PG_PORT=55432 PG_PASSWORD=e2e_test_password pytest tests/e2e/ -v
+```
+
 ## Test markers
 
 | Marker | Meaning |
@@ -55,6 +77,7 @@ pytest tests/integration/ -v
 | `integration` | Requires a running FastAPI test app |
 | `db` | Requires a live PostgreSQL + pgvector instance |
 | `ollama` | Requires a running Ollama server with a pulled model |
+| `e2e` | Drives a real browser; requires Playwright + Chromium and PostgreSQL |
 
 Tests not marked `ollama` run in CI. Tests marked `db` run in CI via the
 `pgvector/pgvector:pg16` service container.
@@ -69,6 +92,10 @@ to `main`. To enforce this, go to:
 
 The `integration-tests` job only starts after `unit-tests` passes, saving
 CI minutes when unit tests already fail.
+
+The `e2e` job is **not** a required check, on purpose: a browser test is the one whose
+flake would block every merge, and the path it covers is proven at the service layer by
+`integration-tests` regardless.
 
 ## Writing new integration tests
 

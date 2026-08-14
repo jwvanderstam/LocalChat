@@ -334,9 +334,42 @@ sequence production runs. The empty-database case is kept, as the assertion that
 stay green are the guards, which assert failures and so pass either way. Reverted.
 
 
-### TQ-4 — One Playwright smoke test ⬜
+### TQ-4 — One Playwright smoke test ✅
 
 Login → upload document → ask question → receive answer with citation. **That is the entire frontend test strategy**, deliberately. The vanilla-JS frontend (9 files + an 867-line `settings.html`) is not worth a component-test investment at this scope; one end-to-end proof that the golden path works catches the regressions that matter.
+
+`tests/e2e/test_golden_path.py`, against a server `tests/e2e/conftest.py` starts itself —
+uvicorn in a subprocess, the integration job's Postgres, and TQ-2's fake Ollama in place
+of a GPU. Only the model process is faked; auth, templates, the SSE upload stream,
+ingest, pgvector retrieval and the SSE chat stream are the real ones. CI runs it in a
+new `e2e` job, **deliberately not in the ruleset** — a browser test is the one job whose
+flake would block every merge, and the same path is proven at the service layer by
+`integration-tests` regardless.
+
+Three things were wrong on the way, and each is why the test reads as it does:
+
+- **`tests/e2e/test_smoke.py` had not run against this product since TQ-1b.** All five
+  tests fail: they were written against a UI with no login, so every page they open
+  redirects to `/login`. Nothing caught it because Playwright is installed nowhere, and
+  `pytest.importorskip` turns "these tests are broken" into "these tests are skipped" —
+  the same silence TQ-2 found in the `ollama`-marked suites. Deleted rather than fixed;
+  the golden path is the strategy now.
+- **Asserting on the answer text would have been vacuous.** The stub replies with the
+  prompt it was handed, and the prompt carries the retrieved context — so the filename
+  appears in the reply whether or not a citation was ever rendered. The assertion is on
+  the sources panel the frontend builds.
+- **The first version was flaky against a database that was not empty.** Every run
+  uploads the same prose under a fresh name, so an earlier run's identical chunk could
+  win the top rank and the answer cited *that* file. Found by accident while breaking
+  the test on purpose; CI would never have shown it, since CI's database is always new.
+  The document and the question now share a per-run codename, and the test retires its
+  document afterwards.
+
+**Acceptance met:** three separate breakages each turn it red, and each hits a different
+assertion — not rendering the sources panel (the citation), disabling the similarity
+threshold so every chunk passes (the unrelated-question check, which is what stops the
+citation assertion from passing for a retriever that cites everything), and removing
+auth.js's 401 redirect (the unauthenticated guard). All reverted.
 
 ---
 
@@ -433,7 +466,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
 | PG-3 | TQ-1a ✅ (authz-by-default introspection) + TQ-1b ✅ (bypass deleted; 290 tests converted, not the 39 the ticket counted) | done |
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
-| PG-5 | TQ-3 + TQ-4 (scoped mutation gate; Playwright smoke) | 1 week |
+| PG-5 | TQ-3 (scoped mutation gate) + TQ-4 ✅ (Playwright golden path, self-starting server) | 1 week |
 | PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
 | PG-7 | OPS-1 + OPS-2 (uv lock; bounded de-globalisation) | 1 week |
 | PG-8 | OPS-3 + OPS-4 + OPS-5 (docs mechanism, restore proof, release + topology) | 1 week |

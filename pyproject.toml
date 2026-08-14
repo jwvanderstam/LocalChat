@@ -32,6 +32,7 @@ asyncio_mode = "auto"
 markers = [
     "unit: Unit tests (fast, isolated)",
     "integration: Integration tests (slower, require services)",
+    "e2e: End-to-end tests driving a real browser (require Playwright and PostgreSQL)",
     "slow: Slow tests (> 1 second)",
     "db: Tests requiring database",
     "ollama: Tests requiring Ollama service",

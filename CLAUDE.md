@@ -157,8 +157,10 @@ and requires three checks to pass before anything merges: `unit-tests`,
 merged — this is enforced, not a convention.
 
 Deliberately *not* required: `build-and-push` (15–20 min, would block every
-merge) and `SonarCloud Scan` (reports `skipping` on some PRs, and a required
-check that never runs blocks the PR forever).
+merge), `SonarCloud Scan` (reports `skipping` on some PRs, and a required
+check that never runs blocks the PR forever), and `e2e` (a browser test is the
+one job whose flake would block every merge; the golden path it drives is proven
+at the service layer by `integration-tests` regardless).
 
 **The ruleset targets the default branch only.** It once targeted `~ALL`, which
 made `required_status_checks` reject the push of any *new* branch — a fresh
@@ -244,6 +246,7 @@ pytest                                      # all tests + coverage
 pytest -m "not (slow or ollama or db)"     # fast only
 pytest tests/unit/                          # unit only
 pytest tests/integration/                   # integration only
+pytest tests/e2e/                           # golden path in a browser (needs Playwright + a throwaway PG_*)
 git session-status                          # end-of-session: orphaned commits, sync drift, open PRs
 # one-time setup (alias lives in local .git/config, not the repo):
 #   git config alias.session-status '!bash scripts/session-status.sh'

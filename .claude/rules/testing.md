@@ -98,6 +98,11 @@ a proxy DOM, a canned `fetch`; assert the resulting state).
 - Confirm the test fails with the fix reverted. Tests that guard against
   *over*-correction should pass both ways — that is what makes them worth keeping.
 
+The node harness covers branch logic in one file. The *path* through several of them —
+sign in, upload, ask, cited answer — is covered once, in a real browser, by
+`tests/e2e/test_golden_path.py` (TQ-4). That is the whole of the browser strategy:
+add to it only when a regression escapes both it and the node harness.
+
 ## Coverage
 
 - The fast suite is the coverage baseline: `pytest -m "not (slow or ollama or db)"`.
