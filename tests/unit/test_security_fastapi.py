@@ -90,6 +90,37 @@ class TestVerifyCredentials:
 
 
 @pytest.mark.unit
+class TestSessionAndTokenContracts:
+    """TQ-3. Three names other code depends on by value, none of them asserted:
+    renaming any of them left the whole suite green."""
+
+    def test_the_session_cookie_name_is_fixed(self):
+        """The browser sends this name; changing it signs everyone out at once."""
+        from src.security_fastapi import SESSION_COOKIE
+
+        assert SESSION_COOKIE == "localchat_session"
+
+    def test_every_token_carries_a_jti(self):
+        """Revocation is keyed on `jti` (SEC-2). A token minted without one cannot
+        be revoked at all."""
+        from src.security_fastapi import _decode_token, create_access_token
+
+        claims = _decode_token(create_access_token("user-abc"))
+
+        assert claims["jti"]
+
+    def test_two_tokens_for_one_user_get_different_jtis(self):
+        """A shared jti would revoke every session a user has, not the one asked
+        for — and the assertion above passes for a constant."""
+        from src.security_fastapi import _decode_token, create_access_token
+
+        first = _decode_token(create_access_token("user-abc"))["jti"]
+        second = _decode_token(create_access_token("user-abc"))["jti"]
+
+        assert first != second
+
+
+@pytest.mark.unit
 class TestVerifyCredentialsDb:
     def test_db_user_found(self):
         from src.security_fastapi import verify_credentials_db
@@ -99,6 +130,40 @@ class TestVerifyCredentialsDb:
         db.verify_user_password.return_value = {"id": "u1", "role": "user"}
         result = verify_credentials_db("alice", "secret", db)
         assert result == ("u1", "user")
+
+    def test_the_row_s_own_role_is_returned_not_the_fallback(self):
+        """TQ-3. The case above uses a row whose role is `"user"` — the same value
+        the fallback supplies — so it passes whether the role is read or invented."""
+        from src.security_fastapi import verify_credentials_db
+
+        db = MagicMock()
+        db.is_connected = True
+        db.verify_user_password.return_value = {"id": "u1", "role": "admin"}
+
+        assert verify_credentials_db("alice", "secret", db) == ("u1", "admin")
+
+    def test_a_row_with_no_role_falls_back_to_the_least_privileged_one(self):
+        from src.security_fastapi import verify_credentials_db
+
+        db = MagicMock()
+        db.is_connected = True
+        db.verify_user_password.return_value = {"id": "u1"}
+
+        assert verify_credentials_db("alice", "secret", db) == ("u1", "user")
+
+    def test_a_database_object_without_is_connected_is_not_consulted(self):
+        """TQ-3. The `False` default in `getattr(db, "is_connected", False)`: with
+        it flipped, an object that never reports connectivity gets asked to
+        authenticate anyway. A MagicMock always has the attribute, so only a real
+        object without one reaches the default."""
+        from src.security_fastapi import verify_credentials_db
+
+        class DatabaseWithoutTheAttribute:
+            def verify_user_password(self, username: str, password: str) -> dict[str, str]:
+                return {"id": "u1", "role": "admin"}
+
+        # Falls through to the env-var admin, which refuses a non-admin username.
+        assert verify_credentials_db("alice", "secret", DatabaseWithoutTheAttribute()) is None
 
     def test_db_not_connected_falls_back(self):
         from src.security_fastapi import verify_credentials_db

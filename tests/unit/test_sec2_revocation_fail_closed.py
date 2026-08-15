@@ -50,6 +50,15 @@ class TestNormalOperation:
             sec._verify_jti_not_revoked(JTI, _db(revoked=True))
         assert exc.value.status_code == 401
 
+    def test_the_refusal_uses_the_error_envelope_the_frontend_reads(self):
+        """TQ-3. Renaming the `message` key left every test green, because they all
+        assert on `status_code`. `static/js/auth.js` and every caller read
+        `data.message`, so the key is part of the contract."""
+        with pytest.raises(HTTPException) as exc:
+            sec._verify_jti_not_revoked(JTI, _db(revoked=True))
+
+        assert exc.value.detail == {"message": "Token has been revoked"}
+
     def test_a_revoked_token_is_never_cached_as_usable(self):
         """A refusal must not leave a verdict that would let it through later."""
         with pytest.raises(HTTPException):
@@ -114,3 +123,85 @@ class TestCacheIsBounded:
         for i in range(sec._REVOCATION_CACHE_MAX + 200):
             sec._verify_jti_not_revoked(f"jti-{i}", db)
         assert len(sec._revocation_cache) <= sec._REVOCATION_CACHE_MAX
+
+    def test_the_cache_is_reset_on_the_entry_that_reaches_the_limit(self):
+        """TQ-3. `<= MAX` above holds for a cache that evicts one entry late, so
+        the off-by-one in `len(...) >= _REVOCATION_CACHE_MAX` was unverified.
+
+        With every entry fresh there is nothing stale to drop, so the limit-th
+        insert clears the cache and starts over — leaving exactly one entry.
+        """
+        db = _db(revoked=False)
+        for i in range(sec._REVOCATION_CACHE_MAX + 1):
+            sec._verify_jti_not_revoked(f"jti-{i}", db)
+
+        assert len(sec._revocation_cache) == 1
+
+    def test_the_cache_holds_exactly_the_limit_before_that(self):
+        """The other side of the boundary: one fewer insert must not reset it."""
+        db = _db(revoked=False)
+        for i in range(sec._REVOCATION_CACHE_MAX):
+            sec._verify_jti_not_revoked(f"jti-{i}", db)
+
+        assert len(sec._revocation_cache) == sec._REVOCATION_CACHE_MAX
+
+
+@pytest.mark.unit
+class TestTheTuningIsWhatTheCommentsPromise:
+    """Every other test refers to these symbolically, so changing a constant moves
+    the code and the test together and nothing objects. Both values carry a stated
+    guarantee in the source, and the guarantee is what is pinned here."""
+
+    def test_the_grace_window_is_a_minute(self):
+        """`_REVOCATION_CACHE_TTL`: "a revocation takes effect within a minute even
+        during [an outage]". A larger value silently lengthens that window."""
+        assert sec._REVOCATION_CACHE_TTL == 60.0
+
+    def test_the_cache_bound_is_the_documented_one(self):
+        assert sec._REVOCATION_CACHE_MAX == 4096
+
+
+@pytest.mark.unit
+class TestTheGraceBoundary:
+    """`_recently_verified` compares with `<`, so a verdict exactly TTL old has
+    expired. `test_the_grace_expires` uses TTL + 1, which passes either way."""
+
+    # The clock is pinned for the *recording* call too. Reading the real clock
+    # first makes the gap TTL + however long the call took, which lands on the
+    # expired side of both `<` and `<=` and so proves nothing about the boundary.
+    RECORDED_AT = 1_000.0
+
+    def _record_then_check_at(self, elapsed: float) -> None:
+        with patch.object(sec.time, "monotonic", return_value=self.RECORDED_AT):
+            sec._verify_jti_not_revoked(JTI, _db(revoked=False))
+        with patch.object(sec.time, "monotonic", return_value=self.RECORDED_AT + elapsed):
+            sec._verify_jti_not_revoked(JTI, _db(connected=False))
+
+    def test_a_verdict_exactly_ttl_old_is_no_longer_usable(self):
+        with pytest.raises(HTTPException):
+            self._record_then_check_at(sec._REVOCATION_CACHE_TTL)
+
+    def test_a_verdict_just_under_ttl_still_is(self):
+        self._record_then_check_at(sec._REVOCATION_CACHE_TTL - 0.5)
+
+
+@pytest.mark.unit
+class TestTheConnectedCheckFailsClosed:
+    def test_a_database_object_without_is_connected_is_treated_as_down(self):
+        """`getattr(db, "is_connected", False)` — the default is the whole point.
+        Flipping it to True makes an object that never reports connectivity look
+        connected, which is the fail-open shape SEC-2 removed. A MagicMock always
+        has the attribute, so only a real object without one exercises it."""
+
+        class DatabaseWithoutTheAttribute:
+            def is_token_revoked(self, jti: str) -> bool:
+                # Answers "not revoked" rather than raising: raising lands in the
+                # `except Exception` fallback, which refuses anyway, so the test
+                # would pass with the default flipped. Answering lets the mutant
+                # through to the accept path, which is what makes it detectable.
+                return False
+
+        with pytest.raises(HTTPException) as exc:
+            sec._verify_jti_not_revoked(JTI, DatabaseWithoutTheAttribute())
+
+        assert exc.value.status_code == 401
