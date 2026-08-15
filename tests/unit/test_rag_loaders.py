@@ -18,7 +18,53 @@ Author: LocalChat Team
 Created: January 2025
 """
 
-from unittest.mock import MagicMock, patch
+from collections.abc import Callable
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+
+@pytest.fixture
+def real_pdf(tmp_path) -> Callable[[str], Path]:
+    """Build an actual one-page PDF containing *text*."""
+    def _build(text: str) -> Path:
+        from reportlab.pdfgen import canvas
+
+        path = tmp_path / "sample.pdf"
+        pdf = canvas.Canvas(str(path))
+        pdf.drawString(72, 720, text)
+        pdf.save()
+        return path
+    return _build
+
+
+@pytest.fixture
+def blank_pdf(tmp_path) -> Path:
+    """A structurally valid PDF with no text on it."""
+    from reportlab.pdfgen import canvas
+
+    path = tmp_path / "blank.pdf"
+    pdf = canvas.Canvas(str(path))
+    pdf.showPage()
+    pdf.save()
+    return path
+
+
+@pytest.fixture
+def real_docx(tmp_path) -> Path:
+    """An actual .docx with two paragraphs and a table, since the loader reads both."""
+    from docx import Document as DocxDocument
+
+    path = tmp_path / "sample.docx"
+    document = DocxDocument()
+    document.add_paragraph("Paragraph 1 content")
+    document.add_paragraph("Paragraph 2 content")
+    table = document.add_table(rows=1, cols=2)
+    table.cell(0, 0).text = "Region"
+    table.cell(0, 1).text = "Benelux"
+    document.save(str(path))
+    return path
 
 import pytest
 
@@ -65,71 +111,55 @@ class TestTextFileLoading:
 
 
 class TestPDFLoading:
-    """Test PDF file loading."""
+    """Test PDF file loading against real PDFs.
 
-    @pytest.mark.skip(reason="pdfplumber uses dynamic imports, difficult to mock")
-    def test_load_pdf_with_pdfplumber_success(self):
-        """Test PDF loading with pdfplumber."""
+    These were skipped as "pdfplumber uses dynamic imports, difficult to mock",
+    which diagnosed the wrong problem: the loader picks an extractor at runtime
+    precisely so it can fall back, and a test that mocks the extractor asserts
+    the mock. `reportlab` is already a dependency, so the fixture can be a real
+    PDF and the assertion can be about what the loader actually extracted.
+    """
+
+    def test_load_pdf_returns_the_text_in_the_file(self, real_pdf):
         from src.rag import doc_processor
 
-        # Mock pdfplumber
-        mock_pdf = MagicMock()
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = "Page 1 content"
-        mock_page.extract_tables.return_value = []
-        mock_pdf.pages = [mock_page]
+        success, content = doc_processor.load_pdf_file(str(real_pdf("Quarterly revenue summary")))
 
-        with patch('src.rag.pdfplumber') as mock_pdfplumber:
-            mock_pdfplumber.open.return_value.__enter__.return_value = mock_pdf
+        assert success is True
+        assert "Quarterly revenue summary" in content
 
-            success, content = doc_processor.load_pdf_file("test.pdf")
-
-            assert success is True
-            assert "Page 1 content" in content
-
-    @pytest.mark.skip(reason="pdfplumber uses dynamic imports, difficult to mock")
-    def test_load_pdf_handles_empty_pdf(self):
-        """Test handling of empty PDF files."""
+    def test_load_pdf_reports_failure_for_a_pdf_with_no_text(self, blank_pdf):
+        """The negative side: a PDF that parses fine but yields nothing."""
         from src.rag import doc_processor
 
-        # Mock empty PDF
-        mock_pdf = MagicMock()
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = ""
-        mock_pdf.pages = [mock_page]
+        success, error = doc_processor.load_pdf_file(str(blank_pdf))
 
-        with patch('src.rag.pdfplumber') as mock_pdfplumber:
-            mock_pdfplumber.open.return_value.__enter__.return_value = mock_pdf
-
-            success, error = doc_processor.load_pdf_file("empty.pdf")
-
-            assert success is False
-            assert "empty" in error.lower()
+        assert success is False
+        assert "empty" in error.lower() or "no text" in error.lower()
 
 
 class TestDOCXLoading:
     """Test DOCX file loading."""
 
-    @pytest.mark.skip(reason="python-docx uses dynamic imports, difficult to mock")
-    def test_load_docx_success(self):
-        """Test successful DOCX loading."""
+    def test_load_docx_returns_every_paragraph(self, real_docx):
         from src.rag import doc_processor
 
-        # Mock Document
-        mock_doc = MagicMock()
-        mock_para1 = MagicMock()
-        mock_para1.text = "Paragraph 1 content"
-        mock_para2 = MagicMock()
-        mock_para2.text = "Paragraph 2 content"
-        mock_doc.paragraphs = [mock_para1, mock_para2]
-        mock_doc.tables = []
+        success, content = doc_processor.load_docx_file(str(real_docx))
 
-        with patch('src.rag.Document', return_value=mock_doc):
-            success, content = doc_processor.load_docx_file("test.docx")
+        assert success is True
+        assert "Paragraph 1 content" in content
+        assert "Paragraph 2 content" in content
 
-            assert success is True
-            assert "Paragraph 1" in content
-            assert "Paragraph 2" in content
+    def test_load_docx_also_returns_table_cells(self, real_docx):
+        """The docstring promises tables as well as paragraphs, and the mocked
+        version set `tables = []` — so the half that reads tables was asserted
+        by nothing."""
+        from src.rag import doc_processor
+
+        success, content = doc_processor.load_docx_file(str(real_docx))
+
+        assert success is True
+        assert "Benelux" in content
 
     def test_load_docx_handles_missing_file(self):
         """Test handling of missing DOCX file."""
@@ -157,25 +187,15 @@ class TestDocumentLoading:
         assert success is True
         assert "Text content" in content
 
-    @pytest.mark.skip(reason="PDF loading uses dynamic imports")
-    def test_load_document_routes_to_pdf(self):
-        """Test load_document routes .pdf files correctly."""
+    def test_load_document_routes_to_pdf(self, real_pdf):
+        """Routing, asserted on the routed-to loader's actual output rather than
+        on `len(content) > 0`, which the text loader would satisfy too."""
         from src.rag import doc_processor
 
-        mock_pdf = MagicMock()
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = "PDF content"
-        mock_page.extract_tables.return_value = []
-        mock_pdf.pages = [mock_page]
+        success, content = doc_processor.load_document(str(real_pdf("Routed to the PDF loader")))
 
-        with patch('src.rag.pdfplumber') as mock_pdfplumber:
-            mock_pdfplumber.open.return_value.__enter__.return_value = mock_pdf
-
-            success, content = doc_processor.load_document("test.pdf")
-
-            assert success is True
-            assert len(content) > 0
-
+        assert success is True
+        assert "Routed to the PDF loader" in content
 
     def test_load_document_handles_unsupported_type(self):
         """Test load_document rejects unsupported file types."""

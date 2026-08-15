@@ -6,6 +6,8 @@ Tests logging setup, logger creation, and formatting.
 
 import logging
 import os
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -16,7 +18,7 @@ from src.utils.logging_config import get_logger, log_function_call, setup_loggin
 # ============================================================================
 
 @pytest.mark.unit
-@pytest.mark.skip(reason="File locking issues on Windows")
+@pytest.mark.skipif(sys.platform == "win32", reason="file locking on Windows")
 class TestSetupLogging:
     """Tests for setup_logging function."""
 
@@ -185,7 +187,7 @@ class TestLogFunctionCallDecorator:
 # ============================================================================
 
 @pytest.mark.unit
-@pytest.mark.skip(reason="File locking issues on Windows during test cleanup")
+@pytest.mark.skipif(sys.platform == "win32", reason="file locking on Windows during test cleanup")
 class TestLoggingOutput:
     """Tests for logging output."""
 
@@ -203,21 +205,27 @@ class TestLoggingOutput:
             content = f.read()
             assert "Test message" in content
 
-    def test_logger_respects_log_level(self, temp_dir, caplog):
-        """Should respect log level."""
+    def test_logger_respects_log_level(self, temp_dir):
+        """Should respect log level.
+
+        Asserted against the log file, not `caplog`: `setup_logging()` calls
+        `root_logger.handlers.clear()`, which removes the handler pytest installs
+        to populate `caplog`. The records were emitted — they show up in captured
+        stderr — but `caplog.records` is empty, so this read as a logging failure
+        when it was a test-harness one.
+        """
         log_file = os.path.join(temp_dir, "test.log")
         setup_logging(log_level="WARNING", log_file=log_file)
 
         logger = get_logger("test")
+        logger.debug("Debug message")      # below the configured level
+        logger.warning("Warning message")  # at it
+        for handler in logging.getLogger().handlers:
+            handler.flush()
 
-        with caplog.at_level(logging.WARNING):
-            logger.debug("Debug message")  # Should not appear
-            logger.warning("Warning message")  # Should appear
-
-        # Warning should be logged, debug should not
-        messages = [record.message for record in caplog.records]
-        assert "Warning message" in messages
-        assert "Debug message" not in messages
+        written = Path(log_file).read_text(encoding="utf-8")
+        assert "Warning message" in written
+        assert "Debug message" not in written
 
     def test_logger_formats_messages_correctly(self, temp_dir):
         """Should format log messages correctly."""
@@ -240,7 +248,7 @@ class TestLoggingOutput:
 # ============================================================================
 
 @pytest.mark.unit
-@pytest.mark.skip(reason="File locking issues on Windows")
+@pytest.mark.skipif(sys.platform == "win32", reason="file locking on Windows")
 class TestLoggerHierarchy:
     """Tests for logger hierarchy."""
 
@@ -269,7 +277,7 @@ class TestLoggerHierarchy:
 # ============================================================================
 
 @pytest.mark.unit
-@pytest.mark.skip(reason="File locking issues on Windows during test cleanup")
+@pytest.mark.skipif(sys.platform == "win32", reason="file locking on Windows during test cleanup")
 class TestLoggingEdgeCases:
     """Edge case tests for logging."""
 
@@ -331,7 +339,7 @@ class TestLoggingEdgeCases:
 # ============================================================================
 
 @pytest.mark.unit
-@pytest.mark.skip(reason="File locking issues on Windows during test cleanup")
+@pytest.mark.skipif(sys.platform == "win32", reason="file locking on Windows during test cleanup")
 class TestLoggingIntegration:
     """Integration tests for logging."""
 
