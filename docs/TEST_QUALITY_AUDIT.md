@@ -46,6 +46,34 @@ Tool: [`mutmut`](https://mutmut.readthedocs.io/). Audited 2026-07-16/17.
   stores results in a `.mutmut-cache` file in the current directory; starting
   a second run before reading the first's results clears the cache out from
   under it.
+- **Export CI's environment variables into the run, or whole functions are dead
+  code and score for free.** The worktree has no `.env` (it is gitignored), and
+  `tests/conftest.py` supplies only `PG_PASSWORD`. With `ADMIN_PASSWORD` unset,
+  `verify_credentials()` returns at its first guard for every input, so all
+  fourteen mutants below that guard "survived" without a test ever reaching them.
+  Pass the same variables `.github/workflows/tests.yml` sets:
+  ```bash
+  docker exec -e ADMIN_PASSWORD=ci-test-admin-password -e PG_PASSWORD=ci_test_password \
+    -e SECRET_KEY=... -e JWT_SECRET_KEY=... -e APP_ENV=development mutmut-runner ...
+  ```
+  A survivor in a code path the environment cannot reach says nothing about the
+  tests. Sanity-check any suspiciously bad module by calling the function directly
+  under `pytest` before believing its score.
+- **`mutmut`'s classification is wall-clock based, so do not use the machine while
+  it runs.** It measures a baseline once and buckets each mutant partly on how long
+  the run took. Running anything else — another `pytest`, a `docker build`, a second
+  `mutmut` — inflates mutant runtimes into 🤔 *suspicious*, which is neither killed
+  nor survived. A first run of `security_fastapi.py` reported 4 killed / 108
+  suspicious; idle, with `--test-time-base 60`, the identical scope reported 112
+  killed / 0 suspicious. Pass `--test-time-base 60` regardless: it costs nothing on
+  a healthy run and makes the result reproducible.
+- **`python:3.12-slim` has no `git`.** `tests/unit/test_sec1_no_demo_mode.py` shells
+  out to it and dies with `FileNotFoundError: 'git'`, which reads like a security
+  regression and is not. `apt-get install -y git` in the container.
+- Expect `git status` in the worktree to show every mutated file as modified after a
+  run on Windows: the container rewrites them with LF endings. `git diff --numstat`
+  is empty when it is only that — worth checking rather than assuming a leftover
+  mutant, since the warning above trains you to suspect one.
 - Log-message-only mutations (`f"text"` → `f"XXtextXX"` inside a `logger.debug`/
   `.info` call, or an off-by-one in a message-truncation slice) routinely
   survive and are **not worth chasing** — asserting on exact log text is itself
@@ -162,9 +190,47 @@ string always embeds `cls.value` by construction, so the assertion
 (`any(cls in rationale for cls in [...])`) passes for *any* correctly-classified
 result, not just the correct one.
 
+### `src/security_fastapi.py` — 119/202 killed (58.9%), was 112/202
+
+**The TQ-3 gate module.** Two findings, one of them live authentication.
+
+`verify_credentials()` — the env-var admin account, reached whenever
+`verify_credentials_db()` gets no user from the database — had three tests, all
+asserting `None`. **Nothing asserted a successful login**, so the success path and
+the guard reaching it were unverified in five ways: `username != "admin"` → `==`,
+dropping the `not` on `_ADMIN_PASSWORD_RAW`, `or` → `and`, and rewriting either
+returned value. The username inversion is the sharp one — it makes the admin
+password work for *any* username, authenticated as admin.
+
+Those tests also passed **without executing the code they name**: with
+`ADMIN_PASSWORD` unset the function returns at its first guard, so
+`test_admin_wrong_password_returns_none` passed because nothing was compared. It
+would have passed with the password comparison deleted. The fixture now pins a
+known password, which both makes the assertions real and makes them independent
+of the environment. Note the interaction with the environment rule above — the
+`hmac.compare_digest` inversion only became killable once the password was pinned.
+
+**Still open (83 survivors), the clusters worth attacking next:**
+
+- The revocation cache's boundaries — `>=` → `>`, `<` → `<=`, and the `_REVOCATION_CACHE_TTL`/`_REVOCATION_CACHE_MAX` constants — are all unexercised at the boundary itself. SEC-2 made revocation fail-closed; its cache eviction is untested.
+- `getattr(db, "is_connected", False)` → `True` survives in two places. The fail-open default is the exact shape SEC-2 existed to remove.
+- The error envelope: `detail={"message": ...}` → a renamed key survives everywhere. The frontend reads `data.message`, so no test pins the contract it depends on.
+- `SESSION_COOKIE` and the `"jti"` claim key can both be renamed freely — the session and revocation contracts respectively.
+- `db_user.get("role", "user")` — the fallback role for a row without one is never exercised.
+
+### `src/utils/workspace.py` — 5/5 killed (100%), was 4/5
+
+`get_workspace_id()` reads `X-Workspace-ID`, then falls back to a `workspace_id`
+query parameter. Renaming that parameter to garbage killed nothing: every test
+sent the header or nothing at all, so the documented query form had no coverage.
+Two tests added — the parameter scoping a request, and a parameter naming a
+workspace the caller is not a member of being refused `(403, "Access denied: not
+a workspace member")`. The second matters because the query parameter *selects
+what authorisation runs against*; it is scope, not a way around membership.
+
 ## What this does and doesn't cover
 
-Five modules were audited (out of 91 unit test files) — chosen for algorithmic
+Seven modules were audited (out of 91 unit test files) — chosen for algorithmic
 complexity where weak tests carry real risk, not a representative sample of the
 whole suite. Extending this to more modules is mechanical now that the
 environment/scoping approach above is worked out; the main cost is the
