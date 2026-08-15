@@ -289,11 +289,44 @@ mocked:
 Also recorded in TROUBLESHOOTING: on Windows, `PG_HOST=localhost` resolves to IPv6 while
 Docker publishes on `127.0.0.1`, so every connection costs 5 s and the pool times out.
 
-### TQ-3 — Mutation gate, scoped ruthlessly ⬜
+### TQ-3 — Mutation gate, scoped ruthlessly ◐ (in progress)
 
 Nightly, core modules only: `security_fastapi.py`, workspace scoping, `db/documents.py` filters, retrieval scoping. Gate at an agreed threshold; rewrite tests only where surviving mutants point.
 
 **Explicitly out of scope:** wholesale remediation of the ~31k-line test suite. That is a quarter of solo effort with diffuse payoff. The mutation gate concentrates effort exactly where the three confirmed bugs lived.
+
+**Gate decided: `security_fastapi.py` + `src/utils/workspace.py`, threshold 80%.**
+The other two modules are measured and reported nightly but do not fail the build
+until they have a baseline and a remediation pass of their own. A per-module
+threshold set to today's score would ratify the status quo rather than gate it —
+80% against a measured 58.9% is the point.
+
+**Measured (2026-08-15), `mutmut<3`, per the corrected method in [TEST_QUALITY_AUDIT.md](TEST_QUALITY_AUDIT.md):**
+
+| Module | Killed | Survived | Rate |
+|---|---|---|---|
+| `src/security_fastapi.py` | 119 | 83 | 58.9% (was 112/202) |
+| `src/utils/workspace.py` | 5 | 0 | 100% (was 4/5) |
+| `src/db/documents.py` | — | — | not yet measured |
+| `src/rag/retrieval.py` | — | — | not yet measured |
+
+**Done so far:** seven mutants moved from survived to killed, all in code that
+authenticates or scopes — five in `verify_credentials` (including one that makes
+the admin password work for any username), one in the `workspace_id` query-parameter
+fallback, and the `hmac.compare_digest` inversion that only becomes killable once a
+password is pinned. Each was verified against the exact mutant, not assumed.
+
+**Three measurement corrections**, all of which had already distorted a number
+before being caught, are now in the audit doc's environment notes: CI's env vars
+must be exported into the run or whole functions are unreachable and score for free;
+`mutmut` buckets partly on wall-clock, so a loaded machine files kills as
+"suspicious" (a first run read 4 killed / 108 suspicious, the same scope idle read
+112 / 0); and `python:3.12-slim` has no `git`, which one test shells out to.
+
+**Remaining:** baselines for `db/documents.py` and `rag/retrieval.py`; the 83
+`security_fastapi.py` survivors (clusters listed in the audit doc — revocation-cache
+boundaries, the two fail-open `is_connected` defaults, the error-envelope key, and
+the `SESSION_COOKIE`/`jti` contracts); then the nightly workflow itself.
 
 ### TQ-5a — Alembic chain integrity check ✅ (done)
 
