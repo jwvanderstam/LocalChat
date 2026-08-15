@@ -323,10 +323,25 @@ must be exported into the run or whole functions are unreachable and score for f
 "suspicious" (a first run read 4 killed / 108 suspicious, the same scope idle read
 112 / 0); and `python:3.12-slim` has no `git`, which one test shells out to.
 
+**The gate is wired** — `scripts/mutation_gate.py`, run nightly by
+`.github/workflows/mutation.yml` and on demand with a threshold input. It exports
+CI's environment variables, passes `--test-time-base`, runs one module at a time,
+and fails the job on a working tree left dirty by an abandoned mutant.
+
+It screens the score before judging it, because during TQ-3 two different broken
+runs produced plausible numbers. `killed == 0` is reported as *"the runner is not
+exercising this module"* rather than as 0%, and any mutant classified *suspicious*
+voids the run rather than being counted — those are opposite conclusions that look
+identical in a percentage. A void run exits 2; a genuine miss exits 1.
+
+**Expect it red until the survivors are dealt with.** At 58.9% against a threshold
+of 80% the nightly fails by design; it is a work queue with teeth, not a merge
+blocker — the job is scheduled, not required. Raise the score, not the threshold.
+
 **Remaining:** baselines for `db/documents.py` and `rag/retrieval.py`; the 83
 `security_fastapi.py` survivors (clusters listed in the audit doc — revocation-cache
 boundaries, the two fail-open `is_connected` defaults, the error-envelope key, and
-the `SESSION_COOKIE`/`jti` contracts); then the nightly workflow itself.
+the `SESSION_COOKIE`/`jti` contracts).
 
 ### TQ-5a — Alembic chain integrity check ✅ (done)
 
