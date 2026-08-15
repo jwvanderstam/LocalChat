@@ -25,7 +25,7 @@ LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TX
 | Caching | Redis or in-memory fallback |
 | ML / NLP | spaCy (GraphRAG), cross-encoder reranker (optional) |
 | Linter | `ruff` |
-| Tests | pytest + pytest-asyncio (`asyncio_mode = "auto"`) + pytest-cov |
+| Tests | pytest + pytest-asyncio (`asyncio_mode = "auto"`) + pytest-cov; pytest-playwright for `tests/e2e` (browser installed separately: `playwright install chromium`) |
 
 ---
 

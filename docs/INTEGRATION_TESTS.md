@@ -54,9 +54,14 @@ pytest tests/integration/ -v
 It starts its own LocalChat, so nothing needs to be running first except PostgreSQL:
 
 ```bash
-pip install pytest-playwright && playwright install chromium
+playwright install chromium    # pytest-playwright itself is in requirements.txt
 pytest tests/e2e/ -v
 ```
+
+The browser binary is the one piece no wheel carries, so it is a separate command
+here and a separate step in CI. Without it the suite skips locally — but **never in
+CI**, where a missing import raises instead: a silently skipped browser suite is
+what let the previous one rot.
 
 The model is stubbed (`tests/utils/fake_ollama.py`), so no Ollama and no GPU are needed.
 

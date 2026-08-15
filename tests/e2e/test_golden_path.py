@@ -14,6 +14,7 @@ broken this path at least once without a Python test noticing.
 
 from __future__ import annotations
 
+import os
 import re
 import uuid
 from collections.abc import Iterator
@@ -22,11 +23,19 @@ from typing import NamedTuple
 
 import pytest
 
-playwright_mod = pytest.importorskip(
-    "playwright",
-    reason="playwright not installed — run: pip install pytest-playwright && playwright install chromium",
-)
-from playwright.sync_api import Page, expect  # noqa: E402
+try:
+    from playwright.sync_api import Page, expect
+except ImportError:
+    if os.environ.get("CI"):
+        # Never skip in CI. `pytest.importorskip` is how the suite this file
+        # replaced stayed broken for months: the tests reported "skipped" and the
+        # job reported green. `pytest-playwright` is in requirements.txt, so a
+        # missing import here means CI is misconfigured, and that must be loud.
+        raise
+    pytest.skip(
+        "playwright not installed — run: pip install -r requirements.txt && playwright install chromium",
+        allow_module_level=True,
+    )
 
 from tests.e2e.conftest import ADMIN_PASSWORD, ADMIN_USERNAME  # noqa: E402
 
