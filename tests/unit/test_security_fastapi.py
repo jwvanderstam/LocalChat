@@ -2,9 +2,36 @@
 
 from __future__ import annotations
 
+import hashlib
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+#: PBKDF2 rounds `verify_credentials` uses. Spelled out rather than imported so a
+#: change to the real constant fails these tests instead of following them silently.
+_PBKDF2_ROUNDS = 100_000
+
+
+@pytest.fixture
+def env_admin_password(monkeypatch):
+    """A known env-var admin password, so the *success* path can be asserted.
+
+    Without this the tests below depend on whatever `ADMIN_PASSWORD` the
+    environment happens to hold. Unset — as in a bare container — every call
+    returns None at the first guard, and a test asserting None passes without
+    reaching the password comparison at all (TQ-3).
+    """
+    from src import security_fastapi as sec
+
+    password = "known-admin-password-for-tests"
+    salt = b"\x17" * 32
+    monkeypatch.setattr(sec, "_ADMIN_PASSWORD_RAW", password)
+    monkeypatch.setattr(sec, "_ADMIN_PASSWORD_SALT", salt)
+    monkeypatch.setattr(
+        sec, "_ADMIN_PASSWORD_HASH",
+        hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _PBKDF2_ROUNDS),
+    )
+    return password
 
 
 @pytest.mark.unit
@@ -30,11 +57,29 @@ class TestVerifyCredentials:
 
         assert verify_credentials("wronguser", "anypassword") is None
 
-    def test_admin_wrong_password_returns_none(self):
+    def test_admin_wrong_password_returns_none(self, env_admin_password):
         from src.security_fastapi import verify_credentials
 
         result = verify_credentials("admin", "definitely-wrong-password-xyz")
         assert result is None
+
+    def test_correct_admin_credentials_return_the_admin_subject_and_role(
+            self, env_admin_password):
+        """The success path, asserted for the first time. Every test here checked a
+        rejection, so mutating the return value — or the guard that reaches it —
+        changed nothing any test could see."""
+        from src.security_fastapi import verify_credentials
+
+        assert verify_credentials("admin", env_admin_password) == ("admin", "admin")
+
+    def test_another_username_with_the_admin_password_is_refused(
+            self, env_admin_password):
+        """Inverting the username guard makes this account's password work for *any*
+        username, authenticated as admin. Only a correct password reaches that far,
+        so a wrong-password test cannot detect it."""
+        from src.security_fastapi import verify_credentials
+
+        assert verify_credentials("someone-else", env_admin_password) is None
 
     def test_no_admin_password_returns_none(self):
         from src.security_fastapi import verify_credentials
