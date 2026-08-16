@@ -1,0 +1,70 @@
+name: Mutation
+
+# TQ-3. Nightly, not per-PR: a scoped run is tens of minutes, and a mutation
+# score is a trend to watch rather than a merge decision. Not in the "Code
+# Verification" ruleset for the same reason.
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: "Minimum kill rate (%)"
+        required: false
+        default: "80"
+
+permissions:
+  contents: read
+
+# The same variables tests.yml sets. Not optional: with ADMIN_PASSWORD unset,
+# verify_credentials() returns at its first guard and every mutant below it
+# survives without a test ever reaching the code.
+env:
+  PG_HOST: localhost
+  PG_PORT: 5432
+  PG_USER: postgres
+  PG_PASSWORD: ci_test_password
+  PG_DB: rag_db
+  SECRET_KEY: ci-test-secret-key-32chars-minimum
+  JWT_SECRET_KEY: ci-test-jwt-secret-key
+  ADMIN_PASSWORD: ci-test-admin-password
+  OLLAMA_BASE_URL: http://localhost:11434
+  APP_ENV: development
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      # mutmut<3 is required, not a preference: 3.x asserts that a mutated
+      # module's name never starts with `src.`, which collides with this repo's
+      # imports. See docs/TEST_QUALITY_AUDIT.md.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt "mutmut<3"
+
+      # The gate mutates the checkout in place and reverts after each mutant. A
+      # dirty tree afterwards means a mutant was left behind, which would make
+      # every later result meaningless.
+      - name: Run the mutation gate
+        run: python scripts/mutation_gate.py --threshold "${{ inputs.threshold || '80' }}"
+
+      - name: Working tree is clean
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain -- src/)" ]; then
+            echo "::error::mutmut left a mutation on disk:"
+            git --no-pager diff --stat -- src/
+            exit 1
+          fi
+          echo "OK: no mutant left behind"
