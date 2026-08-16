@@ -91,7 +91,40 @@ jobs:
           PY
 
       - name: Run unit tests
-        run: pytest tests/unit/ -v --tb=short -x
+        shell: bash
+        run: pytest tests/unit/ -v --tb=short -x -rs | tee unit-output.txt
+
+      # A skipped test reports as success. That is how ten tests patching a
+      # module layout deleted in the src-layout migration, and eighteen skipped
+      # for a Windows-only reason on Linux runners, stayed green for months.
+      # Reasons go to the job summary so the next one is noticed in days.
+      - name: Skip census
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import collections, pathlib, re
+          text = pathlib.Path("unit-output.txt").read_text(errors="replace")
+          reasons = collections.Counter()
+          # Group by reason, not by call site: pytest prefixes each entry with
+          # `file.py:line:`, which would list one row per test and bury the shape.
+          for line in text.splitlines():
+              m = re.match(r"SKIPPED \[(\d+)\] (?:.+?\.py(?::\d+)?: )?(.+)", line.strip())
+              if m:
+                  reasons[m.group(2)] += int(m.group(1))
+          total = sum(reasons.values())
+          print("### Skipped tests")
+          print()
+          print(f"**{total}** skipped in `tests/unit/`" if total else "None — every unit test ran.")
+          if reasons:
+              print()
+              print("| Count | Reason |")
+              print("|---|---|")
+              for reason, count in reasons.most_common():
+                  print(f"| {count} | {reason} |")
+              print()
+              print("A skip is a test that did not verify anything. Each line is a claim to re-check.")
+          PY
 
   integration-tests:
     runs-on: ubuntu-latest
@@ -112,6 +145,19 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      # Rate limiting is a security control — RATELIMIT_LOGIN is the defence
+      # against password guessing — and its Redis-backed behaviour skipped in CI
+      # for want of this service. Same image as docker-compose.yml.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -125,6 +171,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      # The Redis rate-limit tests skip themselves when the server is absent, so
+      # a broken service would restore the silence rather than fail. Fail here.
+      - name: Redis is reachable
+        run: |
+          python - <<'PY'
+          import sys, redis
+          try:
+              redis.Redis(host="localhost", port=6379, socket_connect_timeout=5).ping()
+          except Exception as exc:
+              sys.exit(f"::error::Redis unreachable — the rate-limit tests would skip: {exc}")
+          print("OK: Redis reachable")
+          PY
 
       - name: Run integration tests
         run: pytest tests/integration/ -m "not ollama" -v --tb=short
