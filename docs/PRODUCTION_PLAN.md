@@ -305,8 +305,20 @@ threshold set to today's score would ratify the status quo rather than gate it �
 
 | Module | Killed | Survived | Rate |
 |---|---|---|---|
-| `src/security_fastapi.py` | 119 | 83 | 58.9% (was 112/202) |
+| `src/security_fastapi.py` | 132 | 70 | 65.3% (112 → 119 → 132) |
 | `src/utils/workspace.py` | 5 | 0 | 100% (was 4/5) |
+
+Three of the second batch's tests initially killed nothing, and each failure is a
+reusable lesson rather than a slip:
+
+- A stub that **raised** inside the fail-open check landed in the `except Exception`
+  branch, which refuses anyway — so the test passed with the default flipped. It has
+  to *answer* for the mutant to reach the accept path and become visible.
+- The "exactly TTL" boundary test read the clock before patching it, making the gap
+  `TTL + call duration`, which both `<` and `<=` reject identically. **A boundary
+  test that does not sit exactly on the boundary tests nothing about it.**
+- Constants referenced symbolically by every test (`_REVOCATION_CACHE_TTL`) move
+  together with the code when mutated. Pinning the documented value is what catches it.
 | `src/db/documents.py` | — | — | not yet measured |
 | `src/rag/retrieval.py` | — | — | not yet measured |
 
