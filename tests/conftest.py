@@ -6,6 +6,7 @@ that can be used across all test files.
 """
 
 import os
+import sys
 import tempfile
 from collections.abc import Generator
 from typing import Any
@@ -505,6 +506,58 @@ def generate_search_results(count: int = 5) -> list:
             fake.random.random()
         ))
     return results
+
+
+# ============================================================================
+# TEARDOWN DIAGNOSTICS
+# ============================================================================
+
+def pytest_sessionfinish(session, exitstatus) -> None:
+    """Name any thread still running when the suite ends.
+
+    On 2026-08-17 `integration-tests` reported `225 passed` and then died with
+    exit 134: `Fatal Python error: _enter_buffered_busy ... at interpreter
+    shutdown, possibly due to daemon threads`. Every test had passed; a daemon
+    thread was still going, and was holding the stderr buffer lock when the
+    interpreter finalised.
+
+    Which thread is the whole question, and the crash message does not say. The
+    codebase has several candidates — a per-upload ingest thread, `FakeOllama`'s
+    uvicorn server, the connector sync worker, Ollama's cache refresher — and
+    guessing at one produced a confident wrong answer once already.
+
+    This prints the survivors *before* interpreter shutdown, so the next
+    occurrence identifies itself instead of prompting another round of theories.
+    Reporting only: a lingering thread is not itself a failure, and turning this
+    into one would make a required check fail for something it has tolerated all
+    along.
+    """
+    import threading
+
+    # Stop the one thread the suite is known to start and never stop. Without
+    # this it polls Ollama every 10 s past the end of the run, logging a
+    # traceback each time, and the interpreter can finalise mid-write.
+    try:
+        from src.services.chat import stop_ollama_liveness
+        stop_ollama_liveness()
+    except Exception:  # pragma: no cover - diagnostics must not break the run
+        pass
+
+    lingering = [
+        t for t in threading.enumerate()
+        if t is not threading.main_thread() and t.is_alive()
+    ]
+    if not lingering:
+        return
+
+    # stderr, because pytest's capture is finished by now and stdout here can be
+    # swallowed depending on how the run was invoked.
+    print(f"\n[teardown] {len(lingering)} thread(s) still alive at session end:",
+          file=sys.stderr)
+    for thread in lingering:
+        print(f"  - {thread.name!r} daemon={thread.daemon}", file=sys.stderr)
+    print("  A daemon thread writing to stderr as the interpreter finalises is what "
+          "produces `_enter_buffered_busy` and exit 134.", file=sys.stderr)
 
 
 # ============================================================================

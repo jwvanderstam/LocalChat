@@ -26,6 +26,9 @@ _OLLAMA_STATUS_TTL: float = 10.0
 _ollama_status_lock = threading.Lock()
 _ollama_refresh_thread: threading.Thread | None = None
 _ollama_refresh_lock = threading.Lock()
+#: Set to end the liveness worker. It replaces `time.sleep`, so a stop takes
+#: effect immediately instead of after the remaining TTL.
+_ollama_refresh_stop = threading.Event()
 
 _WEB_INTENT_PHRASES = (
     "check internet", "search internet", "search the internet",
@@ -173,9 +176,17 @@ def get_doc_count_cached(db: Any, workspace_id: str | None) -> tuple[int, bool]:
 
 
 def _ollama_refresh_worker(app_state: Any) -> None:
-    """Refresh Ollama liveness on a background thread; never blocks the request path."""
-    while True:
-        time.sleep(_OLLAMA_STATUS_TTL)
+    """Refresh Ollama liveness on a background thread; never blocks the request path.
+
+    Stoppable on purpose. Unstoppable it polled every 10 s for the life of the
+    process, and `check_connection()` calls `logger.exception()` when Ollama is
+    unreachable — so with no Ollama it wrote a traceback to stderr every 10 s
+    forever. In a test run that outlived the suite: the interpreter finalised
+    while this thread held the stderr buffer lock, giving
+    `Fatal Python error: _enter_buffered_busy` and exit 134 after every test had
+    passed. Roughly 1 run in 13, because the write has to coincide with shutdown.
+    """
+    while not _ollama_refresh_stop.wait(_OLLAMA_STATUS_TTL):
         try:
             available, _ = app_state.ollama_client.check_connection()
         except Exception:
@@ -197,6 +208,7 @@ def check_ollama_live(app_state: Any) -> bool:
             ]
     with _ollama_refresh_lock:
         if _ollama_refresh_thread is None or not _ollama_refresh_thread.is_alive():
+            _ollama_refresh_stop.clear()
             _ollama_refresh_thread = threading.Thread(
                 target=_ollama_refresh_worker,
                 args=(app_state,),
@@ -206,6 +218,21 @@ def check_ollama_live(app_state: Any) -> bool:
             _ollama_refresh_thread.start()
     with _ollama_status_lock:
         return bool(_ollama_status_cache[0])
+
+
+def stop_ollama_liveness(timeout: float = 5.0) -> None:
+    """Stop the liveness worker and wait for it to finish.
+
+    Called from the application's shutdown handler, and by the test suite at the
+    end of a session. Safe to call when no thread is running.
+    """
+    global _ollama_refresh_thread
+    _ollama_refresh_stop.set()
+    with _ollama_refresh_lock:
+        thread = _ollama_refresh_thread
+        _ollama_refresh_thread = None
+    if thread is not None and thread.is_alive():
+        thread.join(timeout=timeout)
 
 
 def get_filename_filter(fields: dict, db: Any) -> list[str]:

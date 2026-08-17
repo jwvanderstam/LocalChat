@@ -379,6 +379,11 @@ def _setup_cleanup_handlers(app: Any) -> None:
     import signal
 
     def cleanup() -> None:
+        # Before the database: this thread calls check_connection() on a timer and
+        # logs a traceback when Ollama is unreachable, so leaving it running during
+        # shutdown means writing to a closing stderr.
+        from .services.chat import stop_ollama_liveness
+        stop_ollama_liveness()
         sync_worker = getattr(app.state, "sync_worker", None)
         if sync_worker is not None:
             logger.info("Stopping connector sync worker...")
