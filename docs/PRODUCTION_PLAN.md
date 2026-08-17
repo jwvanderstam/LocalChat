@@ -346,9 +346,16 @@ exercising this module"* rather than as 0%, and any mutant classified *suspiciou
 voids the run rather than being counted — those are opposite conclusions that look
 identical in a percentage. A void run exits 2; a genuine miss exits 1.
 
-**Expect it red until the survivors are dealt with.** At 58.9% against a threshold
+**Expect it red until the survivors are dealt with.** At 65.3% against a threshold
 of 80% the nightly fails by design; it is a work queue with teeth, not a merge
 blocker — the job is scheduled, not required. Raise the score, not the threshold.
+
+**The threshold was checked for reachability, not assumed.** Triaging the 70
+survivors (see [TEST_QUALITY_AUDIT.md](TEST_QUALITY_AUDIT.md)) puts ~40 in the
+behavioural class, ~24 in message/log text, and ~4 equivalent. Thirty behavioural
+kills clear 80%; killing all forty reaches roughly 85%. So the gate is meetable
+**without** asserting error strings — and if a session ever finds itself pinning log
+text to move the number, that is evidence the threshold is wrong, not the tests.
 
 **Remaining:** baselines for `db/documents.py` and `rag/retrieval.py`; the 83
 `security_fastapi.py` survivors (clusters listed in the audit doc — revocation-cache

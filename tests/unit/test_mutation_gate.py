@@ -92,3 +92,40 @@ class TestReport:
         )
 
         assert "✅ 80.0%" in table
+
+
+class TestSurvivorsAreNamed:
+    """A failing gate has to say *which* mutants survived. mutmut<3 keeps one
+    cache, so a later module erases the earlier one's results — reporting only a
+    count would leave the failing module's work queue unrecoverable."""
+
+    def test_a_failing_module_lists_its_survivors(self):
+        report = mutation_gate.report(
+            [Result(module="src/x.py", killed=1, survived=2, timeout=0, suspicious=0,
+                    survivors=[("7", "@@ -10 +10 @@ +    if not x:"),
+                               ("9", "@@ -20 +20 @@ +    return None")])],
+            threshold=80.0,
+        )
+
+        assert "if not x:" in report
+        assert "return None" in report
+
+    def test_a_passing_module_does_not_list_anything(self):
+        """Noise on a green run trains people to skim the summary."""
+        report = mutation_gate.report(
+            [Result(module="src/x.py", killed=9, survived=1, timeout=0, suspicious=0,
+                    survivors=[("7", "@@ -10 +10 @@ +    if not x:")])],
+            threshold=80.0,
+        )
+
+        assert "if not x:" not in report
+
+    def test_a_truncated_list_says_how_many_are_missing(self):
+        """Silently showing 40 of 70 would misrepresent the size of the job."""
+        report = mutation_gate.report(
+            [Result(module="src/x.py", killed=0, survived=70, timeout=0, suspicious=0,
+                    survivors=[(str(i), f"mutant {i}") for i in range(40)])],
+            threshold=80.0,
+        )
+
+        assert "30 more" in report

@@ -218,6 +218,42 @@ of the environment. Note the interaction with the environment rule above — the
 - `SESSION_COOKIE` and the `"jti"` claim key can both be renamed freely — the session and revocation contracts respectively.
 - `db_user.get("role", "user")` — the fallback role for a row without one is never exercised.
 
+#### Triage of the 70 survivors (2026-08-16)
+
+Done before grinding toward the 80% gate, to answer whether the threshold is
+reachable *without* writing the kind of tests this document argues against. It is.
+
+| Class | Count | Verdict |
+|---|---|---|
+| **Behavioural — worth killing** | ~40 | Real gaps. Killing 30 of these clears 80%; killing all reaches ≈85% |
+| **Message and log text** | ~24 | Leave. Asserting exact error/log strings is `WEAK-COUPLED` — it breaks on valid rewording |
+| **Equivalent** | ~4 | Unkillable by design (below) |
+
+So the gate can be met with 30 more behavioural kills and **no** string-assertion
+tests. If a future session finds itself pinning log text to make the number move,
+that is the signal the threshold is wrong, not the tests.
+
+**The equivalents, named so nobody re-derives them.** Do not build a machine-readable
+allowlist: `mutmut` numbers mutants by scan order, so one added line renumbers
+everything and an ID list silently starts excusing the wrong ones.
+
+- `os.urandom(32)` → `(33)` — any salt length works.
+- `_ROLE_LEVELS` `owner: 2 → 3` — only the ordering is ever compared.
+- The module-level PBKDF2 iteration count and `_ADMIN_PASSWORD_HASH = None` — the
+  test fixture supplies its own hash, so the module-level constants are overridden
+  before either can matter. Killing them needs a subprocess re-import, which costs
+  more than it proves.
+
+**Two survivors worth attention beyond their count:**
+
+- `claims.get("sub", "admin")` and `claims.get("sub") or "admin"` — mutating either
+  default survives, so **nothing tests what happens when a token carries no `sub`**.
+  The fallback is `"admin"`.
+- `if db is None or not db.is_connected` → `and`, in both `_check_api_key_access` and
+  `check_workspace_access`. Under the mutation a `None` database raises
+  `AttributeError` instead of returning 503 — it survives because no test passes
+  `db=None` to either.
+
 ### `src/utils/workspace.py` — 5/5 killed (100%), was 4/5
 
 `get_workspace_id()` reads `X-Workspace-ID`, then falls back to a `workspace_id`

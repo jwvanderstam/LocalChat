@@ -25,7 +25,7 @@ import argparse
 import os
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 #: Module → the test files that exercise it for real. Verified by checking that
 #: each file drives the implementation rather than patching it out; a runner
@@ -56,6 +56,11 @@ DEFAULT_THRESHOLD = 80.0
 _BUCKETS = ("killed", "survived", "timeout", "suspicious")
 
 
+#: How many survivors to spell out. Enough to work from, short of pasting the
+#: whole module into the job summary.
+SURVIVOR_DETAIL_LIMIT = 40
+
+
 @dataclass
 class Result:
     module: str
@@ -63,6 +68,9 @@ class Result:
     survived: int
     timeout: int
     suspicious: int
+    #: (id, "line — the mutated source") for the survivors, captured while this
+    #: module's cache still exists. Empty when nothing survived.
+    survivors: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def total(self) -> int:
@@ -80,6 +88,25 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
 def _count(bucket: str) -> int:
     result = _run(["mutmut", "result-ids", bucket])
     return len(result.stdout.split()) if result.returncode == 0 else 0
+
+
+def survivor_details(limit: int = SURVIVOR_DETAIL_LIMIT) -> list[tuple[str, str]]:
+    """Describe each surviving mutant, read *before* the next module wipes the cache.
+
+    `mutmut<3` keeps one `.mutmut-cache`, so a multi-module run leaves only the
+    last module's results behind — which for a gate is the wrong half. Reporting
+    "70 survived" without saying which is a red badge, not a work queue.
+    """
+    ids = _run(["mutmut", "result-ids", "survived"]).stdout.split()
+    details: list[tuple[str, str]] = []
+    for mutant_id in ids[:limit]:
+        diff = _run(["mutmut", "show", mutant_id]).stdout.splitlines()
+        location = next((line for line in diff if line.startswith("@@")), "")
+        mutated = next(
+            (line for line in diff if line.startswith("+") and not line.startswith("+++")), ""
+        )
+        details.append((mutant_id, f"{location.strip()} {mutated.strip()}".strip()))
+    return details
 
 
 def measure(module: str, tests: list[str], time_base: float) -> Result:
@@ -100,7 +127,7 @@ def measure(module: str, tests: list[str], time_base: float) -> Result:
     print("::endgroup::", flush=True)
 
     counts = {bucket: _count(bucket) for bucket in _BUCKETS}
-    return Result(module=module, **counts)
+    return Result(module=module, survivors=survivor_details(), **counts)
 
 
 def check_harness(result: Result) -> str | None:
@@ -133,6 +160,17 @@ def report(results: list[Result], threshold: float) -> str:
             f"| `{r.module}` | {r.killed} | {r.survived} | {verdict} {r.score:.1f}% | {threshold:.0f}% |"
         )
     lines += ["", "A surviving mutant is a change to the source that no test objected to."]
+
+    for result in results:
+        if result.score >= threshold or not result.survivors:
+            continue
+        lines += ["", f"<details><summary>Survivors in <code>{result.module}</code>"
+                      f" ({result.survived})</summary>", "", "| id | mutation |", "|---|---|"]
+        lines += [f"| {mid} | `{what}` |" for mid, what in result.survivors]
+        if result.survived > len(result.survivors):
+            lines.append(f"| … | {result.survived - len(result.survivors)} more; "
+                         f"`mutmut show <id>` for any of them |")
+        lines += ["", "</details>"]
     return "\n".join(lines)
 
 
