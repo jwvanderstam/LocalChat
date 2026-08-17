@@ -208,23 +208,32 @@ upstream).
 - Updates are **grouped** (`.github/dependabot.yml`): `minor`+`patch` collapse
   into one PR per ecosystem, and `github/codeql-action*` moves as a set.
   Majors stay ungrouped — those need a human.
-- **Grouping only reaches pinned dependencies, so most of `requirements.txt` is
-  outside it.** An `update-types` group has to classify a bump as minor or patch,
-  which needs a resolvable current version; a `>=` requirement has none, so those
-  dependencies each get their own PR. The config is right — the reach is smaller
-  than it looks. On 2026-08-17 one night produced four separate pip PRs (`pypdf`,
-  `numpy`, `alembic`, `uvicorn`, all `>=`) alongside one correctly grouped Actions
-  PR. The file is 26 ranged to 16 pinned, so roughly 60% of it never groups.
-  - *Do not "fix" this by pinning everything.* The ranges are deliberate for
-    optional deps, and pinning the file wholesale walks back into the resolution
-    trouble of LESSONS_LEARNED Ch. 11. Raise `open-pull-requests-limit` if it ever
-    binds; the limit is what grouping was protecting against.
-  - **Still to confirm:** no *pinned* pip dependency has had a routine bump since
-    this was noticed, so the pinned half has not been observed grouping in this
-    repo. The check: when a `==` dependency next gets a minor or patch update, it
-    should arrive inside a `minor-and-patch` PR while ranged ones stay separate.
-    If it also arrives alone, the cause is something other than the ranges and
-    this note needs rewriting.
+- **Grouping only reaches pinned dependencies — which is why `requirements.txt` is
+  now fully pinned.** An `update-types` group has to classify a bump as minor or
+  patch, which needs a resolvable current version; a `>=` requirement has none, so
+  those dependencies each got their own PR. The config was always right; its reach
+  was the problem. On 2026-08-17 one night produced *seven* separate pip PRs, every
+  one a `>=` requirement, alongside one correctly grouped Actions PR whose versions
+  are pinned. The file was 26 ranged to 16 pinned — roughly 60% outside grouping.
+  - **Resolved by pinning the file (2026-08-17), reversing the advice this note
+    first carried.** It said not to pin, on the grounds that it would repeat
+    LESSONS_LEARNED Ch. 11. That conflated two different things: Ch. 11 was a
+    *lock file of transitive pins that neither Docker nor CI installed*, so
+    nothing ever validated it. `requirements.txt` is installed by both, on every
+    run — pinning it is checked continuously by the thing that consumes it.
+  - Pinning was a **freeze, not an upgrade**: `>=` already resolved to the newest
+    version on every install, so the pins record what was being installed anyway.
+    Three packages (`pydantic`, `ddgs`, `python-dotenv`) had been running ahead of
+    their stated floor with no PR ever saying so. That is the other half of the
+    reason to pin — a range does not just group badly, it hides what you run.
+  - The pins came from an actual resolution (`pip install` then `pip freeze` in a
+    clean `python:3.12-slim`), not from copying version numbers out of PR titles,
+    so the set is consistent by construction. Re-pin the same way; `pip check`
+    afterwards is the confirmation.
+  - **Still to confirm:** grouping has not yet been *observed* working here. The
+    check is next week's run — it should produce one `minor-and-patch` pip PR
+    instead of seven. If it still produces one per dependency, the cause was never
+    the ranges and this whole note needs rewriting.
 - **A set that must be correct together must move together.** Three
   `codeql-action` steps split across three PRs each produced a workflow on
   mixed versions that failed every run. If a change is only correct as a whole,
