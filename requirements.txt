@@ -1,6 +1,6 @@
 # Web Framework — FastAPI (ASGI)
 fastapi>=0.141.1
-uvicorn[standard]>=0.52.1
+uvicorn[standard]>=0.52.3
 httpx>=0.28.1          # FastAPI TestClient + async HTTP
 
 gunicorn==26.0.0
