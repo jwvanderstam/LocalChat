@@ -146,17 +146,47 @@ class TestSetActiveModel:
             assert data.get('success') is True
 
     def test_set_active_model_updates_state(self, client, mock_ollama_with_models):
-        """Test set active model actually updates state."""
+        """Setting the active model records it, resolved against the model list.
+
+        Asserted unconditionally. `if status == 200:` and `or active is None`
+        between them let this pass in three different worlds — resolved,
+        unresolved, and never set — which is how it survived a fixture that
+        patched nothing.
+        """
         from src import config
 
-        response = client.post('/api/models/active', json={
-            'model': 'llama3.2'
-        })
+        response = client.post('/api/models/active', json={'model': 'llama3.2'})
 
-        if response.status_code == 200:
-            # Verify state was updated
-            active = config.app_state.get_active_model()
-            assert active == 'llama3.2' or active is None
+        assert response.status_code == 200
+        assert config.app_state.get_active_model() == 'llama3.2'
+
+    def test_a_prefix_resolves_to_the_full_tag_from_the_model_list(
+            self, client, mock_ollama_with_models):
+        """`_resolve_model_name` exists to turn `llama3.2` into whatever the
+        server actually calls it. Nothing asserted that, so the resolution could
+        have been dropped and the suite stayed green."""
+        from src import config
+
+        mock_ollama_with_models.list_models.return_value = (True, [
+            {'name': 'llama3.2:latest', 'size': 4500000000},
+        ])
+
+        response = client.post('/api/models/active', json={'model': 'llama3.2'})
+
+        assert response.status_code == 200
+        assert config.app_state.get_active_model() == 'llama3.2:latest'
+
+    def test_a_model_the_server_does_not_have_is_refused(
+            self, client, mock_ollama_with_models):
+        """The negative side of resolution: an unknown name must not be stored."""
+        from src import config
+
+        config.app_state.set_active_model('llama3.2')
+
+        response = client.post('/api/models/active', json={'model': 'not-installed'})
+
+        assert response.status_code == 404
+        assert config.app_state.get_active_model() == 'llama3.2'
 
 
 class TestPullModel:
@@ -396,8 +426,20 @@ def mock_ollama(monkeypatch):
 
 
 @pytest.fixture
-def mock_ollama_with_models(monkeypatch):
-    """Mock Ollama client with models."""
+def mock_ollama_with_models(app, monkeypatch):
+    """Mock Ollama client with models, installed on the app the routes read.
+
+    It used to build the mock and return it without patching anything —
+    `monkeypatch` was taken as an argument and never used — so
+    `/api/models/active` called the *real* `app.state.ollama_client` and listed
+    whatever Ollama the machine could reach.
+
+    That passed only because nothing answered on `localhost:11434`: with no model
+    list, the route stored the requested name verbatim. Once the compose stack
+    published Ollama on the host, the real list came back, `llama3.2` resolved to
+    `llama3.2:latest`, and the test failed — on a *working* development machine,
+    while staying green in CI, which is exactly backwards.
+    """
     from unittest.mock import MagicMock
 
     mock_client = MagicMock()
@@ -406,5 +448,6 @@ def mock_ollama_with_models(monkeypatch):
         {'name': 'nomic-embed-text', 'size': 274000000}
     ])
     mock_client.test_model.return_value = (True, "Test response")
+    monkeypatch.setattr(app.state, "ollama_client", mock_client)
 
     return mock_client
