@@ -44,7 +44,7 @@ assuming a green container means a migrated schema.
 | `app` | FastAPI + Uvicorn | `127.0.0.1:5000` |
 | `db` | PostgreSQL 16 + pgvector | `127.0.0.1:5432` |
 | `redis` | Cache and rate-limit backend | internal |
-| `ollama` | Local LLM inference | internal |
+| `ollama` | Local LLM inference | `127.0.0.1:11434` (`OLLAMA_BIND_PORT`) |
 
 The three MCP servers are behind a profile: `docker compose --profile mcp up -d`.
 
