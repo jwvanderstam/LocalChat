@@ -29,11 +29,19 @@ document isolation, and RAG parameters tunable at runtime.
 ```bash
 git clone https://github.com/jwvanderstam/LocalChat
 cd LocalChat
-cp .env.example .env          # edit database and Ollama settings if they are not local
+cp .env.example .env          # set ADMIN_PASSWORD and the secrets; see the note below
 docker compose up -d          # PostgreSQL, Redis, Ollama and the app
 ```
 
 Open <http://localhost:5000>. You will be asked to sign in.
+
+**Everything runs in Docker**, on a private network where the services address each other
+by name — the app reaches Ollama at `http://ollama:11434` and Postgres at `db`. Compose
+sets those itself, and compose's `environment:` beats `.env`, so `OLLAMA_BASE_URL`,
+`PG_HOST` and `REDIS_HOST` in your `.env` have **no effect on the containers**. Set them in
+`docker-compose.yml` (or an override file) if you need to point elsewhere. The `.env` values
+that do matter here are the secrets and tuning: `ADMIN_PASSWORD`, `SECRET_KEY`,
+`JWT_SECRET_KEY`, model names, limits.
 
 **Getting the first password.** If you set `ADMIN_PASSWORD` in `.env`, use that with the
 username `admin`. If you left it empty, an admin account is seeded on first boot with a
@@ -55,12 +63,29 @@ Upload a document under **Documents**, and ask about it under **Chat**.
 <details>
 <summary>Running the app outside Docker</summary>
 
+The backing services still run in Docker — only the app moves to the host, which is
+useful for a debugger or a fast edit loop.
+
 ```bash
 pip install -r requirements.txt
 cp .env.example .env
 docker compose up -d db redis ollama   # backing services only
 python app.py
 ```
+
+This is the one case where `.env`'s `localhost` URLs apply: the host process reaches the
+containers over published loopback ports, `127.0.0.1:5432` for Postgres and
+`127.0.0.1:11434` for Ollama. Both are bound to loopback, not `0.0.0.0`.
+
+If something already owns one of those ports — a natively installed Ollama is the usual
+culprit — move the published port instead of editing `docker-compose.yml`:
+
+```bash
+OLLAMA_BIND_PORT=21434 docker compose up -d ollama
+# then in .env:  OLLAMA_BASE_URL=http://localhost:21434
+```
+
+`BIND_HOST` moves every published port at once, and `BIND_PORT` moves the app's own.
 </details>
 
 ## What it does

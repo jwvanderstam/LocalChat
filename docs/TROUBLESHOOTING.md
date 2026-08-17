@@ -16,9 +16,16 @@ curl http://localhost:11434/api/tags
 ```
 
 **Fixes:**
-1. Ensure Ollama is running: `ollama serve` (or `docker compose up ollama`).
-2. Check `OLLAMA_BASE_URL` in your `.env` — default is `http://ollama:11434` inside Docker, `http://localhost:11434` outside.
+1. Ensure Ollama is running: `docker compose up -d ollama` (the supported way), or
+   `ollama serve` if you run it natively.
+2. Check `OLLAMA_BASE_URL` — `http://ollama:11434` inside Docker, `http://localhost:11434`
+   outside. **Inside Docker this does not come from `.env`:** `docker-compose.yml` sets it
+   in the service's `environment:`, which overrides `.env`, so editing `.env` will not
+   repoint a containerised app. Change it in the compose file or an override.
 3. Inside Docker, the container name must match the service name in `docker-compose.yml` (`ollama`).
+4. From the host, `curl` above hits the **published** port. If it refuses, either the
+   service is down or the port moved — `OLLAMA_BIND_PORT` sets it (default 11434, bound to
+   `127.0.0.1`). Confirm with `docker compose ps ollama`, which prints the mapping.
 
 ### Required model not found
 

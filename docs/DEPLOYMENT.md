@@ -51,6 +51,32 @@ The three MCP servers are behind a profile: `docker compose --profile mcp up -d`
 Ports bind to `127.0.0.1` deliberately. Put a TLS proxy in front rather than binding
 `0.0.0.0` — see [TLS](#tls) below.
 
+### How services find each other
+
+Inside the stack they use **service names on the `backend` network**, not published ports:
+the app reaches Ollama at `http://ollama:11434`, Postgres at `db`, Redis at `redis`.
+`docker-compose.yml` sets those in each service's `environment:` block.
+
+**Compose's `environment:` overrides `.env`.** `OLLAMA_BASE_URL`, `PG_HOST` and
+`REDIS_HOST` in a `.env` file therefore have no effect on a containerised app — a change
+there is silently ignored rather than rejected. To repoint a service, edit
+`docker-compose.yml` or supply an override file.
+
+The published ports exist for **the host**, not for the containers:
+
+| Variable | Default | Moves |
+|---|---|---|
+| `BIND_HOST` | `127.0.0.1` | every published port |
+| `BIND_PORT` | `5000` | the app |
+| `OLLAMA_BIND_PORT` | `11434` | Ollama |
+
+`ollama` is published so the host-run dev path (`python app.py` against
+`docker compose up -d db redis ollama`) can reach it, the same reason `db` is. A fork that
+already runs Ollama natively on 11434 sets `OLLAMA_BIND_PORT` rather than editing compose.
+The containerised app needs neither the `db` nor the `ollama` port published — unpublish
+both and the stack still works; only the host-run path breaks. The app's own port is
+different: that is how you reach the UI.
+
 ## Required secrets
 
 Set these in `.env` before first start.
