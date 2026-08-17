@@ -195,6 +195,23 @@ upstream).
 - Updates are **grouped** (`.github/dependabot.yml`): `minor`+`patch` collapse
   into one PR per ecosystem, and `github/codeql-action*` moves as a set.
   Majors stay ungrouped — those need a human.
+- **Grouping only reaches pinned dependencies, so most of `requirements.txt` is
+  outside it.** An `update-types` group has to classify a bump as minor or patch,
+  which needs a resolvable current version; a `>=` requirement has none, so those
+  dependencies each get their own PR. The config is right — the reach is smaller
+  than it looks. On 2026-08-17 one night produced four separate pip PRs (`pypdf`,
+  `numpy`, `alembic`, `uvicorn`, all `>=`) alongside one correctly grouped Actions
+  PR. The file is 26 ranged to 16 pinned, so roughly 60% of it never groups.
+  - *Do not "fix" this by pinning everything.* The ranges are deliberate for
+    optional deps, and pinning the file wholesale walks back into the resolution
+    trouble of LESSONS_LEARNED Ch. 11. Raise `open-pull-requests-limit` if it ever
+    binds; the limit is what grouping was protecting against.
+  - **Still to confirm:** no *pinned* pip dependency has had a routine bump since
+    this was noticed, so the pinned half has not been observed grouping in this
+    repo. The check: when a `==` dependency next gets a minor or patch update, it
+    should arrive inside a `minor-and-patch` PR while ranged ones stay separate.
+    If it also arrives alone, the cause is something other than the ranges and
+    this note needs rewriting.
 - **A set that must be correct together must move together.** Three
   `codeql-action` steps split across three PRs each produced a workflow on
   mixed versions that failed every run. If a change is only correct as a whole,
