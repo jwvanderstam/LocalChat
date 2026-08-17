@@ -1,62 +1,62 @@
 # Web Framework — FastAPI (ASGI)
-fastapi>=0.141.1
-uvicorn[standard]>=0.52.1
-httpx>=0.28.1          # FastAPI TestClient + async HTTP
+fastapi==0.141.1
+uvicorn[standard]==0.52.3
+httpx==0.28.1          # FastAPI TestClient + async HTTP
 
 gunicorn==26.0.0
-Werkzeug>=3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
+Werkzeug==3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
 
 # Caching
 redis==8.1.0  # Redis cache backend (optional but recommended)
 
 # Security
-python-jose[cryptography]>=3.5.0  # JWT — pulls in ecdsa; PYSEC-2026-1325 is an accepted risk, see SECURITY.md
-slowapi>=0.1.10                     # Rate limiting for FastAPI/Starlette
+python-jose[cryptography]==3.5.0  # JWT — pulls in ecdsa; PYSEC-2026-1325 is an accepted risk, see SECURITY.md
+slowapi==0.1.10                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector
-psycopg[binary]>=3.3.4
-psycopg-pool>=3.3.1
+psycopg[binary]==3.3.4
+psycopg-pool==3.3.1
 
 # Database migrations
-alembic>=1.19.0
-sqlalchemy>=2.0.51  # required by alembic; postgresql+psycopg dialect for psycopg3
+alembic==1.19.1
+sqlalchemy==2.0.52  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
-pydantic>=2.12.5
+pydantic==2.13.4
 email-validator==2.3.0
 
 # Document Processing
-pypdf>=6.15.0
+pypdf==6.16.1
 pdfplumber==0.11.10  # Enhanced PDF extraction with table support
 pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
-pymupdf4llm>=1.28.2    # Layout-aware PDF extraction for column-heavy documents (optional)
-langdetect>=1.0.9      # Language detection for multilingual document support
+pymupdf4llm==1.28.2    # Layout-aware PDF extraction for column-heavy documents (optional)
+langdetect==1.0.9      # Language detection for multilingual document support
 python-docx==1.2.0
-python-pptx>=1.0.2
-html2text>=2025.4.15          # Confluence HTML→plain-text conversion
-reportlab>=5.0.0             # PDF export for conversation download (optional)
-kuzu>=0.11.3               # Graph store backend (optional; set GRAPH_BACKEND=kuzu to activate)
-openpyxl>=3.1.5         # Excel (.xlsx) ingestion
-litellm>=1.95.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
-h11>=0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
-spacy>=3.8.14      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
+python-pptx==1.0.2
+html2text==2025.4.15          # Confluence HTML→plain-text conversion
+reportlab==5.0.0             # PDF export for conversation download (optional)
+kuzu==0.11.3               # Graph store backend (optional; set GRAPH_BACKEND=kuzu to activate)
+openpyxl==3.1.5         # Excel (.xlsx) ingestion
+litellm==1.97.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
+h11==0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
+spacy==3.8.15      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
-cryptography>=50.0.0
+cryptography==50.0.0
 # Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
-sentence-transformers>=5.7.0
+sentence-transformers==5.7.0
 # Optional: Microsoft Graph API auth helper
 # msal>=1.28
 
 # HTTP Requests
 requests==2.34.2
-ddgs>=9.14.4
+ddgs==9.15.0
 
 # Hardware detection — CPU RAM probing for model-fit budget (src/gpu/backends.py)
-psutil>=7.2.2
+psutil==7.2.2
 
 # Numerical processing for vector operations
-numpy>=2.5.1
+numpy==2.5.2
 
 # Multipart form handling
 python-multipart==0.0.32
@@ -65,13 +65,13 @@ python-multipart==0.0.32
 markdown==3.10.3
 
 # Environment configuration
-python-dotenv>=1.2.2
+python-dotenv==1.2.3
 
 # Testing
 pytest==9.1.1
 pytest-cov==7.1.0
 pytest-mock==3.15.1
-pytest-asyncio>=1.4.0
+pytest-asyncio==1.4.0
 pytest-playwright==0.9.0   # tests/e2e browser suite — also run: playwright install chromium
 faker==40.36.0
 responses==0.26.2
