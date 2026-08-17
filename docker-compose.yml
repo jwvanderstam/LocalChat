@@ -111,6 +111,14 @@ services:
       # frees VRAM after a period of inactivity instead of pinning forever (-1).
       OLLAMA_MAX_LOADED_MODELS: 2
       OLLAMA_KEEP_ALIVE: 10m
+    # Containers reach this as http://ollama:11434 over the backend network and
+    # do not need the port published. It is published for the host-run dev path
+    # (`python app.py`), which otherwise cannot reach the stack's Ollama — `db`
+    # is published for exactly the same reason. Loopback by default, and the host
+    # port is configurable because a fork may already run Ollama natively on
+    # 11434: set OLLAMA_BIND_PORT to move it.
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:${OLLAMA_BIND_PORT:-11434}:11434"
     volumes:
       - ollama_models:/root/.ollama
     # MM-2: OLLAMA_MAX_LOADED_MODELS above caps VRAM residency; these cap host

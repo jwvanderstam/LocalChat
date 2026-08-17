@@ -10,6 +10,19 @@ LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TX
 
 **Runtime deps:** PostgreSQL + pgvector, Ollama (local LLM server), Redis (optional caching).
 
+**Deployment model: every component runs in Docker.** `docker compose up -d` brings up
+`app`, `db`, `redis` and `ollama` on the `backend` network, where they address each other
+by service name — the app reaches Ollama at `http://ollama:11434` and Postgres at `db`.
+Compose sets those in each service's `environment:` block, which **overrides `.env`**, so
+`OLLAMA_BASE_URL`/`PG_HOST`/`REDIS_HOST` in `.env` do nothing for a containerised app;
+change them in `docker-compose.yml` or an override file.
+
+Running `python app.py` on the host is the *second* supported topology, not a different
+product: the backing services still run in Docker, and the host process reaches them over
+published loopback ports (`127.0.0.1:5432` for `db`, `127.0.0.1:11434` for `ollama`, moveable
+via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md#which-of-these-the-docker-stack-actually-reads).
+
 ---
 
 ## Tech Stack
@@ -256,9 +269,9 @@ Rules:
 
 ## Commands
 ```bash
-python app.py                                                          # dev server (FastAPI + Uvicorn)
+docker compose up -d                        # full stack — the supported deployment
+python app.py                               # dev server on the host; needs `docker compose up -d db redis ollama` first
 uvicorn "app:create_uvicorn_app" --factory --host 0.0.0.0 --port 5000 # production (FastAPI + Uvicorn)
-docker compose up -d                        # full stack
 pytest                                      # all tests + coverage
 pytest -m "not (slow or ollama or db)"     # fast only
 pytest tests/unit/                          # unit only

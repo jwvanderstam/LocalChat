@@ -22,6 +22,8 @@ export PG_PASSWORD=your_password
 export PG_DB=rag_db
 
 # Ollama Configuration
+# Host-run only. Under `docker compose up -d` the app service hardcodes
+# OLLAMA_BASE_URL=http://ollama:11434, which overrides .env — see below.
 export OLLAMA_BASE_URL=http://localhost:11434
 export OLLAMA_DEFAULT_MODEL=llama3.2
 export OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest
@@ -54,6 +56,27 @@ export CORS_ORIGINS=http://localhost:3000
 # (acceptable on a private network). Set a strong token in production.
 export METRICS_TOKEN=
 ```
+
+### Which of these the Docker stack actually reads
+
+The supported deployment runs every component in Docker, and `docker-compose.yml`
+sets some values in each service's `environment:` block. **Compose's `environment:`
+beats `.env`**, so those particular variables cannot be changed by editing `.env`:
+
+| Variable | In the compose stack | `.env` honoured? |
+|---|---|---|
+| `OLLAMA_BASE_URL` | `http://ollama:11434` (service name on the `backend` network) | No — set in compose |
+| `PG_HOST` | `db` | No — set in compose |
+| `REDIS_HOST` | `redis` | No — set in compose |
+
+They matter for the host-run dev path (`python app.py`), which talks to the same
+containers over published loopback ports. `db` publishes `127.0.0.1:5432` and
+`ollama` publishes `${BIND_HOST:-127.0.0.1}:${OLLAMA_BIND_PORT:-11434}` for exactly
+that reason — set `OLLAMA_BIND_PORT` if a natively installed Ollama already owns
+11434.
+
+To repoint a containerised service, change it in `docker-compose.yml` or supply an
+override file — not in `.env`.
 
 ## Cache
 
