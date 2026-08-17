@@ -39,7 +39,7 @@ kuzu>=0.11.3               # Graph store backend (optional; set GRAPH_BACKEND=ku
 openpyxl>=3.1.5         # Excel (.xlsx) ingestion
 litellm>=1.95.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
 h11>=0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
-spacy>=3.8.14      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
+spacy>=3.8.15      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
 cryptography>=50.0.0
