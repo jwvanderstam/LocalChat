@@ -698,6 +698,62 @@ A default is used by everything that never mentions it.
 
 ---
 
+## 16. Two fixes that improved the code and closed nothing
+
+Eight CodeQL alerts were open. #283 assessed all eight, dismissed five with reasons
+recorded on the alerts themselves, and fixed the two that were real. Both fixes made the
+code better. Neither closed its alert.
+
+**#91, stack-trace exposure.** The route caught `ValueError` and returned `str(exc)` to
+the caller. #283 replaced the broad catch with a narrow `LastOwnerError`, which genuinely
+stopped unrelated exceptions from below reaching the API response. But the expression the
+rule matches on — `str(exc)` in the returned body — was never touched. The alert stayed
+open because the scanner had never been looking at the catch.
+
+**#87/#88, log injection.** `LocalChatException.__init__` logged messages carrying user
+input, so a newline in a filename could forge a log record under the default plain-text
+formatter. #283 stripped CR and LF. That is not what flattening has to mean:
+`str.splitlines()` — and most log consumers — also break on VT, FF, the ASCII separators,
+NEL and the Unicode line/paragraph separators. A crafted value still split into seven
+lines. ESC passed through untouched, letting a value clear or overwrite lines in the
+terminal of whoever read the log.
+
+The mistake was neither fix. It was predicting that they would close the alerts without
+reading what the rules match on. A scanner finding names a specific expression; a change
+that improves the code around it is still an improvement, and the alert is still open.
+
+**The duplicate was the real finding.** The sanitiser #284 hardened did not belong in
+`exceptions.py` at all. `sanitize_log_value` already existed in `utils/logging_config.py`
+with four callers and the identical weak implementation, and `config.set_active_model`
+carried a third inline copy of the same two `.replace()` calls. Fixing the copy CodeQL
+happened to flag would have hardened one site of six. Hardening the shared function fixed
+all of them — `app_fastapi`, `document_routes`, `workspace_routes`, `request_id`,
+`exceptions` and `config`. The alert pointed at one line; the defect was a pattern that
+had been copy-pasted three times.
+
+**The test that could not tell the fix from the bug.** #283's route test asserted
+`"last owner" in message`. Once the route returns a module constant instead of the
+exception's text, that assertion passes either way — constant and exception message both
+contain the phrase. #284 made the raise site use a *different* string, so the test now
+distinguishes them. This is the tautological-assertion shape from
+[`.claude/rules/testing.md`](../.claude/rules/testing.md): an assertion that holds by
+construction regardless of which branch produced it. It is also why the first fix looked
+convincing.
+
+**The bug demonstrating itself inside its own fix.** The hardened character class was
+first written with the literal separator characters in the source. The edit script's own
+`splitlines()` split that source line on U+2028 and corrupted it. The regex had to be
+written with explicit `\uXXXX` escapes instead — the vulnerability reproducing itself,
+one layer up, in the tooling writing the patch.
+
+**Rule taken from this:** an alert is closed by changing the expression it names, not by
+improving the code around it, and it is confirmed by re-running the scan rather than by
+reasoning about it. Before fixing, run the attack — the old sanitiser was *measured*
+leaving a test string in seven pieces, and that measurement is what separated a plausible
+fix from a sufficient one.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents
@@ -750,7 +806,9 @@ A default is used by everything that never mentions it.
   hybrid-search regression was found by re-deriving the fix's own math, not
   by trusting that "fixed and tested" meant done — the same discipline
   Chapter 9 applied to the audit's findings, turned on this session's own
-  output.
+  output. Chapter 16 is that shape against an automated grader: two correct
+  fixes, both alerts still open, because neither changed the expression the
+  rule actually named.
 - **The unit of change must match the unit of correctness.** Chapter 11's
   `codeql-action` split is the sharpest instance: three separately-correct
   PRs that were each individually broken, because the thing that had to be
@@ -796,3 +854,4 @@ guard are marked as such honestly.
 | A stale index becomes an authority (Ch. 12) | A migration was numbered from `file-map.md` while that table was missing two existing migrations, producing a duplicate revision id | `MIGRATIONS.md` states the directory is the only authority for revision numbers; `file-map.md` is a convenience index and is documented as such |
 | Coverage without authorisation (Ch. 12) | Every route test ran with `state.testing = True`, tripping the RBAC bypass — the checks were executed by nothing | New auth tests run with the bypass **off**; RBAC-2 must verify each route has a check *and* a test that exercises it unbypassed |
 | A dead abstraction is worse than none (Ch. 12) | `require_workspace_role_dep` was correct and had zero call sites while the routes it was written for ran their own fail-open checks | The dependency is now the single mechanism behind `check_workspace_access`, used by all 33 workspace-scoped routes — no parallel implementation to drift from |
+| A fix is not a closed alert (Ch. 16) | #284 changed the flagged expression itself, and hardened the one shared `sanitize_log_value` instead of the copy CodeQL happened to point at | Re-run the scan rather than predicting it. Six sites now share one sanitiser, so there is no duplicate left to fix in isolation |
