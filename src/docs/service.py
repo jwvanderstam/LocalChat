@@ -62,6 +62,7 @@ _CATALOGUE: list[tuple[str, str]] = [
     ("docs-workspace-api-keys", "docs/WORKSPACE_API_KEYS.md"),
     ("docs-n8n-discord-setup", "docs/n8n-discord-setup.md"),
     ("docs-n8n-report", "docs/bugreport-n8n-localchat.md"),
+    ("docs-scaleway-deployment-plan", "docs/localchat_scaleway_deployment_plan.md"),
 ]
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$", re.MULTILINE)
