@@ -31,7 +31,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from .utils.logging_config import get_logger
+from .utils.logging_config import get_logger, sanitize_log_value
 
 # Load environment variables from .env file
 load_dotenv()
@@ -598,7 +598,7 @@ class AppState:
     def set_active_model(self, model_name: str) -> None:
         self.state['active_model'] = model_name
         self._save_state()
-        logger.info("Active model set to: %s", str(model_name).replace('\r', '').replace('\n', ' '))
+        logger.info("Active model set to: %s", sanitize_log_value(model_name))
 
     def get_rag_param(self, key: str) -> Any:
         """Return the current value for a mutable RAG param, falling back to the config constant."""
