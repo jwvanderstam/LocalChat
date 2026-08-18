@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import config
+from ..db.workspaces import LastOwnerError
 from ..security_fastapi import (
     check_workspace_access,
     get_current_user_id,
@@ -274,8 +275,8 @@ def remove_workspace_member(workspace_id: str, user_id: str, request: Request) -
         if not removed:
             return JSONResponse({"success": False, "message": "Member not found"}, status_code=404)
         return {"success": True}
-    except ValueError as ve:
-        logger.warning("[Workspaces] remove member constraint: %s", ve)
+    except LastOwnerError as exc:
+        logger.warning("[Workspaces] remove member constraint: %s", exc)
         return JSONResponse({"success": False, "message": "Cannot remove the last owner of a workspace"}, status_code=409)
     except Exception:
         logger.exception("[Workspaces] remove member error")

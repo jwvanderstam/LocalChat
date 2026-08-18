@@ -24,6 +24,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.db.workspaces import LastOwnerError
+
 pytestmark = pytest.mark.unit
 
 
@@ -309,7 +311,7 @@ class TestRemoveWorkspaceMember:
     def test_raises_when_removing_last_owner(self):
         m, _, cur = _workspaces_mixin()
         cur.fetchone.side_effect = [("owner",), (1,)]
-        with pytest.raises(ValueError, match="last owner"):
+        with pytest.raises(LastOwnerError, match="last owner"):
             m.remove_workspace_member("wid", "uid")
 
     def test_allows_removing_owner_when_other_owners_exist(self):

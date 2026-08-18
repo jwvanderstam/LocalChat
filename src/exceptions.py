@@ -11,6 +11,17 @@ from .utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def _single_line(text: str) -> str:
+    """Flatten newlines so a message cannot forge log records.
+
+    Exception messages carry user input — filenames, queries, model names — and
+    under the default plain-text formatter a newline in one starts what looks
+    like a new log line. `LOG_FORMAT=json` escapes it, but plain text is the
+    default. Same treatment `config.set_active_model` already applies.
+    """
+    return str(text).replace('\r', '').replace('\n', ' ')
+
+
 class LocalChatException(Exception):
     """Base class; logs a warning on construction and exposes to_dict() for API responses."""
 
@@ -18,7 +29,8 @@ class LocalChatException(Exception):
         self.message = message
         self.details = details or {}
         super().__init__(self.message)
-        logger.warning(f"{self.__class__.__name__}: {message}", extra={"exception_details": self.details})
+        logger.warning("%s: %s", self.__class__.__name__, _single_line(message),
+                       extra={"exception_details": self.details})
 
     def to_dict(self) -> dict[str, Any]:
         return {

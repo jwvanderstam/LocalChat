@@ -504,3 +504,34 @@ class TestExceptionEdgeCases:
         exc = SearchError("Error", details=details)
         assert exc.details["path"] == "C:\\Windows\\System32"
         assert exc.details["query"] == "a'OR'1'='1"
+
+
+class TestLoggedMessageCannotForgeALogLine:
+    """Exception messages carry user input — a filename, a query, a model name.
+    Under the default plain-text formatter a newline in one starts what reads as a
+    separate log record, so an attacker-supplied name could fabricate entries.
+    """
+
+    def test_newlines_in_the_message_are_flattened_before_logging(self, caplog):
+        with caplog.at_level("WARNING"):
+            SearchError("real failure\nWARNING  src.security: admin login succeeded")
+
+        logged = caplog.records[-1].getMessage()
+        assert "\n" not in logged
+        assert "admin login succeeded" in logged  # kept, but on the same line
+
+    def test_carriage_returns_are_removed_too(self, caplog):
+        """A bare \r rewinds the line in a terminal, hiding what came before it."""
+        with caplog.at_level("WARNING"):
+            SearchError("visible\rhidden")
+
+        logged = caplog.records[-1].getMessage()
+        assert "\r" not in logged
+
+    def test_the_exception_itself_keeps_the_original_text(self):
+        """Only the log line is flattened. `str(exc)` and `to_dict()` are the
+        caller's data and must not be quietly rewritten."""
+        exc = SearchError("line one\nline two")
+
+        assert exc.message == "line one\nline two"
+        assert exc.to_dict()["message"] == "line one\nline two"

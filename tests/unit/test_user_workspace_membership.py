@@ -15,6 +15,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.db.workspaces import LastOwnerError
 from tests.utils.auth import admin_headers, authenticated_state
 
 WS = "11111111-1111-1111-1111-111111111111"
@@ -99,9 +100,14 @@ class TestMembershipManagement:
         assert client.delete(f"/api/users/{USER}/workspaces/{WS}").status_code == 404
 
     def test_removing_the_last_owner_is_refused_with_409(self):
-        """remove_workspace_member raises ValueError rather than stranding a workspace."""
+        """The DB layer refuses rather than stranding a workspace with no owner.
+
+        `LastOwnerError`, not `ValueError`: the route used to catch the latter and
+        return its message, so any unrelated ValueError raised below it reached the
+        caller.
+        """
         client = _client()
-        client.app.state.db.remove_workspace_member.side_effect = ValueError(
+        client.app.state.db.remove_workspace_member.side_effect = LastOwnerError(
             "Cannot remove the last owner")
         resp = client.delete(f"/api/users/{USER}/workspaces/{WS}")
         assert resp.status_code == 409 and "last owner" in resp.json()["message"]
