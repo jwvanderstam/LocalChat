@@ -209,6 +209,12 @@ Coding standards live in [.claude/rules/](.claude/rules/): [architecture](.claud
 Report vulnerabilities per [SECURITY.md](SECURITY.md). Route-by-route permissions are
 documented in [PERMISSIONS.md](docs/PERMISSIONS.md).
 
+Two properties worth knowing when reading logs or API errors: every user-controlled value
+that reaches a log record passes through `sanitize_log_value`, which strips control
+characters, the Unicode line separators and ESC so a crafted filename cannot forge a log
+record or drive the terminal of whoever reads it; and API error bodies return fixed
+messages, never exception text.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

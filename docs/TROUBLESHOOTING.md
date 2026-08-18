@@ -286,3 +286,33 @@ Pre-commit hooks do this automatically if installed:
 ```bash
 pre-commit install
 ```
+
+### `pytest` fails at import: `No module named 'faker'`
+
+**Symptom:** `pytest` aborts loading `tests/conftest.py`, and `pip install -r requirements.txt`
+then fails with `No matching distribution found for spacy==3.8.15`.
+
+**Cause:** the interpreter is newer than the one the pins were resolved against.
+`requirements.txt` is pinned for **Python 3.12** — the version both `tests.yml` and the
+Dockerfile use. Some pins publish no distribution for 3.13+, so the declared set is
+uninstallable and `faker` never lands. Nothing is wrong with the repo; the host
+interpreter has drifted from CI.
+
+**Check:**
+```bash
+python -V     # expect 3.12.x
+py -0p        # Windows: lists installed interpreters
+```
+
+**Fix — a 3.12 venv.** Keep it *outside* the working tree if the repo sits in OneDrive or
+Dropbox: with torch and friends it runs to several GB, and a syncing client will both copy
+all of it and lock files mid-install.
+```bash
+py -3.12 -m venv C:/temp/localchat-venv                        # Windows
+python3.12 -m venv ~/.venvs/localchat                          # Linux/macOS
+C:/temp/localchat-venv/Scripts/python.exe -m pip install -r requirements.txt
+C:/temp/localchat-venv/Scripts/python.exe -m pip check         # expect: no broken requirements
+```
+
+Then point the IDE interpreter at that venv, or activate it before running the quality
+gates — a gate run on the wrong interpreter proves nothing about CI.

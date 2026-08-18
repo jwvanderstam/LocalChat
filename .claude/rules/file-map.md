@@ -90,6 +90,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/n8n-discord-setup.md` | Werkende n8n → LocalChat → Discord opzet: Header Auth, SSE-respons als tekst parsen, valkuilen |
 | `docs/bugreport-n8n-localchat.md` | Bevindingen bij het opzetten van die koppeling — 2 opgelost, 1 open (`conversation_id` → 500) |
 | `docs/AUTH_PLAN.md` | Authentication build plan — AUTH-1..4: local login, Users screen, OIDC (Entra/Google), then deleting the bypasses |
+| `docs/PRODUCTION_PLAN.md` | Production-hardening plan from the 2026-08-04 external audit — TQ/SEC tickets and the exit criteria ROADMAP Sprints 8–12 queue behind |
 | `docs/ADR.md` | Architecture Decision Records — ADR-1 (single-node appliance) and ADR-2 (sync DB layer), each with the condition that would reopen it |
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |
 | `docs/SCHEMA.md` | Database schema reference + ER diagram |
