@@ -20,6 +20,18 @@ else:
 logger = get_logger(__name__)
 
 
+class LastOwnerError(Exception):
+    """Raised when removing a member would leave a workspace with no owner.
+
+    The workspace counterpart to `LastAdminError`, and a Clark-Wilson precondition
+    for the same reason: nobody would be left able to grant the role back.
+
+    A named type rather than `ValueError` so the route can catch exactly this and
+    return its message. Catching `ValueError` meant any other one raised in here —
+    a malformed UUID, a library's own — would have been echoed to the caller.
+    """
+
+
 class WorkspacesMixin(MixinHost):
     """Mixin providing workspace CRUD operations."""
 
@@ -253,7 +265,7 @@ class WorkspacesMixin(MixinHost):
                         (workspace_id,),
                     )
                     if (cur.fetchone() or [0])[0] <= 1:
-                        raise ValueError("Cannot remove the last owner of a workspace")
+                        raise LastOwnerError("Cannot remove the last owner of a workspace")
                 cur.execute(
                     "DELETE FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
                     (workspace_id, user_id),

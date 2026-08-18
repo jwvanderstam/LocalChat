@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from .. import config
 from ..db.users import LastAdminError
+from ..db.workspaces import LastOwnerError
 from ..models import LoginRequest
 from ..security_fastapi import (
     SESSION_COOKIE,
@@ -235,8 +236,10 @@ def revoke_user_workspace(
         if not removed:
             return JSONResponse({"success": False, "message": "Membership not found"}, status_code=404)
         return {"success": True}
-    except ValueError as exc:
+    except LastOwnerError as exc:
         # remove_workspace_member refuses to strip a workspace of its last owner.
+        # A named type, not ValueError: catching that returned *any* ValueError's
+        # message to the caller, including ones raised by libraries below us.
         return JSONResponse({"success": False, "message": str(exc)}, status_code=409)
     except Exception:
         logger.exception("[Users] revoke workspace error")
