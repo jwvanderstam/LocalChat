@@ -393,3 +393,45 @@ class TestLogFunctionCall:
             greet2("world")
 
         mock_logger.debug.assert_called()
+
+
+class TestSanitizeLogValue:
+    """`sanitize_log_value` guards every log line that embeds user input —
+    filenames, queries, model names, request paths. Stripping CR/LF alone left
+    six other characters that `str.splitlines()` and most log consumers break on,
+    so a crafted value still forged records (CodeQL #95).
+    """
+
+    def test_carriage_return_and_newline_are_flattened(self):
+        from src.utils.logging_config import sanitize_log_value
+
+        assert "\n" not in sanitize_log_value("a\nb")
+        assert "\r" not in sanitize_log_value("a\rb")
+
+    def test_the_other_line_boundaries_are_flattened_too(self):
+        """VT, FF, the ASCII separators, NEL and U+2028/U+2029. Each of these
+        used to survive, and each starts a new line for `splitlines()`."""
+        from src.utils.logging_config import sanitize_log_value
+
+        forged = "start\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029end"
+
+        assert len(sanitize_log_value(forged).splitlines()) == 1
+
+    def test_escape_sequences_cannot_reach_a_terminal(self):
+        """ESC survived the old version, so a value could clear or overwrite
+        lines for whoever read the log."""
+        from src.utils.logging_config import sanitize_log_value
+
+        assert "\x1b" not in sanitize_log_value("visible\x1b[2Khidden")
+
+    def test_ordinary_text_is_left_alone(self):
+        """The negative space: sanitising must not mangle the values it guards,
+        or every log line becomes harder to read than the risk it averted."""
+        from src.utils.logging_config import sanitize_log_value
+
+        assert sanitize_log_value("report Q3.pdf — 12 chunks") == "report Q3.pdf — 12 chunks"
+
+    def test_non_strings_are_accepted(self):
+        from src.utils.logging_config import sanitize_log_value
+
+        assert sanitize_log_value(42) == "42"

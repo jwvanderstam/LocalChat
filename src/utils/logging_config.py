@@ -15,16 +15,29 @@ import functools
 import json
 import logging
 import logging.handlers
+import re
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+#: Everything that can start a new line in a log consumer, or drive a terminal.
+#: C0 controls (CR, LF, VT, FF, ESC, the file/group/record separators), DEL, the C1
+#: range (NEL is 0x85), and the Unicode line/paragraph separators.
+_LOG_UNSAFE = re.compile(r'[\x00-\x1f\x7f-\x9f\u2028\u2029]')
+
 
 def sanitize_log_value(value: object) -> str:
-    """Strip CR/LF from a user-supplied value before embedding in a log message."""
-    return str(value).replace('\r', '').replace('\n', ' ')
+    """Flatten a user-supplied value before embedding it in a log message.
+
+    Stripping CR/LF alone is not enough, which is what this used to do.
+    `str.splitlines()` — and most log consumers — also break on VT, FF, the ASCII
+    separators, NEL and U+2028/U+2029, so a message containing any of them still
+    forged new log records. ESC survived too, letting a crafted value clear or
+    overwrite lines in anyone's terminal when they read the log.
+    """
+    return _LOG_UNSAFE.sub(' ', str(value))
 
 
 class SafeStreamHandler(logging.StreamHandler):

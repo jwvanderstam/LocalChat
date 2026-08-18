@@ -32,6 +32,8 @@ router = APIRouter()
 
 _NOT_FOUND = "User not found"
 _ERR_INTERNAL = "Internal server error"
+#: Matches the wording the workspaces router returns for the same refusal.
+_LAST_OWNER = "Cannot remove the last owner of a workspace"
 #: One message for "no such user" and "wrong password" alike — distinguishing them
 #: turns the login form into a username oracle.
 _ERR_BAD_CREDENTIALS = "Invalid username or password"
@@ -237,10 +239,13 @@ def revoke_user_workspace(
             return JSONResponse({"success": False, "message": "Membership not found"}, status_code=404)
         return {"success": True}
     except LastOwnerError as exc:
-        # remove_workspace_member refuses to strip a workspace of its last owner.
-        # A named type, not ValueError: catching that returned *any* ValueError's
-        # message to the caller, including ones raised by libraries below us.
-        return JSONResponse({"success": False, "message": str(exc)}, status_code=409)
+        # The message is a constant, not str(exc): nothing raised below this line
+        # can reach the caller, whatever it says. The same shape the workspaces
+        # router already uses for this condition, and what closes CodeQL #91 —
+        # narrowing the catch to a named type was an improvement but left the
+        # flagged expression untouched.
+        logger.warning("[Users] revoke workspace constraint: %s", exc)
+        return JSONResponse({"success": False, "message": _LAST_OWNER}, status_code=409)
     except Exception:
         logger.exception("[Users] revoke workspace error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

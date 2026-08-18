@@ -108,9 +108,14 @@ class TestMembershipManagement:
         """
         client = _client()
         client.app.state.db.remove_workspace_member.side_effect = LastOwnerError(
-            "Cannot remove the last owner")
+            "leaked internals from somewhere below")
         resp = client.delete(f"/api/users/{USER}/workspaces/{WS}")
-        assert resp.status_code == 409 and "last owner" in resp.json()["message"]
+
+        assert resp.status_code == 409
+        # The route's own constant, never the exception's text. Asserted by raising
+        # with a *different* string: a substring check on "last owner" could not tell
+        # the two apart, which is how CodeQL #91 survived the first fix.
+        assert resp.json()["message"] == "Cannot remove the last owner of a workspace"
 
     def test_granting_without_a_workspace_id_is_refused(self):
         resp = _client().post(f"/api/users/{USER}/workspaces", json={"role": "editor"})
