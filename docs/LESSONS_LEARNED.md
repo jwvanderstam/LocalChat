@@ -754,6 +754,77 @@ fix from a sufficient one.
 
 ---
 
+## 17. A base image that turns a missing library into no error at all
+
+The task was to move the application image onto a hardened, distroless base and make
+"deploys on a secure container" something CI checks. The base swap itself is two `FROM`
+lines. Everything that made this work interesting came from what the new base *removes*.
+
+**Four things the Dockerfile did that the base no longer permits.** No `apt-get libpq5` —
+there is no package manager, and `psycopg[binary]` vendors libpq in the wheel anyway. No
+`groupadd`/`useradd` — the base already runs as uid 65532 and carries no `/etc/passwd`
+entry, so `USER` and every `--chown` became numeric. No `mkdir` for `/app/logs` — no shell,
+so the directories arrive by `COPY --from=builder`. And no `sh -c` around `CMD`, which
+silently took `${SERVER_PORT:-5000}`, `${UVICORN_WORKERS:-1}` and `${UVICORN_TIMEOUT:-600}`
+with it — three knobs `docker-compose.yml` actually sets. `docker-entrypoint.py` exists to
+expand them and then `exec` uvicorn, so the server stays PID 1 and still takes signals.
+
+**The failure mode that justifies the whole gate.** A native library the wheels do not
+vendor does not produce a build error or an `ImportError`. It produces **SIGSEGV**: the
+image builds, publishes, starts, and dies with exit 139, no traceback, the last log line an
+unrelated `METRICS_TOKEN` warning. Here that was `onnxruntime` 1.29.0 — reached
+transitively through `pymupdf-layout`, which nothing in this codebase imports by name, and
+**unpinned**, so the published image had been running 1.28.0 while a fresh resolve produced
+1.29.0. Isolating it took four comparisons: 1.29.0 on slim (fine), 1.28.0 on the hardened
+base (fine), 1.29.0 on the hardened base (segfault), and the same crash under the base's own
+interpreter rather than the copied venv one, which ruled out the venv. `ldd` was clean and
+the library diff showed nothing relevant; the root cause is still unknown, and the pin is
+recorded as a workaround with its reason, not as a fix.
+
+**Two wrong hypotheses, one of which shipped a change.** `libgomp.so.1` really is absent
+from the hardened base, so a copy from the builder stage looked obviously right — and the
+segfault persisted. Masking `libgomp` to `/dev/null` afterwards proved every import still
+succeeded, so it had never been needed, and the change came back out. A missing thing that
+is genuinely missing is not thereby the cause.
+
+**The `.dockerignore` near-miss.** Generic advice — exclude tests, docs, build cruft — is
+wrong in this repository. `DocsService` reads `docs/*.md` and `.claude/rules/*.md` **at
+runtime** to serve the in-app viewer and the settings help text. Excluding them would have
+produced an empty documentation viewer with no error anywhere: nothing raises, the
+catalogue simply resolves to missing files. It was caught before building only because the
+exclusion list was checked against what the application reads rather than against a
+best-practices list. The smoke job now asserts every catalogued document is present in the
+image, so the near-miss became a test.
+
+**Three CI defects that only appeared by running the job.** The `docker-smoke` YAML was
+reviewed, parsed, and reasoned about, and it was still wrong three ways. `JWT_SECRET_KEY`
+in the shared `env:` block is 22 characters and `APP_ENV=production` requires 32 — no Python
+suite catches this because none of them run in production mode, so the container was the
+first thing that ever did. `HEALTHCHECK` hardcoded port 5000 while `SERVER_PORT` was now
+configurable, so Docker reported the container unhealthy while it served correctly on 5050.
+And the job has no `setup-python` step, so bare `python` on the runner was not safe to
+assume. Each would have been a red first run; none was visible in the file.
+
+Fixing the second one improved the assertion that found it: because the healthcheck now
+routes through `docker-entrypoint.py --healthcheck`, "Docker reports the container healthy"
+also proves the check follows `SERVER_PORT`. The weaker "still running" step was replaced.
+
+**What the migration actually bought, measured rather than claimed.** Same requirements,
+same source, only the base differing: 121 CVEs to 20, criticals 2 to 0, highs 32 to 4, 73
+fewer packages. The freshly rebuilt slim image scores identically to the published one,
+which is what rules out the dependency pinning as the cause. What it did *not* buy: size
+(10.2 GB to 10.1 GB — the base is noise beside torch and CUDA), and not "zero CVE" either,
+since the hardened base's *own* Python packages carry three Highs that Debian slim does not.
+The honest case is structural — no shell, no package manager, nonroot by default — and
+that is what [ADR-3](ADR.md) records, with a revisit condition that can be re-measured
+rather than re-argued.
+
+**Rule taken from this:** a CI job is not verified by reading it. Run it, against the real
+thing, before trusting it to gate anything — the same discipline Ch. 13 applied to tests
+that pass with authentication broken, turned on the pipeline itself.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents
@@ -855,3 +926,4 @@ guard are marked as such honestly.
 | Coverage without authorisation (Ch. 12) | Every route test ran with `state.testing = True`, tripping the RBAC bypass — the checks were executed by nothing | New auth tests run with the bypass **off**; RBAC-2 must verify each route has a check *and* a test that exercises it unbypassed |
 | A dead abstraction is worse than none (Ch. 12) | `require_workspace_role_dep` was correct and had zero call sites while the routes it was written for ran their own fail-open checks | The dependency is now the single mechanism behind `check_workspace_access`, used by all 33 workspace-scoped routes — no parallel implementation to drift from |
 | A fix is not a closed alert (Ch. 16) | #284 changed the flagged expression itself, and hardened the one shared `sanitize_log_value` instead of the copy CodeQL happened to point at | Re-run the scan rather than predicting it. Six sites now share one sanitiser, so there is no duplicate left to fix in isolation |
+| A build that succeeds is not an image that runs (Ch. 17) | `docker-smoke` builds the image, asserts uid/shell/native-import/docs invariants, and boots it against postgres | Required check on every PR. The failure it targets — a missing native library becoming SIGSEGV with no traceback — is invisible to `docker build` |

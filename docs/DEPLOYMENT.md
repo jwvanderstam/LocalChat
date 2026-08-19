@@ -133,6 +133,39 @@ Schema migrations are additive (`ADD COLUMN IF NOT EXISTS`), so an older applica
 generally runs against a newer schema. Alembic `downgrade` is **not** part of the supported
 path — see [MIGRATIONS.md](MIGRATIONS.md).
 
+## The application image
+
+The `app` image is a two-stage build on **Docker Hardened Images**
+(`dhi.io/python:3.12-dev` builds, `dhi.io/python:3.12` runs), both pinned by digest.
+Adopted in #287; the decision and its revisit condition are [ADR-3](ADR.md).
+
+What that means when you operate it:
+
+| Property | Consequence |
+|---|---|
+| Runs as **uid 65532**, nonroot, no `/etc/passwd` entry | `docker exec ... whoami` fails; refer to the user numerically. Mounted volumes must be writable by 65532. |
+| **No shell** | `docker exec <container> sh` does not work. There is nothing to `exec` into. Debug with `--entrypoint python`, or read the logs. |
+| **No package manager** | You cannot `apt-get install` a missing library into a running container. A missing native library shows up as **SIGSEGV on import** — exit 139, no traceback. |
+| `CMD` and `HEALTHCHECK` are exec form | No shell means no `${VAR:-default}`. `docker-entrypoint.py` expands `SERVER_HOST`, `SERVER_PORT`, `UVICORN_WORKERS` and `UVICORN_TIMEOUT`, then `exec`s uvicorn so it stays PID 1 and still receives signals. |
+
+**Debugging without a shell:**
+
+```bash
+# Run any Python in the image
+docker compose run --rm --entrypoint python app -c "import psycopg; print(psycopg.__version__)"
+
+# Health, as the container's own HEALTHCHECK runs it
+docker compose run --rm --entrypoint python app docker-entrypoint.py --healthcheck
+
+# Logs are the primary instrument, and LOG_FORMAT=json by default
+docker compose logs -f app
+```
+
+**The CI gate.** `docker-smoke` in `.github/workflows/tests.yml` builds this image on
+every PR and asserts the invariants above, then boots it against Postgres and requires
+`/api/health`. It exists because the failure mode is silent: the image builds and
+publishes cleanly, then the container dies on start. See LESSONS_LEARNED Ch. 17.
+
 ## Security checklist
 
 Before exposing LocalChat beyond localhost:
@@ -146,6 +179,8 @@ Before exposing LocalChat beyond localhost:
 | CORS origins | `CORS_ORIGINS` | Specific domains; never `*`. |
 | Token encryption | `TOKEN_ENCRYPTION_KEY` | Required for the OAuth connectors. |
 | TLS | — | Terminate at a proxy; see below. |
+| Container user | — | Runs as uid 65532 by default. Do not override with `user: root` in compose. |
+| Image provenance | — | Base images are digest-pinned. A bare tag makes the CVE posture unverifiable later. |
 
 Which routes require which role is documented in [PERMISSIONS.md](PERMISSIONS.md).
 
