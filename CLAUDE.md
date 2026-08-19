@@ -185,15 +185,25 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Pull Requests and Merging
 
 **`main` is gated.** The "Code Verification" ruleset targets the default branch
-and requires three checks to pass before anything merges: `unit-tests`,
-`integration-tests`, `repo-hygiene`. A PR with red or missing checks cannot be
-merged — this is enforced, not a convention.
+and requires four checks to pass before anything merges: `unit-tests`,
+`integration-tests`, `repo-hygiene`, `docker-smoke`. A PR with red or missing
+checks cannot be merged — this is enforced, not a convention.
 
-`docker-smoke` (added in #287) is **not yet in the ruleset** — a check must run on the
-default branch once before it can be referenced. It runs on every PR and shows red on
-failure; until it is added, it cannot stop a merge. Adding it is a repo-settings change,
-and it should be added: the failure it catches (a built image that will not start) is
-invisible to every other job.
+`docker-smoke` joined the set on 2026-08-19, once #287 had given it a run on the
+default branch — a check cannot be referenced by the ruleset before it has reported
+there at least once. It catches the one failure invisible to every other job: an
+image that builds and publishes cleanly and then will not start.
+
+Verify the set by reading it back through the API, not from the settings UI — see
+LESSONS_LEARNED Ch. 11 on a ruleset that rendered as correct in the form that
+created it:
+
+```bash
+gh api repos/jwvanderstam/LocalChat/rulesets/14700924 --jq '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | "\(.context) \(.integration_id)"]'
+```
+
+All four must report `integration_id 15368` — a same-named check from another app
+would satisfy the ruleset without running this workflow.
 
 Deliberately *not* required: `build-and-push` (15–20 min, would block every
 merge), `SonarCloud Scan` (reports `skipping` on some PRs, and a required
