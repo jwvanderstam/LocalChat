@@ -314,6 +314,9 @@ jobs:
           '
           echo "OK: every catalogued document is in the image"
 
+      # JWT_SECRET_KEY is a literal rather than the shared env value: that one is 22
+      # characters and APP_ENV=production requires 32. No Python suite catches this
+      # because none of them run in production mode.
       # SERVER_PORT is deliberately non-default here: the runtime base has no shell,
       # so the `${SERVER_PORT:-5000}` expansion moved into docker-entrypoint.py. A
       # hardcoded port would pass on 5000 and fail here.
@@ -323,7 +326,7 @@ jobs:
             -e APP_ENV=production \
             -e SERVER_PORT=5050 \
             -e SECRET_KEY="$SECRET_KEY" \
-            -e JWT_SECRET_KEY="$JWT_SECRET_KEY" \
+            -e JWT_SECRET_KEY=ci-smoke-jwt-secret-key-32chars-minimum \
             -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
             -e PG_HOST=localhost -e PG_PORT=5432 \
             -e PG_USER="$PG_USER" -e PG_PASSWORD="$PG_PASSWORD" -e PG_DB="$PG_DB" \
@@ -346,7 +349,7 @@ jobs:
             exit 1
           fi
           cat /tmp/health.json
-          python -c "
+          python3 -c "
           import json, sys
           h = json.load(open('/tmp/health.json'))
           if not h['checks']['database']['healthy']:
@@ -354,15 +357,25 @@ jobs:
           print('OK: healthy, database up')
           "
 
-      - name: Container is still running, not crash-looping
+      # The container's own HEALTHCHECK, not just the endpoint. It runs through
+      # docker-entrypoint.py, so a healthy verdict also proves the check follows
+      # SERVER_PORT rather than hardcoding 5000.
+      - name: Docker reports the container healthy
         run: |
+          health=""
+          for i in $(seq 1 30); do
+            health=$(docker inspect -f '{{.State.Health.Status}}' smoke)
+            [ "$health" = "healthy" ] && break
+            [ "$health" = "unhealthy" ] && break
+            sleep 2
+          done
           status=$(docker inspect -f '{{.State.Status}}' smoke)
-          if [ "$status" != "running" ]; then
-            echo "::error::container is $status after the health check"
+          if [ "$status" != "running" ] || [ "$health" != "healthy" ]; then
+            echo "::error::container status=$status health=$health"
             docker logs smoke 2>&1 | tail -40
             exit 1
           fi
-          echo "OK: still running"
+          echo "OK: running and healthy"
 
   repo-hygiene:
     runs-on: ubuntu-latest

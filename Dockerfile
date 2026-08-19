@@ -88,10 +88,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 EXPOSE 5000
 
-# Healthcheck — hits the lightweight /api/health endpoint. Exec form: with no
-# shell there is no `|| exit 1`, so the check relies on urlopen raising (and
-# python exiting non-zero) for any non-200.
+# Healthcheck — hits /api/health through the entrypoint, so it honours
+# SERVER_PORT instead of hardcoding 5000. Exec form: with no shell there is no
+# `|| exit 1`, so the check relies on urlopen raising (and python exiting
+# non-zero) for any non-200.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)"]
+    CMD ["python", "docker-entrypoint.py", "--healthcheck"]
 
 CMD ["python", "docker-entrypoint.py"]

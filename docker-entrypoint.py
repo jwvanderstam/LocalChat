@@ -9,6 +9,18 @@ signals reach it unchanged.
 from __future__ import annotations
 
 import os
+import sys
+import urllib.request
+
+
+def _port() -> str:
+    return os.getenv("SERVER_PORT", "5000")
+
+
+def healthcheck() -> None:
+    """HEALTHCHECK target. Must agree with main() about the port, which is why
+    it lives here rather than as a hardcoded URL in the Dockerfile."""
+    urllib.request.urlopen(f"http://localhost:{_port()}/api/health", timeout=5)
 
 
 def main() -> None:
@@ -19,7 +31,7 @@ def main() -> None:
             "app:create_uvicorn_app",
             "--factory",
             "--host", os.getenv("SERVER_HOST", "0.0.0.0"),
-            "--port", os.getenv("SERVER_PORT", "5000"),
+            "--port", _port(),
             "--workers", os.getenv("UVICORN_WORKERS", "1"),
             "--timeout-keep-alive", os.getenv("UVICORN_TIMEOUT", "600"),
             "--log-level", "info",
@@ -28,4 +40,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if "--healthcheck" in sys.argv:
+        healthcheck()
+    else:
+        main()
