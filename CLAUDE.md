@@ -17,6 +17,16 @@ Compose sets those in each service's `environment:` block, which **overrides `.e
 `OLLAMA_BASE_URL`/`PG_HOST`/`REDIS_HOST` in `.env` do nothing for a containerised app;
 change them in `docker-compose.yml` or an override file.
 
+**The `app` image is distroless.** Both build stages sit on Docker Hardened Images
+(`dhi.io/python:3.12-dev` builds, `dhi.io/python:3.12` runs), digest-pinned. The runtime
+image has **no shell and no package manager** and runs as **uid 65532**, so: `docker exec
+... sh` does not work (use `--entrypoint python`), nothing can be `apt-get`-installed into
+a running container, and `CMD`/`HEALTHCHECK` must be exec form — `docker-entrypoint.py`
+expands `SERVER_PORT`/`UVICORN_WORKERS`/`UVICORN_TIMEOUT` because there is no shell to do
+it. A system library the wheels do not vendor fails as **SIGSEGV on import** (exit 139, no
+traceback), never as a build error. See [ADR-3](docs/ADR.md) and
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#the-application-image).
+
 Running `python app.py` on the host is the *second* supported topology, not a different
 product: the backing services still run in Docker, and the host process reaches them over
 published loopback ports (`127.0.0.1:5432` for `db`, `127.0.0.1:11434` for `ollama`, moveable
@@ -158,6 +168,16 @@ bandit -r src/ -ll -q -c pyproject.toml      # install once: pip install bandit
 pytest -m "not (slow or ollama or db)"       # fast suite, no external services
 ```
 
+`requirements.txt` is pinned for **Python 3.12** — the version CI and the Dockerfile use.
+On 3.13+ the set will not install; see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md).
+
+Changing the `Dockerfile`, `requirements.txt` or `docker-entrypoint.py` also needs the
+image gate, which is not reproducible from the four commands above:
+
+```bash
+docker build -t localchat:smoke .            # then boot it — `docker-smoke` in tests.yml
+```
+
 Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or removing a module.
 
 ---
@@ -165,9 +185,25 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Pull Requests and Merging
 
 **`main` is gated.** The "Code Verification" ruleset targets the default branch
-and requires three checks to pass before anything merges: `unit-tests`,
-`integration-tests`, `repo-hygiene`. A PR with red or missing checks cannot be
-merged — this is enforced, not a convention.
+and requires four checks to pass before anything merges: `unit-tests`,
+`integration-tests`, `repo-hygiene`, `docker-smoke`. A PR with red or missing
+checks cannot be merged — this is enforced, not a convention.
+
+`docker-smoke` joined the set on 2026-08-19, once #287 had given it a run on the
+default branch — a check cannot be referenced by the ruleset before it has reported
+there at least once. It catches the one failure invisible to every other job: an
+image that builds and publishes cleanly and then will not start.
+
+Verify the set by reading it back through the API, not from the settings UI — see
+LESSONS_LEARNED Ch. 11 on a ruleset that rendered as correct in the form that
+created it:
+
+```bash
+gh api repos/jwvanderstam/LocalChat/rulesets/14700924 --jq '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | "\(.context) \(.integration_id)"]'
+```
+
+All four must report `integration_id 15368` — a same-named check from another app
+would satisfy the ruleset without running this workflow.
 
 Deliberately *not* required: `build-and-push` (15–20 min, would block every
 merge), `SonarCloud Scan` (reports `skipping` on some PRs, and a required

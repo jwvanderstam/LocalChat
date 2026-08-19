@@ -35,6 +35,11 @@ docker compose up -d          # PostgreSQL, Redis, Ollama and the app
 
 Open <http://localhost:5000>. You will be asked to sign in.
 
+The `app` image is built on a hardened, distroless base: no shell, no package manager,
+running as uid 65532. That changes how you debug it — `docker exec ... sh` will not work;
+use `docker compose run --rm --entrypoint python app`. See
+[DEPLOYMENT.md](docs/DEPLOYMENT.md#the-application-image).
+
 **Everything runs in Docker**, on a private network where the services address each other
 by name — the app reaches Ollama at `http://ollama:11434` and Postgres at `db`. Compose
 sets those itself, and compose's `environment:` beats `.env`, so `OLLAMA_BASE_URL`,
