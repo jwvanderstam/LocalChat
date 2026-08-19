@@ -6,6 +6,13 @@
 # Stage 2 (runtime): copies only the venv + source; no build
 #                    toolchain in the final image.
 #
+# Both stages sit on Docker Hardened Images. The runtime variant
+# ships no shell and no package manager and runs as uid 65532,
+# which is why this file creates no user, installs nothing at
+# runtime, and uses exec-form CMD/HEALTHCHECK throughout — there
+# is no `sh` to expand a `${VAR:-default}` or to chain `|| exit 1`.
+# `docker-entrypoint.py` does that expansion instead.
+#
 # Build:
 #   docker build -t localchat:latest .
 #
@@ -17,7 +24,9 @@
 # ============================================================
 
 # ---- Stage 1: builder ----------------------------------------
-FROM python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4 AS builder
+# The -dev variant carries the shell, apt and compilers the runtime
+# variant deliberately omits. Nothing from it reaches the final image.
+FROM dhi.io/python:3.12-dev@sha256:3b5bbcb41fec489a9ab2c5a16a8bd7cc915526e6e73954415168f9f57f3b58d7 AS builder
 
 # System deps needed to compile native extensions (psycopg, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -32,38 +41,40 @@ WORKDIR /build
 COPY requirements.txt .
 
 # Create a virtual environment and install all deps into it.
-RUN python -m venv /opt/venv && \
+# --copies, not symlinks: the runtime stage is a different image, and a venv
+# symlinked to this stage's interpreter would dangle there.
+RUN python -m venv --copies /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
     /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
+# Writable runtime directories, created here because the runtime stage has no
+# shell to mkdir with. COPY is the only way to introduce a directory there.
+RUN mkdir -p /skel/logs /skel/uploads
+
 
 # ---- Stage 2: runtime ----------------------------------------
-FROM python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4 AS runtime
+FROM dhi.io/python:3.12@sha256:7c247af7f603bba8197ad5c34595066e1e6b81644c5a37b576d157979ceb4ea6 AS runtime
 
-# Runtime system dep: libpq for psycopg
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpq5 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create a non-root user for security
-RUN groupadd --gid 1000 localchat && \
-    useradd  --uid 1000 --gid localchat --shell /bin/bash --create-home localchat
+# No libpq layer: psycopg[binary] vendors libpq inside the wheel, and the
+# hardened base has no apt to install a system copy with. Verified by importing
+# psycopg in the built image — see the docker-smoke job in tests.yml.
 
 # Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder --chown=65532:65532 /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
 # Copy application source
-COPY --chown=localchat:localchat . /app
+COPY --chown=65532:65532 . /app
 
-# Create runtime directories
-RUN mkdir -p /app/logs /app/uploads /app/htmlcov && \
-    chown -R localchat:localchat /app/logs /app/uploads && \
-    chmod 755 /app/logs /app/uploads
+# Runtime directories (see the builder stage for why they arrive by COPY)
+COPY --from=builder --chown=65532:65532 /skel/logs /app/logs
+COPY --from=builder --chown=65532:65532 /skel/uploads /app/uploads
 
-USER localchat
+# uid:gid of the hardened base image's own nonroot user. Numeric because the
+# image carries no /etc/passwd entry this file could refer to by name.
+USER 65532:65532
 
 # ── Environment defaults (override in docker-compose / K8s) ──
 # All secrets (SECRET_KEY, PG_PASSWORD, …) MUST be injected at
@@ -77,15 +88,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 EXPOSE 5000
 
-# Healthcheck — hits the lightweight /api/health endpoint.
+# Healthcheck — hits /api/health through the entrypoint, so it honours
+# SERVER_PORT instead of hardcoding 5000. Exec form: with no shell there is no
+# `|| exit 1`, so the check relies on urlopen raising (and python exiting
+# non-zero) for any non-200.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)" 2>/dev/null || exit 1
+    CMD ["python", "docker-entrypoint.py", "--healthcheck"]
 
-CMD ["sh", "-c", \
-     "uvicorn 'app:create_uvicorn_app' \
-        --factory \
-        --host 0.0.0.0 \
-        --port ${SERVER_PORT:-5000} \
-        --workers ${UVICORN_WORKERS:-1} \
-        --timeout-keep-alive ${UVICORN_TIMEOUT:-600} \
-        --log-level info"]
+CMD ["python", "docker-entrypoint.py"]

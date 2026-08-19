@@ -235,6 +235,148 @@ jobs:
       - name: Run end-to-end tests
         run: pytest tests/e2e/ -v --tb=short --no-cov
 
+  # The hardened runtime base has no shell and no package manager, so a missing
+  # system library surfaces as SIGSEGV at import time rather than as a build
+  # error: the image builds, then dies with exit 139 and no traceback.
+  # onnxruntime 1.29.0 did exactly that. Nothing but booting the container finds
+  # it, which is why this job exists and why it is cheap enough to be required —
+  # unlike build-and-push, which takes 15-20 min.
+  docker-smoke:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: rag_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Build the image
+        run: docker build -t localchat:smoke .
+
+      - name: Runs as the hardened base's nonroot user
+        run: |
+          uid=$(docker run --rm --entrypoint python localchat:smoke -c "import os; print(os.getuid())")
+          if [ "$uid" != "65532" ]; then
+            echo "::error::image runs as uid $uid, expected 65532"
+            exit 1
+          fi
+          echo "OK: uid 65532"
+
+      - name: No shell and no package manager
+        run: |
+          docker run --rm --entrypoint python localchat:smoke -c '
+          import shutil, sys
+          found = [t for t in ("sh", "bash", "apt-get", "apk") if shutil.which(t)]
+          sys.exit("::error::not the hardened runtime variant — found " + ", ".join(found) if found else 0)
+          '
+          echo "OK: no shell, no package manager"
+
+      - name: No secrets and no test code in the image
+        run: |
+          docker run --rm --entrypoint python localchat:smoke -c '
+          import os, sys
+          bad = [p for p in ("/app/.env", "/app/tests", "/app/.git") if os.path.exists(p)]
+          sys.exit("::error::must not be in the image: " + ", ".join(bad) if bad else 0)
+          '
+          echo "OK: no .env, no tests, no .git"
+
+      # The regression guard for the segfault class. These wheels carry their own
+      # native libraries; the hardened base cannot install a missing one.
+      - name: Native extensions import without a package manager
+        run: |
+          docker run --rm --entrypoint python localchat:smoke -c '
+          import psycopg, onnxruntime, torch, spacy, sentence_transformers
+          print("psycopg", psycopg.__version__, "| onnxruntime", onnxruntime.__version__)
+          '
+
+      # .dockerignore excluding docs/ or .claude/ would leave the in-app docs
+      # viewer serving nothing, with no error anywhere.
+      - name: Documents the in-app viewer serves are present
+        run: |
+          docker run --rm --entrypoint python localchat:smoke -c '
+          import os, sys
+          from src.docs.service import _CATALOGUE
+          missing = [p for _, p in _CATALOGUE if not os.path.exists(os.path.join("/app", p))]
+          sys.exit("::error::catalogued docs missing from image: " + ", ".join(missing) if missing else 0)
+          '
+          echo "OK: every catalogued document is in the image"
+
+      # JWT_SECRET_KEY is a literal rather than the shared env value: that one is 22
+      # characters and APP_ENV=production requires 32. No Python suite catches this
+      # because none of them run in production mode.
+      # SERVER_PORT is deliberately non-default here: the runtime base has no shell,
+      # so the `${SERVER_PORT:-5000}` expansion moved into docker-entrypoint.py. A
+      # hardcoded port would pass on 5000 and fail here.
+      - name: Boot the container and check /api/health
+        run: |
+          docker run -d --name smoke --network host \
+            -e APP_ENV=production \
+            -e SERVER_PORT=5050 \
+            -e SECRET_KEY="$SECRET_KEY" \
+            -e JWT_SECRET_KEY=ci-smoke-jwt-secret-key-32chars-minimum \
+            -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+            -e PG_HOST=localhost -e PG_PORT=5432 \
+            -e PG_USER="$PG_USER" -e PG_PASSWORD="$PG_PASSWORD" -e PG_DB="$PG_DB" \
+            -e REDIS_ENABLED=false \
+            -e OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+            localchat:smoke
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /tmp/health.json -w '%{http_code}' http://localhost:5050/api/health || true)
+            [ "$code" = "200" ] && break
+            if [ "$(docker inspect -f '{{.State.Status}}' smoke)" = "exited" ]; then
+              echo "::error::container exited with code $(docker inspect -f '{{.State.ExitCode}}' smoke)"
+              break
+            fi
+            sleep 2
+          done
+          echo "--- container logs ---"
+          docker logs smoke 2>&1 | tail -40
+          if [ "$code" != "200" ]; then
+            echo "::error::/api/health did not return 200 within 120s (last: ${code:-none})"
+            exit 1
+          fi
+          cat /tmp/health.json
+          python3 -c "
+          import json, sys
+          h = json.load(open('/tmp/health.json'))
+          if not h['checks']['database']['healthy']:
+              sys.exit('::error::database check unhealthy: ' + json.dumps(h))
+          print('OK: healthy, database up')
+          "
+
+      # The container's own HEALTHCHECK, not just the endpoint. It runs through
+      # docker-entrypoint.py, so a healthy verdict also proves the check follows
+      # SERVER_PORT rather than hardcoding 5000.
+      - name: Docker reports the container healthy
+        run: |
+          health=""
+          for i in $(seq 1 30); do
+            health=$(docker inspect -f '{{.State.Health.Status}}' smoke)
+            [ "$health" = "healthy" ] && break
+            [ "$health" = "unhealthy" ] && break
+            sleep 2
+          done
+          status=$(docker inspect -f '{{.State.Status}}' smoke)
+          if [ "$status" != "running" ] || [ "$health" != "healthy" ]; then
+            echo "::error::container status=$status health=$health"
+            docker logs smoke 2>&1 | tail -40
+            exit 1
+          fi
+          echo "OK: running and healthy"
+
   repo-hygiene:
     runs-on: ubuntu-latest
 

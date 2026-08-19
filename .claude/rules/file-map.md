@@ -152,6 +152,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Infra / Config** | |
 | `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
+| `Dockerfile` | Multi-stage build on Docker Hardened Images — `dhi.io/python:3.12-dev` builds the venv, `dhi.io/python:3.12` runs it as uid 65532 with no shell or package manager |
+| `docker-entrypoint.py` | Container entrypoint — expands `SERVER_PORT`/`UVICORN_WORKERS`/`UVICORN_TIMEOUT` (the hardened base has no shell to do it) and `exec`s uvicorn so it stays PID 1 |
 | `docs/DEPLOYMENT.md` | Docker Compose deployment: secrets, resource limits, upgrade/rollback, TLS, security checklist |
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 16 panels) |
 | `tests/conftest.py` | Shared pytest fixtures |
@@ -167,7 +169,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/mutation_gate.py` | TQ-3 — runs `mutmut<3` over the isolation-critical modules, screens the result for a broken harness, fails under the agreed kill rate |
 | `.github/workflows/mutation.yml` | Nightly mutation gate (`workflow_dispatch` takes a threshold); not in the ruleset |
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
-| `.github/workflows/tests.yml` | CI: `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, Conventional Commits warning) |
+| `.github/workflows/tests.yml` | CI: `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `docker-smoke` (builds the hardened image, asserts uid 65532 / no shell / native imports / catalogued docs present, boots it against postgres on a non-default port) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, Conventional Commits warning) |
 | `.github/workflows/sonarcloud.yml` | SonarCloud quality-gate scan on push/PR to main |
 | `.github/workflows/gitleaks.yml` | Secret-scanning on push/PR to main |
 | `.github/workflows/docker-publish.yml` | Builds and publishes the app's Docker image |
