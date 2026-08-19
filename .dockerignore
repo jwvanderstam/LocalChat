@@ -16,3 +16,9 @@ obj/
 TestResults/
 .venv/
 venv/
+tests/
+.github/
+node_modules/
+.env
+.env.*
+!.env.example
