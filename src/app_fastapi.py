@@ -147,8 +147,12 @@ def _init_security(app: FastAPI, testing: bool) -> None:
             app.add_middleware(
                 ProxyHeadersMiddleware, trusted_hosts=config.TRUSTED_PROXY_IPS
             )
+            # Count, not the values: the addresses come from the environment, and
+            # logging configuration verbatim is what py/clear-text-logging-sensitive-data
+            # exists to catch. Whether trust is on is the operationally useful part.
             logger.info(
-                "Trusting X-Forwarded-For from %s", ", ".join(config.TRUSTED_PROXY_IPS)
+                "Trusting X-Forwarded-For from %d configured proxy address(es)",
+                len(config.TRUSTED_PROXY_IPS),
             )
 
     @app.middleware("http")
