@@ -30,6 +30,27 @@ def _no_appstate_io():
     config.app_state.state_file = None
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _disable_rate_limiting():
+    """Turn the rate limiter off for the whole session.
+
+    slowapi's decorator evaluates limits from the module-level ``Limiter``, not
+    from ``app.state.limiter``. Most route tests build a bare app and never call
+    ``_init_security``, so the limiter stays on and enforces real limits with no
+    handler registered to turn them into a 429 — tests then fail with 429 in
+    place of the status they assert, pointing nowhere near rate limiting.
+
+    Buckets are also process-wide and keyed on TestClient's single address, so
+    without this the suite's own repetition trips the limits: ``/api/chat`` and
+    ``/upload`` are hit well over a hundred times.
+
+    Tests that need limits on re-enable them locally and restore this afterwards
+    (see ``tests/unit/test_sec3_rate_limit_keying.py``).
+    """
+    from src.security_fastapi import limiter
+    limiter.enabled = False
+
+
 @pytest.fixture(autouse=True)
 def _reset_metrics():
     """Reset MetricsCollector singleton between tests for isolation."""
