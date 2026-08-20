@@ -17,7 +17,7 @@ from starlette.datastructures import UploadFile as _StarletteUploadFile
 
 from .. import config
 from ..db.connection import DatabaseUnavailableError
-from ..security_fastapi import get_current_user_id, require_admin_dep
+from ..security_fastapi import get_current_user_id, limiter, require_admin_dep
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.logging_config import sanitize_log_value as _slv
@@ -143,6 +143,7 @@ async def _generate_upload_sse(
 
 
 @router.post("/upload")
+@limiter.limit(config.RATELIMIT_UPLOAD)
 async def api_upload_documents(request: Request) -> Any:
     denied = _deny(request, None, "editor")
     if denied:

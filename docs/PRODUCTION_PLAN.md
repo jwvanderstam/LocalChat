@@ -143,6 +143,27 @@ longer pass through checks that never ran.
 >
 > The cache is a fallback for outages, never a shortcut past a working check — a live `is_token_revoked` still wins over a warm entry, and a refusal is never cached as usable. It is bounded (4096 entries, stale-first eviction) so a stream of distinct tokens cannot turn it into a leak.
 
+### SEC-3 — Rate limiting keys on the real client, and covers more than login ✅ (done)
+
+Found by the 2026-08-19 external audit, which reported the first defect; verifying it turned up two more in the same control.
+
+`Limiter` was keyed with `get_remote_address`, which reads `request.client.host`, and nothing anywhere trusted a proxy header — no `ProxyHeadersMiddleware`, no `--forwarded-allow-ips`. Under `docker-compose.nginx.yml` — the deployment `DEPLOYMENT.md` documents — nginx is a **separate container**, so its peer address is a bridge IP and uvicorn's `127.0.0.1` default never matched. `X-Forwarded-For` was set by nginx and discarded by the app. Every caller keyed on the nginx container.
+
+That inverts the guarantee `config.py` claims for `RATELIMIT_LOGIN` in a comment two lines above it — *"Per source address, so one attacker cannot lock out a legitimate user by exhausting a shared budget."* It was a shared budget, and exhausting it was exactly how one attacker locked out everyone.
+
+**Also fixed, found while confirming the above:**
+- `RATELIMIT_STORAGE_URI` was computed in `config.py` and never passed to `Limiter()`, so the limiter kept private in-process counters and the configured Redis was never touched — and CI's Redis service comment claimed the opposite.
+- `RATELIMIT_CHAT`, `RATELIMIT_UPLOAD`, `RATELIMIT_MODELS` and `RATELIMIT_GENERAL` decorated **zero** routes. `/auth/login` was the only limited endpoint in the application. Config that reads as a control and enforces nothing is worse than no config, because it answers the question when someone checks.
+
+**Files:** `src/config.py` (`TRUSTED_PROXY_IPS`), `src/security_fastapi.py` (`storage_uri`, `default_limits`), `src/app_fastapi.py` (`_init_security`), `api_routes.py`/`document_routes.py`/`model_routes.py` (decorators), `docker-compose.nginx.yml`, `docker-entrypoint.py`, `app.py`.
+
+**Tests:** `tests/unit/test_sec3_rate_limit_keying.py`.
+
+> **`TRUSTED_PROXY_IPS` defaults to empty, and that is the point.** Believing `X-Forwarded-For` from an untrusted peer is the mirror-image defect — any caller forges its own bucket — so the default trusts nobody and the nginx overlay opts in. The tests assert both directions, and the two guarding the fix go red when it is reverted while the two guarding against over-correction stay green.
+>
+> **One place decides proxy trust.** Uvicorn ships its own answer (`--forwarded-allow-ips`, default `127.0.0.1`), and two mechanisms disagreeing is what let the header be silently dropped here. It is now started with that flag empty, so `config.py` is the only authority.
+>
+> **The limiter is disabled under test, deliberately.** slowapi's decorator evaluates limits from the `Limiter` object, not from `app.state.limiter` — which `_init_security` was already skipping when testing. Limits were therefore enforced in the suite with no handler registered to turn them into a 429. Nothing noticed only because login was the sole decorated route; adding chat and upload, which the suite hits ~120 times, would have surfaced as unexplained exceptions.
 ### SEC-4 — Enforce ENCRYPTION_KEY; drop the encryption that did nothing ✅ (done)
 
 From the 2026-08-19 external audit. `validate_secrets()` aborted production startup on a weak `SECRET_KEY`, `JWT_SECRET_KEY`, `ADMIN_PASSWORD` or wildcard CORS, but never mentioned `ENCRYPTION_KEY` — so a deployment could run indefinitely with OAuth tokens, message content and long-term memories in plain text in Postgres. The only signal was one `logger.warning` on the first `encrypt()` call, per worker. An *invalid* key was no different from an absent one: `_get_fernet()` returns `None` on the exception and `encrypt()` returns its input.
@@ -546,6 +567,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 |---|---|---|
 | PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) + TQ-5a ✅ (alembic chain check) | 1-2 days |
 | PG-1 | SEC-1 ✅ + SEC-2 ✅ (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | — |
+| PG-1b | SEC-3 ✅ + SEC-4 (rate limiting keys on the real client; ENCRYPTION_KEY enforced) — from the 2026-08-19 external audit | — |
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
 | PG-3 | TQ-1a ✅ (authz-by-default introspection) + TQ-1b ✅ (bypass deleted; 290 tests converted, not the 39 the ticket counted) | done |
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |

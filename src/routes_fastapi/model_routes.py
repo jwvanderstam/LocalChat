@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
 from .. import config
-from ..security_fastapi import require_admin_dep
+from ..security_fastapi import limiter, require_admin_dep
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -118,6 +118,7 @@ def get_active_model(request: Request, _admin: Annotated[str, Depends(require_ad
 
 
 @router.post("/active")
+@limiter.limit(config.RATELIMIT_MODELS)
 async def set_active_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelRequest
     from ..utils.sanitization import sanitize_model_name
@@ -150,6 +151,7 @@ async def set_active_model(request: Request, _admin: Annotated[str, Depends(requ
 
 
 @router.post("/pull")
+@limiter.limit(config.RATELIMIT_MODELS)
 async def pull_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelPullRequest
     from ..utils.sanitization import sanitize_model_name
@@ -182,6 +184,7 @@ async def pull_model(request: Request, _admin: Annotated[str, Depends(require_ad
 
 
 @router.delete("/delete")
+@limiter.limit(config.RATELIMIT_MODELS)
 async def delete_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelDeleteRequest
     from ..utils.sanitization import sanitize_model_name
@@ -201,6 +204,7 @@ async def delete_model(request: Request, _admin: Annotated[str, Depends(require_
 
 
 @router.post("/unload")
+@limiter.limit(config.RATELIMIT_MODELS)
 async def unload_model(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     from ..models import ModelRequest
     from ..utils.sanitization import sanitize_model_name

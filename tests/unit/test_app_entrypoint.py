@@ -158,6 +158,9 @@ class TestMain:
             port=9000,
             log_level="info",
             reload=False,
+            # SEC-3: uvicorn must not apply its own X-Forwarded-For trust, so
+            # TRUSTED_PROXY_IPS stays the only thing that decides it.
+            forwarded_allow_ips="",
         )
 
     def test_uses_default_host_and_port_when_env_unset(self):

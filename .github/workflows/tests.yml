@@ -148,6 +148,8 @@ jobs:
       # Rate limiting is a security control — RATELIMIT_LOGIN is the defence
       # against password guessing — and its Redis-backed behaviour skipped in CI
       # for want of this service. Same image as docker-compose.yml.
+      # The app's limiter only reaches this once RATELIMIT_STORAGE_URI is passed
+      # to Limiter() (SEC-3); before that it kept private in-process counters.
       redis:
         image: redis:7-alpine
         ports:

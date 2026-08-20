@@ -118,13 +118,42 @@ def _handle_rate_limit_exceeded(request: Request, exc: Exception) -> Response:
 
 
 def _init_security(app: FastAPI, testing: bool) -> None:
+    from slowapi.middleware import SlowAPIMiddleware
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
     from .security_fastapi import limiter, setup_cors
 
     setup_cors(app)
 
+    # slowapi's decorator evaluates limits from the Limiter itself, not from
+    # app.state, so leaving it enabled under test would enforce real limits with
+    # no handler registered to turn them into a 429 — the suite would see raised
+    # exceptions instead. Disabling it is what keeps the decorators inert there.
+    limiter.enabled = config.RATELIMIT_ENABLED and not testing
+
     if not testing:
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, _handle_rate_limit_exceeded)
+        # Applies RATELIMIT_GENERAL to routes that carry no explicit decorator.
+        # Static mounts have no .endpoint and decorated routes are already
+        # limited, so slowapi exempts both rather than double-counting them.
+        app.add_middleware(SlowAPIMiddleware)
+
+        # Must be added last so it wraps the limiter: get_remote_address reads
+        # request.client.host, and this is what rewrites that from
+        # X-Forwarded-For before any limit is keyed on it. Empty
+        # TRUSTED_PROXY_IPS means no proxy is believed and nothing is mounted.
+        if config.TRUSTED_PROXY_IPS:
+            app.add_middleware(
+                ProxyHeadersMiddleware, trusted_hosts=config.TRUSTED_PROXY_IPS
+            )
+            # Count, not the values: the addresses come from the environment, and
+            # logging configuration verbatim is what py/clear-text-logging-sensitive-data
+            # exists to catch. Whether trust is on is the operationally useful part.
+            logger.info(
+                "Trusting X-Forwarded-For from %d configured proxy address(es)",
+                len(config.TRUSTED_PROXY_IPS),
+            )
 
     @app.middleware("http")
     async def _log_requests(request: Request, call_next):

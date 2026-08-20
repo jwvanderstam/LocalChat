@@ -35,6 +35,11 @@ def main() -> None:
             "--workers", os.getenv("UVICORN_WORKERS", "1"),
             "--timeout-keep-alive", os.getenv("UVICORN_TIMEOUT", "600"),
             "--log-level", "info",
+            # Who may set X-Forwarded-For is decided once, by TRUSTED_PROXY_IPS
+            # in src/config.py. Uvicorn's own default (127.0.0.1) is a second
+            # answer to the same question, and two of those is what let the
+            # header be silently ignored behind the nginx overlay.
+            "--forwarded-allow-ips", "",
         ],
     )
 

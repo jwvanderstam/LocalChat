@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from .. import config, exceptions
-from ..security_fastapi import require_admin_dep, require_auth
+from ..security_fastapi import limiter, require_admin_dep, require_auth
 from ..services import chat
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
@@ -256,6 +256,7 @@ def api_status(request: Request) -> Any:
 
 
 @router.post("/chat")
+@limiter.limit(config.RATELIMIT_CHAT)
 async def api_chat(request: Request) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
