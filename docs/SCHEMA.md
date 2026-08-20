@@ -427,7 +427,7 @@ Encrypted OAuth access and refresh tokens for cloud connector providers.
 | `created_at` | `TIMESTAMPTZ` | First token storage timestamp |
 | `updated_at` | `TIMESTAMPTZ` | Last refresh timestamp |
 
-`UNIQUE(user_id, provider)` — one token set per user per provider. Tokens are encrypted at rest using Fernet with `TOKEN_ENCRYPTION_KEY`.
+`UNIQUE(user_id, provider)` — one token set per user per provider. Tokens are encrypted at rest using Fernet with `ENCRYPTION_KEY`.
 
 ---
 
@@ -485,4 +485,5 @@ WITH (m = 16, ef_construction = 64);
 - The `embedding` column uses the `pgvector` custom type (`vector(768)`). The extension must be installed: `CREATE EXTENSION IF NOT EXISTS vector;`.
 - Embedding dimension is fixed at **768** (nomic-embed-text v1.5). Changing the model requires a migration to drop and recreate the `embedding` column and its HNSW index, followed by re-ingesting all documents.
 - Timestamps without timezone (`TIMESTAMP`) are written as UTC by the application. Newer tables use `TIMESTAMPTZ`.
-- OAuth tokens are encrypted at rest with `cryptography.fernet`. The `TOKEN_ENCRYPTION_KEY` env var must be a valid Fernet key (base64url-encoded 32-byte key).
+- OAuth tokens, message content and long-term memories are encrypted at rest with `cryptography.fernet`. The `ENCRYPTION_KEY` env var (legacy alias: `TOKEN_ENCRYPTION_KEY`) must be a valid Fernet key (base64url-encoded 32-byte key); production refuses to start otherwise.
+- `documents.content` and `document_chunks.chunk_text` are **not** encrypted. `chunk_tsv` is generated from `chunk_text`, so encrypting it would remove hybrid search's lexical arm — see SECURITY.md.

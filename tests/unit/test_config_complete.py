@@ -218,12 +218,15 @@ class TestValidateSecrets:
         return config
 
     def _strong_defaults(self) -> dict:
+        from cryptography.fernet import Fernet
+
         return {
             'SECRET_KEY': 'a' * 32,
             'JWT_SECRET_KEY': 'b' * 32,
             'ADMIN_PASSWORD': 'a-real-password',
             'CORS_ENABLED': False,
             'CORS_ORIGINS': ['example.com'],
+            'ENCRYPTION_KEY': Fernet.generate_key().decode(),
         }
 
     def test_noop_outside_production(self, monkeypatch):
@@ -277,3 +280,30 @@ class TestValidateSecrets:
     def test_passes_with_all_strong_values_in_production(self, monkeypatch):
         config = self._set(monkeypatch, APP_ENV='production', **self._strong_defaults())
         config.validate_secrets()  # must not raise
+
+    def test_raises_on_missing_encryption_key_in_production(self, monkeypatch):
+        """Without a key, encrypt() returns its input: OAuth tokens, messages and
+        memories go to Postgres in plain text, signalled only by one log line."""
+        config = self._set(
+            monkeypatch, APP_ENV='production',
+            **{**self._strong_defaults(), 'ENCRYPTION_KEY': ''},
+        )
+        with pytest.raises(SystemExit):
+            config.validate_secrets()
+
+    def test_raises_on_malformed_encryption_key_in_production(self, monkeypatch):
+        """A key that is set but unusable degrades to plain text exactly like an
+        absent one — _get_fernet() returns None on the exception."""
+        config = self._set(
+            monkeypatch, APP_ENV='production',
+            **{**self._strong_defaults(), 'ENCRYPTION_KEY': 'not-a-valid-fernet-key'},
+        )
+        with pytest.raises(SystemExit):
+            config.validate_secrets()
+
+    def test_missing_encryption_key_is_ignored_outside_production(self, monkeypatch):
+        config = self._set(
+            monkeypatch, APP_ENV='development',
+            **{**self._strong_defaults(), 'ENCRYPTION_KEY': ''},
+        )
+        config.validate_secrets()  # must not raise — dev deployments may run keyless

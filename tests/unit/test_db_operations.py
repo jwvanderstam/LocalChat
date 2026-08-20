@@ -105,6 +105,41 @@ class TestDocumentOperations:
             assert doc_id == 1
             assert isinstance(doc_id, int)
 
+    def test_insert_document_stores_content_as_plain_text_even_with_a_key_set(self):
+        """SEC-4 — documents.content is deliberately not field-encrypted.
+
+        It was encrypted on write and never decrypted, while the same text sits
+        in plain text in document_chunks.chunk_text, which is what retrieval
+        reads. Re-adding encryption here protects nothing and this test says so.
+        """
+        from cryptography.fernet import Fernet
+
+        from src import config
+        from src import db as db_module
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = (1,)
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value.__exit__.return_value = None
+
+        original_key = config.ENCRYPTION_KEY
+        config.ENCRYPTION_KEY = Fernet.generate_key().decode()
+        try:
+            with patch.object(db_module.db, 'get_connection') as mock_get_conn:
+                mock_get_conn.return_value.__enter__.return_value = mock_conn
+                mock_get_conn.return_value.__exit__.return_value = None
+
+                db_module.db.insert_document(
+                    filename="test.pdf", content="Sample content", metadata={}
+                )
+        finally:
+            config.ENCRYPTION_KEY = original_key
+
+        params = mock_cursor.execute.call_args[0][1]
+        assert params[1] == "Sample content"
+
     def test_get_all_documents_returns_list(self):
         """Test retrieving all documents."""
         from src import db as db_module

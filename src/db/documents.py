@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from psycopg.types.json import Jsonb
 
-from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import escape_sql_like
 from .connection import DatabaseUnavailableError
@@ -48,12 +47,19 @@ class DocumentsMixin(MixinHost):
 
         logger.debug(f"Inserting document: {filename}")
 
+        # Deliberately not encrypted (SEC-4). This column was field-encrypted and
+        # never decrypted — nothing reads it back — while the same text sits in
+        # plain text in document_chunks.chunk_text, which is what retrieval
+        # actually reads. chunk_text cannot be encrypted either: chunk_tsv is
+        # GENERATED ALWAYS AS to_tsvector(chunk_text), so encrypting it removes
+        # the lexical arm of hybrid search. Document text at rest is protected by
+        # disk/volume encryption; see SECURITY.md.
         def _insert(cursor: Any) -> int:
             cursor.execute(
                 "INSERT INTO documents"
                 " (filename, content, metadata, content_hash, doc_type, chunker_version, workspace_id, language, source_id)"
                 " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                (filename, _encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language, source_id),
+                (filename, content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language, source_id),
             )
             row = cursor.fetchone()
             assert row is not None, "INSERT ... RETURNING id always returns a row"
@@ -98,7 +104,7 @@ class DocumentsMixin(MixinHost):
             cursor.execute(
                 "UPDATE documents SET content = %s, metadata = %s, content_hash = %s,"
                 " doc_type = %s, chunker_version = %s, language = %s WHERE id = %s",
-                (_encrypt(content), Jsonb(metadata or {}), content_hash, doc_type, chunker_version, language, doc_id),
+                (content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version, language, doc_id),
             )
 
         if conn is not None:
