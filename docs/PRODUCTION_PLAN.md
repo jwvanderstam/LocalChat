@@ -38,7 +38,7 @@ This ratifies and strengthens the existing HK-10 deferral ("deliberately deferre
 
 Order matters: safety before performance, because the auth fixes change what the tests must assert. BUG-3 (Sprint 5b) and RBAC-1 (Sprint 6) land first per the existing ROADMAP; nothing here duplicates them.
 
-### SEC-1 — Delete every authorisation bypass; seed a dev admin instead ◐ (mostly done)
+### SEC-1 — Delete every authorisation bypass; seed a dev admin instead ✅ (done)
 
 > **Unblocked and largely done (2026-08-07).** AUTH-1 added the login route, so the bypasses
 > could go. `DEMO_MODE` is deleted outright — constant, branch, status payload, compose,
