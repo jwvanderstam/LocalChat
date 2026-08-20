@@ -390,3 +390,139 @@ class TestLoggingIntegration:
             assert "Document processed" in content
 
 
+
+
+# ============================================================================
+# STARTUP BUFFER TESTS
+# ============================================================================
+
+@pytest.mark.unit
+class TestStartupBuffer:
+    """Records logged before setup_logging() must still reach the real handlers.
+
+    Module import and create_app() both log before bootstrap_app() configures
+    logging. Before the buffer, INFO and below were dropped outright and WARNING
+    and above went to logging's last-resort stderr writer — unformatted and never
+    written to the log file, which silently included validate_secrets()'
+    [Security] messages on an aborted production boot.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _fresh_buffer(self):
+        """Reinstall a buffer; the module-level one is consumed on first use."""
+        from src.utils import logging_config as lc
+
+        root = logging.getLogger()
+        saved_handlers, saved_level = list(root.handlers), root.level
+        saved_buffer = lc._startup_buffer
+
+        root.handlers.clear()
+        lc._startup_buffer = lc._install_startup_buffer()
+        yield lc
+
+        root.handlers.clear()
+        root.handlers.extend(saved_handlers)
+        root.setLevel(saved_level)
+        lc._startup_buffer = saved_buffer
+
+    def _read(self, path) -> str:
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+        return Path(path).read_text(encoding="utf-8")
+
+    def test_info_logged_before_setup_reaches_the_log_file(self, tmp_path, _fresh_buffer):
+        get_logger("early").info("emitted before setup")
+        setup_logging(log_file=str(tmp_path / "app.log"))
+        assert "emitted before setup" in self._read(tmp_path / "app.log")
+
+    def test_critical_logged_before_setup_reaches_the_log_file(self, tmp_path, _fresh_buffer):
+        """The case that mattered: [Security] messages preceding SystemExit(1)."""
+        get_logger("early").critical("[Security] ENCRYPTION_KEY must be set")
+        setup_logging(log_file=str(tmp_path / "app.log"))
+        assert "ENCRYPTION_KEY must be set" in self._read(tmp_path / "app.log")
+
+    def test_replayed_records_are_json_when_json_format_is_configured(self, tmp_path, _fresh_buffer):
+        """Straight to stderr it was plain text, so a JSON consumer never saw it."""
+        import json
+
+        get_logger("early").critical("[Security] boom")
+        setup_logging(log_file=str(tmp_path / "app.log"), log_format="json")
+
+        first = self._read(tmp_path / "app.log").splitlines()[0]
+        record = json.loads(first)
+        assert record["message"] == "[Security] boom"
+        assert record["level"] == "CRITICAL"
+        assert record["logger"] == "early"
+
+    def test_replayed_records_precede_the_setup_confirmation(self, tmp_path, _fresh_buffer):
+        """Replay before the first post-setup line, so startup reads in order."""
+        get_logger("early").warning("came first")
+        setup_logging(log_file=str(tmp_path / "app.log"))
+
+        lines = self._read(tmp_path / "app.log").splitlines()
+        assert "came first" in lines[0]
+        assert "Logging system initialized" in lines[1]
+
+    def test_buffer_is_bounded_and_reports_what_it_dropped(self, tmp_path, _fresh_buffer):
+        """A process that never configures logging must not grow this forever."""
+        lc = _fresh_buffer
+        logger = get_logger("early")
+        overflow = 5
+        for i in range(lc._MAX_STARTUP_RECORDS + overflow):
+            logger.info("record %d", i)
+
+        assert len(lc._startup_buffer.records) == lc._MAX_STARTUP_RECORDS
+        assert lc._startup_buffer.dropped == overflow
+
+        setup_logging(log_file=str(tmp_path / "app.log"))
+        assert f"{overflow} early record(s) were dropped" in self._read(tmp_path / "app.log")
+
+    def test_second_setup_does_not_replay_the_records_again(self, tmp_path, _fresh_buffer):
+        """The buffer is consumed once; a re-configure must not duplicate it."""
+        get_logger("early").warning("only once")
+        setup_logging(log_file=str(tmp_path / "first.log"))
+        setup_logging(log_file=str(tmp_path / "second.log"))
+        assert "only once" not in self._read(tmp_path / "second.log")
+
+    def test_buffer_is_detached_from_the_root_logger_after_replay(self, tmp_path, _fresh_buffer):
+        """Left attached it would keep accumulating every record for the process."""
+        lc = _fresh_buffer
+        buffer = lc._startup_buffer
+        setup_logging(log_file=str(tmp_path / "app.log"))
+
+        assert buffer not in logging.getLogger().handlers
+        assert lc._startup_buffer is None
+
+    def test_warning_reaches_stderr_when_setup_logging_never_runs(self, capsys, _fresh_buffer):
+        """validate_secrets() aborts inside create_app(), before logging is set up.
+
+        Attaching the buffer suppresses logging's last-resort stderr writer, so
+        without an explicit flush the [Security] record explaining the exit would
+        be swallowed — worse than the behaviour the buffer replaced.
+        """
+        lc = _fresh_buffer
+        get_logger("boot").critical("[Security] ENCRYPTION_KEY must be set")
+
+        lc._flush_startup_buffer_to_stderr()
+
+        assert "[Security] ENCRYPTION_KEY must be set" in capsys.readouterr().err
+
+    def test_info_is_not_dumped_to_stderr_on_an_aborted_boot(self, capsys, _fresh_buffer):
+        """Matches last-resort behaviour: WARNING and above only, not chatter."""
+        lc = _fresh_buffer
+        get_logger("boot").info("routine startup detail")
+
+        lc._flush_startup_buffer_to_stderr()
+
+        assert "routine startup detail" not in capsys.readouterr().err
+
+    def test_flush_is_a_noop_once_the_records_were_replayed(self, tmp_path, capsys, _fresh_buffer):
+        """The atexit flush must not re-emit what setup_logging already handled."""
+        lc = _fresh_buffer
+        get_logger("boot").critical("[Security] boom")
+        setup_logging(log_file=str(tmp_path / "app.log"))
+        capsys.readouterr()
+
+        lc._flush_startup_buffer_to_stderr()
+
+        assert "[Security] boom" not in capsys.readouterr().err
