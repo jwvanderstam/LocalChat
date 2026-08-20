@@ -48,6 +48,7 @@ export DEBUG=False
 export RATELIMIT_ENABLED=True
 export RATELIMIT_CHAT=10 per minute
 export RATELIMIT_UPLOAD=5 per hour
+export TRUSTED_PROXY_IPS=              # Proxies allowed to set X-Forwarded-For
 export CORS_ENABLED=False
 export CORS_ORIGINS=http://localhost:3000
 
@@ -56,6 +57,23 @@ export CORS_ORIGINS=http://localhost:3000
 # (acceptable on a private network). Set a strong token in production.
 export METRICS_TOKEN=
 ```
+
+### Rate limiting behind a reverse proxy
+
+Rate limits are keyed on the client address, which the app takes from the socket
+peer. Behind a reverse proxy that peer *is the proxy*, so without
+`TRUSTED_PROXY_IPS` every caller shares one bucket — `RATELIMIT_LOGIN` stops
+being a per-source defence against password guessing and becomes a single budget
+one attacker can exhaust for everybody.
+
+`TRUSTED_PROXY_IPS` is the list of peers whose `X-Forwarded-For` may be believed:
+comma-separated addresses, CIDR ranges, or `*`. It is **empty by default**,
+because honouring that header from an untrusted peer would let any caller forge
+its own bucket. `docker-compose.nginx.yml` sets it, so the documented TLS path is
+correct without you doing anything; set it yourself for any other proxy.
+
+Note this is deliberately the *only* place proxy trust is configured — uvicorn is
+started with `--forwarded-allow-ips ""` so its own default cannot disagree.
 
 ### Which of these the Docker stack actually reads
 

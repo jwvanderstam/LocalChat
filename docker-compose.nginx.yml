@@ -13,6 +13,17 @@
 services:
   app:
     ports: !reset []  # remove direct port exposure; Nginx is the only ingress
+    environment:
+      # Nginx sets X-Forwarded-For (nginx/nginx.conf); this is what makes the app
+      # believe it. Without it every request keys on the nginx container's bridge
+      # address instead of the caller's, so RATELIMIT_LOGIN stops being per-source
+      # and becomes one shared budget for the whole deployment.
+      #
+      # Safe here only because nginx is the sole ingress once this overlay is
+      # active — the app publishes no port of its own, so nothing else can reach
+      # it to forge the header. Narrow this to the proxy's address or subnet if
+      # you ever expose the app directly.
+      TRUSTED_PROXY_IPS: "*"
 
   nginx:
     image: nginx:alpine

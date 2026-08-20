@@ -81,6 +81,15 @@ RATELIMIT_GENERAL: str = str(os.environ.get('RATELIMIT_GENERAL', '60 per minute'
 # exhausting a shared budget.
 RATELIMIT_LOGIN: str = str(os.environ.get('RATELIMIT_LOGIN', '10 per minute'))
 
+# Which upstream peers are allowed to set X-Forwarded-For. Empty (the default)
+# trusts nobody, so the client address stays the socket peer — honouring the
+# header from an untrusted peer would let any caller forge its own rate-limit
+# bucket. Behind the nginx overlay this must name the proxy (its bridge address
+# or CIDR, or '*'), or every client keys on the proxy and shares one budget.
+TRUSTED_PROXY_IPS: list[str] = [
+    p.strip() for p in os.environ.get('TRUSTED_PROXY_IPS', '').split(',') if p.strip()
+]
+
 # Redis settings (shared by cache layer and rate limiting storage)
 REDIS_ENABLED: bool = os.environ.get('REDIS_ENABLED', 'False').lower() == 'true'
 REDIS_HOST: str = str(os.environ.get('REDIS_HOST', 'localhost'))

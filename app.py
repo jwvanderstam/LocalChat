@@ -97,6 +97,9 @@ def main() -> None:
             port=PORT,
             log_level="info",
             reload=False,
+            # TRUSTED_PROXY_IPS in src/config.py is the single place that decides
+            # which peers may set X-Forwarded-For; see docker-entrypoint.py.
+            forwarded_allow_ips="",
         )
     except KeyboardInterrupt:
         logger.info("Shutting down.")

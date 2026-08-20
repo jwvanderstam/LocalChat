@@ -446,7 +446,16 @@ def require_workspace_role_dep(min_role: str):
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address, enabled=config.RATELIMIT_ENABLED)
+# storage_uri is what makes RATELIMIT_STORAGE_URI real: without it slowapi keeps
+# its own in-process counters and the configured Redis is never touched.
+# get_remote_address reads request.client.host, so it is only as correct as the
+# ProxyHeadersMiddleware mounted in _init_security() — see TRUSTED_PROXY_IPS.
+limiter = Limiter(
+    key_func=get_remote_address,
+    enabled=config.RATELIMIT_ENABLED,
+    storage_uri=config.RATELIMIT_STORAGE_URI,
+    default_limits=[config.RATELIMIT_GENERAL],
+)
 
 
 # ── CORS ──────────────────────────────────────────────────────────────────────

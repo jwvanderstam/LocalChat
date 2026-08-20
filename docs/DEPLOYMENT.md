@@ -197,6 +197,12 @@ proxies to the app on port 5000. Mount your certificate and key into the contain
 replace the `server_name`, `ssl_certificate` and `ssl_certificate_key` placeholders in
 `nginx/nginx.conf`.
 
+The override also sets `TRUSTED_PROXY_IPS`, which is what lets the app read the real
+client address out of the `X-Forwarded-For` header nginx sets. Without it every request
+appears to come from the nginx container and all callers share one rate-limit bucket —
+see [CONFIGURATION.md](CONFIGURATION.md#rate-limiting-behind-a-reverse-proxy). If you
+front the app with a different proxy, set that variable yourself.
+
 ## Uninstall
 
 ```bash
