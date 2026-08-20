@@ -72,6 +72,28 @@ The items below are known, deliberately **not remediated via the usual route** (
   resolves the crash — test by building the image and importing it, since neither `pip
   install` nor `docker build` will reveal the problem.
 
+### 6. Document text is not encrypted at rest
+
+- **What**: `ENCRYPTION_KEY` field-encrypts OAuth tokens (`src/db/oauth_tokens.py`), message
+  content (`src/db/conversations.py`) and long-term memories (`src/db/memories.py`). It does
+  **not** cover document text. `document_chunks.chunk_text` — the column retrieval reads and
+  feeds to the model — is stored in plain text, as is `documents.content`.
+- **Why this is accepted**: it cannot be fixed at the field level. `chunk_tsv` is
+  `GENERATED ALWAYS AS (to_tsvector('simple', chunk_text)) STORED` (`src/db/connection.py`), so
+  encrypting `chunk_text` removes the lexical arm of hybrid search entirely — the ciphertext
+  tokenises to nothing. Encryption and full-text search over the same column are mutually
+  exclusive without a searchable-encryption scheme this project has no reason to carry.
+- **Corrected in SEC-4**: `documents.content` *was* passed through `encrypt()` on write, and
+  never decrypted — nothing reads that column back. It protected nothing, because the same
+  text sat in plain text in `chunk_text` beside it, and it made the schema read as though
+  document content was encrypted. The call was removed rather than the claim left standing.
+- **Compensating control**: disk/volume encryption on the Postgres data directory, which is
+  where document text at rest is actually defended. The Postgres port binds to `127.0.0.1` by
+  default, so the database is not reachable off-host.
+- **Re-review trigger**: any move to hosted or multi-tenant deployment, where the disk is not
+  the operator's own — at which point the question is whether retrieval can move to a design
+  that does not need plaintext in the database, not whether to encrypt this column.
+
 ## Supply chain
 
 - Base images are **digest-pinned** (`dhi.io/python:3.12` and `:3.12-dev`). A bare tag

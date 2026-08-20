@@ -87,7 +87,7 @@ Set these in `.env` before first start.
 | `JWT_SECRET_KEY` | JWT signing key — 32+ random bytes |
 | `ADMIN_PASSWORD` | Initial admin password. **Leaving it empty disables authorisation entirely** (`_is_rbac_bypassed`), so set it before exposing the app to anything. |
 | `PG_PASSWORD` | PostgreSQL password |
-| `TOKEN_ENCRYPTION_KEY` | Fernet key for OAuth token encryption at rest |
+| `ENCRYPTION_KEY` | Fernet key encrypting OAuth tokens, messages and memories at rest. Required in production — startup aborts without it. (`TOKEN_ENCRYPTION_KEY` is accepted as a legacy alias.) |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | Azure AD app, only for the SharePoint/OneDrive connectors |
 | `METRICS_TOKEN` | Bearer token for the metrics endpoints. **Empty means they are public.** |
 
@@ -121,6 +121,21 @@ docker compose logs -f app     # confirm migrations applied
 ```
 
 Migrations run automatically at startup. Back up first — see [OPERATIONS.md](OPERATIONS.md).
+
+### Upgrading past SEC-4: `ENCRYPTION_KEY` is now required
+
+`docker compose up` will stop with `ENCRYPTION_KEY must be set` if your `.env` has no key.
+That is deliberate — without one, OAuth tokens, message content and long-term memories were
+being written to Postgres in plain text, signalled only by a single log line. Generate a key
+and add it to `.env`:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+**No data migration is needed.** Values written before you set a key are read back unchanged
+— `decrypt()` returns anything it cannot decrypt as-is — while new writes are encrypted. Keep
+the key: losing it makes everything written after this point unreadable.
 
 ## Rollback
 
@@ -177,7 +192,7 @@ Before exposing LocalChat beyond localhost:
 | Session secret | `SECRET_KEY` | 32+ random bytes. |
 | Metrics endpoints | `METRICS_TOKEN` | Set it, or `/api/metrics` and `/api/metrics.json` are public. |
 | CORS origins | `CORS_ORIGINS` | Specific domains; never `*`. |
-| Token encryption | `TOKEN_ENCRYPTION_KEY` | Required for the OAuth connectors. |
+| Field encryption | `ENCRYPTION_KEY` | Required in production; `validate_secrets()` aborts the boot if it is missing or malformed. Covers OAuth tokens, messages and memories — not document text, see SECURITY.md. |
 | TLS | — | Terminate at a proxy; see below. |
 | Container user | — | Runs as uid 65532 by default. Do not override with `user: root` in compose. |
 | Image provenance | — | Base images are digest-pinned. A bare tag makes the CVE posture unverifiable later. |
