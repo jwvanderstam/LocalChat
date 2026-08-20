@@ -11,6 +11,7 @@ Example:
     >>> logger.info("Application started")
 """
 
+import atexit
 import functools
 import json
 import logging
@@ -143,6 +144,100 @@ class ColoredFormatter(logging.Formatter):
         return formatted
 
 
+#: Records emitted before setup_logging() runs are held here and replayed into the
+#: real handlers once they exist. Bounded so a process that never configures
+#: logging cannot grow this without limit; startup emits ~20 records at INFO and
+#: above, so this is headroom rather than a working limit.
+_MAX_STARTUP_RECORDS = 500
+
+
+class _StartupBuffer(logging.Handler):
+    """Captures log records emitted before setup_logging() installs the handlers.
+
+    Module import and create_app() both log before bootstrap_app() configures
+    logging. Without this, those records are lost two different ways: INFO and
+    below never reach a handler at all (the root logger defaults to WARNING), and
+    WARNING and above go to logging's last-resort stderr writer — unformatted, so
+    not JSON, and never written to the log file. That silently applied to the
+    [Security] messages validate_secrets() emits before aborting a production boot.
+    """
+
+    def __init__(self) -> None:
+        # INFO and above only. create_app() alone emits ~1300 records, 491 of them
+        # DEBUG, which at NOTSET filled the buffer during import and evicted the
+        # very startup lines this exists to preserve. The desired level is not
+        # knowable before setup_logging() reads it from config anyway.
+        super().__init__(level=logging.INFO)
+        self.records: list[logging.LogRecord] = []
+        self.dropped = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if len(self.records) >= _MAX_STARTUP_RECORDS:
+            self.dropped += 1
+            return
+        self.records.append(record)
+
+
+def _install_startup_buffer() -> _StartupBuffer:
+    buffer = _StartupBuffer()
+    root_logger = logging.getLogger()
+    root_logger.addHandler(buffer)
+    # A logger drops records below its own level before any handler sees them, so
+    # the root default of WARNING would hide exactly the INFO this buffer exists
+    # to keep. INFO rather than DEBUG so the ~1275 DEBUG records the markdown
+    # library emits during import are never materialised at all.
+    # setup_logging() sets the real level moments later.
+    root_logger.setLevel(logging.INFO)
+    # Attaching any handler suppresses logging's last-resort stderr writer, which
+    # is what carried WARNING and above until now. Without this the buffer would
+    # swallow them outright whenever setup_logging() never runs.
+    atexit.register(_flush_startup_buffer_to_stderr)
+    return buffer
+
+
+def _flush_startup_buffer_to_stderr() -> None:
+    """Safety net for a process that exits before setup_logging() runs.
+
+    validate_secrets() aborts a misconfigured production boot from inside
+    create_app(), which is before bootstrap_app() configures logging — so the
+    [Security] record explaining the exit would otherwise die with the buffer.
+    Mirrors the last-resort behaviour this buffer displaces: WARNING and above,
+    to stderr, unformatted.
+    """
+    global _startup_buffer
+    buffer, _startup_buffer = _startup_buffer, None
+    if buffer is None:
+        return
+
+    logging.getLogger().removeHandler(buffer)
+    for record in buffer.records:
+        if record.levelno >= logging.WARNING:
+            sys.stderr.write(f"{record.levelname}: {record.getMessage()}\n")
+
+
+_startup_buffer: _StartupBuffer | None = _install_startup_buffer()
+
+
+def _replay_startup_buffer() -> None:
+    """Flush anything logged before setup_logging() into the configured handlers."""
+    global _startup_buffer
+    buffer, _startup_buffer = _startup_buffer, None
+    if buffer is None:
+        return
+
+    root_logger = logging.getLogger()
+    root_logger.removeHandler(buffer)
+    for record in buffer.records:
+        for handler in root_logger.handlers:
+            if record.levelno >= handler.level:
+                handler.handle(record)
+    if buffer.dropped:
+        root_logger.warning(
+            "Startup log buffer overflowed — %d early record(s) were dropped",
+            buffer.dropped,
+        )
+
+
 def setup_logging(
     log_level: str = "INFO",
     log_file: str = "logs/app.log",
@@ -213,6 +308,8 @@ def setup_logging(
             )
         console_handler.addFilter(request_id_filter)
         root_logger.addHandler(console_handler)
+
+    _replay_startup_buffer()
 
     root_logger.info("Logging system initialized (format=%s)", log_format)
     root_logger.debug("Log file: %s | level: %s", log_file, log_level)
