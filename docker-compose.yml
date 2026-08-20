@@ -326,6 +326,10 @@ services:
       SECRET_KEY:      ${SECRET_KEY:?SECRET_KEY must be set}
       JWT_SECRET_KEY:  ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       ADMIN_PASSWORD:  ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      # Fails here rather than as a container that starts and stores OAuth
+      # tokens, messages and memories in plain text. Generate with:
+      #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      ENCRYPTION_KEY:  ${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set - see .env.example}
       LOG_FORMAT:      ${LOG_FORMAT:-json}
 
       # ── Database ─────────────────────────────────────────

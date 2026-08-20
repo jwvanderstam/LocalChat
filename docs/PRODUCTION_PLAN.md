@@ -143,6 +143,22 @@ longer pass through checks that never ran.
 >
 > The cache is a fallback for outages, never a shortcut past a working check — a live `is_token_revoked` still wins over a warm entry, and a refusal is never cached as usable. It is bounded (4096 entries, stale-first eviction) so a stream of distinct tokens cannot turn it into a leak.
 
+### SEC-4 — Enforce ENCRYPTION_KEY; drop the encryption that did nothing ✅ (done)
+
+From the 2026-08-19 external audit. `validate_secrets()` aborted production startup on a weak `SECRET_KEY`, `JWT_SECRET_KEY`, `ADMIN_PASSWORD` or wildcard CORS, but never mentioned `ENCRYPTION_KEY` — so a deployment could run indefinitely with OAuth tokens, message content and long-term memories in plain text in Postgres. The only signal was one `logger.warning` on the first `encrypt()` call, per worker. An *invalid* key was no different from an absent one: `_get_fernet()` returns `None` on the exception and `encrypt()` returns its input.
+
+Now checked at boot alongside the other secrets, both for presence and for being Fernet-constructible.
+
+**The audit stopped one step short, and the step matters.** Enforcing the key does not protect document text, and cannot. `documents.content` was passed through `encrypt()` on write and **never decrypted** — `src/db/documents.py` imported only `encrypt`, and nothing `SELECT`s that column. Meanwhile the same text, chunked, sat in plain text in `document_chunks.chunk_text`, which is what retrieval actually reads and sends to the model. Encrypting *that* is foreclosed: `chunk_tsv` is `GENERATED ALWAYS AS (to_tsvector('simple', chunk_text)) STORED`, so ciphertext tokenises to nothing and the lexical arm of hybrid search disappears.
+
+So the encryption was cost with no confidentiality, plus a schema that read as though document content were protected. Removed, and the real limit is now written down (SECURITY.md §6) with disk-level encryption named as the actual control.
+
+**Files:** `src/config.py` (`validate_secrets`), `src/db/documents.py`, `SECURITY.md`, `.env.example`, `docker-compose.yml`, `docs/DEPLOYMENT.md`, `docs/SCHEMA.md`.
+
+**Tests:** `tests/unit/test_config_complete.py` (`TestValidateSecrets`), `tests/unit/test_db_operations.py`.
+
+> **This is a breaking change for existing deployments.** `docker-compose.yml` sets `APP_ENV=production` by default, so `ENCRYPTION_KEY` is now required to start; compose fails fast with a named variable rather than booting a container that quietly stores plaintext. No data migration is needed — `decrypt()` already returns unrecognised values unchanged, so rows written before a key was set keep reading correctly while new writes are encrypted.
+
 ### PERF-1 — Unblock the event loop in `api_chat` ✅
 
 `api_chat` is `async def` but inline-calls sync `chat.retrieve_contexts` (sync psycopg, sync httpx embedding call, cross-encoder inference) and sync `persist_user_message` / `persist_assistant_message`. One slow retrieval stalls **every** concurrent request, including SSE streams already mid-flight. The inference path is properly async (HK-8); retrieval never got the same treatment — the migration stopped halfway.

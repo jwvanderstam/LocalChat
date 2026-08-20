@@ -119,10 +119,11 @@ def validate_secrets() -> None:
     """Abort startup if production secrets or CORS config are weak or missing.
 
     Enforces: minimum 32-char length for SECRET_KEY / JWT_SECRET_KEY,
-    rejection of known placeholder values, a non-empty ADMIN_PASSWORD, and
+    rejection of known placeholder values, a non-empty ADMIN_PASSWORD,
     no wildcard CORS origin (setup_cors() always sets allow_credentials=True,
     and a wildcard origin combined with credentialed requests lets any site
-    make authenticated cross-origin calls against this API).
+    make authenticated cross-origin calls against this API), and a present,
+    well-formed ENCRYPTION_KEY.
     Raises SystemExit(1) so uvicorn startup aborts cleanly.
     """
     if APP_ENV != 'production':
@@ -143,6 +144,22 @@ def validate_secrets() -> None:
             "CORS_ORIGINS is wildcarded ('*') with CORS enabled — set specific "
             "origin domains for production"
         )
+    # Without a usable key, encrypt() returns its input and OAuth tokens, message
+    # content and long-term memories are written to Postgres in plain text. The
+    # only signal is one warning on the first write, per worker — so this has to
+    # fail at boot like the other secrets, not be discovered in a log.
+    if not ENCRYPTION_KEY:
+        errors.append(
+            "ENCRYPTION_KEY must be set in production — without it OAuth tokens, "
+            "messages and memories are stored unencrypted"
+        )
+    else:
+        from .utils.encryption import _get_fernet
+        if _get_fernet() is None:
+            errors.append(
+                "ENCRYPTION_KEY is not a valid Fernet key — a malformed key "
+                "silently degrades to plain-text storage"
+            )
     if errors:
         for msg in errors:
             logger.critical("[Security] %s", msg)
