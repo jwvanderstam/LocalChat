@@ -11,7 +11,7 @@
 #
 # Quick start
 # -----------
-#   1. cp config/.env.example .env  && edit .env
+#   1. cp .env.example .env  && edit .env
 #   2. docker compose up -d
 #   3. Open http://localhost:5000
 #
@@ -147,44 +147,6 @@ services:
       start_period: 20s
 
   # ----------------------------------------------------------
-  # LocalChat MCP Server — exposes DB + Ollama tools to
-  # GitHub Copilot via SSE on http://localhost:3001/sse
-  # ----------------------------------------------------------
-  mcp:
-    profiles: ["mcp"]
-    build:
-      context: ./mcp_server
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      ollama:
-        condition: service_healthy
-    environment:
-      PG_HOST:         db
-      PG_PORT:         5432
-      PG_USER:         ${PG_USER:-postgres}
-      PG_PASSWORD:     ${PG_PASSWORD}
-      PG_DB:           ${PG_DB:-rag_db}
-      OLLAMA_BASE_URL: http://ollama:11434
-      MCP_PORT:        3001
-    ports:
-      - "0.0.0.0:3001:3001"
-    deploy:
-      resources:
-        limits:
-          memory: ${MCP_MEM_LIMIT:-512m}
-          cpus: "${MCP_CPU_LIMIT:-2}"
-    networks:
-      - backend
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3001/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # ----------------------------------------------------------
   # LocalChat MCP Domain Servers (Feature 3.1)
   #
   # Each server is an independent process using the same base image.
@@ -215,7 +177,7 @@ services:
       PG_PASSWORD:     ${PG_PASSWORD}
       PG_DB:           ${PG_DB:-rag_db}
       OLLAMA_BASE_URL: http://ollama:11434
-      SECRET_KEY:      ${SECRET_KEY:-dev-mcp-key}
+      SECRET_KEY:      ${SECRET_KEY:?SECRET_KEY must be set}
     ports:
       - "${BIND_HOST:-127.0.0.1}:5001:5001"
     healthcheck:
@@ -246,7 +208,7 @@ services:
         --timeout-keep-alive 60
         --log-level info"
     environment:
-      SECRET_KEY: ${SECRET_KEY:-dev-mcp-key}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
     ports:
       - "${BIND_HOST:-127.0.0.1}:5002:5002"
     healthcheck:
@@ -280,7 +242,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      SECRET_KEY:      ${SECRET_KEY:-dev-mcp-key}
+      SECRET_KEY:      ${SECRET_KEY:?SECRET_KEY must be set}
       PG_HOST:         db
       PG_PORT:         5432
       PG_USER:         ${PG_USER:-postgres}
