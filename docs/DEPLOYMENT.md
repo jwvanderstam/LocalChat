@@ -122,6 +122,39 @@ docker compose logs -f app     # confirm migrations applied
 
 Migrations run automatically at startup. Back up first — see [OPERATIONS.md](OPERATIONS.md).
 
+### Upgrading onto the hardened image: fix the volume ownership first
+
+The first rebuild onto the Docker Hardened Images base (#287) puts an existing deployment
+into a **restart loop**:
+
+```
+PermissionError: [Errno 13] Permission denied: '/app/logs/app.log'
+```
+
+The runtime image runs as **uid 65532**, and the `Dockerfile` creates `/app/logs` and
+`/app/uploads` owned by it. But both paths are **named volumes**, and a volume keeps the
+ownership it was created with — uid 1000 under the pre-hardening image. The image is
+correct; the volume predates it.
+
+Docker only seeds a volume from the image on *first* use, so this cannot fix itself, and
+`docker-smoke` cannot catch it — CI always starts with fresh volumes. It only ever surfaces
+on a real upgrade.
+
+Stop the app and re-own both volumes (data is untouched — this changes ownership, nothing
+else). Substitute your compose project name if it is not `localchat`:
+
+```bash
+docker compose stop app
+for v in localchat_app_logs localchat_app_uploads; do
+  docker run --rm -v "$v":/v alpine chown -R 65532:65532 /v
+done
+docker compose up -d
+```
+
+A helper container is needed because the runtime image has no shell to run `chown` in.
+Check the result with `docker run --rm -v localchat_app_logs:/v alpine stat -c '%u:%g' /v`
+— it must report `65532:65532`.
+
 ### Upgrading past SEC-4: `ENCRYPTION_KEY` is now required
 
 `docker compose up` will stop with `ENCRYPTION_KEY must be set` if your `.env` has no key.
@@ -158,7 +191,7 @@ What that means when you operate it:
 
 | Property | Consequence |
 |---|---|
-| Runs as **uid 65532**, nonroot, no `/etc/passwd` entry | `docker exec ... whoami` fails; refer to the user numerically. Mounted volumes must be writable by 65532. |
+| Runs as **uid 65532**, nonroot, no `/etc/passwd` entry | `docker exec ... whoami` fails; refer to the user numerically. Mounted volumes must be writable by 65532 — a volume created by an older image keeps its old ownership and puts the app in a restart loop, see [the upgrade note](#upgrading-onto-the-hardened-image-fix-the-volume-ownership-first). |
 | **No shell** | `docker exec <container> sh` does not work. There is nothing to `exec` into. Debug with `--entrypoint python`, or read the logs. |
 | **No package manager** | You cannot `apt-get install` a missing library into a running container. A missing native library shows up as **SIGSEGV on import** — exit 139, no traceback. |
 | `CMD` and `HEALTHCHECK` are exec form | No shell means no `${VAR:-default}`. `docker-entrypoint.py` expands `SERVER_HOST`, `SERVER_PORT`, `UVICORN_WORKERS` and `UVICORN_TIMEOUT`, then `exec`s uvicorn so it stays PID 1 and still receives signals. |
