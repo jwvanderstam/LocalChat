@@ -137,6 +137,80 @@ docker run --rm \
 
 ---
 
+## Logs and Retention
+
+**Logs are not backed up, and deliberately so.** They are diagnostic output, not
+state — nothing reconstructs from them, and they are the one volume whose loss costs
+you nothing but hindsight. `app_logs` is therefore absent from the backup recipes
+above. What matters instead is knowing *how far back you can look*.
+
+### How far back your logs go
+
+Retention is not a fixed number of days — it is a division:
+
+```
+window = LOG_MAX_BYTES * (1 + LOG_BACKUP_COUNT) / log volume per day
+```
+
+The ceiling is 20 MB by default. Log volume, however, is dominated by the log level,
+which follows `APP_ENV`:
+
+| `APP_ENV` | Level | Typical volume | Window at 20 MB |
+|---|---|---|---|
+| `production` | INFO | ~3 MB/day | about a week |
+| anything else | DEBUG | ~30 MB/day | **under a day** |
+
+That tenfold gap is third-party DEBUG chatter, not application detail — the `markdown`
+library alone emits ~1275 records per boot. A stack left on `APP_ENV=development`
+therefore has a log window measured in hours, and its operator usually does not know it.
+
+Measure your own rate rather than trusting the table — the sizes and timestamps give it
+to you directly:
+
+```bash
+docker run --rm -v localchat_app_logs:/v alpine   sh -c 'cd /v && for f in app.log*; do printf "%s %s %s
+" "$f" "$(stat -c %s $f)" "$(stat -c %y $f)"; done'
+```
+
+One full file divided by the gap between its timestamp and the next one is your daily rate.
+
+### Widening the window
+
+In order of preference:
+
+1. **Check `APP_ENV=production`.** Cutting DEBUG buys roughly a tenfold window for free,
+   and it also turns on the startup secret validation, which is inert otherwise.
+2. **Ship to a collector.** Add `syslog` to `LOG_SINKS` and history lives on the SIEM,
+   bounded by its retention rather than yours — see
+   [CONFIGURATION.md](CONFIGURATION.md#logging-sinks-rotation-and-shipping-to-a-siem).
+3. **Raise the ceiling.** `LOG_MAX_BYTES` and `LOG_BACKUP_COUNT`. Do this last: the
+   ceiling is a disk-exhaustion control, since request volume drives log volume and an
+   attacker controls request volume.
+
+### Disk footprint
+
+Two independent caps, one per sink:
+
+| Sink | Where | Cap | Set by |
+|---|---|---|---|
+| `file` | `app_logs` volume | 20 MB | `LOG_MAX_BYTES` × (1 + `LOG_BACKUP_COUNT`) |
+| `console` | Docker's json-file driver | 30 MB | `logging.options` on the `app` service in `docker-compose.yml` |
+
+Both are bounded on purpose. Removing either limit reintroduces a way to fill the disk
+by generating requests.
+
+### Grabbing logs during an incident
+
+The file sink survives container recreation; `docker logs` does not — `docker compose up -d`
+starts a new container and the previous one's output goes with it. Copy the file out before
+rebuilding:
+
+```bash
+docker run --rm -v localchat_app_logs:/v -v "$(pwd)":/dest alpine   tar czf /dest/logs_$(date +%Y%m%d-%H%M).tar.gz -C /v .
+```
+
+---
+
 ## Ollama Model Management
 
 Ollama model weights are stored inside the `ollama` container (or a named volume if you configured one).  They are large (2–30 GB each) and not backed up by the above procedures.

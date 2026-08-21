@@ -142,7 +142,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `mcp_servers/web_search/server.py` | Web-search MCP server; gunicorn port 5002 |
 | `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server; gunicorn port 5003 |
 | **Utils** | |
-| `src/utils/logging_config.py` | `JsonFormatter` + `RequestIdFilter`; `LOG_FORMAT=json`; startup buffer that replays records logged before `setup_logging()` |
+| `src/utils/logging_config.py` | `JsonFormatter` + `RequestIdFilter`; `LOG_FORMAT=json`; configurable sinks (`console`/`file`/`syslog`) with bounded rotation, degrading rather than failing when a sink cannot be built; startup buffer that replays records logged before `setup_logging()` |
 | `src/utils/request_id.py` | X-Request-ID middleware + per-request access log |
 | `src/utils/file_validation.py` | Magic-byte + ZIP content validation for uploaded files; prevents content-type spoofing |
 | `src/utils/sanitization.py` | HTML/injection cleaning |

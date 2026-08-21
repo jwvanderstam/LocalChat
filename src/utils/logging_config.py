@@ -18,7 +18,7 @@ import logging
 import logging.handlers
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -238,81 +238,151 @@ def _replay_startup_buffer() -> None:
         )
 
 
+#: Sinks setup_logging() knows how to build. "console" is stdout/stderr, which the
+#: container runtime collects; "file" is the rotating local log; "syslog" ships to a
+#: SOC/SIEM collector. Anything else is rejected loudly rather than ignored.
+_KNOWN_SINKS = ("console", "file", "syslog")
+
+
+def _text_formatter() -> logging.Formatter:
+    return logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d"
+        " - [%(request_id)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+
+def _parse_syslog_address(address: str) -> str | tuple[str, int]:
+    """Return a Unix socket path, or a (host, port) pair for a network collector."""
+    if ":" not in address:
+        return address
+    host, _, port = address.rpartition(":")
+    return (host, int(port))
+
+
+def _build_file_handler(
+    log_file: str, max_bytes: int, backup_count: int, use_json: bool
+) -> logging.Handler:
+    Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
+    )
+    # DEBUG deliberately: the file is the troubleshooting record and holds strictly
+    # more than the console, which sits at INFO. Rotation is what keeps that bounded.
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(JsonFormatter() if use_json else _text_formatter())
+    return handler
+
+
+def _build_console_handler(use_json: bool) -> logging.Handler:
+    handler = SafeStreamHandler()
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(
+        JsonFormatter() if use_json else ColoredFormatter("%(levelname)s - %(name)s - %(message)s")
+    )
+    return handler
+
+
+def _build_syslog_handler(address: str, protocol: str) -> logging.Handler:
+    import socket
+
+    proto = socket.SOCK_STREAM if protocol.lower() == "tcp" else socket.SOCK_DGRAM
+    handler = logging.handlers.SysLogHandler(
+        address=_parse_syslog_address(address), socktype=proto
+    )
+    handler.setLevel(logging.INFO)
+    # Always JSON: a SIEM parses fields, it does not read prose.
+    handler.setFormatter(JsonFormatter())
+    return handler
+
+
 def setup_logging(
     log_level: str = "INFO",
     log_file: str = "logs/app.log",
-    max_bytes: int = 10485760,  # 10 MB
-    backup_count: int = 5,
-    enable_console: bool = True,
+    max_bytes: int = 4 * 1024 * 1024,
+    backup_count: int = 4,
     log_format: str = "text",
+    sinks: Sequence[str] = ("console", "file"),
+    syslog_address: str = "",
+    syslog_protocol: str = "udp",
 ) -> logging.Logger:
-    """
-    Configure application-wide logging.
+    """Configure application-wide logging across the requested sinks.
 
-    Sets up rotating file handler and optional console handler.
-    Pass ``log_format='json'`` to emit JSON lines (production default).
+    A sink that cannot be built is reported and skipped — logging is diagnostics,
+    and losing a diagnostic channel is never a reason to take the application
+    down. An unwritable log file used to crash-loop the container.
 
     Args:
-        log_level: Minimum log level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
-        log_file: Path to the rotating log file.
-        max_bytes: Maximum file size before rotation.
-        backup_count: Number of rotated files to retain.
-        enable_console: Whether to attach a console (stderr) handler.
+        log_level: Minimum level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+        log_file: Path to the rotating log file, when the ``file`` sink is active.
+        max_bytes: Size at which the log file rotates.
+        backup_count: Rotated files retained. Disk ceiling is
+            ``max_bytes * (1 + backup_count)`` — bounded on purpose, since log
+            volume is driven by request volume and an attacker controls that.
         log_format: ``'json'`` for JSON lines, ``'text'`` for human-readable.
+        sinks: Any of ``console``, ``file``, ``syslog``.
+        syslog_address: ``host:port`` or a Unix socket path such as ``/dev/log``.
+        syslog_protocol: ``udp`` or ``tcp``.
 
     Returns:
         Configured root logger.
-
-    Example:
-        >>> logger = setup_logging(log_level="DEBUG", log_format="json")
-        >>> logger.info("Application configured")
     """
-    log_path = Path(log_file)
-    log_path.parent.mkdir(exist_ok=True)
-
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, log_level.upper()))
     root_logger.handlers.clear()
 
     request_id_filter = RequestIdFilter()
     use_json = log_format.lower() == "json"
+    requested = [s.strip().lower() for s in sinks if s and s.strip()]
 
-    # --- File handler ---
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file,
-        maxBytes=max_bytes,
-        backupCount=backup_count,
-        encoding="utf-8",
-    )
-    file_handler.setLevel(logging.DEBUG)
-    if use_json:
-        file_handler.setFormatter(JsonFormatter())
-    else:
-        file_handler.setFormatter(logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d"
-            " - [%(request_id)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        ))
-    file_handler.addFilter(request_id_filter)
-    root_logger.addHandler(file_handler)
+    builders = {
+        # Console first: it is the sink least able to fail, so a later sink's
+        # failure has somewhere to be reported.
+        "console": lambda: _build_console_handler(use_json),
+        "file": lambda: _build_file_handler(log_file, max_bytes, backup_count, use_json),
+        "syslog": lambda: _build_syslog_handler(syslog_address, syslog_protocol),
+    }
 
-    # --- Console handler ---
-    if enable_console:
-        console_handler = SafeStreamHandler()
-        console_handler.setLevel(logging.INFO)
-        if use_json:
-            console_handler.setFormatter(JsonFormatter())
-        else:
-            console_handler.setFormatter(
-                ColoredFormatter("%(levelname)s - %(name)s - %(message)s")
-            )
-        console_handler.addFilter(request_id_filter)
-        root_logger.addHandler(console_handler)
+    active: list[str] = []
+    failed: list[tuple[str, str]] = []
+    for name in _KNOWN_SINKS:
+        if name not in requested:
+            continue
+        try:
+            handler = builders[name]()
+        except Exception as exc:
+            failed.append((name, f"{type(exc).__name__}: {exc}"))
+            continue
+        handler.addFilter(request_id_filter)
+        root_logger.addHandler(handler)
+        active.append(name)
 
     _replay_startup_buffer()
 
-    root_logger.info("Logging system initialized (format=%s)", log_format)
-    root_logger.debug("Log file: %s | level: %s", log_file, log_level)
+    for name, reason in failed:
+        root_logger.error(
+            "Logging sink %r unavailable — continuing without it: %s", name, reason
+        )
+    for name in requested:
+        if name not in _KNOWN_SINKS:
+            root_logger.error("Unknown logging sink %r — ignored", name)
+    if not active and logging.lastResort is not None:
+        # Every sink failed. Fall back to stderr for WARNING and above rather than
+        # running blind.
+        root_logger.addHandler(logging.lastResort)
+
+    root_logger.info(
+        "Logging system initialized (format=%s, sinks=%s)",
+        log_format,
+        ",".join(active) or "none",
+    )
+    if "file" in active:
+        root_logger.debug(
+            "Log file: %s | level: %s | ceiling: %d bytes",
+            log_file,
+            log_level,
+            max_bytes * (1 + backup_count),
+        )
     return root_logger
 
 

@@ -526,3 +526,147 @@ class TestStartupBuffer:
         lc._flush_startup_buffer_to_stderr()
 
         assert "[Security] boom" not in capsys.readouterr().err
+
+
+# ============================================================================
+# SINK CONFIGURATION TESTS
+# ============================================================================
+
+@pytest.mark.unit
+class TestLoggingSinks:
+    """Logging is diagnostics; losing a channel must never stop the application.
+
+    An unwritable log file used to crash-loop the container — the boot died in
+    RotatingFileHandler before anything could report why.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _restore_root(self):
+        root = logging.getLogger()
+        saved, level = list(root.handlers), root.level
+        yield
+        root.handlers.clear()
+        root.handlers.extend(saved)
+        root.setLevel(level)
+
+    def _kinds(self) -> list[str]:
+        return [type(h).__name__ for h in logging.getLogger().handlers]
+
+    def test_unbuildable_file_sink_does_not_stop_startup(self, tmp_path):
+        """The regression that took the stack down."""
+        root = setup_logging(log_file=str(tmp_path / "nope" / "\0" / "a.log"),
+                             sinks=("console", "file"))
+        assert "SafeStreamHandler" in self._kinds()
+        assert not any("RotatingFileHandler" in k for k in self._kinds())
+        root.warning("still logging")
+
+    def test_unbuildable_sink_is_reported_not_swallowed(self, tmp_path, capsys):
+        setup_logging(log_file=str(tmp_path / "nope" / "\0" / "a.log"),
+                      sinks=("console", "file"))
+        assert "unavailable" in capsys.readouterr().err
+
+    def test_unknown_sink_is_rejected_loudly(self, tmp_path, capsys):
+        """Silently ignoring it would let a typo disable shipping to a SIEM."""
+        setup_logging(log_file=str(tmp_path / "a.log"), sinks=("console", "nonsense"))
+        assert "nonsense" in capsys.readouterr().err
+
+    def test_file_sink_alone_omits_the_console(self, tmp_path):
+        setup_logging(log_file=str(tmp_path / "a.log"), sinks=("file",))
+        assert self._kinds() == ["RotatingFileHandler"]
+
+    def test_console_sink_alone_writes_no_file(self, tmp_path):
+        log_file = tmp_path / "a.log"
+        setup_logging(log_file=str(log_file), sinks=("console",))
+        logging.getLogger("x").info("hello")
+        assert not log_file.exists()
+
+    def test_rotation_bounds_are_applied_to_the_handler(self, tmp_path):
+        """The ceiling is a security control: request volume drives log volume."""
+        setup_logging(log_file=str(tmp_path / "a.log"), sinks=("file",),
+                      max_bytes=1234, backup_count=7)
+        handler = logging.getLogger().handlers[0]
+        assert (handler.maxBytes, handler.backupCount) == (1234, 7)
+
+    def test_rotation_actually_caps_the_files_on_disk(self, tmp_path):
+        """Drive real rotation rather than trusting the constructor arguments."""
+        setup_logging(log_file=str(tmp_path / "a.log"), sinks=("file",),
+                      max_bytes=2048, backup_count=2)
+        logger = logging.getLogger("flood")
+        for i in range(400):
+            logger.warning("x" * 200 + str(i))
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+
+        written = sorted(p.name for p in tmp_path.iterdir())
+        assert written == ["a.log", "a.log.1", "a.log.2"], written
+        assert sum(p.stat().st_size for p in tmp_path.iterdir()) < 2048 * 4
+
+    def test_default_ceiling_is_twenty_megabytes(self):
+        from src import config
+        assert config.LOG_MAX_BYTES * (1 + config.LOG_BACKUP_COUNT) == 20 * 1024 * 1024
+
+    def test_default_sinks_are_console_and_file(self):
+        from src import config
+        assert config.LOG_SINKS == ["console", "file"]
+
+
+@pytest.mark.unit
+class TestSyslogSink:
+    """The syslog sink is how logs reach a SOC/SIEM.
+
+    A misparsed address does not raise — UDP is connectionless, so the handler
+    builds happily and the records go nowhere. Parsing is therefore asserted
+    directly rather than through behaviour.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _restore_root(self):
+        root = logging.getLogger()
+        saved, level = list(root.handlers), root.level
+        yield
+        for handler in logging.getLogger().handlers:
+            handler.close()
+        root.handlers.clear()
+        root.handlers.extend(saved)
+        root.setLevel(level)
+
+    def test_host_and_port_become_a_network_tuple(self):
+        from src.utils.logging_config import _parse_syslog_address
+        assert _parse_syslog_address("siem.internal:514") == ("siem.internal", 514)
+
+    def test_ipv6_keeps_only_the_last_colon_as_the_port_separator(self):
+        from src.utils.logging_config import _parse_syslog_address
+        assert _parse_syslog_address("fd00::1:514") == ("fd00::1", 514)
+
+    def test_a_socket_path_is_passed_through_unchanged(self):
+        """/dev/log is the local-collector case and must not be split on ':'."""
+        from src.utils.logging_config import _parse_syslog_address
+        assert _parse_syslog_address("/dev/log") == "/dev/log"
+
+    def test_syslog_handler_always_emits_json(self):
+        """A SIEM parses fields; LOG_FORMAT=text must not reach the wire."""
+        from src.utils.logging_config import JsonFormatter, setup_logging
+
+        setup_logging(log_format="text", sinks=("syslog",),
+                      syslog_address="127.0.0.1:5514", syslog_protocol="udp")
+        handler = logging.getLogger().handlers[0]
+        assert isinstance(handler, logging.handlers.SysLogHandler)
+        assert isinstance(handler.formatter, JsonFormatter)
+
+    def test_protocol_selects_the_socket_type(self):
+        import socket
+
+        from src.utils.logging_config import _build_syslog_handler
+
+        udp = _build_syslog_handler("127.0.0.1:5514", "udp")
+        assert udp.socktype == socket.SOCK_DGRAM
+        udp.close()
+
+    def test_every_sink_failing_falls_back_to_stderr(self, tmp_path, capsys):
+        """Running blind is worse than an ugly stderr line."""
+        from src.utils.logging_config import setup_logging
+
+        root = setup_logging(log_file=str(tmp_path / "\0" / "a.log"), sinks=("file",))
+        assert logging.lastResort in root.handlers
+        root.warning("still reaches the operator")
+        assert "still reaches the operator" in capsys.readouterr().err

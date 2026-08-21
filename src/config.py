@@ -491,6 +491,25 @@ LOG_FILE: str = os.environ.get('LOG_FILE', 'logs/app.log')
 # Set LOG_FORMAT=json to emit JSON lines (recommended for production log aggregators)
 LOG_FORMAT: str = os.environ.get('LOG_FORMAT', 'text')
 
+# Where logs go. Comma-separated, any of: console, file, syslog.
+#   console — stdout/stderr, collected by the container runtime
+#   file    — the rotating local log; survives container recreation, unlike
+#             `docker logs`, and records DEBUG where the console records INFO
+#   syslog  — ships to a SOC/SIEM collector (see LOG_SYSLOG_*)
+LOG_SINKS: list[str] = [
+    s.strip().lower() for s in os.environ.get('LOG_SINKS', 'console,file').split(',') if s.strip()
+]
+
+# Rotation bounds the log file. Log volume is driven by request volume, which an
+# attacker controls, so this ceiling is what stops a flood from filling the disk:
+# total on-disk bytes are LOG_MAX_BYTES * (1 + LOG_BACKUP_COUNT) — 20 MB by default.
+LOG_MAX_BYTES: int = int(os.environ.get('LOG_MAX_BYTES', str(4 * 1024 * 1024)))
+LOG_BACKUP_COUNT: int = int(os.environ.get('LOG_BACKUP_COUNT', '4'))
+
+# Syslog target for the `syslog` sink: "host:port", or a socket path like /dev/log.
+LOG_SYSLOG_ADDRESS: str = os.environ.get('LOG_SYSLOG_ADDRESS', '')
+LOG_SYSLOG_PROTOCOL: str = os.environ.get('LOG_SYSLOG_PROTOCOL', 'udp')
+
 # State persistence file
 STATE_FILE: str = 'app_state.json'
 
