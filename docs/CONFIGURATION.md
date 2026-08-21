@@ -49,6 +49,13 @@ export RATELIMIT_ENABLED=True
 export RATELIMIT_CHAT=10 per minute
 export RATELIMIT_UPLOAD=5 per hour
 export TRUSTED_PROXY_IPS=              # Proxies allowed to set X-Forwarded-For
+
+# Logging
+export LOG_SINKS=console,file          # console | file | syslog
+export LOG_MAX_BYTES=4194304           # rotation size; ceiling is
+export LOG_BACKUP_COUNT=4              #   LOG_MAX_BYTES * (1 + LOG_BACKUP_COUNT) = 20 MB
+export LOG_SYSLOG_ADDRESS=             # host:port or /dev/log, for the syslog sink
+export LOG_SYSLOG_PROTOCOL=udp
 export CORS_ENABLED=False
 export CORS_ORIGINS=http://localhost:3000
 
@@ -57,6 +64,45 @@ export CORS_ORIGINS=http://localhost:3000
 # (acceptable on a private network). Set a strong token in production.
 export METRICS_TOKEN=
 ```
+
+### Logging: sinks, rotation and shipping to a SIEM
+
+`LOG_SINKS` decides where logs go — any of `console`, `file`, `syslog`, comma-separated.
+The default is `console,file`.
+
+| Sink | What it gives you |
+|---|---|
+| `console` | stdout/stderr, collected by the container runtime. **Does not survive container recreation** — `docker compose up -d --build` starts a new container and the old one's logs go with it. Records `INFO` and above. |
+| `file` | The rotating local log. Survives recreation, and records `DEBUG` where the console records `INFO`, so it holds strictly more detail. This is the troubleshooting record. |
+| `syslog` | Ships to a SOC/SIEM collector. Always emits JSON regardless of `LOG_FORMAT`, because a SIEM parses fields rather than prose. |
+
+**Rotation is a security control, not housekeeping.** Log volume follows request volume,
+and an attacker controls request volume — an unbounded log is a way to fill the disk. The
+ceiling is explicit:
+
+```
+LOG_MAX_BYTES * (1 + LOG_BACKUP_COUNT)     # 4 MB * 5 = 20 MB by default
+```
+
+**Shipping to a SIEM.** Point `LOG_SYSLOG_ADDRESS` at the collector (`host:port`, or a
+socket path such as `/dev/log`) and add `syslog` to `LOG_SINKS`:
+
+```bash
+LOG_SINKS=console,file,syslog
+LOG_SYSLOG_ADDRESS=siem.internal:514
+LOG_SYSLOG_PROTOCOL=tcp        # udp (default) or tcp
+```
+
+For destinations that ingest over HTTP rather than syslog — Splunk HEC, Loki, Elastic —
+run a collector (Vector, Fluent Bit, Promtail) against the `console` sink instead. The
+application deliberately does not push over HTTP itself: that needs buffering, retries,
+backpressure and credential handling, and network I/O inside a logging handler can stall
+the request path it is supposed to be observing.
+
+**A sink that cannot be built is skipped, not fatal.** An unwritable log file, a refused
+syslog connection or a typo'd sink name is reported at `ERROR` and startup continues with
+whatever sinks remain. Losing a diagnostic channel is never a reason to stop serving —
+before this, an unwritable `/app/logs/app.log` put the container into a restart loop.
 
 ### Rate limiting behind a reverse proxy
 

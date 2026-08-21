@@ -66,7 +66,7 @@ class TestSetupLogging:
         logger = setup_logging(
             log_level="INFO",
             log_file=str(log_file),
-            enable_console=False
+            sinks=("file",)
         )
 
         assert isinstance(logger, logging.Logger)
@@ -77,7 +77,7 @@ class TestSetupLogging:
         from src.utils.logging_config import setup_logging
 
         log_file = tmp_path / "subdir" / "test.log"
-        setup_logging(log_file=str(log_file), enable_console=False)
+        setup_logging(log_file=str(log_file), sinks=("file",))
 
         assert log_file.parent.exists()
 
@@ -89,7 +89,7 @@ class TestSetupLogging:
         logger = setup_logging(
             log_level="DEBUG",
             log_file=str(log_file),
-            enable_console=False
+            sinks=("file",)
         )
 
         assert logger.level == logging.DEBUG
@@ -99,7 +99,7 @@ class TestSetupLogging:
         from src.utils.logging_config import setup_logging
 
         log_file = tmp_path / "test.log"
-        logger = setup_logging(log_file=str(log_file), enable_console=True)
+        logger = setup_logging(log_file=str(log_file), sinks=("console", "file"))
 
         assert len(logger.handlers) > 0
 
@@ -149,7 +149,7 @@ class TestLogRotation:
             log_file=str(log_file),
             max_bytes=1024,
             backup_count=3,
-            enable_console=False
+            sinks=("file",)
         )
 
         # Check if rotating handler exists
@@ -196,7 +196,7 @@ class TestLoggingEdgeCases:
             setup_logging(
                 log_level="INVALID",
                 log_file=str(log_file),
-                enable_console=False
+                sinks=("file",)
             )
         except (ValueError, AttributeError):
             pass  # Expected for invalid level
@@ -310,7 +310,7 @@ class TestSetupLoggingJsonFormat:
         logger = setup_logging(
             log_file=str(log_file),
             log_format="json",
-            enable_console=False,
+            sinks=("file",),
         )
         file_handlers = [
             h for h in logger.handlers
@@ -327,7 +327,7 @@ class TestSetupLoggingJsonFormat:
         logger = setup_logging(
             log_file=str(log_file),
             log_format="json",
-            enable_console=True,
+            sinks=("console", "file"),
         )
         console_handlers = [
             h for h in logger.handlers

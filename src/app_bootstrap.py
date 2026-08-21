@@ -69,7 +69,16 @@ def bootstrap_app(app: Any) -> None:
     sets startup_status, embedding_cache, query_cache, sync_worker, etc.
     """
     log_level = "DEBUG" if config.APP_ENV != "production" else "INFO"
-    setup_logging(log_level=log_level, log_file=config.LOG_FILE, log_format=config.LOG_FORMAT)
+    setup_logging(
+        log_level=log_level,
+        log_file=config.LOG_FILE,
+        log_format=config.LOG_FORMAT,
+        max_bytes=config.LOG_MAX_BYTES,
+        backup_count=config.LOG_BACKUP_COUNT,
+        sinks=config.LOG_SINKS,
+        syslog_address=config.LOG_SYSLOG_ADDRESS,
+        syslog_protocol=config.LOG_SYSLOG_PROTOCOL,
+    )
 
     _init_caching(app)
 
