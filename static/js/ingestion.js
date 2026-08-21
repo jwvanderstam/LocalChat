@@ -479,7 +479,12 @@ async function loadStats() {
 
 // Delete a single document
 async function deleteDocument(docId, filename) {
-    if (!confirm(`Delete "${filename}" and all its chunks?\n\nThis cannot be undone.`)) return;
+    const ok = await window.localchatConfirm({
+        title: 'Delete document',
+        body: `"${filename}" and all its chunks will be deleted. This cannot be undone.`,
+        confirmText: 'Delete',
+    });
+    if (!ok) return;
 
     try {
         const response = await fetch(`/api/documents/${docId}`, {
@@ -501,12 +506,23 @@ async function deleteDocument(docId, filename) {
 // Clear database
 async function clearDatabase() {
     // Confirm action
-    if (!confirm('WARNING: This will permanently delete ALL documents and chunks from the database.\n\nThis action CANNOT be undone!\n\nAre you sure you want to continue?')) {
+    const ok = await window.localchatConfirm({
+        title: 'Delete ALL documents',
+        body: 'Every document and chunk will be permanently removed from the database. This cannot be undone.',
+        confirmText: 'Delete everything',
+    });
+    if (!ok) {
         return;
     }
     
     // Double confirmation
-    if (!confirm('This is your LAST chance to cancel.\n\nClick OK to DELETE ALL DOCUMENTS permanently.')) {
+    // Second prompt kept: this is the one action with no per-item recovery.
+    const reallyOk = await window.localchatConfirm({
+        title: 'Last chance',
+        body: 'Confirm again to delete all documents permanently.',
+        confirmText: 'Delete all permanently',
+    });
+    if (!reallyOk) {
         return;
     }
     

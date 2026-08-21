@@ -111,6 +111,14 @@ async function revealAdminChrome() {
     if (!hidden.length) return;
     try {
         const resp = await _originalFetch('/api/users/me');
+        if (resp.status === 401) {
+            // An expired session used to end here silently: the admin tabs simply
+            // never appeared, with no redirect and nothing said, so the interface
+            // looked like it had lost features rather than the session. This call
+            // deliberately bypasses the fetch wrapper, so it has to redirect itself.
+            redirectToLogin();
+            return;
+        }
         if (!resp.ok) return;
         const me = await resp.json();
         if (me.role !== 'admin') return;

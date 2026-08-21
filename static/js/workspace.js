@@ -146,8 +146,13 @@
             });
     }
 
-    function deleteWorkspace(workspaceId, workspaceName) {
-        if (!confirm('Delete workspace "' + workspaceName + '"?\n\nThis cannot be undone.')) {
+    async function deleteWorkspace(workspaceId, workspaceName) {
+        const ok = await window.localchatConfirm({
+            title: 'Delete workspace',
+            body: `Workspace "${workspaceName}" will be deleted. This cannot be undone.`,
+            confirmText: 'Delete',
+        });
+        if (!ok) {
             return;
         }
         fetch('/api/workspaces/' + workspaceId, { method: 'DELETE' })

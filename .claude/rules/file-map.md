@@ -188,6 +188,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `static/js/workspace.js` | Workspace switcher dropdown + create-workspace modal, wired into `templates/base.html` |
 | `static/js/logs.js` | Logs tab in Settings — admin-only; level/search filter over `/api/logs`, escapes every field before it reaches the DOM |
 | `static/js/users.js` | Users tab in Settings — admin-only; user cards with workspace access, create/grant modals, role change, retire, purge; Integrations section for workspace API keys (create, list, revoke) |
+| `static/js/confirm.js` | `window.localchatConfirm()` — the in-app confirmation modal every destructive action uses; native `confirm()` is banned in `repo-hygiene` |
 | `static/js/auth.js` | Session handling — wraps `fetch` to redirect to `/login` on 401, drives the login form, exposes `localchatLogout()` |
 | `templates/login.html` | Login page — the one template that renders without a session |
 | `static/js/docs.js` | Documentation viewer (`templates/docs.html`) — fetches `/api/repo-docs`, renders nav + selected doc HTML |
