@@ -274,6 +274,15 @@ services:
       dockerfile: Dockerfile
     image: ghcr.io/jwvanderstam/localchat:latest
     restart: unless-stopped
+    # Bounds the `console` sink. The app rotates its own log file, but stdout is
+    # captured by Docker's json-file driver, which grows without limit by default —
+    # the same disk-exhaustion route, one layer down. Log volume follows request
+    # volume, and an attacker controls that.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       db:
         condition: service_healthy

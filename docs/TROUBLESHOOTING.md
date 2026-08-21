@@ -234,6 +234,45 @@ is discarded, including its own failures. This masked a real
 `MultipleHeads` migration error that was raised and logged on every boot for days.
 An app that cannot report a failure looks identical to one that has none.
 
+### The console has logs but `logs/app.log` is empty (or missing)
+
+**Symptom:** `docker compose logs app` shows output, but the log file is stale, empty or
+absent. Near the top of the boot there is a line like:
+
+```
+Logging sink 'file' unavailable — continuing without it: PermissionError: ...
+Logging system initialized (format=json, sinks=console)
+```
+
+**Cause:** a sink that could not be built is reported and skipped, so the application
+keeps serving on whatever sinks remain. `sinks=` in that second line tells you what is
+actually active. The usual cause is the `app_logs` volume being owned by a different uid
+than the container runs as — see
+[DEPLOYMENT.md](DEPLOYMENT.md#upgrading-onto-the-hardened-image-fix-the-volume-ownership-first).
+
+Other causes worth checking: a full disk, a read-only mount, or a `LOG_FILE` path whose
+parent cannot be created.
+
+**Why it degrades instead of failing:** losing a diagnostic channel is not a reason to
+stop serving requests. Before this, an unwritable `/app/logs/app.log` raised inside
+`RotatingFileHandler` during boot and put the container into a restart loop — where the
+one thing that could have explained it, the log, was also gone.
+
+**Fix:** resolve the underlying cause, then restart the app. To confirm what is active
+without restarting:
+
+```bash
+docker compose logs app --no-color | grep "Logging system initialized"
+```
+
+### Logs stop growing at 20 MB
+
+Not a fault. `LOG_MAX_BYTES * (1 + LOG_BACKUP_COUNT)` is a deliberate ceiling — log volume
+follows request volume, which an attacker controls, so an unbounded log is a way to fill
+the disk. Raise both values in `.env` if you need a longer window, or add the `syslog` sink
+and keep history off the box; see
+[CONFIGURATION.md](CONFIGURATION.md#logging-sinks-rotation-and-shipping-to-a-siem).
+
 ### App won't start: "SECRET_KEY must be at least 32 characters"
 
 Set `SECRET_KEY` to a random 32+ character string in `.env`:
