@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 class TestListConversations:
     def test_list_returns_200(self, client, app):
         app.state.db.list_conversations = MagicMock(return_value=[])
+        app.state.db.count_conversations = MagicMock(return_value=0)
         response = client.get('/api/conversations')
         assert response.status_code == 200
 
@@ -13,6 +14,7 @@ class TestListConversations:
         app.state.db.list_conversations = MagicMock(return_value=[
             {'id': 'abc', 'title': 'Chat 1', 'created_at': '2025-01-01'}
         ])
+        app.state.db.count_conversations = MagicMock(return_value=1)
         response = client.get('/api/conversations')
         data = response.json()
         assert 'conversations' in data

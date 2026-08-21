@@ -90,6 +90,30 @@ class ConversationsMixin(MixinHost):
         logger.debug(f"Created conversation {conversation_id} with first message (id={message_id})")
         return conversation_id, message_id
 
+    def count_conversations(self, workspace_id: str | None = None) -> int:
+        """Total live conversations, so a paged listing can say whether more exist.
+
+        Without it a caller cannot tell a full page from the end of the list, and the
+        default page of 50 silently hides everything past it.
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot count conversations: Database is not connected")
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                if workspace_id:
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM conversations"
+                        " WHERE workspace_id = %s AND deleted_at IS NULL",
+                        (workspace_id,),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM conversations WHERE deleted_at IS NULL"
+                    )
+                row = cursor.fetchone()
+                return int(row[0]) if row else 0
+
     def list_conversations(
         self,
         limit: int = 50,

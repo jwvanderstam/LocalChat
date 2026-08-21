@@ -311,6 +311,8 @@
             if (data.success) {
                 showToast('Success', `${modelName} is now active`, 'success');
                 loadModels();
+                // Refresh the header badge now rather than waiting for its poll.
+                if (window.refreshStatusBadges) window.refreshStatusBadges();
             } else {
                 showToast('Error', data.message, 'danger');
             }

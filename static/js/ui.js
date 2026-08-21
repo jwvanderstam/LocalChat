@@ -18,7 +18,18 @@ export function escapeHtml(str) {
 
 export function formatTime(timestamp) {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    // An unparseable value is worse than none: new Date(undefined) yields Invalid
+    // Date, whose toLocale* output is the literal string "Invalid Date".
+    if (isNaN(date.getTime())) return '';
+
+    const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const sameDay = date.getFullYear() === now.getFullYear()
+        && date.getMonth() === now.getMonth()
+        && date.getDate() === now.getDate();
+    // Time alone made every message in a month-old conversation read as today's:
+    // the hour was right, the day was simply never shown.
+    return sameDay ? time : `${date.toLocaleDateString([], { day: '2-digit', month: 'short' })} ${time}`;
 }
 
 export function scrollToBottom() {

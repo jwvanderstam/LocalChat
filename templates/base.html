@@ -185,7 +185,11 @@
 
         // Update status bar
         function updateStatus() {
-            fetch('/api/status')
+            // The workspace header matters: /api/status scopes document_count to the
+            // active workspace, and without it the badge reports the total across all
+            // of them — a global number sitting next to a workspace switcher.
+            const _wsId = localStorage.getItem('localchat_active_workspace_id');
+            fetch('/api/status', { headers: _wsId ? { 'X-Workspace-ID': _wsId } : {} })
                 .then(response => response.json())
                 .then(data => {
                     // Update model
@@ -232,6 +236,9 @@
         // Update status on load and every 5 seconds
         updateStatus();
         setInterval(updateStatus, 5000);
+        // Model Management calls this after activating a model: a five-second wait
+        // to learn which model is active reads as the badge being broken.
+        window.refreshStatusBadges = updateStatus;
     </script>
     
     {% block extra_scripts %}{% endblock %}

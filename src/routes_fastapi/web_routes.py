@@ -65,8 +65,10 @@ def settings(request: Request) -> HTMLResponse:
     except Exception:
         stats = {}
     docs_service = request.app.state.docs_service
+    # Body only: each slider already carries the same wording as its own label, and
+    # the fragment's heading rendered a second, page-sized copy right beneath it.
     setting_docs = {
-        slug: (docs_service.get_fragment("docs-settings", slug) or "")
+        slug: (docs_service.get_fragment_body("docs-settings", slug) or "")
         for slug in _SETTING_DOC_SLUGS
     }
     return _templates(request).TemplateResponse(

@@ -52,7 +52,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Database** | |
 | `src/db/connection.py` | psycopg3 pool, pgvector HNSW index, `_ensure_extensions_and_tables()`, additive migrations |
 | `src/db/documents.py` | Document/chunk CRUD; `search_similar_chunks(filename_filter=)` |
-| `src/db/conversations.py` | Persistent conversation history; `get/set_conversation_document_filter` |
+| `src/db/conversations.py` | Persistent conversation history; `count_conversations` (paging); `get/set_conversation_document_filter` |
 | `src/db/entities.py` | `EntitiesMixin` — GraphRAG entity/relation CRUD |
 | `src/db/memories.py` | `MemoriesMixin` — long-term memory CRUD + vector search |
 | `src/db/feedback.py` | `FeedbackMixin` — `answer_feedback` + `chunk_stats` CRUD |

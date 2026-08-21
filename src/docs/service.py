@@ -35,33 +35,40 @@ logger = get_logger(__name__)
 # request input — slugs are looked up in this fixed set only, so a route
 # handler can never be tricked into reading an arbitrary file.
 _CATALOGUE: list[tuple[str, str]] = [
-    ("claude-md", "CLAUDE.md"),
+    # Order is the order the viewer lists them in (list_docs walks the loaded dict,
+    # which preserves insertion). Product and operator documentation first: the
+    # contributor and coding-agent material below is genuinely useful to have in the
+    # viewer on a self-hosted box, but it led the list, so an instruction file for an
+    # AI coding agent was the first thing anyone opening Documentation saw.
     ("readme", "README.md"),
+    ("docs-index", "docs/README.md"),
+    ("docs-configuration", "docs/CONFIGURATION.md"),
+    ("docs-deployment", "docs/DEPLOYMENT.md"),
+    ("docs-operations", "docs/OPERATIONS.md"),
+    ("docs-troubleshooting", "docs/TROUBLESHOOTING.md"),
+    ("docs-settings", "docs/SETTINGS.md"),
+    ("docs-permissions", "docs/PERMISSIONS.md"),
+    ("docs-workspace-api-keys", "docs/WORKSPACE_API_KEYS.md"),
     ("security", "SECURITY.md"),
+    ("docs-schema", "docs/SCHEMA.md"),
+    ("docs-migrations", "docs/MIGRATIONS.md"),
+    ("docs-adr", "docs/ADR.md"),
+    ("docs-n8n-discord-setup", "docs/n8n-discord-setup.md"),
+    ("docs-n8n-report", "docs/bugreport-n8n-localchat.md"),
+
+    # --- Contributor and coding-agent material -----------------------------------
+    ("claude-md", "CLAUDE.md"),
     ("rules-architecture", ".claude/rules/architecture.md"),
     ("rules-file-map", ".claude/rules/file-map.md"),
     ("rules-plugins", ".claude/rules/plugins.md"),
     ("rules-python", ".claude/rules/python.md"),
     ("rules-testing", ".claude/rules/testing.md"),
-    ("docs-deployment", "docs/DEPLOYMENT.md"),
-    ("docs-integration-tests", "docs/INTEGRATION_TESTS.md"),
-    ("docs-migrations", "docs/MIGRATIONS.md"),
-    ("docs-operations", "docs/OPERATIONS.md"),
     ("docs-roadmap", "docs/ROADMAP.md"),
-    ("docs-schema", "docs/SCHEMA.md"),
-    ("docs-test-quality-audit", "docs/TEST_QUALITY_AUDIT.md"),
-    ("docs-troubleshooting", "docs/TROUBLESHOOTING.md"),
-    ("docs-lessons-learned", "docs/LESSONS_LEARNED.md"),
-    ("docs-settings", "docs/SETTINGS.md"),
-    ("docs-index", "docs/README.md"),
-    ("docs-adr", "docs/ADR.md"),
-    ("docs-auth-plan", "docs/AUTH_PLAN.md"),
-    ("docs-configuration", "docs/CONFIGURATION.md"),
-    ("docs-permissions", "docs/PERMISSIONS.md"),
     ("docs-production-plan", "docs/PRODUCTION_PLAN.md"),
-    ("docs-workspace-api-keys", "docs/WORKSPACE_API_KEYS.md"),
-    ("docs-n8n-discord-setup", "docs/n8n-discord-setup.md"),
-    ("docs-n8n-report", "docs/bugreport-n8n-localchat.md"),
+    ("docs-auth-plan", "docs/AUTH_PLAN.md"),
+    ("docs-lessons-learned", "docs/LESSONS_LEARNED.md"),
+    ("docs-test-quality-audit", "docs/TEST_QUALITY_AUDIT.md"),
+    ("docs-integration-tests", "docs/INTEGRATION_TESTS.md"),
     ("docs-scaleway-deployment-plan", "docs/localchat_scaleway_deployment_plan.md"),
 ]
 
@@ -114,6 +121,11 @@ def _split_fragments(raw: str) -> dict[str, str]:
             seen[slug] = 0
         fragments[slug] = markdown.markdown(raw[start:end].rstrip(), extensions=_MD_EXTENSIONS)
     return fragments
+
+
+#: The heading a fragment opens with, for consumers that supply their own label.
+#: Bounded to the tag this module generated a line earlier, not general HTML parsing.
+_LEADING_HEADING_RE = re.compile(r"^\s*<h[1-6][^>]*>.*?</h[1-6]>", re.DOTALL | re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -185,3 +197,16 @@ class DocsService:
         if entry is None:
             return None
         return entry.fragments.get(fragment_slug)
+
+    def get_fragment_body(self, slug: str, fragment_slug: str) -> str | None:
+        """The fragment without its own heading.
+
+        A fragment includes its heading, which the docs viewer needs. An inline
+        consumer that already has a label for the same thing does not: on the
+        settings page it rendered a second, page-sized copy of the label directly
+        beneath it, which read as a broken heading level.
+        """
+        html = self.get_fragment(slug, fragment_slug)
+        if html is None:
+            return None
+        return _LEADING_HEADING_RE.sub("", html, count=1).lstrip()

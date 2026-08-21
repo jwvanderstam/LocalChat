@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from src.docs.service import DocsService
 
 
@@ -128,3 +130,85 @@ class TestReloadAll:
 
         assert "Updated content." in service.get_doc("doc").html
         assert "Original content." not in service.get_doc("doc").html
+
+
+@pytest.mark.unit
+class TestFragmentBody:
+    """QA-9 — the settings sliders rendered their own label a second time.
+
+    A fragment includes its heading, which the docs viewer needs. The settings page
+    already has a label saying the same thing, so the heading arrived directly
+    beneath it at page-heading size and read as a broken heading level.
+    """
+
+    def _service(self, tmp_path):
+        from src.docs.service import DocsService
+
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "SETTINGS.md").write_text(
+            "# Settings Reference\n\n"
+            "## Retrieval candidates (TOP_K_RESULTS)\n\n"
+            "Initial number of chunks fetched.\n\n"
+            "## Chunks sent to LLM (RERANK_TOP_K)\n\n"
+            "How many survive reranking.\n",
+            encoding="utf-8",
+        )
+        service = DocsService(
+            root_dir=tmp_path, catalogue=[("docs-settings", "docs/SETTINGS.md")]
+        )
+        service.load_all()
+        return service
+
+    def test_the_body_omits_the_heading(self, tmp_path):
+        body = self._service(tmp_path).get_fragment_body(
+            "docs-settings", "retrieval-candidates-top_k_results"
+        )
+        assert "Initial number of chunks fetched." in body
+        assert "<h2" not in body
+        assert "Retrieval candidates" not in body
+
+    def test_the_full_fragment_still_carries_its_heading(self, tmp_path):
+        """The docs viewer needs it — this must not strip it there too."""
+        html = self._service(tmp_path).get_fragment(
+            "docs-settings", "retrieval-candidates-top_k_results"
+        )
+        assert "<h2" in html
+        assert "Retrieval candidates" in html
+
+    def test_only_the_leading_heading_goes(self, tmp_path):
+        """A heading later in a fragment is content, not a duplicated label."""
+        service = self._service(tmp_path)
+        body = service.get_fragment_body("docs-settings", "settings-reference")
+        assert "<h2" in body, "a nested heading was removed along with the leading one"
+
+    def test_an_unknown_fragment_is_none_rather_than_empty(self, tmp_path):
+        assert self._service(tmp_path).get_fragment_body("docs-settings", "nope") is None
+
+    def test_an_unknown_document_is_none(self, tmp_path):
+        assert self._service(tmp_path).get_fragment_body("nope", "nope") is None
+
+
+@pytest.mark.unit
+class TestCatalogueOrder:
+    """QA-10 — an AI coding-agent instruction file led the Documentation list."""
+
+    def test_product_documentation_comes_before_contributor_material(self):
+        from src.docs.service import _CATALOGUE
+
+        slugs = [slug for slug, _ in _CATALOGUE]
+        assert slugs.index("readme") < slugs.index("claude-md")
+        assert slugs.index("docs-deployment") < slugs.index("claude-md")
+        assert slugs.index("docs-troubleshooting") < slugs.index("rules-python")
+
+    def test_the_first_entry_is_the_product_readme(self):
+        from src.docs.service import _CATALOGUE
+
+        assert _CATALOGUE[0][0] == "readme"
+
+    def test_no_document_was_dropped_in_the_reorder(self):
+        """Reordering a list is exactly where an entry goes missing unnoticed."""
+        from src.docs.service import _CATALOGUE
+
+        slugs = [slug for slug, _ in _CATALOGUE]
+        assert len(slugs) == len(set(slugs)), "duplicate slug in the catalogue"
+        assert len(slugs) == 28

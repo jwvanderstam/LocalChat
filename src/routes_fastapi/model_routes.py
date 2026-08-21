@@ -80,12 +80,18 @@ def list_models(request: Request, _admin: Annotated[str, Depends(require_admin_d
         enriched = []
         for m in models:
             footprint_mb = request.app.state.ollama_client.estimate_model_footprint(m["name"])
-            fits = footprint_mb <= budget_mb
+            already_loaded = m["name"] in loaded_names
+            # A resident model fits by demonstration: it is running. budget_mb is
+            # *free* memory, which excludes what that model is itself occupying, so
+            # comparing it against the remainder declares the running model too large
+            # for the machine running it — and the UI disables its activate button,
+            # which then looks like a dead control rather than a memory verdict.
+            fits = already_loaded or footprint_mb <= budget_mb
             enriched.append(
                 {
                     **m,
                     "fits": fits,
-                    "loaded": m["name"] in loaded_names,
+                    "loaded": already_loaded,
                     "footprint_mb": footprint_mb,
                     "budget_mb": budget_mb,
                     "reason": (
