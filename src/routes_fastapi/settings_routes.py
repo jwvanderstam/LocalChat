@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from starlette.concurrency import run_in_threadpool
 
 from .. import config
 from ..security_fastapi import require_admin_dep
@@ -229,6 +230,26 @@ async def rag_params_set(request: Request, _admin: Annotated[str, Depends(requir
         config.app_state.set_rag_param(key, value)
 
     return {"success": True, "updated": updates}
+
+
+@router.get("/logs")
+async def logs_tail(
+    request: Request,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+    limit: int = Query(200, ge=1, le=1000),
+    level: str | None = Query(None, pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$"),
+    q: str | None = Query(None, max_length=200),
+) -> Any:
+    """Tail the application log. Admin only — logs carry request paths and user ids.
+
+    The path is never taken from the request: it is always ``config.LOG_FILE``, so
+    there is no parameter for a caller to point somewhere else. Reading runs in the
+    threadpool because the file is on disk and this handler is async (PERF-1).
+    """
+    from ..services.logs import read_log_tail
+
+    result = await run_in_threadpool(read_log_tail, config.LOG_FILE, limit, level, q)
+    return JSONResponse(result)
 
 
 @router.get("/reranker/status")

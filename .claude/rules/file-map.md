@@ -21,11 +21,12 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Routes** | |
 | `src/routes_fastapi/api_routes.py` | Chat (SSE), status — HTTP plumbing only; delegates business logic to `src/services/chat.py` |
 | `src/services/chat.py` | Chat business logic: context retrieval, RAG, planning, memory, model routing, message persistence |
+| `src/services/logs.py` | Reads the tail of the log file back for the admin log viewer; parses both JSON and text lines |
 | `src/routes_fastapi/document_routes.py` | Document upload, delete, list; SSE progress stream |
 | `src/routes_fastapi/model_routes.py` | Ollama model list, pull, delete, active-model management |
 | `src/routes_fastapi/memory_routes.py` | Conversation CRUD, export, document-filter endpoints |
 | `src/routes_fastapi/longterm_memory_routes.py` | Long-term memory CRUD and manual trigger endpoints |
-| `src/routes_fastapi/settings_routes.py` | Settings, admin ops; `/api/health`, `/api/metrics`, `/api/metrics.json` |
+| `src/routes_fastapi/settings_routes.py` | Settings, admin ops; `/api/health`, `/api/metrics`, `/api/metrics.json`, `/api/logs` (admin log viewer) |
 | `src/routes_fastapi/workspace_routes.py` | `GET/POST /api/workspaces`, `GET/PUT/DELETE /api/workspaces/{id}`, active, switch |
 | `src/routes_fastapi/feedback_routes.py` | `POST /api/feedback`, `GET /api/feedback/stats` |
 | `src/routes_fastapi/connector_routes.py` | Connector REST API + webhook receiver; `GET /api/connectors/available` |
@@ -185,6 +186,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `static/js/ingestion.js` | Document upload progress (SSE) on `templates/documents.html` |
 | `static/js/settings.js` | Theme picker + appearance settings on `templates/settings.html` |
 | `static/js/workspace.js` | Workspace switcher dropdown + create-workspace modal, wired into `templates/base.html` |
+| `static/js/logs.js` | Logs tab in Settings — admin-only; level/search filter over `/api/logs`, escapes every field before it reaches the DOM |
 | `static/js/users.js` | Users tab in Settings — admin-only; user cards with workspace access, create/grant modals, role change, retire, purge; Integrations section for workspace API keys (create, list, revoke) |
 | `static/js/auth.js` | Session handling — wraps `fetch` to redirect to `/login` on 401, drives the login form, exposes `localchatLogout()` |
 | `templates/login.html` | Login page — the one template that renders without a session |

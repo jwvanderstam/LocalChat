@@ -144,6 +144,21 @@ state — nothing reconstructs from them, and they are the one volume whose loss
 you nothing but hindsight. `app_logs` is therefore absent from the backup recipes
 above. What matters instead is knowing *how far back you can look*.
 
+### Reading the log without a shell
+
+**Settings → Logs** (admin only) tails the log file in the browser, with a level filter
+and substring search. It reads the `file` sink, so it shows nothing when `file` is absent
+from `LOG_SINKS` — and says so rather than rendering an empty table.
+
+It reads the file rather than `docker logs` for the same two reasons the file sink exists:
+the file survives container recreation, and it holds DEBUG where the console holds INFO.
+The runtime image has no shell, so this is also the only way to read the log from inside a
+running container without attaching a helper container.
+
+`LOG_FORMAT=json` makes the viewer meaningfully better — the fields land in their own
+columns and the level filter is a real filter. Text lines still render, with the level
+picked out of the line, so a file holding both formats is fine.
+
 ### How far back your logs go
 
 Retention is not a fixed number of days — it is a division:

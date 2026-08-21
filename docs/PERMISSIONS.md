@@ -151,6 +151,7 @@ These 18 are unauthenticated **by decision**, each for a stated reason:
 | `settings` | GET | `/settings/stats` | **admin** |
 | `settings` | GET | `/settings/rag` | **admin** |
 | `settings` | POST | `/settings/rag` | **admin** |
+| `settings` | GET | `/logs` | **admin** |
 | `settings` | GET | `/reranker/status` | **admin** |
 | `settings` | POST | `/reranker/train` | **admin** |
 | `settings` | POST | `/reranker/promote/{version_id}` | **admin** |
