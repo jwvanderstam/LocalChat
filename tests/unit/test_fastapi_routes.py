@@ -173,6 +173,7 @@ class TestMemoryRoutes:
 
         state = _base_state()
         state.db.list_conversations.return_value = []
+        state.db.count_conversations.return_value = 0
         state.db.create_conversation.return_value = "conv-1"
         state.db.get_conversation_messages.return_value = []
         state.db.delete_conversation.return_value = True

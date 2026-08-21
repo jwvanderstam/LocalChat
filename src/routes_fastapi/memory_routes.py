@@ -29,10 +29,20 @@ def list_conversations(request: Request, limit: int = 50, offset: int = 0) -> An
         offset = max(offset, 0)
     except (ValueError, TypeError):
         return JSONResponse({"success": False, "message": "limit and offset must be integers"}, status_code=400)
+    workspace_id = get_workspace_id(request)
     conversations = request.app.state.db.list_conversations(
-        limit=limit, offset=offset, workspace_id=get_workspace_id(request)
+        limit=limit, offset=offset, workspace_id=workspace_id
     )
-    return {"conversations": conversations, "limit": limit, "offset": offset}
+    total = request.app.state.db.count_conversations(workspace_id=workspace_id)
+    # total/has_more so a caller can tell a full page from the end of the list. The
+    # default page is 50; without this the rest were simply invisible.
+    return {
+        "conversations": conversations,
+        "limit": limit,
+        "offset": offset,
+        "total": total,
+        "has_more": offset + len(conversations) < total,
+    }
 
 
 @router.post("/conversations", status_code=201)

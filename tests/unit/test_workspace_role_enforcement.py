@@ -37,6 +37,10 @@ def _client(router, prefix: str, member_role: str | None):
     # falls through to the global default. A MagicMock would return a truthy stand-in
     # here and quietly become the answer.
     state.db.get_user_workspaces.return_value = []
+    # Also explicit, for the same reason: the listing route measures the page it
+    # returns against the total, and a MagicMock is neither a list nor a number.
+    state.db.list_conversations.return_value = []
+    state.db.count_conversations.return_value = 0
     app = FastAPI()
     app.include_router(router, prefix=prefix)
     app.state = state
