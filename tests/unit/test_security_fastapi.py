@@ -328,6 +328,26 @@ class TestRequireAdminDep:
             require_admin_dep(self._request_with("admin", connected=False), credentials=None)
         assert exc_info.value.status_code == 503
 
+    def test_a_database_error_while_reading_the_role_is_refused(self):
+        """The lookup runs on every admin request; a raise there must not become a
+        500, and must not fall through to allowing the call either."""
+        from fastapi import HTTPException
+
+        from src.security_fastapi import require_admin_dep
+
+        req = self._request_with("admin")
+        req.app.state.db.get_user_role.side_effect = RuntimeError("connection reset")
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_admin_dep(req, credentials=None)
+        assert exc_info.value.status_code == 403
+
+    def test_a_token_without_a_subject_is_not_an_admin(self):
+        """Claims can be present and still name nobody."""
+        from src.security_fastapi import _current_global_role
+
+        assert _current_global_role(MagicMock(), {"role": "admin"}) is None
+
     def test_the_env_var_admin_still_works_without_a_database(self):
         """That account has no row to look up; it is administrative by construction,
         and it is the way back in when the database is empty."""
