@@ -28,7 +28,7 @@ def _auth(role: str = "user") -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(USER, {'role': role})}"}
 
 
-def _client(module: str, prefix: str, member_role: str | None = None):
+def _client(module: str, prefix: str, member_role: str | None = None, global_role: str = "user"):
     import importlib
     router = importlib.import_module(f"src.routes_fastapi.{module}").router
     state = MagicMock()
@@ -38,6 +38,9 @@ def _client(module: str, prefix: str, member_role: str | None = None):
     # Without this, MagicMock returns a truthy mock and require_auth reads every
     # token as revoked — a 401 that looks exactly like "not authenticated".
     state.db.is_token_revoked.return_value = False
+    # The admin guard reads the caller's role from the database, not the token claim,
+    # so an admin header alone no longer makes a caller an admin here either.
+    state.db.get_user_role.return_value = global_role
     app = FastAPI()
     app.include_router(router, prefix=prefix)
     app.state = state
@@ -67,7 +70,7 @@ class TestModelManagementIsAdminOnly:
         assert resp.status_code == 401
 
     def test_admin_is_allowed_through_the_guard(self):
-        client = _client("model_routes", "/api/models")
+        client = _client("model_routes", "/api/models", global_role="admin")
         resp = client.get("/api/models", headers=_auth(role="admin"))
         assert resp.status_code != 403
 

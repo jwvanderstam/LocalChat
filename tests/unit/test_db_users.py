@@ -147,6 +147,47 @@ class TestGetUserByUsername:
         assert params[0] == "alice"
 
 
+class TestGetUserRole:
+    """The admin guard runs this on every admin request (QA-1).
+
+    Narrower than get_user_by_id deliberately: it reads one column instead of the
+    row, so the password hash is not loaded to answer "is this caller an admin".
+    """
+
+    def test_returns_the_role_of_a_live_user(self):
+        m, _, _ = _users_mixin(fetchone_return=("admin",))
+        assert m.get_user_role("some-id") == "admin"
+
+    def test_returns_none_when_there_is_no_such_user(self):
+        """A retired account resolves here, and None means "not an administrator"."""
+        m, _, _ = _users_mixin(fetchone_return=None)
+        assert m.get_user_role("missing-id") is None
+
+    def test_returns_none_when_the_database_is_unavailable(self):
+        """The caller fails closed on None; it must not raise into the guard."""
+        m, _, _ = _users_mixin(connected=False)
+        assert m.get_user_role("some-id") is None
+
+    def test_the_query_filters_soft_deleted_rows(self):
+        """Without this a retired administrator keeps their access."""
+        m, _, cur = _users_mixin(fetchone_return=None)
+        m.get_user_role("some-id")
+        assert "deleted_at IS NULL" in cur.execute.call_args[0][0]
+
+    def test_the_query_reads_only_the_role_column(self):
+        """The point of the method: not the hash, not the whole row."""
+        m, _, cur = _users_mixin(fetchone_return=("user",))
+        m.get_user_role("some-id")
+        query = cur.execute.call_args[0][0]
+        assert "SELECT role FROM users" in query
+        assert "hashed_password" not in query
+
+    def test_the_user_id_is_a_bound_parameter(self):
+        m, _, cur = _users_mixin(fetchone_return=("user",))
+        m.get_user_role("abc-123")
+        assert cur.execute.call_args[0][1] == ("abc-123",)
+
+
 class TestGetUserById:
     def test_returns_none_when_db_unavailable(self):
         m, _, _ = _users_mixin(connected=False)

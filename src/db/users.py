@@ -115,6 +115,24 @@ class UsersMixin(MixinHost):
                 row = cur.fetchone()
         return _row_to_user(row) if row else None
 
+    def get_user_role(self, user_id: str) -> str | None:
+        """Return the user's current global role, or None if there is no live user.
+
+        Narrower than get_user_by_id on purpose: the authorisation guard runs this on
+        every admin request and has no business loading the password hash to do it.
+        Filters deleted_at, so a retired administrator resolves to None.
+        """
+        if not self.is_connected:
+            return None
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT role FROM users WHERE id = %s AND deleted_at IS NULL",
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+
     def get_user_by_id(self, user_id: str) -> dict[str, Any] | None:
         """Return user dict or None."""
         if not self.is_connected:

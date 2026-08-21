@@ -253,6 +253,117 @@ class TestRequireAdminDep:
             require_admin_dep(self._anonymous_request(), credentials=None)
         assert exc_info.value.status_code == 401
 
+    # ---- the role is read from the database, not from the token ----------------
+    #
+    # The role is minted into the JWT at login and the token lives two hours. Trusting
+    # that claim let a demoted administrator keep administrative access until expiry,
+    # while /api/users/me read the database and already showed the new role — so the
+    # UI and the guard disagreed about who was an admin.
+
+    def _request_with(self, role_in_db, *, connected=True, user_exists=True):
+        """A request whose token claims admin, with the database saying otherwise."""
+        from src.security_fastapi import create_access_token
+
+        token = create_access_token("55555555-5555-5555-5555-555555555555", {"role": "admin"})
+        req = MagicMock()
+        req.headers.get = lambda k, default="": (f"Bearer {token}" if k == "Authorization" else default)
+        req.cookies = {}
+        db = MagicMock()
+        db.is_connected = connected
+        db.is_token_revoked.return_value = False
+        db.get_user_role.return_value = role_in_db if user_exists else None
+        req.app.state.db = db
+        return req
+
+    def test_token_claiming_admin_is_refused_once_the_database_says_otherwise(self):
+        """The demotion case: a still-valid admin token after the role was removed."""
+        from fastapi import HTTPException
+
+        from src.security_fastapi import require_admin_dep
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_admin_dep(self._request_with("user"), credentials=None)
+        assert exc_info.value.status_code == 403
+
+    def test_a_retired_account_loses_admin_immediately(self):
+        """get_user_by_id filters deleted_at, so a retired admin resolves to nobody."""
+        from fastapi import HTTPException
+
+        from src.security_fastapi import require_admin_dep
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_admin_dep(self._request_with("admin", user_exists=False), credentials=None)
+        assert exc_info.value.status_code == 403
+
+    def test_a_current_admin_is_still_allowed(self):
+        """The guard against over-correction: this must not lock real admins out."""
+        from src.security_fastapi import require_admin_dep
+
+        assert require_admin_dep(self._request_with("admin"), credentials=None)
+
+    def test_promotion_takes_effect_without_signing_in_again(self):
+        """The mirror case — the token still says 'user', the database says admin."""
+        from src.security_fastapi import create_access_token, require_admin_dep
+
+        token = create_access_token("66666666-6666-6666-6666-666666666666", {"role": "user"})
+        req = MagicMock()
+        req.headers.get = lambda k, default="": (f"Bearer {token}" if k == "Authorization" else default)
+        req.cookies = {}
+        db = MagicMock()
+        db.is_connected = True
+        db.is_token_revoked.return_value = False
+        db.get_user_role.return_value = "admin"
+        req.app.state.db = db
+
+        assert require_admin_dep(req, credentials=None)
+
+    def test_an_unverifiable_role_is_refused_rather_than_assumed(self):
+        """Fail closed, as token revocation does: 503 says 'could not check',
+        which is a different thing from 'not allowed'."""
+        from fastapi import HTTPException
+
+        from src.security_fastapi import require_admin_dep
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_admin_dep(self._request_with("admin", connected=False), credentials=None)
+        assert exc_info.value.status_code == 503
+
+    def test_a_database_error_while_reading_the_role_is_refused(self):
+        """The lookup runs on every admin request; a raise there must not become a
+        500, and must not fall through to allowing the call either."""
+        from fastapi import HTTPException
+
+        from src.security_fastapi import require_admin_dep
+
+        req = self._request_with("admin")
+        req.app.state.db.get_user_role.side_effect = RuntimeError("connection reset")
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_admin_dep(req, credentials=None)
+        assert exc_info.value.status_code == 403
+
+    def test_a_token_without_a_subject_is_not_an_admin(self):
+        """Claims can be present and still name nobody."""
+        from src.security_fastapi import _current_global_role
+
+        assert _current_global_role(MagicMock(), {"role": "admin"}) is None
+
+    def test_the_env_var_admin_still_works_without_a_database(self):
+        """That account has no row to look up; it is administrative by construction,
+        and it is the way back in when the database is empty."""
+        from src.security_fastapi import create_access_token, require_admin_dep
+
+        token = create_access_token("admin", {"role": "admin"})
+        req = MagicMock()
+        req.headers.get = lambda k, default="": (f"Bearer {token}" if k == "Authorization" else default)
+        req.cookies = {}
+        db = MagicMock()
+        db.is_connected = False
+        db.is_token_revoked.return_value = False
+        req.app.state.db = db
+
+        assert require_admin_dep(req, credentials=None) == "admin"
+
 
 @pytest.mark.unit
 class TestSetupCors:
