@@ -33,7 +33,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import config
-from .utils.logging_config import get_logger
+from .utils.logging_config import get_logger, sanitize_log_value
 from .utils.workspace import get_workspace_id
 
 logger = get_logger(__name__)
@@ -248,6 +248,39 @@ def _get_token_claims(credentials: HTTPAuthorizationCredentials | None) -> dict[
         return {}
 
 
+def _current_global_role(request: Request, claims: dict[str, Any]) -> str | None:
+    """Return the caller's role *as the database has it now*, not as the token claims it.
+
+    The role is minted into the JWT at login and the token lives for
+    ``JWT_ACCESS_TOKEN_EXPIRES``. Trusting that claim means a demoted admin keeps
+    administrative access until their token expires, and a promoted user does not
+    get it until they sign in again — while ``/api/users/me`` reads the database and
+    reports the new role immediately, so the UI and the guard disagree.
+
+    Returns ``None`` when the role cannot be established, which callers treat as
+    "not an administrator".
+    """
+    sub = claims.get("sub")
+    if not sub:
+        return None
+    # The env-var admin has no row to look up; it is administrative by construction.
+    if sub == "admin":
+        return "admin"
+
+    db = getattr(request.app.state, "db", None)
+    if db is None or not getattr(db, "is_connected", False):
+        return None
+    try:
+        # get_user_role, not get_user_by_id: the guard needs one column, and the wider
+        # read would pull the password hash in on every admin request. It filters
+        # deleted_at, so a retired administrator resolves to None and loses access on
+        # the next request rather than at token expiry.
+        return db.get_user_role(sub)
+    except Exception as exc:
+        logger.warning("[Auth] Could not read role for %s: %s", sanitize_log_value(str(sub)), exc)
+        return None
+
+
 def require_admin_dep(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008
@@ -259,7 +292,18 @@ def require_admin_dep(
     claims = _get_token_claims(credentials) or _claims_from_request(request)
     if not claims:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
-    if claims.get("role") != "admin":
+
+    db = getattr(request.app.state, "db", None)
+    if claims.get("sub") != "admin" and (db is None or not getattr(db, "is_connected", False)):
+        # Fail closed, as token revocation does (SEC-2): an unverifiable role is not
+        # an administrative one. Said plainly rather than as a 403, so an operator
+        # reading the response knows the difference between "not allowed" and
+        # "could not check".
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"message": "Cannot verify administrator role: database unavailable"},
+        )
+    if _current_global_role(request, claims) != "admin":
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": "Admin access required"})
     return claims.get("sub", "admin")
 

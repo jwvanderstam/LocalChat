@@ -60,6 +60,9 @@ def authorise_db(
         "get_user_workspaces": [],
         "resolve_workspace_api_key": None,
         "get_user_by_id": {"id": USER_ID, "role": role},
+        # The admin guard reads the caller's role from the database rather than the
+        # token claim, so a test that only mints an admin token is not yet an admin.
+        "get_user_role": role,
     }
     if monkeypatch is not None:
         monkeypatch.setattr(db, "is_connected", True, raising=False)
@@ -99,6 +102,11 @@ def authenticated_state(
     # switcher is one. Keep *role* equal to the role in the header, or the caller is an
     # admin to one check and a plain user to the next.
     state.db.get_user_by_id.return_value = {"id": USER_ID, "role": role}
+    # The admin guard reads the caller's role from the database, not the token claim,
+    # so a test that only mints an admin token is not yet an admin. Separate from
+    # get_user_by_id above because a route often looks up a *different* user than the
+    # caller — overloading one mock made the caller inherit the target's role.
+    state.db.get_user_role.return_value = role
     for name, value in attrs.items():
         setattr(state, name, value)
     return state
