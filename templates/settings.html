@@ -39,6 +39,14 @@
             <i class="bi bi-people me-1"></i>Users
         </a>
     </li>
+    <!-- Same rule as Users: revealed by logs.js only for an admin, and the route
+         behind it is admin-guarded regardless of what the tab bar shows. -->
+    <li class="nav-item d-none" role="presentation" id="logs-tab-item">
+        <a class="nav-link" id="logs-tab" data-bs-toggle="tab" href="#logs" role="tab"
+           aria-controls="logs" aria-selected="false">
+            <i class="bi bi-journal-text me-1"></i>Logs
+        </a>
+    </li>
 </ul>
 
 <div class="tab-content" id="settingsTabContent">
@@ -606,6 +614,56 @@
     <!-- ══════════════════════════════════════════════════════════════════════
          USERS TAB (admin only)
          ══════════════════════════════════════════════════════════════════════ -->
+    <div class="tab-pane fade" id="logs" role="tabpanel" aria-labelledby="logs-tab">
+        <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+            <div>
+                <label class="form-label small mb-1" for="log-level">Level</label>
+                <select id="log-level" class="form-select form-select-sm" style="width:auto">
+                    <option value="">All</option>
+                    <option>DEBUG</option>
+                    <option>INFO</option>
+                    <option>WARNING</option>
+                    <option>ERROR</option>
+                    <option>CRITICAL</option>
+                </select>
+            </div>
+            <div class="flex-grow-1" style="min-width:12rem">
+                <label class="form-label small mb-1" for="log-query">Search</label>
+                <input id="log-query" type="search" class="form-control form-control-sm"
+                       placeholder="substring match" maxlength="200">
+            </div>
+            <div>
+                <label class="form-label small mb-1" for="log-limit">Lines</label>
+                <select id="log-limit" class="form-select form-select-sm" style="width:auto">
+                    <option>100</option>
+                    <option selected>200</option>
+                    <option>500</option>
+                    <option>1000</option>
+                </select>
+            </div>
+            <button id="log-refresh" class="btn btn-sm btn-primary">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+        </div>
+
+        <div id="log-alert" class="alert py-2 small d-none" role="alert" aria-live="polite"></div>
+
+        <div class="table-responsive" style="max-height:60vh; overflow-y:auto">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th style="width:11rem">Time</th>
+                        <th style="width:6rem">Level</th>
+                        <th style="width:14rem">Logger</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody id="log-rows"></tbody>
+            </table>
+        </div>
+        <div class="text-muted small mt-2" id="log-summary"></div>
+    </div>
+
     <div class="tab-pane fade" id="users" role="tabpanel" aria-labelledby="users-tab">
         <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
             <div>
@@ -831,6 +889,7 @@ X-API-Key: &lt;key&gt;</code></pre>
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="{{ url_for('static', path='js/users.js') }}"></script>
+<script src="{{ url_for('static', path='js/logs.js') }}"></script>
 {% endblock %}
 
 {% block extra_scripts %}

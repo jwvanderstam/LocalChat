@@ -655,3 +655,45 @@ class TestRagParamsEndpoints:
         get_resp = client.get("/api/settings/rag")
         data = get_resp.json()
         assert data["params"]["TOP_K_RESULTS"]["value"] == 40
+
+
+@pytest.mark.unit
+class TestLogViewerRoute:
+    """`GET /api/logs` — logs carry request paths, user ids and error detail,
+    so the route is admin-only and takes no path from the caller."""
+
+    def test_unauthenticated_caller_is_refused(self, unauthenticated_client):
+        assert unauthenticated_client.get("/api/logs").status_code in (401, 403)
+
+    def test_admin_gets_the_tail(self, client, tmp_path, monkeypatch):
+        from src import config
+
+        log_file = tmp_path / "app.log"
+        log_file.write_text(
+            '{"timestamp": "2026-08-21T10:00:00+00:00", "level": "ERROR",'
+            ' "logger": "src.app", "message": "boom"}\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(config, "LOG_FILE", str(log_file))
+
+        response = client.get("/api/logs")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["available"] is True
+        assert body["records"][0]["message"] == "boom"
+        assert body["records"][0]["level"] == "ERROR"
+
+    def test_limit_above_the_ceiling_is_rejected_by_validation(self, client):
+        """The cap is enforced at the boundary, not left to the reader."""
+        assert client.get("/api/logs?limit=100000").status_code == 422
+
+    def test_an_unknown_level_is_rejected(self, client):
+        assert client.get("/api/logs?level=CHATTY").status_code == 422
+
+    def test_a_missing_log_file_reports_instead_of_failing(self, client, tmp_path, monkeypatch):
+        from src import config
+
+        monkeypatch.setattr(config, "LOG_FILE", str(tmp_path / "absent.log"))
+        response = client.get("/api/logs")
+        assert response.status_code == 200
+        assert response.json()["available"] is False
