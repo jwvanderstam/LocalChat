@@ -73,7 +73,7 @@ The default is `console,file`.
 | Sink | What it gives you |
 |---|---|
 | `console` | stdout/stderr, collected by the container runtime. **Does not survive container recreation** — `docker compose up -d --build` starts a new container and the old one's logs go with it. Records `INFO` and above. |
-| `file` | The rotating local log. Survives recreation, and records `DEBUG` where the console records `INFO`, so it holds strictly more detail. This is the troubleshooting record. |
+| `file` | The rotating local log. Survives recreation, and records `DEBUG` where the console records `INFO`, so it holds strictly more detail. This is the troubleshooting record, and the sink **Settings → Logs** reads. |
 | `syslog` | Ships to a SOC/SIEM collector. Always emits JSON regardless of `LOG_FORMAT`, because a SIEM parses fields rather than prose. |
 
 **Rotation is a security control, not housekeeping.** Log volume follows request volume,
