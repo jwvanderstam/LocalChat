@@ -399,6 +399,18 @@ jobs:
         with:
           fetch-depth: 0  # needed for commit-message range check
 
+      - name: No native confirm() in the frontend
+        # Destructive actions must use window.localchatConfirm, like every other
+        # prompt in the app. A native dialog cannot be styled or intercepted, and
+        # automation drives it blind -- a QA pass lost a document to exactly that.
+        run: |
+          if git grep -nE "(^|[^.a-zA-Z])confirm\(" -- 'static/js/*.js' \
+               ':!static/js/bootstrap.bundle.min.js' ':!static/js/confirm.js' 2>/dev/null; then
+            echo "::error::native confirm() in static/js -- use window.localchatConfirm"
+            exit 1
+          fi
+          echo "OK: no native confirm() in the frontend"
+
       - name: No Flask imports in src/
         run: |
           if git grep -El "import flask|from flask" -- src/ 2>/dev/null; then

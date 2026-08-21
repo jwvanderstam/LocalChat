@@ -215,20 +215,30 @@ function initUsers() {
         }
 
         if (el.dataset.retire) {
-            if (!confirm(`Retire ${el.dataset.name}?\n\nThey keep their documents and history, and can be restored.`)) return;
+            if (!await window.localchatConfirm({
+                title: `Retire ${el.dataset.name}?`,
+                body: 'They keep their documents and history, and can be restored.',
+                confirmText: 'Retire',
+                danger: false,
+            })) return;
             await act(() => api(`/api/users/${el.dataset.retire}`, { method: 'DELETE' }), 'User retired.');
         }
 
         if (el.dataset.purge) {
-            if (!confirm(
-                `Permanently delete ${el.dataset.name}?\n\n`
-                + 'This cannot be undone, and is refused while they still belong to a workspace.'
-            )) return;
+            if (!await window.localchatConfirm({
+                title: `Permanently delete ${el.dataset.name}?`,
+                body: 'This cannot be undone, and is refused while they still belong to a workspace.',
+                confirmText: 'Delete permanently',
+            })) return;
             await act(() => api(`/api/users/${el.dataset.purge}/purge`, { method: 'DELETE' }), 'User deleted.');
         }
 
         if (el.dataset.revoke) {
-            if (!confirm(`Remove access to ${el.dataset.wsname}?`)) return;
+            if (!await window.localchatConfirm({
+                title: 'Remove access',
+                body: `Access to ${el.dataset.wsname} will be removed.`,
+                confirmText: 'Remove',
+            })) return;
             await act(() => api(`/api/users/${el.dataset.revoke}/workspaces/${el.dataset.ws}`,
                 { method: 'DELETE' }), 'Access removed.');
         }
@@ -335,7 +345,11 @@ function initUsers() {
         keysBody.addEventListener('click', async (event) => {
             const el = event.target.closest('[data-revoke-key]');
             if (!el) return;
-            if (!confirm(`Revoke ${el.dataset.name}?\n\nAnything using this key stops working immediately.`)) return;
+            if (!await window.localchatConfirm({
+                title: `Revoke ${el.dataset.name}?`,
+                body: 'Anything using this key stops working immediately.',
+                confirmText: 'Revoke',
+            })) return;
             try {
                 await api(`/api/workspaces/${el.dataset.ws}/keys/${el.dataset.revokeKey}`,
                     { method: 'DELETE' });

@@ -139,7 +139,12 @@ export async function loadConversation(id) {
 }
 
 export async function deleteConversation(id) {
-    if (!confirm('Delete this conversation and all its messages?')) return;
+    const ok = await window.localchatConfirm({
+        title: 'Delete conversation',
+        body: 'This conversation and all its messages will be deleted.',
+        confirmText: 'Delete',
+    });
+    if (!ok) return;
     try {
         const response = await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
         if (response.ok) {
@@ -153,7 +158,12 @@ export async function deleteConversation(id) {
 }
 
 export async function deleteAllConversations() {
-    if (!confirm('Delete all conversations and chat history? This cannot be undone.')) return;
+    const ok = await window.localchatConfirm({
+        title: 'Delete all conversations',
+        body: 'Every conversation and its chat history will be deleted. This cannot be undone.',
+        confirmText: 'Delete all',
+    });
+    if (!ok) return;
     try {
         const response = await fetch('/api/conversations', { method: 'DELETE', headers: _wsHeaders() });
         if (response.ok) {
