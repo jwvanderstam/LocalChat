@@ -317,12 +317,53 @@ class RetrievalMixin:
                 if ce_scores:
                     w = config.RERANKER_WEIGHT
                     for r, ce in zip(deduped, ce_scores, strict=False):
+                        # Kept alongside the blend, not only folded into it. Blending
+                        # -11.4 with a 0.61 similarity yields one number in which the
+                        # cross-encoder's verdict is no longer legible, and that
+                        # verdict is the only signal that separates these.
+                        r['rerank_score'] = float(ce)
                         r['combined_score'] = (1.0 - w) * r['combined_score'] + w * ce
                     deduped = sorted(deduped, key=lambda x: x['combined_score'], reverse=True)
                     logger.debug("[RAG] Cross-encoder reranking applied")
         except Exception as ce_exc:
             logger.debug(f"[RAG] Cross-encoder reranking skipped: {ce_exc}")
         return deduped
+
+    def _apply_relevance_floor(self, deduped: list) -> list:
+        """Drop chunks the cross-encoder plainly rejects; keep the best if all fail.
+
+        Reranking only ever reordered. Chunks the cross-encoder scored at -11 were
+        sorted among themselves and returned, so an arithmetic question came back
+        citing a tender document — the model said the documents held no answer and
+        cited them anyway.
+
+        When nothing clears the floor the answer is still worth giving: the best few
+        are kept and marked, so the interface can say the sources are weak rather
+        than presenting them as if they were not.
+        """
+        scored = [r for r in deduped if r.get('rerank_score') is not None]
+        if not scored:
+            return deduped  # reranker unavailable — nothing to judge with
+
+        floor = config.RERANK_MIN_SCORE
+        kept = [r for r in scored if r['rerank_score'] >= floor]
+        if kept:
+            dropped = len(scored) - len(kept)
+            if dropped:
+                logger.info(
+                    "[RAG] Dropped %d chunk(s) below the relevance floor (%.1f)", dropped, floor
+                )
+            return kept
+
+        best = sorted(scored, key=lambda r: r['rerank_score'], reverse=True)
+        best = best[: max(1, config.RERANK_LOW_RELEVANCE_LIMIT)]
+        for r in best:
+            r['low_relevance'] = True
+        logger.info(
+            "[RAG] No chunk cleared the relevance floor (%.1f); keeping %d as low-relevance",
+            floor, len(best),
+        )
+        return best
 
     def _rank_and_finalize(
         self,
@@ -351,6 +392,7 @@ class RetrievalMixin:
 
         if config.RERANKER_ENABLED and deduped:
             deduped = self._apply_cross_encoder(query_clean, deduped)
+            deduped = self._apply_relevance_floor(deduped)
 
         deduped = sorted(deduped, key=lambda x: (x['filename'], x['chunk_index']))
         return [
@@ -359,7 +401,12 @@ class RetrievalMixin:
                 filename=r['filename'],
                 chunk_index=r['chunk_index'],
                 similarity=r['semantic_score'],
-                metadata={**r.get('metadata', {}), 'combined_score': r.get('combined_score', r['semantic_score'])},
+                metadata={
+                    **r.get('metadata', {}),
+                    'combined_score': r.get('combined_score', r['semantic_score']),
+                    'rerank_score': r.get('rerank_score'),
+                    'low_relevance': r.get('low_relevance', False),
+                },
                 chunk_id=r.get('chunk_id', 0),
             )
             for r in deduped

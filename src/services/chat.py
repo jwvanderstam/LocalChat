@@ -122,6 +122,10 @@ def get_rag_context(
             "page_number": r.metadata.get("page_number"),
             "section_title": r.metadata.get("section_title"),
             "chunk_id": r.chunk_id,
+            # Carried so the interface can say the sources are weak rather than
+            # presenting them as if they were not. This is what a citation to an
+            # unrelated document looked like from the outside: indistinguishable.
+            "low_relevance": bool(r.metadata.get("low_relevance")),
         }
         for r in results
     ]
