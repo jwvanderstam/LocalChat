@@ -124,6 +124,12 @@ export function buildSourcesPanel(sources) {
         if (src.page_number) byFile.get(src.filename).pages.add(src.page_number);
     });
 
+    // Every document source was judged weakly relevant. Saying so is the difference
+    // between a citation and a coincidence: an arithmetic question used to come back
+    // citing a tender document, with nothing to suggest the match meant nothing.
+    const docSources = sources.filter(s => !s.url);
+    const lowRelevance = docSources.length > 0 && docSources.every(s => s.low_relevance);
+
     const fileCount = byFile.size;
     const details   = document.createElement('details');
     details.className = 'sources-panel mt-2';
@@ -132,6 +138,15 @@ export function buildSourcesPanel(sources) {
     summary.className   = 'text-muted small';
     summary.textContent = `${fileCount} source${fileCount !== 1 ? 's' : ''}`;
     details.appendChild(summary);
+
+    if (lowRelevance) {
+        const note = document.createElement('div');
+        note.className = 'small text-warning-emphasis mt-1';
+        // textContent, not innerHTML: filenames reach this panel and are not ours.
+        note.textContent =
+            'Low relevance — nothing in your documents closely matched this question.';
+        details.appendChild(note);
+    }
 
     const list = document.createElement('ul');
     list.className = 'list-unstyled mb-0 mt-1';

@@ -254,6 +254,23 @@ MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 # Retrieval Configuration - OPTIMIZED FOR SYNTHESIS
 TOP_K_RESULTS: int = int(os.environ.get("TOP_K_RESULTS", "30"))  # Wider candidate pool for reranker
 MIN_SIMILARITY_THRESHOLD: float = 0.30       # Slightly higher for quality (was 0.25)
+
+# Floor on the cross-encoder's own judgement, applied after reranking.
+#
+# Embedding similarity has no absolute meaning: "hoeveel is 8+7" scored 0.61 against
+# a Dutch IT tender document, indistinguishable from a genuine hit, because a short
+# query's cosine score is dominated by language and domain rather than content. No
+# MIN_SIMILARITY_THRESHOLD can separate those without also discarding real matches.
+#
+# The cross-encoder can: it is trained on query-document pairs, so zero is a real
+# boundary. The same three passages scored -11.40, -11.44 and +0.81. The default sits
+# well below zero so only the plainly irrelevant is dropped.
+RERANK_MIN_SCORE: float = float(os.environ.get('RERANK_MIN_SCORE', '-5.0'))
+
+# When *everything* falls below the floor, keep this many of the best rather than
+# returning nothing — an answer with weak sources, marked as weak, beats an answer
+# with no sources and no explanation.
+RERANK_LOW_RELEVANCE_LIMIT: int = int(os.environ.get('RERANK_LOW_RELEVANCE_LIMIT', '3'))
 RERANK_RESULTS: bool = True                  # Always re-rank for precision
 RERANK_TOP_K: int = int(os.environ.get("RERANK_TOP_K", "12"))   # 12 chunks cover multi-chapter docs (was 4)
 
