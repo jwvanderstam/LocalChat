@@ -326,7 +326,7 @@ mocked:
 Also recorded in TROUBLESHOOTING: on Windows, `PG_HOST=localhost` resolves to IPv6 while
 Docker publishes on `127.0.0.1`, so every connection costs 5 s and the pool times out.
 
-### TQ-3 — Mutation gate, scoped ruthlessly ◐ (in progress)
+### TQ-3 — Mutation gate, scoped ruthlessly ✅ (done)
 
 Nightly, core modules only: `security_fastapi.py`, workspace scoping, `db/documents.py` filters, retrieval scoping. Gate at an agreed threshold; rewrite tests only where surviving mutants point.
 
@@ -342,8 +342,37 @@ threshold set to today's score would ratify the status quo rather than gate it �
 
 | Module | Killed | Survived | Rate |
 |---|---|---|---|
-| `src/security_fastapi.py` | 132 | 70 | 65.3% (112 → 119 → 132) |
+| `src/security_fastapi.py` | 191 | 37 | **83.8%** (112 → 119 → 132 → 151 → 171 → 191) |
 | `src/utils/workspace.py` | 5 | 0 | 100% (was 4/5) |
+
+> **Green as of 2026-08-22.** The gate had been failing every night since
+> 2026-08-19. Two batches of tests written against named survivors — 42 in
+> `test_security_contract.py` and `test_workspace_access_contract.py`, both added
+> to the gate's own module list — took the score from 66.2% through 75.0% to
+> 83.8%. Each mutant was verified by applying the mutation and watching a test go
+> red, never by reasoning that it should.
+>
+> **The gate found code problems, not only test problems.** The default in
+> `_ROLE_LEVELS.get(role, -1)` is what an unrecognised role scores: flip it to
+> `+1` and any role not in the table outranks `viewer` and is admitted. Nothing
+> objected, because every existing test used a role that was in the table.
+>
+> **Two survivors are left deliberately, and both are questions rather than gaps:**
+> - `_ROLE_LEVELS.get(min_role, 0)` — an *unknown minimum* is treated as no
+>   requirement, so any known role passes. Killable by pinning that behaviour;
+>   pinning it would enshrine something that looks wrong. Left as a question.
+> - `claims.get("sub", "admin")` in `require_admin_dep` — the default is
+>   unreachable, since `_current_global_role` already returns `None` without a
+>   subject. An equivalent mutant, and dead code in an authorisation guard.
+>
+> **Five of the fifteen mutants I attacked first appeared to survive, and all five
+> were my own measurement errors:** a `MagicMock` whose `state.resolved_workspace_id`
+> was a truthy stand-in, so the "no workspace" branch was never reached; twice
+> mutating the first of two identical lines, in a function the tests never call;
+> and a boundary test that did not sit on the boundary — which, once moved onto it,
+> tripped the clear-everything fallback and had to be given something evictable
+> before the comparison could decide anything. The lesson the ticket already
+> recorded from the previous round repeated itself exactly.
 
 Three of the second batch's tests initially killed nothing, and each failure is a
 reusable lesson rather than a slip:
@@ -571,7 +600,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |
 | PG-3 | TQ-1a ✅ (authz-by-default introspection) + TQ-1b ✅ (bypass deleted; 290 tests converted, not the 39 the ticket counted) | done |
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
-| PG-5 | TQ-3 (scoped mutation gate) + TQ-4 ✅ (Playwright golden path, self-starting server) | 1 week |
+| PG-5 | TQ-3 ✅ (scoped mutation gate, 83.8%) + TQ-4 ✅ (Playwright golden path, self-starting server) | — |
 | PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
 | PG-7 | OPS-1 + OPS-2 (uv lock; bounded de-globalisation) | 1 week |
 | PG-8 | OPS-3 + OPS-4 + OPS-5 (docs mechanism, restore proof, release + topology) | 1 week |
@@ -588,7 +617,7 @@ v3.0 ships when **all eight** hold, and not before:
 1. **Fail-closed boot** — no configuration path exists in which `APP_ENV=production` runs with authorisation off. (SEC-1 ✅, SEC-2 ✅)
 2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI (TQ-1a ✅). Testing bypass deleted (TQ-1b ✅).
 3. **Concurrency budget met** — p95 time-to-first-token under the agreed budget at 10 concurrent SSE users; benchmark and numbers committed to the repo. (PERF-1/2)
-4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3)
+4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3 ✅ — 83.8% and 100%, green 2026-08-22)
 5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4)
 6. **Reproducible release** — tagged version, changelog, uv lock file, published image from the tag. (OPS-1/5)
 7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time.

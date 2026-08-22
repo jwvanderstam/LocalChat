@@ -167,6 +167,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
+| `tests/unit/test_security_contract.py` | TQ-3 — the auth layer's observable contract, written against named surviving mutants |
+| `tests/unit/test_workspace_access_contract.py` | TQ-3 — the workspace authorisation path, same method |
 | `scripts/mutation_gate.py` | TQ-3 — runs `mutmut<3` over the isolation-critical modules, screens the result for a broken harness, fails under the agreed kill rate |
 | `.github/workflows/mutation.yml` | Nightly mutation gate (`workflow_dispatch` takes a threshold); not in the ruleset |
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
