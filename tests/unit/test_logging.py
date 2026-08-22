@@ -670,3 +670,56 @@ class TestSyslogSink:
         assert logging.lastResort in root.handlers
         root.warning("still reaches the operator")
         assert "still reaches the operator" in capsys.readouterr().err
+
+
+@pytest.mark.unit
+class TestColoredFormatterLeavesTheRecordAlone:
+    """A record is handed to every handler in turn.
+
+    ColoredFormatter coloured `levelname` in place and never restored it, so any
+    handler formatting the same record afterwards wrote ANSI escapes. In the log
+    file that is not decoration but corruption: the level stops being a parseable
+    field, and the admin log viewer rendered three empty columns because of it.
+
+    It surfaced when the console sink began being attached before the file sink --
+    the handler order had been hiding a formatter that mutates shared state.
+    """
+
+    def _record(self, level: int = logging.INFO) -> logging.LogRecord:
+        return logging.LogRecord(
+            name="src.app", level=level, pathname=__file__, lineno=1,
+            msg="hello", args=(), exc_info=None,
+        )
+
+    def test_the_levelname_is_unchanged_after_formatting(self):
+        from src.utils.logging_config import ColoredFormatter
+
+        record = self._record()
+        ColoredFormatter("%(levelname)s - %(message)s").format(record)
+        assert record.levelname == "INFO"
+
+    def test_a_later_handler_sees_no_escape_codes(self):
+        """The actual failure: two formatters, one record, in handler order."""
+        from src.utils.logging_config import ColoredFormatter
+
+        record = self._record()
+        ColoredFormatter("%(levelname)s - %(message)s").format(record)
+        plain = logging.Formatter("%(levelname)s - %(message)s").format(record)
+        assert "" not in plain
+        assert plain == "INFO - hello"
+
+    def test_the_console_output_is_still_coloured(self):
+        """Over-correction guard: restoring the record must not lose the colour."""
+        from src.utils.logging_config import ColoredFormatter
+
+        out = ColoredFormatter("%(levelname)s - %(message)s").format(self._record())
+        assert "[32m" in out
+
+    def test_a_level_with_no_colour_is_passed_through(self):
+        from src.utils.logging_config import ColoredFormatter
+
+        record = self._record()
+        record.levelname = "TRACE"  # not in COLORS
+        out = ColoredFormatter("%(levelname)s - %(message)s").format(record)
+        assert out == "TRACE - hello"
+        assert record.levelname == "TRACE"

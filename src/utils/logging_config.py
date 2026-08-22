@@ -131,17 +131,22 @@ class ColoredFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:
-        """Format log record with colors."""
-        # Add color to level name
-        levelname = record.levelname
-        if levelname in self.COLORS:
-            record.levelname = f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
+        """Format the record with colour, leaving the record itself unchanged.
 
-        # Format message
-        formatted = super().format(record)
-
-        # Reset color at end
-        return formatted
+        The restore is the point. A record is handed to every handler in turn, so
+        colouring ``levelname`` in place and leaving it coloured put ANSI escapes
+        into whatever formatted the same record afterwards — the log file included,
+        where they are not decoration but corruption: the level stops being a
+        parseable field.
+        """
+        original = record.levelname
+        colour = self.COLORS.get(original)
+        if colour:
+            record.levelname = f"{colour}{original}{self.COLORS['RESET']}"
+        try:
+            return super().format(record)
+        finally:
+            record.levelname = original
 
 
 #: Records emitted before setup_logging() runs are held here and replayed into the
