@@ -63,8 +63,11 @@ class TestParsing:
         path = _write(tmp_path, [line])
         record = read_log_tail(path)["records"][0]
         assert record["level"] == "ERROR"
+        # parsed stays False: these fields are recovered from a formatted line, not
+        # read from JSON, and the distinction is what the viewer styles on.
         assert record["parsed"] is False
-        assert record["message"] == line
+        assert record["message"] == "[rid] it broke"
+        assert record["raw"] == line
 
     def test_a_mixed_file_parses_each_line_on_its_own_merits(self, tmp_path):
         path = _write(tmp_path, [
@@ -139,3 +142,56 @@ class TestUnreadableFile:
         result = read_log_tail(str(tmp_path))
         assert result["available"] is False
         assert result["records"] == []
+
+
+class TestTextLinesYieldTheirFields:
+    """The viewer showed three empty columns for a text-format log.
+
+    Two causes, one symptom: the level was searched for as " - INFO - " while the
+    line held " - \x1b[32mINFO\x1b[0m - ", and nothing tried to split the rest of
+    the line at all. Historic files still hold those escapes, so stripping them is
+    not only about the formatter fix.
+    """
+
+    ESC = ""
+    LINE = (
+        "2026-08-22 15:57:09 - src.routes_fastapi.auth_routes - "
+        "[32mINFO[0m - login:98 - [rid-1] Login succeeded"
+    )
+
+    def test_the_level_survives_ansi_escapes(self, tmp_path):
+        path = _write(tmp_path, [self.LINE])
+        assert read_log_tail(path)["records"][0]["level"] == "INFO"
+
+    def test_the_logger_is_extracted(self, tmp_path):
+        path = _write(tmp_path, [self.LINE])
+        record = read_log_tail(path)["records"][0]
+        assert record["logger"] == "src.routes_fastapi.auth_routes"
+
+    def test_the_timestamp_is_extracted(self, tmp_path):
+        path = _write(tmp_path, [self.LINE])
+        assert read_log_tail(path)["records"][0]["timestamp"] == "2026-08-22 15:57:09"
+
+    def test_the_message_is_the_message_not_the_whole_line(self, tmp_path):
+        path = _write(tmp_path, [self.LINE])
+        record = read_log_tail(path)["records"][0]
+        assert record["message"] == "[rid-1] Login succeeded"
+
+    def test_no_escape_codes_reach_the_rendered_message(self, tmp_path):
+        """A log line must never be able to move the reader's cursor."""
+        path = _write(tmp_path, [self.LINE])
+        assert self.ESC not in read_log_tail(path)["records"][0]["message"]
+
+    def test_a_line_of_another_shape_keeps_its_whole_text(self, tmp_path):
+        """Guard against over-correction: no inventing fields for a line that is
+        not this format — a traceback line, or output from a library."""
+        path = _write(tmp_path, ["Traceback (most recent call last):"])
+        record = read_log_tail(path)["records"][0]
+        assert record["message"] == "Traceback (most recent call last):"
+        assert record["logger"] is None
+        assert record["timestamp"] is None
+
+    def test_square_brackets_in_ordinary_text_are_left_alone(self, tmp_path):
+        """The escape pattern must not eat text that merely looks like one."""
+        path = _write(tmp_path, ["see line [0m] of the file"])
+        assert "[0m]" in read_log_tail(path)["records"][0]["message"]

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 from ..utils.logging_config import get_logger
@@ -25,6 +26,13 @@ _CHUNK = 64 * 1024
 MAX_LIMIT = 1000
 
 _LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+#: ANSI escapes, which a log file should not contain but historically could: a
+#: console formatter that coloured the shared record in place left them in whatever
+#: wrote it afterwards. Stripped before parsing so those lines still yield a level
+#: rather than rendering as three empty columns, and so a log line is never a way to
+#: move the reader's cursor.
+_ANSI = re.compile(r"\[[0-9;]*m")
 
 
 def _read_last_lines(path: str, count: int) -> list[str]:
@@ -71,12 +79,18 @@ def _parse(line: str) -> dict[str, Any]:
                 }
 
     # Text format: "<time> - <logger> - <LEVEL> - <func>:<lineno> - [<rid>] <msg>"
-    level = next((lv for lv in _LEVELS if f" - {lv} - " in line), None)
+    plain = _ANSI.sub("", line)
+    level = next((lv for lv in _LEVELS if f" - {lv} - " in plain), None)
+    # "<time> - <logger> - <LEVEL> - <func>:<lineno> - [<rid>] <message>". Split to
+    # the same depth the formatter joins at; anything shorter is not this shape and
+    # keeps the whole line as its message rather than inventing fields for it.
+    parts = plain.split(" - ", 4)
+    shaped = len(parts) == 5 and parts[0][:4].isdigit() and parts[2] == level
     return {
-        "timestamp": None,
+        "timestamp": parts[0] if shaped else None,
         "level": level,
-        "logger": None,
-        "message": line,
+        "logger": parts[1] if shaped else None,
+        "message": parts[4] if shaped else plain,
         "parsed": False,
         "raw": line,
     }
