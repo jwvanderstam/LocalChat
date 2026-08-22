@@ -673,6 +673,64 @@ class TestSyslogSink:
 
 
 @pytest.mark.unit
+class TestThirdPartyNoise:
+    """Libraries that narrate their own internals were the bulk of the log file.
+
+    That matters twice over inside a bounded rotation: they crowd out the
+    application's own records, and their messages never pass through this
+    project's log sanitiser -- httpx logs full URLs, query string included, which
+    is how third-party signed URLs ended up on disk.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _restore(self):
+        from src.utils.logging_config import _NOISY_THIRD_PARTY
+
+        saved = {n: logging.getLogger(n).level for n in _NOISY_THIRD_PARTY}
+        root = logging.getLogger()
+        handlers, level = list(root.handlers), root.level
+        yield
+        for name, lvl in saved.items():
+            logging.getLogger(name).setLevel(lvl)
+        root.handlers.clear()
+        root.handlers.extend(handlers)
+        root.setLevel(level)
+
+    def _log_to(self, tmp_path, **kwargs):
+        setup_logging(log_level="DEBUG", log_file=str(tmp_path / "a.log"),
+                      sinks=("file",), **kwargs)
+        logging.getLogger("httpx").info("GET https://x/?Policy=eyJTdGF0ZW1lbnQ")
+        logging.getLogger("MARKDOWN").debug("registerExtensions chatter")
+        logging.getLogger("src.app_fastapi").info("our own record")
+        logging.getLogger("httpx").warning("a real warning")
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+        return (tmp_path / "a.log").read_text(encoding="utf-8")
+
+    def test_third_party_info_is_dropped(self, tmp_path):
+        assert "Policy=eyJ" not in self._log_to(tmp_path)
+
+    def test_third_party_debug_is_dropped(self, tmp_path):
+        """The markdown extension registry alone emits ~1275 records per boot."""
+        assert "registerExtensions" not in self._log_to(tmp_path)
+
+    def test_our_own_records_are_untouched(self, tmp_path):
+        """Over-correction guard: the floor is for libraries, not the application."""
+        assert "our own record" in self._log_to(tmp_path)
+
+    def test_a_real_third_party_warning_still_arrives(self, tmp_path):
+        """Silencing the narration must not silence the diagnosis."""
+        assert "a real warning" in self._log_to(tmp_path)
+
+    def test_the_floor_is_configurable(self, tmp_path):
+        """Set it back to DEBUG to diagnose a library without editing the code."""
+        assert "Policy=eyJ" in self._log_to(tmp_path, third_party_level="DEBUG")
+
+    def test_an_unrecognised_level_leaves_the_loggers_alone(self, tmp_path):
+        """A typo in .env must not silently mean "no floor at all" or crash the boot."""
+        text = self._log_to(tmp_path, third_party_level="LOUD")
+        assert "our own record" in text
+
 class TestColoredFormatterLeavesTheRecordAlone:
     """A record is handed to every handler in turn.
 

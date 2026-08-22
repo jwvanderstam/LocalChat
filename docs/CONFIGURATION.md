@@ -56,6 +56,7 @@ export LOG_MAX_BYTES=4194304           # rotation size; ceiling is
 export LOG_BACKUP_COUNT=4              #   LOG_MAX_BYTES * (1 + LOG_BACKUP_COUNT) = 20 MB
 export LOG_SYSLOG_ADDRESS=             # host:port or /dev/log, for the syslog sink
 export LOG_SYSLOG_PROTOCOL=udp
+export LOG_THIRD_PARTY_LEVEL=WARNING   # floor for httpx/huggingface/markdown chatter
 export CORS_ENABLED=False
 export CORS_ORIGINS=http://localhost:3000
 
@@ -98,6 +99,14 @@ run a collector (Vector, Fluent Bit, Promtail) against the `console` sink instea
 application deliberately does not push over HTTP itself: that needs buffering, retries,
 backpressure and credential handling, and network I/O inside a logging handler can stall
 the request path it is supposed to be observing.
+
+**Third-party libraries are quietened to `WARNING`.** `httpx` narrates every request
+the application makes and the markdown extension registry emits around 1275 records
+per boot; together they were the bulk of the log file. That crowds out the
+application's own records inside a bounded rotation, and their messages never pass
+through this project's log sanitiser — `httpx` logs full URLs, query string included,
+which is how third-party signed URLs reached the disk. `LOG_THIRD_PARTY_LEVEL=DEBUG`
+gets it back while diagnosing one; their warnings and errors always come through.
 
 **A sink that cannot be built is skipped, not fatal.** An unwritable log file, a refused
 syslog connection or a typo'd sink name is reported at `ERROR` and startup continues with

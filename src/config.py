@@ -510,6 +510,12 @@ LOG_BACKUP_COUNT: int = int(os.environ.get('LOG_BACKUP_COUNT', '4'))
 LOG_SYSLOG_ADDRESS: str = os.environ.get('LOG_SYSLOG_ADDRESS', '')
 LOG_SYSLOG_PROTOCOL: str = os.environ.get('LOG_SYSLOG_PROTOCOL', 'udp')
 
+# Floor for libraries that log about their own internals (httpx, huggingface,
+# markdown, ...). They were the bulk of the log file: noise that crowds out the
+# application's own records inside a bounded rotation, and that never passes through
+# this project's log sanitiser. Set to DEBUG to get it back while diagnosing one.
+LOG_THIRD_PARTY_LEVEL: str = os.environ.get('LOG_THIRD_PARTY_LEVEL', 'WARNING')
+
 # State persistence file
 STATE_FILE: str = 'app_state.json'
 
