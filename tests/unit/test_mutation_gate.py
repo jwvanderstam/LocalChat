@@ -22,7 +22,8 @@ _SPEC = importlib.util.spec_from_file_location(
     "mutation_gate",
     Path(__file__).resolve().parents[2] / "scripts" / "mutation_gate.py",
 )
-assert _SPEC and _SPEC.loader
+assert _SPEC
+assert _SPEC.loader
 mutation_gate = importlib.util.module_from_spec(_SPEC)
 sys.modules["mutation_gate"] = mutation_gate
 _SPEC.loader.exec_module(mutation_gate)

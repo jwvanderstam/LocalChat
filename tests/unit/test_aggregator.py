@@ -371,8 +371,9 @@ class TestAggregatorAgentRun:
 class TestToolRouterDispatch:
     def test_unknown_tool_raises_value_error(self):
         from src.agent.tool_router import ToolRouter
+        router = ToolRouter()
         with pytest.raises(ValueError, match="Unknown tool"):
-            ToolRouter().dispatch("does_not_exist", "q")
+            router.dispatch("does_not_exist", "q")
 
     def test_cloud_connectors_returns_empty_when_mcp_disabled(self):
         from src.agent.tool_router import ToolRouter

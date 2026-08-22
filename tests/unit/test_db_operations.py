@@ -21,6 +21,7 @@ Created: January 2025
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import psycopg
 import pytest
 
 
@@ -546,24 +547,25 @@ class TestErrorHandling:
         """Test error handling in document_exists."""
         from src import db as db_module
 
-        with patch.object(db_module.db, 'get_connection', side_effect=Exception("DB Error")):
-            try:
-                exists, doc_info = db_module.db.document_exists("test.pdf")
-                # If it doesn't raise, it should return False
-                assert exists is False
-            except Exception:
-                # Exception is also acceptable
-                pass
+        # is_connected has to be patched too. Without it the "Database is not
+        # connected" guard fires first and get_connection is never called, so the
+        # test named after a connection error never reached one.
+        with patch.object(db_module.db, 'is_connected', True),              patch.object(db_module.db, 'get_connection',
+                          side_effect=psycopg.OperationalError("DB Error")):
+            with pytest.raises(psycopg.OperationalError):
+                db_module.db.document_exists("test.pdf")
 
     def test_search_handles_connection_error(self):
         """Test search with connection error."""
         from src import db as db_module
 
-        with patch.object(db_module.db, 'get_connection', side_effect=Exception("Connection failed")):
-            with pytest.raises(Exception):
-                db_module.db.search_similar_chunks(
-                    query_embedding=[0.1] * 768
-                )
+        with patch.object(db_module.db, 'is_connected', True),              patch.object(db_module.db, 'get_connection',
+                          side_effect=psycopg.OperationalError("Connection failed")):
+            # The specific type, so this cannot pass on any exception at all — and
+            # so it records that search does not swallow a failed connection into
+            # an empty result set, which would read as "no matching documents".
+            with pytest.raises(psycopg.OperationalError):
+                db_module.db.search_similar_chunks(query_embedding=[0.1] * 768)
 
 
 class TestDatabaseStats:

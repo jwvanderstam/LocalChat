@@ -9,6 +9,44 @@ Author: LocalChat Team
 Created: January 2025
 """
 
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+@pytest.fixture
+def retrieval_stack():
+    """A retrievable database and embedder, so a query reaches the search layer.
+
+    Without this the three retrieval tests below died on the "Database is not
+    connected" guard, several layers before the query shape they name was ever
+    looked at — and each sat inside `except Exception: pass`, so that never showed.
+    """
+    from src.rag import doc_processor
+    from src.rag.cache import embedding_cache
+
+    # The embedding cache is a module-level LRU that outlives every test. Another
+    # test in the suite leaves an entry under this exact key — `sanitize_query`
+    # caps at 5000 characters, so "word " * 1000 and "word " * 10000 preprocess to
+    # the same 1000 words — and the hit meant generate_embedding was never called.
+    # These tests passed alone and failed in the full run for that reason.
+    embedding_cache.clear()
+
+    ollama = MagicMock()
+    ollama.get_embedding_model.return_value = "nomic-embed-text"
+    ollama.generate_embedding.return_value = (True, [0.1] * 768)
+    mock_db = MagicMock()
+    mock_db.is_connected = True
+    mock_db.search_similar_chunks.return_value = [
+        ("chunk text", "doc.pdf", 0, 0.95, {}, 1),
+    ]
+    # Patched on the instance, not the module: doc_processor is a singleton that
+    # bound self._db and self._ollama_client at construction, so patching
+    # src.rag.retrieval.db leaves it talking to the real ones — which is how the
+    # first version of this fixture still reached localhost:11434.
+    with patch.object(doc_processor, "_db", mock_db),          patch.object(doc_processor, "_ollama_client", ollama):
+        yield mock_db, ollama
+
 
 
 class TestChunkingEdgeCases:
@@ -181,29 +219,35 @@ class TestRetrievalEdgeCases:
         except (TypeError, AttributeError):
             pass  # Acceptable to reject None
 
-    def test_retrieve_with_very_long_query(self):
-        """Test retrieval handles very long query."""
+    def test_a_very_long_query_reaches_the_embedder_whole(self, retrieval_stack):
+        """1000 words in, 1000 words embedded.
+
+        `sanitize_query` caps a query at 5000 characters, so this one sits exactly
+        on that boundary. Silent truncation would change which chunks come back
+        with nothing in the answer saying the question had been shortened.
+        """
         from src.rag import doc_processor
 
-        long_query = "word " * 1000
+        _, ollama = retrieval_stack
+        doc_processor.retrieve_context("word " * 1000)
 
-        try:
-            result = doc_processor.retrieve_context(long_query)
-            assert isinstance(result, (str, list))
-        except Exception:
-            pass  # May reject very long queries
+        embedded = ollama.generate_embedding.call_args[0][1]
+        assert len(embedded.split()) == 1000
 
-    def test_retrieve_with_special_characters(self):
-        """Test retrieval handles special characters."""
+    def test_special_characters_are_stripped_before_the_lexical_arm(self, retrieval_stack):
+        """`<>&"'` do not survive `_preprocess_query`, by design — the lexical arm
+        builds a tsquery from this text, and that is where such characters break.
+
+        Asserted as the exact resulting string. The version this replaces checked
+        `isinstance(result, (str, list))` inside `except Exception: pass`, which
+        would have held just as well if the query had arrived unfiltered.
+        """
         from src.rag import doc_processor
 
-        query = "test <>&\"' query"
+        mock_db, _ = retrieval_stack
+        doc_processor.retrieve_context("test <>&\"' query")
 
-        try:
-            result = doc_processor.retrieve_context(query)
-            assert isinstance(result, (str, list))
-        except Exception:
-            pass
+        assert mock_db.search_lexical_chunks.call_args[0][0] == "test query"
 
 
 class TestModuleConstants:

@@ -145,18 +145,22 @@ class TestConfigEdgeCases:
 
     def test_config_handles_special_characters_in_password(self):
         """Test password with special characters."""
+        import importlib
+
+        from src import config as config_module
+
         with patch.dict(os.environ, {'PG_PASSWORD': 'p@$$w0rd!#%'}):
+            importlib.reload(config_module)
             try:
-                import importlib
-
-                from src import config as config_module
+                # The exact value, not "is not None": every character here is one
+                # that a naive .env parser or an interpolating shell would eat, and
+                # a truncated password is still not None. The previous version could
+                # not have caught that — it sat inside `except Exception: pass`.
+                assert config_module.PG_PASSWORD == 'p@$$w0rd!#%'
+            finally:
+                # Leave the module holding the real environment's values again,
+                # whatever happened, or every later test reads this password.
                 importlib.reload(config_module)
-
-                # Should handle special characters
-                assert config_module.PG_PASSWORD is not None
-            except Exception:
-                # Handling errors is acceptable
-                pass
 
     def test_config_handles_unicode_in_strings(self):
         """Test configuration with unicode characters."""

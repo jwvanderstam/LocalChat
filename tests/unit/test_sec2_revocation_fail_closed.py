@@ -46,23 +46,26 @@ class TestNormalOperation:
         sec._verify_jti_not_revoked(JTI, _db(revoked=False))
 
     def test_revoked_token_is_refused(self):
+        db = _db(revoked=True)
         with pytest.raises(HTTPException) as exc:
-            sec._verify_jti_not_revoked(JTI, _db(revoked=True))
+            sec._verify_jti_not_revoked(JTI, db)
         assert exc.value.status_code == 401
 
     def test_the_refusal_uses_the_error_envelope_the_frontend_reads(self):
         """TQ-3. Renaming the `message` key left every test green, because they all
         assert on `status_code`. `static/js/auth.js` and every caller read
         `data.message`, so the key is part of the contract."""
+        db = _db(revoked=True)
         with pytest.raises(HTTPException) as exc:
-            sec._verify_jti_not_revoked(JTI, _db(revoked=True))
+            sec._verify_jti_not_revoked(JTI, db)
 
         assert exc.value.detail == {"message": "Token has been revoked"}
 
     def test_a_revoked_token_is_never_cached_as_usable(self):
         """A refusal must not leave a verdict that would let it through later."""
+        db = _db(revoked=True)
         with pytest.raises(HTTPException):
-            sec._verify_jti_not_revoked(JTI, _db(revoked=True))
+            sec._verify_jti_not_revoked(JTI, db)
         assert JTI not in sec._revocation_cache
 
 
@@ -71,13 +74,15 @@ class TestFailsClosed:
     """The behaviour change. Previously each of these allowed the request."""
 
     def test_unreachable_database_refuses_an_unseen_token(self):
+        db = _db(connected=False)
         with pytest.raises(HTTPException) as exc:
-            sec._verify_jti_not_revoked(JTI, _db(connected=False))
+            sec._verify_jti_not_revoked(JTI, db)
         assert exc.value.status_code == 401
 
     def test_query_failure_refuses_an_unseen_token(self):
+        db = _db(raises=True)
         with pytest.raises(HTTPException):
-            sec._verify_jti_not_revoked(JTI, _db(raises=True))
+            sec._verify_jti_not_revoked(JTI, db)
 
     def test_absent_database_refuses_an_unseen_token(self):
         with pytest.raises(HTTPException):
@@ -97,22 +102,24 @@ class TestCacheSoftensTheOutage:
     def test_the_grace_expires(self):
         """Stale-but-enforced has a limit, or a long outage becomes fail-open again."""
         sec._verify_jti_not_revoked(JTI, _db(revoked=False))
+        unreachable = _db(connected=False)
         with patch.object(sec.time, "monotonic",
                           return_value=sec.time.monotonic() + sec._REVOCATION_CACHE_TTL + 1):
             with pytest.raises(HTTPException):
-                sec._verify_jti_not_revoked(JTI, _db(connected=False))
+                sec._verify_jti_not_revoked(JTI, unreachable)
 
     def test_the_cache_does_not_cover_a_different_token(self):
         sec._verify_jti_not_revoked(JTI, _db(revoked=False))
+        unreachable = _db(connected=False)
         with pytest.raises(HTTPException):
-            sec._verify_jti_not_revoked("22222222-2222-2222-2222-222222222222",
-                                        _db(connected=False))
+            sec._verify_jti_not_revoked("22222222-2222-2222-2222-222222222222", unreachable)
 
     def test_a_live_revocation_still_wins_over_a_warm_cache(self):
         """The cache is a fallback for outages, never a shortcut past a working check."""
         sec._verify_jti_not_revoked(JTI, _db(revoked=False))
+        now_revoked = _db(revoked=True)
         with pytest.raises(HTTPException):
-            sec._verify_jti_not_revoked(JTI, _db(revoked=True))
+            sec._verify_jti_not_revoked(JTI, now_revoked)
 
 
 @pytest.mark.unit
@@ -201,7 +208,8 @@ class TestTheConnectedCheckFailsClosed:
                 # through to the accept path, which is what makes it detectable.
                 return False
 
+        db = DatabaseWithoutTheAttribute()
         with pytest.raises(HTTPException) as exc:
-            sec._verify_jti_not_revoked(JTI, DatabaseWithoutTheAttribute())
+            sec._verify_jti_not_revoked(JTI, db)
 
         assert exc.value.status_code == 401

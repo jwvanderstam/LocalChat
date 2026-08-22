@@ -60,7 +60,7 @@ class TestComputeFileHash:
 # ingest_document dedup logic
 # ---------------------------------------------------------------------------
 
-@pytest.fixture()
+@pytest.fixture
 def processor():
     """Return a DocumentProcessor with all heavy dependencies mocked."""
     from unittest.mock import MagicMock
@@ -70,7 +70,7 @@ def processor():
     return DocumentProcessor(db=MagicMock(), ollama_client=MagicMock())
 
 
-@pytest.fixture()
+@pytest.fixture
 def txt_file(tmp_path):
     f = tmp_path / "report.txt"
     f.write_text("Some document content for testing.", encoding="utf-8")

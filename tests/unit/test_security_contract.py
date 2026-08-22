@@ -81,8 +81,9 @@ class TestWhatRequireAuthExtracts:
         token = create_access_token(_USER, {"role": "user"})
         db = _healthy_db(revoked=True)
 
+        request = _request(token, db=db)
         with pytest.raises(HTTPException) as exc_info:
-            require_auth(_request(token, db=db), credentials=None)
+            require_auth(request, credentials=None)
         assert exc_info.value.status_code == 401
 
     def test_the_revocation_check_is_actually_reached(self):
@@ -137,21 +138,24 @@ class TestErrorEnvelope:
     """
 
     def test_a_missing_token_reports_under_the_message_key(self):
+        request = _request()
         with pytest.raises(HTTPException) as exc_info:
-            require_auth(_request(), credentials=None)
+            require_auth(request, credentials=None)
         assert exc_info.value.detail["message"] == _ERR_AUTH_REQUIRED
 
     def test_a_malformed_token_says_so(self):
+        request = _request("not-a-jwt")
         with pytest.raises(HTTPException) as exc_info:
-            require_auth(_request("not-a-jwt"), credentials=None)
+            require_auth(request, credentials=None)
         assert exc_info.value.detail["message"] == "Invalid or expired token"
 
     def test_a_non_admin_is_told_admin_access_is_required(self):
         token = create_access_token(_USER, {"role": "admin"})
         db = _healthy_db(role="user")
 
+        request = _request(token, db=db)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(_request(token, db=db), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.detail["message"] == "Admin access required"
 
     def test_an_unverifiable_role_names_the_database(self):
@@ -160,8 +164,9 @@ class TestErrorEnvelope:
         db = _healthy_db()
         db.is_connected = False
 
+        request = _request(token, db=db)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(_request(token, db=db), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail["message"] == (
             "Cannot verify administrator role: database unavailable"
@@ -180,8 +185,9 @@ class TestDatabasePreconditions:
     def test_no_database_at_all_is_refused(self):
         """`db is None or ...` mutated to `and` reaches getattr(None, ...) and the
         guard stops refusing."""
+        request = _request(self._admin_token(), db=None)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(_request(self._admin_token(), db=None), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 503
 
     def test_a_disconnected_database_is_refused(self):
@@ -190,8 +196,9 @@ class TestDatabasePreconditions:
         db = _healthy_db()
         db.is_connected = False
 
+        request = _request(self._admin_token(), db=db)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(_request(self._admin_token(), db=db), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 503
 
     def test_a_database_missing_the_attribute_entirely_is_refused(self):
@@ -199,8 +206,9 @@ class TestDatabasePreconditions:
         database this code expects must not be read as a connected one."""
         db = MagicMock(spec=[])  # no is_connected, no methods
 
+        request = _request(self._admin_token(), db=db)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(_request(self._admin_token(), db=db), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 503
 
     def test_a_healthy_database_still_lets_an_admin_through(self):

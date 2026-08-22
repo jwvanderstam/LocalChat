@@ -53,16 +53,19 @@ class _Db(UsersMixin):
 @pytest.mark.unit
 class TestLastAdminCannotBeRemoved:
     def test_demoting_the_last_admin_is_refused(self):
+        db = _Db(admin_count=1)
         with pytest.raises(LastAdminError):
-            _Db(admin_count=1).update_user(ADMIN, role="user")
+            db.update_user(ADMIN, role="user")
 
     def test_deactivating_the_last_admin_is_refused(self):
+        db = _Db(admin_count=1)
         with pytest.raises(LastAdminError):
-            _Db(admin_count=1).update_user(ADMIN, is_active=False)
+            db.update_user(ADMIN, is_active=False)
 
     def test_deleting_the_last_admin_is_refused(self):
+        db = _Db(admin_count=1)
         with pytest.raises(LastAdminError):
-            _Db(admin_count=1).delete_user(ADMIN)
+            db.delete_user(ADMIN)
 
     def test_refusal_writes_nothing(self):
         """The guard must run before the UPDATE, not alongside it."""

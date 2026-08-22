@@ -34,6 +34,16 @@ class EmbeddingCache:
                 self._cache.popitem(last=False)  # O(1) evict LRU
         self._cache[key] = embedding
 
+    def clear(self) -> None:
+        """Drop every entry and reset the counters.
+
+        The cache is a module-level singleton, so it outlives an individual test;
+        a retrieval test that must observe a real embed call has to start cold.
+        """
+        self._cache.clear()
+        self._hits = 0
+        self._misses = 0
+
     def stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         total = self._hits + self._misses

@@ -73,7 +73,8 @@ class TestCreateWorkspaceRecordsOwner:
         db = _Db()
         db.create_workspace("Acme", owner_id=OWNER)
         statements = [s for s, _ in db.executed]
-        assert len(statements) == 2 and "INSERT INTO workspaces" in statements[0]
+        assert len(statements) == 2
+        assert "INSERT INTO workspaces" in statements[0]
 
     def test_no_owner_id_writes_no_member_row(self):
         """Unauthenticated/demo creation still works; it simply records no owner."""

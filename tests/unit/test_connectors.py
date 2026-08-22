@@ -325,7 +325,8 @@ class TestSyncWorker:
     def test_start_stop(self):
         w = self._make_worker()
         w.start()
-        assert w._thread is not None and w._thread.is_alive()
+        assert w._thread is not None
+        assert w._thread.is_alive()
         w.stop()
         assert not w._thread.is_alive()
 

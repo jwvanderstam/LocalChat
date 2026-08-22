@@ -175,10 +175,9 @@ class TestEnforceWorkspaceRole:
     def test_a_denial_becomes_an_exception_carrying_its_message(self):
         """`denial = None`, or an inverted `is None`, stops the refusal happening at
         all and the caller proceeds with no error anywhere."""
+        request = _request(token=_user_token(), db=_member_db(None))
         with pytest.raises(HTTPException) as exc_info:
-            _enforce_workspace_role(
-                _request(token=_user_token(), db=_member_db(None)), _WS, None, "viewer"
-            )
+            _enforce_workspace_role(request, _WS, None, "viewer")
         assert exc_info.value.status_code == 403
         assert exc_info.value.detail["message"] == "Access denied: not a workspace member"
 

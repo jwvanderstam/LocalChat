@@ -18,6 +18,7 @@ Created: January 2025
 import socket
 from unittest.mock import MagicMock, patch
 
+import psycopg
 import pytest
 
 from src.db import DatabaseUnavailableError
@@ -198,8 +199,12 @@ class TestCreateDatabase:
 
         test_db = db_module.Database()
 
-        with patch('psycopg.connect', side_effect=Exception("Permission denied")):
-            with pytest.raises(Exception):
+        # A realistic failure type, and asserted as that type: `pytest.raises(Exception)`
+        # against a `side_effect=Exception(...)` passes however the method behaves.
+        # What this actually pins down is that _create_database does not swallow a
+        # refused connection — the caller has to be able to see it.
+        with patch('psycopg.connect', side_effect=psycopg.OperationalError("Permission denied")):
+            with pytest.raises(psycopg.OperationalError):
                 test_db._create_database()
 
 
