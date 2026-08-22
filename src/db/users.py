@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from ..utils.logging_config import get_logger
+from ..utils.logging_config import get_logger, sanitize_log_value
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -271,12 +271,13 @@ class UsersMixin(MixinHost):
                     (user_id,),
                 )
                 if cur.fetchone():
-                    logger.debug(f"Purge blocked: user {user_id} has workspace memberships")
+                    logger.debug("Purge blocked: user %s has workspace memberships",
+                                 sanitize_log_value(user_id))
                     return False
                 cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
                 deleted = cur.rowcount > 0
         if deleted:
-            logger.info(f"Purged user: {user_id}")
+            logger.info("Purged user: %s", sanitize_log_value(user_id))
         return deleted
 
     # ------------------------------------------------------------------

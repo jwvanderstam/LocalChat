@@ -316,8 +316,7 @@ class FeedbackMixin(MixinHost):
                         ),
                     )
                     row = cur.fetchone()
-                    assert row is not None, "INSERT ... RETURNING id always returns a row"
-                    return str(row[0])
+                    return str(row[0]) if row is not None else None
         except Exception as exc:
             logger.warning(f"[Reranker] Could not persist version: {exc}")
             return None

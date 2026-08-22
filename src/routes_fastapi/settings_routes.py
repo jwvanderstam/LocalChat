@@ -236,9 +236,9 @@ async def rag_params_set(request: Request, _admin: Annotated[str, Depends(requir
 async def logs_tail(
     request: Request,
     _admin: Annotated[str, Depends(require_admin_dep)],
-    limit: int = Query(200, ge=1, le=1000),
-    level: str | None = Query(None, pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$"),
-    q: str | None = Query(None, max_length=200),
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    level: Annotated[str | None, Query(pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> Any:
     """Tail the application log. Admin only — logs carry request paths and user ids.
 

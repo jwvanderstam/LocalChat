@@ -383,7 +383,10 @@ class DocumentLoaderMixin:
         Returns:
             Tuple of (success: bool, content_or_error: str)
         """
-        if not DOCX_AVAILABLE:
+        # `Document is None` is the same condition as `not DOCX_AVAILABLE`, but it is
+        # the one mypy narrows on — checking it here rather than asserting it later keeps
+        # the guard in a place a broad `except` cannot swallow.
+        if not DOCX_AVAILABLE or Document is None:
             logger.error(_DOCX_NOT_INSTALLED)
             return False, _DOCX_NOT_INSTALLED
 
@@ -394,7 +397,6 @@ class DocumentLoaderMixin:
                 logger.error(err)
                 return False, err
 
-            assert Document is not None, "caller must check DOCX_AVAILABLE before calling"
             try:
                 doc = Document(file_path)
             except Exception as doc_error:

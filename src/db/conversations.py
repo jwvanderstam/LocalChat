@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
-from ..utils.logging_config import get_logger
+from ..utils.logging_config import get_logger, sanitize_log_value
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -346,13 +346,14 @@ class ConversationsMixin(MixinHost):
                     (conversation_id,),
                 )
                 if cursor.fetchone():
-                    logger.debug(f"Purge blocked: memories cite conversation {conversation_id}")
+                    logger.debug("Purge blocked: memories cite conversation %s",
+                                 sanitize_log_value(conversation_id))
                     return False
                 cursor.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
                 deleted = cursor.rowcount > 0
                 conn.commit()
         if deleted:
-            logger.info(f"Purged conversation: {conversation_id}")
+            logger.info("Purged conversation: %s", sanitize_log_value(conversation_id))
         return deleted
 
     def get_low_confidence_queries(
