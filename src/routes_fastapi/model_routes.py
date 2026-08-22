@@ -149,11 +149,33 @@ async def set_active_model(request: Request, _admin: Annotated[str, Depends(requ
             status_code=404,
         )
 
+    previous = config.app_state.get_active_model()
+
     # Store the name Ollama actually uses, so the value round-trips and the page can
     # match it against the list it renders.
     config.app_state.set_active_model(resolved)
     logger.info("Active model changed to: %s", resolved)
-    return {"success": True, "model": resolved}
+
+    # Models are loaded with keep_alive=-1, which means Ollama never evicts them, so
+    # switching left the previous one resident forever. Two chat models in VRAM is
+    # not merely waste: the memory budget the model list reports is *free* memory, so
+    # the model still holding it was reported as no longer fitting, and its own
+    # activate button was disabled (QA-4).
+    #
+    # Best-effort on purpose. The switch has already happened and been recorded; a
+    # failure to evict is a memory problem, not a reason to tell the caller their
+    # model did not change.
+    unloaded = None
+    if previous and previous != resolved:
+        try:
+            ok, message = request.app.state.ollama_client.unload_model(previous)
+            unloaded = previous if ok else None
+            if not ok:
+                logger.warning("Could not unload previous model %s: %s", previous, message)
+        except Exception as exc:
+            logger.warning("Could not unload previous model %s: %s", previous, exc)
+
+    return {"success": True, "model": resolved, "unloaded": unloaded}
 
 
 @router.post("/pull")

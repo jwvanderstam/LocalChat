@@ -78,6 +78,7 @@ def bootstrap_app(app: Any) -> None:
         sinks=config.LOG_SINKS,
         syslog_address=config.LOG_SYSLOG_ADDRESS,
         syslog_protocol=config.LOG_SYSLOG_PROTOCOL,
+        third_party_level=config.LOG_THIRD_PARTY_LEVEL,
     )
 
     _init_caching(app)

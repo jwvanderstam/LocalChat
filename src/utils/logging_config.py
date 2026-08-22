@@ -296,6 +296,36 @@ def _build_syslog_handler(address: str, protocol: str) -> logging.Handler:
     return handler
 
 
+#: Libraries that log at INFO or DEBUG about their own internals. httpx narrates
+#: every request the app makes; the markdown extension registry emits ~1275 DEBUG
+#: records per boot. Together they were the bulk of the log file, which matters
+#: twice over: they crowd out the application's own records inside a bounded
+#: rotation, and their messages never pass through this project's log sanitiser —
+#: httpx logs full URLs, query string included, which is how third-party signed
+#: URLs ended up on disk.
+_NOISY_THIRD_PARTY = (
+    "httpx",
+    "httpcore",
+    "huggingface_hub",
+    "sentence_transformers",
+    "urllib3",
+    "MARKDOWN",
+    "PIL",
+    "matplotlib",
+)
+
+
+def _quieten_third_party(level: str) -> None:
+    """Raise the floor for libraries that narrate their own internals."""
+    if not level:
+        return
+    resolved = getattr(logging, level.upper(), None)
+    if not isinstance(resolved, int):
+        return
+    for name in _NOISY_THIRD_PARTY:
+        logging.getLogger(name).setLevel(resolved)
+
+
 def setup_logging(
     log_level: str = "INFO",
     log_file: str = "logs/app.log",
@@ -305,6 +335,7 @@ def setup_logging(
     sinks: Sequence[str] = ("console", "file"),
     syslog_address: str = "",
     syslog_protocol: str = "udp",
+    third_party_level: str = "WARNING",
 ) -> logging.Logger:
     """Configure application-wide logging across the requested sinks.
 
@@ -356,6 +387,8 @@ def setup_logging(
         handler.addFilter(request_id_filter)
         root_logger.addHandler(handler)
         active.append(name)
+
+    _quieten_third_party(third_party_level)
 
     _replay_startup_buffer()
 

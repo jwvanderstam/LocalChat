@@ -196,3 +196,69 @@ class TestStatusIsWorkspaceScoped:
         # The count is cached through chat.get_doc_count_cached; what matters here is
         # that the request's workspace reached it rather than being dropped.
         assert WORKSPACE_ID in str(state.db.get_document_count.call_args)
+
+
+# --------------------------------------------------------------------------
+# T2 — switching model left the previous one resident in VRAM
+# --------------------------------------------------------------------------
+
+class TestSwitchingUnloadsThePreviousModel:
+    """Models load with keep_alive=-1, so Ollama never evicts them on its own.
+
+    Switching therefore left both resident. That is not merely waste: the memory
+    budget the model list reports is *free* memory, so the model still holding it
+    was reported as no longer fitting and its own activate button was disabled --
+    the "dead button" of QA-4, one layer down.
+    """
+
+    def _client(self, *, active: str, unload_ok: bool = True):
+        from src import config
+        from src.routes_fastapi.model_routes import router
+
+        state = authenticated_state(role="admin")
+        state.ollama_client.list_models.return_value = (
+            True, [{"name": "llama3.2:latest"}, {"name": "mistral:latest"}]
+        )
+        state.ollama_client.unload_model.return_value = (unload_ok, "" if unload_ok else "busy")
+        config.app_state.set_active_model(active)
+
+        app = FastAPI()
+        app.include_router(router, prefix="/api/models")
+        app.state = state
+        c = TestClient(app, raise_server_exceptions=False)
+        c.headers.update(admin_headers())
+        return state, c
+
+    def test_the_previous_model_is_unloaded(self):
+        state, client = self._client(active="llama3.2:latest")
+        resp = client.post("/api/models/active", json={"model": "mistral:latest"})
+        assert resp.status_code == 200
+        state.ollama_client.unload_model.assert_called_once_with("llama3.2:latest")
+
+    def test_the_response_names_what_was_unloaded(self):
+        """So the page can say what happened rather than leaving VRAM a mystery."""
+        _, client = self._client(active="llama3.2:latest")
+        body = client.post("/api/models/active", json={"model": "mistral:latest"}).json()
+        assert body["unloaded"] == "llama3.2:latest"
+
+    def test_reselecting_the_active_model_unloads_nothing(self):
+        """Over-correction guard: this would evict the model it just selected."""
+        state, client = self._client(active="mistral:latest")
+        client.post("/api/models/active", json={"model": "mistral:latest"})
+        assert not state.ollama_client.unload_model.called
+
+    def test_a_failed_unload_does_not_fail_the_switch(self):
+        """The switch has already happened and been recorded. A model that will not
+        evict is a memory problem, not a reason to report the switch as failed."""
+        _, client = self._client(active="llama3.2:latest", unload_ok=False)
+        resp = client.post("/api/models/active", json={"model": "mistral:latest"})
+        assert resp.status_code == 200
+        assert resp.json()["model"] == "mistral:latest"
+        assert resp.json()["unloaded"] is None
+
+    def test_an_unload_that_raises_does_not_fail_the_switch(self):
+        state, client = self._client(active="llama3.2:latest")
+        state.ollama_client.unload_model.side_effect = RuntimeError("connection reset")
+        resp = client.post("/api/models/active", json={"model": "mistral:latest"})
+        assert resp.status_code == 200
+        assert resp.json()["unloaded"] is None
