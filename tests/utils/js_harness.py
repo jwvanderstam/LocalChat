@@ -11,8 +11,10 @@ See ``.claude/rules/testing.md`` -> "Frontend logic".
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +39,11 @@ const nodes = {};
 const el = (id) => {
     if (id && nodes[id]) return nodes[id];
     const target = Object.assign(function () { return el(); }, {
-        id: id || '', textContent: '', innerHTML: '', value: '', style: {}, dataset: {},
+        // `checked` starts false, as an unchecked checkbox does. A module that
+        // restores a stored toggle has to set it; one that forgets leaves it false,
+        // which is the difference these tests exist to see.
+        id: id || '', textContent: '', innerHTML: '', value: '', checked: false,
+        style: {}, dataset: {},
         classList: { add() {}, remove() {}, contains: () => false },
         appendChild() {}, reset() {}, select() {},
         // Recorded rather than dropped: a form's whole behaviour lives in its handler,
@@ -70,7 +76,12 @@ globalThis.document = {
     createElement: () => el(),
 };
 globalThis.window = globalThis;
-globalThis.navigator = { clipboard: { writeText: () => Promise.resolve() } };
+// defineProperty, not assignment: node exposes a real read-only `navigator` when
+// running a file, and only a writable stub under `node -e`. The harness runs both ways.
+Object.defineProperty(globalThis, 'navigator', {
+    value: { clipboard: { writeText: () => Promise.resolve() } },
+    configurable: true, writable: true,
+});
 globalThis.confirm = () => true;
 
 // Any bootstrap widget: usable as `new bootstrap.Tooltip(x)` and as
@@ -102,8 +113,33 @@ setTimeout(() => console.log('__RESULT__' + JSON.stringify({
     calls: calls,
     html: Object.fromEntries(Object.entries(nodes).map(([k, v]) => [k, v.innerHTML])),
     values: Object.fromEntries(Object.entries(nodes).map(([k, v]) => [k, v.value])),
+    // Checkbox state, which `values` does not carry. Without it a test of a toggle
+    // can only read back the storage it seeded itself — an assertion that holds
+    // whether or not the module did anything at all.
+    checked: Object.fromEntries(Object.entries(nodes).map(([k, v]) => [k, v.checked])),
 })), DELAY);
 """
+
+
+#: A local import — the one thing that makes a module unrunnable from `node -e`.
+#: Matched on the `from` clause rather than the `import` keyword, because a named
+#: import wraps across lines and an anchored pattern silently misses it: two of the
+#: four modules here import that way, and were still being inlined and failing.
+_LOCAL_IMPORT = re.compile(r"""from\s+['"]\./""")
+
+
+def _run_beside_sources(program: str) -> subprocess.CompletedProcess:
+    """Run *program* as a module inside static/js, so its relative imports resolve.
+
+    The file is removed whatever happens: static/js is a mounted directory, so a
+    stray harness module there would be served to browsers.
+    """
+    path = JS_DIR / f"__harness_{uuid.uuid4().hex}.mjs"
+    try:
+        path.write_text(program, encoding="utf-8")
+        return subprocess.run(["node", str(path)], capture_output=True, text=True, timeout=30)
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def run_js(
@@ -127,13 +163,25 @@ def run_js(
         if click
         else ""
     )
-    program = (
+    preamble = (
         f"const PRELOAD = {json.dumps(preload or {})};\n"
         f"const ROUTES = {json.dumps(routes or [])};\n"
         f"const DELAY = {delay};\n"
-        f"{_HARNESS}\n{source}\n{click_js}{_REPORT}"
+        f"{_HARNESS}\n"
     )
-    out = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=30)
+
+    # A module that imports its siblings cannot be inlined into `node -e`: there is no
+    # file to resolve "./ui.js" against, so it fails before running. chat.js was
+    # untestable for that reason alone. Running from a throwaway module *inside*
+    # static/js gives those imports a home, and a dynamic import keeps the globals
+    # installed before the module body evaluates — a static import is hoisted and
+    # would see none of them.
+    if _LOCAL_IMPORT.search(source):
+        target = json.dumps("./" + script)
+        out = _run_beside_sources(f"{preamble}await import({target});\n{click_js}{_REPORT}")
+    else:
+        program = f"{preamble}{source}\n{click_js}{_REPORT}"
+        out = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, f"node failed: {out.stderr}"
     line = next(ln for ln in out.stdout.splitlines() if ln.startswith("__RESULT__"))
     return json.loads(line[len("__RESULT__") :])

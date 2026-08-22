@@ -159,7 +159,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 16 panels) |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
-| `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; how frontend branch logic is tested |
+| `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; runs ES modules that import their siblings (`chat.js`) as well as standalone scripts; how frontend branch logic is tested |
 | `tests/utils/auth.py` | `auth_headers()`, `authorise_db()`, `authenticated_state()` — how a test authenticates for real; replaced the `app.state.testing` bypass (TQ-1b) |
 | `tests/utils/fake_ollama.py` | TQ-2 stub for Ollama — bag-of-words embeddings (deterministic, and meaningful so ranking assertions are real) plus a canned chat stream |
 | `tests/e2e/conftest.py` | Starts a real LocalChat (uvicorn subprocess + CI's Postgres + TQ-2's fake Ollama) and points Playwright's `base_url` at it |

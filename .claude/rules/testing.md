@@ -95,6 +95,13 @@ a proxy DOM, a canned `fetch`; assert the resulting state).
   GitHub-hosted runners, but a local environment may not have it.
 - **Don't assert on the source text.** A regex over the file you just wrote restates
   the code instead of checking it; that is the tautological case the table above names.
+- **Assert on what the module changed, not on what the test supplied.** Reading back
+  the `localStorage` the test seeded passes whether or not the module ran — the first
+  version of `test_frontend_chat_toggles.py` did exactly that and was green against a
+  `chat.js` with no persistence at all. Assert the resulting DOM state instead
+  (`result["checked"][...]`, `result["values"][...]`).
+- A module that imports its siblings (`chat.js`) runs too — the harness executes it
+  from inside `static/js` so the relative imports resolve.
 - Confirm the test fails with the fix reverted. Tests that guard against
   *over*-correction should pass both ways — that is what makes them worth keeping.
 
