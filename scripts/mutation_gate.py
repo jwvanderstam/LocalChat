@@ -37,6 +37,7 @@ MODULES: dict[str, list[str]] = {
         # from a token, the shape of the error envelope, and the database
         # preconditions that make failure closed.
         "tests/unit/test_security_contract.py",
+        "tests/unit/test_workspace_access_contract.py",
         "tests/unit/test_authz_by_default.py",
         "tests/unit/test_sec1_no_demo_mode.py",
         "tests/unit/test_sec2_revocation_fail_closed.py",
