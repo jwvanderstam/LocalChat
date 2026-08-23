@@ -102,8 +102,7 @@ class WorkspaceKeysMixin(MixinHost):
                 row = cur.fetchone()
                 assert row is not None, "INSERT ... RETURNING always returns a row"
                 cols = [d[0] for d in cur.description or []]
-        logger.info("[WorkspaceKeys] Key '%s' created for workspace %s",
-                    prefix, sanitize_log_value(workspace_id))
+        logger.info("[WorkspaceKeys] Key '%s' created for workspace %s", prefix, sanitize_log_value(workspace_id))
         return full_key, _jsonable(dict(zip(cols, row, strict=True)))
 
     def resolve_workspace_api_key(self, presented: str) -> tuple[str, str] | None:
