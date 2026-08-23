@@ -172,7 +172,8 @@ class TestFallbackPicksAUsableWorkspace:
         req.scope["headers"] = [(b"authorization", f"Bearer {token}".encode())]
         with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "live"):
             denial = check_workspace_access(req, None, "viewer")
-        assert denial is not None and denial[0] == 403
+        assert denial is not None
+        assert denial[0] == 403
 
     def test_lookup_failure_falls_through_to_the_default(self):
         """A convenience for an omitted header must not become a way to deny requests."""

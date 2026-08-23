@@ -64,7 +64,10 @@ def test_restores_even_when_the_block_raises(_root_restored):
     """A failed migration must not leave logging broken for the rest of the process."""
     root = logging.getLogger()
     root.setLevel(logging.INFO)
-    with pytest.raises(RuntimeError), _preserve_root_logging():
+    def _fail_after_changing_the_level():
         root.setLevel(logging.WARNING)
         raise RuntimeError("migration blew up")
+
+    with pytest.raises(RuntimeError), _preserve_root_logging():
+        _fail_after_changing_the_level()
     assert root.level == logging.INFO

@@ -18,6 +18,8 @@ else:
 
 logger = get_logger(__name__)
 
+_ERR_NOT_CONNECTED = "Cannot search chunks: Database is not connected"
+
 
 class DocumentsMixin(MixinHost):
     """Mixin that adds document and chunk operations to the Database class."""
@@ -317,7 +319,7 @@ class DocumentsMixin(MixinHost):
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """Search via pgvector HNSW; min_similarity applied at DB level to avoid transferring chunks that fail the threshold."""
         if not self.is_connected:
-            raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
+            raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
 
         logger.debug(f"Searching for top {top_k} similar chunks (min_similarity={min_similarity})")
         with self.get_connection() as conn:
@@ -386,7 +388,7 @@ class DocumentsMixin(MixinHost):
         comparable in scale to search_similar_chunks' cosine similarity.
         """
         if not self.is_connected:
-            raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
+            raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
         if not query or not query.strip():
             return []
 
@@ -441,7 +443,7 @@ class DocumentsMixin(MixinHost):
     ) -> list[tuple[str, str, int, float, int]]:
         """Returns ``(chunk_text, filename, chunk_index, similarity, document_id)`` tuples."""
         if not self.is_connected:
-            raise DatabaseUnavailableError("Cannot search chunks: Database is not connected")
+            raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
 
         logger.debug(f"Searching for top {top_k} similar chunks (min_sim={min_similarity})")
         with self.get_connection() as conn:

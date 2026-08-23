@@ -1,5 +1,6 @@
 """Tests for input sanitization utilities."""
 
+import pytest
 
 from src.utils.sanitization import (
     sanitize_filename,
@@ -131,22 +132,23 @@ class TestValidatePath:
     def test_valid_path_returns_true_or_path(self, tmp_path):
         test_file = tmp_path / "file.txt"
         test_file.write_text("content")
-        result = validate_path(str(test_file), str(tmp_path))
-        # Should not raise or return falsy
-        assert result is not None
+        assert validate_path(str(test_file), str(tmp_path)) is True
 
     def test_path_traversal_rejected(self, tmp_path):
-        malicious = str(tmp_path / ".." / ".." / "etc" / "passwd")
-        try:
-            result = validate_path(malicious, str(tmp_path))
-            # If it returns, it should indicate failure
-            assert result is False or result is None or result == ""
-        except (ValueError, PermissionError, Exception):
-            pass  # raising is also acceptable
+        """The one assertion in this file that guards a security boundary.
 
-    def test_none_input_handled(self):
-        try:
-            result = validate_path(None, "/some/base")  # type: ignore[arg-type]
-            assert result is None or result is False
-        except (TypeError, AttributeError, Exception):
-            pass
+        It used to sit inside `try: ... except Exception: pass`, alongside
+        `result is None or result == ""` — so it accepted three values the
+        function cannot return, and swallowed its own failure regardless.
+        `validate_path` is annotated `-> bool`; False is the only correct answer.
+        """
+        malicious = str(tmp_path / ".." / ".." / "etc" / "passwd")
+        assert validate_path(malicious, str(tmp_path)) is False
+
+    def test_none_input_raises_rather_than_reporting_a_valid_path(self):
+        """`Path(None)` raises TypeError, which validate_path's own
+        `except (ValueError, OSError)` deliberately does not catch. Asserting the
+        type matters: silently returning True for a None path is the failure mode
+        worth excluding, and `except Exception: pass` excluded nothing."""
+        with pytest.raises(TypeError):
+            validate_path(None, "/some/base")  # type: ignore[arg-type]

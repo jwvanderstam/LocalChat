@@ -52,7 +52,8 @@ class TestStaleChoiceIsNotHonoured:
     def test_a_user_with_no_workspaces_keeps_no_stale_id(self):
         """Otherwise every request carries a 403 header with nothing to correct it."""
         after = _switcher(INHERITED, [])
-        assert ID_KEY not in after and NAME_KEY not in after
+        assert ID_KEY not in after
+        assert NAME_KEY not in after
 
 
 @pytest.mark.unit

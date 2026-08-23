@@ -231,8 +231,9 @@ class TestRequireAuth:
 
         from src.security_fastapi import require_auth
 
+        request = self._anonymous_request()
         with pytest.raises(HTTPException) as exc_info:
-            require_auth(self._anonymous_request(), credentials=None)
+            require_auth(request, credentials=None)
         assert exc_info.value.status_code == 401
 
 
@@ -249,8 +250,9 @@ class TestRequireAdminDep:
 
         from src.security_fastapi import require_admin_dep
 
+        request = self._anonymous_request()
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(self._anonymous_request(), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 401
 
     # ---- the role is read from the database, not from the token ----------------
@@ -281,8 +283,9 @@ class TestRequireAdminDep:
 
         from src.security_fastapi import require_admin_dep
 
+        request = self._request_with("user")
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(self._request_with("user"), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 403
 
     def test_a_retired_account_loses_admin_immediately(self):
@@ -291,8 +294,9 @@ class TestRequireAdminDep:
 
         from src.security_fastapi import require_admin_dep
 
+        request = self._request_with("admin", user_exists=False)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(self._request_with("admin", user_exists=False), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 403
 
     def test_a_current_admin_is_still_allowed(self):
@@ -324,8 +328,9 @@ class TestRequireAdminDep:
 
         from src.security_fastapi import require_admin_dep
 
+        request = self._request_with("admin", connected=False)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(self._request_with("admin", connected=False), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 503
 
     def test_a_database_error_while_reading_the_role_is_refused(self):

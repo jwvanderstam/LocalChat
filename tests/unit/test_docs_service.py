@@ -100,8 +100,10 @@ class TestGetFragment:
         first = service.get_fragment("doc", "section-a")
         second = service.get_fragment("doc", "section-a-1")
 
-        assert first is not None and "First." in first
-        assert second is not None and "Second." in second
+        assert first is not None
+        assert "First." in first
+        assert second is not None
+        assert "Second." in second
 
     def test_nested_heading_included_up_to_next_equal_or_higher_level(self, tmp_path):
         _write(

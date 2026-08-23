@@ -143,7 +143,8 @@ class TestCitationsPointAtTheSource:
     def test_result_carries_a_chunk_id_that_exists(self, ingested, database, workspace):
         """A citation with no resolvable chunk is what the Clark-Wilson rules forbid."""
         results = ingested.retrieve_context(QUERIES[0][0], workspace_id=workspace)
-        assert isinstance(results[0].chunk_id, int) and results[0].chunk_id > 0
+        assert isinstance(results[0].chunk_id, int)
+        assert results[0].chunk_id > 0
 
     def test_a_query_about_nothing_in_the_document_returns_nothing(self, ingested,
                                                                    workspace):

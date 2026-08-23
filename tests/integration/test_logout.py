@@ -55,7 +55,8 @@ class TestLogout:
 
         revoke_mock.assert_called_once()
         jti_arg = revoke_mock.call_args[0][0]
-        assert isinstance(jti_arg, str) and len(jti_arg) == 36  # UUID4 format
+        assert isinstance(jti_arg, str)
+        assert len(jti_arg) == 36  # UUID4 format
 
     def test_logout_returns_503_when_db_unavailable(self, client, app):
         token = create_access_token("test-user")

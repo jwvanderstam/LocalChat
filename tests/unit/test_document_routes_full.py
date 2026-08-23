@@ -194,10 +194,15 @@ class TestDocumentStatsRoute:
 
 
 class TestDocumentSearchRoute:
-    def test_search_returns_results(self, client, app):
-        app.state.doc_processor.retrieve_context = MagicMock(return_value=[
-            ("chunk text", "doc.pdf", 0, 0.9, {}, 1)
-        ])
+    def test_search_returns_results(self, client, app, monkeypatch):
+        # monkeypatch, not assignment: app.state.doc_processor *is* the module
+        # singleton, so a plain assignment left every later test in the run calling
+        # a MagicMock instead of the real retrieve_context. Two retrieval tests in
+        # test_rag_edge_cases.py were the first to notice, a suite later.
+        monkeypatch.setattr(
+            app.state.doc_processor, "retrieve_context",
+            MagicMock(return_value=[("chunk text", "doc.pdf", 0, 0.9, {}, 1)]),
+        )
         response = client.post('/api/documents/search-text',
                                json={'query': 'test query'})
         assert response.status_code in (200, 400, 404)

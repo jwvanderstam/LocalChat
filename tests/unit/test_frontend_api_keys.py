@@ -53,12 +53,14 @@ class TestTheListing:
     def test_keys_from_every_workspace_are_merged(self):
         """Two workspaces, so a listing that overwrites instead of accumulating fails."""
         html = _table(keys_a=[KEY_A], keys_b=[KEY_B])
-        assert "discord-bridge" in html and "nightly-report" in html
+        assert "discord-bridge" in html
+        assert "nightly-report" in html
 
     def test_each_key_names_the_workspace_it_reaches(self):
         """The scope is the point of the key; a list without it is unreadable."""
         html = _table(keys_a=[KEY_A], keys_b=[KEY_B])
-        assert "Localchat" in html and "Default" in html
+        assert "Localchat" in html
+        assert "Default" in html
 
     def test_the_role_is_shown(self):
         assert "viewer" in _table(keys_a=[KEY_A])
@@ -91,4 +93,5 @@ class TestTheKeyIsSurfacedOnce:
         created = {"success": True, "key": "lcw_X", "info": KEY_A}
         result = run_js("users.js", routes=_routes(create=created))
         posts = [c for c in result["calls"] if c["method"] == "POST" and "/keys" in c["url"]]
-        assert posts and posts[0]["url"].startswith("/api/workspaces/")
+        assert posts
+        assert posts[0]["url"].startswith("/api/workspaces/")

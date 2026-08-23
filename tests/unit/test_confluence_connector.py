@@ -154,5 +154,6 @@ class TestConfluenceConnectorFetch:
         c = ConfluenceConnector({})
         with patch("src.connectors.confluence_connector.requests.get", return_value=_resp(raises=True)):
             import requests
+            source = DocumentSource(source_id="1", filename="Home.txt")
             with pytest.raises(requests.HTTPError):
-                c.fetch(DocumentSource(source_id="1", filename="Home.txt"))
+                c.fetch(source)

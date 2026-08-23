@@ -19,6 +19,8 @@ router = APIRouter()
 
 _ERR_INTERNAL = "Internal server error"
 _ERR_MODEL_REQUIRED = "model is required"
+#: Ollama's implicit tag for an untagged pull.
+_LATEST = ":latest"
 
 
 def _resolve_model_name(requested: str, available: list[str]) -> str | None:
@@ -33,11 +35,11 @@ def _resolve_model_name(requested: str, available: list[str]) -> str | None:
     """
     if requested in available:
         return requested
-    if ":" not in requested and f"{requested}:latest" in available:
-        return f"{requested}:latest"
+    if ":" not in requested and requested + _LATEST in available:
+        return requested + _LATEST
     # "llama3.2:latest" asked for while only "llama3.2" is installed — the mirror case.
-    if requested.endswith(":latest") and requested[: -len(":latest")] in available:
-        return requested[: -len(":latest")]
+    if requested.endswith(_LATEST) and requested[: -len(_LATEST)] in available:
+        return requested[: -len(_LATEST)]
     return None
 
 

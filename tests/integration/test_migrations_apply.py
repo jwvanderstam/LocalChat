@@ -101,7 +101,8 @@ class TestTheChainApplies:
         _alembic("upgrade head", migrated_database)
         current = _alembic("current", migrated_database).stdout.strip().splitlines()
         heads = _alembic("heads", migrated_database).stdout.strip().splitlines()
-        assert current and heads
+        assert current
+        assert heads
         assert current[-1].split()[0] == heads[-1].split()[0]
 
     def test_the_head_is_marked_as_such(self, migrated_database):

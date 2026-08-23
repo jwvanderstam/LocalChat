@@ -86,7 +86,8 @@ class TestOllamaLivenessWorkerStops:
 
         chat.check_ollama_live(self._app_state())
         thread = chat._ollama_refresh_thread
-        assert thread is not None and thread.is_alive()
+        assert thread is not None
+        assert thread.is_alive()
 
         chat.stop_ollama_liveness(timeout=5.0)
 

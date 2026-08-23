@@ -139,8 +139,10 @@ class TestHandleRateLimitExceeded:
     def test_asserts_on_non_rate_limit_exception(self):
         from src.app_fastapi import _handle_rate_limit_exceeded
 
+        request = Mock()
+        wrong_exception = ValueError("not a rate limit error")
         with pytest.raises(AssertionError):
-            _handle_rate_limit_exceeded(Mock(), ValueError("not a rate limit error"))
+            _handle_rate_limit_exceeded(request, wrong_exception)
 
 
 class TestMain:

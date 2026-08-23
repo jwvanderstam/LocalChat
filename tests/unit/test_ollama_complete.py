@@ -9,7 +9,10 @@ Async methods are tested by patching client._async_client.* (httpx.AsyncClient).
 pull_model uses client._session.stream() as a sync context manager.
 """
 
+import json
 from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -187,8 +190,15 @@ class TestStreamingEdgeCases:
         ])
         client._async_client.stream = Mock(return_value=cm)
 
-        try:
-            chunks = [c async for c in client.generate_chat_response(model="llama3.2", messages=[])]
-            assert isinstance(chunks, list)
-        except Exception:
-            pass  # JSON error on malformed line is acceptable
+        # `_iter_stream_chunks` calls json.loads with no guard, so a malformed line
+        # ends the stream rather than being skipped. Pinned rather than asserted as
+        # desirable: if that ever becomes skip-and-continue, this test should go red
+        # and make it a decision. The old version could not — the assertion sat
+        # inside `except Exception: pass` and held whichever way the code behaved.
+        chunks = []
+        with pytest.raises(json.JSONDecodeError):
+            async for c in client.generate_chat_response(model="llama3.2", messages=[]):
+                chunks.append(c)
+
+        # Content before the bad line still reached the caller.
+        assert chunks == ["Good data"]

@@ -223,6 +223,21 @@ class TestDocumentLoading:
         assert success is False
         assert "not installed" in error.lower()
 
+    @patch('src.rag.loaders.DOCX_AVAILABLE', True)
+    @patch('src.rag.loaders.Document', None)
+    def test_load_docx_refuses_when_the_class_is_missing(self, doc_processor):
+        """The other half of `not DOCX_AVAILABLE or Document is None`.
+
+        The flag and the class are set by the same import, so they normally agree —
+        but `Document is None` is the one mypy narrows on, and it replaced an assert
+        that sat inside a broad `except` (S5779). Without this case the added
+        condition would never be exercised.
+        """
+        success, error = doc_processor.load_docx_file("test.docx")
+
+        assert success is False
+        assert "not installed" in error.lower()
+
 
 # ============================================================================
 # TEXT CHUNKING TESTS (10 tests)

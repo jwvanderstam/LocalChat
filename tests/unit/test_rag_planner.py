@@ -234,7 +234,7 @@ class TestQueryPlannerParse:
         # Regex will match `{broken` up to the last `}` if one exists; craft a
         # string where the regex matches but json.loads fails.
         raw = "{not: valid json}"
-        with pytest.raises(Exception):  # json.JSONDecodeError
+        with pytest.raises(json.JSONDecodeError):
             self._parse(raw)
 
 

@@ -351,3 +351,47 @@ class TestFeedbackPipeline:
         result = run(db, days=7)
         assert result["pairs_exported"] == 5
         assert result["days"] == 7
+
+# ===========================================================================
+# FeedbackMixin.insert_reranker_version
+# ===========================================================================
+
+class TestInsertRerankerVersion:
+    """Returns the new id, or None on error — that is the documented contract.
+
+    The line under test replaced `assert row is not None`: an assertion inside
+    `try: ... except Exception:`, which the except swallowed and which `python -O`
+    removes outright (SonarCloud S5779). Nothing covered it either way.
+    """
+
+    def _mixin(self, fetchone, connected=True):
+        from src.db.feedback import FeedbackMixin
+        m = FeedbackMixin()
+        m.is_connected = connected
+
+        cur = MagicMock()
+        cur.fetchone.return_value = fetchone
+        cur.__enter__ = MagicMock(return_value=cur)
+        cur.__exit__ = MagicMock(return_value=False)
+
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+
+        m.get_connection = MagicMock(return_value=conn)
+        return m
+
+    def test_the_new_id_is_returned_as_a_string(self):
+        m = self._mixin(fetchone=(uuid.UUID(int=7),))
+        assert m.insert_reranker_version({"pair_count": 5}) == str(uuid.UUID(int=7))
+
+    def test_an_insert_that_returns_no_row_yields_none(self):
+        """The case the deleted assert stood in for. It must be the documented
+        None, not an AssertionError logged as a warning."""
+        m = self._mixin(fetchone=None)
+        assert m.insert_reranker_version({"pair_count": 5}) is None
+
+    def test_a_disconnected_database_yields_none(self):
+        m = self._mixin(fetchone=None, connected=False)
+        assert m.insert_reranker_version({"pair_count": 5}) is None

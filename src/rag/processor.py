@@ -308,6 +308,32 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             progress_callback(f"Replacing existing document '{filename}'...")
         return None, doc_info['id']
 
+    def _extract_entities(
+        self,
+        doc_id: int,
+        chunk_ids: list[int],
+        chunks_data: list[dict[str, Any]],
+    ) -> None:
+        """Best-effort GraphRAG entity extraction; never fails the ingest.
+
+        Kept out of ingest_document because it is an optional side-effect with its
+        own failure handling, and inlining it pushed that function past the
+        cognitive-complexity limit.
+        """
+        if not config.GRAPH_RAG_ENABLED:
+            return
+        try:
+            from ..graph.extractor import EntityExtractor
+            # Build chunks_with_ids from in-memory data + returned IDs —
+            # avoids a DB round-trip to re-fetch what we just inserted.
+            chunks_with_ids = [
+                {'chunk_id': cid, 'chunk_text': cd['chunk_text']}
+                for cid, cd in zip(chunk_ids, chunks_data, strict=False)
+            ]
+            EntityExtractor().extract_for_document(doc_id, chunks_with_ids, db)
+        except Exception as graph_exc:
+            logger.warning(f"[GraphRAG] Entity extraction failed (non-fatal): {graph_exc}")
+
     @timed('rag.ingest_document')
     @counted('rag.document_ingestions')
     def ingest_document(
@@ -352,10 +378,9 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             ext = Path(file_path).suffix.lower()
             ok, err, chunks_with_metadata, raw_content, doc_type_str, chunker_version = \
                 self._load_document_chunks(file_path, filename, ext, progress_callback)
-            if not ok:
+            if not ok or chunks_with_metadata is None:
                 logger.error(err)
                 return False, err, None
-            assert chunks_with_metadata is not None, "chunker guarantees chunks when ok=True"
 
             # Build content preview — reuse already-loaded data; no second file read.
             content_preview = (raw_content or (chunks_with_metadata[0]['text'] if chunks_with_metadata else ''))[:1000]
@@ -420,19 +445,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             logger.debug(f"Document ID: {doc_id}")
             logger.info("Chunks inserted successfully")
 
-            # ── GraphRAG entity extraction (optional) ─────────────────────
-            if config.GRAPH_RAG_ENABLED:
-                try:
-                    from ..graph.extractor import EntityExtractor
-                    # Build chunks_with_ids from in-memory data + returned IDs —
-                    # avoids a DB round-trip to re-fetch what we just inserted.
-                    chunks_with_ids = [
-                        {'chunk_id': cid, 'chunk_text': cd['chunk_text']}
-                        for cid, cd in zip(chunk_ids, chunks_data, strict=False)
-                    ]
-                    EntityExtractor().extract_for_document(doc_id, chunks_with_ids, db)
-                except Exception as graph_exc:
-                    logger.warning(f"[GraphRAG] Entity extraction failed (non-fatal): {graph_exc}")
+            self._extract_entities(doc_id, chunk_ids, chunks_data)
 
             success_msg = f"Successfully ingested {filename} ({len(chunks_data)} chunks)"
             logger.info(success_msg)

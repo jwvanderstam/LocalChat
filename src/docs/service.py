@@ -72,7 +72,11 @@ _CATALOGUE: list[tuple[str, str]] = [
     ("docs-scaleway-deployment-plan", "docs/localchat_scaleway_deployment_plan.md"),
 ]
 
-_HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$", re.MULTILINE)
+#: Greedy to end-of-line, with the trailing space stripped in Python. The lazy
+#: `(.*?)\s*$` it replaces made the engine retry every split point of every line,
+#: which is quadratic in line length. Horizontal whitespace only, rather than `\s+`,
+#: also stops a bare "#" on its own line from swallowing the next non-blank line.
+_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.*)$", re.MULTILINE)
 _MD_EXTENSIONS = ["fenced_code", "tables", "toc"]
 _SLUG_STRIP_RE = re.compile(r"[^\w\s-]")
 _SLUG_SPACE_RE = re.compile(r"\s+")
@@ -88,7 +92,7 @@ def _extract_title(raw: str, path: Path) -> str:
     """First H1 heading text, else the filename stem."""
     for match in _HEADING_RE.finditer(raw):
         if len(match.group(1)) == 1:
-            return match.group(2)
+            return match.group(2).rstrip()
     return path.stem
 
 
@@ -102,7 +106,7 @@ def _split_fragments(raw: str) -> dict[str, str]:
     ... suffixes, matching GitHub's own anchor-collision scheme.
     """
     headings = [
-        (match.start(), len(match.group(1)), match.group(2))
+        (match.start(), len(match.group(1)), match.group(2).rstrip())
         for match in _HEADING_RE.finditer(raw)
     ]
     fragments: dict[str, str] = {}

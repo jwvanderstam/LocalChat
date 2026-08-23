@@ -9,7 +9,6 @@ ignore = [
     "F811",    # redefined-while-unused — conditional import pattern (TYPE_CHECKING guards)
     "SIM105",  # suppressible-exception — explicit `except/pass` is intentional in places
     "SIM117",  # multiple-with-statements — readability preference; nested is clearer here
-    "B017",    # assert-raises-exception — 4 remaining in tests; intentional broad catches
 ]
 
 [tool.ruff.lint.per-file-ignores]

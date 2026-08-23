@@ -56,14 +56,18 @@ class TestKeyGeneration:
 
     def test_stored_prefix_is_a_fragment_not_the_key(self):
         full, prefix, _ = generate_api_key()
-        assert prefix != full and full.startswith(prefix)
+        assert prefix != full
+        assert full.startswith(prefix)
 
     def test_hash_is_not_the_key(self):
         full, _, key_hash = generate_api_key()
-        assert key_hash != full and key_hash == _hash_key(full)
+        assert key_hash != full
+        assert key_hash == _hash_key(full)
 
     def test_two_keys_differ(self):
-        assert generate_api_key()[0] != generate_api_key()[0]
+        first, _, _ = generate_api_key()
+        second, _, _ = generate_api_key()
+        assert first != second
 
 
 @pytest.mark.unit
@@ -102,13 +106,15 @@ class TestKeyIsConfinedToItsWorkspace:
         """Changing X-Workspace-ID must not widen the key's reach."""
         req = _request({"X-API-Key": "lcw_secret", "X-Workspace-ID": WS_B}, _db())
         denial = check_workspace_access(req, None, "viewer")
-        assert denial is not None and denial[0] == 403
+        assert denial is not None
+        assert denial[0] == 403
 
     def test_key_cannot_reach_another_workspace_by_path(self):
         """A route passing its path workspace explicitly is checked the same way."""
         req = _request({"X-API-Key": "lcw_secret"}, _db())
         denial = check_workspace_access(req, WS_B, "viewer")
-        assert denial is not None and denial[0] == 403
+        assert denial is not None
+        assert denial[0] == 403
 
     def test_omitting_the_header_pins_the_key_workspace_not_the_default(self):
         """The bug this guards: no header, so scope would fall through to the
@@ -132,7 +138,8 @@ class TestKeyRoleIsEnforced:
     def test_viewer_key_is_refused_write_access(self):
         req = _request({"X-API-Key": "lcw_secret", "X-Workspace-ID": WS_A}, _db())
         denial = check_workspace_access(req, None, "editor")
-        assert denial is not None and denial[0] == 403
+        assert denial is not None
+        assert denial[0] == 403
 
     def test_editor_key_may_write(self):
         db = _db(resolves_to=(WS_A, "editor"))
@@ -144,7 +151,8 @@ class TestKeyRoleIsEnforced:
         db = _db(resolves_to=(WS_A, "viewer"))
         req = _request({"X-API-Key": "lcw_secret", "X-Workspace-ID": WS_B}, db)
         denial = check_workspace_access(req, None, "viewer")
-        assert denial is not None and denial[0] == 403
+        assert denial is not None
+        assert denial[0] == 403
 
 
 @pytest.mark.unit
@@ -153,7 +161,8 @@ class TestInvalidKeys:
         db = _db(resolves_to=None)
         req = _request({"X-API-Key": "lcw_gone"}, db)
         denial = check_workspace_access(req, None, "viewer")
-        assert denial is not None and denial[0] == 401
+        assert denial is not None
+        assert denial[0] == 401
 
     def test_a_jwt_is_not_mistaken_for_a_key(self):
         """Bearer carries both; only the lcw_ prefix selects the key path."""
@@ -199,7 +208,8 @@ class TestKeyManagementRoutes:
     def test_listing_never_returns_a_key_or_hash(self):
         resp = self._client().get(f"/api/workspaces/{WS_A}/keys")
         body = resp.text
-        assert "key_hash" not in body and "lcw_plaintext" not in body
+        assert "key_hash" not in body
+        assert "lcw_plaintext" not in body
 
     def test_owner_role_cannot_be_issued_to_a_key(self):
         """A key that can mint keys turns one leak into permanent control."""
