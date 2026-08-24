@@ -12,12 +12,19 @@ from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
 from ._authz import deny as _deny
+from ._authz import require_caller
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 _ERR_INTERNAL = "Internal server error"
 _NOT_FOUND = "Connector not found"
+# A connector spends its owner's OAuth token. Accepting the owner from client
+# config would let any workspace owner name someone else's account (BUG-4), so
+# the field is refused outright rather than silently overwritten.
+_OWNER_IN_CONFIG = (
+    "'user_id' may not be set in config; a connector uses the account of the user who created it"
+)
 
 
 @router.get("/connectors/available")
@@ -80,6 +87,11 @@ async def create_connector(request: Request) -> Any:
             status_code=400,
         )
 
+    if "user_id" in connector_config:
+        return JSONResponse({"success": False, "message": _OWNER_IN_CONFIG}, status_code=400)
+
+    created_by = require_caller(request)
+
     workspace_id = get_workspace_id(request)
     cls = registry.get_class(connector_type)
     try:
@@ -103,8 +115,10 @@ async def create_connector(request: Request) -> Any:
             config=connector_config,
             workspace_id=workspace_id,
             sync_interval=sync_interval,
+            created_by=created_by,
         )
-        registry.add(connector_id, connector_type, connector_config, workspace_id=workspace_id)
+        registry.add(connector_id, connector_type, connector_config,
+                     workspace_id=workspace_id, owner_user_id=created_by)
         connector = db.get_connector(connector_id)
         return JSONResponse({"success": True, "connector": connector}, status_code=201)
     except Exception:
@@ -137,6 +151,8 @@ async def update_connector(connector_id: str, request: Request) -> Any:
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return JSONResponse({"success": False, "message": "No valid fields provided"}, status_code=400)
+    if "user_id" in (fields.get("config") or {}):
+        return JSONResponse({"success": False, "message": _OWNER_IN_CONFIG}, status_code=400)
     try:
         db = request.app.state.db
         updated = db.update_connector(connector_id, **fields)
@@ -145,7 +161,11 @@ async def update_connector(connector_id: str, request: Request) -> Any:
         if "config" in fields or "enabled" in fields:
             row = db.get_connector(connector_id)
             if row and row.get("enabled"):
-                request.app.state.connector_registry.add(connector_id, row["connector_type"], row["config"], workspace_id=row.get("workspace_id"))
+                request.app.state.connector_registry.add(
+                    connector_id, row["connector_type"], row["config"],
+                    workspace_id=row.get("workspace_id"),
+                    owner_user_id=row.get("created_by"),
+                )
             else:
                 request.app.state.connector_registry.remove(connector_id)
         return {"success": True, "connector": db.get_connector(connector_id)}

@@ -48,13 +48,22 @@ class TestSharePointConnectorConfig:
         errors = c.validate_config()
         assert any("site_url" in e for e in errors)
 
-    def test_validate_config_missing_user_id(self):
-        c = SharePointConnector({"site_url": "https://x"})
-        errors = c.validate_config()
-        assert any("user_id" in e for e in errors)
+    def test_access_token_refuses_when_no_owner_is_bound(self):
+        # BUG-4: the account comes from connectors.created_by, never from config.
+        connector = SharePointConnector({"site_url": "https://x", "user_id": "someone-else"})
+        with pytest.raises(RuntimeError, match="no bound owner"):
+            connector._access_token()
+
+    def test_access_token_spends_the_bound_owners_token_not_the_config_one(self):
+        connector = SharePointConnector({"site_url": "https://x", "user_id": "victim"})
+        connector.owner_user_id = "creator"
+        connector._db = MagicMock()
+        with patch("src.connectors.microsoft_auth.get_valid_access_token", return_value="tok") as resolve:
+            assert connector._access_token() == "tok"
+        assert resolve.call_args[0][0] == "creator"
 
     def test_validate_config_valid(self):
-        c = SharePointConnector({"site_url": "https://x", "user_id": "u1"})
+        c = SharePointConnector({"site_url": "https://x"})
         assert c.validate_config() == []
 
 

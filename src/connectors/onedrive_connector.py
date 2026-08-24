@@ -6,12 +6,12 @@ Watches a OneDrive personal drive for changes using the Microsoft Graph API
 delta query mechanism.
 
 Config keys:
-    user_id     (required)  UUID of the LocalChat user whose OAuth token is used
     folder_path (optional)  Folder path within OneDrive (default: root)
     recursive   (optional, default true)
     extensions  (optional)  List of extensions to watch
 
-Requires: Microsoft OAuth token stored for the configured user_id.
+Requires: a Microsoft OAuth token stored for the connector's owner
+(``connectors.created_by``, bound at creation).
 See GET /api/oauth/microsoft/authorize to connect.
 """
 from __future__ import annotations
@@ -44,10 +44,9 @@ class OneDriveConnector(BaseConnector):
         return f"OneDrive: {folder}"
 
     def validate_config(self) -> list[str]:
-        errors: list[str] = []
-        if not self.config.get('user_id', '').strip():
-            errors.append("'user_id' is required (LocalChat user UUID for OAuth token)")
-        return errors
+        # Nothing is required: the account comes from the bound owner, and every
+        # config key (folder_id, extensions) has a working default.
+        return []
 
     # ------------------------------------------------------------------
     # BaseConnector interface
@@ -87,7 +86,7 @@ class OneDriveConnector(BaseConnector):
         if db is None:
             from ..db import db as _db
             db = _db
-        return get_valid_access_token(self.config['user_id'], db)
+        return get_valid_access_token(self.require_owner(), db)
 
     def _auth_headers(self, token: str) -> dict:
         return {'Authorization': f'Bearer {token}'}

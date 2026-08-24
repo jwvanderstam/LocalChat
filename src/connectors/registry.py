@@ -83,6 +83,7 @@ class ConnectorRegistry:
             instance = cls(row.get("config") or {})
             instance.connector_id = connector_id
             instance.workspace_id = row.get("workspace_id")
+            instance.owner_user_id = row.get("created_by")
             with self._lock:
                 self._instances[connector_id] = instance
             return instance
@@ -91,7 +92,8 @@ class ConnectorRegistry:
             return None
 
     def add(self, connector_id: str, connector_type: str, config: dict[str, Any],
-            workspace_id: str | None = None) -> BaseConnector:
+            workspace_id: str | None = None,
+            owner_user_id: str | None = None) -> BaseConnector:
         """Create and register a new connector instance."""
         cls = _CONNECTOR_CLASSES.get(connector_type)
         if cls is None:
@@ -99,6 +101,7 @@ class ConnectorRegistry:
         instance = cls(config)
         instance.connector_id = connector_id
         instance.workspace_id = workspace_id
+        instance.owner_user_id = owner_user_id
         with self._lock:
             self._instances[connector_id] = instance
         return instance

@@ -37,8 +37,13 @@ class ConnectorsMixin(MixinHost):
         config: dict,
         workspace_id: str | None = None,
         sync_interval: int = 900,
+        created_by: str | None = None,
     ) -> str:
-        """Insert a new connector row and return its UUID string."""
+        """Insert a new connector row and return its UUID string.
+
+        *created_by* is the only source of the identity whose OAuth token the
+        connector may spend (BUG-4); it is never taken from client config.
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot create connector: DB not connected")
         from psycopg.types.json import Jsonb
@@ -48,11 +53,12 @@ class ConnectorsMixin(MixinHost):
                 cur.execute(
                     """
                     INSERT INTO connectors
-                        (id, workspace_id, connector_type, display_name, config, sync_interval)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                        (id, workspace_id, connector_type, display_name, config,
+                         sync_interval, created_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
                     (connector_id, workspace_id, connector_type,
-                     display_name, Jsonb(config), sync_interval),
+                     display_name, Jsonb(config), sync_interval, created_by),
                 )
                 conn.commit()
         logger.info(f"[Connectors] Created {connector_type} connector id={connector_id}")
@@ -66,7 +72,7 @@ class ConnectorsMixin(MixinHost):
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT id, workspace_id, connector_type, display_name, config, "
-                    "enabled, sync_interval, last_sync_at, last_error, created_at "
+                    "enabled, sync_interval, last_sync_at, last_error, created_at, created_by "
                     "FROM connectors WHERE id = %s AND deleted_at IS NULL",
                     (connector_id,),
                 )
@@ -94,7 +100,7 @@ class ConnectorsMixin(MixinHost):
             with conn.cursor() as cur:
                 cur.execute(
                     f"SELECT id, workspace_id, connector_type, display_name, config, "
-                    f"enabled, sync_interval, last_sync_at, last_error, created_at "
+                    f"enabled, sync_interval, last_sync_at, last_error, created_at, created_by "
                     f"FROM connectors {where} ORDER BY created_at",
                     params,
                 )
@@ -307,4 +313,5 @@ def _row_to_connector(row: tuple) -> dict[str, Any]:
         "last_sync_at": row[7].isoformat() if row[7] else None,
         "last_error": row[8],
         "created_at": row[9].isoformat() if row[9] else None,
+        "created_by": str(row[10]) if len(row) > 10 and row[10] else None,
     }

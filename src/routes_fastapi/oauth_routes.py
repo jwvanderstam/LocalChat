@@ -11,8 +11,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from .. import config
-from ..security_fastapi import get_current_user_id, require_auth
+from ..security_fastapi import require_auth
 from ..utils.logging_config import get_logger
+from ._authz import require_caller
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -100,7 +101,7 @@ def microsoft_callback(request: Request) -> JSONResponse:
 
     expires_in = int(data.get("expires_in", 3600))
     expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
-    user_id = get_current_user_id(request) or "admin"
+    user_id = require_caller(request)
 
     request.app.state.db.upsert_oauth_token(
         user_id=user_id,
@@ -117,7 +118,7 @@ def microsoft_callback(request: Request) -> JSONResponse:
 @router.get("/oauth/microsoft/status")
 def microsoft_status(request: Request) -> JSONResponse:
     require_auth(request)
-    user_id = get_current_user_id(request) or "admin"
+    user_id = require_caller(request)
     db = request.app.state.db
     token = db.get_oauth_token(user_id, "microsoft")
     if not token:
@@ -129,7 +130,7 @@ def microsoft_status(request: Request) -> JSONResponse:
 @router.delete("/oauth/microsoft/disconnect")
 def microsoft_disconnect(request: Request) -> JSONResponse:
     require_auth(request)
-    user_id = get_current_user_id(request) or "admin"
+    user_id = require_caller(request)
     deleted = request.app.state.db.delete_oauth_token(user_id, "microsoft")
     return JSONResponse({"success": True, "removed": deleted})
 
@@ -200,7 +201,7 @@ def google_callback(request: Request) -> JSONResponse:
 
     expires_in = int(data.get("expires_in", 3600))
     expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
-    user_id = get_current_user_id(request) or "admin"
+    user_id = require_caller(request)
 
     request.app.state.db.upsert_oauth_token(
         user_id=user_id,
@@ -217,7 +218,7 @@ def google_callback(request: Request) -> JSONResponse:
 @router.get("/oauth/google/status")
 def google_status(request: Request) -> JSONResponse:
     require_auth(request)
-    user_id = get_current_user_id(request) or "admin"
+    user_id = require_caller(request)
     db = request.app.state.db
     token = db.get_oauth_token(user_id, "google")
     if not token:
@@ -229,6 +230,6 @@ def google_status(request: Request) -> JSONResponse:
 @router.delete("/oauth/google/disconnect")
 def google_disconnect(request: Request) -> JSONResponse:
     require_auth(request)
-    user_id = get_current_user_id(request) or "admin"
+    user_id = require_caller(request)
     deleted = request.app.state.db.delete_oauth_token(user_id, "google")
     return JSONResponse({"success": True, "removed": deleted})
