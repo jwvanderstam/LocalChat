@@ -81,6 +81,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0013_documents_unique_filename_workspace.py` | Enforces one live document per (filename, workspace_id) |
 | `migrations/versions/0014_rbac1_backfill_workspace_members.py` | RBAC-1: backfills workspace_members — admins own every live workspace, other users get editor on the default one |
 | `migrations/versions/0015_workspace_api_keys.py` | Adds workspace_api_keys — scoped, revocable credentials for programmatic workspace access |
+| `migrations/versions/0016_connectors_created_by.py` | BUG-4: adds connectors.created_by — the only source of the identity whose OAuth token a connector may spend |
 | `docs/README.md` | Documentation index — Diátaxis quadrants; the map every other doc is reached from |
 | `docs/CONFIGURATION.md` | Configuration reference — every env var, default and effect (lifted out of README) |
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
@@ -159,6 +160,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 16 panels) |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
+| `tests/unit/test_oauth_routes_identity.py` | BUG-4 — the OAuth callbacks store a token against a real user or refuse; no `"admin"` string fallback |
 | `tests/unit/test_purge_preconditions.py` | The Clark-Wilson purge TPs — a cited conversation or a user with memberships is refused before any DELETE |
 | `tests/unit/test_processor_entity_extraction.py` | `_extract_entities` — GraphRAG is best-effort; a failure there never fails an ingest |
 | `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; runs ES modules that import their siblings (`chat.js`) as well as standalone scripts; how frontend branch logic is tested |

@@ -544,15 +544,54 @@ explicitly before either is touched; the default is that they stay.**
 > produced the duplicate revision id a day earlier. Re-derive from the code at the moment of acting,
 > per Chapter 9's rule applied to this project's own documents.
 
-### DEL-1b — Remove the unused cloud connectors ⬜ (**must land after TQ-1**)
+### DEL-1b — Cloud connectors: delete Confluence, retain Google Drive and OneDrive ⬜ (TQ-1 gate ✅ satisfied)
 
-**Delete:** `google_drive_connector.py` (197), `onedrive_connector.py` (158), `confluence_connector.py` (160), `google_auth.py` (66), plus their routes, tests and OAuth flows.
+> **Rewritten 2026-08-24.** The original ticket deleted all four files on a single "no real user" test.
+> That test now has a different answer for two of them: Google Drive and OneDrive are the named
+> candidates for actual use, with test cases to be supplied by the maintainer. This document's own
+> stated exemption — *"the only valid reason to drop DEL-1b is a concrete intent to use one of these
+> connectors"* — is therefore invoked rather than overridden. The original text is in git history.
+> **Sequencing gate satisfied:** TQ-1a and TQ-1b are both done, so the authz CI net the original
+> ticket waited for is already in place.
 
-**Keep:** local folder, S3/MinIO/R2, webhook, SharePoint (+ `microsoft_auth.py`) — the ones with a real user. The plugin contract (PC initiative) and the three MCP servers stay: they are the architecture, not the sprawl.
+**Delete — Confluence only:**
 
-**Why this half is sequenced behind TQ-1, and DEL-1a is not.** These four files are not isolated. They are threaded through `oauth_routes.py` (3 sites), `settings_routes.py` (3), `workspace_routes.py`, `connector_routes.py`, and are covered by 4 test modules with ~97 references. That is the same shared route surface RBAC-1 just rewrote and TQ-1 will mechanically enforce. Cutting OAuth paths out of those files *before* the authz CI job exists means doing it without the net that proves no route was left unprotected — and then touching the same files again when TQ-1 lands. Cut once, with the test that checks it already in place.
+- `src/connectors/confluence_connector.py` (191 lines) and `tests/unit/test_confluence_connector.py` (159)
+- `html2text==2025.4.15` (`requirements.txt:40`) — verified to have exactly one import site,
+  `confluence_connector.py:32`. Confluence is the only one of the three whose removal shrinks the
+  runtime dependency set of a deliberately distroless image.
+- `CONFLUENCE_URL` / `CONFLUENCE_EMAIL` / `CONFLUENCE_API_TOKEN` (`src/config.py:578-580`)
+- registrations in `src/connectors/registry.py` and `mcp_servers/cloud_connectors/server.py`
 
-**What is deliberately not an argument here:** `test_confluence_connector.py` has the largest test investment of the three (42 references). That is sunk cost, and if anything it is evidence *for* removal — those tests run on every suite execution, every Dependabot bump and every mutation sweep, for a connector with no user. The only valid reason to drop DEL-1b is a concrete intent to use one of these connectors; absent that, invested test code is a carrying cost, not an asset.
+Five tracked files plus a requirements line. Tombstone the removal commit so restoration is a
+`git revert` away.
+
+**Retain — Google Drive and OneDrive.** `google_auth.py` stays with Google Drive. `microsoft_auth.py`
+was never in scope: SharePoint keeps it alive regardless, which is why OneDrive's *marginal* carrying
+cost is close to zero — 187 lines plus a test module riding on auth infrastructure already retained.
+
+**Keep as before:** local folder, S3/MinIO/R2, webhook, SharePoint. The plugin contract and the three
+MCP servers stay — they are the architecture, not the sprawl.
+
+**What the retained code actually is — measured 2026-08-24, not assumed:**
+
+| Assumption | Verified state |
+|---|---|
+| "a working feature we would be throwing away" | **No.** `git grep -ril connector` over `templates/` and `static/js/` returns nothing. The entire connector subsystem has never had a UI, so no connector has ever run against a live account. |
+| "unused but harmless" | **No.** `docs/PERMISSIONS.md` lists **10 connector routes** as live product surface. The API claims a feature the product does not have — an exit-criterion-7 failure that exists today, independent of this ticket. |
+| "no dependency cost" | **True** for Google Drive and OneDrive: both use plain `requests` against Graph / Drive v3. |
+
+So the retained code is **design knowledge** — Graph delta queries, the Drive changes feed, token
+refresh, encrypted token storage — and not a shipped feature. Value it accordingly.
+
+**The sunk-cost argument, re-stated correctly.** The original ticket's reasoning against sunk cost
+holds *for code with no forward demand*, which is now Confluence alone; it does not apply to code with
+a named forward use. The place sunk cost would genuinely bite is not the ~400 retained lines — it is
+inheriting `config['user_id']` as an authorisation model because it happened to be there. Answer the
+authorisation question on a blank page (ROADMAP CONN-1), fix the defect it exposed (ROADMAP BUG-4),
+and keep whatever survives.
+
+
 ### DEL-2 — GraphRAG: earn its place or leave 🔬
 
 Build a small retrieval eval set first (20–30 question/expected-source pairs over the real document corpus — this asset outlives the decision and later serves RAG-tuning work). Measure retrieval quality with GraphRAG expansion on vs off. If 1-hop expansion does not measurably lift answer grounding on our own documents, `src/graph/` goes the way of DEL-1. No sentiment: the eval decides.

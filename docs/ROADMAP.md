@@ -590,7 +590,7 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 
 ---
 
-## Initiative 8 — Bug Fixes (found during Discord bridge integration, 2026-07-27)
+## Initiative 8 — Bug Fixes
 
 Two concrete bugs surfaced while wiring an external Discord bot to `/api/chat` via n8n. Both confirmed by code inspection plus a live curl test against the running instance, not just symptom reports.
 
@@ -653,6 +653,92 @@ Two distinct defects, and the second masked the first:
 
 ---
 
+### BUG-4 — A workspace owner can ingest another user's cloud drive ✅ (fixed, awaiting merge)
+
+**Found 2026-08-24** while re-deriving DEL-1b's removal surface from the code, per Chapter 9's rule that a plan is not evidence. Confirmed by reading the create path end to end.
+
+The credential model is per-user and correct: `oauth_tokens` is keyed `(user_id, provider)` (`src/db/oauth_tokens.py:49`). The connector model is per-workspace. **Nothing binds the two.**
+
+- `POST /api/connectors` (`src/routes_fastapi/connector_routes.py:64-107`) takes `config` verbatim from the request body and never records or checks the caller's identity.
+- `GoogleDriveConnector` resolves its token from that config — `get_valid_google_access_token(self.config['user_id'], db)` (`src/connectors/google_drive_connector.py:115`).
+- `validate_config` checks only that `user_id` is non-empty (`google_drive_connector.py:62-63`).
+- The route is `ws:owner`, not admin (`docs/PERMISSIONS.md:97`).
+
+So any workspace owner may create a connector carrying **another user's UUID** and sync that person's Google Drive into a workspace they control.
+
+**Three connectors, not two.** The ticket named Google Drive and OneDrive. `SharePointConnector` (`sharepoint_connector.py:96`) resolves its token the same way — and SharePoint is the one cloud connector DEL-1b retains for having a real user, so it is the most exposed of the three, not the least. All three are fixed together.
+
+**Reachability — why this is not an incident today.** No UI exists to complete an OAuth flow (`git grep -ril connector` over `templates/` and `static/js/` returns nothing), so no tokens are stored and the path is dead. It goes live the day the connector UI lands, which is exactly what CONN-2 builds. Fix it before that, not with it.
+
+**Fix, as shipped.** The owner became a column, not a config key — config is client-supplied and `PUT /api/connectors/{id}` can rewrite it, so overwriting the field would have left the hole open one request later.
+
+- Migration `0016_connectors_created_by.py` adds `connectors.created_by UUID REFERENCES users(id)`.
+- `BaseConnector.owner_user_id` joins `connector_id` and `workspace_id` as an attribute the registry sets after instantiation, read from `created_by`.
+- `BaseConnector.require_owner()` holds the invariant once; all three connectors call it and raise rather than fall back when no owner is bound. `validate_config` no longer asks for `user_id`.
+- `POST` and `PUT /api/connectors` **reject** a `user_id` in config with 400 rather than ignoring it, so an old client fails loudly instead of silently losing its meaning.
+- `_authz.require_caller()` is the single "who is this, or 401" guard, shared by the connector create path and all six OAuth sites.
+
+**Second defect in the same area — six sites, not one.** `get_current_user_id(request) or "admin"` appeared six times in `oauth_routes.py`, covering both callbacks, both status endpoints and both disconnects; all six now refuse instead of inventing an identity.
+
+> The first version of this fix wrote the same three-line guard at each of the six sites, and the same owner check into each of the three connectors. SonarCloud's quality gate caught it — 6.1% duplication against a 3% threshold, and 12 uncovered new lines in `oauth_routes.py`, because four of those guards sit behind `require_auth` and are unreachable by any test that does not forge a claimless token. Both collapsed into one shared helper each. The gate was right, and the second version is the better design regardless of the metric. Same shape as the `'anonymous'`-into-a-UUID-column defect RBAC-1 fixed; see the Sprint 6 notes.
+
+> **Left alone deliberately:** `src/security_fastapi.py:472` has the same `or "admin"` idiom in `_enforce_workspace_role`, but on a path where the caller has already passed a workspace check. Changing it means touching the authorisation module for a case with no demonstrated defect; recorded here rather than fixed.
+
+**Does not queue behind the production gate.** Sprint 5 precedent: a confirmed defect does not wait on a design question it has no dependency on. The fix is independent of CONN-1's design and makes that design safer to build.
+
+**Tests, as shipped** — each verified to fail with its fix reverted, per `.claude/rules/testing.md`:
+- `test_connector_routes_unit.py::TestConnectorOwnerBinding` — create and update reject a client-supplied `user_id`; create binds the caller; re-registration after an update carries the stored owner
+- the three connector modules — `_access_token` refuses with no bound owner, and spends the *bound* owner's token while config names a different one
+- `test_oauth_routes_identity.py` — both callbacks store nothing and return 401 unauthenticated, and store against the real user id when authenticated
+
+**Files:** `src/routes_fastapi/connector_routes.py`, `src/connectors/google_drive_connector.py`, `src/connectors/onedrive_connector.py`, `src/routes_fastapi/oauth_routes.py`, `src/db/connectors.py`, an additive migration for `connectors.created_by`
+
+---
+
+## Initiative 9 — Cloud Connectors: reachable, and safe to reach
+
+Google Drive and OneDrive were retained from DEL-1b on a stated intent to use them (2026-08-24). This initiative makes them real: the authorisation model first as a decision, then the UI that consumes it.
+
+**Gated behind the [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) Exit Criteria**, with one exception — BUG-4 is a defect and runs ahead, per the Sprint 5 precedent.
+
+---
+
+### CONN-1 — The connector authorisation model (decision before code) ⬜
+
+RBAC-1 settled document access *within* a workspace: membership is the boundary, no per-document ACL. Connecting a personal cloud store asks a question RBAC-1 did not: **is a connected store a personal resource or a workspace resource?**
+
+It matters because a connector is not an import. `SyncWorker` polls it continuously, so it is a standing pipe from a personal account into a shared space — and every workspace member, plus every global admin (who short-circuits workspace checks), can retrieve what comes through it.
+
+**Proposed answer — connecting is an act of publication, and must be explicit:**
+
+| Decision | Rule |
+|---|---|
+| Credential ownership | Stays personal. `oauth_tokens` keyed `(user_id, provider)` is already right — keep it. |
+| Which token a connector may use | Only its creator's. Bind `created_by`; never accept `user_id` as config. (That is BUG-4's fix; CONN-1 depends on it, not the reverse.) |
+| Sync scope | A folder the user selects, never the whole drive. Request the minimal OAuth scope that allows it. |
+| Disclosure | The connect dialog states who will be able to read the result: every member of this workspace, plus global admins. Informed consent, not discovery. |
+| Membership loss / user retirement | Sync stops. Documents already ingested remain — they are CDIs under Clark-Wilson — and their source is marked retired. |
+
+**Open question to settle before building:** creation is currently `ws:owner`, so an editor cannot connect their own drive at all. Decide whether that is the intent, or whether contributing your own store is an editor-level act while managing someone else's is not.
+
+**Acceptance:** the table above is confirmed or amended and recorded here as *decided* rather than proposed. No code in this ticket.
+
+---
+
+### CONN-2 — Connector UI in the document section ⬜ (blocked by CONN-1)
+
+The first UI the connector subsystem has ever had. It lives in the document section.
+
+- Connect / disconnect a Google or Microsoft account, driving the existing `/api/oauth/*` flows
+- Pick a folder to sync; show what will be ingested before confirming
+- List active connectors with last-sync status and history (`GET /api/connectors/{id}/history` already exists)
+- Every screen states the disclosure rule from CONN-1
+
+**Test cases supplied by the maintainer** for Google Drive and OneDrive — the first end-to-end verification either connector will have had.
+
+**Acceptance:** a user connects a folder, a document from it is retrievable in that workspace, and the 10 connector routes in [`PERMISSIONS.md`](PERMISSIONS.md) describe a feature that exists — closing the exit-criterion-7 gap DEL-1b's rewrite recorded.
+
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -667,14 +753,18 @@ Two distinct defects, and the second masked the first:
 | 6 | RBAC-1 (enforce the workspace role tier) ✅ done & merged (#221, #219, #220, UI half; fixes #222, #223, #225) | — |
 | 6b | RBAC-2 (route permission audit) ✅ done — see [PERMISSIONS.md](PERMISSIONS.md); CW-3 (audit log) ⏭️ deferred to v4.0 | — |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
+| 7b | BUG-4 (bind a connector to its creator; six `or "admin"` fallbacks in the OAuth routes) ✅ fixed, awaiting merge | — |
 | PG-0..PG-8 | **Production-grade hardening** — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gates everything below. | ~8 weeks |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
 | 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
-| **Total** | | **~14 weeks** (+ ~8 weeks PG-0..PG-8, which gates Sprints 8-12) |
+| 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
+| 14 | CONN-2 (connector UI in the document section; maintainer-supplied Google Drive / OneDrive test cases) | 1–2 weeks |
+| **Total** | | **~16 weeks** (+ ~8 weeks PG-0..PG-8, which gates Sprints 8-14) |
 
+> **Connectors re-scoped 2026-08-24.** DEL-1b was rewritten rather than executed: Confluence is deleted (no forward use, and the only one of the three carrying a pip dependency), while Google Drive and OneDrive are retained on a stated intent to use them, with maintainer-supplied test cases coming. Re-deriving the removal surface from the code — rather than trusting the ticket — turned up BUG-4 and the fact that the connector subsystem has **never had a UI**, so `PERMISSIONS.md` has been advertising 10 routes for a feature that does not exist. Initiative 9 (CONN-1, CONN-2) makes it real; BUG-4 lands ahead of the gate. Same lesson as DEL-1a a fortnight earlier: a plan is not evidence.
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
 > **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
 > **Sprint 3 complete:** CW-2a + CW-2b (conversations and users soft-delete, #124). **Sprint 4 complete:** CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors soft-delete, #126).

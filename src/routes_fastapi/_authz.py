@@ -6,10 +6,10 @@ the route layer already uses, so the security module stays free of response shap
 
 from __future__ import annotations
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from ..security_fastapi import check_workspace_access
+from ..security_fastapi import check_workspace_access, get_current_user_id
 
 
 def deny(request: Request, workspace_id: str | None, min_role: str) -> JSONResponse | None:
@@ -24,3 +24,16 @@ def deny(request: Request, workspace_id: str | None, min_role: str) -> JSONRespo
         return None
     code, message = denial
     return JSONResponse({"success": False, "message": message}, status_code=code)
+
+
+def require_caller(request: Request) -> str:
+    """Return the authenticated caller's id, or raise 401.
+
+    Six OAuth routes and the connector create path used to fall back to the
+    literal string ``"admin"`` here, putting a non-identity where a user id was
+    expected (BUG-4). There is no safe default for "who is this", so refuse.
+    """
+    user_id = get_current_user_id(request)
+    if not user_id:
+        raise HTTPException(401, detail={"message": "Authentication required"})
+    return user_id

@@ -75,3 +75,72 @@ class TestConnectorRoutesErrors:
         assert resp.status_code == 400
         assert resp.json()['message'] == 'Invalid connector configuration'
 
+
+
+class TestConnectorOwnerBinding:
+    """BUG-4 — a connector spends its creator's OAuth token, nobody else's."""
+
+    @staticmethod
+    def _registry(app) -> MagicMock:
+        instance = MagicMock()
+        instance.validate_config.return_value = []
+        instance.display_name = 'Test'
+        cls = MagicMock(return_value=instance)
+        registry = MagicMock()
+        registry.available_types.return_value = ['google_drive']
+        registry.get_class.return_value = cls
+        app.state.connector_registry = registry
+        return registry
+
+    def test_create_rejects_a_client_supplied_owner(self, client, app):
+        self._registry(app)
+        app.state.db.create_connector = MagicMock(return_value='new-id')
+
+        resp = client.post(
+            '/api/connectors',
+            json={'connector_type': 'google_drive', 'config': {'user_id': 'someone-else'}},
+        )
+
+        assert resp.status_code == 400
+        assert 'user_id' in resp.json()['message']
+        app.state.db.create_connector.assert_not_called()
+
+    def test_create_binds_the_caller_as_owner(self, client, app):
+        registry = self._registry(app)
+        app.state.db.create_connector = MagicMock(return_value='new-id')
+        app.state.db.get_connector = MagicMock(return_value={'id': 'new-id'})
+
+        resp = client.post(
+            '/api/connectors',
+            json={'connector_type': 'google_drive', 'config': {'folder_id': 'f1'}},
+        )
+
+        assert resp.status_code == 201
+        created_by = app.state.db.create_connector.call_args.kwargs['created_by']
+        assert created_by
+        assert registry.add.call_args.kwargs['owner_user_id'] == created_by
+
+    def test_update_rejects_a_client_supplied_owner(self, client, app):
+        app.state.db.update_connector = MagicMock(return_value=True)
+
+        resp = client.put(
+            '/api/connectors/some-id',
+            json={'config': {'user_id': 'someone-else'}},
+        )
+
+        assert resp.status_code == 400
+        assert 'user_id' in resp.json()['message']
+        app.state.db.update_connector.assert_not_called()
+
+    def test_reregistration_after_update_carries_the_stored_owner(self, client, app):
+        registry = self._registry(app)
+        app.state.db.update_connector = MagicMock(return_value=True)
+        app.state.db.get_connector = MagicMock(return_value={
+            'id': 'some-id', 'connector_type': 'google_drive', 'config': {},
+            'enabled': True, 'workspace_id': 'ws-1', 'created_by': 'creator',
+        })
+
+        resp = client.put('/api/connectors/some-id', json={'enabled': True})
+
+        assert resp.status_code == 200
+        assert registry.add.call_args.kwargs['owner_user_id'] == 'creator'

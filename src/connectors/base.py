@@ -49,17 +49,29 @@ class BaseConnector(ABC):
         poll()         — return events since the last poll
         fetch(source)  — download raw bytes for a document
 
-    The ``connector_id`` and ``workspace_id`` attributes are set by
-    ``ConnectorRegistry`` after the connector is instantiated, so they
+    The ``connector_id``, ``workspace_id`` and ``owner_user_id`` attributes are
+    set by ``ConnectorRegistry`` after the connector is instantiated, so they
     are available throughout the connector's lifecycle.
     """
 
     # Set by ConnectorRegistry after instantiation
     connector_id: str = ""
     workspace_id: str | None = None
+    # The user whose stored OAuth token this connector may spend. Read from the
+    # connectors.created_by column, never from config — client-supplied config
+    # would let any workspace owner name someone else's account (BUG-4).
+    owner_user_id: str | None = None
 
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
+
+    def require_owner(self) -> str:
+        """Return the user whose OAuth token this connector may spend, or raise."""
+        if not self.owner_user_id:
+            raise RuntimeError(
+                "Connector has no bound owner; reconnect it so it names an account."
+            )
+        return self.owner_user_id
 
     @property
     @abstractmethod
