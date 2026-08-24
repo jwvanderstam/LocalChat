@@ -230,16 +230,31 @@ on the *worst* probe rather than an average — the pre-PERF-1 shape was a healt
 one 848 ms stall, which a mean-based gate passes — and it treats an empty sample as a
 failure, because a canary that never ran measured nothing and silence must not read green.
 
-**Still open: the job itself, and its number.** The harness exists —
-`tests/e2e/conftest.py` already boots a real uvicorn against CI's Postgres and TQ-2's fake
-Ollama, so a perf job reuses it rather than orchestrating its own. What is missing is a
-defensible budget. A healthy loop answers in single-digit milliseconds and a blocked one
-in hundreds, but nobody has measured where a GitHub runner sits between those under load,
-and guessing produces either a gate that flakes or one that never fires — the two ways a
-CI job gets ignored. **Take one calibration run reporting the canary without a budget,
-then set the threshold from the observed spread**, the same measure-then-decide sequence
-PERF-2 itself followed. The job stays out of the required set until it has run green
-repeatedly.
+**Job landed 2026-08-24** as `perf-canary` in `tests.yml`, driving `tests/perf/` — which
+reuses TQ-4's `live_server` rather than orchestrating a second harness, via a `server_env`
+fixture the perf suite overrides. Every run prints the observed spread.
+
+Two things the first local run exposed, both of which would have made a naive job lie:
+
+- **At 200 requests, 190 came back 429.** `RATELIMIT_CHAT` defaults to *10 per minute*, so
+  a concurrency benchmark measures slowapi rather than the event loop. The perf suite
+  raises it. Note what this implies about the numbers in the table above: they were taken
+  at `--requests 10`, which is *exactly* the ceiling — one more request and the run would
+  have been silently measuring the rate limiter. Anyone re-running this benchmark at
+  higher load must raise the limit first.
+- **A short run measures nothing.** With generation stubbed the load finished inside a
+  second and the canary — which polls every 100 ms — collected *one* probe. A gate would
+  have passed on a sample of one. `REQUESTS` is now sized so the run outlasts the poll,
+  and `MIN_PROBES` fails the test rather than letting a too-fast run read as green.
+
+**Local calibration, 600 requests at 10 concurrent, isolated Postgres:** canary p50 21 ms,
+p95 27 ms, **max 138 ms**; 600/600 streams completed.
+
+**Still open: the number.** `CANARY_CEILING_MS` is 5000 — loose on purpose. It catches a
+*blocked* loop, not a slow one, which is the regression class that matters, and it cannot
+flake on a shared runner. Tighten it once several CI runs have shown the spread there; the
+local max of 138 ms suggests a real budget in the hundreds, but one machine is not a
+sample. The job stays out of the required set until it has run green repeatedly.
 
 > **The success criterion below should be restated.** "p95 time-to-first-token at 10
 > concurrent users" measures Ollama's throughput, not the application's concurrency. The

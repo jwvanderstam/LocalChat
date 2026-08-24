@@ -165,7 +165,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; runs ES modules that import their siblings (`chat.js`) as well as standalone scripts; how frontend branch logic is tested |
 | `tests/utils/auth.py` | `auth_headers()`, `authorise_db()`, `authenticated_state()` — how a test authenticates for real; replaced the `app.state.testing` bypass (TQ-1b) |
 | `tests/utils/fake_ollama.py` | TQ-2 stub for Ollama — bag-of-words embeddings (deterministic, and meaningful so ranking assertions are real) plus a canned chat stream |
-| `tests/e2e/conftest.py` | Starts a real LocalChat (uvicorn subprocess + CI's Postgres + TQ-2's fake Ollama) and points Playwright's `base_url` at it |
+| `tests/e2e/conftest.py` | Starts a real LocalChat (uvicorn subprocess + CI's Postgres + TQ-2's fake Ollama) and points Playwright's `base_url` at it; `server_env` lets a suite override the server's environment |
+| `tests/perf/conftest.py` | Reuses `live_server`, raising `RATELIMIT_CHAT` — at its 10/min default a concurrency run measures slowapi, not the event loop |
+| `tests/perf/test_concurrency_canary.py` | PERF-2 — `/api/health` stays answerable while concurrent SSE streams run; prints the canary spread every run |
 | `tests/e2e/test_golden_path.py` | TQ-4 — sign in, upload, ask, and the answer cites the uploaded file; the whole frontend test strategy |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |

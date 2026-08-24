@@ -52,7 +52,18 @@ def _serving(url: str) -> bool:
 
 
 @pytest.fixture(scope="session")
-def live_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+def server_env() -> dict[str, str]:
+    """Extra environment for the server under test. Overridden per suite.
+
+    The perf suite raises the chat rate limit through this: a concurrency
+    benchmark that trips the limiter measures the limiter.
+    """
+    return {}
+
+
+@pytest.fixture(scope="session")
+def live_server(tmp_path_factory: pytest.TempPathFactory,
+                server_env: dict[str, str]) -> Iterator[str]:
     """A bootstrapped LocalChat on a free port. Yields its base URL."""
     ollama = FakeOllama()
     ollama_url = ollama.start()
@@ -71,6 +82,7 @@ def live_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         "APP_ENV": "development",
         "SECRET_KEY": "e2e-secret-key-32-characters-long!",
         "JWT_SECRET_KEY": "e2e-jwt-secret-key-32-characters!",
+        **server_env,
     }
 
     with log_path.open("w", encoding="utf-8") as log:
