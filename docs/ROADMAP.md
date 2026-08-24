@@ -653,7 +653,7 @@ Two distinct defects, and the second masked the first:
 
 ---
 
-### BUG-4 — A workspace owner can ingest another user's cloud drive ✅ (fixed, awaiting merge)
+### BUG-4 — A workspace owner can ingest another user's cloud drive ✅ (done, merged #308)
 
 **Found 2026-08-24** while re-deriving DEL-1b's removal surface from the code, per Chapter 9's rule that a plan is not evidence. Confirmed by reading the create path end to end.
 
@@ -753,7 +753,7 @@ The first UI the connector subsystem has ever had. It lives in the document sect
 | 6 | RBAC-1 (enforce the workspace role tier) ✅ done & merged (#221, #219, #220, UI half; fixes #222, #223, #225) | — |
 | 6b | RBAC-2 (route permission audit) ✅ done — see [PERMISSIONS.md](PERMISSIONS.md); CW-3 (audit log) ⏭️ deferred to v4.0 | — |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
-| 7b | BUG-4 (bind a connector to its creator; six `or "admin"` fallbacks in the OAuth routes) ✅ fixed, awaiting merge | — |
+| 7b | BUG-4 (bind a connector to its creator; six `or "admin"` fallbacks in the OAuth routes) ✅ done & merged (#308) | — |
 | PG-0..PG-8 | **Production-grade hardening** — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gates everything below. | ~8 weeks |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |

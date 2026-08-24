@@ -135,7 +135,6 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/connectors/microsoft_auth.py` | `get_valid_access_token` — checks expiry, refreshes via Graph |
 | `src/connectors/google_drive_connector.py` | Google Drive connector — Drive API v3 changes feed |
 | `src/connectors/google_auth.py` | `get_valid_google_access_token` — checks expiry, refreshes via Google OAuth2 |
-| `src/connectors/confluence_connector.py` | Confluence Cloud connector — CQL `lastModified` polling, Basic auth |
 | `src/connectors/registry.py` | `ConnectorRegistry` singleton |
 | `src/connectors/worker.py` | `SyncWorker` daemon — polls connectors, ingests changes |
 | **MCP servers** | |

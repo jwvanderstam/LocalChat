@@ -113,8 +113,8 @@ workspace.
 `deleted_at`; purging is a separate, admin-only operation with preconditions. See the
 Clark-Wilson section in [CLAUDE.md](CLAUDE.md).
 
-**Sources.** Document connectors for local folders, S3, SharePoint, OneDrive, Google Drive,
-Confluence and webhooks. Plugins extend the application without modifying it, under an
+**Sources.** Document connectors for local folders, S3, SharePoint, OneDrive, Google Drive
+and webhooks. Plugins extend the application without modifying it, under an
 [inward-only dependency contract](.claude/rules/plugins.md).
 
 ## How it works

@@ -544,7 +544,7 @@ explicitly before either is touched; the default is that they stay.**
 > produced the duplicate revision id a day earlier. Re-derive from the code at the moment of acting,
 > per Chapter 9's rule applied to this project's own documents.
 
-### DEL-1b — Cloud connectors: delete Confluence, retain Google Drive and OneDrive ⬜ (TQ-1 gate ✅ satisfied)
+### DEL-1b — Cloud connectors: delete Confluence, retain Google Drive and OneDrive ✅ (done)
 
 > **Rewritten 2026-08-24.** The original ticket deleted all four files on a single "no real user" test.
 > That test now has a different answer for two of them: Google Drive and OneDrive are the named
