@@ -572,13 +572,6 @@ GOOGLE_REDIRECT_URI: str = os.environ.get(
     'http://localhost:5000/api/oauth/google/callback',
 )
 
-# ============================================================================
-# CONFLUENCE CONFIGURATION
-# ============================================================================
-CONFLUENCE_URL: str = os.environ.get('CONFLUENCE_URL', '')
-CONFLUENCE_EMAIL: str = os.environ.get('CONFLUENCE_EMAIL', '')
-CONFLUENCE_API_TOKEN: str = os.environ.get('CONFLUENCE_API_TOKEN', '')
-
 # Fernet key for encrypting sensitive text columns at rest.  Generate with:
 #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 # TOKEN_ENCRYPTION_KEY is accepted as a legacy alias for backward compatibility.

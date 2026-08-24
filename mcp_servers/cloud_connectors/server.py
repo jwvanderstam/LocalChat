@@ -65,7 +65,7 @@ def list_sources() -> list[dict]:
 
 _server.register_tool(
     name="search",
-    description="Search cloud document sources (SharePoint, OneDrive, S3, Confluence)",
+    description="Search cloud document sources (SharePoint, OneDrive, Google Drive, S3)",
     input_schema={
         "type": "object",
         "properties": {

@@ -18,7 +18,6 @@ from typing import Any
 
 from ..utils.logging_config import get_logger
 from .base import BaseConnector
-from .confluence_connector import ConfluenceConnector
 from .google_drive_connector import GoogleDriveConnector
 from .local_folder import LocalFolderConnector
 from .onedrive_connector import OneDriveConnector
@@ -35,7 +34,6 @@ _CONNECTOR_CLASSES: dict[str, type[BaseConnector]] = {
     "sharepoint": SharePointConnector,
     "onedrive": OneDriveConnector,
     "google_drive": GoogleDriveConnector,
-    "confluence": ConfluenceConnector,
 }
 
 
