@@ -12,6 +12,19 @@ updates:
     labels:
       - "dependencies"
       - "automated"
+    ignore:
+      # onnxruntime 1.29.0 segfaults on import inside the hardened runtime base:
+      # the image builds and publishes cleanly, then dies with exit 139 and no
+      # traceback. That is the exact failure docker-smoke was built to catch
+      # (LESSONS_LEARNED Ch. 17), and it caught this bump in #305 — where it was
+      # riding in a group with three harmless updates that could not land while
+      # it was there.
+      #
+      # Pinned to the single bad version, not the 1.29 line: 1.29.0 is currently
+      # the latest release, so a 1.29.1 will still be proposed and should be
+      # tried. Remove this entry once one imports in the image.
+      - dependency-name: "onnxruntime"
+        versions: ["1.29.0"]
     groups:
       # Collapses routine bumps so open-pull-requests-limit stops binding and
       # never silently suppresses an update. Majors stay ungrouped — those are
