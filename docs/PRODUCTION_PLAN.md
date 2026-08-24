@@ -273,7 +273,9 @@ ten observations were in hand, not on the strength of the first — a threshold 
 measurement is the mistake Ch. 18 records. Raise it only with evidence of a legitimately
 slower runner, never to clear a red run; that is how a budget stops meaning anything.
 
-The job stays out of the required set until it has run green repeatedly.
+**Required as of 2026-08-24.** Eleven green runs, then added to the "Code Verification"
+ruleset alongside `unit-tests`, `integration-tests`, `repo-hygiene` and `docker-smoke`,
+and verified by reading the ruleset back through the API.
 
 > **The success criterion below should be restated.** "p95 time-to-first-token at 10
 > concurrent users" measures Ollama's throughput, not the application's concurrency. The

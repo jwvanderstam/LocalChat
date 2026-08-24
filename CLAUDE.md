@@ -185,14 +185,28 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Pull Requests and Merging
 
 **`main` is gated.** The "Code Verification" ruleset targets the default branch
-and requires four checks to pass before anything merges: `unit-tests`,
-`integration-tests`, `repo-hygiene`, `docker-smoke`. A PR with red or missing
-checks cannot be merged — this is enforced, not a convention.
+and requires five checks to pass before anything merges: `unit-tests`,
+`integration-tests`, `repo-hygiene`, `docker-smoke`, `perf-canary`. A PR with red
+or missing checks cannot be merged — this is enforced, not a convention.
 
 `docker-smoke` joined the set on 2026-08-19, once #287 had given it a run on the
 default branch — a check cannot be referenced by the ruleset before it has reported
 there at least once. It catches the one failure invisible to every other job: an
-image that builds and publishes cleanly and then will not start.
+image that builds and publishes cleanly and then will not start. It earned the place
+immediately: on 2026-08-24 it was the only check to fail a Dependabot bump that would
+have shipped an image dying with exit 139 (`onnxruntime` 1.29.0 again — see
+LESSONS_LEARNED Ch. 17).
+
+`perf-canary` joined on 2026-08-24, under the same precondition and only after a
+track record. It watches a `/api/health` probe while concurrent SSE streams run —
+the one metric that sees a blocked event loop, since time-to-first-token is
+dominated by the queue at the model. It was held out of the set deliberately while
+its budget was a guess; eleven runs put the worst probe between 201 ms and 293 ms, a
+1.5x spread, so the 1000 ms ceiling sits at 3.4x headroom over anything observed and
+well under the ~1.4 s a regression would show. A timing-sensitive job *can* flake,
+which is why the ceiling is set from the distribution rather than from ambition —
+and why raising it to clear a red run is explicitly forbidden in
+`tests/perf/test_concurrency_canary.py`.
 
 Verify the set by reading it back through the API, not from the settings UI — see
 LESSONS_LEARNED Ch. 11 on a ruleset that rendered as correct in the form that
@@ -202,7 +216,7 @@ created it:
 gh api repos/jwvanderstam/LocalChat/rulesets/14700924 --jq '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | "\(.context) \(.integration_id)"]'
 ```
 
-All four must report `integration_id 15368` — a same-named check from another app
+All five must report `integration_id 15368` — a same-named check from another app
 would satisfy the ruleset without running this workflow.
 
 Deliberately *not* required: `build-and-push` (15–20 min, would block every
