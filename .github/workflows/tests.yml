@@ -237,6 +237,51 @@ jobs:
       - name: Run end-to-end tests
         run: pytest tests/e2e/ -v --tb=short --no-cov
 
+  # PERF-2's canary: a /api/health probe polled while concurrent SSE streams run.
+  # It is the one metric that sees a blocked event loop — time-to-first-token is
+  # dominated by the queue at the model, and three runs of one build spread wider
+  # than the fix PERF-1 made. Deliberately not in the required set until several
+  # runs have shown the spread on a runner; its ceiling is loose by design until
+  # then, and every run prints the observed numbers.
+  perf-canary:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: rag_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # -s so the measured numbers reach the log: this job exists to report them,
+      # not only to pass. --no-cov for the same reason e2e skips it — the server
+      # runs in a subprocess the coverage plugin never sees.
+      - name: Measure event-loop responsiveness under load
+        run: pytest tests/perf/ -v --tb=short --no-cov -s
+
   # The hardened runtime base has no shell and no package manager, so a missing
   # system library surfaces as SIGSEGV at import time rather than as a build
   # error: the image builds, then dies with exit 139 and no traceback.

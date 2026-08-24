@@ -96,9 +96,12 @@ async def _canary(url: str, stop: asyncio.Event, out: list[float]) -> None:
             await asyncio.sleep(0.1)
 
 
-async def _run(args: argparse.Namespace) -> list[Sample]:
+async def _run(args: argparse.Namespace, headers: dict[str, str] | None = None) -> list[Sample]:
     url = args.url.rstrip("/") + "/api/chat"
-    headers = {"Authorization": f"Bearer {args.key}"} if args.key else {}
+    # Explicit headers let a caller authenticate with a session cookie instead of a
+    # workspace key — which is what the CI harness has, since it signs in as a user.
+    if headers is None:
+        headers = {"Authorization": f"Bearer {args.key}"} if args.key else {}
     limits = httpx.Limits(max_connections=args.clients * 2)
     semaphore = asyncio.Semaphore(args.clients)
 
