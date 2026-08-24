@@ -1,9 +1,9 @@
 # Web Framework — FastAPI (ASGI)
 fastapi==0.141.1
-uvicorn[standard]==0.52.3
+uvicorn[standard]==0.52.4
 httpx==0.28.1          # FastAPI TestClient + async HTTP
 
-gunicorn==26.0.0
+gunicorn==26.1.0
 Werkzeug==3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
 
 # Caching
@@ -37,7 +37,7 @@ onnxruntime==1.28.0
 langdetect==1.0.9      # Language detection for multilingual document support
 python-docx==1.2.0
 python-pptx==1.0.2
-reportlab==5.0.0             # PDF export for conversation download (optional)
+reportlab==5.0.1             # PDF export for conversation download (optional)
 kuzu==0.11.3               # Graph store backend (optional; set GRAPH_BACKEND=kuzu to activate)
 openpyxl==3.1.5         # Excel (.xlsx) ingestion
 litellm==1.97.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
@@ -76,7 +76,7 @@ pytest-cov==7.1.0
 pytest-mock==3.15.1
 pytest-asyncio==1.4.0
 pytest-playwright==0.9.0   # tests/e2e browser suite — also run: playwright install chromium
-faker==40.36.0
+faker==40.37.0
 responses==0.26.2
 freezegun==1.5.5
 coverage==7.15.4
