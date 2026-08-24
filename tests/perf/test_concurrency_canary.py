@@ -42,16 +42,20 @@ bench = importlib.util.module_from_spec(_SPEC)
 sys.modules["bench_concurrency"] = bench
 _SPEC.loader.exec_module(bench)
 
-#: Deliberately loose, and not yet the real budget. A healthy loop answers in
-#: single-digit milliseconds; a held one answers in hundreds to seconds. Where a
-#: shared CI runner sits between those under load has never been measured, and a
-#: threshold guessed tight enough to be interesting is a threshold that flakes —
-#: which is how a job teaches people to ignore it.
+#: Set from ten observed runs on GitHub runners, not from a guess. Worst probe
+#: per run: 201, 219, 237, 241, 249, 262, 271, 278, 287, 293 ms — a spread of
+#: only 1.5x between best and worst, so the distribution is well behaved and a
+#: threshold is meaningful rather than a coin toss.
 #:
-#: So this ceiling catches a *blocked* loop, not a slow one, and every run prints
-#: the observed spread. Tighten it from those numbers once several runs exist;
-#: until then the assertion is real but generous.
-CANARY_CEILING_MS = 5_000
+#: 1000ms is 3.4x the worst of those, which leaves room for a noisy neighbour
+#: while still discriminating: PERF-1's pre-fix worst case was 848ms locally,
+#: and this runner sits around 1.6-1.9x local, so the regression this exists to
+#: catch would land near 1.4-1.6s. Healthy runs are ~250ms; a held loop is
+#: seconds. The gap between them is where this number belongs.
+#:
+#: Raise it only with evidence of a legitimately slower runner, never to make a
+#: red run go away — that is how a budget stops meaning anything.
+CANARY_CEILING_MS = 1_000
 
 CLIENTS = 10
 #: Sized so the run outlasts the canary's 100ms poll by a wide margin. The first

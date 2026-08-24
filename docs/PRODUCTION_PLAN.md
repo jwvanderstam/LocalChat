@@ -257,20 +257,23 @@ Two things the first local run exposed, both of which would have made a naive jo
 The runner is roughly 1.6x the local machine at the worst probe — far closer than the
 order-of-magnitude spread that was feared, which is what makes a real budget tractable.
 
-**Still open: the number.** `CANARY_CEILING_MS` is 5000 — loose on purpose. It catches a
-*blocked* loop, not a slow one, which is the regression class that matters, and it cannot
-flake on a shared runner.
+**The number, set 2026-08-24 from ten runs.** `CANARY_CEILING_MS` is **1000 ms**.
 
-**Indicated next value: ~1000 ms.** That is roughly 4.5x the observed runner max, while
-still catching the regression: the pre-PERF-1 worst case was 848 ms locally, which at the
-runner's 1.6x ratio extrapolates to about 1.4 s. So 1000 ms discriminates between a healthy
-loop and a held one with headroom on both sides.
+Worst probe per run on GitHub runners: 201, 219, 237, 241, 249, 262, 271, 278, 287, 293 ms
+— a spread of only 1.5x between best and worst. Well behaved enough that a threshold means
+something rather than tracking runner noise.
 
-**Not applied yet, deliberately.** That is one CI observation. Tightening a threshold from
-a single measurement is the exact mistake Ch. 18 records two rows above — a sample of one
-is not a measurement — and a perf budget set from one noisy-neighbour-free run is how a job
-starts flaking. Let several runs accumulate on `main`, then set it. The job stays out of
-the required set until it has run green repeatedly.
+1000 ms is 3.4x the worst of those, and it discriminates: healthy runs sit near 250 ms, a
+held loop is seconds, and the regression this exists to catch — PERF-1's pre-fix 848 ms
+locally, at this runner's 1.6-1.9x ratio — would land around 1.4-1.6 s. The budget sits in
+the gap between the two.
+
+The first value was 5000 ms, set before any runner data existed. It was tightened only once
+ten observations were in hand, not on the strength of the first — a threshold from a single
+measurement is the mistake Ch. 18 records. Raise it only with evidence of a legitimately
+slower runner, never to clear a red run; that is how a budget stops meaning anything.
+
+The job stays out of the required set until it has run green repeatedly.
 
 > **The success criterion below should be restated.** "p95 time-to-first-token at 10
 > concurrent users" measures Ollama's throughput, not the application's concurrency. The
