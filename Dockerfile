@@ -28,11 +28,19 @@
 # variant deliberately omits. Nothing from it reaches the final image.
 FROM dhi.io/python:3.12-dev@sha256:3b5bbcb41fec489a9ab2c5a16a8bd7cc915526e6e73954415168f9f57f3b58d7 AS builder
 
-# System deps needed to compile native extensions (psycopg, etc.)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# No apt layer, deliberately. Nothing in requirements.txt needs a compiler:
+# every dependency but one ships a manylinux wheel, and the exception
+# (langdetect) is pure Python, so pip builds it with setuptools alone —
+# verified by installing it in this base, which carries no gcc at all.
+# psycopg[binary] vendors libpq, so libpq-dev was never needed either.
+#
+# Removing it also fixes a build a pinned digest could not protect. The base is
+# pinned; the apt repositories it points at are not. DHI ships hardened rebuilds
+# (libbz2-1.0 1.0.8-6+dhi2, gcc-14-base 14.2.0-19+dhi3, libssl3t64 ...+dhi1,
+# perl-base ...+dhi7) while the Debian trixie packages that build-essential and
+# libpq-dev pull in depend on the unpatched versions by exact equality. Once DHI
+# published those rebuilds the two sets became unsatisfiable together and every
+# image build failed, on unchanged source.
 
 WORKDIR /build
 
