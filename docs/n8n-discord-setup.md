@@ -102,3 +102,11 @@ and send it with the next message. Without it, every message starts a new conver
 **Testing.** Use "Debug in editor" against an existing execution to iterate on the HTTP
 Request and Code nodes without sending a real Discord message. Running the node standalone
 leaves it waiting on the Test URL.
+
+## Getting help
+
+If none of the above covers it, ask in the LocalChat Discord:
+**https://discord.gg/QJVzvdFYje**
+
+Bring the HTTP Request node's raw response — the SSE parsing problems in this guide are
+much easier to diagnose from the actual body than from a description of it.
