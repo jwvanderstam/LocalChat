@@ -168,7 +168,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/e2e/conftest.py` | Starts a real LocalChat (uvicorn subprocess + CI's Postgres + TQ-2's fake Ollama) and points Playwright's `base_url` at it |
 | `tests/e2e/test_golden_path.py` | TQ-4 — sign in, upload, ask, and the answer cites the uploaded file; the whole frontend test strategy |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
-| `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop |
+| `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
+| `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
 | `tests/unit/test_security_contract.py` | TQ-3 — the auth layer's observable contract, written against named surviving mutants |
 | `tests/unit/test_workspace_access_contract.py` | TQ-3 — the workspace authorisation path, same method |

@@ -217,13 +217,29 @@ concurrent request") overstates the impact at current scale.
 *Still open:* 305 ms of worst-case stall remains after the fix, so something in the chat
 path still blocks. Not chased in this PR.
 
-*CI wiring waits on TQ-2.* A `workflow_dispatch` job needs a live Ollama, which means a
-multi-gigabyte model pull per run — slow, and flaky in a way that teaches people to
-ignore the job. TQ-2's fake Ollama fixes that, and fixes it in the right direction: with
-generation stubbed, TTFT becomes meaningless but **the canary stays valid**, so the one
-metric that actually catches this class of regression is also the one that survives a
-deterministic environment. Wire it there, with `--max-p95-ttft` replaced by a canary
-budget.
+*CI wiring waited on TQ-2, which has since shipped.* A `workflow_dispatch` job needs a
+live Ollama, which means a multi-gigabyte model pull per run — slow, and flaky in a way
+that teaches people to ignore the job. TQ-2's fake Ollama fixes that, and fixes it in the
+right direction: with generation stubbed, TTFT becomes meaningless but **the canary stays
+valid**, so the one metric that actually catches this class of regression is also the one
+that survives a deterministic environment.
+
+**Gate landed 2026-08-24.** `--max-canary-ms` replaces `--max-p95-ttft` as the CI budget,
+via a pure `canary_verdict()` covered by `tests/unit/test_bench_concurrency.py`. It fails
+on the *worst* probe rather than an average — the pre-PERF-1 shape was a healthy p50 with
+one 848 ms stall, which a mean-based gate passes — and it treats an empty sample as a
+failure, because a canary that never ran measured nothing and silence must not read green.
+
+**Still open: the job itself, and its number.** The harness exists —
+`tests/e2e/conftest.py` already boots a real uvicorn against CI's Postgres and TQ-2's fake
+Ollama, so a perf job reuses it rather than orchestrating its own. What is missing is a
+defensible budget. A healthy loop answers in single-digit milliseconds and a blocked one
+in hundreds, but nobody has measured where a GitHub runner sits between those under load,
+and guessing produces either a gate that flakes or one that never fires — the two ways a
+CI job gets ignored. **Take one calibration run reporting the canary without a budget,
+then set the threshold from the observed spread**, the same measure-then-decide sequence
+PERF-2 itself followed. The job stays out of the required set until it has run green
+repeatedly.
 
 > **The success criterion below should be restated.** "p95 time-to-first-token at 10
 > concurrent users" measures Ollama's throughput, not the application's concurrency. The

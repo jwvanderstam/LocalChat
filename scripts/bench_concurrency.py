@@ -11,7 +11,15 @@ corpus before and after a change and record both in docs/PRODUCTION_PLAN.md.
     python scripts/bench_concurrency.py --url http://localhost:5000 --key lcw_... \
         --clients 10 --requests 20
 
-Exits non-zero if --max-p95-ttft is given and exceeded, so it can gate a CI job.
+Exits non-zero if --max-p95-ttft or --max-canary-ms is given and exceeded, so it can
+gate a CI job.
+
+Prefer --max-canary-ms for that gate. Time-to-first-token measures the queue at the
+model, not the application: three runs of the same build spread wider than the change
+PERF-1 made, so a TTFT budget is noise. The canary is a request that should take
+milliseconds and cannot hide behind the model — its worst case moved 848ms -> 305ms
+across PERF-1, and it stays meaningful when generation is stubbed, which is what makes
+it the metric a deterministic CI environment can actually gate on.
 """
 
 from __future__ import annotations
@@ -112,6 +120,22 @@ def _percentile(values: list[float], pct: float) -> float:
     return ordered[index]
 
 
+def canary_verdict(canary: list[float], budget_ms: float | None) -> str | None:
+    """Return a failure message when the canary breaches *budget_ms*, else ``None``.
+
+    An empty sample list is a failure, not a pass: a canary that never ran measured
+    nothing, and silence must not read as a green gate.
+    """
+    if budget_ms is None:
+        return None
+    if not canary:
+        return "FAIL: no canary probes collected — the event loop was never measured"
+    worst_ms = max(canary) * 1000
+    if worst_ms > budget_ms:
+        return f"FAIL: canary max {worst_ms:.0f}ms exceeds budget {budget_ms:.0f}ms"
+    return None
+
+
 def _report(samples: list[Sample], clients: int) -> tuple[float, float]:
     ok = [s for s in samples if s.ok]
     failed = [s for s in samples if not s.ok]
@@ -141,6 +165,9 @@ def main() -> int:
     parser.add_argument("--requests", type=int, default=20, help="total requests")
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--max-p95-ttft", type=float, help="fail if p95 TTFT exceeds this")
+    parser.add_argument("--max-canary-ms", type=float,
+                        help="fail if the slowest /api/health probe exceeds this (ms). "
+                             "The gate to use in CI — see the module docstring.")
     args = parser.parse_args()
 
     canary: list[float] = []
