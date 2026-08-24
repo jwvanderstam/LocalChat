@@ -266,10 +266,14 @@ upstream).
     clean `python:3.12-slim`), not from copying version numbers out of PR titles,
     so the set is consistent by construction. Re-pin the same way; `pip check`
     afterwards is the confirmation.
-  - **Still to confirm:** grouping has not yet been *observed* working here. The
-    check is next week's run — it should produce one `minor-and-patch` pip PR
-    instead of seven. If it still produces one per dependency, the cause was never
-    the ranges and this whole note needs rewriting.
+  - **Confirmed working 2026-08-24.** The predicted check — one `minor-and-patch`
+    pip PR instead of seven — came back exactly as written: #305 carried four pip
+    dependencies in a single PR, #307 carried four Actions updates in another, and
+    #306 (`sentence-transformers` 5.7.0 -> 6.0.0) stayed ungrouped because a major
+    needs a human. Pinning `requirements.txt` was the fix; the config was always
+    right. #307 also moved all three `codeql-action` steps together, which is the
+    set-moves-together rule below being satisfied by grouping rather than by
+    remembering to do it.
 - **A set that must be correct together must move together.** Three
   `codeql-action` steps split across three PRs each produced a workflow on
   mixed versions that failed every run. If a change is only correct as a whole,
