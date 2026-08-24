@@ -247,14 +247,30 @@ Two things the first local run exposed, both of which would have made a naive jo
   have passed on a sample of one. `REQUESTS` is now sized so the run outlasts the poll,
   and `MIN_PROBES` fails the test rather than letting a too-fast run read as green.
 
-**Local calibration, 600 requests at 10 concurrent, isolated Postgres:** canary p50 21 ms,
-p95 27 ms, **max 138 ms**; 600/600 streams completed.
+**Calibration, 600 requests at 10 concurrent, 600/600 streams completed both times:**
+
+| | canary p50 | p95 | max | probes |
+|---|---|---|---|---|
+| local, isolated Postgres | 21 ms | 27 ms | 138 ms | 38 |
+| GitHub runner (#312) | 27 ms | 34 ms | **219 ms** | 54 |
+
+The runner is roughly 1.6x the local machine at the worst probe — far closer than the
+order-of-magnitude spread that was feared, which is what makes a real budget tractable.
 
 **Still open: the number.** `CANARY_CEILING_MS` is 5000 — loose on purpose. It catches a
 *blocked* loop, not a slow one, which is the regression class that matters, and it cannot
-flake on a shared runner. Tighten it once several CI runs have shown the spread there; the
-local max of 138 ms suggests a real budget in the hundreds, but one machine is not a
-sample. The job stays out of the required set until it has run green repeatedly.
+flake on a shared runner.
+
+**Indicated next value: ~1000 ms.** That is roughly 4.5x the observed runner max, while
+still catching the regression: the pre-PERF-1 worst case was 848 ms locally, which at the
+runner's 1.6x ratio extrapolates to about 1.4 s. So 1000 ms discriminates between a healthy
+loop and a held one with headroom on both sides.
+
+**Not applied yet, deliberately.** That is one CI observation. Tightening a threshold from
+a single measurement is the exact mistake Ch. 18 records two rows above — a sample of one
+is not a measurement — and a perf budget set from one noisy-neighbour-free run is how a job
+starts flaking. Let several runs accumulate on `main`, then set it. The job stays out of
+the required set until it has run green repeatedly.
 
 > **The success criterion below should be restated.** "p95 time-to-first-token at 10
 > concurrent users" measures Ollama's throughput, not the application's concurrency. The
