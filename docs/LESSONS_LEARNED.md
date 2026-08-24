@@ -825,6 +825,73 @@ that pass with authentication broken, turned on the pipeline itself.
 
 ---
 
+## 18. A deletion ticket that was wrong about what it was deleting
+
+The task was to execute DEL-1b: delete four unused cloud connectors. It ended with one
+connector deleted, two retained, a privilege escalation fixed, and a benchmark that had
+been measuring the wrong thing.
+
+**The ticket's own exemption applied, and nobody had checked.** DEL-1b deleted Google
+Drive, OneDrive, Confluence and `google_auth.py` on a single "no real user" test, and
+wrote down the condition that would invalidate it: *the only valid reason to drop DEL-1b
+is a concrete intent to use one of these connectors*. There was such an intent for two of
+the four. The ticket was not wrong to have been written; it was wrong to be executed
+without re-asking its own question.
+
+**Re-deriving the surface from the code found three sites the ticket never listed** —
+`README.md`, the MCP cloud-connectors tool description, and the `file-map.md` row. This is
+the third instance of the same shape: DEL-1a claimed three subsystems were self-contained
+and two of the claims would have broken live endpoints (Ch. 9's rule, applied to this
+project's own documents), and a migration was numbered from a stale `file-map.md` and
+collided (Ch. 12). A plan is not evidence, and neither is the plan's inventory.
+
+**The measurement that reframed the decision.** The argument had been framed as sunk cost
+— is keeping ~400 lines of working connector rational, or just reluctance to discard
+effort? Both framings were wrong, because the code was not what either assumed.
+`git grep -ril connector` over `templates/` and `static/js/` returns *nothing*: the
+connector subsystem has never had a UI, so no connector has ever run against a live
+account, while `PERMISSIONS.md` advertises ten connector routes as product surface. The
+retained code is design knowledge, not a feature — and the honest sunk-cost risk was never
+the 400 lines. It was inheriting the code's *shape* as the authorisation model.
+
+**Which turned out to be a live defect.** `GoogleDriveConnector` resolved its OAuth token
+from `config['user_id']` — a client-supplied field on a `ws:owner` route that never
+recorded the caller. Any workspace owner could name another user's UUID and sync that
+person's Drive into a workspace they controlled. SharePoint and OneDrive did the same, and
+SharePoint is the connector DEL-1b *retains* for having a real user, which made it the most
+exposed rather than the least. Unreachable today only because there is no UI to complete an
+OAuth flow — so the defect was scheduled to go live on the day the feature did. The fix
+makes the owner a column (`connectors.created_by`): overwriting the config field
+server-side would have left the hole open one `PUT /api/connectors/{id}` away.
+
+**A quality gate that was not required caught two things the required set passed.** The
+first version of that fix copied the same guard to nine sites. SonarCloud failed on 6.1%
+duplication and twelve uncovered new lines — and the coverage number was the more useful
+half: four of the OAuth guards sit behind `require_auth` and are unreachable without
+forging a claimless token, so they were dead code nobody had noticed writing. Collapsing
+them into two shared helpers was the better design independent of the metric, and it
+surfaced that four routes had no test at all. On the next push the same gate rejected
+`x != x` as a NaN check (`python:S5863`) in favour of `math.isnan(x)`. Both were
+cleverness where plainness was available. SonarCloud stays deliberately non-required — a
+gate that reports `skipping` on some PRs would block them forever — but "not required" is
+not "not worth reading".
+
+**A benchmark measuring the wrong subsystem.** Wiring PERF-2's canary into CI, the first
+real run returned 190 of 200 requests as HTTP 429. `RATELIMIT_CHAT` defaults to ten per
+minute, so a concurrency benchmark measures slowapi unless the limit is raised — and
+PERF-2's committed numbers were taken at `--requests 10`, *exactly* that ceiling. One more
+request and the table in `PRODUCTION_PLAN.md` would have been reporting the rate limiter.
+The second failure was quieter: with generation stubbed the load finished inside a second
+and the canary, polling every 100 ms, collected **one probe**. A gate would have passed on
+a sample of one. Both are the Ch. 13 shape — a green signal that measured nothing — so the
+test now fails below a minimum probe count rather than trusting a short run.
+
+**Rule taken from this:** before executing a plan, re-ask the question the plan answered.
+Every ticket here that went wrong went wrong by being *correct when written* and executed
+later without re-deriving its premise from the code.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents
@@ -927,3 +994,8 @@ guard are marked as such honestly.
 | A dead abstraction is worse than none (Ch. 12) | `require_workspace_role_dep` was correct and had zero call sites while the routes it was written for ran their own fail-open checks | The dependency is now the single mechanism behind `check_workspace_access`, used by all 33 workspace-scoped routes — no parallel implementation to drift from |
 | A fix is not a closed alert (Ch. 16) | #284 changed the flagged expression itself, and hardened the one shared `sanitize_log_value` instead of the copy CodeQL happened to point at | Re-run the scan rather than predicting it. Six sites now share one sanitiser, so there is no duplicate left to fix in isolation |
 | A build that succeeds is not an image that runs (Ch. 17) | `docker-smoke` builds the image, asserts uid/shell/native-import/docs invariants, and boots it against postgres | Required check on every PR. The failure it targets — a missing native library becoming SIGSEGV with no traceback — is invisible to `docker build` |
+| A plan is not evidence, and neither is its inventory (Ch. 18) | DEL-1b listed four files to delete and omitted three sites it touched; its own exemption clause applied and had not been re-asked | `PRODUCTION_PLAN.md` records re-deriving the removal surface from the code at the moment of acting. No automated guard — the standing rule is that a ticket's premise is re-checked before it is executed |
+| A non-required gate is not a gate worth ignoring (Ch. 18) | SonarCloud caught nine duplicated guards (four of them unreachable dead code) and an `x != x` NaN check that the four required checks passed over | SonarCloud stays out of the required set for the reason `CLAUDE.md` records, and is read rather than glanced at. The duplicated-guard class is now two shared helpers |
+| A benchmark can measure a different subsystem entirely (Ch. 18) | 190 of 200 requests returned 429 — the concurrency run was measuring slowapi, and PERF-2's published numbers sat exactly at the 10/min ceiling | `tests/perf/conftest.py` raises `RATELIMIT_CHAT`; `PRODUCTION_PLAN.md` warns that re-running the benchmark at higher load requires it |
+| A sample of one is not a measurement (Ch. 18) | With generation stubbed the load finished inside a second and the canary collected one probe; the gate would have passed on it | `MIN_PROBES` fails the perf test when the run was too short, and `canary_verdict()` treats an empty sample as a failure rather than a pass |
+| A pinned base does not pin what it downloads (Ch. 18) | Every image build failed on unchanged source, a docs-only PR included: DHI published hardened rebuilds (`+dhi1/2/3/7`) of libraries whose Debian counterparts `build-essential` and `libpq-dev` depend on by exact equality | The `apt-get` layer is deleted rather than pinned around — it was never needed (`psycopg[binary]` vendors libpq; the one sdist, `langdetect`, is pure Python and builds in a base carrying no gcc). A digest-pinned base with a live `apt-get` is the Ch. 11 shape one layer down: something that looks pinned and is not |
