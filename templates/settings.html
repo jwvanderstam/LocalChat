@@ -5,8 +5,12 @@
     <h1 class="h2"><i class="bi bi-sliders me-2"></i>Settings</h1>
 </div>
 
-<!-- ── Tab navigation ── -->
-<ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+<div class="settings-layout">
+
+<!-- Sub-navigation. Kept as .nav-tabs with its id and item structure: auth.js
+     resolves the list, moves the selection off an admin-only tab, and drives the
+     panes through these same hooks. Vertical is a layout change, not a rewrite. -->
+<ul class="nav nav-tabs settings-nav" id="settingsTabs" role="tablist">
     <li class="nav-item d-none admin-only" role="presentation">
         <a class="nav-link active" id="observability-tab" data-bs-toggle="tab" href="#observability" role="tab"
            aria-controls="observability" aria-selected="true">
@@ -878,6 +882,8 @@ X-API-Key: &lt;key&gt;</code></pre>
     </div>
 
 </div><!-- /tab-content -->
+
+</div><!-- /settings-layout -->
 {% endblock %}
 
 {% block extra_head %}
@@ -917,6 +923,12 @@ async function loadMetrics() {
 }
 
 let _requestsChart = null;
+
+function _accent(alpha) {
+    const rgb = getComputedStyle(document.documentElement)
+        .getPropertyValue('--lc-accent-rgb').trim() || '56, 126, 130';
+    return `rgba(${rgb}, ${alpha})`;
+}
 
 function renderMetricsTable(data) {
     const counters   = data?.metrics?.counters   ?? data?.counters   ?? {};
@@ -986,8 +998,11 @@ function renderMetricsTable(data) {
                 datasets: [{
                     label: 'Requests',
                     data: values,
-                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
-                    borderColor: 'rgba(13, 110, 253, 1)',
+                    // Read from the stylesheet rather than hardcoding: the chart
+                    // then follows the theme, dark mode and the alternate accents
+                    // instead of staying Bootstrap blue on a page that has none.
+                    backgroundColor: _accent(0.7),
+                    borderColor: _accent(1),
                     borderWidth: 1,
                 }]
             },

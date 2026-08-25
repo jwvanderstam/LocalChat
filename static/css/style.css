@@ -547,14 +547,18 @@ main > .d-flex.border-bottom {
 }
 
 .btn-outline-primary,
-.btn-outline-secondary {
+.btn-outline-secondary,
+.btn-outline-info,
+.btn-outline-success {
     border-color: var(--lc-border-input);
     color: var(--lc-text-2);
     background-color: transparent;
 }
 
 .btn-outline-primary:hover,
-.btn-outline-secondary:hover {
+.btn-outline-secondary:hover,
+.btn-outline-info:hover,
+.btn-outline-success:hover {
     background-color: var(--lc-selected);
     border-color: var(--lc-border-input);
     color: var(--lc-text);
@@ -766,6 +770,78 @@ main > .d-flex.border-bottom {
     color: var(--lc-accent);
     background-color: transparent;
     border-bottom-color: var(--lc-accent);
+}
+
+/* ── Settings: a rail, not a tab bar ───────────────────────────────────────── */
+/* Seven horizontal tabs above fourteen stacked cards was the busiest screen in
+ * the app. The sections move to a vertical rail so one pane shows at a time and
+ * the eye has a fixed place to look. Bootstrap's tab machinery is untouched —
+ * this is `.nav-tabs` laid out down instead of across. */
+.settings-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+}
+
+.settings-nav {
+    flex: none;
+    width: 176px;
+    flex-direction: column;
+    border-bottom: 0;
+    gap: 1px;
+    position: sticky;
+    top: 76px;
+}
+
+.settings-nav .nav-item { width: 100%; }
+
+.settings-nav .nav-link {
+    width: 100%;
+    text-align: left;
+    border: 0;
+    border-bottom: 0;
+    border-radius: var(--lc-radius);
+    padding: 0.44rem 0.7rem;
+    color: var(--lc-text-2);
+    font-weight: 400;
+}
+
+.settings-nav .nav-link:hover {
+    border-bottom: 0;
+    background-color: var(--lc-selected);
+    color: var(--lc-text);
+}
+
+.settings-nav .nav-link.active {
+    border-bottom: 0;
+    background-color: var(--lc-accent-bg);
+    color: var(--lc-accent);
+    font-weight: 500;
+}
+
+.settings-nav .nav-link i {
+    opacity: 0.8;
+    margin-right: 0.15rem;
+}
+
+.settings-layout .tab-content {
+    flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 992px) {
+    .settings-layout { flex-direction: column; gap: 1rem; }
+
+    .settings-nav {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        position: static;
+        border-bottom: 1px solid var(--lc-border);
+        padding-bottom: 0.5rem;
+    }
+
+    .settings-nav .nav-item { width: auto; }
 }
 
 /* ── Modals ────────────────────────────────────────────────────────────────── */
