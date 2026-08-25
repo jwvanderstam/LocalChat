@@ -134,6 +134,20 @@ def test_sign_in_upload_ask_and_the_answer_cites_the_document(page: Page,
     # filename appears in the reply whether or not a citation was ever rendered.
     expect(sources).to_contain_text(document.path.name)
 
+    # Both of these are here because the node harness cannot reach them: its DOM
+    # is a stub whose createElement returns a proxy with a no-op appendChild, so
+    # nothing that asserts on a *built* tree can run there.
+    #
+    # The empty state used to survive the first message — renderChatHistory()
+    # painted it and returned, and nothing took it down again, so "Start a
+    # conversation..." sat above the transcript for the rest of the session. It
+    # escaped this test and the harness both, and was found by looking at a
+    # screenshot, which is the argument for pinning it here.
+    expect(page.locator("#chat-empty-state")).to_have_count(0)
+
+    # Citations are numbered footnotes, not a collapsed "N sources" disclosure.
+    expect(sources.locator(".sources-panel-marker").first).to_have_text("1")
+
     _ask(page, UNRELATED_QUESTION)
     unrelated_answer = page.locator(".assistant-message").nth(1)
     # `.message-time` is filled in on the stream's `done` event, and the sources

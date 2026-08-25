@@ -242,10 +242,19 @@ export function renderChatHistory() {
 
 // ---- message helpers -------------------------------------------------------
 
+// renderChatHistory() paints the empty state and returns; nothing took it down
+// again, so the first message of a conversation appended *below* "Start a
+// conversation..." and both sat there together.
+function clearEmptyState(chatMessages) {
+    const empty = chatMessages.querySelector('#chat-empty-state');
+    if (empty) empty.remove();
+}
+
 export function addUserMessage(text, timestamp = null, save = true) {
     const chatMessages = document.getElementById('chat-messages');
     const template = document.getElementById('user-message-template');
     if (!chatMessages || !template) return;
+    clearEmptyState(chatMessages);
     const node = template.content.cloneNode(true);
     node.querySelector('.message-text').textContent = text;
     node.querySelector('.message-time').textContent = formatTime(timestamp || new Date());
@@ -260,6 +269,7 @@ export function addAssistantMessage(text, timestamp = null, save = true) {
     const chatMessages = document.getElementById('chat-messages');
     const template = document.getElementById('assistant-message-template');
     if (!chatMessages || !template) return;
+    clearEmptyState(chatMessages);
     const node = template.content.cloneNode(true);
     node.querySelector('.message-text').innerHTML = formatMessageText(text);
     node.querySelector('.message-time').textContent = formatTime(timestamp || new Date());
@@ -274,6 +284,7 @@ export function addLoadingIndicator() {
     const chatMessages = document.getElementById('chat-messages');
     const template = document.getElementById('loading-template');
     if (!chatMessages || !template) return null;
+    clearEmptyState(chatMessages);
     chatMessages.appendChild(template.content.cloneNode(true));
     scrollToBottom();
     return chatMessages.querySelector('.loading-message');
