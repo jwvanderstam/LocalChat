@@ -60,8 +60,8 @@ export async function sendMessage() {
             try {
                 const err = await response.json();
                 let msg = err.message || 'An error occurred';
-                if (err.details && err.details.help) msg += '\n\n\u{1F4A1} ' + err.details.help;
-                addAssistantMessage('❌ Error: ' + msg, new Date(), false);
+                if (err.details && err.details.help) msg += '\n\nHint: ' + err.details.help;
+                addAssistantMessage('Error: ' + msg, new Date(), false, { error: true });
             } catch (_) {
                 throw new Error(`Server error: ${response.status} ${response.statusText}`);
             }
@@ -96,7 +96,7 @@ export async function sendMessage() {
 
                 if (data.error) {
                     if (msgText) {
-                        msgText.innerHTML = formatMessageText('❌ ' + (data.message || 'An error occurred'));
+                        msgText.innerHTML = formatMessageText(data.message || 'An error occurred');
                         msgText.classList.add('error-message');
                     }
                     if (msgTime) msgTime.textContent = formatTime(new Date());
@@ -135,9 +135,8 @@ export async function sendMessage() {
 
                     if (data.model_used === 'cloud' && msgText) {
                         const badge = document.createElement('span');
-                        badge.className   = 'badge bg-warning text-dark me-1 align-middle';
-                        badge.style.fontSize = '0.7rem';
-                        badge.textContent = '⚡ cloud';
+                        badge.className   = 'badge bg-warning me-1 align-middle';
+                        badge.textContent = 'cloud';
                         msgText.insertBefore(badge, msgText.firstChild);
                     }
 
@@ -169,7 +168,7 @@ export async function sendMessage() {
 
     } catch (error) {
         removeLoadingIndicator();
-        addAssistantMessage('❌ Unexpected error: ' + error.message, new Date(), false);
+        addAssistantMessage('Unexpected error: ' + error.message, new Date(), false, { error: true });
     } finally {
         isStreaming = false;
         if (sendBtn) sendBtn.disabled = false;
