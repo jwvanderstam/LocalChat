@@ -236,6 +236,24 @@ export function buildSourcesPanel(sources) {
     return panel;
 }
 
+// Drawn rather than typed. An emoji thumb renders in the reader's system font —
+// a different shape, weight and colour on every platform, ignoring the theme and
+// sitting at whatever size the font decides. This one inherits currentColor and
+// scales with the button like every other icon in the app.
+function thumbIcon(down) {
+    const flip = down ? ' transform="translate(0,16) scale(1,-1)"' : '';
+    return (
+        '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" ' +
+        'stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" ' +
+        'aria-hidden="true">' +
+        `<g${flip}>` +
+        '<path d="M5.4 7.6 8.1 1.9a1.55 1.55 0 0 1 2.25 1.9L9.7 6.4h3.05a1.4 1.4 0 0 1 1.34 1.8' +
+        'l-1.28 4.3a1.55 1.55 0 0 1-1.49 1.1H5.4"/>' +
+        '<rect x="1.5" y="7.1" width="3.9" height="7.1" rx="1"/>' +
+        '</g></svg>'
+    );
+}
+
 export function buildFeedbackBar(messageId, conversationId, sourceChunkIds) {
     const bar = document.createElement('div');
     bar.className = 'feedback-bar mt-2';
@@ -267,8 +285,8 @@ export function buildFeedbackBar(messageId, conversationId, sourceChunkIds) {
         return btn;
     };
 
-    bar.appendChild(makeBtn(1,  '👍', 'Good answer'));
-    bar.appendChild(makeBtn(-1, '👎', 'Bad answer'));
+    bar.appendChild(makeBtn(1,  thumbIcon(false), 'Good answer'));
+    bar.appendChild(makeBtn(-1, thumbIcon(true),  'Bad answer'));
     return bar;
 }
 

@@ -844,6 +844,43 @@ main > .d-flex.border-bottom {
     .settings-nav .nav-item { width: auto; }
 }
 
+/* An assistant turn that failed. This carries the whole signal now: it used to
+ * be a red-cross emoji sitting in the message text, which rendered in the
+ * reader's emoji font at whatever size and colour that font chose. */
+.message-text.error-message {
+    color: var(--lc-danger);
+    border-left: 2px solid var(--lc-danger-bd);
+    padding-left: 0.7rem;
+}
+
+/* Cloud-fallback marker. Was a filled yellow pill with a lightning bolt; the
+ * badge is the signal, the bolt was decoration. */
+.badge.bg-warning {
+    background-color: transparent !important;
+    color: var(--lc-warn) !important;
+    border: 1px solid var(--lc-danger-bd);
+    font-weight: 500;
+}
+
+/* ── Feedback bar ──────────────────────────────────────────────────────────── */
+.feedback-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.feedback-btn {
+    color: var(--lc-text-3);
+    padding: 0.2rem 0.35rem;
+    line-height: 1;
+    border: 0;
+    background: transparent;
+}
+
+.feedback-btn:hover { color: var(--lc-accent); background: transparent; }
+.feedback-btn.active { color: var(--lc-accent); }
+.feedback-btn.dimmed { opacity: 0.35; }
+
 /* ── Modals ────────────────────────────────────────────────────────────────── */
 .modal-content {
     border-radius: var(--lc-radius-lg);

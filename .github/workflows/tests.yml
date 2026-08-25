@@ -456,6 +456,26 @@ jobs:
           fi
           echo "OK: no native confirm() in the frontend"
 
+      - name: No emoji as icons in the frontend
+        # Icons are drawn SVG, inheriting currentColor and the theme. An emoji
+        # renders in the reader's separate colour font instead: a different shape,
+        # weight and colour on every platform, at whatever size that font decides.
+        # The feedback thumbs and five markers in streaming.js shipped that way and
+        # looked wrong beside the rest of the redesigned interface.
+        #
+        # Arrows and dashes are deliberately not covered: they render in the text
+        # font like any other glyph and carry none of that problem.
+        run: |
+          if git grep -nP "[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]" \n               -- 'static/js/*.js' 'templates/*.html' \n               ':!static/js/bootstrap.bundle.min.js' 2>/dev/null; then
+            echo "::error::emoji in the frontend -- draw an inline SVG icon instead"
+            exit 1
+          fi
+          if git grep -nF "\u{1F" -- 'static/js/*.js' 'templates/*.html' \n               ':!static/js/bootstrap.bundle.min.js' 2>/dev/null; then
+            echo "::error::escaped emoji codepoint in the frontend -- draw an SVG icon instead"
+            exit 1
+          fi
+          echo "OK: no emoji used as icons"
+
       - name: No Flask imports in src/
         run: |
           if git grep -El "import flask|from flask" -- src/ 2>/dev/null; then
