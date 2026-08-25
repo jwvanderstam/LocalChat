@@ -644,9 +644,45 @@ authorisation question on a blank page (ROADMAP CONN-1), fix the defect it expos
 and keep whatever survives.
 
 
-### DEL-2 — GraphRAG: earn its place or leave 🔬
+### DEL-2 — GraphRAG: earn its place or leave 🔬 (eval built; verdict still open)
 
 Build a small retrieval eval set first (20–30 question/expected-source pairs over the real document corpus — this asset outlives the decision and later serves RAG-tuning work). Measure retrieval quality with GraphRAG expansion on vs off. If 1-hop expansion does not measurably lift answer grounding on our own documents, `src/graph/` goes the way of DEL-1. No sentiment: the eval decides.
+
+**The eval exists, 2026-08-25.** `tests/eval/retrieval_cases.yaml` (20 pairs) and
+`scripts/eval_retrieval.py`. The corpus is this repository's own `docs/` — a maintainer's
+documents are not available to CI and differ per install, while 20 files of real prose
+about a real system are identical on every machine, which is what makes two runs
+comparable. Each pair carries a `proof` string checked before scoring, so a pair whose
+source was rewritten fails loudly instead of quietly dragging the number down.
+
+**Baseline, nomic-embed-text against the docs corpus:** recall@1 **40.0%**, recall@5
+**80.0%**, MRR **0.563** over 20 questions.
+
+**The verdict is NOT in, and the reason is the interesting part.** Two runs came back at
+exactly +0.000 on all three metrics with expansion on versus off. That is not a null
+result; it is the absence of a measurement, and it took two guards to establish:
+
+- The first comparison ran against **zero stored entities**. `GRAPH_RAG_ENABLED` governs
+  extraction at ingest *and* expansion at query time, so a corpus ingested with it off
+  leaves the "on" arm expanding against nothing. The script now refuses that case.
+- With entities present (76 of them), expansion still **fired on 0 of 20 questions**. The
+  entities spaCy pulls from prose about software are codenames — `SEC-1`, `RBAC-1`,
+  `PG-0`, `LESSONS_LEARNED`, `Flask` — and a natural-language question contains none of
+  them. The script now refuses this case too, because a delta of zero here means "never
+  ran", which is indistinguishable in the score from "did not help".
+
+**A defect worth its own note:** `GRAPH_RAG_ENABLED=true` with spaCy's `en_core_web_sm`
+absent extracts nothing, logs at debug, and reports a **successful ingest**. Entity
+extraction is best-effort by design so a failure never fails an ingest — but the result is
+a feature that can be switched on, appear to work, and do nothing at all. That is the
+Chapter 12 shape: an absent signal reading as a positive one.
+
+**What answering DEL-2 now needs**, in order: install `en_core_web_sm`; then either write
+pairs whose questions actually contain indexed entity names, or accept the narrower finding
+that 1-hop expansion is inert for natural-language questions over this corpus and decide on
+that basis. The second is a legitimate answer — "the feature does not reach the queries
+users type" is a reason to delete — but it is a different claim from "it does not improve
+retrieval", and the ticket should not record one as the other.
 
 ---
 

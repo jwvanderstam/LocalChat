@@ -123,6 +123,7 @@ scratch.py
 !/scripts/session-status.sh
 !/scripts/bench_concurrency.py
 !/scripts/mutation_gate.py
+!/scripts/eval_retrieval.py
 /test_docx.py
 /test_pg_format.py
 /test_rag.py
