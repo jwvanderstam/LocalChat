@@ -97,6 +97,7 @@ def bootstrap_app(app: Any) -> None:
     if app.state.startup_status["database"]:
         _seed_admin_user(db)
 
+    _check_graphrag()
     _load_plugins(app)
     _init_connectors(app, db, doc_processor)
     _init_reranker_scheduler(app, db)
@@ -144,6 +145,36 @@ def _warmup_embedding_model(ollama_client: Any) -> None:
                 logger.warning("Embedding model warm-up returned no data (non-fatal)")
     except Exception as e:
         logger.warning(f"Embedding model warm-up failed (non-fatal): {e}")
+
+
+def _check_graphrag() -> None:
+    """Say at startup whether GraphRAG can actually do anything.
+
+    GRAPH_RAG_ENABLED governs two things: entity extraction at ingest and 1-hop
+    query expansion at retrieval. Both are best-effort, so a missing spaCy model
+    leaves the flag on, every ingest reporting success, and the feature doing
+    nothing at all. The extractor does warn — but lazily, once, on the first
+    document, buried mid-ingest, which is not where anyone looks to find out
+    whether a feature they switched on is running.
+
+    Found while building the DEL-2 eval: the on/off comparison scored an
+    identical +0.000 because extraction had silently produced no entities.
+    """
+    if not config.GRAPH_RAG_ENABLED:
+        return
+    try:
+        from .graph.extractor import _get_nlp
+
+        if _get_nlp() is None:
+            logger.warning(
+                "GRAPH_RAG_ENABLED is on but no spaCy model is installed, so no "
+                "entities will be extracted and query expansion will do nothing. "
+                "Run: python -m spacy download en_core_web_sm"
+            )
+        else:
+            logger.info("GraphRAG enabled: entity extraction available")
+    except Exception as e:  # noqa: BLE001 — a broken check must not stop startup
+        logger.warning(f"GraphRAG availability check failed (non-fatal): {e}")
 
 
 def _warmup_reranker() -> None:

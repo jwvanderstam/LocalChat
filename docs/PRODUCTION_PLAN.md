@@ -671,11 +671,17 @@ result; it is the absence of a measurement, and it took two guards to establish:
   them. The script now refuses this case too, because a delta of zero here means "never
   ran", which is indistinguishable in the score from "did not help".
 
-**A defect worth its own note:** `GRAPH_RAG_ENABLED=true` with spaCy's `en_core_web_sm`
-absent extracts nothing, logs at debug, and reports a **successful ingest**. Entity
-extraction is best-effort by design so a failure never fails an ingest — but the result is
-a feature that can be switched on, appear to work, and do nothing at all. That is the
-Chapter 12 shape: an absent signal reading as a positive one.
+**A defect found on the way, since fixed.** `GRAPH_RAG_ENABLED=true` with spaCy's
+`en_core_web_sm` absent extracts nothing and still reports a **successful ingest**. Both
+halves of GraphRAG are best-effort by design — extraction never fails an ingest, expansion
+never fails a query — so the flag stays on and the feature is simply inert.
+
+To be accurate about what was and was not silent: the extractor *does* log a warning, but
+lazily, once, on the first document, in the middle of an ingest. Expansion failures are
+debug-only. Neither is where anyone looks to find out whether a feature they switched on is
+running, and nothing said so at startup. `_check_graphrag()` in `app_bootstrap.py` now does,
+beside the existing embedding and reranker warm-ups. Chapter 12's shape: an absent signal
+reading as a positive one.
 
 **What answering DEL-2 now needs**, in order: install `en_core_web_sm`; then either write
 pairs whose questions actually contain indexed entity names, or accept the narrower finding
