@@ -1,307 +1,746 @@
-/* Custom styles for LocalChat */
+/* LocalChat — "Quiet Utility"
+ *
+ * Hierarchy comes from type and whitespace. Hairlines separate; nothing is
+ * decorated. No gradients, no drop shadows, no hover lifts, no filled status
+ * badges — each of those was doing ornament rather than work, and each is
+ * removed here rather than restyled. See design/quiet-utility/System.dc.html.
+ *
+ * Implemented by overriding Bootstrap's own custom properties wherever
+ * possible, so components inherit the palette instead of every one of them
+ * needing a rule. Only the decorations Bootstrap cannot be told to stop doing
+ * get an explicit override.
+ *
+ * Colours are authored in oklch and recorded as hex: hex is what ships, since
+ * Bootstrap composes several of these into rgba(var(--*-rgb), a).
+ */
 
-/* ── Theme variables ───────────────────────────────────────────────────────── */
+/* ── Tokens ────────────────────────────────────────────────────────────────── */
 :root {
-    --color-primary:     #667eea;
-    --color-primary-end: #764ba2;
-    --color-primary-rgb: 102, 126, 234;
-    --color-accent:      #667eea;
-    --sidebar-active-bg: #f0f2ff;
+    /* Surfaces */
+    --lc-app:          #f9fafb;   /* oklch(0.985 0.002 250) */
+    --lc-surface:      #ffffff;
+    --lc-selected:     #eff0f2;   /* oklch(0.955 0.003 250) */
+    --lc-hairline:     #eaebed;   /* oklch(0.940 0.003 250) — inside a group */
+    --lc-border:       #dfe1e4;   /* oklch(0.910 0.004 250) — between regions */
+    --lc-border-input: #d5d8da;   /* oklch(0.880 0.004 250) */
+
+    /* Ink */
+    --lc-text:         #26292d;   /* oklch(0.280 0.008 250) */
+    --lc-text-2:       #606468;   /* oklch(0.500 0.008 250) */
+    --lc-text-3:       #83878b;   /* oklch(0.620 0.008 250) */
+
+    /* One accent, low chroma. Alternate themes vary hue only — same L and C,
+     * so no theme is louder than another. */
+    --lc-accent:       #387e82;   /* oklch(0.550 0.070 200) */
+    --lc-accent-hover: #006267;   /* oklch(0.450 0.080 200) */
+    --lc-accent-bg:    #e8eeee;   /* oklch(0.945 0.006 200) */
+    --lc-accent-rgb:   56, 126, 130;
+
+    /* Status. Only ever used as a 6px dot or as text — never a filled pill. */
+    --lc-ok:           #5cb572;   /* oklch(0.700 0.130 150) */
+    --lc-warn:         #a25e2b;   /* oklch(0.550 0.110 55)  */
+    --lc-danger:       #af3c3a;   /* oklch(0.520 0.150 25)  */
+    --lc-danger-bd:    #f3bfba;   /* oklch(0.850 0.060 25)  */
+
+    --lc-radius:       5px;       /* controls */
+    --lc-radius-lg:    8px;       /* panels, composer */
+
+    /* Instrument Sans is what the mockups use. It is deliberately NOT loaded
+     * from Google here: this app is run self-hosted and often offline, so a
+     * remote font would fail silently and would put a request to a third party
+     * on every page load of a local-first tool. Self-host the woff2 into
+     * static/css/fonts/ and add it to the front of this stack to match the
+     * mockups exactly. */
+    --lc-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Text",
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-[data-theme="ocean"] {
-    --color-primary:     #0ea5e9;
-    --color-primary-end: #0369a1;
-    --color-primary-rgb: 14, 165, 233;
-    --color-accent:      #0ea5e9;
-    --sidebar-active-bg: #f0f8ff;
+/* Alternate accents. Same lightness and chroma as the default, hue varied —
+ * which is the whole discipline: a theme changes the hue, never the volume. */
+[data-theme="ocean"]  { --lc-accent: #2b7fa8; --lc-accent-hover: #00637f; --lc-accent-bg: #e7eff3; --lc-accent-rgb: 43, 127, 168; }
+[data-theme="forest"] { --lc-accent: #3f7f56; --lc-accent-hover: #1c6339; --lc-accent-bg: #e8eeea; --lc-accent-rgb: 63, 127, 86; }
+[data-theme="rose"]   { --lc-accent: #a95f74; --lc-accent-hover: #8b4459; --lc-accent-bg: #f2eaec; --lc-accent-rgb: 169, 95, 116; }
+[data-theme="slate"]  { --lc-accent: #6a739c; --lc-accent-hover: #4e5880; --lc-accent-bg: #ecedf2; --lc-accent-rgb: 106, 115, 156; }
+
+/* ── Bootstrap, told about the palette ─────────────────────────────────────── */
+:root,
+[data-bs-theme="light"] {
+    --bs-body-bg:            var(--lc-app);
+    --bs-body-color:         var(--lc-text);
+    --bs-emphasis-color:     var(--lc-text);
+    --bs-secondary-color:    var(--lc-text-2);
+    --bs-tertiary-color:     var(--lc-text-3);
+    --bs-secondary-bg:       var(--lc-selected);
+    --bs-tertiary-bg:        var(--lc-app);
+    --bs-border-color:       var(--lc-border);
+    --bs-border-radius:      var(--lc-radius);
+    --bs-border-radius-sm:   4px;
+    --bs-border-radius-lg:   var(--lc-radius-lg);
+    --bs-primary:            var(--lc-accent);
+    --bs-primary-rgb:        var(--lc-accent-rgb);
+    --bs-link-color:         var(--lc-accent);
+    --bs-link-hover-color:   var(--lc-accent-hover);
+    --bs-body-font-family:   var(--lc-font);
+    --bs-body-font-size:     0.875rem;
+    --bs-body-line-height:   1.55;
 }
 
-[data-theme="forest"] {
-    --color-primary:     #10b981;
-    --color-primary-end: #065f46;
-    --color-primary-rgb: 16, 185, 129;
-    --color-accent:      #10b981;
-    --sidebar-active-bg: #f0fdf4;
-}
-
-[data-theme="rose"] {
-    --color-primary:     #f43f5e;
-    --color-primary-end: #be123c;
-    --color-primary-rgb: 244, 63, 94;
-    --color-accent:      #f43f5e;
-    --sidebar-active-bg: #fff1f2;
-}
-
-[data-theme="slate"] {
-    --color-primary:     #6366f1;
-    --color-primary-end: #312e81;
-    --color-primary-rgb: 99, 102, 241;
-    --color-accent:      #6366f1;
-    --sidebar-active-bg: #eef2ff;
-}
-
-/* ── Base ──────────────────────────────────────────────────────────────────── */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--lc-font);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Navbar ────────────────────────────────────────────────────────────────── */
+/* Bootstrap ships several shadow scales. Nothing in this design uses one. */
+:root {
+    --bs-box-shadow:    none;
+    --bs-box-shadow-sm: none;
+    --bs-box-shadow-lg: none;
+}
+
+/* ── Top bar ───────────────────────────────────────────────────────────────── */
+/* The navbar carries .bg-dark in the template. Rather than restructure markup,
+ * it is repainted as the same surface as the page: the app has one ground, and
+ * a dark strip across the top was the loudest thing on every screen. */
+.navbar.bg-dark {
+    background-color: var(--lc-surface) !important;
+    border-bottom: 1px solid var(--lc-border);
+    min-height: 60px;
+}
+
+.navbar.bg-dark,
+.navbar.bg-dark .navbar-brand,
+.navbar.bg-dark .nav-link {
+    color: var(--lc-text) !important;
+}
+
 .navbar-brand {
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
+    font-size: 0.95rem;
 }
 
-.navbar.bg-dark {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+/* Status readouts in the top bar. The template marks these .badge; they are
+ * repainted as quiet text so they stop competing with the content. */
+.navbar .badge {
+    background: transparent !important;
+    color: var(--lc-text-2) !important;
+    font-weight: 400;
+    font-size: 0.75rem;
+    padding: 0 0.25rem;
+}
+
+.navbar .badge .bi-circle-fill {
+    font-size: 0.42rem;
+    vertical-align: 0.15em;
+    color: var(--lc-ok);
+}
+
+.navbar .badge.bg-secondary .bi-circle-fill { color: var(--lc-text-3); }
+.navbar .badge.bg-danger    .bi-circle-fill { color: var(--lc-danger); }
+
+.navbar .btn-outline-light {
+    border-color: var(--lc-border-input);
+    color: var(--lc-text-2);
+}
+
+.navbar .btn-outline-light:hover {
+    background-color: var(--lc-selected);
+    border-color: var(--lc-border-input);
+    color: var(--lc-text);
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 .sidebar {
     position: fixed;
-    top: 56px; /* Height of navbar */
+    top: 60px;
     bottom: 0;
     left: 0;
     z-index: 100;
     padding: 0;
-    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .08);
+    background-color: var(--lc-app);
+    border-right: 1px solid var(--lc-border);
+    box-shadow: none;
 }
 
 .sidebar .nav-link {
-    font-weight: 500;
-    color: #444;
-    padding: 0.85rem 1.5rem;
-    border-left: 3px solid transparent;
-    transition: color 0.15s, background-color 0.15s, border-left-color 0.15s;
+    font-weight: 400;
+    font-size: 0.875rem;
+    color: var(--lc-text-2);
+    padding: 0.44rem 0.75rem;
+    margin: 1px 0.75rem;
+    border-radius: var(--lc-radius);
+    border-left: 0;
+    transition: background-color 0.12s, color 0.12s;
 }
 
 .sidebar .nav-link:hover {
-    color: var(--color-accent);
-    background-color: var(--sidebar-active-bg);
+    color: var(--lc-text);
+    background-color: var(--lc-selected);
 }
 
+/* Active is a tinted row, not a 3px rule down the left edge. */
 .sidebar .nav-link.active {
-    color: var(--color-accent);
-    border-left-color: var(--color-accent);
-    background-color: var(--sidebar-active-bg);
+    color: var(--lc-accent);
+    background-color: var(--lc-accent-bg);
+    font-weight: 500;
+    border-left: 0;
 }
 
 .sidebar .nav-link i {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
+    opacity: 0.85;
 }
 
-/* ── Main content ──────────────────────────────────────────────────────────── */
+/* ── Page headers ──────────────────────────────────────────────────────────── */
 main {
     margin-top: 0;
     padding-top: 1rem;
 }
 
-/* ── Chat messages ─────────────────────────────────────────────────────────── */
+main > .d-flex.border-bottom h1,
+main h1.h2 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+main > .d-flex.border-bottom {
+    border-bottom-color: var(--lc-border) !important;
+}
+
+/* ── Chat ──────────────────────────────────────────────────────────────────── */
+/* The transcript sits on the page. The template nests it inside .card >
+ * .card-body > #chat-messages.border; the two outer layers are flattened here
+ * so only one surface reads. */
 #chat-messages {
-    background-color: #f8f9fa;
+    background-color: var(--lc-app);
+    border: 0 !important;
     min-height: 400px;
+    padding: 1.5rem 0 !important;
 }
 
 .message {
-    animation: fadeIn 0.3s ease-in;
+    animation: none;
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+/* The reading measure. Long grounded answers are what this app is for, and
+ * past ~75 characters the eye loses its place returning to the next line. */
+.message-content {
+    max-width: 680px !important;
 }
 
-.user-message .message-content {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-end) 100%);
-    box-shadow: 0 2px 6px rgba(var(--color-primary-rgb), 0.25);
-}
-
+.user-message .message-content,
 .assistant-message .message-content {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    background: transparent !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0;
+    padding: 0 !important;
+    color: var(--lc-text) !important;
+}
+
+.user-message,
+.assistant-message {
+    margin-bottom: 1.75rem !important;
+}
+
+/* The user turn is right-aligned in the template (.d-flex.justify-content-end,
+ * a Bootstrap utility carrying !important). Both turns start at the same left
+ * margin here, so the transcript reads as one column rather than a chat app's
+ * two. Specificity, not !important-stacking, is what wins this. */
+.user-message > .d-flex {
+    justify-content: flex-start !important;
+}
+
+/* .text-white-50 on the user timestamp, likewise a utility with !important. */
+.user-message .message-time,
+.assistant-message .message-time {
+    color: var(--lc-text-3) !important;
+}
+
+/* Speaker is a small label above the text rather than a coloured bubble, so
+ * both turns start at the same left margin and the answer reads as prose. */
+.user-message .message-content::before,
+.assistant-message .message-content::before {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+}
+
+.user-message .message-content::before {
+    content: "You";
+    color: var(--lc-text-3);
+}
+
+.assistant-message .message-content::before {
+    content: "LocalChat";
+    color: var(--lc-accent);
+}
+
+.user-message .message-text {
+    color: var(--lc-text-2);
 }
 
 .message-text {
     word-wrap: break-word;
     white-space: pre-wrap;
-    line-height: 1.55;
+    line-height: 1.65;
+    font-size: 0.9375rem;
+    text-wrap: pretty;
 }
 
 .message-text code {
-    background-color: rgba(0, 0, 0, 0.08);
-    padding: 2px 6px;
+    background-color: var(--lc-selected);
+    color: var(--lc-text);
+    padding: 1px 5px;
     border-radius: 3px;
-    font-size: 0.9em;
+    font-size: 0.875em;
 }
 
-/* ── Loading animation ─────────────────────────────────────────────────────── */
+.message-time {
+    font-size: 0.6875rem;
+    color: var(--lc-text-3);
+}
+
 .loading-message {
-    animation: pulse 1.5s ease-in-out infinite;
+    animation: pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }
-    50%       { opacity: 0.5; }
+    50%      { opacity: 0.45; }
 }
 
-/* ── Cards ─────────────────────────────────────────────────────────────────── */
+/* Citations. A rule and quiet text, in place of a row of filled blue pills. */
+.sources-panel {
+    margin-top: 0.75rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--lc-hairline);
+    font-size: 0.78rem;
+    color: var(--lc-text-2);
+}
+
+.sources-panel .badge,
+.sources-panel .btn {
+    background: transparent !important;
+    color: var(--lc-accent) !important;
+    border: 0;
+    padding: 0.1rem 0;
+    font-weight: 500;
+    font-size: 0.78rem;
+}
+
+.chunk-context-text {
+    background: var(--lc-app);
+    border-left: 2px solid var(--lc-border);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--lc-text-2);
+}
+
+/* Composer */
+#chat-form .form-control,
+#chat-input {
+    border-radius: var(--lc-radius-lg);
+    border-color: var(--lc-border-input);
+    padding: 0.7rem 0.85rem;
+    font-size: 0.9375rem;
+}
+
+/* Conversations list */
+#conversations-list {
+    background-color: transparent;
+}
+
+.conversations-panel-header {
+    background-color: transparent !important;
+    border-color: var(--lc-border) !important;
+}
+
+/* The chat panel and the conversations panel are wrapped in a bordered box by
+ * the template. In this design the transcript sits on the page, so both are
+ * flattened — scoped with :has() so every other card keeps its hairline. */
+.card:has(> .card-body > #chat-messages) {
+    border: 0;
+    background-color: transparent;
+}
+
+.card:has(> .card-body > #chat-messages) > .card-body {
+    padding: 0 !important;
+}
+
+.border:has(> #conversations-list) {
+    border: 0 !important;
+}
+
+/* ── Cards: a hairline region, not a raised object ─────────────────────────── */
 .card {
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07), 0 4px 12px rgba(0, 0, 0, 0.04);
-    border: 1px solid rgba(0, 0, 0, 0.07);
-    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: var(--lc-radius-lg);
+    box-shadow: none;
+    border: 1px solid var(--lc-border);
+    background-color: var(--lc-surface);
+    transition: none;
 }
 
 .card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.09), 0 8px 20px rgba(0, 0, 0, 0.06);
+    transform: none;
+    box-shadow: none;
 }
 
 .card-header {
     font-weight: 600;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lc-text-3);
+    background-color: transparent;
+    border-bottom: 1px solid var(--lc-hairline);
+    padding: 0.7rem 1rem;
 }
 
-/* ── Progress bars ─────────────────────────────────────────────────────────── */
-.progress {
-    height: 25px;
-    border-radius: 8px;
-    background-color: #e9ecef;
+/* The templates paint card headers with contextual fills (bg-primary,
+ * bg-success, bg-info, bg-secondary). A section heading is not a status. */
+.card-header.bg-primary,
+.card-header.bg-success,
+.card-header.bg-info,
+.card-header.bg-secondary,
+.card-header.bg-dark,
+.card-header.bg-warning {
+    background-color: transparent !important;
+    color: var(--lc-text-3) !important;
 }
 
-.progress-bar {
-    font-size: 0.875rem;
-    font-weight: 500;
+.card-header i {
+    opacity: 0.7;
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────────────── */
 .btn {
-    border-radius: 6px;
+    border-radius: var(--lc-radius);
     font-weight: 500;
-    letter-spacing: 0.01em;
-    transition: all 0.2s;
+    font-size: 0.8125rem;
+    letter-spacing: 0;
+    padding: 0.4rem 0.85rem;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
 }
 
+/* No lift, no shadow. Hover is a colour change. */
 .btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    transform: none;
+    box-shadow: none;
+}
+
+.btn:focus,
+.btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(var(--lc-accent-rgb), 0.18);
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-end) 100%);
-    border: none;
+    background: var(--lc-accent);
+    background-color: var(--lc-accent);
+    border-color: var(--lc-accent);
+    color: #fff;
 }
 
+.btn-primary:hover,
+.btn-primary:active {
+    background-color: var(--lc-accent-hover) !important;
+    border-color: var(--lc-accent-hover) !important;
+}
+
+/* .btn-success carried a mint gradient and dark text. Success is not a
+ * different brand; it is the same accent. */
 .btn-success {
-    background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-    border: none;
-    color: #333;
+    background: var(--lc-accent);
+    background-color: var(--lc-accent);
+    border-color: var(--lc-accent);
+    color: #fff;
 }
 
-/* ── Badges ────────────────────────────────────────────────────────────────── */
+.btn-success:hover {
+    background-color: var(--lc-accent-hover) !important;
+    border-color: var(--lc-accent-hover) !important;
+}
+
+.btn-outline-primary,
+.btn-outline-secondary {
+    border-color: var(--lc-border-input);
+    color: var(--lc-text-2);
+    background-color: transparent;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-secondary:hover {
+    background-color: var(--lc-selected);
+    border-color: var(--lc-border-input);
+    color: var(--lc-text);
+}
+
+.btn-danger {
+    background-color: var(--lc-danger);
+    border-color: var(--lc-danger);
+}
+
+.btn-outline-danger {
+    border-color: var(--lc-danger-bd);
+    color: var(--lc-danger);
+}
+
+.btn-outline-danger:hover {
+    background-color: var(--lc-danger);
+    border-color: var(--lc-danger);
+    color: #fff;
+}
+
+/* ── Badges outside the navbar ─────────────────────────────────────────────── */
 .badge {
     font-weight: 500;
-    padding: 0.5em 0.75em;
+    font-size: 0.7rem;
+    padding: 0.22em 0.5em;
+    border-radius: 4px;
 }
 
-/* ── Top bar status indicators ─────────────────────────────────────────────── */
-#system-status .badge {
-    font-size: 0.85rem;
+.badge.bg-primary { background-color: var(--lc-accent-bg) !important; color: var(--lc-accent) !important; }
+.badge.bg-success { background-color: var(--lc-accent-bg) !important; color: var(--lc-accent) !important; }
+.badge.bg-secondary { background-color: var(--lc-selected) !important; color: var(--lc-text-2) !important; }
+.badge.bg-info { background-color: var(--lc-selected) !important; color: var(--lc-text-2) !important; }
+
+/* ── Contextual colour utilities ───────────────────────────────────────────── */
+/* The templates reach for Bootstrap's semantic palette in a dozen places
+ * (.text-primary on counters, .bg-info on a VRAM bar, .link-primary on a
+ * button). Left alone these paint default blue and cyan straight through the
+ * design. They resolve to the one accent instead — the meaning they carry is
+ * "this is the interactive/highlighted thing", which is what the accent is. */
+.text-primary,
+.text-info,
+.link-primary { color: var(--lc-accent) !important; }
+
+.text-success { color: var(--lc-ok) !important; }
+.text-danger  { color: var(--lc-danger) !important; }
+.text-warning { color: var(--lc-warn) !important; }
+
+.progress-bar.bg-info,
+.progress-bar.bg-primary,
+.progress-bar.bg-success { background-color: var(--lc-accent) !important; }
+
+.progress-bar.bg-warning { background-color: var(--lc-warn) !important; }
+.progress-bar.bg-danger  { background-color: var(--lc-danger) !important; }
+
+.border-primary { border-color: var(--lc-accent) !important; }
+.border-success { border-color: var(--lc-accent) !important; }
+
+/* ── Forms ─────────────────────────────────────────────────────────────────── */
+.form-control,
+.form-select {
+    border-color: var(--lc-border-input);
+    border-radius: var(--lc-radius);
+    font-size: 0.8125rem;
+    padding: 0.4rem 0.65rem;
 }
 
-#system-status .bi-circle-fill {
-    font-size: 0.5rem;
-}
-
-/* ── Form controls ─────────────────────────────────────────────────────────── */
 .form-control:focus,
 .form-select:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 0.2rem rgba(var(--color-primary-rgb), 0.22);
+    border-color: var(--lc-accent);
+    box-shadow: 0 0 0 3px rgba(var(--lc-accent-rgb), 0.15);
 }
 
-/* ── List groups ───────────────────────────────────────────────────────────── */
+.form-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+}
+
+.form-text {
+    font-size: 0.78rem;
+    color: var(--lc-text-3);
+}
+
+.form-check-input:checked {
+    background-color: var(--lc-accent);
+    border-color: var(--lc-accent);
+}
+
+.form-check-input:focus {
+    border-color: var(--lc-accent);
+    box-shadow: 0 0 0 3px rgba(var(--lc-accent-rgb), 0.15);
+}
+
+/* The range track inherits a very pale default that all but vanished against
+ * the light ground — the temperature slider read as a floating dot. */
+.form-range::-webkit-slider-runnable-track {
+    background-color: var(--lc-border);
+    height: 4px;
+    border-radius: 2px;
+}
+
+.form-range::-moz-range-track {
+    background-color: var(--lc-border);
+    height: 4px;
+    border-radius: 2px;
+}
+
+.form-range::-webkit-slider-thumb {
+    background-color: var(--lc-accent);
+    width: 13px;
+    height: 13px;
+    margin-top: -4.5px;
+}
+
+.form-range::-moz-range-thumb {
+    background-color: var(--lc-accent);
+    width: 13px;
+    height: 13px;
+    border: 0;
+}
+
+/* ── Lists ─────────────────────────────────────────────────────────────────── */
 .list-group-item {
-    border-left: 3px solid transparent;
-    transition: all 0.2s;
+    border-left: 0;
+    border-color: var(--lc-hairline);
+    background-color: transparent;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.8125rem;
+    transition: background-color 0.12s;
 }
 
+/* Was a 3px accent rule sliding in on hover. Hover is a background. */
 .list-group-item:hover {
-    border-left-color: var(--color-primary);
-    background-color: #f8f9fa;
+    border-left: 0;
+    background-color: var(--lc-selected);
+}
+
+.list-group-item.active {
+    background-color: var(--lc-accent-bg);
+    border-color: var(--lc-hairline);
+    color: var(--lc-accent);
+}
+
+/* ── Tables ────────────────────────────────────────────────────────────────── */
+.table {
+    font-size: 0.8125rem;
+    --bs-table-border-color: var(--lc-hairline);
+}
+
+.table > thead {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lc-text-3);
+}
+
+.table > thead th {
+    font-weight: 600;
+    border-bottom-color: var(--lc-border);
+    background-color: transparent !important;
+}
+
+/* ── Progress ──────────────────────────────────────────────────────────────── */
+.progress {
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--lc-selected);
+}
+
+.progress-bar {
+    background-color: var(--lc-accent);
+    font-size: 0;
 }
 
 /* ── Alerts ────────────────────────────────────────────────────────────────── */
 .alert {
-    border-radius: 8px;
-    border: none;
+    border-radius: var(--lc-radius-lg);
+    border: 1px solid var(--lc-border);
+    background-color: var(--lc-surface);
+    color: var(--lc-text);
+    font-size: 0.8125rem;
+    padding: 0.75rem 1rem;
 }
 
-/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
-#chat-messages::-webkit-scrollbar {
-    width: 8px;
+.alert-success { border-color: var(--lc-border); }
+.alert-danger  { border-color: var(--lc-danger-bd); color: var(--lc-danger); }
+
+/* ── Tabs (Settings) ───────────────────────────────────────────────────────── */
+.nav-tabs {
+    border-bottom-color: var(--lc-border);
 }
 
-#chat-messages::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 10px;
+.nav-tabs .nav-link {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: var(--lc-text-2);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 0.5rem 0.85rem;
 }
 
-#chat-messages::-webkit-scrollbar-thumb {
-    background: #bbb;
-    border-radius: 10px;
+.nav-tabs .nav-link:hover {
+    border-bottom-color: var(--lc-border-input);
+    color: var(--lc-text);
 }
 
-#chat-messages::-webkit-scrollbar-thumb:hover {
-    background: #888;
+.nav-tabs .nav-link.active {
+    color: var(--lc-accent);
+    background-color: transparent;
+    border-bottom-color: var(--lc-accent);
+}
+
+/* ── Modals ────────────────────────────────────────────────────────────────── */
+.modal-content {
+    border-radius: var(--lc-radius-lg);
+    border: 1px solid var(--lc-border);
+}
+
+.modal-header,
+.modal-footer {
+    border-color: var(--lc-hairline);
 }
 
 /* ── Model cards ───────────────────────────────────────────────────────────── */
 .model-card {
-    transition: all 0.2s;
+    transition: background-color 0.12s;
 }
 
 .model-card:hover {
-    border-color: var(--color-primary) !important;
+    border-color: var(--lc-border-input) !important;
+    background-color: var(--lc-app);
 }
 
 .model-card.border-success {
-    border-width: 2px !important;
+    border-width: 1px !important;
+    border-color: var(--lc-accent) !important;
 }
 
-/* ── Responsive adjustments ────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-    .sidebar {
-        position: static;
-        height: auto;
-    }
-
-    main {
-        margin-left: 0 !important;
-    }
-
-    .card {
-        margin-bottom: 1rem;
-    }
+/* ── Scrollbars ────────────────────────────────────────────────────────────── */
+#chat-messages,
+#conversations-list,
+#documents-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--lc-border-input) transparent;
 }
 
-/* ── Utility classes ───────────────────────────────────────────────────────── */
-.fs-7 {
-    font-size: 0.875rem;
+#chat-messages::-webkit-scrollbar,
+#conversations-list::-webkit-scrollbar,
+#documents-list::-webkit-scrollbar {
+    width: 6px;
 }
 
-.cursor-pointer {
-    cursor: pointer;
+#chat-messages::-webkit-scrollbar-track,
+#conversations-list::-webkit-scrollbar-track,
+#documents-list::-webkit-scrollbar-track {
+    background: transparent;
 }
 
-/* ── SVG Architecture Diagram ──────────────────────────────────────────────── */
-svg text {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+#chat-messages::-webkit-scrollbar-thumb,
+#conversations-list::-webkit-scrollbar-thumb,
+#documents-list::-webkit-scrollbar-thumb {
+    background: var(--lc-border-input);
+    border-radius: 3px;
 }
 
 /* ── Theme swatches (Settings → Appearance) ────────────────────────────────── */
@@ -309,345 +748,108 @@ svg text {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     cursor: pointer;
 }
 
 .theme-swatch {
-    width: 44px;
-    height: 44px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    border: 3px solid transparent;
+    border: 0;
     outline: 2px solid transparent;
-    outline-offset: 2px;
-    transition: border-color 0.2s, outline-color 0.2s, transform 0.2s;
+    outline-offset: 3px;
+    transition: outline-color 0.12s;
 }
 
-.theme-swatch:hover {
-    transform: scale(1.1);
-    outline-color: #aaa;
-}
-
-.theme-swatch.active {
-    outline-color: #333;
-    transform: scale(1.08);
-}
+.theme-swatch:hover  { outline-color: var(--lc-border-input); transform: none; }
+.theme-swatch.active { outline-color: var(--lc-text-2); transform: none; }
 
 .theme-swatch-wrap span {
-    font-size: 0.72rem;
-    color: #666;
-    font-weight: 500;
+    font-size: 0.7rem;
+    color: var(--lc-text-3);
+    font-weight: 400;
 }
 
-/* ── Dark mode overrides ───────────────────────────────────────────────────── */
+/* ── Utilities kept from the previous sheet ────────────────────────────────── */
+.fs-7 { font-size: 0.8125rem; }
+.cursor-pointer { cursor: pointer; }
+.text-muted { color: var(--lc-text-3) !important; }
 
-/* Base surfaces */
-[data-bs-theme="dark"] body {
-    background-color: #0f1117;
+svg text { font-family: var(--lc-font); }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--lc-border);
+    }
+
+    main { margin-left: 0 !important; }
+
+    .card { margin-bottom: 1rem; }
+
+    .message-content { max-width: 100% !important; }
 }
 
-[data-bs-theme="dark"] .sidebar {
-    background-color: #0f1117 !important;
-    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.07);
+/* ── Dark ──────────────────────────────────────────────────────────────────── */
+/* The same design, inverted: warm-neutral rather than the blue-black it used to
+ * be, so the two themes are recognisably one product. Structure is unchanged —
+ * only the token values move. */
+[data-bs-theme="dark"] {
+    --lc-app:          #16181c;
+    --lc-surface:      #1b1e23;
+    --lc-selected:     #23272d;
+    --lc-hairline:     #23272d;
+    --lc-border:       #2b3037;
+    --lc-border-input: #363c44;
+
+    --lc-text:         #e3e5e8;
+    --lc-text-2:       #a1a7ae;
+    --lc-text-3:       #7c828a;
+
+    --lc-accent:       #5fa8ac;
+    --lc-accent-hover: #7cc0c4;
+    --lc-accent-bg:    #1e2a2c;
+    --lc-accent-rgb:   95, 168, 172;
+
+    --lc-ok:           #6cc481;
+    --lc-warn:         #c98a4e;
+    --lc-danger:       #e08a86;
+    --lc-danger-bd:    #4a2f2e;
+
+    --bs-body-bg:         var(--lc-app);
+    --bs-body-color:      var(--lc-text);
+    --bs-emphasis-color:  var(--lc-text);
+    --bs-secondary-color: var(--lc-text-2);
+    --bs-tertiary-color:  var(--lc-text-3);
+    --bs-secondary-bg:    var(--lc-selected);
+    --bs-tertiary-bg:     var(--lc-surface);
+    --bs-border-color:    var(--lc-border);
+    --bs-primary:         var(--lc-accent);
+    --bs-primary-rgb:     var(--lc-accent-rgb);
+    --bs-link-color:      var(--lc-accent);
+    --bs-link-hover-color: var(--lc-accent-hover);
 }
 
-[data-bs-theme="dark"] .sidebar .nav-link {
-    color: #a0aec0;
+[data-bs-theme="dark"][data-theme="ocean"]  { --lc-accent: #5aa6c8; --lc-accent-hover: #7ec0dd; --lc-accent-bg: #1c2831; --lc-accent-rgb: 90, 166, 200; }
+[data-bs-theme="dark"][data-theme="forest"] { --lc-accent: #63ab7e; --lc-accent-hover: #85c69c; --lc-accent-bg: #1c2a22; --lc-accent-rgb: 99, 171, 126; }
+[data-bs-theme="dark"][data-theme="rose"]   { --lc-accent: #c98a9c; --lc-accent-hover: #dda8b6; --lc-accent-bg: #2e2126; --lc-accent-rgb: 201, 138, 156; }
+[data-bs-theme="dark"][data-theme="slate"]  { --lc-accent: #8f97be; --lc-accent-hover: #adb3d2; --lc-accent-bg: #23252f; --lc-accent-rgb: 143, 151, 190; }
+
+[data-bs-theme="dark"] .navbar.bg-dark {
+    background-color: var(--lc-surface) !important;
 }
 
-[data-bs-theme="dark"] .sidebar .nav-link:hover,
-[data-bs-theme="dark"] .sidebar .nav-link.active {
-    color: var(--color-accent);
-    background-color: rgba(255, 255, 255, 0.06);
-}
-
-/* Chat messages area */
-[data-bs-theme="dark"] #chat-messages {
-    background-color: #13161f !important;
-    border-color: #2d3748 !important;
-}
-
-/* Conversations sidebar panel */
-[data-bs-theme="dark"] #conversations-list {
-    background-color: #1a1d27;
-}
-
-[data-bs-theme="dark"] .conversations-panel-header {
-    background-color: #13161f !important;
-    border-color: #2d3748 !important;
-}
-
-/* Message bubbles – assistant & loading */
-[data-bs-theme="dark"] .assistant-message .message-content,
-[data-bs-theme="dark"] .loading-message .message-content {
-    background-color: #1e2230 !important;
-    border-color: #2d3748 !important;
-    color: #e2e8f0;
+[data-bs-theme="dark"] .card,
+[data-bs-theme="dark"] .modal-content,
+[data-bs-theme="dark"] .alert {
+    background-color: var(--lc-surface);
 }
 
 [data-bs-theme="dark"] .message-text code {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #90cdf4;
-}
-
-/* Source attribution */
-[data-bs-theme="dark"] .chunk-context-text {
-    background: #13161f;
-    border-color: #2d3748;
-    color: #a0aec0;
-}
-
-[data-bs-theme="dark"] .sources-panel summary {
-    border-top-color: #2d3748;
-    color: #718096;
-}
-
-/* Cards */
-[data-bs-theme="dark"] .card {
-    background-color: #1a1d27;
-    border-color: #2d3748 !important;
-}
-
-[data-bs-theme="dark"] .card-header {
-    border-bottom-color: #2d3748 !important;
-    background-color: rgba(255, 255, 255, 0.04);
-}
-
-/* Form controls */
-[data-bs-theme="dark"] .form-control,
-[data-bs-theme="dark"] .form-select {
-    background-color: #1e2230;
-    border-color: #2d3748;
-    color: #e2e8f0;
-}
-
-[data-bs-theme="dark"] .form-control:focus,
-[data-bs-theme="dark"] .form-select:focus {
-    background-color: #1e2230;
-    color: #e2e8f0;
-}
-
-[data-bs-theme="dark"] .form-control::placeholder {
-    color: #4a5568;
-}
-
-/* List groups */
-[data-bs-theme="dark"] .list-group-item {
-    background-color: #1a1d27;
-    border-color: #2d3748;
-    color: #e2e8f0;
-}
-
-[data-bs-theme="dark"] .list-group-item:hover {
-    background-color: #1e2230;
-    border-left-color: var(--color-primary);
-}
-
-/* Conversation list items */
-[data-bs-theme="dark"] .conversation-item {
-    border-bottom: 1px solid #2d3748;
-    color: #cbd5e0;
-}
-
-[data-bs-theme="dark"] .conversation-item:hover,
-[data-bs-theme="dark"] .conversation-item.active {
-    background-color: rgba(255, 255, 255, 0.06);
-}
-
-/* Borders and dividers */
-[data-bs-theme="dark"] .border-bottom,
-[data-bs-theme="dark"] .border-top {
-    border-color: #2d3748 !important;
-}
-
-[data-bs-theme="dark"] .border {
-    border-color: #2d3748 !important;
-}
-
-/* Buttons */
-[data-bs-theme="dark"] .btn-outline-secondary {
-    border-color: #4a5568;
-    color: #a0aec0;
-}
-
-[data-bs-theme="dark"] .btn-outline-secondary:hover {
-    background-color: #2d3748;
-    border-color: #4a5568;
-    color: #e2e8f0;
-}
-
-/* Tables */
-[data-bs-theme="dark"] .table {
-    color: #cbd5e0;
-    border-color: #2d3748;
-}
-
-[data-bs-theme="dark"] .table td,
-[data-bs-theme="dark"] .table th {
-    border-color: #2d3748;
-}
-
-/* Progress bars */
-[data-bs-theme="dark"] .progress {
-    background-color: #2d3748;
-}
-
-/* Scrollbar */
-[data-bs-theme="dark"] #chat-messages::-webkit-scrollbar-track {
-    background: #13161f;
-}
-
-[data-bs-theme="dark"] #chat-messages::-webkit-scrollbar-thumb {
-    background: #2d3748;
-}
-
-[data-bs-theme="dark"] #chat-messages::-webkit-scrollbar-thumb:hover {
-    background: #4a5568;
-}
-
-/* Modals */
-[data-bs-theme="dark"] .modal-content {
-    background-color: #1a1d27;
-    border-color: #2d3748;
-}
-
-[data-bs-theme="dark"] .modal-header,
-[data-bs-theme="dark"] .modal-footer {
-    border-color: #2d3748;
-}
-
-/* Theme swatch labels */
-[data-bs-theme="dark"] .theme-swatch-wrap span {
-    color: #a0aec0;
-}
-
-[data-bs-theme="dark"] .theme-swatch.active {
-    outline-color: #e2e8f0;
-}
-
-/* ── Source attribution panel ──────────────────────────────────────────────── */
-.sources-panel summary {
-    cursor: pointer;
-    user-select: none;
-    list-style: none;
-    padding: 2px 0;
-    border-top: 1px solid #e9ecef;
-    margin-top: 6px;
-}
-
-.sources-panel summary::-webkit-details-marker { display: none; }
-
-.sources-panel summary::before {
-    content: '▶ ';
-    font-size: 0.65rem;
-}
-
-.sources-panel[open] summary::before {
-    content: '▼ ';
-}
-
-.chunk-context-text {
-    font-size: 0.78rem;
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 260px;
-    overflow-y: auto;
-}
-
-/* ── Query plan trace panel ────────────────────────────────────────────────── */
-.plan-trace summary {
-    cursor: pointer;
-    user-select: none;
-    list-style: none;
-    padding: 2px 0;
-    border-top: 1px solid #e9ecef;
-    margin-bottom: 2px;
-}
-
-.plan-trace summary::-webkit-details-marker { display: none; }
-
-.plan-trace summary::before {
-    content: '▶ ';
-    font-size: 0.6rem;
-    opacity: 0.6;
-}
-
-.plan-trace[open] summary::before {
-    content: '▼ ';
-}
-
-.plan-trace-body {
-    border-left: 2px solid #dee2e6;
-    padding-left: 0.5rem !important;
-}
-
-[data-bs-theme="dark"] .plan-trace summary {
-    border-top-color: #2d3748;
-}
-
-[data-bs-theme="dark"] .plan-trace-body {
-    border-left-color: #2d3748;
-}
-
-/* Model router badge — shown when MODEL_ROUTER_ENABLED and model was routed */
-.model-routed-badge {
-    background-color: #6f42c1;
-    color: #fff;
-    font-family: monospace;
-    max-width: 14ch;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: middle;
-    cursor: help;
-}
-
-[data-bs-theme="dark"] .model-routed-badge {
-    background-color: #7952b3;
-}
-
-/* Feedback bar — thumbs up/down below RAG answers */
-.feedback-bar {
-    display: flex;
-    align-items: center;
-}
-
-.feedback-btn {
-    padding: 0.1rem 0.4rem;
-    font-size: 0.85rem;
-    border: 1px solid transparent;
-    border-radius: 0.4rem;
-    background: none;
-    transition: background-color 0.15s, border-color 0.15s;
-    cursor: pointer;
-    opacity: 0.7;
-}
-
-.feedback-btn:hover {
-    background-color: rgba(0, 0, 0, 0.07);
-    border-color: rgba(0, 0, 0, 0.12);
-    opacity: 1;
-}
-
-.feedback-btn.active {
-    background-color: rgba(var(--color-primary-rgb), 0.12);
-    border-color: var(--color-primary);
-    opacity: 1;
-}
-
-.feedback-btn.dimmed {
-    opacity: 0.25;
-    cursor: default;
-}
-
-[data-bs-theme="dark"] .feedback-btn:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
-}
-
-[data-bs-theme="dark"] .feedback-btn.active {
-    background-color: rgba(var(--color-primary-rgb), 0.2);
-    border-color: var(--color-primary);
+    background-color: var(--lc-selected);
+    color: var(--lc-text);
 }
