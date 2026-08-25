@@ -844,6 +844,25 @@ main > .d-flex.border-bottom {
     .settings-nav .nav-item { width: auto; }
 }
 
+/* ── Feedback bar ──────────────────────────────────────────────────────────── */
+.feedback-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.feedback-btn {
+    color: var(--lc-text-3);
+    padding: 0.2rem 0.35rem;
+    line-height: 1;
+    border: 0;
+    background: transparent;
+}
+
+.feedback-btn:hover { color: var(--lc-accent); background: transparent; }
+.feedback-btn.active { color: var(--lc-accent); }
+.feedback-btn.dimmed { opacity: 0.35; }
+
 /* ── Modals ────────────────────────────────────────────────────────────────── */
 .modal-content {
     border-radius: var(--lc-radius-lg);
