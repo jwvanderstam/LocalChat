@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.55 0.07 200); text-decoration: none; }
+    a:hover { color: oklch(0.45 0.08 200); text-decoration: underline; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 860px; background: oklch(0.985 0.002 250); color: oklch(0.28 0.008 250); display: flex; overflow: hidden; font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 14px">
+
+  <div style="width: 236px; flex: none; border-right: 1px solid oklch(0.91 0.004 250); display: flex; flex-direction: column; padding: 22px 0">
+    <div style="padding: 0 22px 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em">LocalChat</div>
+    <div style="padding: 0 22px 20px; font-size: 12px; color: oklch(0.62 0.008 250)">Acme Legal</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 12px">
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="9" rx="2"></rect><path d="M5 14l2.5-2.5"></path></svg> Chat
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; background: oklch(0.945 0.006 200); color: oklch(0.42 0.07 200); font-weight: 500; display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5a1 1 0 0 1 1-1h3l1.5 2h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-8Z"></path></svg> Documents
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7" rx="1"></rect><path d="M6.5 1.5v3M9.5 1.5v3M6.5 11.5v3M9.5 11.5v3M1.5 6.5h3M1.5 9.5h3M11.5 6.5h3M11.5 9.5h3"></path></svg> Models
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg> Settings
+      </div>
+    </div>
+    <div style="flex: 1"></div>
+    <div style="padding: 13px 22px 0; border-top: 1px solid oklch(0.91 0.004 250); font-size: 12px; color: oklch(0.62 0.008 250); display: flex; align-items: center; gap: 7px">
+      <div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.70 0.13 150)"></div>
+      llama3.1:8b &middot; 128 docs
+    </div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; min-width: 0">
+
+    <div style="height: 60px; flex: none; border-bottom: 1px solid oklch(0.91 0.004 250); display: flex; align-items: center; justify-content: space-between; padding: 0 28px">
+      <div>
+        <div style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Documents</div>
+        <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">128 documents &middot; 4,312 chunks &middot; last sync 14 minutes ago</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 13px">
+        <div style="border: 1px solid oklch(0.89 0.004 250); border-radius: 5px; padding: 6px 12px; color: oklch(0.40 0.008 250)">Test retrieval</div>
+        <div style="background: oklch(0.55 0.07 200); color: #ffffff; border-radius: 5px; padding: 6px 14px; font-weight: 500">Upload</div>
+      </div>
+    </div>
+
+    <div style="flex: 1; display: flex; min-height: 0">
+
+      <div style="flex: 1; padding: 26px 28px 0; min-width: 0; display: flex; flex-direction: column">
+
+        <div style="border: 1px dashed oklch(0.86 0.005 250); border-radius: 8px; padding: 22px; display: flex; align-items: center; gap: 14px; background: #ffffff; margin-bottom: 26px">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="oklch(0.62 0.008 250)" stroke-width="1.4"><path d="M8 11V3M8 3 5 6M8 3l3 3M2.5 11v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2"></path></svg>
+          <div>
+            <div style="font-size: 14px; font-weight: 500">Drop files here, or <span style="color: oklch(0.55 0.07 200)">browse</span></div>
+            <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 2px">PDF, DOCX, TXT, MD, PPTX and images &middot; processed on this machine</div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 9px; border-bottom: 1px solid oklch(0.91 0.004 250)">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250)">In this workspace</div>
+          <div style="font-size: 12px; color: oklch(0.62 0.008 250)">Sorted by newest</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 13px 2px; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="oklch(0.62 0.008 250)" stroke-width="1.4" style="flex: none"><path d="M3.5 1.5h6l3 3v10a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z"></path><path d="M9.5 1.5v3h3"></path></svg>
+            <div style="flex: 1; min-width: 0">
+              <div style="font-weight: 500">meridian-msa.pdf</div>
+              <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">184 chunks &middot; 2.4 MB &middot; added 12 Aug</div>
+            </div>
+            <div style="font-size: 12px; color: oklch(0.62 0.008 250)">Local folder</div>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="oklch(0.70 0.008 250)" stroke-width="1.4" style="flex: none"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5v9a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-9"></path></svg>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 13px 2px; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="oklch(0.62 0.008 250)" stroke-width="1.4" style="flex: none"><path d="M3.5 1.5h6l3 3v10a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z"></path><path d="M9.5 1.5v3h3"></path></svg>
+            <div style="flex: 1; min-width: 0">
+              <div style="font-weight: 500">vendor-sla-2026.docx</div>
+              <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">61 chunks &middot; 840 KB &middot; added 9 Aug</div>
+            </div>
+            <div style="font-size: 12px; color: oklch(0.62 0.008 250)">SharePoint</div>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="oklch(0.70 0.008 250)" stroke-width="1.4" style="flex: none"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5v9a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-9"></path></svg>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 13px 2px; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="oklch(0.62 0.008 250)" stroke-width="1.4" style="flex: none"><path d="M3.5 1.5h6l3 3v10a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z"></path><path d="M9.5 1.5v3h3"></path></svg>
+            <div style="flex: 1; min-width: 0">
+              <div style="font-weight: 500">onboarding-policy.md</div>
+              <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">23 chunks &middot; 47 KB &middot; added 4 Aug</div>
+            </div>
+            <div style="font-size: 12px; color: oklch(0.62 0.008 250)">Upload</div>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="oklch(0.70 0.008 250)" stroke-width="1.4" style="flex: none"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5v9a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-9"></path></svg>
+          </div>
+          <div style="display: flex; align-items: center; gap: 14px; padding: 13px 2px; border-bottom: 1px solid oklch(0.94 0.003 250); opacity: 0.55">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="oklch(0.62 0.008 250)" stroke-width="1.4" style="flex: none"><path d="M3.5 1.5h6l3 3v10a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z"></path><path d="M9.5 1.5v3h3"></path></svg>
+            <div style="flex: 1; min-width: 0">
+              <div style="font-weight: 500">pricing-2025-draft.xlsx <span style="font-weight: 400; font-size: 12px; color: oklch(0.62 0.008 250)">— retired</span></div>
+              <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">Citations still resolve &middot; retired 2 Aug by jw</div>
+            </div>
+            <div style="font-size: 12px; color: oklch(0.55 0.07 200)">Restore</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="width: 276px; flex: none; border-left: 1px solid oklch(0.91 0.004 250); padding: 26px 24px; display: flex; flex-direction: column; gap: 26px">
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 13px">Index</div>
+          <div style="display: flex; gap: 30px">
+            <div>
+              <div style="font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1">128</div>
+              <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 3px">Documents</div>
+            </div>
+            <div>
+              <div style="font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1">4,312</div>
+              <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 3px">Chunks</div>
+            </div>
+          </div>
+          <div style="margin-top: 15px; font-size: 12px; color: oklch(0.62 0.008 250); line-height: 1.5">Average 34 chunks per document. Ingest throughput and per-format chunk counts live under Settings &rsaquo; Retrieval.</div>
+        </div>
+
+        <div style="border-top: 1px solid oklch(0.91 0.004 250); padding-top: 22px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 11px">Sources</div>
+          <div style="display: flex; flex-direction: column; gap: 9px; font-size: 13px">
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.45 0.008 250)">Uploads</span><span style="color: oklch(0.62 0.008 250)">86</span></div>
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.45 0.008 250)">SharePoint</span><span style="color: oklch(0.62 0.008 250)">31</span></div>
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.45 0.008 250)">Local folder</span><span style="color: oklch(0.62 0.008 250)">11</span></div>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid oklch(0.91 0.004 250); padding-top: 22px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 10px">Retire all</div>
+          <div style="font-size: 12.5px; color: oklch(0.55 0.008 250); line-height: 1.5; margin-bottom: 11px">Marks every document retired. Citations keep resolving; nothing is destroyed.</div>
+          <div style="border: 1px solid oklch(0.85 0.06 25); color: oklch(0.52 0.15 25); border-radius: 5px; padding: 6px 12px; font-size: 13px; display: inline-block">Retire all documents</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

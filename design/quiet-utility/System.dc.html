@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.55 0.07 200); text-decoration: none; }
+    a:hover { color: oklch(0.45 0.08 200); text-decoration: underline; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 940px; background: oklch(0.985 0.002 250); color: oklch(0.28 0.008 250); overflow: hidden; font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 14px; padding: 34px 38px">
+
+  <div style="display: flex; align-items: baseline; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid oklch(0.91 0.004 250)">
+    <div style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em">Quiet Utility — system</div>
+    <div style="font-size: 12.5px; color: oklch(0.62 0.008 250)">Everything the four screens are built from</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px; margin-top: 26px">
+
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 13px">Colour</div>
+      <div style="display: flex; flex-direction: column; gap: 9px; font-size: 12px">
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.985 0.002 250); border: 1px solid oklch(0.91 0.004 250); flex: none"></div><div><div style="font-weight: 500">app</div><div style="color: oklch(0.62 0.008 250)">oklch(0.985 0.002 250)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: #ffffff; border: 1px solid oklch(0.91 0.004 250); flex: none"></div><div><div style="font-weight: 500">surface</div><div style="color: oklch(0.62 0.008 250)">#ffffff</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.955 0.003 250); border: 1px solid oklch(0.91 0.004 250); flex: none"></div><div><div style="font-weight: 500">selected</div><div style="color: oklch(0.62 0.008 250)">oklch(0.955 0.003 250)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.91 0.004 250); flex: none"></div><div><div style="font-weight: 500">border</div><div style="color: oklch(0.62 0.008 250)">oklch(0.91 0.004 250)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.28 0.008 250); flex: none"></div><div><div style="font-weight: 500">text</div><div style="color: oklch(0.62 0.008 250)">oklch(0.28 0.008 250)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.62 0.008 250); flex: none"></div><div><div style="font-weight: 500">text-muted</div><div style="color: oklch(0.62 0.008 250)">oklch(0.62 0.008 250)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.55 0.07 200); flex: none"></div><div><div style="font-weight: 500">accent</div><div style="color: oklch(0.62 0.008 250)">oklch(0.55 0.07 200)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.945 0.006 200); border: 1px solid oklch(0.91 0.004 250); flex: none"></div><div><div style="font-weight: 500">accent-bg</div><div style="color: oklch(0.62 0.008 250)">oklch(0.945 0.006 200)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.70 0.13 150); flex: none"></div><div><div style="font-weight: 500">ok</div><div style="color: oklch(0.62 0.008 250)">oklch(0.70 0.13 150)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.52 0.15 25); flex: none"></div><div><div style="font-weight: 500">danger</div><div style="color: oklch(0.62 0.008 250)">oklch(0.52 0.15 25)</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px"><div style="width: 26px; height: 26px; border-radius: 4px; background: oklch(0.85 0.06 25); flex: none"></div><div><div style="font-weight: 500">danger-border</div><div style="color: oklch(0.62 0.008 250)">oklch(0.85 0.06 25)</div></div></div>
+      </div>
+      <div style="margin-top: 15px; font-size: 12px; color: oklch(0.58 0.008 250); line-height: 1.55">One accent, low chroma. No second hue, no gradients, no tinted shadows.</div>
+    </div>
+
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 13px">Type &mdash; Instrument Sans</div>
+      <div style="display: flex; flex-direction: column; gap: 11px">
+        <div><div style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">Page title</div><div style="font-size: 11.5px; color: oklch(0.62 0.008 250)">21 / 600 / -0.02em</div></div>
+        <div><div style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Section heading</div><div style="font-size: 11.5px; color: oklch(0.62 0.008 250)">15 / 600 / -0.01em</div></div>
+        <div><div style="font-size: 15px; line-height: 1.65">Body — answers and long prose, capped at a 680px measure.</div><div style="font-size: 11.5px; color: oklch(0.62 0.008 250)">15 / 400 / 1.65</div></div>
+        <div><div style="font-size: 14px">Interface default</div><div style="font-size: 11.5px; color: oklch(0.62 0.008 250)">14 / 400</div></div>
+        <div><div style="font-size: 12.5px; color: oklch(0.58 0.008 250)">Help text under a control</div><div style="font-size: 11.5px; color: oklch(0.62 0.008 250)">12.5 / 400 / muted</div></div>
+        <div><div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250)">Section label</div><div style="font-size: 11.5px; color: oklch(0.62 0.008 250)">11 / 600 / 0.06em / caps</div></div>
+      </div>
+      <div style="margin-top: 15px; font-size: 12px; color: oklch(0.58 0.008 250); line-height: 1.55">Two weights only: 400 and 600. 500 for the one step between a row label and its heading.</div>
+    </div>
+
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 13px">Controls</div>
+      <div style="display: flex; flex-direction: column; gap: 13px">
+        <div style="display: flex; gap: 9px; align-items: center">
+          <div style="background: oklch(0.55 0.07 200); color: #ffffff; border-radius: 5px; padding: 6px 14px; font-weight: 500; font-size: 13px">Primary</div>
+          <div style="border: 1px solid oklch(0.89 0.004 250); border-radius: 5px; padding: 6px 13px; color: oklch(0.40 0.008 250); font-size: 13px">Secondary</div>
+          <div style="border: 1px solid oklch(0.85 0.06 25); color: oklch(0.52 0.15 25); border-radius: 5px; padding: 6px 13px; font-size: 13px">Danger</div>
+        </div>
+        <div style="border: 1px solid oklch(0.88 0.004 250); border-radius: 5px; background: #ffffff; padding: 8px 11px; font-size: 13px; color: oklch(0.66 0.008 250)">Text input</div>
+        <div style="display: flex; gap: 16px; align-items: center; font-size: 13px">
+          <div style="display: flex; align-items: center; gap: 7px"><div style="width: 30px; height: 17px; background: oklch(0.55 0.07 200); border-radius: 9px; position: relative"><div style="position: absolute; right: 2px; top: 2px; width: 13px; height: 13px; background: #ffffff; border-radius: 50%"></div></div> On</div>
+          <div style="display: flex; align-items: center; gap: 7px"><div style="width: 30px; height: 17px; background: oklch(0.89 0.004 250); border-radius: 9px; position: relative"><div style="position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; background: #ffffff; border-radius: 50%"></div></div> Off</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <div style="flex: 1; height: 4px; background: oklch(0.92 0.004 250); border-radius: 2px; position: relative"><div style="width: 45%; height: 100%; background: oklch(0.55 0.07 200); border-radius: 2px"></div><div style="position: absolute; left: 45%; top: -5px; width: 14px; height: 14px; background: #ffffff; border: 1px solid oklch(0.72 0.03 200); border-radius: 50%"></div></div>
+          <span style="font-size: 13px; font-variant-numeric: tabular-nums">0.45</span>
+        </div>
+        <div style="display: flex; gap: 5px; padding: 3px; background: oklch(0.945 0.003 250); border-radius: 6px; width: fit-content">
+          <div style="background: #ffffff; border-radius: 4px; padding: 5px 12px; font-size: 12.5px; font-weight: 500">Active</div>
+          <div style="padding: 5px 12px; font-size: 12.5px; color: oklch(0.55 0.008 250)">Retired</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: oklch(0.55 0.008 250)"><div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.70 0.13 150)"></div> Status dot &mdash; never a filled badge</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 34px; margin-top: 30px; padding-top: 24px; border-top: 1px solid oklch(0.91 0.004 250)">
+
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 13px">Geometry</div>
+      <div style="display: flex; flex-direction: column; gap: 9px; font-size: 13px">
+        <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Radius, controls</span><span style="color: oklch(0.62 0.008 250)">5px</span></div>
+        <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Radius, panels &amp; composer</span><span style="color: oklch(0.62 0.008 250)">8px</span></div>
+        <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Rail width</span><span style="color: oklch(0.62 0.008 250)">236px</span></div>
+        <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Header height</span><span style="color: oklch(0.62 0.008 250)">60px</span></div>
+        <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Reading measure</span><span style="color: oklch(0.62 0.008 250)">680px</span></div>
+        <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Row padding, list</span><span style="color: oklch(0.62 0.008 250)">13px 2px</span></div>
+        <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Shadows</span><span style="color: oklch(0.62 0.008 250)">none, anywhere</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 13px">What this removes from style.css</div>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: oklch(0.45 0.008 250); line-height: 1.5">
+        <div>&middot; The <span style="color: oklch(0.70 0.008 250)">#667eea &rarr; #764ba2</span> gradient on <span style="color: oklch(0.70 0.008 250)">.btn-primary</span>, <span style="color: oklch(0.70 0.008 250)">.user-message</span> and the sidebar button</div>
+        <div>&middot; <span style="color: oklch(0.70 0.008 250)">.card</span> and <span style="color: oklch(0.70 0.008 250)">.btn</span> hover lift (<span style="color: oklch(0.70 0.008 250)">translateY(-1px)</span> + shadow) &mdash; hover is a background change</div>
+        <div>&middot; Two-layer card shadows; panels separate with a hairline</div>
+        <div>&middot; Four filled status badges in the navbar &mdash; one dot and a line of text</div>
+        <div>&middot; The <span style="color: oklch(0.70 0.008 250)">.card &rarr; .card-body &rarr; #chat-messages.border</span> nesting; the transcript sits on the page</div>
+        <div>&middot; <span style="color: oklch(0.70 0.008 250)">.list-group-item</span> 3px left-border accent on hover</div>
+        <div>&middot; The four alternate <span style="color: oklch(0.70 0.008 250)">[data-theme]</span> palettes &mdash; one accent, or make theming a real feature rather than four hardcoded hues</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

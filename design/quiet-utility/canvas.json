@@ -1,0 +1,64 @@
+{
+  "pages": [
+    { "id": "screens", "name": "Screens" },
+    { "id": "system", "name": "System" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Chat", "page": "screens", "x": 0, "y": 0, "w": 1280, "h": 860 },
+    { "file": "Documents.dc.html", "title": "Documents", "page": "screens", "x": 1400, "y": 0, "w": 1280, "h": 860 },
+    { "file": "Models.dc.html", "title": "Models", "page": "screens", "x": 0, "y": 1000, "w": 1280, "h": 860 },
+    { "file": "Settings.dc.html", "title": "Settings — Retrieval", "page": "screens", "x": 1400, "y": 1000, "w": 1280, "h": 1100 },
+    { "file": "System.dc.html", "title": "Design system", "page": "system", "x": 0, "y": 0, "w": 1280, "h": 940 }
+  ],
+  "annotations": [
+    {
+      "id": "note-brief",
+      "x": 0,
+      "y": -180,
+      "w": 640,
+      "page": "screens",
+      "text": "QUIET UTILITY — built out\n\nDirection A across the four screens, static. Reading measure back to 680px and the fixed height dropped, per your call.\n\nContent is real: parameter names, defaults and states are read from src/config.py and the templates, not invented. The System page has the tokens and a list of what this removes from style.css."
+    },
+    {
+      "id": "note-chat",
+      "x": 0,
+      "y": 890,
+      "w": 560,
+      "page": "screens",
+      "text": "CHAT\n\nThe transcript sits on the page — no card, no inner border, no bubbles. Speaker is a small caps label, so the answer starts at the left margin and reads as prose.\n\nCitations are numbered footnotes under a hairline rather than blue badges. That is the one place I'd want your eye: it is quieter than today, and sourcing is the app's whole point."
+    },
+    {
+      "id": "note-documents",
+      "x": 1400,
+      "y": 890,
+      "w": 560,
+      "page": "screens",
+      "text": "DOCUMENTS\n\nFour cards became a list plus a right rail. The dashed dropzone is the only decorated element on the page.\n\nTwo things the current screen has no design for, shown here because the backend already does them: a retired document (soft-deleted, citations still resolving) and which connector a document came from. 'Clear Database' is renamed to what it actually does now — retire, not destroy."
+    },
+    {
+      "id": "note-models",
+      "x": 0,
+      "y": 1890,
+      "w": 560,
+      "page": "screens",
+      "text": "MODELS\n\nMM-1's environment-aware availability gets a real treatment: a model that won't fit stays visible with the reason stated in words (\"Needs 42 GB — more than this machine has\") rather than being greyed out with no explanation.\n\nThe VRAM budget moves to the rail where it is always visible, since it is the thing that governs every choice on this screen."
+    },
+    {
+      "id": "note-settings",
+      "x": 1400,
+      "y": 2130,
+      "w": 560,
+      "page": "screens",
+      "text": "SETTINGS — the real test\n\n1151 lines and fourteen stacked cards today. Here it is a sub-nav plus one pane at a time, with rows of label + help + control.\n\nTwo deliberate additions: every tunable names its .env key in muted type, so the running configuration is never a guess; and startup-fixed values are separated from the editable ones instead of sitting in identical cards. The save bar only appears once something changed."
+    },
+    {
+      "id": "note-system",
+      "x": 0,
+      "y": -180,
+      "w": 640,
+      "page": "system",
+      "text": "THE SYSTEM\n\nEnough to implement from: tokens as oklch strings you can paste straight into :root, the type ramp, every control state, and the geometry.\n\nThe right-hand column is the deletion list — the specific rules in style.css this direction removes. That is the honest measure of whether it is actually simpler."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "screens" }
+}

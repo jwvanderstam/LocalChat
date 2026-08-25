@@ -1,0 +1,161 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.55 0.07 200); text-decoration: none; }
+    a:hover { color: oklch(0.45 0.08 200); text-decoration: underline; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 860px; background: oklch(0.985 0.002 250); color: oklch(0.28 0.008 250); display: flex; overflow: hidden; font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 14px">
+
+  <div style="width: 236px; flex: none; border-right: 1px solid oklch(0.91 0.004 250); display: flex; flex-direction: column; padding: 22px 0">
+    <div style="padding: 0 22px 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em">LocalChat</div>
+    <div style="padding: 0 22px 20px; font-size: 12px; color: oklch(0.62 0.008 250)">Acme Legal</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 12px">
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="9" rx="2"></rect><path d="M5 14l2.5-2.5"></path></svg> Chat
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5a1 1 0 0 1 1-1h3l1.5 2h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-8Z"></path></svg> Documents
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; background: oklch(0.945 0.006 200); color: oklch(0.42 0.07 200); font-weight: 500; display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7" rx="1"></rect><path d="M6.5 1.5v3M9.5 1.5v3M6.5 11.5v3M9.5 11.5v3M1.5 6.5h3M1.5 9.5h3M11.5 6.5h3M11.5 9.5h3"></path></svg> Models
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg> Settings
+      </div>
+    </div>
+    <div style="flex: 1"></div>
+    <div style="padding: 13px 22px 0; border-top: 1px solid oklch(0.91 0.004 250); font-size: 12px; color: oklch(0.62 0.008 250); display: flex; align-items: center; gap: 7px">
+      <div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.70 0.13 150)"></div>
+      llama3.1:8b &middot; 128 docs
+    </div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; min-width: 0">
+
+    <div style="height: 60px; flex: none; border-bottom: 1px solid oklch(0.91 0.004 250); display: flex; align-items: center; justify-content: space-between; padding: 0 28px">
+      <div>
+        <div style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Models</div>
+        <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">Ollama at localhost:11434 &middot; 6 installed</div>
+      </div>
+      <div style="background: oklch(0.55 0.07 200); color: #ffffff; border-radius: 5px; padding: 6px 14px; font-weight: 500; font-size: 13px">Pull model</div>
+    </div>
+
+    <div style="flex: 1; display: flex; min-height: 0">
+
+      <div style="flex: 1; padding: 26px 28px 0; min-width: 0">
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 9px; border-bottom: 1px solid oklch(0.91 0.004 250); margin-bottom: 2px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250)">Installed</div>
+          <div style="font-size: 12px; color: oklch(0.62 0.008 250)">10.4 GB free of 16 GB VRAM</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 2px; border-bottom: 1px solid oklch(0.94 0.003 250); background: oklch(0.972 0.005 200)">
+          <div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.70 0.13 150); flex: none; margin-left: 6px"></div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-weight: 600">llama3.1:8b</div>
+            <div style="font-size: 12px; color: oklch(0.55 0.008 250); margin-top: 1px">Active &middot; loaded, 5.6 GB resident</div>
+          </div>
+          <div style="font-size: 12.5px; color: oklch(0.62 0.008 250)">4.7 GB</div>
+          <div style="font-size: 12.5px; color: oklch(0.42 0.07 200); font-weight: 500; width: 74px; text-align: right">In use</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 2px; border-bottom: 1px solid oklch(0.94 0.003 250)">
+          <div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.86 0.005 250); flex: none; margin-left: 6px"></div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-weight: 500">qwen2.5-coder:7b</div>
+            <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">Routed for code questions</div>
+          </div>
+          <div style="font-size: 12.5px; color: oklch(0.62 0.008 250)">4.4 GB</div>
+          <div style="font-size: 12.5px; color: oklch(0.50 0.008 250); width: 74px; text-align: right">Activate</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 2px; border-bottom: 1px solid oklch(0.94 0.003 250)">
+          <div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.86 0.005 250); flex: none; margin-left: 6px"></div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-weight: 500">nomic-embed-text</div>
+            <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">Embeddings &middot; required by retrieval</div>
+          </div>
+          <div style="font-size: 12.5px; color: oklch(0.62 0.008 250)">274 MB</div>
+          <div style="font-size: 12.5px; color: oklch(0.70 0.008 250); width: 74px; text-align: right">System</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 2px; border-bottom: 1px solid oklch(0.94 0.003 250)">
+          <div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.86 0.005 250); flex: none; margin-left: 6px"></div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-weight: 500">llama3.2:3b</div>
+            <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">Routed for fast, short answers</div>
+          </div>
+          <div style="font-size: 12.5px; color: oklch(0.62 0.008 250)">2.0 GB</div>
+          <div style="font-size: 12.5px; color: oklch(0.50 0.008 250); width: 74px; text-align: right">Activate</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 2px; border-bottom: 1px solid oklch(0.94 0.003 250)">
+          <div style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid oklch(0.80 0.008 250); flex: none; margin-left: 6px"></div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-weight: 500; color: oklch(0.60 0.008 250)">llama3.1:70b</div>
+            <div style="font-size: 12px; color: oklch(0.55 0.11 55); margin-top: 1px">Needs 42 GB &mdash; more than this machine has</div>
+          </div>
+          <div style="font-size: 12.5px; color: oklch(0.70 0.008 250)">39 GB</div>
+          <div style="font-size: 12.5px; color: oklch(0.75 0.008 250); width: 74px; text-align: right">Won&rsquo;t fit</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding: 14px 2px; border-bottom: 1px solid oklch(0.94 0.003 250)">
+          <div style="width: 6px; height: 6px; border-radius: 50%; border: 1px solid oklch(0.80 0.008 250); flex: none; margin-left: 6px"></div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-weight: 500; color: oklch(0.60 0.008 250)">mixtral:8x7b</div>
+            <div style="font-size: 12px; color: oklch(0.55 0.11 55); margin-top: 1px">Needs 26 GB &mdash; would evict the active model</div>
+          </div>
+          <div style="font-size: 12.5px; color: oklch(0.70 0.008 250)">24 GB</div>
+          <div style="font-size: 12.5px; color: oklch(0.75 0.008 250); width: 74px; text-align: right">Won&rsquo;t fit</div>
+        </div>
+      </div>
+
+      <div style="width: 276px; flex: none; border-left: 1px solid oklch(0.91 0.004 250); padding: 26px 24px; display: flex; flex-direction: column; gap: 26px">
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 13px">Hardware</div>
+          <div style="font-size: 13.5px; font-weight: 500">NVIDIA RTX 4080</div>
+          <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 2px">CUDA 12.4 &middot; driver 550.90</div>
+          <div style="margin-top: 15px">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: oklch(0.55 0.008 250); margin-bottom: 6px"><span>VRAM</span><span>5.6 / 16 GB</span></div>
+            <div style="height: 4px; background: oklch(0.92 0.004 250); border-radius: 2px; overflow: hidden"><div style="width: 35%; height: 100%; background: oklch(0.55 0.07 200)"></div></div>
+          </div>
+          <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 11px; line-height: 1.5">Models larger than the free budget are shown but cannot be activated.</div>
+        </div>
+
+        <div style="border-top: 1px solid oklch(0.91 0.004 250); padding-top: 22px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 11px">Pull a model</div>
+          <div style="border: 1px solid oklch(0.88 0.004 250); border-radius: 6px; background: #ffffff; padding: 9px 11px; font-size: 13px; color: oklch(0.66 0.008 250)">e.g. llama3.2:3b</div>
+          <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 9px; line-height: 1.5">Downloads from the Ollama registry to this machine. Nothing leaves it.</div>
+        </div>
+
+        <div style="border-top: 1px solid oklch(0.91 0.004 250); padding-top: 22px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); margin-bottom: 11px">Connection</div>
+          <div style="display: flex; flex-direction: column; gap: 9px; font-size: 13px">
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.45 0.008 250)">Ollama</span><span style="color: oklch(0.42 0.07 200)">Reachable</span></div>
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.45 0.008 250)">Endpoint</span><span style="color: oklch(0.62 0.008 250)">:11434</span></div>
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.45 0.008 250)">Version</span><span style="color: oklch(0.62 0.008 250)">0.5.7</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
