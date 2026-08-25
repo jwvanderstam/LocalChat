@@ -131,13 +131,19 @@ export function buildSourcesPanel(sources) {
     const lowRelevance = docSources.length > 0 && docSources.every(s => s.low_relevance);
 
     const fileCount = byFile.size;
-    const details   = document.createElement('details');
-    details.className = 'sources-panel mt-2';
 
-    const summary = document.createElement('summary');
-    summary.className   = 'text-muted small';
-    summary.textContent = `${fileCount} source${fileCount !== 1 ? 's' : ''}`;
-    details.appendChild(summary);
+    // Footnotes rather than a disclosure. Sourcing is what separates a grounded
+    // answer from a plausible one, so it is shown instead of folded behind an
+    // "N sources" summary the reader has to think to open. Numbered so a source
+    // can be referred to; the numbers are positional, and the answer text
+    // carries no matching markers — the model does not emit them.
+    const panel = document.createElement('div');
+    panel.className = 'sources-panel mt-2';
+
+    const heading = document.createElement('div');
+    heading.className   = 'sources-panel-label';
+    heading.textContent = fileCount === 1 ? 'Source' : 'Sources';
+    panel.appendChild(heading);
 
     if (lowRelevance) {
         const note = document.createElement('div');
@@ -145,34 +151,43 @@ export function buildSourcesPanel(sources) {
         // textContent, not innerHTML: filenames reach this panel and are not ours.
         note.textContent =
             'Low relevance — nothing in your documents closely matched this question.';
-        details.appendChild(note);
+        panel.appendChild(note);
     }
 
     const list = document.createElement('ul');
     list.className = 'list-unstyled mb-0 mt-1';
 
+    let ordinal = 0;
     byFile.forEach(({ chunk_id, url, pages }, filename) => {
+        ordinal += 1;
         const li = document.createElement('li');
-        li.className = 'small text-muted mb-1';
+        li.className = 'sources-panel-item';
+
+        const marker = document.createElement('span');
+        marker.className   = 'sources-panel-marker';
+        marker.textContent = String(ordinal);
+        li.appendChild(marker);
 
         let label = escapeHtml(filename);
         if (pages.size > 0) {
             const sorted = [...pages].sort((a, b) => a - b);
             label += ` <span class="opacity-75">p.${sorted.join(', ')}</span>`;
         }
-        li.innerHTML = label;
+        const text = document.createElement('span');
+        text.innerHTML = label;
+        li.appendChild(text);
 
         // Web sources carry a url instead of a chunk_id — link out to the page
         // they were quoted from, so the citation is verifiable.
         if (url) {
-            li.innerHTML = '';
+            text.innerHTML = '';
             const a = document.createElement('a');
             a.href = url;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
             a.className = 'text-decoration-none';
             a.innerHTML = label;
-            li.appendChild(a);
+            text.appendChild(a);
         }
 
         if (chunk_id) {
@@ -217,8 +232,8 @@ export function buildSourcesPanel(sources) {
         list.appendChild(li);
     });
 
-    details.appendChild(list);
-    return details;
+    panel.appendChild(list);
+    return panel;
 }
 
 export function buildFeedbackBar(messageId, conversationId, sourceChunkIds) {
