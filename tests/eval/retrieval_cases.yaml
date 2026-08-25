@@ -1,0 +1,119 @@
+# Retrieval eval set — DEL-2
+#
+# Question/expected-source pairs over this repository's own docs/ corpus.
+#
+# Why this corpus: DEL-2 asks for pairs "over the real document corpus". A
+# maintainer's own documents are not available to CI and differ per install,
+# so the repo's documentation stands in — it is real prose about a real
+# system, ~53k words across 20 files, and it is identical on every machine,
+# which is what makes a score comparable between runs. An eval set over your
+# own corpus is the natural second one; the harness takes any directory.
+#
+# `proof` is a literal string that must appear in `source`. It is not used for
+# scoring — it is checked before the eval runs, so a pair whose premise has
+# rotted fails loudly instead of quietly dragging the score down. Docs get
+# rewritten; this set has to notice.
+#
+# `answered_by` names what the question is really asking for, so a later
+# reader can tell an unfair question from a retrieval failure.
+
+cases:
+  - question: What did the ADRs decide about rewriting the database layer to async?
+    source: docs/ADR.md
+    proof: "asyncpg"
+    answered_by: ADR-2's decision and its reopening condition
+
+  - question: How do I restore the database from a backup?
+    source: docs/OPERATIONS.md
+    proof: "pg_restore"
+    answered_by: the restore runbook
+
+  - question: Which API routes can be reached without signing in?
+    source: docs/PERMISSIONS.md
+    proof: "require_admin_dep"
+    answered_by: the public allowlist and the reason each entry is on it
+
+  - question: How do I give an n8n bot scoped access to one workspace?
+    source: docs/WORKSPACE_API_KEYS.md
+    proof: "lcw_"
+    answered_by: creating, using and revoking a workspace API key
+
+  - question: Why does localhost fail to reach LocalChat when n8n runs in Docker?
+    source: docs/n8n-discord-setup.md
+    proof: "host.docker.internal"
+    answered_by: the container networking gotcha
+
+  - question: How do I apply the migration chain to a database?
+    source: docs/MIGRATIONS.md
+    proof: "alembic heads"
+    answered_by: how to apply, write and roll back migrations
+
+  - question: Which Python version do the pinned requirements target?
+    source: docs/TROUBLESHOOTING.md
+    proof: "3.13"
+    answered_by: the version CI and the Dockerfile use
+
+  - question: How was test quality measured, and what did it find?
+    source: docs/TEST_QUALITY_AUDIT.md
+    proof: "mutmut"
+    answered_by: the mutation-testing methodology and per-module findings
+
+  - question: What is the plan for single sign-on with Entra or Google?
+    source: docs/AUTH_PLAN.md
+    proof: "OIDC"
+    answered_by: the AUTH-3 step of the authentication build plan
+
+  - question: What is the Global Knowledge Base and how does a project contribute to it?
+    source: docs/ROADMAP.md
+    proof: "Global Knowledge Base"
+    answered_by: Initiative 4's two-tier knowledge architecture
+
+  - question: How is HTTPS terminated in front of the application?
+    source: docs/DEPLOYMENT.md
+    proof: "TLS"
+    answered_by: the nginx overlay and deployment checklist
+
+  - question: Which tables carry soft-delete columns?
+    source: docs/SCHEMA.md
+    proof: "deleted_at"
+    answered_by: the schema reference
+
+  - question: What does the reranker weight parameter actually change?
+    source: docs/SETTINGS.md
+    proof: "RERANK_TOP_K"
+    answered_by: the per-parameter help text
+
+  - question: How do I run the integration tests on my own machine?
+    source: docs/INTEGRATION_TESTS.md
+    proof: "pytest tests/integration"
+    answered_by: local setup instructions
+
+  - question: What is the exit criteria for calling this production grade?
+    source: docs/PRODUCTION_PLAN.md
+    proof: "Exit criteria"
+    answered_by: the eight conditions
+
+  - question: Why was the dependency lock file deleted?
+    source: docs/LESSONS_LEARNED.md
+    proof: "lock file"
+    answered_by: Chapter 11's dependency-pipeline repair
+
+  - question: Which environment variables configure the connection to Ollama?
+    source: docs/CONFIGURATION.md
+    proof: "OLLAMA_BASE_URL"
+    answered_by: the configuration reference
+
+  - question: What is the pgvector caveat when deploying to a managed database?
+    source: docs/localchat_scaleway_deployment_plan.md
+    proof: "Scaleway"
+    answered_by: the Scaleway per-service mapping
+
+  - question: What went wrong when connecting Discord through n8n, and what is still broken?
+    source: docs/bugreport-n8n-localchat.md
+    proof: "conversation_id"
+    answered_by: the findings, two resolved and one open
+
+  - question: How is the documentation organised for a reader who is new to it?
+    source: docs/README.md
+    proof: "Diátaxis"
+    answered_by: the Diataxis quadrants and the documentation index

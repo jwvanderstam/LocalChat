@@ -170,6 +170,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/perf/test_concurrency_canary.py` | PERF-2 — `/api/health` stays answerable while concurrent SSE streams run; prints the canary spread every run |
 | `tests/e2e/test_golden_path.py` | TQ-4 — sign in, upload, ask, and the answer cites the uploaded file; the whole frontend test strategy |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
+| `scripts/eval_retrieval.py` | DEL-2 — scores retrieval against fixed question/source pairs; `--compare graph\|reranker` runs both arms, and refuses when the feature under test never fires |
+| `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
 | `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
