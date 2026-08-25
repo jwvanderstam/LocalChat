@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.55 0.07 200); text-decoration: none; }
+    a:hover { color: oklch(0.45 0.08 200); text-decoration: underline; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 860px; background: oklch(0.985 0.002 250); color: oklch(0.28 0.008 250); display: flex; overflow: hidden; font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 14px">
+
+  <div style="width: 236px; flex: none; border-right: 1px solid oklch(0.91 0.004 250); display: flex; flex-direction: column; padding: 22px 0">
+
+    <div style="padding: 0 22px 22px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em">LocalChat</div>
+
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 12px">
+      <div style="padding: 7px 10px; border-radius: 5px; background: oklch(0.945 0.006 200); color: oklch(0.42 0.07 200); font-weight: 500; display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="9" rx="2"></rect><path d="M5 14l2.5-2.5"></path></svg> Chat
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5a1 1 0 0 1 1-1h3l1.5 2h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-8Z"></path></svg> Documents
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7" rx="1"></rect><path d="M6.5 1.5v3M9.5 1.5v3M6.5 11.5v3M9.5 11.5v3M1.5 6.5h3M1.5 9.5h3M11.5 6.5h3M11.5 9.5h3"></path></svg> Models
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg> Settings
+      </div>
+    </div>
+
+    <div style="margin-top: 28px; padding: 0 22px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250)">Conversations</div>
+
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 12px; flex: 1">
+      <div style="padding: 8px 10px; border-radius: 5px; background: oklch(0.955 0.003 250); font-weight: 500">Contract review — Q3</div>
+      <div style="padding: 8px 10px; border-radius: 5px; color: oklch(0.50 0.008 250)">Vendor SLA questions</div>
+      <div style="padding: 8px 10px; border-radius: 5px; color: oklch(0.50 0.008 250)">Onboarding policy</div>
+    </div>
+
+    <div style="padding: 14px 22px 0; border-top: 1px solid oklch(0.91 0.004 250); font-size: 12px; color: oklch(0.62 0.008 250); display: flex; align-items: center; gap: 7px">
+      <div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.70 0.13 150)"></div>
+      llama3.1:8b &middot; 128 docs
+    </div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; min-width: 0">
+
+    <div style="height: 60px; flex: none; border-bottom: 1px solid oklch(0.91 0.004 250); display: flex; align-items: center; justify-content: space-between; padding: 0 28px">
+      <div>
+        <div style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Contract review — Q3</div>
+        <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">Acme Legal &middot; grounded in 128 documents</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 18px; font-size: 13px; color: oklch(0.50 0.008 250)">
+        <div style="display: flex; align-items: center; gap: 7px">
+          <div style="width: 26px; height: 15px; background: oklch(0.55 0.07 200); border-radius: 8px; position: relative"><div style="position: absolute; right: 2px; top: 2px; width: 11px; height: 11px; background: #ffffff; border-radius: 50%"></div></div> RAG
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px">
+          <div style="width: 26px; height: 15px; background: oklch(0.89 0.004 250); border-radius: 8px; position: relative"><div style="position: absolute; left: 2px; top: 2px; width: 11px; height: 11px; background: #ffffff; border-radius: 50%"></div></div> Web
+        </div>
+        <div style="width: 1px; height: 18px; background: oklch(0.91 0.004 250)"></div>
+        <div>Temp <span style="color: oklch(0.28 0.008 250); font-weight: 500">0.7</span></div>
+        <div style="border: 1px solid oklch(0.89 0.004 250); border-radius: 5px; padding: 5px 11px; color: oklch(0.40 0.008 250)">New</div>
+      </div>
+    </div>
+
+    <div style="flex: 1; overflow: hidden; padding: 34px 28px 0; display: flex; justify-content: center; min-height: 0">
+      <div style="width: 660px; display: flex; flex-direction: column; gap: 30px">
+
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250)">You</div>
+          <div style="font-size: 15px; line-height: 1.6; color: oklch(0.32 0.008 250)">What notice period does the Meridian contract require for termination?</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.55 0.07 200)">LocalChat</div>
+          <div style="font-size: 15px; line-height: 1.65">
+            The Meridian agreement requires <strong style="font-weight: 600">60 days</strong> written notice for termination without cause.<sup style="font-size: 10px; color: oklch(0.55 0.07 200); font-weight: 600; margin-left: 1px">1</sup> Termination for material breach requires 30 days notice with an opportunity to cure.<sup style="font-size: 10px; color: oklch(0.55 0.07 200); font-weight: 600; margin-left: 1px">2</sup>
+          </div>
+          <div style="margin-top: 9px; padding-top: 11px; border-top: 1px solid oklch(0.92 0.004 250); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: oklch(0.55 0.008 250)">
+            <div style="display: flex; gap: 9px"><span style="color: oklch(0.55 0.07 200); font-weight: 600">1</span> meridian-msa.pdf &middot; &sect;8.2 Termination for convenience</div>
+            <div style="display: flex; gap: 9px"><span style="color: oklch(0.55 0.07 200); font-weight: 600">2</span> meridian-msa.pdf &middot; &sect;8.4 Material breach</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: none; padding: 20px 28px 26px; display: flex; justify-content: center">
+      <div style="width: 660px; display: flex; align-items: center; gap: 10px; border: 1px solid oklch(0.88 0.004 250); border-radius: 8px; background: #ffffff; padding: 12px 14px">
+        <div style="flex: 1; color: oklch(0.66 0.008 250); font-size: 14.5px">Ask about your documents</div>
+        <div style="width: 28px; height: 28px; border-radius: 6px; background: oklch(0.55 0.07 200); display: flex; align-items: center; justify-content: center">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#ffffff" stroke-width="1.7"><path d="M8 13V3M8 3 4 7M8 3l4 4"></path></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

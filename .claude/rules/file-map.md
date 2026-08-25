@@ -186,6 +186,10 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/TEST_QUALITY_AUDIT.md` | Mutation-testing (mutmut) methodology + per-module test-quality findings; environment setup notes (Docker, isolated worktree, mutmut 2.x vs 3.x) |
 | `docker-compose.nginx.yml` | Nginx TLS overlay — compose with `docker-compose.yml` to add HTTPS termination |
 | `nginx/nginx.conf` | Nginx config template — replace `YOUR_DOMAIN` and mount certs before use |
+| **Design** | |
+| `design/README.md` | What the two design canvases are, what is tracked vs generated, and the state of the redesign |
+| `design/localchat-ui/*.dc.html` | Three minimal directions for the chat screen plus a reproduction of today's UI — the decision record |
+| `design/quiet-utility/*.dc.html` | Direction A built out: Chat, Documents, Models, Settings, and `System.dc.html` (tokens + what it removes from `style.css`) |
 | **Frontend** | |
 | `static/js/ui.js` | Pure rendering helpers (no state): `escapeHtml`, `formatMessageText`, `buildSourcesPanel`, etc. |
 | `static/js/conversation.js` | Conversation state + sidebar + message DOM mutations; exports `getChatHistory`, `sendMessage` helpers |

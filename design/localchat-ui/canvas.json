@@ -1,0 +1,46 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Today — current UI", "x": 0, "y": 0, "w": 1280, "h": 860 },
+    { "file": "QuietUtility.dc.html", "title": "A · Quiet Utility", "x": 1400, "y": 0, "w": 1280, "h": 860 },
+    { "file": "Terminal.dc.html", "title": "B · Terminal", "x": 0, "y": 1120, "w": 1280, "h": 860 },
+    { "file": "Editorial.dc.html", "title": "C · Editorial", "x": 1400, "y": 1120, "w": 1280, "h": 860 }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -210,
+      "w": 700,
+      "text": "Pick a direction — then I'll build it out properly.\n\nSame screen, same content in all four, so the only variable is the design. Each direction takes a different position on what LocalChat *is*; they are not three shades of one idea.\n\nThe chat screen only for now. Documents, Models and Settings follow once a direction is settled."
+    },
+    {
+      "id": "note-today",
+      "x": 0,
+      "y": 890,
+      "w": 560,
+      "text": "TODAY — what's there now\n\nBootstrap 5 defaults plus a #667eea → #764ba2 gradient, shadows and hover-lifts on every card and button, four status badges in the top bar, and boxes nested three deep (card → border → transcript).\n\nWhat's actually wrong: the gradient and the drop shadows are decoration doing no work, and the nesting means four borders compete for attention before you reach a word of the answer. Your instinct is right."
+    },
+    {
+      "id": "note-a",
+      "x": 1400,
+      "y": 890,
+      "w": 560,
+      "text": "A · QUIET UTILITY — Instrument Sans, cool near-white, one muted teal\n\nThe case: hierarchy from type and whitespace, nothing else. No cards, no shadows, no gradients — hairlines separate, and the reading column is capped so the answer is comfortable to read. Nav and conversations merge into one rail; the four badges become a single status line. Citations are numbered footnotes.\n\nThe tradeoff: it is quiet to the point of plain. There is no single memorable thing about it, and it will look like a lot of well-made modern tools."
+    },
+    {
+      "id": "note-b",
+      "x": 0,
+      "y": 2010,
+      "w": 560,
+      "text": "B · TERMINAL — JetBrains Mono + IBM Plex Sans, warm near-black, amber\n\nThe case: this is a local-first tool for people who run their own model. It leans into that instead of hiding it — mono for every label, a prompt caret on the composer, bracketed [1] citations, a tmux-style status bar along the bottom, square corners throughout. Distinctive and hard to mistake for anything else.\n\nThe tradeoff: it takes a side. Non-technical users may read it as intimidating, and it is the hardest of the three to extend to Settings and Documents without looking gimmicky."
+    },
+    {
+      "id": "note-c",
+      "x": 1400,
+      "y": 2010,
+      "w": 560,
+      "text": "C · EDITORIAL — Newsreader + Instrument Sans, warm paper, oxblood\n\nThe case: the product is answers grounded in your documents, so the answer is set like a printed page — serif body at a real reading size, and citations moved out to a true margin column instead of being crammed under the text as badges. It makes the sourcing the most visible thing on screen.\n\nThe tradeoff: the margin column costs horizontal space and needs a real answer at a fallback layout on narrow screens. Serif body type in an app is a strong opinion some people simply dislike."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

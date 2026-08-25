@@ -137,3 +137,10 @@ sonar_issues.json
 
 # Coverage JSON (binary/XML already covered above)
 coverage.json
+
+# Design canvases: the .dc.html artboards and canvas.json are the source and are
+# tracked; the seeded page is ~2 MB of generated editor code, rebuilt by the
+# /design helper from those sources. from-canvas/ is scratch from reading a
+# published canvas back.
+design/*/localchat-*.html
+design/from-canvas/

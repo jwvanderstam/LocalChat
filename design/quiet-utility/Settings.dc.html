@@ -1,0 +1,169 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.55 0.07 200); text-decoration: none; }
+    a:hover { color: oklch(0.45 0.08 200); text-decoration: underline; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 1100px; background: oklch(0.985 0.002 250); color: oklch(0.28 0.008 250); display: flex; overflow: hidden; font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; font-size: 14px">
+
+  <div style="width: 236px; flex: none; border-right: 1px solid oklch(0.91 0.004 250); display: flex; flex-direction: column; padding: 22px 0">
+    <div style="padding: 0 22px 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em">LocalChat</div>
+    <div style="padding: 0 22px 20px; font-size: 12px; color: oklch(0.62 0.008 250)">Acme Legal</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 12px">
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="9" rx="2"></rect><path d="M5 14l2.5-2.5"></path></svg> Chat
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5a1 1 0 0 1 1-1h3l1.5 2h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-8Z"></path></svg> Documents
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250); display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4.5" y="4.5" width="7" height="7" rx="1"></rect><path d="M6.5 1.5v3M9.5 1.5v3M6.5 11.5v3M9.5 11.5v3M1.5 6.5h3M1.5 9.5h3M11.5 6.5h3M11.5 9.5h3"></path></svg> Models
+      </div>
+      <div style="padding: 7px 10px; border-radius: 5px; background: oklch(0.945 0.006 200); color: oklch(0.42 0.07 200); font-weight: 500; display: flex; align-items: center; gap: 9px">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg> Settings
+      </div>
+    </div>
+    <div style="flex: 1"></div>
+    <div style="padding: 13px 22px 0; border-top: 1px solid oklch(0.91 0.004 250); font-size: 12px; color: oklch(0.62 0.008 250); display: flex; align-items: center; gap: 7px">
+      <div style="width: 6px; height: 6px; border-radius: 50%; background: oklch(0.70 0.13 150)"></div>
+      llama3.1:8b &middot; 128 docs
+    </div>
+  </div>
+
+  <div style="width: 194px; flex: none; border-right: 1px solid oklch(0.91 0.004 250); padding: 26px 0">
+    <div style="padding: 0 20px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250)">Settings</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px">
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250)">System</div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250)">Appearance</div>
+      <div style="padding: 7px 10px; border-radius: 5px; background: oklch(0.955 0.003 250); font-weight: 500">Retrieval</div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250)">Memory</div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250)">Users</div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250)">Integrations</div>
+      <div style="padding: 7px 10px; border-radius: 5px; color: oklch(0.50 0.008 250)">Logs</div>
+    </div>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-direction: column; min-width: 0">
+
+    <div style="height: 60px; flex: none; border-bottom: 1px solid oklch(0.91 0.004 250); display: flex; align-items: center; justify-content: space-between; padding: 0 32px">
+      <div>
+        <div style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">Retrieval</div>
+        <div style="font-size: 12px; color: oklch(0.62 0.008 250); margin-top: 1px">How documents are chunked, searched and reranked</div>
+      </div>
+      <div style="font-size: 12.5px; color: oklch(0.62 0.008 250)">Changes apply to new ingests</div>
+    </div>
+
+    <div style="flex: 1; padding: 30px 32px; overflow: hidden">
+      <div style="max-width: 680px; display: flex; flex-direction: column; gap: 30px">
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); padding-bottom: 10px; border-bottom: 1px solid oklch(0.91 0.004 250)">Chunking</div>
+
+          <div style="display: flex; align-items: flex-start; gap: 24px; padding: 16px 0; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <div style="flex: 1">
+              <div style="font-weight: 500">Chunk size</div>
+              <div style="font-size: 12.5px; color: oklch(0.58 0.008 250); margin-top: 2px; line-height: 1.5">Characters per chunk. Larger keeps more context together; smaller sharpens retrieval.</div>
+            </div>
+            <div style="width: 96px; flex: none; border: 1px solid oklch(0.88 0.004 250); border-radius: 5px; background: #ffffff; padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums">1200</div>
+          </div>
+
+          <div style="display: flex; align-items: flex-start; gap: 24px; padding: 16px 0; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <div style="flex: 1">
+              <div style="font-weight: 500">Chunk overlap</div>
+              <div style="font-size: 12.5px; color: oklch(0.58 0.008 250); margin-top: 2px; line-height: 1.5">Characters shared between neighbours, so a sentence split across a boundary is still findable.</div>
+            </div>
+            <div style="width: 96px; flex: none; border: 1px solid oklch(0.88 0.004 250); border-radius: 5px; background: #ffffff; padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums">150</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); padding-bottom: 10px; border-bottom: 1px solid oklch(0.91 0.004 250)">Search</div>
+
+          <div style="display: flex; align-items: flex-start; gap: 24px; padding: 16px 0; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <div style="flex: 1">
+              <div style="font-weight: 500">Candidates retrieved</div>
+              <div style="font-size: 12.5px; color: oklch(0.58 0.008 250); margin-top: 2px; line-height: 1.5">Chunks the hybrid search returns before reranking. <span style="color: oklch(0.70 0.008 250)">TOP_K_RESULTS</span></div>
+            </div>
+            <div style="width: 96px; flex: none; border: 1px solid oklch(0.88 0.004 250); border-radius: 5px; background: #ffffff; padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums">30</div>
+          </div>
+
+          <div style="display: flex; align-items: flex-start; gap: 24px; padding: 16px 0; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <div style="flex: 1">
+              <div style="font-weight: 500">Chunks sent to the model</div>
+              <div style="font-size: 12.5px; color: oklch(0.58 0.008 250); margin-top: 2px; line-height: 1.5">Survivors after reranking. <span style="color: oklch(0.70 0.008 250)">RERANK_TOP_K</span></div>
+            </div>
+            <div style="width: 96px; flex: none; border: 1px solid oklch(0.88 0.004 250); border-radius: 5px; background: #ffffff; padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums">12</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); padding-bottom: 10px; border-bottom: 1px solid oklch(0.91 0.004 250)">Reranking</div>
+
+          <div style="display: flex; align-items: center; gap: 24px; padding: 16px 0; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <div style="flex: 1">
+              <div style="font-weight: 500">Cross-encoder reranker</div>
+              <div style="font-size: 12.5px; color: oklch(0.58 0.008 250); margin-top: 2px; line-height: 1.5">Rescores candidates against the question, and drops the ones it rejects.</div>
+            </div>
+            <div style="width: 30px; height: 17px; background: oklch(0.55 0.07 200); border-radius: 9px; position: relative; flex: none"><div style="position: absolute; right: 2px; top: 2px; width: 13px; height: 13px; background: #ffffff; border-radius: 50%"></div></div>
+          </div>
+
+          <div style="display: flex; align-items: flex-start; gap: 24px; padding: 16px 0; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <div style="flex: 1">
+              <div style="font-weight: 500">Minimum score</div>
+              <div style="font-size: 12.5px; color: oklch(0.58 0.008 250); margin-top: 2px; line-height: 1.5">Below this a chunk is discarded rather than merely ranked low. <span style="color: oklch(0.70 0.008 250)">RERANK_MIN_SCORE</span></div>
+            </div>
+            <div style="width: 96px; flex: none; border: 1px solid oklch(0.88 0.004 250); border-radius: 5px; background: #ffffff; padding: 7px 10px; text-align: right; font-variant-numeric: tabular-nums">&minus;5.0</div>
+          </div>
+
+          <div style="display: flex; align-items: flex-start; gap: 24px; padding: 16px 0; border-bottom: 1px solid oklch(0.94 0.003 250)">
+            <div style="flex: 1">
+              <div style="font-weight: 500">Reranker weight</div>
+              <div style="font-size: 12.5px; color: oklch(0.58 0.008 250); margin-top: 2px; line-height: 1.5">How much the reranker overrides the vector score.</div>
+            </div>
+            <div style="width: 200px; flex: none; display: flex; align-items: center; gap: 12px">
+              <div style="flex: 1; height: 4px; background: oklch(0.92 0.004 250); border-radius: 2px; position: relative"><div style="width: 30%; height: 100%; background: oklch(0.55 0.07 200); border-radius: 2px"></div><div style="position: absolute; left: 30%; top: -5px; width: 14px; height: 14px; background: #ffffff; border: 1px solid oklch(0.72 0.03 200); border-radius: 50%"></div></div>
+              <span style="font-variant-numeric: tabular-nums; font-size: 13px; width: 26px">0.30</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: oklch(0.62 0.008 250); padding-bottom: 10px; border-bottom: 1px solid oklch(0.91 0.004 250)">Fixed at startup</div>
+          <div style="font-size: 12.5px; color: oklch(0.58 0.008 250); padding: 13px 0 14px; line-height: 1.5">Set in <span style="color: oklch(0.70 0.008 250)">.env</span> and read once when the app boots. Shown so the running configuration is never a guess.</div>
+          <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Embedding model</span><span style="color: oklch(0.62 0.008 250)">nomic-embed-text</span></div>
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Reranker path</span><span style="color: oklch(0.62 0.008 250)">./models/reranker/latest</span></div>
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Max context length</span><span style="color: oklch(0.62 0.008 250)">24,576</span></div>
+            <div style="display: flex; justify-content: space-between"><span style="color: oklch(0.50 0.008 250)">Vector index</span><span style="color: oklch(0.62 0.008 250)">pgvector HNSW</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: none; border-top: 1px solid oklch(0.91 0.004 250); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; background: #ffffff">
+      <div style="font-size: 12.5px; color: oklch(0.62 0.008 250)">Two values changed</div>
+      <div style="display: flex; gap: 10px; font-size: 13px">
+        <div style="border: 1px solid oklch(0.89 0.004 250); border-radius: 5px; padding: 6px 13px; color: oklch(0.45 0.008 250)">Revert</div>
+        <div style="background: oklch(0.55 0.07 200); color: #ffffff; border-radius: 5px; padding: 6px 15px; font-weight: 500">Save</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
