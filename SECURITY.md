@@ -121,12 +121,13 @@ The items below are known, deliberately **not remediated via the usual route** (
 
 - Base images are **digest-pinned** (`dhi.io/python:3.12` and `:3.12-dev`). A bare tag
   makes the image's CVE posture unverifiable after the fact — see [ADR-3](docs/ADR.md).
-- `requirements.txt` is fully pinned and installed by both CI and Docker on every run, so
-  the pins are continuously exercised rather than asserted.
+- `requirements.txt` is **pip-compile output** from `requirements.in`, pinning the full
+  transitive closure, and is installed by both CI and Docker on every run — so the pins
+  are continuously exercised rather than asserted. It carries no hashes; the reasoning,
+  which is a measurement rather than an oversight, is in `requirements.in`'s header.
 - `pip-audit` runs in `unit-tests`; `gitleaks`, CodeQL and SonarCloud run on every PR.
 - The runtime image ships no shell and no package manager, so nothing can install itself
   into a running container.
-- **Known gap**: `requirements.txt` has no dev/prod split, so the runtime image also
-  contains `pytest`, `playwright`, `faker`, `coverage`, `responses` and `freezegun`. Test
-  code is excluded from the image; the test *frameworks* are not. Tracked in
-  [ROADMAP.md](docs/ROADMAP.md).
+- Test tooling is confined to `requirements-dev.in`, which the image never installs. The
+  runtime image no longer contains `pytest`, `playwright`, `faker`, `coverage`,
+  `responses` or `freezegun` (closed 2026-08-26, OPS-1).

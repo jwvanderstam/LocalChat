@@ -694,9 +694,71 @@ retrieval", and the ticket should not record one as the other.
 
 ## Phase 4 — Operate like a product (Sprints PG-7..PG-8)
 
-### OPS-1 — Reproducible builds: uv + lock file ⬜
+### OPS-1 — Reproducible builds: a tool-managed lock file ✅ (done 2026-08-26)
 
-Adopt `uv` with a committed lock file. **Note the history:** `requirements.lock.txt` was removed in the 2026-07-30 dependency-pipeline repair (LESSONS_LEARNED Ch. 11) — that was the right call for a hand-maintained lock text next to grouped Dependabot. This is a different mechanism: a tool-managed lockfile that Dependabot/Renovate understands, giving reproducible installs without the manual-drift failure that killed the last attempt.
+`requirements.txt` and `requirements-dev.txt` are now **pip-compile output**, generated
+from `requirements.in` and `requirements-dev.in`. The locks carry the full transitive
+closure; the `.in` files carry the direct set a human chose, still pinned with `==`.
+
+**Why `pip-compile` and not `uv`.** The ticket said `uv`, and that part did not hold.
+GitHub's supported Python ecosystems are `pip`, `pipenv`, `pip-compile` and `poetry`;
+`uv` is not among them. Renovate supports it, but this repository runs Dependabot, and
+the ticket's "Dependabot/Renovate" elided the difference that decides the outcome.
+Adopting `uv.lock` would have stopped Dependabot managing dependencies at all — no
+grouped updates, no security bumps, no drift report — three days after grouping was
+first *observed* working (#305, #307). That is Chapter 11's failure with a nicer tool
+on the front of it.
+
+**What this actually adds, stated honestly.** `requirements.txt` has been fully pinned
+since Ch. 11, so every *direct* dependency was already reproducible. The delta is the
+transitive closure: 37 direct pins became 530 locked lines. Real, and worth having
+before a stable tag — but smaller than "builds are not reproducible" implied.
+
+**No hashes, and that was a measurement, not an omission.** `--generate-hashes` was
+tried first. On this dependency set one compile ran past thirty minutes and pulled more
+than 30 GB, because hashing forces a download of every candidate the resolver considers
+rather than metadata alone. Without it the same compile takes 164 seconds. A lock that
+costs half an hour to regenerate is a lock nobody regenerates — which is precisely how
+Chapter 11's lock file went stale — and Dependabot has to redo that resolution on every
+bump. Transitive pinning is what the ticket asked for and it is intact; hashes would add
+tamper-evidence on top, and can be revisited if the resolution ever gets cheap.
+
+**The split fell out of it.** Separating `requirements-dev.in` means the production image
+no longer installs `pytest`, `pytest-playwright`, `faker`, `responses`, `freezegun` or
+`coverage`. That closes one of the accepted-debt items in `SECURITY.md` — test frameworks
+shipping in the runtime image — and takes the image from 10.1 GB to 9.92 GB.
+
+**What that number reveals is more important than the saving.** Measured inside the
+built image, `site-packages` is 6.18 GB, and three entries are 4.6 GB of it:
+
+| Package | Size | Reachable in any supported deployment? |
+|---|---|---|
+| `nvidia-*` (CUDA runtime) | 2855 MB | **No** — `docker-compose.yml` reserves the GPU for `ollama`; the `app` service has no device reservation at all |
+| `torch` | 1142 MB | Yes, on CPU — the cross-encoder reranker |
+| `triton` (GPU kernel compiler) | 723 MB | **No** — same reason |
+
+So roughly **3.6 GB of the image is CUDA tooling no supported topology can reach.** It
+arrives as a transitive of `torch`, whose PyPI Linux wheel bundles CUDA. Removing it
+means installing the `+cpu` torch build from `download.pytorch.org`, which is a real
+decision, not a cleanup: it adds a second package index to the supply chain. Left open
+deliberately — it is the single biggest lever on the Scaleway cold-start problem
+([the Scaleway plan](localchat_scaleway_deployment_plan.md) §5) and belongs to whoever
+owns that tradeoff.
+
+**Guarded by `unit-tests`.** A step re-checks that every `==` pin in an `.in` file
+appears at the same version in its lock, and that each lock is still pip-compile output.
+It does not re-resolve — that is minutes and a torch download — so it catches the drift
+a human causes (edit the `.in`, forget to recompile) rather than a stale transitive,
+which Dependabot owns because it recompiles the lock when it bumps the pin.
+
+**Verified locally, because CI could not run it.** GitHub-hosted runners stopped picking
+up jobs for this repository on 2026-08-26 (runs queued for hours, one force-failed with
+its jobs never started). So: both locks installed into a clean `python:3.12-slim` with
+`pip check` clean; the image built; it booted against a real pgvector Postgres and
+answered `/api/health` `200` with `database: up`; `onnxruntime`, `sentence-transformers`,
+`psycopg`, `spacy`, `kuzu` and `pymupdf` all import inside it as uid 65532. The lock
+check was confirmed to fail on both drift shapes — a bumped `.in` pin and a dependency
+never compiled in — not merely to pass on a clean tree.
 
 ### OPS-2 — Bounded de-globalisation of `config.app_state` ⬜
 
@@ -759,7 +821,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
 | PG-5 | TQ-3 ✅ (scoped mutation gate, 83.8%) + TQ-4 ✅ (Playwright golden path, self-starting server) | — |
 | PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
-| PG-7 | OPS-1 + OPS-2 (uv lock; bounded de-globalisation) | 1 week |
+| PG-7 | OPS-1 ✅ (pip-compile locks + dev/runtime split) + OPS-2 (bounded de-globalisation) | 1 week |
 | PG-8 | OPS-3 + OPS-4 + OPS-5 (docs mechanism, restore proof, release + topology) | 1 week |
 | **Total** | | **~8 weeks** |
 
@@ -776,7 +838,7 @@ v3.0 ships when **all eight** hold, and not before:
 3. **Concurrency budget met** — the canary's worst probe under budget at 10 concurrent SSE users; benchmark, numbers and threshold committed. (PERF-1 ✅, PERF-2 ✅ — `perf-canary` required since 2026-08-24, ceiling 1000 ms from eleven runs. The criterion's original wording named p95 TTFT, which PERF-2 established measures Ollama's throughput rather than this application.)
 4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3 ✅ — 83.8% and 100%, green 2026-08-22)
 5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4 ✅ — `restore-proof`, and it corrected the runbook on its first run)
-6. **Reproducible release** — tagged version, changelog, uv lock file, published image from the tag. (OPS-1/5)
+6. **Reproducible release** — tagged version, changelog, tool-managed lock file, published image from the tag. (OPS-1 ✅ — pip-compile locks, 2026-08-26; the criterion said *uv*, which Dependabot does not support, see the ticket. `v3.0.0-beta.1` tagged and published 2026-08-26; CHANGELOG.md started. OPS-5's topology page still open.)
 7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time. (README ✅ swept 2026-08-26 — the Python badge advertised 3.10+ against pins that refuse 3.13+, the format list named four of eight, and the test/coverage figures were 300 tests and a point of coverage stale. Every remaining number — ports, uid, bindings — was checked and holds. **Wiki still open**, see OPS-3.)
 8. **Migrations are executed, not merely written** — CI applies the full chain to an empty database, proves it idempotent, and fails on a broken or duplicated revision. No migration reaches a tag having never run. (TQ-5a/TQ-5b)
 
