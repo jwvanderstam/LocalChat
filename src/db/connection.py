@@ -25,6 +25,50 @@ logger = get_logger(__name__)
 _PG_TRANSACTION_IDLE = 0    # psycopg TransactionStatus.IDLE
 _PG_TRANSACTION_INTRANS = 2  # psycopg TransactionStatus.INTRANS
 
+# Set once, so a pooler that resets every connection produces one line rather than
+# one per connection for the life of the process.
+_ef_search_warning_issued = False
+
+EF_SEARCH_EXPECTED = "100"
+
+
+def _warn_if_ef_search_did_not_stick(conn: Any) -> None:
+    """Check that ``SET hnsw.ef_search`` survived a transaction boundary.
+
+    ``configure_connection`` sets the GUC once per physical connection and every
+    later query relies on it persisting. Behind a *transaction*-pooling proxy —
+    Scaleway's Serverless SQL Database, or pgbouncer in transaction mode — session
+    state is reset between transactions, so the setting is gone by the first real
+    query. Nothing fails: HNSW search silently runs at the server default instead
+    of 100, and recall drops with no error anywhere. Reading it back in a separate
+    transaction is what turns that into a signal.
+    """
+    global _ef_search_warning_issued
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SHOW hnsw.ef_search")
+            row = cur.fetchone()
+        conn.rollback()
+    except psycopg.Error as e:
+        # Not fatal: the pool is usable either way, and refusing to start over a
+        # diagnostic would be worse than the degradation it warns about.
+        logger.debug(f"Could not read hnsw.ef_search back: {e}")
+        return
+
+    observed = str(row[0]) if row else None
+    if observed == EF_SEARCH_EXPECTED or _ef_search_warning_issued:
+        return
+
+    _ef_search_warning_issued = True
+    logger.warning(
+        f"hnsw.ef_search did not survive a transaction boundary "
+        f"(set to {EF_SEARCH_EXPECTED}, reads back as {observed!r}). Vector search "
+        f"will run at the server default and retrieval recall will be lower than "
+        f"configured, with no other symptom. This is what a transaction-pooling "
+        f"proxy does to session state — see docs/DEPLOYMENT.md."
+    )
+
+
 
 class MixinHost:
     """Type-checking-only stand-in for the attributes ``DatabaseConnection`` provides to
@@ -227,6 +271,7 @@ class DatabaseConnection:
                 with conn.cursor() as _cur:
                     _cur.execute("SET hnsw.ef_search = 100")
                 conn.autocommit = False
+                _warn_if_ef_search_did_not_stick(conn)
 
             try:
                 logger.debug("Creating connection pool")

@@ -251,6 +251,37 @@ appears to come from the nginx container and all callers share one rate-limit bu
 see [CONFIGURATION.md](CONFIGURATION.md#rate-limiting-behind-a-reverse-proxy). If you
 front the app with a different proxy, set that variable yourself.
 
+## Connection poolers and vector search
+
+The pool sets `hnsw.ef_search = 100` once per physical connection and every vector
+query relies on it persisting. A **transaction-pooling** proxy — pgbouncer in
+`transaction` mode, or a managed Postgres that fronts you with one — resets or reassigns
+session state between transactions, so the setting is gone by the first real query.
+
+Nothing fails when that happens. HNSW search runs at the server default (40 instead of
+100), retrieval recall drops, and there is no error anywhere: answers just get quietly
+worse. Verified against pgbouncer in transaction mode with `server_reset_query_always=1`,
+where every query saw 40 while the application reported itself healthy.
+
+The app now reads the setting back in a separate transaction at connection time and logs
+one warning if it did not survive:
+
+```
+hnsw.ef_search did not survive a transaction boundary (set to 100, reads back as '40')
+```
+
+**If you see that line**, put the app in front of the database directly, or switch the
+pooler to `session` mode. The compose stack connects straight to `db`, so it does not
+apply there — it applies to managed Postgres, which is why it matters for the
+[Scaleway target](localchat_scaleway_deployment_plan.md).
+
+**One thing this check cannot see.** pgbouncer in transaction mode does not reset by
+default; it *leaks* session state between clients instead. The setting then survives on
+whichever server connection happens to carry it and is absent on the others, so a
+read-back at connection time can pass by luck while later queries still degrade. The
+warning is a positive signal, not a clean bill of health. Behind any pooler, confirm with
+`SHOW hnsw.ef_search;` on a live connection under load.
+
 ## Uninstall
 
 ```bash
