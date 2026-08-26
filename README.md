@@ -1,13 +1,13 @@
 # LocalChat
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/jwvanderstam/LocalChat/actions/workflows/tests.yml/badge.svg)](https://github.com/jwvanderstam/LocalChat/actions/workflows/tests.yml)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 
 Chat with your own documents, using a language model that runs on your own hardware.
-Upload PDF, DOCX, TXT or Markdown; LocalChat chunks and embeds them into PostgreSQL with
+Upload PDF, DOCX, PPTX, XLSX, TXT, Markdown or images; LocalChat chunks and embeds them into PostgreSQL with
 pgvector, and answers questions from what it retrieves. Nothing leaves the machine unless
 you enable web search or a cloud fallback.
 
@@ -202,8 +202,10 @@ All four must be clean before a commit; CI enforces the same set. Merging to `ma
 requires `unit-tests`, `integration-tests` and `repo-hygiene` to pass, and is a human
 decision — auto-merge is off deliberately.
 
-**Current state:** 2,693 tests collected; the fast suite runs 2,579 of them in about 11
-minutes at 79.7% coverage. Integration tests need PostgreSQL; some also need Ollama.
+**Current state:** 2,993 tests collected; the fast suite runs 2,894 of them in about 11
+minutes at 80.7% coverage. Integration tests need PostgreSQL; some also need Ollama, and
+`tests/e2e/` drives a real browser. Every number here was measured on 2026-08-26 rather
+than remembered — see exit criterion 7 in [PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md).
 
 Coding standards live in [.claude/rules/](.claude/rules/): [architecture](.claude/rules/architecture.md),
 [Python](.claude/rules/python.md), [testing](.claude/rules/testing.md),
