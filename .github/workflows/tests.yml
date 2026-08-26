@@ -282,6 +282,172 @@ jobs:
       - name: Measure event-loop responsiveness under load
         run: pytest tests/perf/ -v --tb=short --no-cov -s
 
+  # OPS-4 / exit criterion 5. OPERATIONS.md documents a backup and a
+  # pgvector-safe restore, and an untested restore procedure is a wish. This runs
+  # it: seed the real schema, dump, restore into a fresh database, and prove the
+  # embeddings still answer a similarity query on the other side.
+  #
+  # It also asserts the warning the runbook leads with — that a restore into a
+  # database without the vector extension fails. A documented gotcha nobody has
+  # reproduced is just as untrustworthy as an unverified happy path, and if
+  # pgvector ever makes that restore succeed, the doc should stop saying it does
+  # not.
+  #
+  # Scope, honestly: this proves the SQL-level procedure. OPERATIONS.md wraps the
+  # same commands in `docker compose exec db`, which a service container cannot
+  # reproduce, so the compose invocation itself is still unverified.
+  restore-proof:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: rag_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: ci_test_password
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # The client must match the server, or pg_dump refuses: "server version
+      # 16.x, pg_dump version 14.x is not supported".
+      - name: Install postgresql-client 16
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          sudo sed -i 's|deb http|deb [signed-by=/usr/share/keyrings/pgdg.gpg] http|' /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          pg_dump --version
+
+      # The application's own schema, not a hand-written stand-in: a restore
+      # proof over a table this app never creates proves nothing about this app.
+      - name: Create the real schema
+        env:
+          PG_HOST: localhost
+          PG_PORT: "5432"
+          PG_USER: postgres
+          PG_PASSWORD: ci_test_password
+          PG_DATABASE: rag_db
+          SECRET_KEY: ci-test-secret-key-32chars-minimum
+          APP_ENV: development
+        run: |
+          python - <<'PY'
+          from src.db import db
+          ok, message = db.initialize()
+          assert ok, message
+          from src.app_bootstrap import _run_alembic_migrations
+          _run_alembic_migrations()
+          print("schema created and migrated")
+          PY
+
+      - name: Seed a document and an embedded chunk
+        run: |
+          psql -d rag_db -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO documents (filename, content)
+          VALUES ('restore-proof.txt', 'A document that has to survive a round trip.');
+
+          INSERT INTO document_chunks (document_id, chunk_text, chunk_index, embedding)
+          SELECT id,
+                 'pgvector stores embeddings beside the chunk text.',
+                 0,
+                 (SELECT ('[' || string_agg((0.001 * n)::text, ',') || ']')::vector
+                  FROM generate_series(1, 768) AS n)
+          FROM documents WHERE filename = 'restore-proof.txt';
+          SQL
+          psql -d rag_db -tAc "SELECT count(*) FROM document_chunks WHERE embedding IS NOT NULL"
+
+      - name: Back up, exactly as OPERATIONS.md says
+        run: |
+          pg_dump -U postgres -d rag_db --no-password -F c -f /tmp/rag_db.dump
+          ls -l /tmp/rag_db.dump
+
+      # The runbook opens with this warning. If it is wrong, the doc is telling
+      # operators to do unnecessary work; if it is right, it has to keep saying so.
+      # The page used to warn that a restore into a database without the vector
+      # extension fails on the embedding column. It does not: pg_dump writes
+      # CREATE EXTENSION into the archive. Asserting the true behaviour keeps the
+      # doc honest — if a pgvector release ever does make this fail, this step
+      # goes red and the page gets corrected rather than quietly becoming wrong.
+      - name: A superuser restore needs no pre-created extension
+        run: |
+          pg_restore -l /tmp/rag_db.dump | grep -qi "EXTENSION - vector" || {
+            echo "::error::the dump no longer carries CREATE EXTENSION - OPERATIONS.md needs revisiting"
+            exit 1
+          }
+          psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE rag_db_plain;"
+          pg_restore -U postgres -d rag_db_plain --no-password --exit-on-error /tmp/rag_db.dump
+          test "$(psql -d rag_db_plain -tAc "SELECT extname FROM pg_extension WHERE extname='vector'")" = "vector"
+          echo "OK: the archive brought its own extension"
+
+      - name: Restore, exactly as OPERATIONS.md says
+        run: |
+          psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE rag_db_restore;"
+          pg_restore -U postgres -d rag_db_restore --no-password --exit-on-error /tmp/rag_db.dump
+          echo "OK: restored"
+
+      # The managed-Postgres recipe on the same page: no superuser, so the dump's
+      # CREATE EXTENSION, its COMMENT and its OWNER TO all need handling. Each of
+      # those failed in turn while working this out; a recipe that stops at the
+      # first one is worse than none.
+      - name: The managed-Postgres recipe works for a non-superuser
+        run: |
+          psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE restorer LOGIN PASSWORD 'restore_ci';"
+          psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE rag_db_managed OWNER restorer;"
+          psql -d rag_db_managed -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          PGPASSWORD=restore_ci pg_restore -U restorer -h localhost -d rag_db_managed             --no-owner --no-comments --exit-on-error /tmp/rag_db.dump
+          test "$(psql -d rag_db_managed -tAc 'SELECT count(*) FROM document_chunks WHERE embedding IS NOT NULL')" = "1"
+          echo "OK: --no-owner --no-comments carries a non-superuser restore"
+
+      # Row counts prove the rows arrived. Only a similarity query proves the
+      # embeddings did — a vector column can restore as the right shape and the
+      # wrong numbers, and every count would still match.
+      - name: The restored database answers a similarity query
+        run: |
+          docs=$(psql -d rag_db_restore -tAc "SELECT count(*) FROM documents")
+          chunks=$(psql -d rag_db_restore -tAc "SELECT count(*) FROM document_chunks")
+          [ "$docs" = "1" ] && [ "$chunks" = "1" ] || {
+            echo "::error::row counts differ after restore: documents=$docs chunks=$chunks"
+            exit 1
+          }
+
+          nearest=$(psql -d rag_db_restore -tAc "
+            SELECT chunk_text
+            FROM document_chunks
+            ORDER BY embedding <=> (SELECT ('[' || string_agg((0.001 * n)::text, ',') || ']')::vector
+                                    FROM generate_series(1, 768) AS n)
+            LIMIT 1;")
+          echo "nearest: $nearest"
+          case "$nearest" in
+            *"pgvector stores embeddings"*) echo "OK: embeddings survived and rank" ;;
+            *) echo "::error::similarity query did not return the seeded chunk"; exit 1 ;;
+          esac
+
   # The hardened runtime base has no shell and no package manager, so a missing
   # system library surfaces as SIGSEGV at import time rather than as a build
   # error: the image builds, then dies with exit 139 and no traceback.

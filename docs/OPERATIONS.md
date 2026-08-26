@@ -41,23 +41,61 @@ docker compose cp db:/tmp/rag_db_*.dump ./backups/
 
 `-F c` produces a custom-format dump (compressed, supports parallel restore).  Use `-F p` for a plain SQL file if you need to inspect or edit it.
 
-### pgvector-safe restore
+### Restore
 
-The `vector` extension must exist in the target database before restoring, or pg_restore will fail on the `embedding` column.
+A custom-format dump taken from a database that has the `vector` extension
+**carries the extension with it** — `CREATE EXTENSION vector` is an entry in the
+archive, which `pg_restore -l` will show. So a restore performed by a superuser
+needs no preparation beyond an empty database:
 
 ```bash
-# 1. Create the target database and install the extension
 docker compose exec db psql -U postgres -c "CREATE DATABASE rag_db_restore;"
-docker compose exec db psql -U postgres -d rag_db_restore \
-  -c "CREATE EXTENSION IF NOT EXISTS vector;"
-
-# 2. Restore
 docker compose exec db pg_restore \
   -U postgres \
   -d rag_db_restore \
   --no-password \
+  --exit-on-error \
   /tmp/rag_db_20260101_120000.dump
 ```
+
+`--exit-on-error` matters: without it `pg_restore` reports failures and still
+exits 0, so a restore that dropped half its tables looks like a success.
+
+> An earlier version of this page said the `vector` extension had to exist in the
+> target database first, or the restore would fail on the `embedding` column.
+> That is not true, and the CI job below now proves it on every run. The claim
+> survived because nobody had performed the restore it described.
+
+#### Restoring to managed Postgres, where you are not a superuser
+
+This is where preparation is genuinely needed — Scaleway, RDS, Cloud SQL. Three
+separate things in the dump require privileges a normal role does not have, and
+each fails only after the previous one is solved:
+
+| The dump does | You get | Fix |
+|---|---|---|
+| `CREATE EXTENSION vector` | `permission denied to create extension` | pre-create it as superuser, or via the provider's console |
+| `COMMENT ON EXTENSION vector` | `must be owner of extension vector` | `--no-comments` |
+| `ALTER TABLE ... OWNER TO postgres` | `must be able to SET ROLE "postgres"` | `--no-owner` |
+
+So the working recipe there is:
+
+```bash
+# once, as a superuser or through the provider's console
+psql -d rag_db_restore -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+pg_restore -U app_user -d rag_db_restore \
+  --no-owner --no-comments --exit-on-error \
+  rag_db_20260101_120000.dump
+```
+
+#### This procedure is verified
+
+The `restore-proof` job in `.github/workflows/tests.yml` seeds the real schema,
+dumps it, restores it, and asserts the restored database answers a vector
+similarity query — row counts alone would pass with the embeddings corrupted.
+It runs on every pull request. If this page and that job ever disagree, the job
+is right.
 
 ### Scheduled backups (cron example)
 
