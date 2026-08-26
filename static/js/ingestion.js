@@ -72,8 +72,11 @@ async function applyWritePermission() {
 
     // The server decides; the UI only reflects it. No role names are compared here,
     // so the matrix cannot drift between frontend and backend.
-    const uploadCard = uploadForm ? uploadForm.closest('.card') : null;
-    if (uploadCard) uploadCard.style.display = canWrite ? '' : 'none';
+    // #upload-section, not closest('.card'): the card wrapper was a layout detail,
+    // and when the page stopped using cards this lookup returned null and quietly
+    // stopped hiding anything. A permission control must not be anchored to styling.
+    const uploadSection = document.getElementById('upload-section');
+    if (uploadSection) uploadSection.style.display = canWrite ? '' : 'none';
 
     const clearBtn = document.getElementById('clear-db-btn');
     if (clearBtn) clearBtn.style.display = canWrite ? '' : 'none';
