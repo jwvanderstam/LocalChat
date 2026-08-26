@@ -725,7 +725,7 @@ It matters because a connector is not an import. `SyncWorker` polls it continuou
 
 ---
 
-### CONN-2 — Connector UI in the document section ⬜ (blocked by CONN-1)
+### CONN-2 — Connector UI in the document section ⏸️ (parked 2026-08-26)
 
 The first UI the connector subsystem has ever had. It lives in the document section.
 
@@ -737,6 +737,26 @@ The first UI the connector subsystem has ever had. It lives in the document sect
 **Test cases supplied by the maintainer** for Google Drive and OneDrive — the first end-to-end verification either connector will have had.
 
 **Acceptance:** a user connects a folder, a document from it is retrievable in that workspace, and the 10 connector routes in [`PERMISSIONS.md`](PERMISSIONS.md) describe a feature that exists — closing the exit-criterion-7 gap DEL-1b's rewrite recorded.
+
+> **Parked 2026-08-26, by the maintainer.** Nothing is unsafe in the meantime: BUG-4
+> already closed the live defect, so a workspace owner can no longer spend another user's
+> OAuth token, and the routes stay admin/owner-guarded whether or not a UI reaches them.
+>
+> Two things stay true while this is parked, and both should be said plainly rather than
+> discovered later:
+>
+> - **`PERMISSIONS.md` still lists ten connector routes for a feature with no interface.**
+>   That is an exit-criterion-7 gap — the documentation describes something a user cannot
+>   reach. Parking the build does not park the inconsistency; either the doc notes that the
+>   routes are API-only, or the gap is accepted knowingly.
+> - **Google Drive and OneDrive were retained in DEL-1b specifically on the stated intent to
+>   use them.** That premise is now dormant. It does not make the retention wrong, but if it
+>   stays dormant, DEL-1b's exemption should be re-asked rather than assumed to still hold —
+>   which is the whole lesson of that ticket.
+>
+> **Re-review trigger:** the test cases arriving, or any decision to actually connect a
+> cloud store. CONN-1 comes first regardless; it is a decision with no code and answering it
+> is what makes the build safe.
 
 
 ## Sprint Plan
@@ -761,7 +781,7 @@ The first UI the connector subsystem has ever had. It lives in the document sect
 | 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
-| 14 | CONN-2 (connector UI in the document section; maintainer-supplied Google Drive / OneDrive test cases) | 1–2 weeks |
+| 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
 | **Total** | | **~16 weeks** (+ ~8 weeks PG-0..PG-8, which gates Sprints 8-14) |
 
 > **Connectors re-scoped 2026-08-24.** DEL-1b was rewritten rather than executed: Confluence is deleted (no forward use, and the only one of the three carrying a pip dependency), while Google Drive and OneDrive are retained on a stated intent to use them, with maintainer-supplied test cases coming. Re-deriving the removal surface from the code — rather than trusting the ticket — turned up BUG-4 and the fact that the connector subsystem has **never had a UI**, so `PERMISSIONS.md` has been advertising 10 routes for a feature that does not exist. Initiative 9 (CONN-1, CONN-2) makes it real; BUG-4 lands ahead of the gate. Same lesson as DEL-1a a fortnight earlier: a plan is not evidence.
