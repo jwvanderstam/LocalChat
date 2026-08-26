@@ -769,7 +769,7 @@ v3.0 ships when **all eight** hold, and not before:
 4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3 ✅ — 83.8% and 100%, green 2026-08-22)
 5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4 ✅ — `restore-proof`, and it corrected the runbook on its first run)
 6. **Reproducible release** — tagged version, changelog, uv lock file, published image from the tag. (OPS-1/5)
-7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time.
+7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time. (README ✅ swept 2026-08-26 — the Python badge advertised 3.10+ against pins that refuse 3.13+, the format list named four of eight, and the test/coverage figures were 300 tests and a point of coverage stale. Every remaining number — ports, uid, bindings — was checked and holds. **Wiki still open**, see OPS-3.)
 8. **Migrations are executed, not merely written** — CI applies the full chain to an empty database, proves it idempotent, and fails on a broken or duplicated revision. No migration reaches a tag having never run. (TQ-5a/TQ-5b)
 
 When these are green: un-queue ROADMAP Sprints 8–12 and resume feature work on a codebase that has earned its first line.
