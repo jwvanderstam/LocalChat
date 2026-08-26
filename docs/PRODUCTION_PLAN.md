@@ -694,9 +694,31 @@ retrieval", and the ticket should not record one as the other.
 
 ## Phase 4 — Operate like a product (Sprints PG-7..PG-8)
 
-### OPS-1 — Reproducible builds: uv + lock file ⬜
+### OPS-1 — Reproducible builds: a tool-managed lock file 🔬 (premise corrected 2026-08-26)
 
-Adopt `uv` with a committed lock file. **Note the history:** `requirements.lock.txt` was removed in the 2026-07-30 dependency-pipeline repair (LESSONS_LEARNED Ch. 11) — that was the right call for a hand-maintained lock text next to grouped Dependabot. This is a different mechanism: a tool-managed lockfile that Dependabot/Renovate understands, giving reproducible installs without the manual-drift failure that killed the last attempt.
+Adopt a committed lock file. **Note the history:** `requirements.lock.txt` was removed in the 2026-07-30 dependency-pipeline repair (LESSONS_LEARNED Ch. 11) — that was the right call for a hand-maintained lock text next to grouped Dependabot. The replacement has to be a tool-managed lockfile **that Dependabot understands**, giving reproducible installs without the manual-drift failure that killed the last attempt.
+
+> **The ticket said `uv`, and that part does not hold.** Checked against GitHub's supported-ecosystems
+> table on 2026-08-26: Dependabot's Python support is `pip`, `pipenv`, `pip-compile` and `poetry`.
+> **`uv` is not among them.** Renovate does support it — but this repository runs Dependabot, and the
+> original ticket's "Dependabot/Renovate" elided a difference that decides the outcome.
+>
+> Adopting `uv.lock` and retiring `requirements.txt` would therefore stop Dependabot managing
+> dependencies at all: no grouped updates, no security bumps, no drift report. That is Chapter 11's
+> failure exactly — a lock file nothing updates and nothing validates — and it would land three days
+> after grouping was first *observed* working (#305, #307).
+>
+> **Recommended instead: `pip-compile`.** Dependabot-supported, genuinely tool-managed, gives
+> transitive pins and optional hashes, and leaves the existing pipeline intact. `requirements.txt`
+> becomes `requirements.in` plus a compiled lock.
+>
+> **How large the remaining gap actually is.** `requirements.txt` has been fully pinned since Ch. 11,
+> so every *direct* dependency is already reproducible. What a lock adds is transitive pinning and
+> hash verification — real, and worth having before a stable tag, but smaller than "builds are not
+> reproducible". Worth knowing before spending a week on it.
+>
+> **Not decided here.** The choice of tool changes the Dockerfile and six CI jobs, and it is the
+> maintainer's call.
 
 ### OPS-2 — Bounded de-globalisation of `config.app_state` ⬜
 
