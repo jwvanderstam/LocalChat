@@ -732,7 +732,15 @@ The advice was right for a case it did not name, and incomplete even there. Rest
 
 ### OPS-5 — Release discipline + production topology ⬜
 
-- Tag `v3.0.0-beta.1`; the tag-triggered `docker-publish.yml` finally runs; start `CHANGELOG.md` (README's changelog link currently points at zero releases).
+- Tag `v3.0.0-beta.1`; the tag-triggered `docker-publish.yml` finally runs; start `CHANGELOG.md`.
+  - **`CHANGELOG.md` started 2026-08-26**, covering the v3.0 cycle (19 June – 26 August,
+    89 feature and fix commits). Its figures were verified against the documents that
+    recorded them rather than written from memory — 82 guarded routes with no login, 49 of
+    102 routes unchecked, 290 tests converted off the bypass, 33 routes wired to workspace
+    roles. README links it.
+  - **Still to do:** the tag itself, and the image published from it. Tagging is a
+    deliberate, outward-facing act and is left to a human — it is the moment the version
+    number becomes a claim other people can hold the project to.
 - Document the recommended topology in `DEPLOYMENT.md`: nginx/Traefik TLS termination in front, app bound to loopback/internal network behind it, `METRICS_TOKEN` set. One page, one diagram.
 
 ---
