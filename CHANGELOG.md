@@ -1,0 +1,115 @@
+# Changelog
+
+Notable changes to LocalChat. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
+versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+This file starts at v3.0.0-beta.1. Earlier work is in the commit history and, with the
+reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
+
+## [Unreleased]
+
+Nothing yet.
+
+## [3.0.0-beta.1] — unreleased
+
+The v3.0 cycle: 19 June – 26 August 2026, 89 feature and fix commits, ~1,074 commits on
+`main` in total.
+
+A beta, deliberately. [ADR-1](docs/ADR.md) scopes LocalChat to a single-node, self-hosted
+appliance for 25 users or fewer, and [PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md) lists eight
+conditions that gate the stable claim. Seven hold. The label stays "production-patterned"
+until all eight do.
+
+### Security
+
+- **Authentication exists.** There was no login route; 82 routes were guarded against a
+  session nobody could obtain. Local login, an httpOnly session cookie, user management,
+  and self-service password change.
+- **Fail-closed boot.** `DEMO_MODE` and the empty-`ADMIN_PASSWORD` bypass are deleted, not
+  flagged off. No configuration path leaves `APP_ENV=production` running with
+  authorisation off; the app seeds a dev admin instead.
+- **Token revocation is enforced.** `_verify_jti_not_revoked()` silently passed when the
+  database was unreachable — a revoked token worked during an outage. It now fails closed.
+- **Rate limiting keys on the real client** and covers more than the login route.
+- **`ENCRYPTION_KEY` is required**, and the encryption that silently did nothing is gone.
+- **Authorisation by default.** A route table walk fails CI on any route that is neither
+  guarded nor explicitly allowlisted; 49 of 102 routes had no check at all when the audit
+  ran. The permission matrix is generated from the handlers, in [PERMISSIONS.md](docs/PERMISSIONS.md).
+- **Workspace roles are enforced** — `viewer`/`editor`/`owner` wired into 33 routes across
+  six routers, with `create_workspace` recording its creator as owner in the same
+  transaction.
+- **A connector spends its creator's OAuth token, nobody else's.** Which token to use came
+  from client-supplied config on a `ws:owner` route, so any workspace owner could name
+  another user's UUID and sync that person's Drive into a workspace they controlled.
+
+### Data integrity
+
+- **Clark-Wilson soft delete across all nine constrained data items** — documents, chunks,
+  conversations, messages, users, workspaces, memories, annotations, connectors. A delete
+  sets `deleted_at`; purge is a separate, admin-only operation with preconditions, so a
+  citation never points at a row that vanished.
+- **Migrations are executed, not merely written.** CI applies the full chain to an empty
+  database and proves it idempotent. A duplicate revision id had previously made a
+  backfill unreachable on every database.
+- **Restore is proven, and the runbook it disproved is corrected.** `OPERATIONS.md` warned
+  that the `vector` extension had to exist before restoring; it does not — `pg_dump` writes
+  `CREATE EXTENSION` into the archive. The case that genuinely needs preparation, a
+  non-superuser restore to managed Postgres, was not named at all and needs two further
+  flags. Both paths are documented and asserted in CI.
+
+### Retrieval and models
+
+- **Hybrid search** — independent semantic (pgvector) and lexical (tsvector/GIN) arms with
+  a weighted blend, and a cross-encoder reranker that now *drops* the chunks it rejects
+  rather than merely ranking them low.
+- **Environment-aware model availability.** Models that do not fit the hardware are shown
+  with the reason rather than silently offered; a replaced model is unloaded.
+- **A retrieval eval set** — 20 question/source pairs with a harness that scores recall@1,
+  recall@5 and MRR, and refuses to report a comparison when the feature under test never
+  fired.
+- **Long-term memory is scoped to its workspace.** It was not, and one workspace's memories
+  reached another's answers.
+- **Web-search results reach citations.** They were used to ground answers and then dropped
+  from the sources panel.
+
+### Interface
+
+- **Redesigned around one accent, hairlines and type.** Gradients, hover lifts, two-layer
+  shadows, filled status badges and the card-inside-card nesting are removed rather than
+  restyled. Chat turns read as one column under speaker labels at a 680px measure;
+  citations are numbered footnotes rather than a collapsed disclosure; Settings moves from
+  seven horizontal tabs above fourteen cards to a rail with one pane at a time. Light and
+  dark from a single token set. Design sources in [design/](design/).
+- **Icons are drawn, not typed.** The emoji that stood in for icons are inline SVG that
+  inherit the theme, and CI refuses their return.
+- **An admin log viewer**, workspace API keys manageable from the Users screen, and an
+  in-app confirmation dialog for every destructive action.
+
+### Operations
+
+- **The image is distroless and hardened** — Docker Hardened Images, digest-pinned, no
+  shell, no package manager, uid 65532 — with a `docker-smoke` job that boots it, because
+  a missing native library surfaces as SIGSEGV rather than a build error.
+- **Configurable log sinks** with bounded rotation that degrade rather than fail.
+- **A concurrency canary** polls a cheap endpoint while SSE streams run; it is the metric
+  that sees a blocked event loop, where time-to-first-token only sees the model queue.
+
+### Testing
+
+- **The testing bypass is deleted.** The whole suite had run with `app.state.testing`
+  tripping the RBAC bypass, so route tests passed through checks that never executed;
+  290 tests were converted to authenticate for real.
+- **A deterministic integration CI** with a fake Ollama whose embeddings are meaningful, so
+  ranking assertions mean something.
+- **A mutation gate**, nightly, over the isolation-critical modules.
+- **A golden path in a real browser** — sign in, upload, ask, cited answer.
+
+### Removed
+
+- **Flask**, entirely, with a CI check that keeps it out. Metrics and request-id tracing
+  were *ported* to FastAPI middleware rather than deleted with it.
+- **The Confluence connector** and its `html2text` dependency — no user, and the only one
+  of three carrying a runtime dependency.
+- **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
+
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/main...HEAD

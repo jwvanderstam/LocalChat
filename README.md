@@ -207,6 +207,8 @@ minutes at 80.7% coverage. Integration tests need PostgreSQL; some also need Oll
 `tests/e2e/` drives a real browser. Every number here was measured on 2026-08-26 rather
 than remembered — see exit criterion 7 in [PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md).
 
+Notable changes per release are in [CHANGELOG.md](CHANGELOG.md).
+
 Coding standards live in [.claude/rules/](.claude/rules/): [architecture](.claude/rules/architecture.md),
 [Python](.claude/rules/python.md), [testing](.claude/rules/testing.md),
 [plugins](.claude/rules/plugins.md).
