@@ -1,0 +1,102 @@
+# Runtime dependencies — the direct set, stated by a human.
+#
+# This file is the input; `requirements.txt` is COMPILED from it by pip-compile and
+# must not be hand-edited. The lock carries the full transitive closure, which is what
+# makes an install reproducible. Regenerate BOTH locks together:
+#
+#   docker run --rm -v "$PWD:/w" -w /w python:3.12-slim sh -c \
+#     "pip install pip-tools && \
+#      pip-compile --no-strip-extras --output-file=requirements.txt requirements.in && \
+#      pip-compile --no-strip-extras --output-file=requirements-dev.txt requirements-dev.in"
+#
+# `--no-strip-extras` is not optional: without it `psycopg[binary]` compiles down to
+# a bare `psycopg`, and the image installs a psycopg with no libpq behind it.
+#
+# Compile on Linux. pip-compile resolves for the platform it runs on, and the
+# torch/nvidia wheels sentence-transformers pulls in differ on Windows and macOS —
+# a lock compiled there would not describe the image CI and Docker actually build.
+#
+# No `--generate-hashes`, deliberately. It was tried: on this dependency set one
+# compile ran past thirty minutes and pulled more than 30 GB, because hashing forces
+# a download of every candidate the resolver considers rather than metadata alone.
+# Without it the same compile takes under three minutes. A lock that costs half an
+# hour to regenerate is a lock nobody regenerates — which is exactly how Chapter 11's
+# lock file went stale. Transitive pinning is what OPS-1 asked for and it is intact;
+# hashes would add tamper-evidence on top, and can be revisited if the resolution
+# ever gets cheap enough for Dependabot to redo it on every bump.
+#
+# Direct dependencies stay pinned with `==` here, not ranged. A range does not just
+# group badly under Dependabot, it hides what you run (LESSONS_LEARNED Ch. 11).
+#
+# Test-only tooling lives in `requirements-dev.in` and is deliberately absent from
+# the production image.
+
+# Web Framework — FastAPI (ASGI)
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+httpx==0.28.1          # async inference + sync admin/embedding client
+
+gunicorn==26.1.0
+Werkzeug==3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
+
+# Caching
+redis==8.1.0  # Redis cache backend (optional but recommended)
+
+# Security
+python-jose[cryptography]==3.5.0  # JWT — pulls in ecdsa; PYSEC-2026-1325 is an accepted risk, see SECURITY.md
+slowapi==0.1.10                     # Rate limiting for FastAPI/Starlette
+
+# Database — PostgreSQL + pgvector
+psycopg[binary]==3.3.4
+psycopg-pool==3.3.1
+
+# Database migrations
+alembic==1.19.1
+sqlalchemy==2.0.52  # required by alembic; postgresql+psycopg dialect for psycopg3
+
+# Validation
+pydantic==2.13.4
+email-validator==2.3.0
+
+# Document Processing
+pypdf==6.16.1
+pdfplumber==0.11.10  # Enhanced PDF extraction with table support
+pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
+pymupdf4llm==1.28.2    # Layout-aware PDF extraction for column-heavy documents (optional)
+# Transitive via pymupdf-layout, pinned deliberately: 1.29.0 segfaults on import
+# under the hardened runtime base (exit 139, no traceback). 1.28.0 is what the
+# published image has always run. The docker-smoke job catches a regression here.
+onnxruntime==1.28.0
+langdetect==1.0.9      # Language detection for multilingual document support
+python-docx==1.2.0
+python-pptx==1.0.2
+reportlab==5.0.1             # PDF export for conversation download (optional)
+kuzu==0.11.3               # Graph store backend (optional; set GRAPH_BACKEND=kuzu to activate)
+openpyxl==3.1.5         # Excel (.xlsx) ingestion
+litellm==1.97.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
+h11==0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
+spacy==3.8.15      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
+
+# Encryption — OAuth token at-rest encryption
+cryptography==50.0.0
+# Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
+sentence-transformers==6.0.0
+
+# HTTP Requests
+requests==2.34.2
+ddgs==9.15.0
+
+# Hardware detection — CPU RAM probing for model-fit budget (src/gpu/backends.py)
+psutil==7.2.2
+
+# Numerical processing for vector operations
+numpy==2.5.2
+
+# Multipart form handling
+python-multipart==0.0.32
+
+# Markdown rendering
+markdown==3.10.3
+
+# Environment configuration
+python-dotenv==1.2.3

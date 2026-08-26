@@ -168,8 +168,32 @@ bandit -r src/ -ll -q -c pyproject.toml      # install once: pip install bandit
 pytest -m "not (slow or ollama or db)"       # fast suite, no external services
 ```
 
-`requirements.txt` is pinned for **Python 3.12** — the version CI and the Dockerfile use.
-On 3.13+ the set will not install; see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md).
+**`requirements.txt` is generated — edit `requirements.in`.** The two `.in` files hold
+the direct dependencies a human chose; `pip-compile` turns them into `requirements.txt`
+and `requirements-dev.txt`, which carry the full transitive closure. Both
+locks are pinned for **Python 3.12** — the version CI and the Dockerfile use. On 3.13+
+the set will not install; see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md).
+
+```bash
+# after editing requirements.in or requirements-dev.in — Linux only, see below
+docker run --rm -v "$PWD:/w" -w /w python:3.12-slim sh -c \
+  "pip install pip-tools && \
+   pip-compile --no-strip-extras --output-file=requirements.txt requirements.in && \
+   pip-compile --no-strip-extras --output-file=requirements-dev.txt requirements-dev.in"
+```
+
+Compile on **Linux**. pip-compile resolves for the platform it runs on, and the wheels
+`sentence-transformers` pulls in differ on Windows and macOS — a lock compiled there
+would not describe the image CI and Docker actually build.
+
+`--no-strip-extras` is not optional: without it `psycopg[binary]` compiles down to a
+bare `psycopg`, and the image installs a psycopg with no libpq behind it. There are no
+hashes, deliberately — `--generate-hashes` made one compile run past thirty minutes and
+pull 30 GB, and a lock that expensive to regenerate is one nobody regenerates. The
+reasoning is recorded in `requirements.in`'s own header.
+
+The production image installs `requirements.txt` only. Test tooling lives in
+`requirements-dev.in` and never reaches it.
 
 Changing the `Dockerfile`, `requirements.txt` or `docker-entrypoint.py` also needs the
 image gate, which is not reproducible from the four commands above:
@@ -292,11 +316,23 @@ upstream).
   `codeql-action` steps split across three PRs each produced a workflow on
   mixed versions that failed every run. If a change is only correct as a whole,
   it is one PR.
-- **Only `requirements.txt` is managed.** There is no lock file; one existed
-  briefly and was removed (see LESSONS_LEARNED Ch. 11) because Dependabot bumped
-  transitive pins in it without resolving the graph, producing combinations pip
-  refuses to install — which nothing caught, since neither Docker nor CI
-  installed that file.
+- **The locks are `pip-compile` output, and Dependabot understands them.** That
+  is the whole reason the tool is `pip-compile` and not `uv`: GitHub's supported
+  Python ecosystems are `pip`, `pipenv`, `pip-compile` and `poetry`. Adopting
+  `uv.lock` would have stopped Dependabot managing dependencies at all — no
+  grouped updates, no security bumps, no drift report — which is Chapter 11's
+  failure with a nicer tool on the front of it.
+  - Chapter 11 removed a *hand-maintained* `requirements.lock.txt` that neither
+    Docker nor CI installed, so nothing ever validated it. These locks are the
+    files both install, on every run. That is the difference, and it is the
+    whole difference.
+  - Dependabot bumps the pin in the `.in` file and recompiles the lock. It never
+    edits a lock in isolation, which is the specific thing that broke last time.
+  - `unit-tests` re-checks that every `==` pin in an `.in` file appears at the
+    same version in its lock. It does not re-resolve — that takes twenty minutes
+    and downloads torch — so it catches the realistic drift (a human edited the
+    `.in` and did not recompile) rather than a stale transitive, which Dependabot
+    owns.
 - `refs/heads/dependabot/**` is excluded from force-push protection; a rebase
   *is* a force-push, so without the exclusion Dependabot cannot update its own
   PRs.

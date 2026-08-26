@@ -152,6 +152,10 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request |
 | **Infra / Config** | |
+| `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |
+| `requirements-dev.in` | Test tooling, hand-written; constrained by `requirements.txt`, never installed into the image |
+| `requirements.txt` | **Generated** by pip-compile — full transitive closure with hashes; what Docker and CI install |
+| `requirements-dev.txt` | **Generated** by pip-compile — the test tooling's closure with hashes; CI only |
 | `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
 | `Dockerfile` | Multi-stage build on Docker Hardened Images — `dhi.io/python:3.12-dev` builds the venv, `dhi.io/python:3.12` runs it as uid 65532 with no shell or package manager |
