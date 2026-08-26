@@ -2,6 +2,82 @@
 
 Prepared 2026-08-18. Repo analyzed: `github.com/jwvanderstam/LocalChat` (cloned at commit matching `ghcr.io/jwvanderstam/localchat:latest`, built automatically by `.github/workflows/docker-publish.yml`).
 
+## 0. Re-derived 2026-08-26 — read this before §1
+
+This plan was written on 2026-08-18 against the repository as it then stood. It was
+checked against the code again on 2026-08-26, by measuring rather than reading. Most of
+it holds. Five things did not, and one number was much worse than the guess.
+
+**§5's image-size guess was "very likely several GB". It is 10.1 GB.** Measured with
+`docker images`, and measured again *inside* the image, where `site-packages` is 6.18 GB:
+
+| Package | Size | Reachable in this deployment? |
+|---|---|---|
+| `nvidia-*` (CUDA runtime) | 2855 MB | **No** — a Serverless Container has no GPU, and even in compose the `app` service has no device reservation; the GPU goes to `ollama` |
+| `torch` | 1142 MB | Yes, on CPU — the cross-encoder reranker |
+| `triton` (GPU kernel compiler) | 723 MB | **No** — same reason |
+| `playwright` | 142 MB | **No longer present** — removed by the dev/runtime split, OPS-1 |
+
+So **roughly 3.6 GB of the image is CUDA tooling this deployment cannot use.** It arrives
+as a transitive of `torch`, whose PyPI Linux wheel bundles CUDA. Removing it means the
+`+cpu` build from `download.pytorch.org` — a second package index in the supply chain, so
+a decision rather than a cleanup, and the single biggest lever available on cold start.
+§5's suggestion of a trimmed `requirements-serverless.txt` was aimed at the wrong 10%:
+dropping `kuzu` and `spacy` saves ~130 MB against 3.6 GB sitting in plain sight.
+
+Against Scaleway's ~1 GB recommendation, **10 GB with 15-minute scale-to-zero is the
+practical blocker for a usable test**, ahead of the Ollama decision in §4. Either cap the
+container at min-scale 1 so it never sleeps (and pay for it), or accept that the first
+request after any idle period waits on a multi-GB image pull.
+
+**§3's `SET hnsw.ef_search` risk is now instrumented, and the mechanism was subtler than
+described.** The app reads the setting back in a separate transaction at connection time
+and logs one warning if it did not survive. Verified against pgbouncer in transaction
+mode: every query saw `ef_search=40` instead of 100 while the app reported itself
+healthy, and without the guard nothing was logged at all.
+
+But the caveat §3 inferred is not quite the failure. pgbouncer in transaction mode does
+not reset session state by default — it *leaks* it between clients. The setting then
+survives on whichever server connection carries it and is absent on the others, so a
+connection-time read-back can pass by luck while later queries still degrade. **Treat the
+warning as a positive signal, not a clean bill of health**: behind any pooler, confirm
+with `SHOW hnsw.ef_search;` on a live connection under load, exactly as §3 advised.
+See [DEPLOYMENT.md](DEPLOYMENT.md#connection-poolers-and-vector-search).
+
+**§7 names two environment variables incorrectly.**
+
+| §7 says | Reality |
+|---|---|
+| `TOKEN_ENCRYPTION_KEY` | The canonical name is **`ENCRYPTION_KEY`**. `TOKEN_ENCRYPTION_KEY` is still read as a legacy alias (`src/config.py`), so §7 works — but use the current name. It is required in production for *messages and memories*, not only OAuth connectors, and boot aborts without it. |
+| `METRICS_ENABLED=false` | **No such setting exists.** The only control is `METRICS_TOKEN`: unset means `/api/metrics` answers unauthenticated. Set it. |
+
+**The image is distroless, which §6 does not mention and which changes how you debug.**
+Both build stages are Docker Hardened Images; the runtime has no shell and no package
+manager and runs as uid 65532. Scaleway's console "exec into container" will not work,
+`docker exec ... sh` will not work, and nothing can be installed into a running instance.
+Logs are the only instrument — `LOG_FORMAT=json` is already the default. A missing system
+library surfaces as **SIGSEGV on import (exit 139, no traceback)**, never as a readable
+error. See [ADR-3](ADR.md).
+
+**§8 Phase 2 says image `:latest`.** For a test deployment whose results you want to
+trust, pin the tag — `ghcr.io/jwvanderstam/localchat:3.0.0-beta.1` — so the thing you
+debug on Friday is the thing you deployed on Monday. `:latest` moves on every push to
+`main`.
+
+**Still true, checked:** the four-service decomposition (§2); Serverless SQL Database
+rather than the classic managed product, for pgvector; skipping Redis, since
+`REDIS_ENABLED` defaults false and max-scale 1 removes the coherence argument; the
+Ollama analysis in §4, which remains the open cost decision; and §6's core claim that
+everything Scaleway-specific is additive — no file in this repository needs to change to
+deploy it there.
+
+**One thing to add to §8 Phase 3.** Migrations run at boot, in-process, with no
+cross-instance lock. That is safe at max-scale 1 and only at max-scale 1. If the
+container is ever allowed to scale past one instance, two of them will race the Alembic
+chain. Set max scale to 1 and treat it as a correctness setting, not a cost one.
+
+---
+
 ## 1. The core problem, stated plainly
 
 You asked to deploy LocalChat "on Scaleway containers." LocalChat is a 4-service `docker-compose` stack (`app`, `db` (Postgres+pgvector), `redis`, `ollama`), and its own `docs/DEPLOYMENT.md` states it is **single-instance by design** — `AppState`, the Alembic migration runner, connector polling, and the reranker's scheduler are in-process state with no cross-instance coordination. Its own ADR-1 says running two instances "silently disagree about the active model, rate limits and cached state." The Helm chart was deliberately removed for this reason.
@@ -70,8 +146,8 @@ Required (app raises at startup in `APP_ENV=production` if unset — see `src/co
 | `JWT_SECRET_KEY` | same generation method, different value, **secret** |
 | `ADMIN_PASSWORD` | your choice, **secret** — empty disables all auth, per `docs/DEPLOYMENT.md` security checklist |
 | `PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD`, `PG_DB` | from the Serverless SQL Database connection details, `PG_PASSWORD` as **secret** |
-| `TOKEN_ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`, **secret** — required for OAuth connectors even if unused |
-| `METRICS_TOKEN` | generate a token if you enable `/api/metrics`, else leave `METRICS_ENABLED=false` |
+| `ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`, **secret** — required in production for messages and memories, not only OAuth connectors; boot aborts without it. (`TOKEN_ENCRYPTION_KEY` still works as a legacy alias.) |
+| `METRICS_TOKEN` | Generate one. There is no `METRICS_ENABLED` switch — leaving this unset is what makes `/api/metrics` public. |
 | `REDIS_ENABLED` | `false` |
 | `OLLAMA_BASE_URL` | either the GPU Instance's private address, or leave default/unreachable for the no-chat MVP |
 | `UVICORN_WORKERS` | `1` (already the default) |
