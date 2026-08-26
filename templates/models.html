@@ -7,130 +7,99 @@
 </div>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
-    <h1 class="h2">Model Management</h1>
-    <button class="btn btn-sm btn-primary" id="test-connection-btn">
-        <i class="bi bi-heartbeat me-1"></i>Test Connection
-    </button>
+    <h1 class="h2">Models</h1>
+    <button class="btn btn-sm btn-outline-secondary" id="test-connection-btn">Test connection</button>
 </div>
 
 <!-- Shown when the API answers 403: model management is node-wide, so it is admin-only. -->
 <div id="models-admin-notice" class="alert alert-secondary d-none">
-    <i class="bi bi-lock me-2"></i>
     <strong>Admin access required.</strong>
-    Pulling, deleting and switching models affects the whole installation — disk, memory,
-    and which model everyone gets — so it is restricted to administrators.
+    Pulling, deleting and switching models affects the whole installation &mdash; disk, memory,
+    and which model everyone gets &mdash; so it is restricted to administrators.
     Ask an admin if you need a different model.
 </div>
 
-<div class="row" id="models-admin-content">
-    <!-- Available Models -->
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <span>
-                    <i class="bi bi-cpu me-2"></i>Available Models
-                </span>
-                <button class="btn btn-sm btn-light" onclick="loadModels()">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-            </div>
-            <div class="card-body">
-                <div id="models-list">
-                    <div class="text-center text-muted">
-                        <div class="spinner-border spinner-border-sm me-2" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        Loading models...
-                    </div>
+<!-- A list and a rail rather than three cards. The models are the page; pulling and
+     the connection are reference material beside it. Every id and every class the
+     inline script binds to is unchanged; only the arrangement moved. -->
+<div class="docs-layout" id="models-admin-content">
+
+    <div class="docs-main">
+        <div class="docs-section-head">
+            <span>Installed</span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadModels()" title="Refresh the list">Refresh</button>
+        </div>
+
+        <div id="models-list">
+            <div class="text-center text-muted py-4">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
                 </div>
+                Loading models...
             </div>
         </div>
     </div>
-    
-    <!-- Actions Panel -->
-    <div class="col-md-4">
-        <!-- Pull Model -->
-        <div class="card mb-3">
-            <div class="card-header bg-success text-white">
-                <i class="bi bi-download me-2"></i>Pull New Model
-            </div>
-            <div class="card-body">
-                <form id="pull-form">
-                    <div class="mb-3">
-                        <label for="model-select" class="form-label">Select Model</label>
-                        <select class="form-select" id="model-select">
-                            <option value="">Choose a model...</option>
-                            <optgroup label="Popular Chat Models">
-                                <option value="llama3.2:latest">llama3.2 (3B) - Fast & Efficient</option>
-                                <option value="llama3.2:1b">llama3.2:1b (1B) - Lightweight</option>
-                                <option value="llama3.1:latest">llama3.1 (8B) - Balanced</option>
-                                <option value="llama2:latest">llama2 (7B) - Classic</option>
-                                <option value="mistral:latest">mistral (7B) - High Quality</option>
-                                <option value="phi3:latest">phi3 (3.8B) - Microsoft</option>
-                                <option value="gemma2:2b">gemma2:2b (2B) - Google Small</option>
-                                <option value="qwen2.5:3b">qwen2.5:3b (3B) - Multilingual</option>
-                            </optgroup>
-                            <optgroup label="Specialized Models">
-                                <option value="codellama:latest">codellama (7B) - Code Generation</option>
-                                <option value="deepseek-coder:latest">deepseek-coder (6.7B) - Code</option>
-                                <option value="llama3.1:70b">llama3.1:70b (70B) - Advanced</option>
-                                <option value="mixtral:latest">mixtral (47B) - Mixture of Experts</option>
-                            </optgroup>
-                            <optgroup label="Embedding Models">
-                                <option value="nomic-embed-text:latest">nomic-embed-text - Best for RAG</option>
-                                <option value="mxbai-embed-large:latest">mxbai-embed-large - Large Context</option>
-                                <option value="all-minilm:latest">all-minilm - Fast & Small</option>
-                            </optgroup>
-                            <optgroup label="Custom">
-                                <option value="custom">Other (enter manually)...</option>
-                            </optgroup>
-                        </select>
+
+    <div class="docs-rail">
+        <div class="docs-rail-block">
+            <div class="docs-rail-label">Pull a model</div>
+            <p class="docs-rail-note">Downloads from the Ollama registry to this machine. Nothing leaves it.</p>
+            <form id="pull-form">
+                <select class="form-select form-select-sm" id="model-select">
+                    <option value="">Choose a model...</option>
+                    <optgroup label="Popular Chat Models">
+                        <option value="llama3.2:latest">llama3.2 (3B) - Fast &amp; Efficient</option>
+                        <option value="llama3.2:1b">llama3.2:1b (1B) - Lightweight</option>
+                        <option value="llama3.1:latest">llama3.1 (8B) - Balanced</option>
+                        <option value="llama2:latest">llama2 (7B) - Classic</option>
+                        <option value="mistral:latest">mistral (7B) - High Quality</option>
+                        <option value="phi3:latest">phi3 (3.8B) - Microsoft</option>
+                        <option value="gemma2:2b">gemma2:2b (2B) - Google Small</option>
+                        <option value="qwen2.5:3b">qwen2.5:3b (3B) - Multilingual</option>
+                    </optgroup>
+                    <optgroup label="Specialized Models">
+                        <option value="codellama:latest">codellama (7B) - Code Generation</option>
+                        <option value="deepseek-coder:latest">deepseek-coder (6.7B) - Code</option>
+                        <option value="llama3.1:70b">llama3.1:70b (70B) - Advanced</option>
+                        <option value="mixtral:latest">mixtral (47B) - Mixture of Experts</option>
+                    </optgroup>
+                    <optgroup label="Embedding Models">
+                        <option value="nomic-embed-text:latest">nomic-embed-text - Best for RAG</option>
+                        <option value="mxbai-embed-large:latest">mxbai-embed-large - Large Context</option>
+                        <option value="all-minilm:latest">all-minilm - Fast &amp; Small</option>
+                    </optgroup>
+                    <optgroup label="Custom">
+                        <option value="custom">Other (enter manually)...</option>
+                    </optgroup>
+                </select>
+
+                <div class="mt-2" id="custom-model-group" style="display: none;">
+                    <input type="text" class="form-control form-control-sm" id="custom-model-name"
+                           placeholder="e.g., qwen2.5:14b">
+                    <div class="form-text">
+                        Use the exact tag from <a href="https://ollama.com/library" target="_blank" rel="noopener">ollama.com/library</a> &mdash;
+                        lowercase, <code>name:tag</code>, no spaces.
                     </div>
-                    
-                    <!-- Custom model name input (hidden by default) -->
-                    <div class="mb-3" id="custom-model-group" style="display: none;">
-                        <label for="custom-model-name" class="form-label">Custom Model Name</label>
-                        <input type="text" class="form-control" id="custom-model-name"
-                               placeholder="e.g., qwen2.5:14b">
-                        <div class="form-text">
-                            Use the exact tag from <a href="https://ollama.com/library" target="_blank" rel="noopener">ollama.com/library</a> —
-                            lowercase, <code>name:tag</code> format, no spaces (e.g. <code>qwen2.5:14b</code>, not "Qwen 2.5 14B").
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-success w-100" id="pull-btn">
-                        <i class="bi bi-download me-2"></i>Pull Model
-                    </button>
-                </form>
-                
-                <!-- Pull Progress -->
-                <div id="pull-progress" class="mt-3" style="display: none;">
-                    <div class="progress mb-2">
-                        <div id="pull-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" style="width: 0%">
-                        </div>
-                    </div>
-                    <div id="pull-status" class="text-muted small"></div>
                 </div>
+
+                <button type="submit" class="btn btn-sm btn-primary mt-2" id="pull-btn">Pull model</button>
+            </form>
+
+            <div id="pull-progress" class="mt-3" style="display: none;">
+                <div class="progress mb-2">
+                    <div id="pull-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar" style="width: 0%">
+                    </div>
+                </div>
+                <div id="pull-status" class="text-muted small"></div>
             </div>
         </div>
-        
-        <!-- Connection Status -->
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <i class="bi bi-info-circle me-2"></i>Connection Info
-            </div>
-            <div class="card-body">
-                <div id="connection-info">
-                    <p class="mb-2">
-                        <strong>Ollama URL:</strong><br>
-                        <code id="ollama-url-display">loading...</code>
-                    </p>
-                    <p class="mb-0">
-                        <strong>Status:</strong><br>
-                        <span id="connection-status" class="badge bg-secondary">Unknown</span>
-                    </p>
-                </div>
+
+        <div class="docs-rail-block">
+            <div class="docs-rail-label">Connection</div>
+            <div id="connection-info" class="docs-kv">
+                <div><span>Ollama</span><span id="connection-status" class="badge bg-secondary">Unknown</span></div>
+                <div><span>Endpoint</span><code id="ollama-url-display">loading...</code></div>
             </div>
         </div>
     </div>
@@ -138,39 +107,26 @@
 
 <!-- Model Card Template -->
 <template id="model-card-template">
-    <div class="card mb-2 model-card">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <h5 class="card-title mb-1">
-                        <span class="model-name"></span>
-                        <span class="badge bg-success active-badge ms-2" style="display: none;">Active</span>
-                        <span class="badge bg-warning text-dark loaded-badge ms-2" style="display: none;">Loaded</span>
-                    </h5>
-                    <p class="card-text text-muted small mb-2">
-                        <span class="model-size"></span> -
-                        <span class="model-modified"></span>
-                    </p>
-                    <p class="card-text text-warning small mb-0 model-warning" style="display: none;">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        <span class="model-warning-text"></span>
-                    </p>
-                </div>
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-primary activate-btn" title="Set as active">
-                        <i class="bi bi-check-circle"></i>
-                    </button>
-                    <button class="btn btn-sm btn-info test-btn" title="Test model">
-                        <i class="bi bi-play-circle"></i>
-                    </button>
-                    <button class="btn btn-sm btn-warning unload-btn" title="Unload from memory" style="display: none;">
-                        <i class="bi bi-eject"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger delete-btn" title="Delete model">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
+    <div class="model-card model-row">
+        <span class="model-row-dot" aria-hidden="true"></span>
+        <div class="model-row-main">
+            <div class="model-row-title">
+                <span class="model-name"></span>
+                <span class="badge bg-success active-badge" style="display: none;">Active</span>
+                <span class="badge bg-warning loaded-badge" style="display: none;">Loaded</span>
             </div>
+            <div class="model-row-meta">
+                <span class="model-size"></span> &middot; <span class="model-modified"></span>
+            </div>
+            <div class="model-row-warning model-warning" style="display: none;">
+                <span class="model-warning-text"></span>
+            </div>
+        </div>
+        <div class="model-row-actions">
+            <button class="btn btn-sm btn-outline-secondary activate-btn" title="Set as active">Activate</button>
+            <button class="btn btn-sm btn-outline-secondary test-btn" title="Test model">Test</button>
+            <button class="btn btn-sm btn-outline-secondary unload-btn" title="Unload from memory" style="display: none;">Unload</button>
+            <button class="btn btn-sm btn-outline-danger delete-btn" title="Delete model">Delete</button>
         </div>
     </div>
 </template>

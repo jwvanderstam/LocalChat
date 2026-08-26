@@ -862,6 +862,178 @@ main > .d-flex.border-bottom {
     font-weight: 500;
 }
 
+/* ── Documents and Models: a list, and a rail beside it ────────────────────── */
+/* Both pages were four-ish Bootstrap cards in a grid, which put the thing you
+ * came for (the list) level with the things you did not (stats, a form). The
+ * list gets the page; everything else is reference material at the side. */
+.docs-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+}
+
+.docs-main { flex: 1; min-width: 0; }
+
+.docs-rail {
+    width: 268px;
+    flex: none;
+    border-left: 1px solid var(--lc-border);
+    padding-left: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+}
+
+.docs-rail-block + .docs-rail-block {
+    border-top: 1px solid var(--lc-border);
+    padding-top: 1.4rem;
+}
+
+.docs-rail-label,
+.docs-section-head {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lc-text-3);
+}
+
+.docs-rail-label { margin-bottom: 0.6rem; }
+
+.docs-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0.55rem;
+    margin: 1.9rem 0 0;
+    border-bottom: 1px solid var(--lc-border);
+}
+
+.docs-rail-note {
+    font-size: 0.78rem;
+    color: var(--lc-text-2);
+    line-height: 1.5;
+    margin: 0 0 0.7rem;
+}
+
+.docs-stats { display: flex; gap: 2rem; }
+
+.docs-stat-value {
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.docs-stat-name {
+    font-size: 0.75rem;
+    color: var(--lc-text-3);
+    margin-top: 0.2rem;
+}
+
+.docs-kv { display: flex; flex-direction: column; gap: 0.55rem; font-size: 0.8125rem; }
+
+.docs-kv > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.docs-kv span:first-child { color: var(--lc-text-2); }
+
+/* Upload target. The only decorated element on the page, and it earns it by
+ * being the one thing a first-time visitor is looking for. */
+.docs-dropzone {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    width: 100%;
+    padding: 1.2rem 1.3rem;
+    border: 1px dashed var(--lc-border-input);
+    border-radius: var(--lc-radius-lg);
+    background: var(--lc-surface);
+    color: var(--lc-text-3);
+    cursor: pointer;
+    transition: border-color 0.12s, background-color 0.12s;
+}
+
+.docs-dropzone:hover {
+    border-color: var(--lc-accent);
+    background: var(--lc-accent-bg);
+}
+
+.docs-dropzone-title { font-size: 0.875rem; font-weight: 500; color: var(--lc-text); }
+.docs-dropzone-hint  { font-size: 0.78rem; margin-top: 0.15rem; }
+
+/* Model rows. The template was a card; MM-1's "will not fit" reason now reads as
+ * a line of prose under the name rather than a warning pill beside it. */
+.model-row {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.85rem 0.15rem;
+    border-bottom: 1px solid var(--lc-hairline);
+    background: transparent;
+}
+
+.model-row-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lc-border-input);
+    flex: none;
+}
+
+.model-card.border-success .model-row-dot { background: var(--lc-ok); }
+
+.model-row-main { flex: 1; min-width: 0; }
+
+.model-row-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.model-row-meta {
+    font-size: 0.78rem;
+    color: var(--lc-text-3);
+    margin-top: 0.1rem;
+}
+
+.model-row-warning {
+    font-size: 0.78rem;
+    color: var(--lc-warn);
+    margin-top: 0.15rem;
+}
+
+.model-row-actions { display: flex; gap: 0.35rem; flex: none; }
+
+@media (max-width: 992px) {
+    .docs-layout { flex-direction: column; gap: 1.25rem; }
+
+    .docs-rail {
+        width: 100%;
+        border-left: 0;
+        border-top: 1px solid var(--lc-border);
+        padding-left: 0;
+        padding-top: 1.25rem;
+    }
+
+    .model-row { flex-wrap: wrap; }
+}
+
+/* A banner the script must be able to hide. Bootstrap's .d-flex is !important
+ * and outranks both an inline style and element.style, so the read-only warning
+ * it used to carry could never be turned off. */
+.readonly-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 /* ── Feedback bar ──────────────────────────────────────────────────────────── */
 .feedback-bar {
     display: flex;
