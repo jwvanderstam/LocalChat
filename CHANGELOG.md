@@ -10,7 +10,7 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 Nothing yet.
 
-## [3.0.0-beta.1] — unreleased
+## [3.0.0-beta.1] — 2026-08-26
 
 The v3.0 cycle: 19 June – 26 August 2026, 89 feature and fix commits, ~1,074 commits on
 `main` in total.
@@ -112,4 +112,5 @@ until all eight do.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/main...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0-beta.1...HEAD
+[3.0.0-beta.1]: https://github.com/jwvanderstam/LocalChat/releases/tag/v3.0.0-beta.1
