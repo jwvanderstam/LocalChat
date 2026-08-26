@@ -710,9 +710,25 @@ The wiki is the one documentation surface outside every drift-catching mechanism
 - Move `Improvement-feedback` to `.github/ISSUE_TEMPLATE/improvement.md`, where GitHub actually renders the front-matter.
 - Add the DEMO_MODE layer-inversion lesson (SEC-1) to `LESSONS_LEARNED.md`.
 
-### OPS-4 — Prove restore in CI ⬜
+### OPS-4 — Prove restore in CI ✅ (done)
 
 `OPERATIONS.md` describes backup and restore; an untested restore procedure is a wish. Add a CI job (can share TQ-2's Postgres service): seed data → `pg_dump` per the documented procedure → drop schema → restore → assert row counts and a sample vector query. Green means the ops doc is true.
+
+**Done 2026-08-26** as the `restore-proof` job. It seeds the *real* schema — `db.initialize()` plus the migration chain, not a hand-written stand-in — dumps it, restores it, and asserts the restored database answers a `<=>` similarity query. Row counts alone would pass with the embeddings corrupted.
+
+**Running it found the runbook was wrong, which is the point.** The page warned that the `vector` extension had to exist in the target database first or the restore would fail on the `embedding` column. It does not: `pg_dump` writes `CREATE EXTENSION vector` into the archive, so a superuser restore into an empty database works unprepared. The claim had survived because nobody had performed the restore it described.
+
+The advice was right for a case it did not name, and incomplete even there. Restoring to managed Postgres as a non-superuser fails three times in succession, each only after the previous is fixed:
+
+| The dump does | Error | Fix |
+|---|---|---|
+| `CREATE EXTENSION vector` | `permission denied to create extension` | pre-create as superuser |
+| `COMMENT ON EXTENSION vector` | `must be owner of extension` | `--no-comments` |
+| `ALTER TABLE ... OWNER TO postgres` | `must be able to SET ROLE "postgres"` | `--no-owner` |
+
+`OPERATIONS.md` now carries both recipes and CI asserts both. That path matters for [the Scaleway plan](localchat_scaleway_deployment_plan.md), where the database is managed and the app role is not a superuser.
+
+**Scope, stated honestly:** this proves the SQL-level procedure. The page wraps the same commands in `docker compose exec db`, which a service container cannot reproduce, so the compose invocation itself is still unverified.
 
 ### OPS-5 — Release discipline + production topology ⬜
 
@@ -749,9 +765,9 @@ v3.0 ships when **all eight** hold, and not before:
 
 1. **Fail-closed boot** — no configuration path exists in which `APP_ENV=production` runs with authorisation off. (SEC-1 ✅, SEC-2 ✅)
 2. **Authz-by-default CI green** — every route in the table is protected or explicitly allowlisted; a new unprotected route fails CI (TQ-1a ✅). Testing bypass deleted (TQ-1b ✅).
-3. **Concurrency budget met** — p95 time-to-first-token under the agreed budget at 10 concurrent SSE users; benchmark and numbers committed to the repo. (PERF-1/2)
+3. **Concurrency budget met** — the canary's worst probe under budget at 10 concurrent SSE users; benchmark, numbers and threshold committed. (PERF-1 ✅, PERF-2 ✅ — `perf-canary` required since 2026-08-24, ceiling 1000 ms from eleven runs. The criterion's original wording named p95 TTFT, which PERF-2 established measures Ollama's throughput rather than this application.)
 4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3 ✅ — 83.8% and 100%, green 2026-08-22)
-5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4)
+5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4 ✅ — `restore-proof`, and it corrected the runbook on its first run)
 6. **Reproducible release** — tagged version, changelog, uv lock file, published image from the tag. (OPS-1/5)
 7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time.
 8. **Migrations are executed, not merely written** — CI applies the full chain to an empty database, proves it idempotent, and fails on a broken or duplicated revision. No migration reaches a tag having never run. (TQ-5a/TQ-5b)
