@@ -199,13 +199,17 @@ pytest -m "not (slow or ollama or db)"       # fast suite, no external services
 ```
 
 All four must be clean before a commit; CI enforces the same set. Merging to `main`
-requires `unit-tests`, `integration-tests` and `repo-hygiene` to pass, and is a human
-decision — auto-merge is off deliberately.
+requires **five** checks to pass — `unit-tests`, `integration-tests`, `repo-hygiene`,
+`docker-smoke` and `perf-canary` — and is a human decision; auto-merge is off
+deliberately. (`docker-smoke` joined the required set on 2026-08-19 and `perf-canary` on
+2026-08-24; this sentence still said three until 2026-08-27. Read the set back with
+`gh api repos/jwvanderstam/LocalChat/rulesets/14700924`, not from the settings UI.)
 
-**Current state:** 2,993 tests collected; the fast suite runs 2,894 of them in about 11
-minutes at 80.7% coverage. Integration tests need PostgreSQL; some also need Ollama, and
-`tests/e2e/` drives a real browser. Every number here was measured on 2026-08-26 rather
-than remembered — see exit criterion 7 in [PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md).
+**Current state:** 3,008 tests collected; the fast suite runs 2,909 of them (2,888 passed,
+21 skipped) in about 12 minutes at 80.7% coverage. Integration tests need PostgreSQL; some
+also need Ollama, and `tests/e2e/` drives a real browser. Every number here was measured on
+2026-08-27 rather than remembered — see exit criterion 7 in
+[PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md).
 
 Notable changes per release are in [CHANGELOG.md](CHANGELOG.md).
 
