@@ -4,6 +4,28 @@
 present in the handler, read from source — not an intention. Regenerate after changing any
 route; drift between this file and the code is the failure mode it exists to prevent.
 
+> **Re-derived 2026-08-27, and it had drifted by eight routes.** The table listed 98 rows,
+> the distribution claimed 102, and the code had 111. Nothing listed here was stale — the
+> gap was entirely routes added *after* the generation date and never appended:
+>
+> | Added route | Level | Shipped in |
+> |---|---|---|
+> | `GET`/`POST` `/workspaces/{id}/keys`, `DELETE` `/workspaces/{id}/keys/{key_id}` | ws:owner | workspace API keys |
+> | `GET`/`POST` `/users/{id}/workspaces`, `DELETE` `/users/{id}/workspaces/{ws_id}` | **admin** | AUTH-2 |
+> | `POST` `/auth/login`, `GET` `/login` | public | AUTH-1 |
+>
+> Six of the eight govern credentials or membership — creating and revoking a workspace API
+> key, and granting or revoking a user's access to a workspace — which is the part of the
+> surface a permission matrix exists to cover. The two public ones were already named in the
+> allowlist prose below; only the table and the count missed them, which is why the
+> allowlist said 18 while listing 20.
+>
+> The instruction above ("regenerate after changing any route") is the thing that did not
+> happen, three times, over three weeks. It is discipline, and discipline is what
+> `PERMISSIONS.md` exists because nobody has. **The counts and rows are now verified
+> mechanically** — 111 `@router` decorators across `src/routes_fastapi/`, 111 rows here,
+> zero missing and zero stale.
+
 > **Corrected 2026-08-07.** This file listed `GET /api/settings/stats` as `admin`. It had no
 > guard at all and served admin statistics to anyone. The generator's 14-line window had
 > caught the `require_admin_dep` of the *following* route. Found by TQ-1a's introspection,
@@ -43,13 +65,13 @@ Global `admin` short-circuits every workspace check, so an admin passes all `ws:
 
 | Level | Routes |
 |---|---|
-| **admin** | 27 |
+| **admin** | 31 |
+| public | 20 |
 | ws:viewer | 19 |
-| public | 18 |
-| ws:owner | 14 |
+| ws:owner | 17 |
 | ws:editor | 13 |
 | authenticated | 11 |
-| **Total** | **102** |
+| **Total** | **111** |
 
 Before RBAC-2, **49 of these 102 had no check at all** — including `POST /api/models/pull`,
 `DELETE /api/models/delete` and `POST /api/plugins/reload`, none of which did an internal
@@ -57,7 +79,7 @@ check either.
 
 ## The public allowlist
 
-These 18 are unauthenticated **by decision**, each for a stated reason:
+These 20 are unauthenticated **by decision**, each for a stated reason:
 
 | Routes | Why public |
 |---|---|
@@ -90,6 +112,10 @@ These 18 are unauthenticated **by decision**, each for a stated reason:
 | `auth` | DELETE | `/users/{user_id}/purge` | **admin** |
 | `auth` | DELETE | `/users/{user_id}` | **admin** |
 | `auth` | POST | `/users/me/password` | public |
+| `auth` | GET | `/users/{user_id}/workspaces` | **admin** |
+| `auth` | POST | `/users/{user_id}/workspaces` | **admin** |
+| `auth` | DELETE | `/users/{user_id}/workspaces/{workspace_id}` | **admin** |
+| `auth` | POST | `/auth/login` | public |
 | `auth` | POST | `/logout` | public |
 | `connector` | GET | `/connectors/available` | ws:owner |
 | `connector` | GET | `/connectors/types` | ws:owner |
@@ -162,6 +188,7 @@ These 18 are unauthenticated **by decision**, each for a stated reason:
 | `web` | GET | `/documents` | public |
 | `web` | GET | `/models` | public |
 | `web` | GET | `/settings` | public |
+| `web` | GET | `/login` | public |
 | `web` | GET | `/docs` | public |
 | `workspace` | GET | `/workspaces` | authenticated |
 | `workspace` | POST | `/workspaces` | authenticated |
@@ -178,3 +205,6 @@ These 18 are unauthenticated **by decision**, each for a stated reason:
 | `workspace` | GET | `/workspaces/{workspace_id}/presence` | ws:viewer |
 | `workspace` | GET | `/workspaces/{workspace_id}/suggestions` | ws:viewer |
 | `workspace` | GET | `/workspaces/{workspace_id}/ontology` | ws:viewer |
+| `workspace` | GET | `/workspaces/{workspace_id}/keys` | ws:owner |
+| `workspace` | POST | `/workspaces/{workspace_id}/keys` | ws:owner |
+| `workspace` | DELETE | `/workspaces/{workspace_id}/keys/{key_id}` | ws:owner |

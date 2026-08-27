@@ -355,3 +355,39 @@ C:/temp/localchat-venv/Scripts/python.exe -m pip check         # expect: no brok
 
 Then point the IDE interpreter at that venv, or activate it before running the quality
 gates — a gate run on the wrong interpreter proves nothing about CI.
+
+---
+
+## MCP servers (`--profile mcp`)
+
+### The three `mcp-*` containers restart or exit immediately
+
+**Found by the 2026-08-27 documentation audit; not yet fixed — see the note below.**
+
+`docker compose --profile mcp up -d` starts `mcp-local-docs`, `mcp-web-search` and
+`mcp-cloud-connectors`. All three are built from the same `Dockerfile` as `app`, whose
+runtime stage is a Docker Hardened Image with **no shell and no `curl`**. Their compose
+definitions predate that change and still assume both:
+
+```yaml
+command: >
+  sh -c "uvicorn 'mcp_servers.local_docs.server:app' ..."   # no `sh` in the image
+healthcheck:
+  test: ["CMD-SHELL", "curl -sf http://localhost:5001/health || exit 1"]  # no shell, no curl
+```
+
+`sh -c` cannot execute, so the container never starts the server; `CMD-SHELL` cannot run,
+so the healthcheck cannot pass either. The `app` service was converted when the image was
+hardened — it uses exec form (`["CMD", "python", "-c", ...]`) and `docker-entrypoint.py`
+expands its environment variables precisely because there is no shell — and the `mcp-*`
+services were not.
+
+**Why nothing caught it:** `docker-smoke` builds and boots the `app` service only. The
+`mcp` profile is opt-in and is not exercised by any job, so the three services have never
+been started by CI against the hardened image.
+
+**The fix**, when taken, is the same conversion the `app` service already had: exec-form
+`command` (`["python", "-m", "uvicorn", "mcp_servers.local_docs.server:app", "--host", ...]`)
+and a `python -c` healthcheck like the one `app` uses. Until then, treat `--profile mcp` as
+unavailable under the hardened image; `MCP_ENABLED` defaults to `false` and the application
+runs fully without it.

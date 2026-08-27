@@ -149,9 +149,11 @@ LocalChat supports plugins (LLM tools, connectors, background work) that extend 
 - No core table holds a foreign key into a plugin table. No core module imports a plugin module. No core test depends on a plugin being present.
 - When a plugin needs something the core does not expose, add a **general** capability to the catalogue — named for what it does, not for who asked. Test: *would this capability be reasonable if the requesting plugin vanished?* If not, it is a leak.
 
-**The IVP: the plugin-absent CI gate**
+**The IVP: the plugin-absent CI gate** — *planned, not built*
 
-A CI job verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core. This gate is the enforcing procedure.
+The enforcing procedure is to be a CI job that verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core.
+
+> **It does not exist yet** (checked 2026-08-27). It is PC-4, ROADMAP Sprint 11, behind the PRODUCTION_PLAN exit criteria. Until then the one rule is enforced by review. The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
 
 Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
 

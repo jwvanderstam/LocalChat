@@ -57,6 +57,7 @@ jobs. Which one you need depends on what you are doing right now, not on the top
 | [Authentication plan](AUTH_PLAN.md) | How local login, OIDC and the bypasses fit together |
 | [Test quality audit](TEST_QUALITY_AUDIT.md) | Why coverage percentage hid weak tests |
 | [n8n integration report](bugreport-n8n-localchat.md) | What broke wiring the first external client |
+| [Scaleway deployment plan](localchat_scaleway_deployment_plan.md) | What a managed-cloud test stack would cost and require — planning only, nothing built |
 
 ## Contributor standards
 

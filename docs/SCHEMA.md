@@ -153,6 +153,36 @@ erDiagram
         timestamp updated_at
     }
 
+    annotations {
+        uuid   id              PK
+        int    chunk_id        FK
+        uuid   conversation_id FK
+        uuid   user_id         FK
+        string text
+        timestamp created_at
+        timestamp deleted_at
+        uuid   deleted_by      FK
+    }
+
+    workspace_api_keys {
+        uuid   id           PK
+        uuid   workspace_id FK
+        string name
+        string key_prefix
+        string key_hash
+        string role
+        timestamp created_at
+        uuid   created_by   FK
+        timestamp last_used_at
+        timestamp revoked_at
+        uuid   revoked_by   FK
+    }
+
+    revoked_tokens {
+        uuid   jti        PK
+        timestamp expires_at
+    }
+
     documents             ||--o{ document_chunks       : "has"
     documents             ||--o{ entity_relations      : "doc_id"
     document_chunks       ||--|| chunk_stats           : "stats"
@@ -171,6 +201,11 @@ erDiagram
     users                 ||--o{ oauth_tokens          : "has"
     connectors            ||--o{ connector_sync_log    : "log"
     conversation_messages ||--o{ answer_feedback       : "rated"
+    document_chunks       ||--o{ annotations           : "annotated"
+    conversations         ||--o{ annotations           : "in"
+    users                 ||--o{ annotations           : "author"
+    workspaces            ||--o{ workspace_api_keys    : "scoped"
+    users                 ||--o{ workspace_api_keys    : "created"
 ```
 
 ---
@@ -430,6 +465,58 @@ Encrypted OAuth access and refresh tokens for cloud connector providers.
 `UNIQUE(user_id, provider)` — one token set per user per provider. Tokens are encrypted at rest using Fernet with `ENCRYPTION_KEY`.
 
 ---
+
+### `annotations`
+
+Free-text notes a user attaches to a retrieved chunk. A CDI: soft-deleted, never removed.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `UUID` | Primary key |
+| `chunk_id` | `INTEGER` | FK -> `document_chunks.id` (CASCADE on delete) |
+| `conversation_id` | `UUID` | FK -> `conversations.id` (SET NULL on delete) |
+| `user_id` | `UUID` | FK -> `users.id` (SET NULL on delete) - the author |
+| `text` | `TEXT` | The annotation body. `NOT NULL` |
+| `created_at` | `TIMESTAMPTZ` | Defaults to `NOW()` |
+| `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (migration `0010`, CW-2e) |
+| `deleted_by` | `UUID` | FK -> `users.id` - who retired it (migration `0010`) |
+
+### `workspace_api_keys`
+
+Scoped, revocable credentials for programmatic access to exactly one workspace. See
+[WORKSPACE_API_KEYS.md](WORKSPACE_API_KEYS.md).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `UUID` | Primary key |
+| `workspace_id` | `UUID` | FK -> `workspaces.id` (CASCADE). The scope, and it cannot be overridden |
+| `name` | `TEXT` | Human label shown in the Users screen. `NOT NULL` |
+| `key_prefix` | `TEXT` | First characters of the key, indexed for lookup. `NOT NULL` |
+| `key_hash` | `TEXT` | sha256 of the full key - the key itself is never stored. `NOT NULL` |
+| `role` | `TEXT` | `viewer` / `editor` / `owner`; defaults to `viewer`. Never reaches global admin |
+| `created_at` | `TIMESTAMPTZ` | Defaults to `NOW()` |
+| `created_by` | `UUID` | FK -> `users.id` |
+| `last_used_at` | `TIMESTAMPTZ` | Updated on successful resolution |
+| `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker |
+| `revoked_at` | `TIMESTAMPTZ` | Set on revoke; the index below excludes revoked keys |
+| `revoked_by` | `UUID` | FK -> `users.id` |
+
+`idx_workspace_api_keys_prefix` is **partial** - `ON (key_prefix) WHERE revoked_at IS NULL`
+- so a revoked key leaves the lookup path entirely rather than being filtered after it.
+
+### `revoked_tokens`
+
+The JWT deny-list (SEC-2). A token whose `jti` appears here is refused. The check is
+**fail-closed**: if the lookup errors, the token is treated as revoked.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `jti` | `UUID` | Primary key - the token's unique id |
+| `expires_at` | `TIMESTAMPTZ` | When the row may be pruned; the token is dead regardless. `NOT NULL` |
+
+Not a CDI: nothing references a `jti`, and a revocation that outlives its token is
+harmless. This is the one table where deletion is correct, and it is deletion of expired
+rows, not of live state.
 
 ## Indexes
 

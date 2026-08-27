@@ -42,7 +42,9 @@ No SQL, no LLM calls, no business logic inside route functions. If you find your
 
 ## MCP servers
 
-- Domain servers live in `mcp_servers/` and run as separate gunicorn processes.
+- Domain servers live in `mcp_servers/` and run as separate **uvicorn** processes.
+  (HK-4 ported them from Flask/WSGI to FastAPI/ASGI and switched `docker-compose.yml`
+  from gunicorn to uvicorn; this line kept saying gunicorn until 2026-08-27.)
 - All three implement the `MCPServer` base class from `mcp_servers/base.py` (JSON-RPC 2.0).
 - The main app communicates through `src/mcp_client.py` only — never by direct import of `mcp_servers/`.
 

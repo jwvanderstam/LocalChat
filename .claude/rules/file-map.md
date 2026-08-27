@@ -141,9 +141,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/connectors/worker.py` | `SyncWorker` daemon — polls connectors, ingests changes |
 | **MCP servers** | |
 | `mcp_servers/base.py` | `MCPServer` base — JSON-RPC 2.0 dispatcher |
-| `mcp_servers/local_docs/server.py` | Local-docs MCP server; gunicorn port 5001 |
-| `mcp_servers/web_search/server.py` | Web-search MCP server; gunicorn port 5002 |
-| `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server; gunicorn port 5003 |
+| `mcp_servers/local_docs/server.py` | Local-docs MCP server; uvicorn port 5001 |
+| `mcp_servers/web_search/server.py` | Web-search MCP server; uvicorn port 5002 |
+| `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server; uvicorn port 5003 |
 | **Utils** | |
 | `src/utils/logging_config.py` | `JsonFormatter` + `RequestIdFilter`; `LOG_FORMAT=json`; configurable sinks (`console`/`file`/`syslog`) with bounded rotation, degrading rather than failing when a sink cannot be built; startup buffer that replays records logged before `setup_logging()` |
 | `src/utils/request_id.py` | X-Request-ID middleware + per-request access log |
@@ -182,6 +182,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
 | `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
+| `tests/unit/test_permissions_doc_matches_routes.py` | The IVP for `docs/PERMISSIONS.md` — every route has a row, no row is stale, and the distribution total matches the table |
+| `tests/unit/test_configuration_doc_covers_config.py` | The IVP for `docs/CONFIGURATION.md` — every env var `config.py` reads is documented, and nothing outside `config.py` calls `os.getenv` |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
 | `.github/ISSUE_TEMPLATE/improvement.md` | Structured improvement-feedback issue form (OPS-3); replaces the wiki page whose front-matter never rendered |
 | `tests/unit/test_security_contract.py` | TQ-3 — the auth layer's observable contract, written against named surviving mutants |

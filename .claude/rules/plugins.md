@@ -3,6 +3,31 @@
 How plugins extend LocalChat without destabilising the core. Read alongside the
 "Plugin Contract" section in `CLAUDE.md` — that states the principle; this is the rule.
 
+> ## ⚠ Status: designed, not built (verified 2026-08-27)
+>
+> **Everything below describes PC-1..PC-4, which have not been implemented.** They are
+> ROADMAP Sprints 10–11, queued behind the PRODUCTION_PLAN exit criteria. None of the
+> following exists in the repository today:
+>
+> | Described here | Reality |
+> |---|---|
+> | The services catalogue (`retrieval`, `llm`, `storage`, `config`, `identity`) | No service handles; a plugin imports `src.tools.registry` directly |
+> | The hooks catalogue (`on_document_ingested`, `on_scheduler_tick`, …) | No hook bus |
+> | The manifest (`PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_HOOKS`, `PLUGIN_CONFIG`) | `plugin_loader.py` reads none of these; it reads an optional `PLUGIN_META` dict for display only |
+> | `plugins/_echo/` reference plugin | Absent. `plugins/` holds `example_plugin.py` |
+> | The `core-without-plugins` CI job | Absent from `.github/workflows/`, and not in the required-checks ruleset |
+>
+> **What actually ships** is a much smaller thing, and it is documented accurately in
+> [`plugins/README.md`](../../plugins/README.md): drop a `.py` file in `plugins/`, decorate
+> functions with `@tool_registry.register`, and they become LLM-callable tools. That is the
+> live contract. This file is the target.
+>
+> The document is kept in present tense below because it is a specification, and rewriting a
+> spec into the conditional makes it harder to build against. Read it as "shall", not "does".
+> The one rule at the top — dependencies point inward — **is** binding today: it costs
+> nothing to honour before the machinery exists, and it is why the core currently contains
+> no reference to any plugin by name.
+
 ## The one rule
 
 Dependencies point inward. The core defines extension points; a plugin consumes them.
@@ -79,17 +104,18 @@ generic-name test, update this file in the same commit, and add its row above.
 
 ## The reference plugin
 
-The core ships a trivial `plugins/_echo/` reference plugin that exercises every service
-and hook with no domain logic. It is the core's own fixture: each capability is proven
+The core **will ship** a trivial `plugins/_echo/` reference plugin that exercises every
+service and hook with no domain logic (PC-3; it does not exist yet). It is the core's own fixture: each capability is proven
 generically against echo, never against a domain plugin. A domain plugin (pricing) is
 always the *second* consumer of any capability — never the first, never the author.
 
 ## Enforcement
 
-`.github/workflows/tests.yml` gains a `core-without-plugins` job: it runs the fast
-suite with `plugins/` emptied (echo excepted, since it lives in-core as a fixture) and
-all private plugin paths absent. Red = a plugin dependency leaked into the core. This
-job is the architectural IVP and is required to pass on every PR to `main`.
+`.github/workflows/tests.yml` **is to gain** a `core-without-plugins` job (PC-4, not yet
+written): it runs the fast suite with `plugins/` emptied (echo excepted, since it lives
+in-core as a fixture) and all private plugin paths absent. Red = a plugin dependency
+leaked into the core. That job is the architectural IVP and is to be required on every PR
+to `main`. **Until it exists, the one rule is enforced by review only.**
 
 ## Checklist for a new plugin
 
