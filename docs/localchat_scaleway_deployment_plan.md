@@ -6,29 +6,86 @@ Prepared 2026-08-18. Repo analyzed: `github.com/jwvanderstam/LocalChat` (cloned 
 
 This plan was written on 2026-08-18 against the repository as it then stood. It was
 checked against the code again on 2026-08-26, by measuring rather than reading. Most of
-it holds. Five things did not, and one number was much worse than the guess.
+it holds. Six things did not, and the sizing section was wrong about which dependency
+mattered.
 
-**§5's image-size guess was "very likely several GB". It is 10.1 GB.** Measured with
-`docker images`, and measured again *inside* the image, where `site-packages` is 6.18 GB:
+**§5's image-size guess was "very likely several GB".** Two numbers, because they are
+not the same number and the difference matters:
+
+| Measure | Value | What it is |
+|---|---|---|
+| `docker images` SIZE | 9.92 GB | Docker's layer accounting |
+| Files inside the container | **6.60 GB** | What actually has to arrive and unpack |
+
+The 6.60 GB is the honest figure for cold-start reasoning. It breaks down as `/opt`
+(the venv) 6022 MB, `/app` 361 MB, `/usr` 120 MB, `/lib` 98 MB. Scaleway pulls the
+*compressed* layers, which are smaller again — not measured here, because it needs a
+push to a registry.
+
+### Where the weight is
+
+Nothing under `src/` imports `torch`. It is there for one reason: the cross-encoder
+reranker, via `sentence-transformers`. Everything below follows from that one dependency.
 
 | Package | Size | Reachable in this deployment? |
 |---|---|---|
 | `nvidia-*` (CUDA runtime) | 2855 MB | **No** — a Serverless Container has no GPU, and even in compose the `app` service has no device reservation; the GPU goes to `ollama` |
-| `torch` | 1142 MB | Yes, on CPU — the cross-encoder reranker |
+| `torch` | 1142 MB | Yes, on CPU |
 | `triton` (GPU kernel compiler) | 723 MB | **No** — same reason |
+| `.mypy_cache` in `/app` | 351 MB | **No** — see below |
 | `playwright` | 142 MB | **No longer present** — removed by the dev/runtime split, OPS-1 |
 
-So **roughly 3.6 GB of the image is CUDA tooling this deployment cannot use.** It arrives
-as a transitive of `torch`, whose PyPI Linux wheel bundles CUDA. Removing it means the
-`+cpu` build from `download.pytorch.org` — a second package index in the supply chain, so
-a decision rather than a cleanup, and the single biggest lever available on cold start.
-§5's suggestion of a trimmed `requirements-serverless.txt` was aimed at the wrong 10%:
-dropping `kuzu` and `spacy` saves ~130 MB against 3.6 GB sitting in plain sight.
+§5's suggested trim was aimed at the wrong 10%: dropping `kuzu` and `spacy` saves
+~130 MB against 4.7 GB sitting in plain sight.
 
-Against Scaleway's ~1 GB recommendation, **10 GB with 15-minute scale-to-zero is the
-practical blocker for a usable test**, ahead of the Ollama decision in §4. Either cap the
-container at min-scale 1 so it never sleeps (and pay for it), or accept that the first
-request after any idle period waits on a multi-GB image pull.
+### `.mypy_cache` ships in the image
+
+`.dockerignore` excludes `.pytest_cache` but not `.mypy_cache`, `.ruff_cache` or
+`design/`. The type-checker cache is 351 MB of the 361 MB `/app` directory.
+
+The size is the smaller half of the problem. **The image differs depending on whether
+the person building it happened to run mypy first.** CI builds from a clean checkout, so
+this has never reached a published image — only a locally built one. It is three lines
+in `.dockerignore` and there is no tradeoff.
+
+### Three routes, measured
+
+Each was measured, not estimated. The CPU-only figure comes from installing
+`torch==2.9.1+cpu` and `sentence-transformers` into a clean `python:3.12-slim` and
+walking `site-packages`.
+
+| Route | Saves | Cost | Lands at |
+|---|---|---|---|
+| `.dockerignore` fix | 0.36 GB | none | 6.24 GB |
+| CPU-only `torch` from `download.pytorch.org` | 4.0 GB | a second package index in the supply chain | 2.24 GB |
+| **Drop `sentence-transformers` for this target** | **5.2 GB** | no reranker here | **~1.0 GB** |
+
+The third route lands on Scaleway's own ~1 GB recommendation with **no supply-chain
+change at all**, and it is the better fit for a reason beyond size: **the reranker model
+is not baked into the image.** Verified — only `huggingface_hub`'s dist-info is present.
+`CrossEncoder(...)` downloads the model at first use, onto ephemeral storage, and
+re-downloads it after every scale-to-zero. On a serverless target the reranker is a
+recurring cold-start cost, not just dead weight.
+
+### The recommendation
+
+**Do not change the image before the first deployment.** Deploy as it is, with
+**min scale 1** so the container never sleeps. That answers "does this run on Scaleway"
+with one variable changed, and it produces the numbers the rest of the decision needs:
+boot time, resident memory, whether the `hnsw.ef_search` warning fires, whether
+Serverless SQL's pgvector behaves. Change the supply chain first and a failed deployment
+becomes ambiguous.
+
+Scaleway publishes **no hard image-size limit** — only the ~1 GB recommendation and
+cold-start guidance ([Containers limitations](https://www.scaleway.com/en/docs/serverless-containers/reference-content/containers-limitations/)).
+6.6 GB will deploy. It just will not wake up quickly.
+
+Then, when you act on it: **the two targets want different images.** The appliance keeps
+CUDA `torch` and the reranker — cold start is irrelevant there and the reranker is
+wanted. The serverless variant drops `sentence-transformers` and sets
+`RERANKER_ENABLED=false`. Neither compromises for the other, which is exactly the
+additive `Dockerfile.serverless` §6 already anticipates. Build it when the numbers from
+the first deployment say it is worth building, not before.
 
 **§3's `SET hnsw.ef_search` risk is now instrumented, and the mechanism was subtler than
 described.** The app reads the setting back in a separate transaction at connection time
@@ -160,7 +217,7 @@ Required (app raises at startup in `APP_ENV=production` if unset — see `src/co
 
 **Phase 1 — Database.** Create a Scaleway Serverless SQL Database (Postgres 16-compatible), confirm `CREATE EXTENSION vector` succeeds, note connection details.
 
-**Phase 2 — Container.** Create a Serverless Container in your Serverless Containers namespace (AMS region), image `ghcr.io/jwvanderstam/localchat:latest`, port 5000, max scale 1, env vars from §7, memory ≥2 GB (torch at import time is not free — start at 2–3 GB, watch for OOM restarts).
+**Phase 2 — Container.** Create a Serverless Container in your Serverless Containers namespace (AMS region), image `ghcr.io/jwvanderstam/localchat:3.0.0-beta.1` (pin it — `:latest` moves on every push to `main`, so the thing you debug on Friday would not be the thing you deployed on Monday), port 5000, **min scale 1 and max scale 1** (min 1 so the 6.6 GB image is never re-pulled on a cold start during the test; max 1 because migrations run at boot with no cross-instance lock — see §0), env vars from §7, memory ≥2 GB (torch at import time is not free — start at 2–3 GB, watch for OOM restarts).
 
 **Phase 3 — Validate.** Hit `/api/health`, confirm migrations ran (check container logs for "Alembic migrations applied"), log in with `ADMIN_PASSWORD`, confirm document upload works (remember: ephemeral disk, uploaded docs vanish on scale-to-zero — fine for a smoke test, not for real use).
 
