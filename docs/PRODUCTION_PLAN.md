@@ -803,7 +803,16 @@ The advice was right for a case it did not name, and incomplete even there. Rest
   - **Still to do:** the tag itself, and the image published from it. Tagging is a
     deliberate, outward-facing act and is left to a human — it is the moment the version
     number becomes a claim other people can hold the project to.
-- Document the recommended topology in `DEPLOYMENT.md`: nginx/Traefik TLS termination in front, app bound to loopback/internal network behind it, `METRICS_TOKEN` set. One page, one diagram.
+- **Done 2026-08-26.** `DEPLOYMENT.md` gains "The recommended production topology": one
+  diagram, a table giving the reason for each choice rather than only the choice, and a
+  four-command pre-flight check. The checks assert what the code actually does — the
+  first draft said `/api/metrics` returns 401 and it returns **403**, which is the kind
+  of error a checklist propagates silently once people start trusting it.
+  - The same pass re-derived [the Scaleway plan](localchat_scaleway_deployment_plan.md)
+    against today's code. Five of its claims had drifted, and its image-size guess
+    ("several GB") was 10.1 GB measured — of which ~3.6 GB is CUDA tooling no supported
+    topology can reach. That, not the Ollama decision, is the practical blocker for a
+    serverless test with 15-minute scale-to-zero.
 
 ---
 

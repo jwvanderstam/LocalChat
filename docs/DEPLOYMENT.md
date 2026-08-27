@@ -251,6 +251,55 @@ appears to come from the nginx container and all callers share one rate-limit bu
 see [CONFIGURATION.md](CONFIGURATION.md#rate-limiting-behind-a-reverse-proxy). If you
 front the app with a different proxy, set that variable yourself.
 
+## The recommended production topology
+
+One node, one app instance, everything but the proxy on loopback.
+
+```mermaid
+flowchart LR
+    U["Users"] -->|"HTTPS 443"| N["nginx<br/>TLS termination<br/>docker-compose.nginx.yml"]
+
+    subgraph host["One host — everything below binds to 127.0.0.1"]
+        N -->|"backend network"| A["app<br/>uid 65532, no shell<br/>UVICORN_WORKERS=1"]
+        A --> D[("db<br/>Postgres 16 + pgvector")]
+        A --> R[("redis<br/>optional")]
+        A --> O["ollama<br/>holds the GPU"]
+    end
+
+    style host fill:transparent,stroke-dasharray: 4 4
+```
+
+**Why it is shaped this way**
+
+| Choice | Reason |
+|---|---|
+| `BIND_HOST=127.0.0.1` (the default) on every service | Nothing but the proxy is reachable off the host. This does more for the security posture than any application setting. |
+| One app instance, `UVICORN_WORKERS=1` | `AppState`, the metrics collector, the Alembic runner, connector polling and the reranker's scheduler are all in-process with no cross-instance coordination. At two instances they race or silently diverge — see ADR-1 and the accepted-debt list in ROADMAP.md. |
+| TLS at the proxy, not in the app | The app speaks plain HTTP to the proxy over the compose network. `TRUSTED_PROXY_IPS` is what lets it read the real client address, without which every caller shares one rate-limit bucket. |
+| The GPU goes to `ollama`, not `app` | Inference is the only GPU workload. The app's reranker runs on CPU. |
+| `METRICS_TOKEN` set | Unset, `/api/metrics` answers anyone who can reach the port. |
+
+**Before you call it production**
+
+```bash
+# nothing on 0.0.0.0 — every published port should show 127.0.0.1
+docker compose ps --format 'table {{.Service}}\t{{.Ports}}'
+
+# the metrics endpoint must not answer without a token
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5000/api/metrics   # expect 403
+# 200 here means METRICS_TOKEN is unset — the app warns about it at boot too
+
+# an unauthenticated API call must be refused
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5000/api/documents/list  # expect 401
+
+# and a backup must actually exist, not merely be documented
+ls -lh /path/to/your/backups | tail -3
+```
+
+The restore procedure those backups rely on is proven on every CI run
+(`restore-proof`); the backups themselves are a cron job you have to create — see
+[OPERATIONS.md](OPERATIONS.md). A proven restore and no backups is a strange place to
+stand.
 ## Connection poolers and vector search
 
 The pool sets `hnsw.ef_search = 100` once per physical connection and every vector
