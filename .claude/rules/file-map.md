@@ -182,6 +182,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
 | `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
+| `.github/ISSUE_TEMPLATE/improvement.md` | Structured improvement-feedback issue form (OPS-3); replaces the wiki page whose front-matter never rendered |
 | `tests/unit/test_security_contract.py` | TQ-3 — the auth layer's observable contract, written against named surviving mutants |
 | `tests/unit/test_workspace_access_contract.py` | TQ-3 — the workspace authorisation path, same method |
 | `scripts/mutation_gate.py` | TQ-3 — runs `mutmut<3` over the isolation-critical modules, screens the result for a broken harness, fails under the agreed kill rate |
