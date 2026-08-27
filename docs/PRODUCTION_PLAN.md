@@ -726,10 +726,15 @@ tamper-evidence on top, and can be revisited if the resolution ever gets cheap.
 **The split fell out of it.** Separating `requirements-dev.in` means the production image
 no longer installs `pytest`, `pytest-playwright`, `faker`, `responses`, `freezegun` or
 `coverage`. That closes one of the accepted-debt items in `SECURITY.md` — test frameworks
-shipping in the runtime image — and takes the image from 10.1 GB to 9.92 GB.
+shipping in the runtime image — and takes `docker images` SIZE from 10.1 GB to 9.92 GB.
 
-**What that number reveals is more important than the saving.** Measured inside the
-built image, `site-packages` is 6.18 GB, and three entries are 4.6 GB of it:
+**What that number reveals is more important than the saving.** Note which number it
+is: `docker images` SIZE is layer accounting, and the files actually inside the container
+come to **6.60 GB** — the honest figure for cold-start reasoning. `/opt` (the venv) is
+6022 MB of it, `/app` 361 MB.
+
+Measured inside the built image, `site-packages` is 6.18 GB, and three entries are 4.6 GB
+of it:
 
 | Package | Size | Reachable in any supported deployment? |
 |---|---|---|
@@ -738,12 +743,24 @@ built image, `site-packages` is 6.18 GB, and three entries are 4.6 GB of it:
 | `triton` (GPU kernel compiler) | 723 MB | **No** — same reason |
 
 So roughly **3.6 GB of the image is CUDA tooling no supported topology can reach.** It
-arrives as a transitive of `torch`, whose PyPI Linux wheel bundles CUDA. Removing it
-means installing the `+cpu` torch build from `download.pytorch.org`, which is a real
-decision, not a cleanup: it adds a second package index to the supply chain. Left open
-deliberately — it is the single biggest lever on the Scaleway cold-start problem
-([the Scaleway plan](localchat_scaleway_deployment_plan.md) §5) and belongs to whoever
-owns that tradeoff.
+arrives as a transitive of `torch`, whose PyPI Linux wheel bundles CUDA.
+
+**Two things found afterwards reframe what to do about it**, and both are recorded in
+[the Scaleway plan](localchat_scaleway_deployment_plan.md) §0, where the decision lives:
+
+- **`.dockerignore` excludes `.pytest_cache` but not `.mypy_cache`.** 351 MB of
+  type-checker cache is copied into `/app`. The size is the smaller half — the image
+  differs depending on whether the builder ran mypy first, so a locally built image is
+  not the one CI publishes. Three lines, no tradeoff.
+- **Nothing under `src/` imports `torch`.** It is there for the cross-encoder reranker
+  alone, and the reranker's model is *not* baked into the image — it downloads at first
+  use. So the framing of "add `download.pytorch.org` as a second index" (4.0 GB, keeps
+  the reranker) was never the only option: dropping `sentence-transformers` from a
+  serverless variant saves 5.2 GB with no supply-chain change at all.
+
+Left open deliberately. The two deployment targets want different images and neither
+should compromise for the other; the recommendation is to measure a real deployment
+first, and it belongs to whoever owns that tradeoff.
 
 **Guarded by `unit-tests`.** A step re-checks that every `==` pin in an `.in` file
 appears at the same version in its lock, and that each lock is still pip-compile output.
@@ -810,9 +827,10 @@ The advice was right for a case it did not name, and incomplete even there. Rest
   of error a checklist propagates silently once people start trusting it.
   - The same pass re-derived [the Scaleway plan](localchat_scaleway_deployment_plan.md)
     against today's code. Five of its claims had drifted, and its image-size guess
-    ("several GB") was 10.1 GB measured — of which ~3.6 GB is CUDA tooling no supported
-    topology can reach. That, not the Ollama decision, is the practical blocker for a
-    serverless test with 15-minute scale-to-zero.
+    ("several GB") was 6.60 GB of files measured inside the container — of which ~3.6 GB
+    is CUDA tooling no supported topology can reach, and 351 MB is a `.mypy_cache`
+    `.dockerignore` never excluded. That, not the Ollama decision, is the practical
+    blocker for a serverless test with 15-minute scale-to-zero.
 
 ---
 
