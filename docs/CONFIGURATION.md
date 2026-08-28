@@ -256,3 +256,144 @@ BATCH_SIZE = 512             # Embeddings batch size (512 chunks per call)
 KEEP_TABLES_INTACT = True     # Don't split tables across chunks
 MIN_TABLE_ROWS = 3           # Minimum rows to detect as table
 ```
+
+---
+
+## Complete environment variable reference
+
+**Added 2026-08-27.** The sections above were written by hand and covered 45 of the 107
+values `src/config.py` reads. The 65 below were reachable, documented nowhere, and include
+the master switches for web search, tool calling, GraphRAG, MCP, plugins, model routing and
+the cloud fallback — every one of them a feature you could not discover from this page.
+
+Defaults are read from `src/config.py`; where a default is empty the feature is off or the
+credential is absent. `src/config.py` remains the single source of truth — nothing else in
+the codebase calls `os.getenv`.
+
+> Under `docker compose up -d`, the `app` service's `environment:` block **overrides `.env`**
+> for anything it sets. See [Which of these the Docker stack actually reads](#which-of-these-the-docker-stack-actually-reads).
+
+### Feature switches
+
+These turn whole subsystems on and off. Several default to `False`, so the feature is
+absent unless you set it — which is the answer to "why is this doing nothing?".
+
+| Variable | Default | Effect |
+|---|---|---|
+| `WEB_SEARCH_ENABLED` | `True` | DuckDuckGo live search as an LLM tool |
+| `TOOL_CALLING_ENABLED` | `True` | The function-calling loop (`src/tools/`) |
+| `QUERY_PLANNER_ENABLED` | `True` | Decomposes a query into a `QueryPlan` before retrieval |
+| `GRAPH_RAG_ENABLED` | `False` | Entity extraction at ingest + 1-hop query expansion. **Requires spaCy's `en_core_web_sm`**; without it the flag is on and the feature is inert — the app warns at startup |
+| `LONG_TERM_MEMORY_ENABLED` | `False` | Extracts durable facts from conversations and injects them into the prompt |
+| `MODEL_ROUTER_ENABLED` | `false` | Rule-based routing to a model class per query |
+| `AGGREGATOR_AGENT_ENABLED` | `false` | Parallel tool dispatch with retry and dedup |
+| `MCP_ENABLED` | `false` | Talk to the domain MCP servers (`--profile mcp`) |
+| `PLUGINS_ENABLED` | `True` | Load `.py` plugins from `PLUGINS_DIR` at startup |
+| `DOCS_ENABLED` | `True` | The in-app `/docs` viewer and the Settings help text |
+| `CLOUD_FALLBACK_ENABLED` | `false` | Fall back to a hosted model via LiteLLM when Ollama cannot serve |
+| `REINGEST_ENABLED` | `false` | Re-ingest documents older than `REINGEST_MAX_AGE_HOURS` |
+| `REDIS_STRICT` | `true` | Refuse to start if `REDIS_ENABLED=True` and Redis is unreachable, rather than silently falling back to the in-memory cache |
+| `REQUIRE_DATABASE` | `false` | Refuse to start without PostgreSQL instead of degrading |
+
+### Web search
+
+| Variable | Default | Effect |
+|---|---|---|
+| `WEB_SEARCH_MAX_RESULTS` | `5` | Results requested per query |
+| `WEB_SEARCH_TIMEOUT` | `10` | Seconds before a search is abandoned |
+| `WEB_SEARCH_FETCH_PAGES` | `False` | Fetch and parse each result page rather than using the snippet |
+| `WEB_SEARCH_MAX_PAGE_CHARS` | `2000` | Characters kept per fetched page |
+
+### Models and routing
+
+The `MODEL_*` values name the Ollama model for each class the router selects. All default
+to empty, in which case the router falls back to the active model.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `DEFAULT_MODEL` | `llama3.1` | Model used when no active model has been set |
+| `MODEL_FAST` / `MODEL_BASE` / `MODEL_LARGE` / `MODEL_CODE` / `MODEL_VISION` | *(empty)* | Ollama model id per routing class |
+| `AGENT_MAX_RETRIES` | `1` | Retries per tool call in the aggregator |
+| `TOOL_MAX_ROUNDS` | `5` | Maximum tool-call rounds before the loop stops |
+| `GPU_BACKEND` | `auto` | `auto` / `nvidia` / `apple` / `cpu`. Forces the detection result (MM-1) |
+| `MODEL_VRAM_HEADROOM_MB` | `1500` | VRAM left free when deciding whether a model fits |
+| `SHARED_POOL_OS_RESERVE_MB` | `3000` | RAM reserved for the OS on shared-memory GPUs |
+| `MODEL_ALLOW_OVERSIZED` | `false` | Permit loading a model the guard says will not fit |
+
+### Cloud fallback
+
+| Variable | Default | Effect |
+|---|---|---|
+| `CLOUD_PROVIDER` | *(empty)* | LiteLLM provider name |
+| `CLOUD_MODEL` | *(empty)* | Model id at that provider |
+| `CLOUD_API_KEY` | *(empty)* | Credential. Traffic on this path **leaves the machine** — the point of a local-first deployment is that it stays unset |
+
+### MCP servers
+
+| Variable | Default | Effect |
+|---|---|---|
+| `MCP_LOCAL_DOCS_URL` | `http://localhost:5001` | Local-docs server |
+| `MCP_WEB_SEARCH_URL` | `http://localhost:5002` | Web-search server |
+| `MCP_CLOUD_CONNECTORS_URL` | `http://localhost:5003` | Cloud-connectors server |
+| `MCP_TIMEOUT` | `30` | Per-request timeout, seconds |
+| `MCP_CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive failures before the breaker opens |
+| `MCP_CIRCUIT_RECOVERY_TIMEOUT` | `60` | Seconds the breaker stays open |
+
+> The three URL defaults are **`localhost`**, which is right for a host-run app and wrong
+> inside Compose, where the servers answer on their service names. The `mcp` profile sets
+> them in `docker-compose.yml` — the same override rule as `OLLAMA_BASE_URL`.
+
+### Retrieval, reranking and ingest
+
+| Variable | Default | Effect |
+|---|---|---|
+| `RERANK_MIN_SCORE` | `-5.0` | Cross-encoder score below which a chunk is dropped |
+| `RERANK_LOW_RELEVANCE_LIMIT` | `3` | Chunks kept when everything scores below the threshold |
+| `RERANKER_WEIGHT` | `0.3` | The reranker score's share of the final blend |
+| `RERANKER_MODEL_PATH` | `./models/reranker/latest` | Fine-tuned model directory; falls back to the base cross-encoder |
+| `FEEDBACK_FINETUNE_MIN_PAIRS` | `50` | Feedback pairs required before a fine-tune run starts |
+| `EMBEDDING_CONCURRENT_BATCHES` | `2` | Parallel embedding batches during ingest |
+| `GRAPH_BACKEND` | `postgres` | `postgres` or `kuzu` |
+| `KUZU_DB_PATH` | *(empty)* | Kuzu database path when `GRAPH_BACKEND=kuzu` |
+| `PDF_LOADER` | `auto` | PDF extraction backend |
+| `REINGEST_MAX_AGE_HOURS` | `168` | Age at which a document is re-ingested (7 days) |
+
+### Security and identity
+
+| Variable | Default | Effect |
+|---|---|---|
+| `ADMIN_USERNAME` | `admin` | Username of the seeded administrator |
+| `JWT_ACCESS_TOKEN_EXPIRES` | `7200` | Access-token lifetime in seconds (2 h) |
+| `ENCRYPTION_KEY` | *(empty)* | Fernet key for encrypted columns. **Enforced at boot (SEC-4)** — production refuses to start without it |
+| `TOKEN_ENCRYPTION_KEY` | *(empty)* | Fernet key for stored OAuth tokens |
+| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | *(empty)* | Entra app registration for SharePoint and OneDrive |
+| `MICROSOFT_TENANT_ID` | `common` | Entra tenant |
+| `MICROSOFT_REDIRECT_URI` | *(empty)* | OAuth callback URL |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(empty)* | Google OAuth client for Drive |
+| `GOOGLE_REDIRECT_URI` | *(empty)* | OAuth callback URL |
+
+### Rate limiting
+
+`RATELIMIT_CHAT`, `RATELIMIT_UPLOAD` and `RATELIMIT_LOGIN` are covered above. The rest:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `RATELIMIT_GENERAL` | `60 per minute` | Default for routes with no specific limit |
+| `RATELIMIT_MODELS` | `20 per minute` | Model list, pull and delete |
+
+### Application
+
+| Variable | Default | Effect |
+|---|---|---|
+| `APP_VERSION` | `1.0.0` | Reported by `GET /api/status`. See the note below |
+| `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB) |
+| `LOG_FILE` | `logs/app.log` | Path for the file sink |
+| `PLUGINS_DIR` | `plugins` | Directory scanned for plugins |
+| `PRESENCE_TTL_SECONDS` | `30` | How long a workspace presence entry stays live |
+| `GUNICORN_TIMEOUT` | `600` | Legacy. The stack runs Uvicorn; `UVICORN_TIMEOUT` is the live setting |
+
+> **`APP_VERSION` does not match the release, in two different ways.** `src/config.py`
+> defaults it to `1.0.0` and `docker-compose.yml` sets `${APP_VERSION:-0.5.0}`, while the
+> current tag is `v3.0.0-beta.1`. A containerised deployment reports **0.5.0** at
+> `GET /api/status`; a host-run one reports **1.0.0**. Neither is the version being run.
+> Set `APP_VERSION` explicitly until the defaults are corrected.

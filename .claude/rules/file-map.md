@@ -141,9 +141,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/connectors/worker.py` | `SyncWorker` daemon — polls connectors, ingests changes |
 | **MCP servers** | |
 | `mcp_servers/base.py` | `MCPServer` base — JSON-RPC 2.0 dispatcher |
-| `mcp_servers/local_docs/server.py` | Local-docs MCP server; gunicorn port 5001 |
-| `mcp_servers/web_search/server.py` | Web-search MCP server; gunicorn port 5002 |
-| `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server; gunicorn port 5003 |
+| `mcp_servers/local_docs/server.py` | Local-docs MCP server; uvicorn port 5001 |
+| `mcp_servers/web_search/server.py` | Web-search MCP server; uvicorn port 5002 |
+| `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server; uvicorn port 5003 |
 | **Utils** | |
 | `src/utils/logging_config.py` | `JsonFormatter` + `RequestIdFilter`; `LOG_FORMAT=json`; configurable sinks (`console`/`file`/`syslog`) with bounded rotation, degrading rather than failing when a sink cannot be built; startup buffer that replays records logged before `setup_logging()` |
 | `src/utils/request_id.py` | X-Request-ID middleware + per-request access log |
@@ -182,6 +182,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
 | `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
+| `tests/unit/test_permissions_doc_matches_routes.py` | The IVP for `docs/PERMISSIONS.md` — every route has a row, no row is stale, and the distribution total matches the table |
+| `tests/unit/test_configuration_doc_covers_config.py` | The IVP for `docs/CONFIGURATION.md` — every env var `config.py` reads is documented, and nothing outside `config.py` calls `os.getenv` |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
 | `.github/ISSUE_TEMPLATE/improvement.md` | Structured improvement-feedback issue form (OPS-3); replaces the wiki page whose front-matter never rendered |
 | `tests/unit/test_compose_hardened_services_use_exec_form.py` | Every compose service built from the hardened `Dockerfile` uses exec-form `command`/`healthcheck` and names no absent binary (`sh`, `curl`) — the check `docker-smoke` does not cover, since it boots `app` only |
@@ -190,7 +192,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/mutation_gate.py` | TQ-3 — runs `mutmut<3` over the isolation-critical modules, screens the result for a broken harness, fails under the agreed kill rate |
 | `.github/workflows/mutation.yml` | Nightly mutation gate (`workflow_dispatch` takes a threshold); not in the ruleset |
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
-| `.github/workflows/tests.yml` | CI: `restore-proof` (OPS-4 — dumps and restores the real schema, asserts a similarity query on the far side, and pins both the superuser and non-superuser recipes in `OPERATIONS.md`); `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `docker-smoke` (builds the hardened image, asserts uid 65532 / no shell / native imports / catalogued docs present, boots it against postgres on a non-default port) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, Conventional Commits warning) |
+| `.github/workflows/tests.yml` | CI: `restore-proof` (OPS-4 — dumps and restores the real schema, asserts a similarity query on the far side, and pins both the superuser and non-superuser recipes in `OPERATIONS.md`); `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `docker-smoke` (builds the hardened image, asserts uid 65532 / no shell / native imports / catalogued docs present, boots it against postgres on a non-default port) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, Conventional Commits warning) + `perf-canary` (PERF-2 — `/api/health` probe under concurrent SSE, 1000 ms ceiling; **required**) + `e2e` (TQ-4 golden path in Chromium; deliberately **not** required — a browser flake would block every merge). Seven jobs; five are in the ruleset. |
 | `.github/workflows/sonarcloud.yml` | SonarCloud quality-gate scan on push/PR to main |
 | `.github/workflows/gitleaks.yml` | Secret-scanning on push/PR to main |
 | `.github/workflows/docker-publish.yml` | Builds and publishes the app's Docker image |
