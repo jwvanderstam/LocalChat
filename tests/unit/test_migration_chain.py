@@ -1,7 +1,8 @@
 """TQ-5a — the Alembic revision chain must be unambiguous.
 
-No CI job executes a migration (see TQ-5b), so nothing catches a broken chain before
-a deployment does. These checks need no database and run in the fast suite.
+These checks need no database and run in the fast suite, so a broken chain is caught
+before `integration-tests` gets as far as executing one (TQ-5b,
+`tests/integration/test_migrations_apply.py`).
 
 The failure they exist for: on 2026-08-05 a backfill migration was numbered `0012`,
 colliding with `0012_hybrid_search_tsvector.py`. Alembic does not raise on a duplicate
