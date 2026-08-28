@@ -644,7 +644,7 @@ authorisation question on a blank page (ROADMAP CONN-1), fix the defect it expos
 and keep whatever survives.
 
 
-### DEL-2 — GraphRAG: earn its place or leave 🔬 (eval built; verdict still open)
+### DEL-2 — GraphRAG: earn its place or leave 🔬 (eval now actually runs; verdict still open)
 
 Build a small retrieval eval set first (20–30 question/expected-source pairs over the real document corpus — this asset outlives the decision and later serves RAG-tuning work). Measure retrieval quality with GraphRAG expansion on vs off. If 1-hop expansion does not measurably lift answer grounding on our own documents, `src/graph/` goes the way of DEL-1. No sentiment: the eval decides.
 
@@ -689,6 +689,67 @@ that 1-hop expansion is inert for natural-language questions over this corpus an
 that basis. The second is a legitimate answer — "the feature does not reach the queries
 users type" is a reason to delete — but it is a different claim from "it does not improve
 retrieval", and the ticket should not record one as the other.
+
+---
+
+**The "0 of 20" was a crash, not a semantic mismatch (2026-08-28).** Expansion did not
+fail to *match*; it failed to *execute*, on every query, since the day it was written.
+`get_related_entity_names()` passes a `list[str]` to `= ANY(%s)`, and
+`register_vector_types()` had registered the pgvector dumper for the Python type `list` —
+so psycopg applied it to that parameter and its `float(v)` raised
+
+    ValueError: could not convert string to float: 'API'
+
+`QueryExpander.expand()` catches `Exception`, logs at **debug**, and returns `[]`. So the
+eval's reach counter read zero, the on/off arms tied at +0.000, and both numbers were
+faithfully reporting an exception path. Fixed by removing the vestigial dumper — every
+embedding is already serialised by `_embedding_to_pg_array()` into an explicit
+`%s::vector` cast, so nothing needed it. Regression test:
+`tests/integration/test_list_params_survive_vector_adapters.py`.
+
+**The recorded diagnosis was also wrong on its own terms.** This ticket said the corpus
+yields only codenames — "`SEC-1`, `RBAC-1`, `PG-0`, `LESSONS_LEARNED`, `Flask` — and a
+natural-language question contains none of them". Checked against the stored index:
+`API`, `Docker` and `Discord` are all indexed *and* all appear in the eval questions. The
+vocabulary overlapped the whole time. Nothing had ever got far enough to use it.
+
+**The measurement, now that the feature runs:**
+
+| | reach | recall@1 | recall@5 | MRR |
+|---|---|---|---|---|
+| `GRAPH_RAG_ENABLED=False` | — | 25.0% | 85.0% | 0.472 |
+| `GRAPH_RAG_ENABLED=True` | **3/20** | 25.0% | 85.0% | 0.472 |
+| delta | | +0.000 | +0.000 | +0.000 |
+
+20 questions, 20 documents, 479 chunks, 79 entities, 287 relations; `nomic-embed-text`,
+reranker off, isolated Postgres. So expansion is *structurally unable* to help on 17 of
+20 questions, and on the 3 where it does fire it changed no ranking.
+
+**Two mechanisms behind the low reach, both worth knowing before deciding:**
+
+- **The query-side type filter discards the useful term.** `expand()` keeps only
+  `_KEEP_TYPES` (PERSON/ORG/GPE/PRODUCT/WORK_OF_ART/LAW/EVENT/FAC). In *"Which environment
+  variables configure the connection to Ollama?"* spaCy labels `Ollama` as `LOC`, which is
+  not in that set — so the one term worth expanding on is dropped, while the same word in
+  the corpus is labelled ORG/PERSON/PRODUCT and *is* indexed. The identical string is kept
+  at ingest and discarded at query time depending on sentence context.
+- **The index is largely noise.** Among the 79 stored entities: `≤ 25`, `\+`,
+  `-e POSTGRES_PASSWORD`, `http://localhost:11434`, `Copy`, `Apply`, `Files`, `Format`,
+  `Chapter 1's`. `Docker` is stored as a PERSON and `API` as an ORG. Expanding `API`
+  returns `['API Keys', 'Bearer', 'CLI', 'Discord', 'LocalChat']` — co-occurring, and not
+  topically useful for a question about which routes are public.
+
+**The honest caveat, which is the reason this is still not a verdict.** The corpus is this
+repository's own `docs/` — software prose, the worst case for a general-English NER model.
+A corpus of the kind a user actually loads (contracts, reports, minutes, anything with
+real people, organisations and places) is the case `en_core_web_sm` was built for, and
+reach there could be far higher. Deleting GraphRAG on this measurement alone would be
+generalising from the one corpus least favourable to it.
+
+**What a decision now needs** is one run against a corpus with real-world entities. That is
+a maintainer-supplied document set, not something CI can hold. Until then the evidence
+supports: the feature has never worked, it is off by default, and on technical prose it
+neither fires nor helps.
 
 ---
 

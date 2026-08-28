@@ -14,7 +14,7 @@ from typing import Any, cast
 import numpy as np
 import psycopg
 from psycopg import sql
-from psycopg.adapt import Dumper, Loader
+from psycopg.adapt import Loader
 from psycopg_pool import ConnectionPool
 
 from .. import config
@@ -109,16 +109,6 @@ class DatabaseUnavailableError(Exception):
 # PGVECTOR TYPE ADAPTERS FOR PSYCOPG3
 # ============================================================================
 
-class VectorDumper(Dumper):
-    """Dumper for pgvector vector type."""
-
-    def dump(self, obj: Any) -> bytes:
-        if hasattr(obj, 'tolist'):
-            obj = obj.tolist()
-        values_str = ','.join(f'{float(v):.6g}' for v in obj)
-        return f'[{values_str}]'.encode()
-
-
 class VectorLoader(Loader):
     """Loader for pgvector vector type."""
 
@@ -143,8 +133,14 @@ def register_vector_types(conn) -> None:
             result = cur.fetchone()
             if result:
                 vector_oid = result[0]
-                conn.adapters.register_dumper(list, VectorDumper)
-                conn.adapters.register_dumper(np.ndarray, VectorDumper)
+                # Only the loader is registered. A dumper registered for `list`
+                # applied to *every* list parameter, and its float() conversion
+                # then raised ValueError on any list[str] — breaking `= ANY(%s)`
+                # everywhere: the document filename filter, source_ids, and GraphRAG's
+                # entity lookup. Nothing needs the dumper: every embedding is
+                # serialised by _embedding_to_pg_array() and passed to an explicit
+                # %s::vector cast, so no raw list or ndarray ever reaches psycopg as
+                # a vector. The ndarray registration was unused for the same reason.
                 conn.adapters.register_loader(vector_oid, VectorLoader)
                 logger.debug(f"Registered pgvector type adapters (OID: {vector_oid})")
             else:
