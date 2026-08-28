@@ -892,6 +892,62 @@ later without re-deriving its premise from the code.
 
 ---
 
+## 19. A recommendation, taken literally, became the only bypass reachable in production
+
+The March 2026 wiki assessment closed with a list of suggestions. One of them:
+
+> Consider a "demo mode" flag that disables authentication and web search for
+> single-user local setups, reducing the risk of misconfiguring production with
+> development defaults.
+
+Two days later, `DEMO_MODE` existed (`e89f998`, 19 March). Its comment in `config.py`
+restated the recommendation almost word for word — *"It disables JWT authentication and
+suppresses web search"* — and SEC-1 deleted it on 7 August, 141 days later, as the one
+bypass of the three that a `.env` file could reach in production.
+
+**The advice named a real risk and mitigated it at the wrong layer.** The risk was
+*misconfiguring production with development defaults*. The mitigation was a development
+default that misconfigured production: one `.env` carrying `DEMO_MODE=true` on a host with
+a network interface exposed every route, the 27 admin ones included. What the flag was
+asked to limit was **reachability** — who can address this instance at all. What it was
+built to switch off was **authorisation** — what a caller who has already reached it may
+do. Those are different layers, and substituting the second for the first inverts the
+control: the flag became the risk it was introduced to reduce.
+
+**It shipped half the recommendation and documented the other half.** "Suppresses web
+search" was in the comment and never in the code — no branch anywhere read `DEMO_MODE` to
+gate search. So the sentence delivered the dangerous clause and asserted the harmless one,
+and the assertion is what a reader checking the flag would have found.
+
+**Nothing about it read as a defect.** It was named for a safe scenario, documented with a
+"NEVER enable this in production" banner, and it logged a warning on boot that was accurate
+— *"DEMO_MODE is ON — authentication is disabled"*. Every one of those is a signal aimed at
+someone already reading the config file. None reaches the person who copies an `.env` from
+a laptop to a server, which is the only path by which the flag ever hurt anyone. Ch. 13's
+shape, one turn further out: not a green signal that measured nothing, but a *warning* that
+fired correctly into an empty room.
+
+**The two-day gap is the part worth keeping.** The assessment was an outside read, and a
+good one — most of its other recommendations (Dockerfile and compose, a metrics endpoint,
+structured logging with request IDs) were built and were right. A recommendation is a
+hypothesis about a risk, and this project has a standing rule for those: re-derive the
+premise from the code before acting on it (Ch. 18). Applied here, that question is *which
+layer does this act on* — and it takes about a minute to ask.
+
+The flag is now gone with a test that keeps it gone: `tests/unit/test_sec1_no_demo_mode.py`
+asserts `config` has no `DEMO_MODE` attribute *and* that setting `DEMO_MODE=true` in the
+environment changes nothing, so a leftover line in someone's `.env` is a no-op rather than a
+surprise. The March page stays in the wiki, recommendation included, with a banner saying
+what became of it — a record of what was believed is worth more than a page edited to look
+prescient, and this is the entry that earns the banner.
+
+**Rule taken from this:** when a proposal would relax a security control, name the layer it
+acts on — reachability, authentication, or authorisation — before implementing it. A
+mitigation applied one layer off does not weaken the control slightly; it removes a
+different control entirely.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents

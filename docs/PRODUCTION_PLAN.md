@@ -781,13 +781,41 @@ never compiled in — not merely to pass on a clean tree.
 
 Migrate **only auth- and workspace-relevant state** from the `config.app_state` singleton to `request.app.state` via FastAPI dependencies. The singleton is the hidden global that let bypass state leak everywhere and made tests lie. RAG tuning parameters (`get_rag_param`) may stay global — they are not security-relevant, and full DI purity is not worth solo months. Scope is the ticket: when the auth and workspace paths no longer touch `config.app_state`, this is done.
 
-### OPS-3 — Docs inside the drift mechanism ⬜
+### OPS-3 — Docs inside the drift mechanism ✅ (done)
 
 The wiki is the one documentation surface outside every drift-catching mechanism this project built after the Flask-era doc-drift lesson — and it drifted: the March-2026 assessment describes the Flask architecture, cites ~1,000 tests against today's ~2,300, and recommends features that now exist.
-- Shrink the wiki to Home + a link to `docs/ROADMAP.md`.
-- Date-stamp the March-2026 assessment as a historical snapshot of the Flask-era codebase, or delete it.
-- Move `Improvement-feedback` to `.github/ISSUE_TEMPLATE/improvement.md`, where GitHub actually renders the front-matter.
-- Add the DEMO_MODE layer-inversion lesson (SEC-1) to `LESSONS_LEARNED.md`.
+- ~~Shrink the wiki to Home + a link to `docs/ROADMAP.md`.~~ ✅
+- ~~Date-stamp the March-2026 assessment as a historical snapshot of the Flask-era codebase, or delete it.~~ ✅
+- ~~Move `Improvement-feedback` to `.github/ISSUE_TEMPLATE/improvement.md`, where GitHub actually renders the front-matter.~~ ✅
+- ~~Add the DEMO_MODE layer-inversion lesson (SEC-1) to `LESSONS_LEARNED.md`.~~ ✅ — Ch. 19.
+
+**Two of the four were already done when this was picked up (2026-08-27), by the wiki's own
+`2bee849` on 26 August.** Home is now a front door that says so in as many words — "This wiki is a
+front door, not a status board" — with a table pointing at ROADMAP,
+PRODUCTION_PLAN, LESSONS_LEARNED and `docs/`. Both assessments carry dated banners naming
+what has since moved.
+
+**The ticket's inventory was stale in the usual direction**, per Ch. 18: it lists three
+wiki pages and there are four. `August-2026-Status.md` was written on 19 August, nine days
+*after* this ticket, and needed the same date-stamping treatment — which `2bee849` gave it.
+An inventory written into a plan stops being true the moment the surface it inventories is
+edited by anything other than the plan.
+
+**Kept rather than shrunk, deliberately.** The bullet said "Home + a link"; the wiki keeps
+both assessment pages behind banners instead. A dated record of what was believed is worth
+more than a deletion, and Ch. 19 is the argument: the March page recommended `DEMO_MODE`,
+it was built two days later, and SEC-1 deleted it 141 days after that as the only
+authorisation bypass a `.env` could reach in production. That page is now the primary
+source for the project's clearest layer-inversion lesson. Deleting it would have destroyed
+the evidence for the lesson the same ticket asked to write down.
+
+**What actually remained, and is now done:**
+- `.github/ISSUE_TEMPLATE/improvement.md` — the wiki page was an issue template pasted into
+  a wiki, where front-matter renders as body text and does nothing. It also applied four
+  labels (`enhancement, documentation, performance, security`) to every issue filed; the
+  template now applies one. The wiki page becomes a pointer to the issue form.
+- `LESSONS_LEARNED.md` Ch. 19 — the DEMO_MODE layer inversion, which until now existed only
+  as a parenthetical inside Ch. 13 and a commit message on `a761bae`.
 
 ### OPS-4 — Prove restore in CI ✅ (done)
 
@@ -809,7 +837,7 @@ The advice was right for a case it did not name, and incomplete even there. Rest
 
 **Scope, stated honestly:** this proves the SQL-level procedure. The page wraps the same commands in `docker compose exec db`, which a service container cannot reproduce, so the compose invocation itself is still unverified.
 
-### OPS-5 — Release discipline + production topology ⬜
+### OPS-5 — Release discipline + production topology ✅ (done)
 
 - Tag `v3.0.0-beta.1`; the tag-triggered `docker-publish.yml` finally runs; start `CHANGELOG.md`.
   - **`CHANGELOG.md` started 2026-08-26**, covering the v3.0 cycle (19 June – 26 August,
@@ -817,9 +845,22 @@ The advice was right for a case it did not name, and incomplete even there. Rest
     recorded them rather than written from memory — 82 guarded routes with no login, 49 of
     102 routes unchecked, 290 tests converted off the bypass, 33 routes wired to workspace
     roles. README links it.
-  - **Still to do:** the tag itself, and the image published from it. Tagging is a
-    deliberate, outward-facing act and is left to a human — it is the moment the version
-    number becomes a claim other people can hold the project to.
+  - **Tagged and published — confirmed 2026-08-27 by reading the three surfaces back,
+    not by inference.** `v3.0.0-beta.1` exists locally and on `origin` (`7737d9c`); the
+    tag-triggered `docker-publish.yml` run succeeded at 2026-08-26T09:30:19Z; and
+    `ghcr.io/jwvanderstam/localchat` carries the image. Tagging was left to a human
+    deliberately — it is the moment the version number becomes a claim other people can
+    hold the project to — and a human did it.
+  - **The image tag is `3.0.0-beta.1`, not `v3.0.0-beta.1`.** `docker-publish.yml` uses
+    `type=semver,pattern={{version}}`, which strips the leading `v`, so the git tag and
+    the image tag differ by one character and a `docker pull ghcr.io/jwvanderstam/localchat:v3.0.0-beta.1`
+    fails. Noted because it is the shape of error a runbook propagates silently — the same
+    one OPS-5's own pre-flight check hit when it claimed `/api/metrics` returns 401 and it
+    returns 403.
+  - Verifying it needed the registry paginated. `GET /v2/.../tags/list` returns the first
+    100 of 444 tags, all of them `sha-` builds, and `3.0.0-beta.1` is not among them — the
+    first look said the image was never published. It is on a later page. A negative result
+    from a paginated endpoint is not a negative result.
 - **Done 2026-08-26.** `DEPLOYMENT.md` gains "The recommended production topology": one
   diagram, a table giving the reason for each choice rather than only the choice, and a
   four-command pre-flight check. The checks assert what the code actually does — the
@@ -849,7 +890,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | PG-5 | TQ-3 ✅ (scoped mutation gate, 83.8%) + TQ-4 ✅ (Playwright golden path, self-starting server) | — |
 | PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
 | PG-7 | OPS-1 ✅ (pip-compile locks + dev/runtime split) + OPS-2 (bounded de-globalisation) | 1 week |
-| PG-8 | OPS-3 + OPS-4 + OPS-5 (docs mechanism, restore proof, release + topology) | 1 week |
+| PG-8 | OPS-3 ✅ + OPS-4 ✅ + OPS-5 ✅ (docs mechanism, restore proof, release + topology) — **sprint complete** | — |
 | **Total** | | **~8 weeks** |
 
 > **Freeze rule:** the last depth sprint leaked — connectors and features landed during it. This one has a backstop: until the Exit Criteria below are green, the only valid ticket sources are this table and confirmed bug fixes (bugs never queue behind the gate, per the Sprint 5 precedent).
@@ -865,8 +906,22 @@ v3.0 ships when **all eight** hold, and not before:
 3. **Concurrency budget met** — the canary's worst probe under budget at 10 concurrent SSE users; benchmark, numbers and threshold committed. (PERF-1 ✅, PERF-2 ✅ — `perf-canary` required since 2026-08-24, ceiling 1000 ms from eleven runs. The criterion's original wording named p95 TTFT, which PERF-2 established measures Ollama's throughput rather than this application.)
 4. **Mutation score ≥ threshold** on the core security/isolation modules, enforced nightly. (TQ-3 ✅ — 83.8% and 100%, green 2026-08-22)
 5. **Restore proven in CI** — the documented backup/restore procedure passes automatically. (OPS-4 ✅ — `restore-proof`, and it corrected the runbook on its first run)
-6. **Reproducible release** — tagged version, changelog, tool-managed lock file, published image from the tag. (OPS-1 ✅ — pip-compile locks, 2026-08-26; the criterion said *uv*, which Dependabot does not support, see the ticket. `v3.0.0-beta.1` tagged and published 2026-08-26; CHANGELOG.md started. OPS-5's topology page still open.)
-7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time. (README ✅ swept 2026-08-26 — the Python badge advertised 3.10+ against pins that refuse 3.13+, the format list named four of eight, and the test/coverage figures were 300 tests and a point of coverage stale. Every remaining number — ports, uid, bindings — was checked and holds. **Wiki still open**, see OPS-3.)
+6. **Reproducible release** — tagged version, changelog, tool-managed lock file, published image from the tag. (OPS-1 ✅ — pip-compile locks, 2026-08-26; the criterion said *uv*, which Dependabot does not support, see the ticket. `v3.0.0-beta.1` tagged 2026-08-26 and the image published from it as `3.0.0-beta.1`; CHANGELOG.md started. OPS-5 ✅ — the topology page shipped in #337.)
+7. **The claim matches the code** — README, wiki and this document describe the same product (ADR-1), and every statement in them is mechanically or manually verified true at tag time. (README ✅ swept 2026-08-26 — the Python badge advertised 3.10+ against pins that refuse 3.13+, the format list named four of eight, and the test/coverage figures were 300 tests and a point of coverage stale. Every remaining number — ports, uid, bindings — was checked and holds. **Wiki closed 2026-08-27** — OPS-3 ✅: Home is a front door pointing at the in-repo living documents, both assessment pages carry dated banners, and the one page that was a broken issue template is now a real one at `.github/ISSUE_TEMPLATE/improvement.md`.)
 8. **Migrations are executed, not merely written** — CI applies the full chain to an empty database, proves it idempotent, and fails on a broken or duplicated revision. No migration reaches a tag having never run. (TQ-5a/TQ-5b)
 
 When these are green: un-queue ROADMAP Sprints 8–12 and resume feature work on a codebase that has earned its first line.
+
+> **All eight read green as of 2026-08-27**, with OPS-3 the last to close. **Lifting the
+> gate is a human decision and has not been taken here** — what follows is the state of
+> the evidence, not the verdict.
+>
+> Two PG tickets remain open and neither is named by any criterion: **DEL-2** (the GraphRAG
+> verdict — eval built, but expansion fired on 0 of 20 questions, so the measurement does
+> not exist yet) and **OPS-2** (bounded de-globalisation of `config.app_state`). The
+> criteria were written to be a *floor*, not an inventory of the sprint table, so this is
+> the design working rather than a gap — but un-queueing Sprint 8 while DEL-2 is unanswered
+> means GKB-1 builds two-tier retrieval on top of a subsystem the project has not decided
+> whether to keep. That is the one dependency worth weighing before the gate is called.
+>
+> The freeze rule above stays in force until someone makes the call.
