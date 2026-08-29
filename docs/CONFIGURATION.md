@@ -353,8 +353,6 @@ to empty, in which case the router falls back to the active model.
 | `RERANKER_MODEL_PATH` | `./models/reranker/latest` | Fine-tuned model directory; falls back to the base cross-encoder |
 | `FEEDBACK_FINETUNE_MIN_PAIRS` | `50` | Feedback pairs required before a fine-tune run starts |
 | `EMBEDDING_CONCURRENT_BATCHES` | `2` | Parallel embedding batches during ingest |
-| `GRAPH_BACKEND` | `postgres` | `postgres` or `kuzu` |
-| `KUZU_DB_PATH` | *(empty)* | Kuzu database path when `GRAPH_BACKEND=kuzu` |
 | `PDF_LOADER` | `auto` | PDF extraction backend |
 | `REINGEST_MAX_AGE_HOURS` | `168` | Age at which a document is re-ingested (7 days) |
 
