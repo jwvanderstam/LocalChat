@@ -838,9 +838,27 @@ answered `/api/health` `200` with `database: up`; `onnxruntime`, `sentence-trans
 check was confirmed to fail on both drift shapes — a bumped `.in` pin and a dependency
 never compiled in — not merely to pass on a clean tree.
 
-### OPS-2 — Bounded de-globalisation of `config.app_state` ⬜
+### OPS-2 — Bounded de-globalisation of `config.app_state` ✅ (satisfied; premise corrected 2026-08-29)
 
 Migrate **only auth- and workspace-relevant state** from the `config.app_state` singleton to `request.app.state` via FastAPI dependencies. The singleton is the hidden global that let bypass state leak everywhere and made tests lie. RAG tuning parameters (`get_rag_param`) may stay global — they are not security-relevant, and full DI purity is not worth solo months. Scope is the ticket: when the auth and workspace paths no longer touch `config.app_state`, this is done.
+
+**That condition already holds, and the ticket's premise was wrong about which object it named.** Two different things are called some form of "app state", and this ticket conflated them:
+
+| | What it is | What it holds |
+|---|---|---|
+| `config.app_state` | the `AppState` singleton, `src/config.py` | `active_model`, `last_updated`, `rag_params` — and only ever these three |
+| `request.app.state` | FastAPI's per-app state object | `testing` — **this** was the bypass |
+
+The bypass read `getattr(request.app.state, "testing", False)`, not the singleton. SEC-1 removed the other two bypasses and TQ-1b (#261) removed that one; `state.testing` now appears nowhere in `src/`. So the sentence "the singleton is the hidden global that let bypass state leak everywhere" was never true of `config.app_state` — it was true of the object with the similar name, and that object is already clean.
+
+Measured against the code on `main` @ `ac51552`, the ticket's own acceptance condition is met:
+
+- `security_fastapi.py`, `utils/workspace.py`, `_authz.py`, `auth_routes.py` and `workspace_routes.py` contain **zero** references to `config.app_state`. The auth path reads nothing off `request.app.state` either.
+- Of the 22 remaining call sites, **13 are `get`/`set_rag_param`** — which this ticket explicitly permits to stay global — **9 are `get`/`set_active_model`**, which is neither auth nor workspace state, and **0 are anything else**.
+
+**What is left is real, and belongs elsewhere.** The 9 `active_model` sites are shared mutable state with the multi-instance divergence problem — but `request.app.state`, the destination this ticket names, is the wrong one: per-app memory closes none of the three failures. ROADMAP's Known Accepted Debt already reached the right answer (an `app_settings` table in the Postgres this app already requires, which closes `readOnlyRootFilesystem`, multi-instance divergence and restart-loses-settings together) and gates it on the right trigger — before the Helm chart is used for a real deployment. It stays there rather than being restated here.
+
+> Third instance this month of the same shape, and the reason it is written down rather than quietly ticked: a ticket describing the codebase was wrong about it. DEL-1a claimed two live subsystems were unreferenced; exit criterion 8 read as open while both its tickets were green; this one named the wrong object. Re-derive from the code at the moment of acting.
 
 ### OPS-3 — Docs inside the drift mechanism ✅ (done)
 
@@ -950,7 +968,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
 | PG-5 | TQ-3 ✅ (scoped mutation gate, 83.8%) + TQ-4 ✅ (Playwright golden path, self-starting server) | — |
 | PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
-| PG-7 | OPS-1 ✅ (pip-compile locks + dev/runtime split) + OPS-2 (bounded de-globalisation) | 1 week |
+| PG-7 | OPS-1 ✅ (pip-compile locks + dev/runtime split) + OPS-2 ✅ (already satisfied by SEC-1/TQ-1b; premise corrected, see the ticket) — **sprint complete** | — |
 | PG-8 | OPS-3 ✅ + OPS-4 ✅ + OPS-5 ✅ (docs mechanism, restore proof, release + topology) — **sprint complete** | — |
 | **Total** | | **~8 weeks** |
 
