@@ -332,7 +332,7 @@ services:
     environment:
       # ── Application ──────────────────────────────────────
       APP_ENV:         ${APP_ENV:-production}
-      APP_VERSION:     ${APP_VERSION:-0.5.0}
+      APP_VERSION:     ${APP_VERSION:-3.0.0}
       SECRET_KEY:      ${SECRET_KEY:?SECRET_KEY must be set}
       JWT_SECRET_KEY:  ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       ADMIN_PASSWORD:  ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}

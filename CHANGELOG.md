@@ -8,6 +8,21 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [3.0.0] — 2026-08-31
+
+The stable release. `3.0.0-beta.1` shipped on 2026-08-26 with seven of the eight
+[PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md) exit criteria met; the eighth — migrations
+executed against a real database in CI, not merely written — closed on 2026-08-27, and
+the hardening gate was lifted on 2026-08-31. The scope is unchanged and is the point:
+a single-node, self-hosted appliance for a team of 25 or fewer, per [ADR-1](docs/ADR.md).
+
+Dated ahead of the tag, as `3.0.0-beta.1` was in #331.
+
+The substance of the v3.0 cycle is in the beta entry below; this section covers what
+changed between the two.
+
 ### Fixed
 
 - **PowerPoint ingest did not work for any real deck.** `_process_pptx_slide`'s title
@@ -32,17 +47,26 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 - **Dependency locks are `pip-compile` output**, with test tooling split out of the runtime
   image (#335).
-- **The Kuzu graph backend is removed**; `PostgresGraphStore` is the only backend (#345).
 - **GraphRAG (DEL-2) is deferred, not deleted** — measured on a real-world corpus: 1-hop
   expansion fires on at most 2 questions in 20 and changes no ranking when it does. It is
   off by default. See `docs/PRODUCTION_PLAN.md` for the numbers and the re-review trigger.
 
+### Removed
+
+- **The Kuzu graph backend** (#345). It was reachable only via `GRAPH_BACKEND=kuzu`, had no
+  route and no caller outside the factory; `PostgresGraphStore` is the only backend.
+
 ### Documentation
 
 - **The production-hardening gate is lifted** (2026-08-31): all eight exit criteria green,
-  ROADMAP Sprints 8–14 un-queued.
+  ROADMAP Sprints 8–14 un-queued, and the README now claims production-readiness for
+  ADR-1's scope rather than "production-patterned".
 - The production topology, the wiki closure, and a document-wide re-derivation from the
   code (#337, #339, #340, #343, #344).
+- One note recorded rather than buried: answering DEL-2 meant exercising the product on
+  real documents for the first time, and that found three defects in an afternoon — two of
+  them in an advertised supported format — that eight criteria of mechanical verification
+  did not. See the gate banner in PRODUCTION_PLAN.
 
 ## [3.0.0-beta.1] — 2026-08-26
 
@@ -146,5 +170,6 @@ eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0-beta.1...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0-beta.1...v3.0.0
 [3.0.0-beta.1]: https://github.com/jwvanderstam/LocalChat/releases/tag/v3.0.0-beta.1

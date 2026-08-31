@@ -462,8 +462,11 @@ MAX_CONTEXT_LENGTH: int = int(os.environ.get("MAX_CONTEXT_LENGTH", str(OLLAMA_NU
 # APPLICATION SETTINGS
 # ============================================================================
 
-# Application version (override with APP_VERSION env var for CI-stamped builds)
-APP_VERSION: str = os.environ.get('APP_VERSION', '1.0.0')
+# Application version (override with APP_VERSION env var for CI-stamped builds).
+# Bump on release, together with docker-compose.yml's default and the row in
+# docs/CONFIGURATION.md — tests/unit/test_app_version_is_consistent.py holds the
+# three together, because they had already drifted to 1.0.0, 0.5.0 and 1.0.0.
+APP_VERSION: str = os.environ.get('APP_VERSION', '3.0.0')
 
 # Supported file types
 SUPPORTED_IMAGE_EXTENSIONS: list[str] = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
