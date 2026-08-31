@@ -23,7 +23,7 @@ This is the decision the codebase has been avoiding. The Helm chart, distributed
 
 **Consequences:**
 - Helm chart: downgrade to "single-replica only, experimental" in its README, or delete in favour of docker-compose. Decide during PG-1; deletion is the default unless a concrete k8s deployment exists.
-- README first line changes from "production-ready" to "production-patterned, hardening toward v3.0" until the Exit Criteria pass. The claim and the code must match; today they don't.
+- ✅ README first line changed from "production-ready" to "production-patterned, hardening toward v3.0" until the Exit Criteria passed. The claim and the code must match. **The criteria passed and the gate was lifted on 2026-08-31**, so the README now claims production-readiness for ADR-1's scope, with the scope kept in the same sentence.
 - Wiki Home and README must state the *same* product. Currently the wiki says "learning journey / reference implementation" and the README says "production-ready" — two products, two obligation levels. The honest position is both: a learning-driven project being hardened to a defensible production claim, for a defined scope.
 
 ### ADR-2 — No async database rewrite ✅ (recorded in [ADR.md](ADR.md))
@@ -679,7 +679,7 @@ authorisation question on a blank page (ROADMAP CONN-1), fix the defect it expos
 and keep whatever survives.
 
 
-### DEL-2 — GraphRAG: earn its place or leave 🔬 (eval now actually runs; verdict still open)
+### DEL-2 — GraphRAG: earn its place or leave ⏸️ (deferred 2026-08-31 — measured on a real corpus; see the decision at the end)
 
 Build a small retrieval eval set first (20–30 question/expected-source pairs over the real document corpus — this asset outlives the decision and later serves RAG-tuning work). Measure retrieval quality with GraphRAG expansion on vs off. If 1-hop expansion does not measurably lift answer grounding on our own documents, `src/graph/` goes the way of DEL-1. No sentiment: the eval decides.
 
@@ -785,6 +785,131 @@ generalising from the one corpus least favourable to it.
 a maintainer-supplied document set, not something CI can hold. Until then the evidence
 supports: the feature has never worked, it is off by default, and on technical prose it
 neither fires nor helps.
+
+---
+
+#### DEL-2 — deferred, on the run it was waiting for (2026-08-31)
+
+**The run above was made.** A maintainer-supplied corpus was scored: nine 2016 pre-sales
+and administration documents — five PowerPoint decks from a live bid, an infrastructure
+project register, an internal standards note, two photographs. Real named people, real
+organisations (a postal operator, two integrators, two advisory firms), real places and
+dates. Exactly the case `en_core_web_sm` was built for, and the case the caveat above said
+was untested. The pairs stay on the maintainer's machine — they carry named individuals and
+a named client's commercial position — so what is recorded here is the numbers and the
+mechanism, never the corpus.
+
+**Getting to a number took three defects out of the way first**, and that is the more
+useful half of this entry.
+
+| # | Defect | Effect |
+|---|---|---|
+| 1 | `ingest_corpus` globbed `*.md` | A real corpus ingested as **zero documents**. DEL-2's own next step was unrunnable by the tool written to run it. |
+| 2 | `_process_pptx_slide`'s title guard called `hasattr` on a property that raises `ValueError` | **5 of 5** real decks failed to ingest. `hasattr` swallows only `AttributeError`. |
+| 3 | PPTX tables are `GraphicFrame`s, so `has_text_frame` skipped them | A deck whose analysis lives in tables ingested "successfully" with the analysis missing. |
+
+All three are fixed. Note what they have in common with Ch. 12 and Ch. 18: **each was
+invisible because the thing that should have complained succeeded.** An empty corpus
+produced no warning because this script's refusal guards key on expansion reach, not on
+document count. A deck that failed to load produced no failed ingest, because one bad file
+must not end a run. A deck stripped of its tables still had a title, so it ingested clean.
+
+Defects 2 and 3 are the ones that matter beyond DEL-2: **PPTX is an advertised supported
+format, and it did not work for any deck a user would actually own.** The suite could not
+see it — the one PPTX test mocked `_process_pptx_slide` out, so the broken function was
+never executed. That is the mocked-past-the-defect shape `TEST_QUALITY_AUDIT.md` names,
+caught here by an eval rather than by a test.
+
+**A fourth thing, not a defect but a fact worth recording:** the published image
+`ghcr.io/jwvanderstam/localchat:latest` was built **2026-08-23**, five days before #342
+fixed the pgvector dumper that broke every `= ANY(%s)`. The first comparison run against
+that image reproduced #342's crash exactly — expansion reach 0/20 — and would have been
+recorded as a semantic result had the image's age not been checked. `src/db/connection.py`
+was mounted from `main` for the real runs. **A measurement is only as current as the
+artefact it runs against**, and `latest` is not `main`.
+
+##### The measurement
+
+Two independent runs, each a fresh database, a fresh ingest and a fresh entity index.
+20 questions, 9 documents, 93 chunks; `nomic-embed-text`, reranker off, isolated Postgres,
+`src/db/connection.py` and `src/rag/loaders.py` from `main`.
+
+| run | entities | reach | recall@1 off → on | recall@5 off → on | MRR off → on |
+|---|---|---|---|---|---|
+| 1 | 38 | **1/20** | 30.0% → 30.0% | 85.0% → 85.0% | 0.508 → 0.508 |
+| 2 | 29 | **2/20** | 25.0% → 25.0% | 90.0% → 90.0% | 0.493 → 0.493 |
+| | | | **+0.000** | **+0.000** | **+0.000** |
+
+(The index differs between runs because two corpus files are photographs, whose text comes
+from a vision model and is not deterministic. It moves the baseline by a question either
+way; it does not move the delta, which is zero in both.)
+
+##### Why reach is 1–2 in 20, on the corpus that was supposed to fix reach
+
+Expansion requires **two exact matches in series**: spaCy must tag a term in the *question*
+with a type in `_KEEP_TYPES`, and that surface string must then equal a stored entity name
+exactly, via `name = ANY(%s)`. Instrumenting all 20 questions:
+
+- **10 of 20 questions yield no usable term at all.** Either spaCy finds nothing, or it
+  finds only `DATE`/`CARDINAL`/`ORDINAL` — "each week", "thirty days", "two",
+  "December 2016" — which `_KEEP_TYPES` drops, correctly.
+- **Of the 10 terms that survive, exactly 1 matches the index.** The near-misses are the
+  informative part:
+  - `WebSphere MQ` (question) vs `Websphere MQ` (index) — **a case difference**. The
+    lookup is case-sensitive.
+  - `Lync 2010` tagged `EVENT`, `Oracle` tagged `PERSON`, `Docker` tagged `PERSON`,
+    `RHEL5` tagged `GPE` — the same word takes a different label in a question than in a
+    slide, so the type filter and the string both have to be lucky at once.
+
+**And the index itself is noise, on real business documents too.** Among 29–38 stored
+entities: `Migrate` (ORG), `Scope` (PRODUCT), `Project` (ORG), `Q&A` (ORG), `Last Update`
+(no type), `Upgrade Queue` (PERSON), `JBoss` (PERSON), `Clickable Link` (WORK_OF_ART),
+`Jan Willem van der` (a name truncated mid-surname). Meanwhile **every organisation a user
+would actually ask about is absent** — the client, both integrators, both advisory firms,
+the two data-centre sites. In a clean sentence the same model tags all of them correctly:
+`HPE`→ORG, `Gartner`→ORG, `KPMG`→ORG, `Belgium`→GPE. It is slide text that defeats it.
+
+**That is the finding the previous entry got wrong, and it generalises.** This ticket
+attributed the low reach to the corpus being *software* prose, and expected a business
+corpus to do better. It does not. The problem is not the subject matter — it is that
+**slides, bullets and table cells are not sentences**, and a general-English NER model
+needs sentences. A user's real documents are mostly not sentences either. Two corpora now,
+one technical and one commercial, both give a garbage index and a zero delta.
+
+##### Decision: DEL-2 is deferred, not answered
+
+**Deferred 2026-08-31.** The evidence is now good enough to say the feature does not work
+today and cheap enough to say why, but it is not the evidence for deletion, and the
+distinction is deliberate.
+
+What is established, on two corpora and four runs: **1-hop expansion fires on at most 2
+questions in 20 and changes no ranking when it does.** `GRAPH_RAG_ENABLED` is off by
+default, so nothing in production depends on it.
+
+What is *not* established: whether the mechanism is beyond repair or merely unbuilt. Three
+of the observed causes are individually cheap — case-insensitive lookup, a type filter that
+matches ingest to query, and NER over reconstructed sentences rather than slide fragments —
+and none has been tried. Deleting a subsystem on the strength of a measurement whose named
+causes are all untested would be discarding the answer along with the question.
+
+**Deferring rather than deleting is also the cheaper of the two errors.** Keeping it costs
+an off-by-default code path. Deleting it costs `src/graph/`, its schema, its tests and the
+GraphRAG surface in `src/rag/retrieval.py` — recoverable from git, but a day to recover.
+
+**Re-review trigger — one of:**
+1. Someone proposes to make GraphRAG *on* by default, or to build on `src/graph/`. The
+   fixes above become prerequisites, not options.
+2. GKB-1 (ROADMAP Sprint 8) begins. It adds a scope parameter to the same
+   `retrieve_context()` GraphRAG feeds. Confirm then that the two-tier work does not
+   inherit the expansion path — if it does, this ticket blocks it.
+3. Any of the three cheap fixes is attempted. Re-run `scripts/eval_retrieval.py
+   --compare graph` against a real corpus; a non-zero delta reopens the ticket in the
+   feature's favour, and a zero delta *with* the fixes in place is the deletion evidence
+   this run is not.
+
+**What this ticket does not gate.** DEL-2 is named by no exit criterion. It was written as
+a scope question, and a scope question left open is not a hardening defect. The three
+defects it surfaced are fixed and are the part that mattered.
 
 ---
 
@@ -1002,7 +1127,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 | PG-3 | TQ-1a ✅ (authz-by-default introspection) + TQ-1b ✅ (bypass deleted; 290 tests converted, not the 39 the ticket counted) | done |
 | PG-4 | TQ-2 (fake-Ollama deterministic integration CI) + TQ-5b (migrations executed against a real DB, reuses TQ-2's Postgres) | 1 week |
 | PG-5 | TQ-3 ✅ (scoped mutation gate, 83.8%) + TQ-4 ✅ (Playwright golden path, self-starting server) | — |
-| PG-6 | DEL-1b + DEL-2 (cloud-connector removal, sequenced after TQ-1; GraphRAG eval verdict) | 1 week |
+| PG-6 | DEL-1b ✅ (Confluence deleted, Drive/OneDrive retained) + DEL-2 ⏸️ (deferred 2026-08-31 on a real-corpus measurement — reach 1–2/20, delta +0.000, and three ingest defects fixed on the way) — **sprint complete** | — |
 | PG-7 | OPS-1 ✅ (pip-compile locks + dev/runtime split) + OPS-2 ✅ (already satisfied by SEC-1/TQ-1b; premise corrected, see the ticket) — **sprint complete** | — |
 | PG-8 | OPS-3 ✅ + OPS-4 ✅ + OPS-5 ✅ (docs mechanism, restore proof, release + topology) — **sprint complete** | — |
 | **Total** | | **~8 weeks** |
@@ -1026,16 +1151,30 @@ v3.0 ships when **all eight** hold, and not before:
 
 When these are green: un-queue ROADMAP Sprints 8–12 and resume feature work on a codebase that has earned its first line.
 
-> **All eight read green as of 2026-08-27**, with OPS-3 the last to close. **Lifting the
-> gate is a human decision and has not been taken here** — what follows is the state of
-> the evidence, not the verdict.
+> ## The gate is lifted — 2026-08-31
 >
-> Two PG tickets remain open and neither is named by any criterion: **DEL-2** (the GraphRAG
-> verdict — eval built, but expansion fired on 0 of 20 questions, so the measurement does
-> not exist yet) and **OPS-2** (bounded de-globalisation of `config.app_state`). The
-> criteria were written to be a *floor*, not an inventory of the sprint table, so this is
-> the design working rather than a gap — but un-queueing Sprint 8 while DEL-2 is unanswered
-> means GKB-1 builds two-tier retrieval on top of a subsystem the project has not decided
-> whether to keep. That is the one dependency worth weighing before the gate is called.
+> **All eight criteria read green from 2026-08-27**, with OPS-3 the last to close. They sat
+> green for four days without being called, because lifting the gate was reserved as a
+> human decision. **The maintainer took it on 2026-08-31.** ROADMAP Sprints 8–14 are
+> un-queued and the freeze rule above is lifted.
 >
-> The freeze rule above stays in force until someone makes the call.
+> **What was settled first, because it was the one dependency worth weighing.** The earlier
+> text on this line said un-queueing Sprint 8 while DEL-2 was unanswered would have GKB-1
+> build two-tier retrieval on a subsystem nobody had decided to keep. DEL-2 has now been
+> measured on the real-world corpus it was waiting for and **deferred with a stated
+> re-review trigger**, one of which is GKB-1 itself — so the dependency is recorded rather
+> than left implicit. See the decision at the end of the DEL-2 ticket.
+>
+> **What the gate did not cover, and the honest note about it.** OPS-2 closed on 2026-08-29.
+> DEL-2 is deferred, not answered. Neither is named by any criterion — the eight were
+> written as a *floor*, not as an inventory of the sprint table. That is the design working
+> as intended, but it is worth saying plainly: **"all eight green" means the floor is met,
+> not that every ticket is closed.**
+>
+> **And what lifting it cost to find out.** Answering DEL-2 required running the retrieval
+> eval against a corpus of real documents for the first time. That run turned up three
+> defects — one in the eval harness, two in PPTX ingest — of which the PPTX pair meant an
+> advertised supported format did not work for any deck a real user would own. Every one of
+> them predates the tag. The lesson is not that the criteria were wrong; it is that
+> **exercising the product on real inputs found in one afternoon what eight criteria of
+> mechanical verification did not.** That belongs in the next round's criteria.

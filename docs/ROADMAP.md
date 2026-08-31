@@ -7,7 +7,7 @@ v3.0 targets six workstreams: **repository hygiene & single-framework consolidat
 
 The guiding constraint across all of them: **the core stays stable and clean.** Plugins may request services and hooks; they may never define core interfaces or become a dependency the core cannot build without. See the "Plugin Contract" section in `CLAUDE.md` and [`.claude/rules/plugins.md`](../.claude/rules/plugins.md).
 
-**Hardening plan:** [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) holds the production-grade hardening track (ADR-1/ADR-2 and sprints PG-0..PG-8) from the 2026-08-04 external audit. It is a *gate on this roadmap*, not a parallel one: Sprints 8-12 below do not start until its Exit Criteria are green. Confirmed bugs remain exempt from that gate, per the Sprint 5 precedent.
+**Hardening plan:** [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) holds the production-grade hardening track (ADR-1/ADR-2 and sprints PG-0..PG-8) from the 2026-08-04 external audit. It was a *gate on this roadmap*, not a parallel one: Sprints 8-14 below could not start until its Exit Criteria were green. **All eight criteria are green and the gate was lifted on 2026-08-31** — Sprints 8-14 are un-queued and the freeze rule is over. Confirmed bugs were always exempt from that gate, per the Sprint 5 precedent.
 
 ---
 
@@ -699,7 +699,7 @@ So any workspace owner may create a connector carrying **another user's UUID** a
 
 Google Drive and OneDrive were retained from DEL-1b on a stated intent to use them (2026-08-24). This initiative makes them real: the authorisation model first as a decision, then the UI that consumes it.
 
-**Gated behind the [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) Exit Criteria**, with one exception — BUG-4 is a defect and runs ahead, per the Sprint 5 precedent.
+~~**Gated behind the [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) Exit Criteria**~~ — the gate was lifted on 2026-08-31. BUG-4 had already run ahead of it, per the Sprint 5 precedent.
 
 ---
 
@@ -774,7 +774,7 @@ The first UI the connector subsystem has ever had. It lives in the document sect
 | 6b | RBAC-2 (route permission audit) ✅ done — see [PERMISSIONS.md](PERMISSIONS.md); CW-3 (audit log) ⏭️ deferred to v4.0 | — |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | 7b | BUG-4 (bind a connector to its creator; six `or "admin"` fallbacks in the OAuth routes) ✅ done & merged (#308) | — |
-| PG-0..PG-8 | **Production-grade hardening** — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gates everything below. | ~8 weeks |
+| PG-0..PG-8 | **Production-grade hardening** ✅ — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gated everything below; **gate lifted 2026-08-31**. | done |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
@@ -782,7 +782,7 @@ The first UI the connector subsystem has ever had. It lives in the document sect
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
-| **Total** | | **~16 weeks** (+ ~8 weeks PG-0..PG-8, which gates Sprints 8-14) |
+| **Total** | | **~16 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14) |
 
 > **Connectors re-scoped 2026-08-24.** DEL-1b was rewritten rather than executed: Confluence is deleted (no forward use, and the only one of the three carrying a pip dependency), while Google Drive and OneDrive are retained on a stated intent to use them, with maintainer-supplied test cases coming. Re-deriving the removal surface from the code — rather than trusting the ticket — turned up BUG-4 and the fact that the connector subsystem has **never had a UI**, so `PERMISSIONS.md` has been advertising 10 routes for a feature that does not exist. Initiative 9 (CONN-1, CONN-2) makes it real; BUG-4 lands ahead of the gate. Same lesson as DEL-1a a fortnight earlier: a plan is not evidence.
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
