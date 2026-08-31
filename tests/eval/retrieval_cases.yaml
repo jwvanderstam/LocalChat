@@ -104,8 +104,8 @@ cases:
     answered_by: the configuration reference
 
   - question: What is the pgvector caveat when deploying to a managed database?
-    source: docs/localchat_scaleway_deployment_plan.md
-    proof: "Scaleway"
+    source: docs/DEPLOYMENT_SCALEWAY.md
+    proof: "hnsw.ef_search"
     answered_by: the Scaleway per-service mapping
 
   - question: What went wrong when connecting Discord through n8n, and what is still broken?

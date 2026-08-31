@@ -322,7 +322,7 @@ hnsw.ef_search did not survive a transaction boundary (set to 100, reads back as
 **If you see that line**, put the app in front of the database directly, or switch the
 pooler to `session` mode. The compose stack connects straight to `db`, so it does not
 apply there — it applies to managed Postgres, which is why it matters for the
-[Scaleway target](localchat_scaleway_deployment_plan.md).
+[Scaleway target](DEPLOYMENT_SCALEWAY.md).
 
 **One thing this check cannot see.** pgbouncer in transaction mode does not reset by
 default; it *leaks* session state between clients instead. The setting then survives on
