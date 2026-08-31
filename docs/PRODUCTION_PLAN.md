@@ -562,7 +562,42 @@ auth.js's 401 redirect (the unauthenticated guard). All reverted.
 
 **Delete, don't flag.** Flagged-off code still passes through every future authz audit, every Dependabot bump, every mutation run, every CodeQL scan. Git history preserves everything; re-adding a connector later costs days, while carrying it costs a tax on every sprint forever. The counterargument is real — the project's stated purpose is learning, and deletion destroys playgrounds — but the production claim was chosen over it, and depth on the retained core *is* the learning this project's own lessons file keeps pointing back to.
 
-### DEL-1a — Remove the self-contained subsystems ⬜ (no gate; runs alongside PG-0)
+### DEL-1a — Remove the self-contained subsystems ✅ (done 2026-08-29)
+
+> **Executed as scoped by the 2026-08-05 correction below, and no wider.** The Kuzu backend
+> is gone; `active_learning.py` and `feedback_pipeline.py` **stay**, which is the decision this
+> ticket asked for explicitly rather than the silence that would have read as one.
+>
+> **What was removed:** `KuzuGraphStore` from `src/graph/store.py`, the `GRAPH_BACKEND` and
+> `KUZU_DB_PATH` settings that selected it, their two rows in `CONFIGURATION.md`, and
+> `kuzu==0.11.3` from `requirements.in` — locks recompiled on Linux per the project rule, a
+> two-line diff, because kuzu had no transitive dependencies of its own.
+>
+> Re-derived before acting, per the correction below: `KuzuGraphStore` had no caller outside
+> `create_graph_store()`, no route, and no test. `create_graph_store()` is now a one-line
+> factory returning `PostgresGraphStore`. The `GraphStore` ABC is **kept** — it is what lets a
+> second backend be added later without touching `EntityExtractor` or `QueryExpander`, and
+> inlining it would spend the ticket's own rationale.
+>
+> **The two settings went too, and that is the part worth a sentence.** With one backend left,
+> `GRAPH_BACKEND` had exactly one valid value and `KUZU_DB_PATH` none — dead config reads as a
+> supported choice to whoever finds it in `.env.example`. Removing them is safe in both
+> directions: the factory ignored any other value already.
+>
+> **Tombstone:** restoration is `git revert` of the removal commit plus a lock recompile.
+> The decision that would reopen it is a graph workload Postgres cannot serve — native
+> Cypher-style traversal at a depth `entity_relations` makes impractical. Nothing observed
+> today asks for that; DEL-2 found 1-hop expansion firing on 3 of 20 questions.
+
+**Not removed, and now recorded as a decision rather than a default:** `src/rag/active_learning.py`
+and `src/rag/feedback_pipeline.py` stay. They back five endpoints users can reach —
+`GET /api/workspaces/{id}/suggestions` plus `/reranker/train`, `/reranker/promote/{id}`,
+`/reranker/rollback/{id}` — and the scheduler wiring in `app_bootstrap.py`. Neither has a known
+user, which is an argument for deleting a *feature*, not for a deletion sprint to take the call
+on its own. The re-review trigger is the one this ticket should have carried from the start:
+evidence that nobody invokes them, which needs usage data this deployment does not yet collect.
+
+**Original scoping, retained for the correction it records:**
 
 > **Measurement corrected 2026-08-05.** The original ticket claimed all three had "no route
 > surface and no OAuth flow, so removing them is a `git rm` plus an import sweep, not surgery."
@@ -960,7 +995,7 @@ Runs after ROADMAP Sprint 6b. ROADMAP Sprints 8–12 (GKB, PC, PR-1) queue behin
 
 | Sprint | Tickets | Est. duration |
 |---|---|---|
-| PG-0 | ADR-1 + ADR-2 (written, committed, README/wiki reframed) + DEL-1a (self-contained deletions, no gate) + TQ-5a ✅ (alembic chain check) | 1-2 days |
+| PG-0 | ADR-1 ✅ + ADR-2 ✅ (written, committed, README/wiki reframed) + DEL-1a ✅ (Kuzu removed 2026-08-29; the other two modules stay, by decision) + TQ-5a ✅ (alembic chain check) — **sprint complete** | — |
 | PG-1 | SEC-1 ✅ + SEC-2 ✅ (fail-closed boot, DEMO_MODE deleted, revocation fail-closed) | — |
 | PG-1b | SEC-3 ✅ + SEC-4 (rate limiting keys on the real client; ENCRYPTION_KEY enforced) — from the 2026-08-19 external audit | — |
 | PG-2 | PERF-1 + PERF-2 (threadpool offload, concurrency benchmark before/after) | 3–4 days |

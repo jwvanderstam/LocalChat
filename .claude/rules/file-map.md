@@ -116,7 +116,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `plugins/example_plugin.py` | Reference plugin demo (`word_count`, `reverse_text` tools) |
 | `plugins/README.md` | Plugin authoring guide |
 | **Graph / Memory / Performance** | |
-| `src/graph/store.py` | `GraphStore` ABC + `PostgresGraphStore` (default) + `KuzuGraphStore` (optional); `create_graph_store(db)` factory |
+| `src/graph/store.py` | `GraphStore` ABC + `PostgresGraphStore`; `create_graph_store(db)` factory |
 | `src/graph/extractor.py` | spaCy entity extraction from document chunks; accepts `graph_store` injection |
 | `src/graph/expander.py` | `QueryExpander` — 1-hop lexical term expansion via entity co-occurrences, feeding both the embedding and the tsvector lexical arm; accepts `graph_store` injection |
 | `src/memory/extractor.py` | Extracts memorable facts from conversation turns |
