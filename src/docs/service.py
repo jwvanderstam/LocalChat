@@ -69,7 +69,7 @@ _CATALOGUE: list[tuple[str, str]] = [
     ("docs-lessons-learned", "docs/LESSONS_LEARNED.md"),
     ("docs-test-quality-audit", "docs/TEST_QUALITY_AUDIT.md"),
     ("docs-integration-tests", "docs/INTEGRATION_TESTS.md"),
-    ("docs-scaleway-deployment-plan", "docs/localchat_scaleway_deployment_plan.md"),
+    ("docs-deployment-scaleway", "docs/DEPLOYMENT_SCALEWAY.md"),
 ]
 
 #: Greedy to end-of-line, with the trailing space stripped in Python. The lazy

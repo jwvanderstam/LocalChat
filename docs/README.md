@@ -24,6 +24,7 @@ jobs. Which one you need depends on what you are doing right now, not on the top
 | Guide | Use it when |
 |---|---|
 | [Deployment](DEPLOYMENT.md) | Running the stack with Docker Compose, TLS, secrets, upgrades |
+| [Deployment on Scaleway](DEPLOYMENT_SCALEWAY.md) | Standing up a managed-cloud test stack — service mapping, cost ceilings, what is still unverified |
 | [Operations](OPERATIONS.md) | Backup, restore, routine maintenance |
 | [Migrations](MIGRATIONS.md) | Applying, writing or rolling back a schema change |
 | [Workspace API keys](WORKSPACE_API_KEYS.md) | Giving a bot or workflow scoped access to one workspace |
@@ -57,7 +58,6 @@ jobs. Which one you need depends on what you are doing right now, not on the top
 | [Authentication plan](AUTH_PLAN.md) | How local login, OIDC and the bypasses fit together |
 | [Test quality audit](TEST_QUALITY_AUDIT.md) | Why coverage percentage hid weak tests |
 | [n8n integration report](bugreport-n8n-localchat.md) | What broke wiring the first external client |
-| [Scaleway deployment plan](localchat_scaleway_deployment_plan.md) | What a managed-cloud test stack would cost and require — planning only, nothing built |
 
 ## Contributor standards
 

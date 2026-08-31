@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Scaleway cost guardrail: budget -> alert threshold -> optional webhook.
-# See docs/localchat_scaleway_deployment_plan.md §11.
+# See docs/DEPLOYMENT_SCALEWAY.md §8.
 #
 # Run this BEFORE the GPU instance exists. That instance is the line item the
 # alert guards, and an alert created afterwards guards nothing that already burned.
@@ -131,7 +131,7 @@ echo "Webhook notification:"
 if [[ -z "$WEBHOOK_URL" ]]; then
   note "WEBHOOK_URL unset — skipping. The alert still notifies by whatever the"
   note "account has configured, which is email/SMS: a person reacting, not a"
-  note "script. §11 is why the webhook is the half that stops the burn."
+  note "script. §8 is why the webhook is the half that stops the burn."
 else
   # MATCHED ON: .budget_alert_id. A second notification on one alert double-fires.
   notif_id=$(lookup_id "budget_alert_id=$alert_id" \
@@ -152,4 +152,4 @@ fi
 
 echo
 echo "Done. This is an alert, not a cap — it is an estimate, it lags the real"
-echo "invoice, and nothing stops spend on its own. See §11."
+echo "invoice, and nothing stops spend on its own. See §8."

@@ -967,7 +967,7 @@ So roughly **3.6 GB of the image is CUDA tooling no supported topology can reach
 arrives as a transitive of `torch`, whose PyPI Linux wheel bundles CUDA.
 
 **Two things found afterwards reframe what to do about it**, and both are recorded in
-[the Scaleway plan](localchat_scaleway_deployment_plan.md) §0, where the decision lives:
+[the Scaleway deployment guide](DEPLOYMENT_SCALEWAY.md) §6, where the decision lives:
 
 - **`.dockerignore` excludes `.pytest_cache` but not `.mypy_cache`.** 351 MB of
   type-checker cache is copied into `/app`. The size is the smaller half — the image
@@ -1072,7 +1072,7 @@ The advice was right for a case it did not name, and incomplete even there. Rest
 | `COMMENT ON EXTENSION vector` | `must be owner of extension` | `--no-comments` |
 | `ALTER TABLE ... OWNER TO postgres` | `must be able to SET ROLE "postgres"` | `--no-owner` |
 
-`OPERATIONS.md` now carries both recipes and CI asserts both. That path matters for [the Scaleway plan](localchat_scaleway_deployment_plan.md), where the database is managed and the app role is not a superuser.
+`OPERATIONS.md` now carries both recipes and CI asserts both. That path matters for [the Scaleway plan](DEPLOYMENT_SCALEWAY.md), where the database is managed and the app role is not a superuser.
 
 **Scope, stated honestly:** this proves the SQL-level procedure. The page wraps the same commands in `docker compose exec db`, which a service container cannot reproduce, so the compose invocation itself is still unverified.
 
@@ -1105,7 +1105,7 @@ The advice was right for a case it did not name, and incomplete even there. Rest
   four-command pre-flight check. The checks assert what the code actually does — the
   first draft said `/api/metrics` returns 401 and it returns **403**, which is the kind
   of error a checklist propagates silently once people start trusting it.
-  - The same pass re-derived [the Scaleway plan](localchat_scaleway_deployment_plan.md)
+  - The same pass re-derived [the Scaleway plan](DEPLOYMENT_SCALEWAY.md)
     against today's code. Five of its claims had drifted, and its image-size guess
     ("several GB") was 6.60 GB of files measured inside the container — of which ~3.6 GB
     is CUDA tooling no supported topology can reach, and 351 MB is a `.mypy_cache`
