@@ -185,6 +185,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
 | `tests/unit/test_permissions_doc_matches_routes.py` | The IVP for `docs/PERMISSIONS.md` — every route has a row, no row is stale, and the distribution total matches the table |
 | `tests/unit/test_configuration_doc_covers_config.py` | The IVP for `docs/CONFIGURATION.md` — every env var `config.py` reads is documented, and nothing outside `config.py` calls `os.getenv` |
+| `tests/unit/test_app_version_is_consistent.py` | `APP_VERSION` is declared in `config.py`, `docker-compose.yml` and `CONFIGURATION.md` with nothing deriving it from the tag — this fails when they disagree, as they had (1.0.0 / 0.5.0 / 1.0.0 against a v3 tag) |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
 | `.github/ISSUE_TEMPLATE/improvement.md` | Structured improvement-feedback issue form (OPS-3); replaces the wiki page whose front-matter never rendered |
 | `tests/unit/test_compose_hardened_services_use_exec_form.py` | Every compose service built from the hardened `Dockerfile` uses exec-form `command`/`healthcheck` and names no absent binary (`sh`, `curl`) — the check `docker-smoke` does not cover, since it boots `app` only |

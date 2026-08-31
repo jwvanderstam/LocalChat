@@ -383,15 +383,20 @@ to empty, in which case the router falls back to the active model.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `APP_VERSION` | `1.0.0` | Reported by `GET /api/status`. See the note below |
+| `APP_VERSION` | `3.0.0` | Reported by `GET /api/status`. See the note below |
 | `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB) |
 | `LOG_FILE` | `logs/app.log` | Path for the file sink |
 | `PLUGINS_DIR` | `plugins` | Directory scanned for plugins |
 | `PRESENCE_TTL_SECONDS` | `30` | How long a workspace presence entry stays live |
 | `GUNICORN_TIMEOUT` | `600` | Legacy. The stack runs Uvicorn; `UVICORN_TIMEOUT` is the live setting |
 
-> **`APP_VERSION` does not match the release, in two different ways.** `src/config.py`
-> defaults it to `1.0.0` and `docker-compose.yml` sets `${APP_VERSION:-0.5.0}`, while the
-> current tag is `v3.0.0-beta.1`. A containerised deployment reports **0.5.0** at
-> `GET /api/status`; a host-run one reports **1.0.0**. Neither is the version being run.
-> Set `APP_VERSION` explicitly until the defaults are corrected.
+> **`APP_VERSION` has three defaults, and they must be bumped together.** `src/config.py`,
+> `docker-compose.yml`'s `${APP_VERSION:-...}`, and the row above all carry the number
+> independently. Nothing derives it from the tag, so a release that bumps one and forgets
+> the others produces a deployment that misreports its own version at `GET /api/status`.
+>
+> **That is not hypothetical — it is what happened.** Until 2026-08-31 the three read
+> `1.0.0`, `0.5.0` and `1.0.0` against a `v3.0.0-beta.1` tag: a containerised deployment
+> reported **0.5.0**, a host-run one **1.0.0**, and neither was the version being run.
+> All three now read `3.0.0`, and `tests/unit/test_app_version_is_consistent.py` fails if
+> they diverge again — the drift was silent precisely because no check compared them.
