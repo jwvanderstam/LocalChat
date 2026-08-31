@@ -36,7 +36,7 @@ fastapi==0.141.1
 uvicorn[standard]==0.52.4
 httpx==0.28.1          # async inference + sync admin/embedding client
 
-gunicorn==26.1.0
+gunicorn==26.2.0
 Werkzeug==3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
 
 # Caching
@@ -59,7 +59,7 @@ pydantic==2.13.4
 email-validator==2.3.0
 
 # Document Processing
-pypdf==6.16.1
+pypdf==6.16.2
 pdfplumber==0.11.10  # Enhanced PDF extraction with table support
 pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
 pymupdf4llm==1.28.2    # Layout-aware PDF extraction for column-heavy documents (optional)
@@ -72,18 +72,18 @@ python-docx==1.2.0
 python-pptx==1.0.2
 reportlab==5.0.1             # PDF export for conversation download (optional)
 openpyxl==3.1.5         # Excel (.xlsx) ingestion
-litellm==1.97.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
+litellm==1.98.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
 h11==0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
-spacy==3.8.15      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
+spacy==3.8.16      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
-cryptography==50.0.0
+cryptography==50.0.1
 # Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
 sentence-transformers==6.0.0
 
 # HTTP Requests
 requests==2.34.2
-ddgs==9.15.0
+ddgs==9.16.0
 
 # Hardware detection — CPU RAM probing for model-fit budget (src/gpu/backends.py)
 psutil==7.2.2
