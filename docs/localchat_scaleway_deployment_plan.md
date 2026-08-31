@@ -2,6 +2,11 @@
 
 Prepared 2026-08-18. Repo analyzed: `github.com/jwvanderstam/LocalChat` (cloned at commit matching `ghcr.io/jwvanderstam/localchat:latest`, built automatically by `.github/workflows/docker-publish.yml`).
 
+An addendum of 2026-08-27 (§§10–14, at the end) resolves the cost-ceiling, billing-alert
+and rate-limiter questions this plan left open, assesses Terraform, and closes with
+§14 — every claim in this document that is still unverified, the check that settles it,
+and what to do if it comes back different.
+
 ## 0. Re-derived 2026-08-26 — read this before §1
 
 This plan was written on 2026-08-18 against the repository as it then stood. It was
@@ -228,3 +233,207 @@ Required (app raises at startup in `APP_ENV=production` if unset — see `src/co
 - Whether a payment method is required before resources can be created (§4) — needs your action in the console.
 - Which Ollama path (§4) — cost/latency tradeoff, your call once Phase 3 is live.
 - Whether the expiry date on your available credit changes the urgency of the GPU decision.
+
+These are decisions. §14 is the companion list of *facts* still unverified — each with the
+command that settles it — several of which feed the decisions above.
+
+---
+
+# Addendum 2026-08-27 — cost ceilings, the rate limiter under Scaleway's edge, Terraform, and what is still unverified
+
+Continues the plan above (last revised 2026-08-26). It resolves three things that plan
+left open, adds a Terraform assessment it did not cover at all, and ends with §14: every
+claim in this document that is still unverified, the check that settles it, and what to do
+if it comes back different. Same spirit as §0: measured where measurement was possible,
+confidence labelled where it was not — with §14 as the place the labels become a worklist
+instead of a disclaimer.
+
+## 10. Serverless SQL Database — set `max_cpu` explicitly, or you get 15
+
+Resolved. High confidence — Scaleway's own technical spec page, checked live.
+
+The platform ceiling is 0–15 vCPU / 0–60 GB RAM per database, but you set the working
+min/max within that range, either in the console (*Edit autoscaling*) or via Terraform
+(`min_cpu`, `max_cpu` on `scaleway_sdb_sql_database`). Scaling only moves between your
+bounds — up 25% after >90% vCPU utilisation sustained 10 s, down 25% after <70% sustained
+10 s, at most once a minute. This is the identical lever to the container's `max_scale=1`:
+an explicit ceiling makes runaway compute cost structurally impossible, not just unlikely.
+
+**The trap: the Terraform resource defaults `max_cpu` to 15 if you don't set it.**
+Confirmed from the provider's own argument reference. If §8 Phase 1 is executed by
+applying a `scaleway_sdb_sql_database` block that only sets `name`, the database is
+created with the full platform ceiling — the exact runaway scenario the earlier audit
+flagged, and Terraform's default silently produces it. `min_cpu` defaults to 0, which is
+fine (idle billing stops, cold start is a few seconds — acceptable for a test deployment
+per §0's cold-start reasoning).
+
+Recommendation for this deployment: `min_cpu = 0`, `max_cpu = 1`. A single-user smoke test
+does not need more than 1 vCPU of Postgres, and 1 is enough headroom that autoscaling under
+normal test load should never need to move at all. Raise it deliberately later if scale
+load or a real multi-user session shows contention — don't leave it at the default and find
+out from the invoice.
+
+## 11. Billing — still no hard cap, but the webhook path is real and unused
+
+Confirmed still true. High confidence — Scaleway's billing docs, checked live. Alerts are
+notification-only: estimate-based, lagged behind the actual invoice, and computed after
+discounts and taxes in a way that can mislead — Scaleway's own worked example shows a €150
+alert firing only once €250 of real usage has occurred, because a €100 discount delayed the
+billed amount crossing the threshold. There is no product-level spend cap anywhere in a
+Scaleway account. §4 / §8 Phase 0 was already correctly cautious about this.
+
+What is new: budget alerts support a **webhook** notification, not just SMS/email —
+confirmed via the `scw billing budget-alert-notification create` CLI command
+(`webhook-urls.{index}`) and the Billing API. Scaleway POSTs
+`{"invoice_start_date": ..., "threshold": ...}` to your URL when the threshold fires. That
+is a real automation point the plan does not currently use: a webhook target that reacts by
+deleting or scaling-to-zero the GPU instance (the actual expensive line item, per §4) turns
+"an email arrives, eventually" into "the burn stops within minutes of the estimate crossing
+your line." Still not a hard cap — the alert is still an estimate with lag — but materially
+better than the manual monitoring the plan currently relies on.
+
+No Terraform resource exists for budgets or budget alerts (confirmed — the provider exposes
+only `scaleway_billing_invoices`, a read-only data source). This has to be created via the
+`scw` CLI or the Billing API directly, outside Terraform, as a one-time step alongside —
+not instead of — the apply.
+
+`scripts/scaleway/bootstrap_billing_alert.sh` does this. It checks before it creates, at
+every level: `scw billing ... create` is not idempotent, so a second blind run would produce
+a second budget and a second alert silently, and the duplicate is invisible until the
+invoice. When a lookup cannot be trusted — the call fails, or the reply is not the shape
+expected — the script refuses to create rather than risk the duplicate it could not see.
+Its `scw` verbs and field names are written from the documented CLI surface and are
+**unverified against a live account** — §14 has the check that settles that, and what a
+mismatch does (it refuses; it does not duplicate). The matching logic itself is tested.
+
+Practical ceiling this does not solve: the webhook consumer has to exist somewhere before
+it is useful — a Scaleway Serverless Function, say — and it needs credentials scoped to
+delete exactly the GPU instance and nothing else. That consumer is not built; it is the
+next real step if the webhook path is worth pursuing.
+
+## 12. The rate limiter behind Scaleway's edge — not an open question, a bad default
+
+Confirmed. High confidence on the mechanism — Scaleway's community forum carries a
+still-open, unresolved feature request (posted Feb 2024) stating plainly that Scaleway does
+not sanitise `X-Forwarded-For` at the Serverless Containers edge: an external caller can set
+`X-Forwarded-For: 1.2.3.4` and it reaches the container unchanged. Moderate confidence on
+real-world exploitability — not tested against a live deployment, only against Scaleway's
+published statement of the behaviour.
+
+This matters because of how LocalChat's rate limiter is wired (read from `src/config.py`,
+`src/app_fastapi.py`, `docker-entrypoint.py` and `docs/DEPLOYMENT.md`):
+
+- `TRUSTED_PROXY_IPS` decides who is believed when they set `X-Forwarded-For`. Uvicorn's own
+  default trust (`127.0.0.1`) is deliberately disabled (`--forwarded-allow-ips ""`), so this
+  is the only place that decision is made.
+- Behind the bundled nginx, `TRUSTED_PROXY_IPS=*` is safe, because topology guarantees nginx
+  is the only possible peer — the app publishes no port of its own, so nothing else can reach
+  it to forge the header.
+- **That guarantee does not hold on Serverless Containers.** The peer always appears to be
+  Scaleway's shared ingress, so `TRUSTED_PROXY_IPS=*` would mean trusting a header any
+  internet caller can set to anything: the per-IP login limit becomes trivially bypassable by
+  rotating a fake value, and could equally be used to push a real user's IP into its limit.
+- The other direction, `TRUSTED_PROXY_IPS=""` (the safe default, per `.env.example`), makes
+  every caller key on Scaleway's ingress address, collapsing all users into one shared
+  rate-limit bucket — the exact failure mode `.env.example` warns about for the
+  no-proxy-configured case. On a 25-user appliance that is a real availability problem: one
+  active user can exhaust the shared login-attempt budget for everyone else.
+- **There is no IP-range middle ground.** Scaleway publishes fixed prefixes for Load Balancer,
+  but Serverless Containers ingress addresses are explicitly documented as unpredictable
+  ("Serverless Containers do not have dedicated or predictable IP addresses"). Even fixed
+  prefixes would not help: the problem is not *which* peer to trust, it is that the trusted
+  peer does not verify what it forwards.
+
+This is a decision, not a bug to fix before deploying. For a Test Stack with a handful of
+known users, accepting degraded rate-limiting is plausibly right — brute-force login
+protection collapsing to "shared budget" or "spoofable" matters far less at PoC scale with
+people you know. But it should be a **written, deliberate acceptance**, the way §3's
+`hnsw.ef_search` risk and §4's Ollama cost tradeoff already are — not an inherited assumption
+that the nginx-safe pattern transfers.
+
+Options, if accepting it is not the right call:
+
+1. **Accept and document (recommended here).** Set `TRUSTED_PROXY_IPS=""` and note in the
+   README that per-source rate limiting does not hold on this target. A shared bucket fails
+   closed (over-restrictive under load) rather than open (bypassable), which is the safer
+   failure mode for a small trusted user base.
+2. **Scaleway Edge Services in front.** Checked live: a paid add-on (subscription required),
+   needs a Load Balancer or Object Storage backend for the console flow (Serverless Container
+   backends are CLI/Terraform-only), and its docs describe caching and WAF — nowhere does it
+   claim to sanitise or replace `X-Forwarded-For` with a verified value. It adds a filtering
+   layer, not a fix for the trust problem, plus real operational surface (custom domain, TLS
+   certs) for a test deployment. Not recommended.
+3. **A defence that does not depend on the client-supplied header.** A global (not per-IP)
+   request budget, or gating registration to invited users only — you are already capped at
+   ~25 users by design (ADR-1) — sidesteps the header-trust problem rather than trying to win
+   it.
+
+## 13. Terraform — covers essentially everything except billing
+
+Confirmed against the Scaleway Terraform provider's own resource documentation, checked live
+against the current registry version. Every resource this deployment needs exists and matches
+the plan's shape:
+
+| Plan component | Terraform resource | Notes |
+|---|---|---|
+| Container namespace | `scaleway_container_namespace` | — |
+| The app | `scaleway_container` | `min_scale`, `max_scale`, `environment_variables`, `secret_environment_variables`, `private_network_id`, and `image` (accepts a full external address — `ghcr.io/jwvanderstam/localchat:TAG` works directly, matching §6's "reuse the published image") are all supported. |
+| Serverless SQL Database | `scaleway_sdb_sql_database` | `min_cpu`/`max_cpu` as in §10. |
+| DB access credentials | `scaleway_iam_application` + `scaleway_iam_policy` (`ServerlessSQLDatabaseReadWrite`) + `scaleway_iam_api_key` | The DB has no separate username/password — the IAM application ID is the login and the API secret key is the password, per Scaleway's own example. **§7's `PG_USER`/`PG_PASSWORD` rows should read "IAM application ID" / "IAM API secret key", not literal Postgres credentials.** |
+| GPU Instance (Ollama) | `scaleway_instance_server` (e.g. `type = "L4-1-24G"`) | Supports `user_data` with a `cloud-init` key for unattended bootstrap (install Docker, run Ollama, pull the model) and a `private_network` block. |
+| Private connectivity, app → Ollama | `scaleway_vpc` + `scaleway_vpc_private_network`, attached to both the container (`private_network_id`) and the instance (`private_network { pn_id = ... }`) | Serverless Containers support Private Network for **outgoing** traffic only, which is exactly the app → Ollama direction needed. Incoming-to-container over VPC is not supported yet, and is not needed here. |
+| Budget / budget alert / webhook notification | **No Terraform resource exists.** | Must be created via `scw billing budget create` / `budget-alert create` / `budget-alert-notification create`, or the raw Billing API — outside Terraform (§11). |
+
+Net assessment: a real `terraform apply` can stand up the database, the container, the GPU
+instance and the private network connecting them in one pass, reproducibly. The one gap is
+billing guardrails, and that is a Scaleway platform gap (no API resource) rather than a
+missing Terraform feature — it stays a one-time manual or scripted step run alongside
+Terraform, not inside it.
+
+What Terraform does not remove from the phased approach: §8 Phase 0 (payment method on file)
+is still console-only and still has to happen before any apply succeeds — Terraform fails the
+same way manual console creation would. §0's recommendation to deploy once unmodified before
+trimming the image still holds; Terraform changes only how repeatably you can stand the stack
+up and tear it down between measurements — which, for a Test Stack you will create and destroy
+more than once, is the actual reason to use it here.
+
+**No `terraform/` directory is committed to this repository.** A skeleton implementing the
+table above — container, `sdb_sql_database`, the IAM chain, the GPU instance and the VPC —
+was drafted alongside this addendum but is unapplied and untested against a live account. If
+it is brought into the repo, treat it as a first draft to review line-by-line against your
+actual secrets and account state before `terraform plan`, not as something to apply unread.
+
+The one part Terraform cannot express *is* committed:
+`scripts/scaleway/bootstrap_billing_alert.sh` (§11). It is a `scw` script either way, so it
+does not presume how the rest of the stack gets provisioned.
+
+## 14. What is unverified, and the check that settles it
+
+Both this addendum and the plan above label confidence inline. This collects every claim
+that is *not* settled into one list, each with the command that would settle it and what to
+do if it comes back different — so they can be worked through in order rather than
+rediscovered one at a time, usually at the moment they bite.
+
+### Settleable now — no spend, no live stack
+
+| Claim | Why it is unsettled | The check | If it comes back different |
+|---|---|---|---|
+| The `scw billing` verbs and the field names `bootstrap_billing_alert.sh` matches on (`.name`, `.budget_id`, `.threshold`, `.budget_alert_id`) | Written from the documented CLI surface; `scw` was not installed on the machine when the script was written | `scw billing budget list -o json`, then the same for `budget-alert list` and `budget-alert-notification list` | Adjust the `MATCHED ON:` comments in the script. Note the failure is safe by construction: a wrong field name makes the lookup match nothing, and the script refuses rather than creating — so the symptom is a refusal, never a duplicate. |
+| That `scw sdb sql database create` shares the Terraform provider's `max_cpu` default of 15 (§10) | Only the *provider's* default was confirmed, from its argument reference. The CLI's default was never checked | `scw sdb sql database create --help` | If it shares the default, §10's trap is not Terraform-specific and the `max_cpu = 1` recommendation has to be passed explicitly on the CLI path too. If it has no default and requires the flag, the CLI path is the safer of the two. |
+| GPU Instance hourly rate (§4) | Never fetched. §4 says outright "verify current pricing before committing" | `scw instance server-type list zone=fr-par-2 -o json`, against the current pricing page | Feeds the §4 decision, and sets the `BUDGET_AMOUNT` / `ALERT_THRESHOLD` the bootstrap script needs — those numbers are guesses until this one is real. |
+| Compressed image size (§0 measured 6.60 GB of files, 9.92 GB of layers — both uncompressed) | Needs a push to a registry to observe | `docker manifest inspect ghcr.io/jwvanderstam/localchat:TAG` | Sets the honest cold-start expectation. §8 Phase 2's `min_scale 1` avoids the problem during the test either way, so this informs the §0/§6 image-trimming decision rather than blocking anything. |
+| The webhook payload shape `{"invoice_start_date": ..., "threshold": ...}` (§11) | Taken from Scaleway's docs; never actually received | Point `WEBHOOK_URL` at a request-capture endpoint and set `ALERT_THRESHOLD` to something trivially low (€1) so it fires early | The eventual consumer parses this. A wrong shape means it silently no-ops at exactly the moment it is supposed to stop the burn — the one failure that costs money. Worth the €1. |
+
+### Settleable only against a live stack
+
+| Claim | Why it is unsettled | The check | If it comes back different |
+|---|---|---|---|
+| `hnsw.ef_search = 100` persists across transactions under Scaleway's pooler (§3) | Inferred from Scaleway's documented `SET`-in-a-transaction caveat plus reading `src/db/connection.py`; never run against a live Serverless SQL Database | `SHOW hnsw.ef_search;` after the app has served a few requests | It fails silently — retrieval degrades, nothing errors. The fix is confined to `src/db/connection.py` (§6): set it per checkout or per query instead of per connection. |
+| `X-Forwarded-For` is spoofable at the Serverless Containers edge (§12) | Scaleway's own unresolved forum post states the behaviour; not tested against a deployment | Behavioural, because the app logs no client IP — the limiter keys on `request.client.host` (`src/security_fastapi.py:491`). Exhaust the rate limit on a limited endpoint with a fixed `X-Forwarded-For`, then send the same volume rotating the header. A reset budget means the header is trusted and spoofable; an unchanged one means every caller shares a single bucket. | Those are the two failure modes §12 describes, and the check distinguishes them. Either way the response is §12's options list — the point of the check is to know which of the two you accepted. |
+| Cold start after a scale-to-zero (§5) | Never measured; the image size it depends on is itself unmeasured compressed | Idle past the 15-minute scale-to-zero, then time the first request | Decides whether a trimmed `requirements-serverless.txt` (§0, §6) is worth building, or whether `min_scale 1` is simply the answer. |
+| That the Terraform skeleton applies cleanly (§13) | Every resource was confirmed to exist in the provider registry docs; nothing was ever applied | `terraform plan` against a real account, before `apply` | Registry docs confirm a resource exists, not that this composition of them is valid. Expect to iterate. |
+
+**Phase 0 remains the gate on all of it.** Every check in the second table, and the pricing
+and webhook rows in the first, need an account that can actually create resources — which
+still requires a payment method on file, still console-only, and still something only you
+can do (§8 Phase 0).
