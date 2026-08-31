@@ -4,6 +4,8 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 htmlcov/
 coverage.xml
 .coverage
@@ -19,6 +21,12 @@ venv/
 tests/
 .github/
 node_modules/
+design/
 .env
 .env.*
 !.env.example
+
+# Deliberately NOT excluded: docs/ and .claude/.
+# src/docs/service.py serves both from a fixed catalogue, and docker-smoke fails
+# the build when a catalogued file is missing from the image. Excluding them to
+# save space would break the in-app documentation viewer.
