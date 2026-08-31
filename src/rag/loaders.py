@@ -455,14 +455,27 @@ class DocumentLoaderMixin:
         title: str | None = None
         parts: list[str] = []
         for shape in slide.shapes:
+            # A table is a GraphicFrame, not a text frame, so the has_text_frame
+            # test below skipped it and the slide's entire substance went
+            # missing — silently, since a deck usually has a title shape too and
+            # so still ingested "successfully". Same treatment as a PDF table.
+            if shape.has_table:
+                rows = [[cell.text for cell in row.cells] for row in shape.table.rows]
+                formatted = self._format_table_rows(rows).strip()
+                if formatted:
+                    parts.append(formatted)
+                continue
             if not shape.has_text_frame:
                 continue
             text = shape.text_frame.text.strip()
             if not text or shape.shape_type == 13:  # MSO_SHAPE_TYPE.PICTURE
                 continue
-            if (title is None and hasattr(shape, 'placeholder_format')
-                    and shape.placeholder_format is not None
-                    and shape.placeholder_format.idx == 0):
+            # is_placeholder, not hasattr: python-pptx's placeholder_format
+            # getter *raises* ValueError on an ordinary shape, and hasattr only
+            # swallows AttributeError — so the guard written to make the access
+            # safe was itself what raised, failing the whole file. Real decks
+            # put a plain textbox first, so this fired on slide 1 of every one.
+            if title is None and shape.is_placeholder and shape.placeholder_format.idx == 0:
                 title = text
             parts.append(text)
         return parts, title

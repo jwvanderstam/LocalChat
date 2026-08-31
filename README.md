@@ -15,12 +15,19 @@ Built with FastAPI, Ollama, PostgreSQL + pgvector and Redis. Hybrid semantic and
 retrieval, a cross-encoder reranker, tool calling, streaming answers, per-workspace
 document isolation, and RAG parameters tunable at runtime.
 
-> **"Production-patterned", not "production-ready".** LocalChat is a single-node,
-> self-hosted appliance for a small team of up to 25 users — see [ADR-1](docs/ADR.md). It
-> follows production patterns throughout and is being hardened against the exit criteria
-> in the [production plan](docs/PRODUCTION_PLAN.md). Until those pass, the stronger claim
-> would overstate it. Multi-tenant SaaS and horizontal scaling are out of scope: running
-> more than one replica breaks cache coherence and rate limiting silently.
+> **Production-ready for what it claims to be, which is a specific thing.** LocalChat is a
+> single-node, self-hosted appliance for a small team of up to 25 users — see
+> [ADR-1](docs/ADR.md). All eight exit criteria in the
+> [production plan](docs/PRODUCTION_PLAN.md) are met and the hardening gate was lifted on
+> 2026-08-31: fail-closed boot, authorisation enforced by default in CI, a concurrency
+> budget, a mutation-tested security core, restore proven in CI, a reproducible tagged
+> release, migrations executed rather than merely written, and documentation verified
+> against the code.
+>
+> The scope is the important half of that sentence. **Multi-tenant SaaS and horizontal
+> scaling are out of scope** — running more than one replica breaks cache coherence and
+> rate limiting silently, and the debt register in [ROADMAP](docs/ROADMAP.md) says exactly
+> where. Read the criteria before relying on the label; they are a floor, not a warranty.
 
 ---
 

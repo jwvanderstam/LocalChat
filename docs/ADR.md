@@ -38,8 +38,10 @@ cross-process metrics aggregator. That is months of work this deployment does no
   deployment exists, so the stated default applied: 19 files, 755 lines removed, and
   `DEPLOYMENT.md` rewritten for Docker Compose. Restoration is a `git revert` — but
   reinstating the chart means superseding this ADR first, not just restoring files.
-- ✅ **`README.md` now reads "production-patterned"**, with the scope (≤ 25 users, single node)
-  and the exit criteria named inline, so the claim and the code match.
+- ✅ **`README.md` read "production-patterned"** from PG-0 until 2026-08-31, with the scope
+  (≤ 25 users, single node) stated alongside. With all eight exit criteria met the gate was
+  lifted and it now claims production-readiness *for that scope* — the scope sentence stays,
+  because it is the half of the claim ADR-1 exists to protect.
 - The README and the wiki must describe the *same* product. They currently do not: the wiki
   says "learning journey / reference implementation", the README says "production-ready".
   Two claims means two obligation levels, and the lower one is the honest one today.

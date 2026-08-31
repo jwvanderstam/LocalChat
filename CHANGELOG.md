@@ -8,7 +8,41 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **PowerPoint ingest did not work for any real deck.** `_process_pptx_slide`'s title
+  guard called `hasattr()` on a python-pptx property whose getter raises `ValueError` —
+  and `hasattr` swallows only `AttributeError`, so the probe written to make the access
+  safe was itself what raised. Any deck leading with a plain textbox rather than a title
+  placeholder — which is every deck from a corporate template — failed to load entirely.
+  Slide **tables** were also dropped, being `GraphicFrame`s rather than text frames, so a
+  deck whose substance is tabular ingested "successfully" with the substance missing.
+  Found by running the retrieval eval against real documents for the first time; 5 of 5
+  business decks had been failing.
+- **A connection pooler silently dropping `hnsw.ef_search` now warns** instead of quietly
+  degrading recall (#336).
+- **A pgvector dumper registered for `list` broke every `= ANY(%s)` query** — the document
+  filename filter, `source_ids`, and GraphRAG's entity lookup (#342).
+- **The `mcp` compose profile could not start against the hardened image** (#341).
+- **The retrieval eval harness could not read the corpus its own ticket asks for** —
+  `--corpus` accepted any directory but only ever ingested `*.md`, so a real document set
+  scored against an empty database with no warning.
+
+### Changed
+
+- **Dependency locks are `pip-compile` output**, with test tooling split out of the runtime
+  image (#335).
+- **The Kuzu graph backend is removed**; `PostgresGraphStore` is the only backend (#345).
+- **GraphRAG (DEL-2) is deferred, not deleted** — measured on a real-world corpus: 1-hop
+  expansion fires on at most 2 questions in 20 and changes no ranking when it does. It is
+  off by default. See `docs/PRODUCTION_PLAN.md` for the numbers and the re-review trigger.
+
+### Documentation
+
+- **The production-hardening gate is lifted** (2026-08-31): all eight exit criteria green,
+  ROADMAP Sprints 8–14 un-queued.
+- The production topology, the wiki closure, and a document-wide re-derivation from the
+  code (#337, #339, #340, #343, #344).
 
 ## [3.0.0-beta.1] — 2026-08-26
 
@@ -17,8 +51,8 @@ The v3.0 cycle: 19 June – 26 August 2026, 89 feature and fix commits, ~1,074 c
 
 A beta, deliberately. [ADR-1](docs/ADR.md) scopes LocalChat to a single-node, self-hosted
 appliance for 25 users or fewer, and [PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md) lists eight
-conditions that gate the stable claim. Seven hold. The label stays "production-patterned"
-until all eight do.
+conditions that gate the stable claim. Seven held at the time of this release; the
+eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
 
 ### Security
 
