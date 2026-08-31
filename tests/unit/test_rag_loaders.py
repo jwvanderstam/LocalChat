@@ -337,3 +337,125 @@ class TestExcelFileLoading:
 
         assert success is False
         assert "openpyxl" in error.lower()
+
+
+@pytest.mark.unit
+class TestPPTXLoading:
+    """Real decks, built with python-pptx and read back through the loader.
+
+    Every existing PPTX test mocked `_process_pptx_slide` out, so the function
+    itself was never executed and a defect in it could not be seen: the title
+    guard called `hasattr(shape, 'placeholder_format')`, whose getter raises
+    ValueError on an ordinary shape — and hasattr swallows only AttributeError.
+    Real decks lead with a plain textbox, so this raised on slide 1 and the
+    broad `except Exception` turned it into "Error loading PPTX" for the whole
+    file. Found 2026-08-31 by the DEL-2 corpus run: 5 of 5 real decks failed.
+    """
+
+    def _deck(self, tmp_path, with_title_placeholder: bool):
+        from pptx import Presentation
+        from pptx.util import Inches
+
+        prs = Presentation()
+        # Layout 6 is blank — no placeholders at all, which is what a deck built
+        # from a corporate template looks like by the time it reaches us.
+        layout = prs.slide_layouts[0 if with_title_placeholder else 6]
+        slide = prs.slides.add_slide(layout)
+        if with_title_placeholder:
+            slide.shapes.title.text = "Quarterly Review"
+        box = slide.shapes.add_textbox(Inches(1), Inches(3), Inches(4), Inches(1))
+        box.text_frame.text = "Revenue grew by twelve percent"
+        path = tmp_path / ("titled.pptx" if with_title_placeholder else "plain.pptx")
+        prs.save(str(path))
+        return path
+
+    def test_a_deck_whose_shapes_are_not_placeholders_still_loads(self, tmp_path):
+        from src.rag import doc_processor
+
+        success, slides = doc_processor.load_pptx_file(str(self._deck(tmp_path, False)))
+
+        assert success is True
+        assert len(slides) == 1
+        assert "Revenue grew by twelve percent" in slides[0]["text"]
+
+    def test_a_deck_with_no_title_placeholder_reports_no_title(self, tmp_path):
+        from src.rag import doc_processor
+
+        _success, slides = doc_processor.load_pptx_file(str(self._deck(tmp_path, False)))
+
+        assert slides[0]["title"] is None
+
+    def test_the_title_placeholder_is_still_picked_up_when_there_is_one(self, tmp_path):
+        # The over-correction guard: the fix must not stop finding real titles.
+        from src.rag import doc_processor
+
+        _success, slides = doc_processor.load_pptx_file(str(self._deck(tmp_path, True)))
+
+        assert slides[0]["title"] == "Quarterly Review"
+
+    def test_slide_numbers_accumulate_across_a_multi_slide_deck(self, tmp_path):
+        from pptx import Presentation
+        from pptx.util import Inches
+
+        from src.rag import doc_processor
+
+        prs = Presentation()
+        for text in ("First slide body", "Second slide body"):
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+            box.text_frame.text = text
+        path = tmp_path / "two.pptx"
+        prs.save(str(path))
+
+        success, slides = doc_processor.load_pptx_file(str(path))
+
+        assert success is True
+        assert [s["slide_number"] for s in slides] == [1, 2]
+        assert "First slide body" in slides[0]["text"]
+        assert "Second slide body" in slides[1]["text"]
+
+    def test_table_content_reaches_the_slide_text(self, tmp_path):
+        """A slide whose substance is a table must not ingest as an empty title.
+
+        Found by the same DEL-2 run: a table is a GraphicFrame, so the
+        has_text_frame test skipped it. The deck still "loaded successfully"
+        because its title shape produced text — the analysis was just gone.
+        """
+        from pptx import Presentation
+        from pptx.util import Inches
+
+        from src.rag import doc_processor
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        table = slide.shapes.add_table(2, 2, Inches(1), Inches(1), Inches(6), Inches(2)).table
+        table.cell(0, 0).text = "Observation"
+        table.cell(0, 1).text = "Conclusion"
+        table.cell(1, 0).text = "Approver assigned after submission"
+        table.cell(1, 1).text = "Management focus on eradicating this"
+        path = tmp_path / "tabular.pptx"
+        prs.save(str(path))
+
+        success, slides = doc_processor.load_pptx_file(str(path))
+
+        assert success is True
+        assert "Approver assigned after submission" in slides[0]["text"]
+        assert "Management focus on eradicating this" in slides[0]["text"]
+
+    def test_a_table_row_keeps_its_cells_together(self, tmp_path):
+        from pptx import Presentation
+        from pptx.util import Inches
+
+        from src.rag import doc_processor
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        table = slide.shapes.add_table(1, 3, Inches(1), Inches(1), Inches(6), Inches(1)).table
+        for col, value in enumerate(("Issue RFP", "December", "CIO decides")):
+            table.cell(0, col).text = value
+        path = tmp_path / "row.pptx"
+        prs.save(str(path))
+
+        _success, slides = doc_processor.load_pptx_file(str(path))
+
+        assert "Issue RFP | December | CIO decides" in slides[0]["text"]
