@@ -61,7 +61,40 @@ def load_cases(path: Path) -> list[Case]:
     return [Case(**c) for c in raw["cases"]]
 
 
-def verify_premises(cases: list[Case]) -> list[str]:
+def resolve_source(source: str, corpus: Path) -> Path | None:
+    """Where a case's source file actually is, or None if nowhere.
+
+    Repo-relative first, so the in-tree docs cases keep resolving exactly as
+    they did. A corpus outside the repo — the maintainer-supplied document set
+    DEL-2 asks for — names its sources by bare filename instead.
+    """
+    for candidate in (REPO_ROOT / source, corpus / source):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def source_text(path: Path) -> str:
+    """The text a source contributes, as the ingest sees it.
+
+    Not read_text(): a .pptx/.xlsx/.docx source is a zip, and its proof string
+    lives in the extracted text rather than in the bytes. Going through the
+    chunker also makes the premise check verify something it otherwise would
+    not — that the loader can extract this file at all. A binary that yields
+    nothing would otherwise ingest as zero chunks and quietly drag the score
+    down, which is the failure the proof guard exists to make loud.
+    """
+    from src.rag.processor import doc_processor
+
+    ok, err, chunks, raw, _type, _version = doc_processor._load_document_chunks(  # noqa: SLF001
+        str(path), path.name, path.suffix.lower(), None
+    )
+    if not ok or chunks is None:
+        raise ValueError(err)
+    return raw or "\n".join(c["text"] for c in chunks)
+
+
+def verify_premises(cases: list[Case], corpus: Path) -> list[str]:
     """Check every case still describes the corpus.
 
     A pair whose source was rewritten stops being a retrieval question and
@@ -70,11 +103,16 @@ def verify_premises(cases: list[Case]) -> list[str]:
     """
     problems = []
     for case in cases:
-        path = REPO_ROOT / case.source
-        if not path.exists():
+        path = resolve_source(case.source, corpus)
+        if path is None:
             problems.append(f"{case.source}: file is gone")
             continue
-        if case.proof not in path.read_text(encoding="utf-8", errors="replace"):
+        try:
+            text = source_text(path)
+        except Exception as exc:  # noqa: BLE001 — an unreadable source is a rotted premise
+            problems.append(f"{case.source}: could not extract text ({exc})")
+            continue
+        if case.proof not in text:
             problems.append(f"{case.source}: proof {case.proof!r} no longer present")
     return problems
 
@@ -102,10 +140,29 @@ def connect_db() -> None:
 
 
 def ingest_corpus(corpus: Path, workspace_id: str | None) -> int:
+    """Ingest every file the application itself can ingest.
+
+    This globbed `*.md` until 2026-08-31, which made the `--corpus` flag a
+    promise the script could not keep: DEL-2's own next step is a run against
+    a maintainer-supplied document set, and any real one is .pdf/.docx/.pptx.
+    Those ingested as zero documents and scored against an empty database.
+    """
+    from src import config
     from src.rag.processor import doc_processor
 
+    supported, skipped = [], []
+    for path in sorted(corpus.iterdir()):
+        if not path.is_file():
+            continue
+        (supported if path.suffix.lower() in config.SUPPORTED_EXTENSIONS else skipped).append(path)
+
+    # Named, not counted: a corpus silently two files smaller than the
+    # maintainer thinks it is produces a score nobody can reproduce.
+    for path in skipped:
+        print(f"  - skipped {path.name}: {path.suffix or '(no extension)'} is not a supported type")
+
     count = 0
-    for path in sorted(corpus.glob("*.md")):
+    for path in supported:
         try:
             ok, message, _ = doc_processor.ingest_document(
                 str(path), workspace_id=workspace_id
@@ -233,7 +290,7 @@ def main() -> int:
     connect_db()
 
     cases = load_cases(args.cases)
-    problems = verify_premises(cases)
+    problems = verify_premises(cases, args.corpus)
     if problems:
         print("The eval set no longer describes the corpus:")
         for p in problems:
