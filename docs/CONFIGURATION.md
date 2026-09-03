@@ -388,7 +388,6 @@ to empty, in which case the router falls back to the active model.
 | `LOG_FILE` | `logs/app.log` | Path for the file sink |
 | `PLUGINS_DIR` | `plugins` | Directory scanned for plugins |
 | `PRESENCE_TTL_SECONDS` | `30` | How long a workspace presence entry stays live |
-| `GUNICORN_TIMEOUT` | `600` | Legacy. The stack runs Uvicorn; `UVICORN_TIMEOUT` is the live setting |
 
 > **`APP_VERSION` has three defaults, and they must be bumped together.** `src/config.py`,
 > `docker-compose.yml`'s `${APP_VERSION:-...}`, and the row above all carry the number

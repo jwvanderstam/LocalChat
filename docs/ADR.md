@@ -154,6 +154,92 @@ already segfaults there and is pinned back to 1.28.0 because of it (LESSONS_LEAR
 Ch. 17). A second such pin would mean the base is dictating the dependency set, and that
 is the point at which this trade stops being worth it.
 
+## ADR-4 — Cloud fallback targets OpenAI-compatible endpoints directly, not a multi-provider adapter
+
+**Accepted 2026-09-03.** Supersedes the implicit choice made when `LiteLLMClient` was
+written; `litellm` is held at 1.97.0 until the replacement lands.
+
+**Decision.** LocalChat keeps its optional cloud fallback. It reaches it through a direct
+OpenAI-compatible HTTP client rather than through `litellm`, and the endpoint it is pointed
+at is a deployment choice, not a library feature.
+
+**What forced the decision.** Dependabot #347 bumped `litellm` 1.97.0 → 1.98.0. That
+release hard-depends on `boto3`, which pulled `boto3`, `botocore`, `s3transfer`, `jmespath`
+and `python-dateutil` into the runtime lock — the AWS SDK, in the image, to reach Bedrock.
+
+`boto3` is not otherwise a dependency of this project. `src/connectors/s3_connector.py`
+imports it lazily and refuses cleanly when it is absent, which is what made the arrival
+visible: `test_raises_import_error_without_boto3` failed, because boto3 was no longer
+absent. The test was right, and it caught a supply-chain expansion nobody asked for.
+
+**Why a direct client is sufficient, measured against the code rather than argued.**
+`src/llm_client.py` uses exactly one litellm call:
+
+```python
+litellm.completion(model=, messages=, stream=, temperature=, max_tokens=, api_key=, tools=)
+# and reads: response.choices[0].message.content, response.model_dump()
+```
+
+That is the OpenAI chat-completions request and response shape, unmodified. litellm is a
+pass-through here. It appears in **one module** (`src/llm_client.py`) and one comment in
+`src/config.py`; the `ModelClient` Protocol already exists in that same file precisely so
+the implementation behind it can be swapped.
+
+**Why sovereignty makes the adapter's value close to zero.** litellm's proposition is
+breadth: one interface across OpenAI, Anthropic, Bedrock, Vertex, Azure, Cohere. A
+deployment constrained to EU-hosted inference excludes essentially all of them. What
+remains — Scaleway's Generative APIs, Mistral, OVHcloud AI Endpoints, or a self-hosted
+vLLM on a GPU instance — is uniformly **OpenAI-compatible on the wire**. The adapter would
+be translating between endpoints that already share one language.
+
+Stated plainly: **litellm buys optionality this project has decided not to exercise.**
+
+**Three costs, in the order they matter.**
+
+1. **Posture.** The README's first claim is that nothing leaves the machine unless web
+   search or cloud fallback is enabled. Shipping the AWS SDK inside that image, to reach a
+   provider this deployment will never call, contradicts the claim in spirit even though
+   `boto3` is inert unless invoked. For a product positioned on sovereignty, what is in the
+   image is part of the claim.
+2. **Security surface.** `requirements.in` already carries the note `>=1.83.7 fixes auth
+   bypass CVEs`. litellm is large, fast-moving, and has an auth-CVE history. It is
+   installed whether or not `CLOUD_FALLBACK_ENABLED` is true — lazy import keeps it
+   unloaded, not uninstalled, so it remains in scope for every audit and scanner.
+3. **Size.** Thirteen lock entries name litellm as a source, plus the five boto3 brought.
+   Real, and the least important of the three: [DEPLOYMENT_SCALEWAY.md](DEPLOYMENT_SCALEWAY.md#6-the-image--size-cold-start-and-which-tag)
+   measures 6.60 GB of files, of which `sentence-transformers` accounts for ~5.2 GB. litellm
+   is not where the weight is, and this ADR should not pretend otherwise.
+
+**What this forecloses.** A fallback provider that is *not* OpenAI-shaped — Anthropic's
+native Messages API, Vertex — stops being a configuration change and becomes a code change.
+That is a real loss, and it is accepted deliberately: it is precisely the case the
+sovereignty constraint rules out. If the constraint is ever lifted, this ADR is what should
+be re-read first.
+
+**What it does not foreclose.** Switching between EU providers, self-hosting the fallback
+on a GPU instance, or pointing it at a different OpenAI-compatible endpoint entirely — all
+of those stay `.env` changes, as they are today.
+
+**Sequencing, and why the bump is held rather than taken or reverted.** Holding `litellm`
+at 1.97.0 lets the six other bumps in #347 land now — `cryptography` 50.0.0 → 50.0.1 among
+them — instead of waiting on an architecture change. A security patch should not queue
+behind a design decision, and a design decision should not be made under the time pressure
+of a security patch. The replacement is a separate change, reviewed as the architecture
+change it is.
+
+**Also settled here, because the same recompile is its trigger.** `gunicorn` was a runtime
+dependency nothing invoked: every service is uvicorn, and `GUNICORN_TIMEOUT` was read by
+`config.py` and consumed by nothing. It is removed, along with that constant, its
+`.env.example` line and its `CONFIGURATION.md` row — which disagreed with each other anyway
+(300 against 600). ROADMAP's accepted-debt entry named "the next `pip-compile` run for any
+reason" as the moment to do this. This was that run.
+
+**Revisit when:** the sovereignty constraint changes, and a non-OpenAI-shaped provider
+becomes worth reaching. Or if a second maintained OpenAI-compatible client emerges that is
+materially better than `httpx` plus forty lines — at which point the question is which
+client, not whether to keep the adapter. Re-adopting litellm would mean accepting boto3,
+so that trade should be made explicitly rather than by taking a Dependabot bump.
+
 ---
 
 ## Recording a new ADR

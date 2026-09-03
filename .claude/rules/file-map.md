@@ -96,7 +96,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/AUTH_PLAN.md` | Authentication build plan — AUTH-1..4: local login, Users screen, OIDC (Entra/Google), then deleting the bypasses |
 | `docs/PRODUCTION_PLAN.md` | Production-hardening plan from the 2026-08-04 external audit — TQ/SEC tickets and the exit criteria ROADMAP Sprints 8–12 queue behind |
 | `docs/DEPLOYMENT_SCALEWAY.md` | Deploying the stack on Scaleway — compose-service mapping, the decisions register (§2) and what would reverse each, the pgvector `SET` caveat, the `X-Forwarded-For` trust problem, cost ceilings, Terraform coverage, and §11's list of every unverified claim with the check that settles it. Nothing deployed yet |
-| `docs/ADR.md` | Architecture Decision Records — ADR-1 (single-node appliance) and ADR-2 (sync DB layer), each with the condition that would reopen it |
+| `docs/ADR.md` | Architecture Decision Records — ADR-1 (single-node appliance), ADR-2 (sync DB layer), ADR-3 (hardened distroless image), ADR-4 (cloud fallback targets OpenAI-compatible endpoints directly, not a multi-provider adapter), each with the condition that would reopen it |
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |
 | `docs/SCHEMA.md` | Database schema reference + ER diagram |
 | `docs/TROUBLESHOOTING.md` | Common issues and fixes |
