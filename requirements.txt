@@ -31,8 +31,6 @@ attrs==26.1.0
     #   referencing
 blis==1.3.3
     # via thinc
-brotli==1.2.0
-    # via httpx
 catalogue==2.0.10
     # via
     #   spacy
@@ -64,7 +62,7 @@ confection==1.3.3
     #   spacy
     #   thinc
     #   weasel
-cryptography==50.0.0
+cryptography==50.0.1
     # via
     #   -r requirements.in
     #   pdfminer-six
@@ -80,7 +78,7 @@ cymem==2.0.13
     #   preshed
     #   spacy
     #   thinc
-ddgs==9.15.0
+ddgs==9.16.0
     # via -r requirements.in
 deprecated==1.3.1
     # via limits
@@ -94,8 +92,6 @@ email-validator==2.3.0
     # via -r requirements.in
 et-xmlfile==2.0.0
     # via openpyxl
-fake-useragent==2.2.0
-    # via ddgs
 fastapi==0.141.1
     # via -r requirements.in
 fastuuid==0.14.0
@@ -116,27 +112,20 @@ fsspec==2026.7.0
     #   torch
 greenlet==3.5.5
     # via sqlalchemy
-gunicorn==26.1.0
-    # via -r requirements.in
 h11==0.16.0
     # via
     #   -r requirements.in
     #   httpcore
     #   uvicorn
-h2==4.4.1
-    # via httpx
 hf-xet==1.6.0
     # via huggingface-hub
-hpack==4.2.0
-    # via h2
 httpcore==1.0.9
     # via httpx
 httptools==0.8.0
     # via uvicorn
-httpx[brotli,http2,socks]==0.28.1
+httpx==0.28.1
     # via
     #   -r requirements.in
-    #   ddgs
     #   huggingface-hub
     #   litellm
     #   openai
@@ -146,8 +135,6 @@ huggingface-hub==1.28.0
     #   sentence-transformers
     #   tokenizers
     #   transformers
-hyperframe==6.1.0
-    # via h2
 idna==3.19
     # via
     #   anyio
@@ -344,7 +331,7 @@ pymupdf-layout==1.28.2
     # via pymupdf4llm
 pymupdf4llm==1.28.2
     # via -r requirements.in
-pypdf==6.16.1
+pypdf==6.16.2
     # via -r requirements.in
 pypdfium2==5.13.0
     # via pdfplumber
@@ -415,9 +402,7 @@ smart-open==8.0.1
     # via weasel
 sniffio==1.3.1
     # via openai
-socksio==1.0.0
-    # via httpx
-spacy==3.8.15
+spacy==3.8.16
     # via -r requirements.in
 spacy-legacy==3.0.12
     # via spacy

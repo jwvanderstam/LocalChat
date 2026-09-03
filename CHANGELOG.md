@@ -8,7 +8,25 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **The cloud fallback will target OpenAI-compatible endpoints directly rather than through
+  `litellm`** ([ADR-4](docs/ADR.md)). `litellm` is held at 1.97.0: 1.98.0 hard-depends on
+  `boto3`, which put the AWS SDK into the image of a sovereignty-scoped appliance in order
+  to reach Bedrock this deployment will never call. The fallback capability is unchanged;
+  the multi-provider adapter is what goes. Caught by
+  `test_raises_import_error_without_boto3`, which failed because `boto3` was no longer
+  absent.
+- Dependency bumps taken alongside it: `cryptography` 50.0.1, `spacy` 3.8.16, `pypdf`
+  6.16.2, `ddgs` 9.16.0, and `responses` 0.26.3 in the dev lock.
+
+### Removed
+
+- **`gunicorn`**, a runtime dependency nothing invoked — every service is uvicorn — along
+  with the `GUNICORN_TIMEOUT` constant no code consumed, its `.env.example` line and its
+  `CONFIGURATION.md` row. The three had drifted to different values (300, 600, 600), which
+  is what an unused setting does. ROADMAP's accepted-debt entry named the next
+  `pip-compile` run as the trigger; this was that run.
 
 ## [3.0.0] — 2026-08-31
 

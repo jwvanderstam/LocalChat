@@ -219,7 +219,6 @@ OLLAMA_NUM_CTX: int = int(os.environ.get('OLLAMA_NUM_CTX', '8192'))
 OLLAMA_EMBED_TIMEOUT: int = int(os.environ.get('OLLAMA_EMBED_TIMEOUT', '600'))
 # Gunicorn worker timeout (seconds). Must be >= OLLAMA_EMBED_TIMEOUT so a
 # worker is never killed mid-embed. 600 s supports up to ~15MB TXT uploads.
-GUNICORN_TIMEOUT: int = int(os.environ.get('GUNICORN_TIMEOUT', '600'))
 # Preferred chat model selected at startup when no model is already active.
 # Falls back to the first available model if this name is not installed.
 DEFAULT_MODEL: str = os.environ.get('DEFAULT_MODEL', 'llama3.1')
