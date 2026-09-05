@@ -1,0 +1,39 @@
+#cloud-config
+# Phase 4: an Ollama host that serves embeddings for the LocalChat test stack.
+#
+# It installs Ollama and stops there. It deliberately does NOT pull a model:
+# on the first live run the cloud-init pull failed silently and left a box with
+# zero models, and with inbound traffic dropped by design there was no way in to
+# find out why. Pulling through the application's own POST /api/models/pull is
+# idempotent, streams its progress back, needs no SSH, and exercises the private
+# network that has to be proven anyway. See deploy_embeddings.sh.
+#
+# OLLAMA_HOST=0.0.0.0 is required: Ollama binds to 127.0.0.1 by default, which a
+# container on the private network cannot reach. The exposure that would create
+# is closed at the network edge instead — this instance sits behind a security
+# group whose inbound default policy is `drop`, so 11434 answers on the private
+# network and nowhere else.
+
+package_update: true
+
+runcmd:
+  - curl -fsSL https://ollama.com/install.sh | sh
+  - mkdir -p /etc/systemd/system/ollama.service.d
+  - |
+    cat > /etc/systemd/system/ollama.service.d/override.conf <<'EOF'
+    [Service]
+    Environment="OLLAMA_HOST=0.0.0.0:11434"
+    EOF
+  - systemctl daemon-reload
+  - systemctl enable --now ollama
+  - systemctl restart ollama
+  # A marker readable from the serial console. If this file is absent, Ollama
+  # never came up and nothing else on the box is worth reading.
+  - |
+    for i in $(seq 1 60); do
+      if curl -sf http://127.0.0.1:11434/api/tags >/dev/null; then
+        touch /var/log/ollama-ready
+        break
+      fi
+      sleep 2
+    done

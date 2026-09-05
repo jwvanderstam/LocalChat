@@ -19,9 +19,19 @@ document treats that as a constraint to respect rather than a limitation to work
 
 **The shortest useful path**, and the reasoning is in the sections that follow:
 
-> **A test stack is live as of 2026-09-05**, and steps 1–4 below are done. Run
-> `scripts/scaleway/provision.sh` to rebuild Phase 1 from nothing, and
-> [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md) to tear it all down.
+> **The whole stack has been built, verified end to end, and torn down again** — for
+> €0.13, on 2026-09-05. Every phase is now a script, written from what the manual run
+> actually did (D3):
+>
+> ```bash
+> bash scripts/scaleway/provision.sh          # Phase 1 — project, database, IAM
+> bash scripts/scaleway/deploy_container.sh   # Phase 2 — namespace and container
+> python scripts/scaleway/verify_deployment.py <endpoint>   # Phase 3 — the gate
+> bash scripts/scaleway/deploy_embeddings.sh  # Phase 4 — Ollama on CPU
+> python scripts/scaleway/verify_deployment.py <endpoint> --pull-model nomic-embed-text
+> ```
+>
+> All of them are idempotent. To tear it down: [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md).
 
 1. ~~Get a payment method on the account~~ — not required; resources create without one.
 2. Create a Serverless SQL Database with `cpu-max = 1` (§4) — `provision.sh` does this.
