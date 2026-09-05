@@ -213,4 +213,4 @@ class TestCatalogueOrder:
 
         slugs = [slug for slug, _ in _CATALOGUE]
         assert len(slugs) == len(set(slugs)), "duplicate slug in the catalogue"
-        assert len(slugs) == 28
+        assert len(slugs) == 29
