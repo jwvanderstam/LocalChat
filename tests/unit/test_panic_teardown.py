@@ -47,6 +47,17 @@ if [[ -n "$SCW_FAKE_FAIL" && "$*" == *"$SCW_FAKE_FAIL"* ]]; then
   echo "scaleway-sdk-go: boom" >&2
   exit 1
 fi
+# Fails the first $SCW_FAKE_FLAKY_TIMES calls that match, then succeeds — the
+# shape of a resource whose dependants have not finished releasing it yet.
+if [[ -n "$SCW_FAKE_FLAKY" && "$*" == *"$SCW_FAKE_FLAKY"* ]]; then
+  n=$(cat "$SCW_FAKE_LOG.flaky" 2>/dev/null || echo 0)
+  n=$((n + 1))
+  echo "$n" > "$SCW_FAKE_LOG.flaky"
+  if [[ "$n" -le "${SCW_FAKE_FLAKY_TIMES:-1}" ]]; then
+    echo "scaleway-sdk-go: precondition failed: resource is still in use" >&2
+    exit 1
+  fi
+fi
 case "$1 $2 $3" in
   "config get default-organization-id") echo "$SCW_FAKE_ORG" ;;
   "instance server list")               printf '%s' "$SCW_FAKE_SERVERS" ;;
@@ -75,6 +86,9 @@ def _run(tmp_path, project=PROJECT, **env):
         "SCW_FAKE_LOG": str(log),
         "SCW_FAKE_ORG": ORG,
         "SCW_FAKE_FAIL": "",
+        "SCW_FAKE_FLAKY": "",
+        "SCW_FAKE_FLAKY_TIMES": "1",
+        "PN_RETRY_DELAY": "0",
         "SCW_FAKE_SERVERS": "[]",
         "SCW_FAKE_NAMESPACES": "[]",
         "SCW_FAKE_DATABASES": "[]",
@@ -171,3 +185,53 @@ def test_an_empty_project_reports_nothing_to_do(tmp_path):
     assert proc.returncode == 0, proc.stderr
     assert deletes == []
     assert "Nothing billable found" in proc.stdout
+
+
+class TestThePrivateNetworkIsRetried:
+    """A Private Network refuses deletion until its dependants have let go.
+
+    Observed on the first live teardown: everything above it deleted cleanly, the
+    network failed with "must be empty to be deleted", and a second run seconds
+    later succeeded. Deletes return before their network attachments are released,
+    so the ordering was right and only the timing was wrong.
+    """
+
+    def test_a_network_that_is_briefly_still_in_use_is_deleted_on_a_later_attempt(self, tmp_path):
+        proc, _, deletes = _run(
+            tmp_path,
+            CONFIRM="DESTROY",
+            SCW_FAKE_FLAKY="private-network-id=pn-1",
+            SCW_FAKE_FLAKY_TIMES="2",
+            **FULL_STACK,
+        )
+
+        assert proc.returncode == 0, proc.stderr
+        attempts = [d for d in deletes if d.startswith("vpc private-network delete")]
+        assert len(attempts) == 3, "it must keep trying, not give up after one refusal"
+        assert "(attempt 3)" in proc.stdout, "a retried success should say so"
+
+    def test_it_gives_up_rather_than_retrying_forever(self, tmp_path):
+        proc, _, deletes = _run(
+            tmp_path,
+            CONFIRM="DESTROY",
+            SCW_FAKE_FLAKY="private-network-id=pn-1",
+            SCW_FAKE_FLAKY_TIMES="99",
+            **FULL_STACK,
+        )
+
+        assert proc.returncode == 1
+        attempts = [d for d in deletes if d.startswith("vpc private-network delete")]
+        assert len(attempts) == 3, "bounded — a burning account cannot wait forever"
+        assert "did NOT go away" in proc.stderr
+
+    def test_retrying_does_not_hide_the_failure_from_the_exit_code(self, tmp_path):
+        """The whole value of the script is that a partial teardown is loud."""
+        proc, _, _ = _run(
+            tmp_path,
+            CONFIRM="DESTROY",
+            SCW_FAKE_FLAKY="private-network-id=pn-1",
+            SCW_FAKE_FLAKY_TIMES="99",
+            **FULL_STACK,
+        )
+
+        assert "private network backend" in proc.stderr

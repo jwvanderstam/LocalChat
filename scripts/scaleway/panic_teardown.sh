@@ -84,6 +84,45 @@ rows() {
   printf '%s' "$raw" | "$PYTHON" -c "$READ_ROWS" "$scope_key"
 }
 
+# Deleting a resource returns before its network attachments are released, so the
+# Private Network — which depends on everything above it having let go — can fail
+# with "must be empty to be deleted" while being seconds away from deletable.
+# Observed on the first live teardown, 2026-09-05: it failed, then succeeded on a
+# second run. Nothing is burning while this retries — a Private Network is free.
+PN_RETRIES="${PN_RETRIES:-3}"
+PN_RETRY_DELAY="${PN_RETRY_DELAY:-5}"
+
+# kill_with_retry <label> <scw delete args...>
+kill_with_retry() {
+  local label="$1"; shift
+  PLANNED=$((PLANNED + 1))
+  if [[ "$CONFIRM" != "DESTROY" ]]; then
+    printf '  would delete  %s
+' "$label"
+    return
+  fi
+  local attempt out
+  for attempt in $(seq 1 "$PN_RETRIES"); do
+    if out=$(scw "${PROFILE_ARGS[@]}" "$@" 2>&1); then
+      if [[ "$attempt" -gt 1 ]]; then
+        printf '  deleted       %s (attempt %s)
+' "$label" "$attempt"
+      else
+        printf '  deleted       %s
+' "$label"
+      fi
+      return
+    fi
+    if [[ "$attempt" -lt "$PN_RETRIES" ]]; then
+      sleep "$PN_RETRY_DELAY"
+    fi
+  done
+  printf '  FAILED        %s
+    %s
+' "$label" "$out" >&2
+  FAILED+=("$label")
+}
+
 # kill <label> <scw delete args...>
 kill_one() {
   local label="$1"; shift
@@ -148,7 +187,7 @@ done < <(rows zone -- instance ip list zone=all)
 echo "Private networks (free, but they hold references that block other deletes):"
 while IFS=$'\t' read -r id region name; do
   [[ -n "$id" ]] || continue
-  kill_one "private network $name ($id, $region)" vpc private-network delete \
+  kill_with_retry "private network $name ($id, $region)" vpc private-network delete \
     private-network-id="$id" region="$region"
 done < <(rows region -- vpc private-network list region=all)
 
