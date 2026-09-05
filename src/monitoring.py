@@ -27,7 +27,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
-from time import time
+from time import monotonic, time
 from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -259,6 +259,49 @@ def _status(healthy: bool) -> str:
     return 'up' if healthy else 'down'
 
 
+# A health probe that is polled every few seconds must not become load of its own,
+# and must not be so cached that it reports a database that went away minutes ago.
+_DB_PROBE_TTL_SECONDS = 5.0
+_db_probe: dict[str, float | bool] = {'at': 0.0, 'up': False}
+
+
+def _live_check_database(app) -> bool:
+    """Ask the pool for a connection and run a query.
+
+    `startup_status['database']` records whether the *boot* succeeded and never
+    changes afterwards, so on its own it reports `up` for the life of the process
+    even while every request fails — which is exactly what happened against a
+    Serverless SQL database that had scaled to zero. A TCP check is not enough
+    either: a connection pooler accepts the socket whether or not the database
+    behind it can serve a query. So this borrows a real connection and uses it.
+    """
+    if not app.startup_status.get('database', False):
+        return False
+
+    now = monotonic()
+    if now - float(_db_probe['at']) < _DB_PROBE_TTL_SECONDS:
+        return bool(_db_probe['up'])
+
+    db = getattr(app, 'db', None)
+    if db is None:
+        return False
+
+    up = False
+    try:
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT 1')
+                up = cur.fetchone() is not None
+    except Exception as e:
+        # Degraded, not fatal: the caller turns this into a 503 for the probe to act on.
+        logger.warning("[Health] Database probe failed: %s", e)
+        up = False
+
+    _db_probe['at'] = now
+    _db_probe['up'] = up
+    return up
+
+
 def _live_check_ollama(app, db_up: bool) -> bool:
     """Live-check Ollama and update startup_status; returns whether Ollama is up."""
     ollama_up = app.startup_status.get('ollama', False)
@@ -277,7 +320,7 @@ def compute_health_status(app) -> tuple:
     checks = {}
     overall_healthy = True
     if hasattr(app, 'startup_status'):
-        db_up = app.startup_status.get('database', False)
+        db_up = _live_check_database(app)
         checks['database'] = {'status': _status(db_up), 'healthy': db_up}
         if not db_up:
             overall_healthy = False
