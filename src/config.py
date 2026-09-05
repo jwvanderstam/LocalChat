@@ -193,6 +193,11 @@ if not _PG_PASSWORD_RAW:
 PG_PASSWORD: str = _PG_PASSWORD_RAW
 
 PG_DB: str = str(os.environ.get('PG_DB', 'rag_db'))
+# libpq's own default is 'prefer', which silently accepts an unencrypted
+# connection when TLS fails. That is tolerable against a container on the
+# same host and not against a managed database over the public internet,
+# so managed deployments set 'require' explicitly.
+PG_SSLMODE: str = str(os.environ.get('PG_SSLMODE', 'prefer'))
 
 # Connection Pool Settings
 DB_POOL_MIN_CONN: int = int(os.environ.get('DB_POOL_MIN_CONN', '2'))

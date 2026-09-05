@@ -20,6 +20,10 @@ export PG_PORT=5432
 export PG_USER=postgres
 export PG_PASSWORD=your_password
 export PG_DB=rag_db
+# TLS to the database. Default 'prefer' negotiates TLS and silently accepts an
+# unencrypted connection if it fails — fine for a container on the same host.
+# A managed database reached over the internet must set 'require' or stronger.
+export PG_SSLMODE=prefer
 
 # Ollama Configuration
 # Host-run only. Under `docker compose up -d` the app service hardcodes
