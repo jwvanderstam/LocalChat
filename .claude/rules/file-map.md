@@ -177,7 +177,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/perf/conftest.py` | Reuses `live_server`, raising `RATELIMIT_CHAT` — at its 10/min default a concurrency run measures slowapi, not the event loop |
 | `tests/perf/test_concurrency_canary.py` | PERF-2 — `/api/health` stays answerable while concurrent SSE streams run; prints the canary spread every run |
 | `tests/e2e/test_golden_path.py` | TQ-4 — sign in, upload, ask, and the answer cites the uploaded file; the whole frontend test strategy |
-| `scripts/scaleway/bootstrap_billing_alert.sh` | Scaleway budget + alert + webhook (§8 of `DEPLOYMENT_SCALEWAY.md`) — the cost guardrail Terraform cannot express; checks for each object before creating it, and refuses to create when it cannot read the reply |
+| `scripts/scaleway/bootstrap_billing_alert.sh` | Scaleway budget + alert + webhook (§8 of `DEPLOYMENT_SCALEWAY.md`) — the cost guardrail Terraform cannot express; one `budget list` reads the whole tree, so every level is matched before it is created and a re-run writes nothing |
+| `tests/unit/test_bootstrap_billing_alert.py` | The cost guardrail's decision logic — runs the script against a recording `scw` shim and asserts the exact call sequence; covers the refuse-rather-than-duplicate paths the live CLI cannot be tested for |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
 | `scripts/eval_retrieval.py` | DEL-2 — scores retrieval against fixed question/source pairs; `--compare graph\|reranker` runs both arms, and refuses when the feature under test never fires. `--corpus` takes any directory and ingests every type the app supports, so a maintainer's own .pptx/.docx/.xlsx set can be scored, not just Markdown |
 | `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |

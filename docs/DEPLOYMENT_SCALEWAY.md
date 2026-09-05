@@ -108,8 +108,13 @@ sustained utilisation above 90% or below 70% for 10 s.
 
 > **The Terraform resource defaults `max_cpu` to 15.** A block that sets only `name`
 > creates the database at the full platform ceiling — the runaway-cost scenario, produced
-> silently by a default. *[Confirmed from the provider's argument reference.]* Whether the
-> `scw` CLI shares that default was never checked; §11 has it.
+> silently by a default. *[Confirmed from the provider's argument reference.]*
+>
+> **The CLI does not share that default, and the command is `scw sdb-sql`, not `scw sdb`.**
+> `scw sdb-sql database create` *requires* `cpu-min` and `cpu-max` — note the argument
+> order and the hyphen; there is no `max_cpu` — and refuses without them. The trap is
+> Terraform-specific, which makes the CLI the safer path for Phase 1.
+> *[Confirmed against `scw` 2.61.0, 2026-09-05.]*
 
 Use `min_cpu = 0`, `max_cpu = 1` (D5). `min_cpu = 0` stops idle billing at the cost of a
 few seconds of cold start, which is acceptable here.
@@ -164,7 +169,7 @@ Options, ordered by how much they preserve the app unmodified:
 
 | # | Option | Code change | Cost | Latency |
 |---|---|---|---|---|
-| 1 | **GPU Instance** running Ollama, on a Private Network attached to the container | None | Highest — hourly, the whole time it is up. Order of €1–3+/hour depending on GPU class, **unverified** (§11) | Good |
+| 1 | **GPU Instance** running Ollama, on a Private Network attached to the container | None | Highest — hourly, the whole time it is up. `L4-1-24G` is **€0.787/h — about €575/month left running**; `L40S-1-48G` €1.47/h, `H100-1-80G` €2.87/h. *[Measured via `scw instance server-type list zone=fr-par-2`, 2026-09-05.]* | Good |
 | 2 | **CPU Instance** with a small quantised model | None | Much lower | Materially worse — seconds to tens of seconds per response |
 | 3 | **Rewrite the LLM client** for Scaleway's OpenAI-compatible Generative APIs | Two source files | Pay-per-token, no VM | Good |
 | 4 | **Skip it** (D7) | None | €0 | Chat endpoints fail cleanly; everything else works |
@@ -336,13 +341,29 @@ delete exactly that instance and nothing else. It is the next real step if optio
 is chosen.
 
 `scripts/scaleway/bootstrap_billing_alert.sh` creates the budget, alert and notification.
-It checks before it creates, at every level: `scw billing ... create` is **not idempotent**,
-so a second blind run produces a second budget and a second alert silently, and the
-duplicate is invisible until the invoice. When a lookup cannot be trusted — the call fails,
-or the reply is not the shape expected — it refuses to create rather than risk a duplicate
-it could not see. Its `scw` verbs and field names are written from the documented CLI
-surface and are **unverified against a live account** (§11); a mismatch makes it refuse, not
-duplicate. The matching logic itself is tested.
+`scw billing ... create` is **not idempotent**, so a blind second run adds a second budget
+and a second alert silently, and the duplicate is invisible until the invoice. The script
+is shaped entirely by how little of that the CLI lets it check:
+
+Neither `budget-alert list` nor `budget-alert-notification list` exists — but that turns
+out not to matter, because **`billing budget list` returns the whole tree**: every budget
+with its `alerts[]`, and every alert with its `notifications[]`. One GET establishes all
+three levels, which is why nothing here ever creates blind.
+
+| Level | Identified by | So the script |
+|---|---|---|
+| `budget` | nothing — a budget has **no name**, only `consumption_limit` and `enabled` | updates the one that exists, or creates the first. More than one is **refused**: with no name there is no way to tell which is the guardrail. |
+| `budget-alert` | its `threshold`, read from the budget's nested `alerts[]` | creates one only when no alert at that threshold exists. An alert at a *different* threshold is left alone — two thresholds on one budget are a legitimate configuration. |
+| `budget-alert-notification` | presence in the alert's nested `notifications[]` | attaches a webhook only to an alert that has none. The reply does not expose destinations, so "already notified" is as far as it can tell; repointing means deleting first. |
+
+An unreadable reply is refused rather than read as "absent" — reading a failure as absent
+is exactly what would create the duplicate. Note that `consumption_limit` comes back as
+`{currency_code, units, nanos}`, not a scalar.
+
+*[Verified against `scw` 2.61.0 and a live account, 2026-09-05: created the €50 budget and
+its €40 alert, then re-ran twice — the second run was a single GET and no writes.]* The
+decision logic is covered by `tests/unit/test_bootstrap_billing_alert.py`, which runs the
+script against a recording `scw` shim and asserts the exact call sequence.
 
 ### Terraform covers everything except billing
 
@@ -439,15 +460,27 @@ Every claim above that is not settled, with the command that settles it and what
 different answer means. Work through it in order rather than rediscovering each one at the
 moment it bites.
 
-### Settleable now — no spend, no live stack
+### Settled — checked 2026-09-05 against `scw` 2.61.0 on the live account
+
+All read-only except the last row, which created the cost guardrail itself.
+
+| Claim | What the check found |
+|---|---|
+| The `scw billing` verbs and field names `bootstrap_billing_alert.sh` matched on | **Half of them did not exist.** `budget create` takes `consumption-limit`/`enabled`, not `name`/`amount`; a budget has no name at all; and neither `budget-alert list` nor `budget-alert-notification list` exists. The script refused rather than duplicated, as designed — but it could not work. Rewritten around the real surface (§8). |
+| How an alert can be found, given no `budget-alert list` | **`budget list` returns the whole tree** — `alerts[]` nested in each budget, `notifications[]` nested in each alert. One GET covers all three levels, so the script matches an alert on its threshold instead of guessing from whether the budget already existed. |
+| Whether `scw` shares Terraform's `max_cpu` default of 15 | **No.** The command is `scw sdb-sql database create`, and it requires `cpu-min` and `cpu-max` explicitly. The trap is Terraform-only; the CLI path is safer (§4). |
+| GPU Instance hourly rate | **€0.787/h for `L4-1-24G`** — about €575/month left running. L40S-1-48G €1.47/h, H100-1-80G €2.87/h. Feeds §5 and sets the budget figures (§8). |
+| That the account can authenticate at all | `scw login` (browser SSO, no secret key handled) writes a working profile. One project exists, `Test_Belgium_Atos`, sharing its id with the organisation — i.e. the default project. |
+| Organisation security settings | Already sane: API keys capped at 365 days, lockout after 5 failed logins. Login sessions last 30 days, which is long for an account with this reach. |
+| **The guardrail itself (§8)** | **Created:** budget `acd46bb4` at a €50 ceiling, alert `0de04d05` at €40, no webhook (no consumer exists to receive one). Two further runs made no writes. This is the only resource created so far, and it costs nothing. |
+
+### Still settleable now — no spend, no live stack
 
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
-| The `scw billing` verbs and field names `bootstrap_billing_alert.sh` matches on (`.name`, `.budget_id`, `.threshold`, `.budget_alert_id`) | Written from the documented CLI surface; `scw` was not installed when it was written | `scw billing budget list -o json`, then the same for `budget-alert list` and `budget-alert-notification list` | Adjust the `MATCHED ON:` comments. Safe by construction: a wrong field name matches nothing and the script refuses — the symptom is a refusal, never a duplicate. |
-| That `scw sdb sql database create` shares the Terraform provider's `max_cpu` default of 15 (§4) | Only the *provider's* default was confirmed; the CLI's was never checked | `scw sdb sql database create --help` | If shared, the trap is not Terraform-specific and `max_cpu = 1` must be passed explicitly on the CLI path too. If the flag is required, the CLI path is the safer one. |
-| GPU Instance hourly rate (§5) | Never fetched | `scw instance server-type list zone=fr-par-2 -o json`, against the current pricing page | Feeds the §5 decision and sets the budget figures the bootstrap script needs — those are guesses until this is real. |
 | Compressed image size (§6 measured 6.60 GB of files and 9.92 GB of layers, both uncompressed) | Needs a registry push to observe | `docker manifest inspect ghcr.io/jwvanderstam/localchat:3.0.0` | Sets the honest cold-start expectation. D2 avoids the problem during the test either way, so this informs the §6 trim decision rather than blocking anything. |
 | The webhook payload shape `{"invoice_start_date": ..., "threshold": ...}` (§8) | From Scaleway's docs; never received | Point the webhook at a request-capture endpoint and set the threshold to €1 so it fires early | The eventual consumer parses this. A wrong shape means it silently no-ops at exactly the moment it should stop the burn — the one failure that costs money. Worth the €1. |
+| Whether an organisation may hold more than one budget | One now exists and `create` takes no name, but a second was never attempted | `scw billing budget create consumption-limit=1 enabled=false`, then list and delete | If several are allowed, the script's refuse-on-more-than-one guard is the right behaviour but becomes reachable in normal use — and there is still no name to tell them apart. |
 
 ### Settleable only against a live stack
 
@@ -458,9 +491,11 @@ moment it bites.
 | Cold start after scale-to-zero (§6) | Never measured; the compressed size it depends on is itself unmeasured | Idle past 15 minutes, then time the first request | Decides whether a trimmed image is worth building, or whether min scale 1 is simply the answer (D2). |
 | That the image runs on Scaleway at all | Nothing has been deployed | Phase 3 | The whole point of the first deployment. D3 exists so that a failure here has one plausible cause. |
 
-**Phase 0 gates all of it.** Every check in the second table, and the pricing and webhook
-rows in the first, need an account that can create resources — which still needs a payment
-method on file, still console-only, still only you.
+**Phase 0 gates the rest.** Everything under *Settleable only against a live stack*, plus
+the webhook row above it, needs an account that can create *billable* resources — which
+still needs a payment method on file, still console-only, still only you. The budget created
+on 2026-09-05 does not settle that: a budget is a billing object, free and always available.
+Nothing that costs money has been created.
 
 ---
 
