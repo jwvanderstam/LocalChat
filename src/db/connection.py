@@ -254,6 +254,7 @@ class DatabaseConnection:
                 "user": config.PG_USER,
                 "password": config.PG_PASSWORD,
                 "dbname": config.PG_DB,
+                "sslmode": config.PG_SSLMODE,
             }
 
             def configure_connection(conn: Any) -> None:
@@ -341,6 +342,7 @@ class DatabaseConnection:
                 user=config.PG_USER,
                 password=config.PG_PASSWORD,
                 dbname="postgres",
+                sslmode=config.PG_SSLMODE,
                 autocommit=True,
             ) as conn:
                 with conn.cursor() as cursor:

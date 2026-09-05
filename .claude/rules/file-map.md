@@ -168,6 +168,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
 | `tests/unit/test_oauth_routes_identity.py` | BUG-4 — the OAuth callbacks store a token against a real user or refuse; no `"admin"` string fallback |
 | `tests/unit/test_graphrag_startup_check.py` | GRAPH_RAG_ENABLED cannot look enabled while inert — warns at startup when no spaCy model is installed |
+| `tests/unit/test_db_sslmode.py` | Every database connection carries an explicit `sslmode` — libpq's `prefer` default silently accepts an unencrypted connection, which a managed database over the internet must not |
 | `tests/unit/test_ef_search_persistence.py` | A transaction-pooling proxy silently drops `hnsw.ef_search`; the pool now reads it back and warns, and these prove it warns on the observed value, only once, and not at all when it stuck |
 | `tests/unit/test_purge_preconditions.py` | The Clark-Wilson purge TPs — a cited conversation or a user with memberships is refused before any DELETE |
 | `tests/unit/test_processor_entity_extraction.py` | `_extract_entities` — GraphRAG is best-effort; a failure there never fails an ingest |
@@ -180,6 +181,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/e2e/test_golden_path.py` | TQ-4 — sign in, upload, ask, and the answer cites the uploaded file; the whole frontend test strategy |
 | `scripts/scaleway/bootstrap_billing_alert.sh` | Scaleway budget + alert + webhook (§8 of `DEPLOYMENT_SCALEWAY.md`) — the cost guardrail Terraform cannot express; one `budget list` reads the whole tree, so every level is matched before it is created and a re-run writes nothing |
 | `tests/unit/test_bootstrap_billing_alert.py` | The cost guardrail's decision logic — runs the script against a recording `scw` shim and asserts the exact call sequence; covers the refuse-rather-than-duplicate paths the live CLI cannot be tested for |
+| `scripts/scaleway/provision.sh` | Phase 1 on Scaleway in one idempotent run — scoped project, Serverless SQL Database with both CPU bounds, IAM application + project-scoped policy, and the API key whose secret is written to a 600-mode file outside the repo. Every tunable is `PROVISION_`-prefixed because the app's own `.env` defines `APP_NAME` |
+| `tests/unit/test_provision_scaleway.py` | The provisioning decisions — a second run creates nothing, the policy is project-scoped, the secret never reaches stdout, and an unreadable reply provisions nothing |
+| `scripts/scaleway/verify_database.py` | Gates a deployment against a live Serverless SQL Database: TLS is required (routing is by SNI), pgvector installs, `hnsw.ef_search` survives a transaction boundary, and the identity can do DDL but cannot drop the database |
 | `scripts/scaleway/panic_teardown.sh` | The cost kill switch — deletes everything billable in ONE project, most expensive first, taking volumes and IPs with the server; dry run unless `CONFIRM=DESTROY`, and the organisation's default project is refused outright |
 | `tests/unit/test_panic_teardown.py` | The kill switch's decisions — asserts the delete flags that stop the burn (`with-volumes`, `with-ip`), the order, that a failure never stops the sweep, and that the default project is refused |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
