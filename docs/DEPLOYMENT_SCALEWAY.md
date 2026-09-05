@@ -29,6 +29,8 @@ document treats that as a constraint to respect rather than a limitation to work
 4. Skip Ollama for the first pass (§5, option 4) — but note it blocks the document path,
    not just chat.
 5. Work through §11 with a live stack in front of you.
+6. Add embeddings on a **CPU** Instance before considering a GPU (§5) — the CPU box is a
+   disposable stand-in, and everything built around it is what the GPU step reuses.
 
 **Deploy the image unmodified.** It is large (§6) and there are three defensible ways to
 shrink it, but changing the supply chain and the target in one step turns a failed
@@ -183,14 +185,47 @@ Options, ordered by how much they preserve the app unmodified:
 document upload or retrieval, which need an embedding model (corrected 2026-09-05 against
 the live deployment; this used to claim they worked).
 
-**Then consider a narrow option 2 before option 1.** Ingest needs only *embeddings*, and
-`nomic-embed-text` is small enough to run acceptably on CPU. A CPU Instance serving that
-one model unblocks upload and retrieval for a few euros a month, leaving only generation
-absent. Option 1's GPU is for generation, and it is €575/month.
-
 Option 3 is worth naming honestly: it is the cheapest and simplest operationally, and it
 moves you off "self-hosted local model", which is the product's premise. That is a
 product decision, not a deployment one.
+
+### Option 2 is a stage, not an alternative
+
+**Do not treat 2 and 1 as competing choices. Run 2 first, then replace it with 1.**
+
+The application knows exactly one Ollama endpoint — `OLLAMA_BASE_URL` (`src/config.py`),
+and `OllamaClient` takes a single `base_url`. Embeddings and generation both go there, so
+there is no "CPU for embeddings, GPU for generation" split without a code change.
+
+That sounds like a limitation and is the opposite. It makes the CPU Instance a **disposable
+stand-in rather than a foundation**: Ollama presents the identical API on a GPU box, so
+moving from one to the other is `OLLAMA_BASE_URL` plus a container redeploy. One variable.
+
+What carries forward is not the instance — it is the plumbing:
+
+- the VPC private network, and proof the container can reach an instance at all
+- the firewall rules
+- the cloud-init that installs Ollama and pulls the model
+- proof that ingest works end to end, which nothing has yet demonstrated
+
+Those are exactly what you would otherwise be debugging **for the first time** while a
+€0.787/h meter runs. A GPU Instance bills for every hour it *exists*, not every hour it is
+useful, so an hour of plumbing debug on it is pure waste — and plumbing is where first
+deployments fail.
+
+**Costs, measured 2026-09-05.** The cheapest 4 GiB CPU Instance is `DEV1-M` at
+**€0.0202/h ≈ €14.70/month** left running — 30% of the €50 ceiling, permanently. Per
+session it is **€0.16 for a full working day**. Run it with the same discipline the GPU
+demands: up while testing, gone afterwards. `panic_teardown.sh` already deletes instances
+with their volumes and IP, so tearing down is one command.
+
+> **Build the GPU as a separate instance. Never resize the CPU one.** Both then exist
+> briefly, you confirm generation works, and only then delete the CPU Instance. Resizing
+> discards the fallback at the moment you are most likely to need it.
+
+**Put the CPU Instance in `fr-par-2`**, where GPU capacity lives. Private networks are
+regional and should span zones, but that is unverified — placing both in one zone removes
+the question instead of answering it later, under pressure.
 
 > **Check the account's credit balance and expiry before committing to option 1.** A GPU
 > Instance left running burns a test budget faster than expected. Decide up front whether
@@ -517,8 +552,19 @@ Two things the CLI does not tell you until it refuses:
 Uploads still live on ephemeral disk and vanish on restart — fine for a smoke test,
 not for real use.
 
-**Phase 4 — Decide on Ollama.** Revisit §5. The numbers are now real: `L4-1-24G` is
-€0.787/h ≈ €575/month, and the whole stack so far has cost €0.03.
+**Phase 4 — Embeddings on CPU.** A `DEV1-M` in `fr-par-2` running Ollama with
+`nomic-embed-text` only, on a private network the container can reach. Point
+`OLLAMA_BASE_URL` at it and redeploy. This unblocks upload and retrieval — the part of
+Phase 3 that is still untested — and generation stays absent by design. Generation
+performance on CPU is not the point and should not be judged here.
+
+Everything built in this phase is what Phase 5 reuses. That is the reason it comes first.
+
+**Phase 5 — Decide on the GPU.** Revisit §5 with the plumbing already proven and ingest
+already working, so that a GPU Instance is only ever asked to answer one question: is
+generation acceptable? Build it beside the CPU Instance, never by resizing it, and delete
+the CPU Instance once generation is confirmed. `L4-1-24G` is €0.787/h ≈ €575/month; the
+whole stack up to this point has cost €0.03.
 
 ---
 
