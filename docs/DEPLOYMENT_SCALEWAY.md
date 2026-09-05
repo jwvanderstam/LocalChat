@@ -223,9 +223,28 @@ with their volumes and IP, so tearing down is one command.
 > briefly, you confirm generation works, and only then delete the CPU Instance. Resizing
 > discards the fallback at the moment you are most likely to need it.
 
-**Put the CPU Instance in `fr-par-2`**, where GPU capacity lives. Private networks are
-regional and should span zones, but that is unverified — placing both in one zone removes
-the question instead of answering it later, under pressure.
+### One zone: `fr-par-2`
+
+**Every Instance goes in `fr-par-2`.** The container and the Serverless SQL Database are
+*regional* services with no zone at all (`fr-par`), so this rule governs Instances only —
+but for those it is absolute, and `fr-par-2` is the zone that makes it possible.
+
+Measured 2026-09-05 with `scw instance server-type list zone=<z>`:
+
+| Type | fr-par-1 | fr-par-2 | fr-par-3 |
+|---|---|---|---|
+| `L4-1-24G` (GPU, €0.787/h) | available | **available** | not offered |
+| `L40S-1-48G` (GPU, €1.47/h) | **not offered** | **available** | not offered |
+| `DEV1-M`, `DEV1-L`, `BASIC2-A2C-4G` | available | **available** | not offered |
+
+`fr-par-1` fails the rule on one row, and it is the row that matters most later: the L40S
+is the machine you move to if the L4's 24 GB of VRAM proves tight for a larger model.
+Discovering that mid-migration means moving zones with a private network already wired.
+`fr-par-3` offers none of these types.
+
+Keeping every Instance in one zone also removes a question this document could otherwise
+only guess at — whether a regional private network behaves the same across zones. It
+should. It has not been tested, and now it does not need to be.
 
 > **Check the account's credit balance and expiry before committing to option 1.** A GPU
 > Instance left running burns a test budget faster than expected. Decide up front whether
@@ -586,6 +605,7 @@ All read-only except the last row, which created the cost guardrail itself.
 | GPU Instance hourly rate | **€0.787/h for `L4-1-24G`** — about €575/month left running. L40S-1-48G €1.47/h, H100-1-80G €2.87/h. Feeds §5 and sets the budget figures (§8). |
 | That the account can authenticate at all | `scw login` (browser SSO, no secret key handled) writes a working profile. One project exists, `Test_Belgium_Atos`, sharing its id with the organisation — i.e. the default project. |
 | Organisation security settings | Already sane: API keys capped at 365 days, lockout after 5 failed logins. Login sessions last 30 days, which is long for an account with this reach. |
+| Which zone can hold the whole stack | **`fr-par-2`, and only it.** `fr-par-1` does not offer `L40S-1-48G`; `fr-par-3` offers none of the types this stack needs. Every Instance goes in `fr-par-2` (§5). |
 | Compressed image size | **2.99 GB over 10 layers, one of which is 2.96 GB.** Pulled from `ghcr.io` by Scaleway with no mirroring, `creating` to `ready` in about five minutes. |
 | That the image runs on Scaleway at all | **It does.** `/api/health` answers in 0.52 s with the database up; `app_version` reports 3.0.0; the Alembic chain applied to head `0016`. |
 | `hnsw.ef_search` persistence through Scaleway's pooler (§4) | **It persists.** Reads back `100` in a later transaction, so the pool's `configure` callback is sufficient and `src/db/connection.py` needs no change. |
