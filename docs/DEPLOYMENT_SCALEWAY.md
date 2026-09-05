@@ -19,11 +19,18 @@ document treats that as a constraint to respect rather than a limitation to work
 
 **The shortest useful path**, and the reasoning is in the sections that follow:
 
-1. Get a payment method on the account (§10, Phase 0). Console-only, nothing else works first.
-2. Create a Serverless SQL Database with `max_cpu = 1` (§4).
+> **A test stack is live as of 2026-09-05**, and steps 1–4 below are done. Run
+> `scripts/scaleway/provision.sh` to rebuild Phase 1 from nothing, and
+> [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md) to tear it all down.
+
+1. ~~Get a payment method on the account~~ — not required; resources create without one.
+2. Create a Serverless SQL Database with `cpu-max = 1` (§4) — `provision.sh` does this.
 3. Deploy the container from a **pinned version tag**, min scale 1, max scale 1 (§6, §10).
-4. Skip Ollama for the first pass (§5, option 4). Everything except chat validates for no GPU spend.
+4. Skip Ollama for the first pass (§5, option 4) — but note it blocks the document path,
+   not just chat.
 5. Work through §11 with a live stack in front of you.
+6. Add embeddings on a **CPU** Instance before considering a GPU (§5) — the CPU box is a
+   disposable stand-in, and everything built around it is what the GPU step reuses.
 
 **Deploy the image unmodified.** It is large (§6) and there are three defensible ways to
 shrink it, but changing the supply chain and the target in one step turns a failed
@@ -172,14 +179,72 @@ Options, ordered by how much they preserve the app unmodified:
 | 1 | **GPU Instance** running Ollama, on a Private Network attached to the container | None | Highest — hourly, the whole time it is up. `L4-1-24G` is **€0.787/h — about €575/month left running**; `L40S-1-48G` €1.47/h, `H100-1-80G` €2.87/h. *[Measured via `scw instance server-type list zone=fr-par-2`, 2026-09-05.]* | Good |
 | 2 | **CPU Instance** with a small quantised model | None | Much lower | Materially worse — seconds to tens of seconds per response |
 | 3 | **Rewrite the LLM client** for Scaleway's OpenAI-compatible Generative APIs | Two source files | Pay-per-token, no VM | Good |
-| 4 | **Skip it** (D7) | None | €0 | Chat endpoints fail cleanly; everything else works |
+| 4 | **Skip it** (D7) | None | €0 | Chat endpoints fail cleanly — **and so does document ingest**, since embedding goes through Ollama too. Boot, auth, database and health all validate; the document path does not (§10, Phase 3) |
 
-**Start with 4.** App boots, auth, UI, document upload and retrieval all validate. Revisit
-with real numbers after Phase 3.
+**Start with 4.** App boots and auth, the database and health all validate — but *not*
+document upload or retrieval, which need an embedding model (corrected 2026-09-05 against
+the live deployment; this used to claim they worked).
 
 Option 3 is worth naming honestly: it is the cheapest and simplest operationally, and it
 moves you off "self-hosted local model", which is the product's premise. That is a
 product decision, not a deployment one.
+
+### Option 2 is a stage, not an alternative
+
+**Do not treat 2 and 1 as competing choices. Run 2 first, then replace it with 1.**
+
+The application knows exactly one Ollama endpoint — `OLLAMA_BASE_URL` (`src/config.py`),
+and `OllamaClient` takes a single `base_url`. Embeddings and generation both go there, so
+there is no "CPU for embeddings, GPU for generation" split without a code change.
+
+That sounds like a limitation and is the opposite. It makes the CPU Instance a **disposable
+stand-in rather than a foundation**: Ollama presents the identical API on a GPU box, so
+moving from one to the other is `OLLAMA_BASE_URL` plus a container redeploy. One variable.
+
+What carries forward is not the instance — it is the plumbing:
+
+- the VPC private network, and proof the container can reach an instance at all
+- the firewall rules
+- the cloud-init that installs Ollama and pulls the model
+- proof that ingest works end to end, which nothing has yet demonstrated
+
+Those are exactly what you would otherwise be debugging **for the first time** while a
+€0.787/h meter runs. A GPU Instance bills for every hour it *exists*, not every hour it is
+useful, so an hour of plumbing debug on it is pure waste — and plumbing is where first
+deployments fail.
+
+**Costs, measured 2026-09-05.** The cheapest 4 GiB CPU Instance is `DEV1-M` at
+**€0.0202/h ≈ €14.70/month** left running — 30% of the €50 ceiling, permanently. Per
+session it is **€0.16 for a full working day**. Run it with the same discipline the GPU
+demands: up while testing, gone afterwards. `panic_teardown.sh` already deletes instances
+with their volumes and IP, so tearing down is one command.
+
+> **Build the GPU as a separate instance. Never resize the CPU one.** Both then exist
+> briefly, you confirm generation works, and only then delete the CPU Instance. Resizing
+> discards the fallback at the moment you are most likely to need it.
+
+### One zone: `fr-par-2`
+
+**Every Instance goes in `fr-par-2`.** The container and the Serverless SQL Database are
+*regional* services with no zone at all (`fr-par`), so this rule governs Instances only —
+but for those it is absolute, and `fr-par-2` is the zone that makes it possible.
+
+Measured 2026-09-05 with `scw instance server-type list zone=<z>`:
+
+| Type | fr-par-1 | fr-par-2 | fr-par-3 |
+|---|---|---|---|
+| `L4-1-24G` (GPU, €0.787/h) | available | **available** | not offered |
+| `L40S-1-48G` (GPU, €1.47/h) | **not offered** | **available** | not offered |
+| `DEV1-M`, `DEV1-L`, `BASIC2-A2C-4G` | available | **available** | not offered |
+
+`fr-par-1` fails the rule on one row, and it is the row that matters most later: the L40S
+is the machine you move to if the L4's 24 GB of VRAM proves tight for a larger model.
+Discovering that mid-migration means moving zones with a private network already wired.
+`fr-par-3` offers none of these types.
+
+Keeping every Instance in one zone also removes a question this document could otherwise
+only guess at — whether a regional private network behaves the same across zones. It
+should. It has not been tested, and now it does not need to be.
 
 > **Check the account's credit balance and expiry before committing to option 1.** A GPU
 > Instance left running burns a test budget faster than expected. Decide up front whether
@@ -190,6 +255,10 @@ product decision, not a deployment one.
 ## 6. The image — size, cold start, and which tag
 
 ### Measured, not estimated
+
+> **Compressed: 2.99 GB across 10 layers**, of which **one layer is 2.96 GB** — the
+> virtualenv, and effectively the whole image. Measured from the registry manifest for
+> `3.0.0` on 2026-09-05. Any trim that does not touch that layer changes nothing.
 
 | Measure | Value | What it is |
 |---|---|---|
@@ -450,24 +519,71 @@ connection.
 application id is the login and the API secret key the password — and then the check that
 matters, `CREATE EXTENSION vector`. Nothing has connected to this database yet.
 
-**Phase 2 — Container.** Serverless Container in the AMS namespace. Image
-`ghcr.io/jwvanderstam/localchat:3.0.0` — **a version tag, not `latest`** (§1). Port 5000.
-**Min scale 1, max scale 1** (D1, D2). Env from §9. Memory ≥ 2 GB — torch at import time is
-not free; start at 2–3 GB and watch for OOM restarts.
+**Phase 2 — Container. Done, 2026-09-05.**
 
-**Phase 3 — Validate.**
+```
+namespace  localchat  17ed14ec-4786-4f45-986b-aa70495e05e9   fr-par
+container  localchat  4f1b26f9-fed6-4364-818a-534a8cd35c34
+endpoint   https://localchat17ed14ec-localchat.functions.fnc.fr-par.scw.cloud
+image      ghcr.io/jwvanderstam/localchat:3.0.0   (pulled from ghcr.io directly)
+scale      min 1 / max 1 (D1, D2)      memory 3 GB, 1000 mvCPU      port 5000
+```
 
-- `GET /api/health` answers.
-- `GET /api/status` reports **3.0.0** — confirms the image you think you deployed (§6).
-- Container logs show the Alembic chain applied.
-- Log in with `ADMIN_PASSWORD`.
-- Upload a document and ask a question about it. *(Retrieval works without Ollama;
-  generation does not. Note that uploads live on ephemeral disk and vanish on restart —
-  fine for a smoke test, not for real use.)*
-- Check the logs for the `hnsw.ef_search` warning, then run `SHOW hnsw.ef_search;` on a
-  live connection under load — the warning's absence is not sufficient (§4).
+Reaching `ghcr.io` from Scaleway needed no registry mirroring — the 2.99 GB pull
+took about five minutes from `creating` to `ready`, once.
 
-**Phase 4 — Decide on Ollama.** Revisit §5 with real credit-burn numbers in front of you.
+Two things the CLI does not tell you until it refuses:
+
+- **`memory-limit-bytes` does not take bytes.** `3072000000` is rejected with *"size
+  must be defined using the G or GB unit"*. Pass `3GB`.
+- **Use `secret-environment-variables` for anything sensitive**, not
+  `environment-variables`. Scaleway stores those separately and returns them as argon2
+  hashes, so `container get` never echoes a secret.
+
+**Phase 3 — Validate. Done, with one item blocked.**
+
+| Check | Result |
+|---|---|
+| `GET /api/health` answers | ✅ 200 in 0.52 s — database `up`, cache `up`, ollama `down` (expected, D7) |
+| The deployed image is the one you think | ✅ `app_version: 3.0.0` |
+| The Alembic chain applied | ✅ 20 tables, head `0016`, admin user seeded |
+| Log in with `ADMIN_PASSWORD` | ✅ 200, session cookie issued |
+| `hnsw.ef_search` survives a transaction | ✅ reads back `100` — §4's caveat does not bite |
+| Upload a document and ask about it | ❌ **blocked without Ollama** — see below |
+
+> **The version is not on `/api/status`.** That endpoint returns readiness and feature
+> flags and carries no version at all. `app_version` lives on **`GET /api/settings/stats`**,
+> which is admin-only. This page said `/api/status` until 2026-09-05.
+
+> **Correction: "retrieval works without Ollama" is false.** Ingest embeds every chunk
+> through `OllamaClient.generate_embeddings_batch` (`src/rag/processor.py`), so with no
+> Ollama reachable an upload fails cleanly with *"No embedding model is configured yet"*
+> and **nothing is ingested**. No documents means no retrieval. §5's option 4 is
+> therefore narrower than it read: the no-GPU pass validates boot, auth, database,
+> migrations, health and login — not the document path.
+>
+> The cheap way to unblock it is not a GPU. Embeddings are the only thing ingest needs,
+> and `nomic-embed-text` runs acceptably on CPU: a small CPU Instance running Ollama with
+> an embedding model alone would make upload and retrieval work, leaving only generation
+> absent. That is §5 option 2 applied narrowly, and it is a fraction of option 1's
+> €575/month.
+
+Uploads still live on ephemeral disk and vanish on restart — fine for a smoke test,
+not for real use.
+
+**Phase 4 — Embeddings on CPU.** A `DEV1-M` in `fr-par-2` running Ollama with
+`nomic-embed-text` only, on a private network the container can reach. Point
+`OLLAMA_BASE_URL` at it and redeploy. This unblocks upload and retrieval — the part of
+Phase 3 that is still untested — and generation stays absent by design. Generation
+performance on CPU is not the point and should not be judged here.
+
+Everything built in this phase is what Phase 5 reuses. That is the reason it comes first.
+
+**Phase 5 — Decide on the GPU.** Revisit §5 with the plumbing already proven and ingest
+already working, so that a GPU Instance is only ever asked to answer one question: is
+generation acceptable? Build it beside the CPU Instance, never by resizing it, and delete
+the CPU Instance once generation is confirmed. `L4-1-24G` is €0.787/h ≈ €575/month; the
+whole stack up to this point has cost €0.03.
 
 ---
 
@@ -489,6 +605,12 @@ All read-only except the last row, which created the cost guardrail itself.
 | GPU Instance hourly rate | **€0.787/h for `L4-1-24G`** — about €575/month left running. L40S-1-48G €1.47/h, H100-1-80G €2.87/h. Feeds §5 and sets the budget figures (§8). |
 | That the account can authenticate at all | `scw login` (browser SSO, no secret key handled) writes a working profile. One project exists, `Test_Belgium_Atos`, sharing its id with the organisation — i.e. the default project. |
 | Organisation security settings | Already sane: API keys capped at 365 days, lockout after 5 failed logins. Login sessions last 30 days, which is long for an account with this reach. |
+| Which zone can hold the whole stack | **`fr-par-2`, and only it.** `fr-par-1` does not offer `L40S-1-48G`; `fr-par-3` offers none of the types this stack needs. Every Instance goes in `fr-par-2` (§5). |
+| Compressed image size | **2.99 GB over 10 layers, one of which is 2.96 GB.** Pulled from `ghcr.io` by Scaleway with no mirroring, `creating` to `ready` in about five minutes. |
+| That the image runs on Scaleway at all | **It does.** `/api/health` answers in 0.52 s with the database up; `app_version` reports 3.0.0; the Alembic chain applied to head `0016`. |
+| `hnsw.ef_search` persistence through Scaleway's pooler (§4) | **It persists.** Reads back `100` in a later transaction, so the pool's `configure` callback is sufficient and `src/db/connection.py` needs no change. |
+| Whether pgvector is available | **Yes, 0.8.2**, via `CREATE EXTENSION vector`. |
+| Whether TLS to the database is optional | **No.** Serverless SQL routes by TLS **SNI**, so an unencrypted client cannot even name its database. `PG_SSLMODE=require` is structural, not hardening. |
 | **The guardrail itself (§8)** | **Created:** budget `acd46bb4` at a €50 ceiling, alert `0de04d05` at €40, no webhook (no consumer exists to receive one). Two further runs made no writes. |
 | Whether a payment method is needed before resources can be created (Phase 0) | **No.** A scoped project and a Serverless SQL Database were both created without one. Phase 0 is closed. |
 | What the account is already spending | **€2.31 this period, none of it LocalChat's** — a running `PLAY2-PICO` (`poc-hello-world-par`, fr-par-1) with a flexible IP and a block volume, all in the *default* project. Left alone deliberately; the kill switch refuses that project. |
@@ -497,7 +619,6 @@ All read-only except the last row, which created the cost guardrail itself.
 
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
-| Compressed image size (§6 measured 6.60 GB of files and 9.92 GB of layers, both uncompressed) | Needs a registry push to observe | `docker manifest inspect ghcr.io/jwvanderstam/localchat:3.0.0` | Sets the honest cold-start expectation. D2 avoids the problem during the test either way, so this informs the §6 trim decision rather than blocking anything. |
 | The webhook payload shape `{"invoice_start_date": ..., "threshold": ...}` (§8) | From Scaleway's docs; never received | Point the webhook at a request-capture endpoint and set the threshold to €1 so it fires early | The eventual consumer parses this. A wrong shape means it silently no-ops at exactly the moment it should stop the burn — the one failure that costs money. Worth the €1. |
 | Whether an organisation may hold more than one budget | One now exists and `create` takes no name, but a second was never attempted | `scw billing budget create consumption-limit=1 enabled=false`, then list and delete | If several are allowed, the script's refuse-on-more-than-one guard is the right behaviour but becomes reachable in normal use — and there is still no name to tell them apart. |
 
@@ -505,10 +626,7 @@ All read-only except the last row, which created the cost guardrail itself.
 
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
-| `hnsw.ef_search = 100` persists across transactions under Scaleway's pooler (§4) | Inferred from Scaleway's `SET` caveat plus the connection code; never run against a live Serverless SQL Database | `SHOW hnsw.ef_search;` after the app has served several requests, under load | It fails silently — retrieval degrades, nothing errors. The fix is confined to `src/db/connection.py`: set it per checkout or per query. |
 | `X-Forwarded-For` is spoofable at the edge (§7) | Scaleway's own unresolved forum post states the behaviour; not tested | Behavioural, because the app logs no client IP — the limiter keys on `request.client.host` (`src/security_fastapi.py`). Exhaust the limit on a limited endpoint with a fixed `X-Forwarded-For`, then repeat rotating the header. A reset budget means the header is trusted and spoofable; an unchanged one means everyone shares one bucket. | Those are the two failure modes §7 describes and the check distinguishes them. Either way the response is §7's options — the point is to know which you accepted. |
-| Cold start after scale-to-zero (§6) | Never measured; the compressed size it depends on is itself unmeasured | Idle past 15 minutes, then time the first request | Decides whether a trimmed image is worth building, or whether min scale 1 is simply the answer (D2). |
-| That the image runs on Scaleway at all | Nothing has been deployed | Phase 3 | The whole point of the first deployment. D3 exists so that a failure here has one plausible cause. |
 
 **Phase 0 gates the rest.** Everything under *Settleable only against a live stack*, plus
 the webhook row above it, needs an account that can create *billable* resources — which
