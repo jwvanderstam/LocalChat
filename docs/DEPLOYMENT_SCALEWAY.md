@@ -314,6 +314,10 @@ How LocalChat's limiter is wired (`src/config.py`, `src/app_fastapi.py`,
 
 ## 8. Billing, cost ceilings, and Terraform
 
+> **The brake itself is [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md).** This section explains
+> why no cap exists; that page is what you run when something is burning. Read it before
+> you need it, not while.
+
 ### There is no hard spend cap
 
 *[High confidence — Scaleway's billing docs, checked live 2026-08-27.]* Budget alerts are
@@ -425,13 +429,26 @@ Do **not** set `APP_VERSION` — see §6.
 
 ## 10. Phased rollout
 
-**Phase 0 — Billing.** Confirm the account can create resources. Available credit may not
-be enough if a payment method is still required; entering card details is console-only and
-only you can do it. Optionally run `scripts/scaleway/bootstrap_billing_alert.sh` (§8).
+**Phase 0 — Billing. Done, 2026-09-05.** The account creates resources without further
+setup — the budget, a project and the database all went through. The budget guardrail is
+live: €50 ceiling, €40 alert (§8).
 
-**Phase 1 — Database.** Create a Serverless SQL Database, `min_cpu = 0`, `max_cpu = 1`.
-Confirm `CREATE EXTENSION vector` succeeds. Create the IAM application, policy and API key
-(§4) and note the connection details.
+**Phase 1 — Database. Partly done, 2026-09-05.**
+
+```
+project   localchat-test   986172ba-5b88-4fd0-8d6d-83ac3872a692
+database  localchat        a1315b0e-5461-45ef-bcee-2cc72c5fa028   ready, PG 16, cpu 0–1
+endpoint  postgres://a1315b0e-….pg.sdb.fr-par.scw.cloud:5432/localchat?sslmode=require
+```
+
+Created with `scw sdb-sql database create name=localchat cpu-min=0 cpu-max=1
+project-id=…` — the CLI requires both CPU bounds, so §4's `max_cpu = 15` trap cannot fire
+on this path. `started: false`: it is scaled to zero and costs nothing until first
+connection.
+
+**Still to do in this phase:** the IAM application, policy and API key (§4) — the
+application id is the login and the API secret key the password — and then the check that
+matters, `CREATE EXTENSION vector`. Nothing has connected to this database yet.
 
 **Phase 2 — Container.** Serverless Container in the AMS namespace. Image
 `ghcr.io/jwvanderstam/localchat:3.0.0` — **a version tag, not `latest`** (§1). Port 5000.
@@ -472,7 +489,9 @@ All read-only except the last row, which created the cost guardrail itself.
 | GPU Instance hourly rate | **€0.787/h for `L4-1-24G`** — about €575/month left running. L40S-1-48G €1.47/h, H100-1-80G €2.87/h. Feeds §5 and sets the budget figures (§8). |
 | That the account can authenticate at all | `scw login` (browser SSO, no secret key handled) writes a working profile. One project exists, `Test_Belgium_Atos`, sharing its id with the organisation — i.e. the default project. |
 | Organisation security settings | Already sane: API keys capped at 365 days, lockout after 5 failed logins. Login sessions last 30 days, which is long for an account with this reach. |
-| **The guardrail itself (§8)** | **Created:** budget `acd46bb4` at a €50 ceiling, alert `0de04d05` at €40, no webhook (no consumer exists to receive one). Two further runs made no writes. This is the only resource created so far, and it costs nothing. |
+| **The guardrail itself (§8)** | **Created:** budget `acd46bb4` at a €50 ceiling, alert `0de04d05` at €40, no webhook (no consumer exists to receive one). Two further runs made no writes. |
+| Whether a payment method is needed before resources can be created (Phase 0) | **No.** A scoped project and a Serverless SQL Database were both created without one. Phase 0 is closed. |
+| What the account is already spending | **€2.31 this period, none of it LocalChat's** — a running `PLAY2-PICO` (`poc-hello-world-par`, fr-par-1) with a flexible IP and a block volume, all in the *default* project. Left alone deliberately; the kill switch refuses that project. |
 
 ### Still settleable now — no spend, no live stack
 
@@ -503,7 +522,8 @@ Nothing that costs money has been created.
 
 These are decisions, not facts. §11 is the companion list of facts.
 
-- Whether a payment method is required before resources can be created (Phase 0).
+- ~~Whether a payment method is required before resources can be created (Phase 0).~~
+  **Answered 2026-09-05: not required.** Project and database were created without one.
 - Which Ollama path (§5) — your call once Phase 3 is live and the rate in §11 is real.
 - Whether your credit's expiry date changes the urgency of that decision.
 - Whether §7's degraded rate limiting stays accepted (D8) once anyone outside the test
