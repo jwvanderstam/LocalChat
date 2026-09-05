@@ -96,6 +96,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/AUTH_PLAN.md` | Authentication build plan — AUTH-1..4: local login, Users screen, OIDC (Entra/Google), then deleting the bypasses |
 | `docs/PRODUCTION_PLAN.md` | Production-hardening plan from the 2026-08-04 external audit — TQ/SEC tickets and the exit criteria ROADMAP Sprints 8–12 queue behind |
 | `docs/DEPLOYMENT_SCALEWAY.md` | Deploying the stack on Scaleway — compose-service mapping, the decisions register (§2) and what would reverse each, the pgvector `SET` caveat, the `X-Forwarded-For` trust problem, cost ceilings, Terraform coverage, and §11's list of every unverified claim with the check that settles it. Nothing deployed yet |
+| `docs/COST_KILL_SWITCH.md` | The emergency brake on Scaleway spend — why it deletes rather than stops, what bills and at what rate, what the sweep deliberately leaves alone, and how to verify the burn stopped |
 | `docs/ADR.md` | Architecture Decision Records — ADR-1 (single-node appliance), ADR-2 (sync DB layer), ADR-3 (hardened distroless image), ADR-4 (cloud fallback targets OpenAI-compatible endpoints directly, not a multi-provider adapter), each with the condition that would reopen it |
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |
 | `docs/SCHEMA.md` | Database schema reference + ER diagram |
@@ -179,6 +180,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/e2e/test_golden_path.py` | TQ-4 — sign in, upload, ask, and the answer cites the uploaded file; the whole frontend test strategy |
 | `scripts/scaleway/bootstrap_billing_alert.sh` | Scaleway budget + alert + webhook (§8 of `DEPLOYMENT_SCALEWAY.md`) — the cost guardrail Terraform cannot express; one `budget list` reads the whole tree, so every level is matched before it is created and a re-run writes nothing |
 | `tests/unit/test_bootstrap_billing_alert.py` | The cost guardrail's decision logic — runs the script against a recording `scw` shim and asserts the exact call sequence; covers the refuse-rather-than-duplicate paths the live CLI cannot be tested for |
+| `scripts/scaleway/panic_teardown.sh` | The cost kill switch — deletes everything billable in ONE project, most expensive first, taking volumes and IPs with the server; dry run unless `CONFIRM=DESTROY`, and the organisation's default project is refused outright |
+| `tests/unit/test_panic_teardown.py` | The kill switch's decisions — asserts the delete flags that stop the burn (`with-volumes`, `with-ip`), the order, that a failure never stops the sweep, and that the default project is refused |
 | `scripts/session-status.sh` | `git session-status` alias target — flags orphaned branches, sync drift, open PRs |
 | `scripts/eval_retrieval.py` | DEL-2 — scores retrieval against fixed question/source pairs; `--compare graph\|reranker` runs both arms, and refuses when the feature under test never fires. `--corpus` takes any directory and ingests every type the app supports, so a maintainer's own .pptx/.docx/.xlsx set can be scored, not just Markdown |
 | `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |
