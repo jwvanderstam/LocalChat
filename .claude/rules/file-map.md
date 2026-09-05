@@ -10,7 +10,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/config.py` | All configuration constants, loads `.env` |
 | `src/models.py` | Pydantic request/response models |
 | `src/security_fastapi.py` | JWT (`python-jose`), rate limiting (`slowapi`), CORS (Starlette middleware) |
-| `src/monitoring.py` | `MetricsCollector`, `export_prometheus_metrics`, `get_metrics`; `MetricsMiddleware` (ASGI) for request timing |
+| `src/monitoring.py` | `MetricsCollector`, `export_prometheus_metrics`, `get_metrics`; `MetricsMiddleware` (ASGI) for request timing; `compute_health_status` — live-probes the database through the pool (5 s TTL) rather than echoing a boot-time flag |
 | `src/ollama_client.py` | `OllamaClient` singleton — chat (stream + non-stream), embedding, model CRUD, vision, GPU info; `estimate_model_footprint()`, `load_model_guard()`; TTL-cached model list (60 s) and running models (5 s) |
 | `src/llm_client.py` | `LiteLLMClient` cloud-fallback adapter; `ModelClient` Protocol |
 | `src/gpu/__init__.py` | GPU package — re-exports `GpuBackend`, `detect`, and backend classes |
@@ -169,6 +169,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_oauth_routes_identity.py` | BUG-4 — the OAuth callbacks store a token against a real user or refuse; no `"admin"` string fallback |
 | `tests/unit/test_graphrag_startup_check.py` | GRAPH_RAG_ENABLED cannot look enabled while inert — warns at startup when no spaCy model is installed |
 | `tests/unit/test_db_sslmode.py` | Every database connection carries an explicit `sslmode` — libpq's `prefer` default silently accepts an unencrypted connection, which a managed database over the internet must not |
+| `tests/unit/test_health_probes_database.py` | `/api/health` reports the database it can reach now, not the one it reached at boot — it used to echo `startup_status['database']` and stayed green through a total outage; a TCP check would not have closed the gap either, since a pooler accepts the socket regardless |
 | `tests/unit/test_ef_search_persistence.py` | A transaction-pooling proxy silently drops `hnsw.ef_search`; the pool now reads it back and warns, and these prove it warns on the observed value, only once, and not at all when it stuck |
 | `tests/unit/test_purge_preconditions.py` | The Clark-Wilson purge TPs — a cited conversation or a user with memberships is refused before any DELETE |
 | `tests/unit/test_processor_entity_extraction.py` | `_extract_entities` — GraphRAG is best-effort; a failure there never fails an ingest |

@@ -580,6 +580,36 @@ class TestMetricsAuth:
 class TestComputeHealthStatus:
     """Unit tests for compute_health_status covering all branches."""
 
+    @staticmethod
+    def _answering_db():
+        """A database that answers `SELECT 1`.
+
+        `startup_status['database']` alone no longer means "up" — health probes
+        the pool for real, so a test that wants a healthy database has to supply
+        one that answers.
+        """
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock
+
+        @contextmanager
+        def get_connection():
+            conn = MagicMock()
+            cursor = MagicMock()
+            cursor.fetchone.return_value = (1,)
+            conn.cursor.return_value.__enter__.return_value = cursor
+            yield conn
+
+        db = MagicMock()
+        db.get_connection = get_connection
+        return db
+
+    @staticmethod
+    def _reset_probe():
+        from src import monitoring
+
+        monitoring._db_probe["at"] = 0.0
+        monitoring._db_probe["up"] = False
+
     def test_healthy_when_db_and_ollama_up(self):
         """Returns 'healthy'/200 when both database and Ollama are up."""
         from unittest.mock import Mock
@@ -589,6 +619,8 @@ class TestComputeHealthStatus:
         app = Mock()
         app.startup_status = {'database': True, 'ollama': True}
         app.embedding_cache = None
+        app.db = self._answering_db()
+        self._reset_probe()
 
         status, code, checks = compute_health_status(app)
         assert status == 'healthy'
@@ -618,6 +650,8 @@ class TestComputeHealthStatus:
 
         app = Mock()
         app.startup_status = {'database': True, 'ollama': False}
+        app.db = self._answering_db()
+        self._reset_probe()
         app.embedding_cache = None
 
         status, code, checks = compute_health_status(app)
