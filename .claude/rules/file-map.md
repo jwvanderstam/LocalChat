@@ -168,6 +168,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
 | `tests/unit/test_oauth_routes_identity.py` | BUG-4 — the OAuth callbacks store a token against a real user or refuse; no `"admin"` string fallback |
 | `tests/unit/test_graphrag_startup_check.py` | GRAPH_RAG_ENABLED cannot look enabled while inert — warns at startup when no spaCy model is installed |
+| `tests/unit/test_pool_checks_connections.py` | Both pool constructions pass `check` — the normal one and the database-does-not-exist recovery path, which is the one a change forgets |
+| `tests/integration/test_pool_survives_a_lost_database.py` | Kills the pool's own backends with `pg_terminate_backend` and proves the next caller still gets a working connection; includes the unchecked pool failing, so the fix is measured against the bug |
 | `tests/unit/test_db_sslmode.py` | Every database connection carries an explicit `sslmode` — libpq's `prefer` default silently accepts an unencrypted connection, which a managed database over the internet must not |
 | `tests/unit/test_health_probes_database.py` | `/api/health` reports the database it can reach now, not the one it reached at boot — it used to echo `startup_status['database']` and stayed green through a total outage; a TCP check would not have closed the gap either, since a pooler accepts the socket regardless |
 | `tests/unit/test_ef_search_persistence.py` | A transaction-pooling proxy silently drops `hnsw.ef_search`; the pool now reads it back and warns, and these prove it warns on the observed value, only once, and not at all when it stuck |
