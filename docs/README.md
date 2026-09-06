@@ -25,6 +25,7 @@ jobs. Which one you need depends on what you are doing right now, not on the top
 |---|---|
 | [Deployment](DEPLOYMENT.md) | Running the stack with Docker Compose, TLS, secrets, upgrades |
 | [Deployment on Scaleway](DEPLOYMENT_SCALEWAY.md) | Standing up a managed-cloud test stack — service mapping, cost ceilings, what is still unverified |
+| [Deployment log](DEPLOYMENT_LOG.md) | What each deployment session did, found and cost — the history the ephemeral stack cannot keep |
 | [Cost kill switch](COST_KILL_SWITCH.md) | How to stop Scaleway spend immediately — there is no spend cap, so this is the only brake |
 | [Operations](OPERATIONS.md) | Backup, restore, routine maintenance |
 | [Migrations](MIGRATIONS.md) | Applying, writing or rolling back a schema change |
