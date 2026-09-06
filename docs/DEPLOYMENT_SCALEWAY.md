@@ -582,8 +582,23 @@ Two things the CLI does not tell you until it refuses:
 > absent. That is §5 option 2 applied narrowly, and it is a fraction of option 1's
 > €575/month.
 
-Uploads still live on ephemeral disk and vanish on restart — fine for a smoke test,
-not for real use.
+> **Correction, 2026-09-06.** This page said uploads live on ephemeral disk and vanish
+> on restart, and that a durable store was needed before real use. That is wrong.
+> `UPLOAD_FOLDER` is a *staging area*: a file is written there, ingested, and deleted —
+> twice over, by `_stream_file_ingest` and again in the upload stream's `finally`.
+> Nothing reads it back. The durable copy of a document is its extracted text and
+> embeddings in PostgreSQL, which survives a restart and is covered by the backup
+> recipes in [OPERATIONS.md](OPERATIONS.md).
+>
+> What a restart *can* lose is an upload in flight, and what a crash can leave behind is
+> a staged file nothing will ever delete — the application now clears the staging area at
+> startup, since nothing on a cold start can still be mid-ingest.
+>
+> **Object storage is therefore not needed, and adding it would cost more than it buys:**
+> another service, another credential, and a new thing the teardown must sweep — which
+> [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md) deliberately does not do for buckets, on the
+> grounds that a bucket is the one thing that might hold something unregenerable. The
+> safest place for a document nobody needs to keep is nowhere.
 
 **Phase 4 — Embeddings on CPU.** A `DEV1-M` in `fr-par-2` running Ollama with
 `nomic-embed-text` only, on a private network the container can reach. Point

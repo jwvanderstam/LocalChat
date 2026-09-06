@@ -6,6 +6,7 @@ Every function here performs network or filesystem I/O (Ollama, DB, Redis, plugi
 
 import contextlib
 import logging
+import os
 import secrets
 import threading
 from collections.abc import Iterator
@@ -62,6 +63,40 @@ def _run_alembic_migrations() -> None:
         logger.exception("Alembic migration failed")
 
 
+def _clear_upload_staging() -> None:
+    """Remove anything left in the upload staging directory.
+
+    UPLOAD_FOLDER is a staging area, not a store: a file is written there, ingested,
+    and deleted — twice over, by `_stream_file_ingest` and again in the upload
+    stream's `finally`. Nothing ever reads it back, and the durable copy of a
+    document is its extracted text and embeddings in PostgreSQL.
+
+    Both of those deletions are in-process, so a crash, an OOM kill or a container
+    stop between write and ingest leaves the file behind. On an ephemeral
+    filesystem that clears itself; on a host with a mounted volume the documents
+    accumulate indefinitely, readable by anything that can reach the disk. Since
+    nothing on a cold start can still be mid-ingest, everything present at startup
+    is by definition an orphan.
+    """
+    folder = config.UPLOAD_FOLDER
+    if not os.path.isdir(folder):
+        return
+    removed = 0
+    for name in os.listdir(folder):
+        path = os.path.join(folder, name)
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+                removed += 1
+        except OSError as e:
+            # Best-effort: an undeletable leftover must not stop the application.
+            logger.warning("Could not clear staged upload %s: %s", name, e)
+    if removed:
+        logger.info(
+            "Cleared %d staged upload(s) left by an interrupted ingest", removed
+        )
+
+
 def bootstrap_app(app: Any) -> None:
     """Start all services for a fully-wired LocalChat app.
 
@@ -80,6 +115,8 @@ def bootstrap_app(app: Any) -> None:
         syslog_protocol=config.LOG_SYSLOG_PROTOCOL,
         third_party_level=config.LOG_THIRD_PARTY_LEVEL,
     )
+
+    _clear_upload_staging()
 
     _init_caching(app)
 
