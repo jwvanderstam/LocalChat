@@ -46,6 +46,10 @@ document treats that as a constraint to respect rather than a limitation to work
 shrink it, but changing the supply chain and the target in one step turns a failed
 deployment into an ambiguous one. Deploy as-is, measure, then decide.
 
+> **The stack is ephemeral; the landing host is not.** Deploy, test, destroy is the
+> pattern — nothing here is meant to stay up. A separate, permanently reachable machine
+> carries the public face of that: see [§13](#13-the-landing-host).
+
 ### The one trap worth stating up front
 
 **Do not deploy `ghcr.io/jwvanderstam/localchat:latest`.** It moves on every push to
@@ -676,3 +680,79 @@ plausible inference that measurement overturned.
 it was wrong in a way only checking could reveal. That is what §11 is for. Prefer a check
 over an argument, and when a check is not available, say so in the sentence that makes the
 claim.
+
+---
+
+## 13. The landing host
+
+**LocalChat is deployed to be destroyed.** Deploy, test, destroy is the pattern, and the
+cost section is built on it. That leaves a gap the deployment itself cannot fill: between
+runs there is nothing to point anyone at, and no stable address that says what this is.
+
+`atospoc.solbyco.nl` fills it. A `PLAY2-PICO` — Scaleway's smallest Instance — running
+nginx, permanently up, serving the deployment's instructions and report as a static page.
+It has two jobs:
+
+1. **Documentation that outlives the stack.** Publicly reachable whether or not LocalChat
+   is running.
+2. **An entry point while the stack is up.** When a deployment exists, this is where a
+   reader is sent to reach it.
+
+It is deliberately the cheapest thing that can do both. It will evolve, and a plan for it
+follows once the LocalChat deployment itself is finished and robustly repeatable — not
+before, because its shape depends on what that deployment settles into.
+
+### What is standing
+
+```
+DNS       atospoc.solbyco.nl -> 212.47.234.196   zone hosted at OVH, not Scaleway
+host      poc-hello-world-par, PLAY2-PICO, fr-par-1, default project
+web       nginx, document root /var/www/html
+TLS       Let's Encrypt via certbot, auto-renewing, HTTP 301s to HTTPS
+firewall  security group `atospoc-web` — inbound default drop
+            TCP 80  from 0.0.0.0/0
+            TCP 443 from 0.0.0.0/0
+            TCP 22  from the operator's IP only
+```
+
+The page itself is version-controlled at `scripts/scaleway/landing/index.html`, because a
+deliverable that exists only on one machine is not a deliverable. Deploying it is one
+command — nginx serves static files from disk per request, so nothing needs reloading:
+
+```bash
+scp scripts/scaleway/landing/index.html root@212.47.234.196:/var/www/html/index.html
+```
+
+The original placeholder is kept beside it as `index.html.placeholder`, so rolling back is
+a `cp`.
+
+### What the page may not contain
+
+It is served over the public internet from a host in the *default* project. It carries no
+resource IDs, no private addresses, no keys and no container endpoints — only description.
+A reader should learn what happened, never how to reach something.
+
+### Things worth knowing before changing it
+
+**TLS renewal depends on port 80 staying reachable.** Certbot's HTTP-01 challenge needs it.
+The nginx plugin handles this correctly through the redirect; a hand-written "everything to
+HTTPS" rule without an exception for `/.well-known/acme-challenge/` breaks renewal silently,
+and you find out ninety days later. Renewal was proven with `certbot renew --dry-run`, not
+merely configured.
+
+**The account was registered without an email address**, so there are no expiry warnings
+from Let's Encrypt. The automatic renewal makes that acceptable; re-register with
+`certbot update_account` if you want the safety net.
+
+**The certificate lives on this machine.** Rebuild the host and it is gone — this is the
+one part of the deployment that is not reproducible from the repository. Moving it into
+cloud-init is the obvious fix when the host is next rebuilt.
+
+**SSH is restricted to a single operator IP**, which is a consumer address and may change.
+The serial console in the Scaleway UI is the fallback, and is why locking it down this
+tightly is safe.
+
+**Scaleway's default security group accepts all inbound traffic.** That is what this host
+ran under until 2026-09-06, with port 22 open to the internet. Any new Instance inherits
+that default unless given a group of its own — see `deploy_embeddings.sh`, which creates
+one for exactly this reason.
