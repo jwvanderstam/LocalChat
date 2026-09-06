@@ -668,6 +668,55 @@ they get tested rather than believed.
 
 ---
 
+## 10c. The lesson the scripts taught about secrets
+
+`provision.sh` and `deploy_container.sh` were built so that a secret never passes
+through a place it could be read. The key's secret goes from `scw` straight into a
+mode-600 file outside the repository. It is never echoed, never held in a shell
+variable, and never printed in a summary. Scaleway helps: it stores
+`secret-environment-variables` separately and reads them back as argon2 hashes, so
+`container get` cannot leak one either.
+
+**All of that was true of the success path. The failure path published every one of
+them.**
+
+Secrets reach `scw` as *command arguments*. `scw_json`'s error handler prints the
+failing command, because a failure with no context cannot be fixed. On 2026-09-06 a
+single Scaleway rejection — a transient-state error, not even a real problem — printed
+`PG_PASSWORD`, `SECRET_KEY`, `JWT_SECRET_KEY`, `ENCRYPTION_KEY`, `ADMIN_PASSWORD` and
+`METRICS_TOKEN` in clear. Everything that appeared had to be rotated.
+
+### The rule
+
+**When a secret is an argument, every path that can print the command is a disclosure
+path — and the error path is the one written last and reviewed least.** Care taken on
+the happy path is not care; it is care where it was convenient to take it. The question
+to ask of any credential-handling code is not "does this print the secret?" but "what
+prints on the way out when this fails?"
+
+The fix is redaction at the single choke point every command goes through, not at each
+call site:
+
+```bash
+_redact() {
+  printf '%s' "$*" | sed -E 's/(secret-environment-variables[.][A-Za-z0-9_]+=)[^ ]*/***/g'
+}
+```
+
+### The part redaction does not fix
+
+Passing a secret as a command-line argument is itself the weaker channel. Arguments are
+visible in the process table for as long as the command runs, so **anything that can run
+`ps` on the same host can read them**, redaction or not. The CLI offers no stdin path for
+these values, so this is accepted rather than solved.
+
+On a single operator's laptop that is a reasonable trade. **On a shared CI runner it is
+not**, and it is a live constraint on the deploy job §12 contemplates: a pipeline that
+runs `deploy_container.sh` puts six secrets into the process table of a machine it does
+not own. Whoever builds that job needs to decide knowingly, not discover it afterwards.
+
+---
+
 ## 11. What is unverified, and the check that settles it
 
 Every claim above that is not settled, with the command that settles it and what a

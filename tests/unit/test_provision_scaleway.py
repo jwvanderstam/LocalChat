@@ -168,19 +168,87 @@ class TestAFreshAccount:
         assert "SCWFAKE1" in proc.stdout, "the access key is safe to show, and useful"
 
 
+HELD_SECRET = "the-secret-we-already-have"
+
+
+def _write_credential(env_out, host="db-x.pg.sdb.fr-par.scw.cloud"):
+    """The file a previous run left behind, holding a secret we still have."""
+    env_out.parent.mkdir(parents=True, exist_ok=True)
+    env_out.write_text(
+        "\n".join(
+            [
+                "PG_HOST=" + host,
+                "PG_PORT=5432",
+                "PG_DB=localchat",
+                "PG_USER=app-x",
+                "PG_PASSWORD=" + HELD_SECRET,
+                "PG_SSLMODE=require",
+                "",
+            ]
+        ),
+        newline="\n",
+    )
+
+
 class TestASecondRun:
     def test_creates_nothing_when_everything_exists(self, tmp_path):
+        env_out = tmp_path / "creds" / "localchat-db.env"
+        _write_credential(env_out)
+
         proc, calls, _ = _run(tmp_path, **ALL_PRESENT)
 
         assert proc.returncode == 0, proc.stderr
         assert _creates(calls) == []
 
     def test_refuses_a_second_key_because_the_secret_cannot_be_read_back(self, tmp_path):
-        proc, calls, env_out = _run(tmp_path, **ALL_PRESENT)
+        env_out = tmp_path / "creds" / "localchat-db.env"
+        _write_credential(env_out)
+
+        proc, calls, _ = _run(tmp_path, **ALL_PRESENT)
 
         assert not any(c.startswith("iam api-key create") for c in calls)
-        assert "PROVISION_ROTATE_KEY=1" in proc.stdout
-        assert not env_out.exists(), "an unchanged run must not overwrite the credential file"
+        assert HELD_SECRET in env_out.read_text(), "the secret we hold must survive"
+
+
+class TestTheCredentialFileIsKeptCurrent:
+    """A database can be recreated while its key survives.
+
+    The file was previously written only when a key was created, so a rebuilt
+    database left the old host in it — the summary printed the new one, and the
+    next script read the old. Nothing looked broken until a deployment could not
+    connect.
+    """
+
+    def test_a_stale_host_is_refreshed_and_the_secret_kept(self, tmp_path):
+        env_out = tmp_path / "creds" / "localchat-db.env"
+        _write_credential(env_out, host="deleted-database.pg.sdb.fr-par.scw.cloud")
+
+        proc, _, _ = _run(tmp_path, **ALL_PRESENT)
+
+        assert proc.returncode == 0, proc.stderr
+        written = env_out.read_text()
+        assert "db-x.pg.sdb.fr-par.scw.cloud" in written, "the current host was not written"
+        assert "deleted-database" not in written, "the stale host survived"
+        assert HELD_SECRET in written, "the secret we hold must survive a refresh"
+        assert "updated to the current database" in proc.stdout
+
+    def test_an_unchanged_host_says_so_rather_than_claiming_a_change(self, tmp_path):
+        env_out = tmp_path / "creds" / "localchat-db.env"
+        _write_credential(env_out)
+
+        proc, _, _ = _run(tmp_path, **ALL_PRESENT)
+
+        assert "already correct" in proc.stdout
+
+    def test_a_key_whose_secret_we_do_not_hold_stops_the_run(self, tmp_path):
+        """Continuing would deploy a credential nobody has."""
+        proc, calls, _ = _run(tmp_path, **ALL_PRESENT)
+
+        assert proc.returncode != 0
+        assert "PROVISION_ROTATE_KEY=1" in proc.stderr
+        assert not any(c.startswith("iam api-key create") for c in calls), (
+            "it must refuse, not quietly mint a second key"
+        )
 
 
 class TestRotation:

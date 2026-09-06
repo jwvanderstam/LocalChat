@@ -46,6 +46,11 @@ DEPLOY_SECRET_ENV="${DEPLOY_SECRET_ENV:-$HOME/.config/scw/localchat-deploy.env}"
 # Empty by default and set by deploy_embeddings.sh. Without it the app boots and
 # serves everything except chat and document ingest, which both need Ollama.
 DEPLOY_OLLAMA_URL="${DEPLOY_OLLAMA_URL:-}"
+# Set by deploy_embeddings.sh. Handing the network to this script rather than
+# applying it in a second call is what keeps the two from colliding: Scaleway
+# refuses an update while the previous one is still applying, with
+# "transient state error for resource 'container'".
+DEPLOY_PRIVATE_NETWORK_ID="${DEPLOY_PRIVATE_NETWORK_ID:-}"
 
 command -v scw >/dev/null 2>&1 || die "scw not found on PATH"
 PYTHON=""
@@ -59,10 +64,18 @@ if [[ -n "${SCW_PROFILE:-}" ]]; then
   PROFILE_ARGS=(--profile "$SCW_PROFILE")
 fi
 
+# Secrets are passed to `scw` as arguments, so a failure that echoes the command
+# publishes every one of them — to the terminal, and to whatever collects it.
+# That happened once. The arguments are still shown, because a failure with no
+# context is unfixable, but every secret value is replaced first.
+_redact() {
+  printf '%s' "$*" | sed -E 's/(secret-environment-variables[.][A-Za-z0-9_]+=)[^ ]*/\1***/g'
+}
+
 scw_json() {
   local raw
   if ! raw=$(scw "${PROFILE_ARGS[@]}" "$@" -o json 2>&1); then
-    die "'scw $*' failed:"$'\n'"$raw"
+    die "'scw $(_redact "$@")' failed:"$'\n'"$raw"
   fi
   printf '%s' "$raw"
 }
@@ -201,6 +214,11 @@ ENV_ARGS=(
   environment-variables.PG_USER="$PG_USER"
   environment-variables.PG_SSLMODE="${PG_SSLMODE:-require}"
 )
+NETWORK_ARGS=()
+if [[ -n "$DEPLOY_PRIVATE_NETWORK_ID" ]]; then
+  NETWORK_ARGS=(private-network-id="$DEPLOY_PRIVATE_NETWORK_ID")
+fi
+
 if [[ -n "$DEPLOY_OLLAMA_URL" ]]; then
   ENV_ARGS+=(
     environment-variables.OLLAMA_BASE_URL="$DEPLOY_OLLAMA_URL"
@@ -225,7 +243,7 @@ if [[ -n "$CONTAINER_ID" ]]; then
   note "exists ($CONTAINER_ID) — updating in place"
   scw_json container container update container-id="$CONTAINER_ID" \
     region="$DEPLOY_REGION" image="$DEPLOY_IMAGE" \
-    "${ENV_ARGS[@]}" "${SECRET_ARGS[@]}" >/dev/null
+    "${NETWORK_ARGS[@]}" "${ENV_ARGS[@]}" "${SECRET_ARGS[@]}" >/dev/null
 else
   note "absent — creating"
   # min/max scale 1 is D1 and D2: no scale-to-zero cold start on a 3 GB image,
@@ -236,7 +254,7 @@ else
     min-scale=1 max-scale=1 \
     memory-limit-bytes="$DEPLOY_MEMORY" mvcpu-limit="$DEPLOY_MVCPU" \
     timeout=300s \
-    "${ENV_ARGS[@]}" "${SECRET_ARGS[@]}" | "$PYTHON" -c "$FIELD" id)
+    "${NETWORK_ARGS[@]}" "${ENV_ARGS[@]}" "${SECRET_ARGS[@]}" | "$PYTHON" -c "$FIELD" id)
   note "created ($CONTAINER_ID)"
 fi
 

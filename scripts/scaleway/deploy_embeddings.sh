@@ -199,15 +199,13 @@ CONTAINER_ID=$(find_by_name "$EMB_CONTAINER" -- container container list \
   namespace-id="$NAMESPACE_ID" region="$EMB_REGION")
 [[ -n "$CONTAINER_ID" ]] || die "no container '$EMB_CONTAINER' — run deploy_container.sh first"
 
-scw_json container container update container-id="$CONTAINER_ID" region="$EMB_REGION" \
-  private-network-id="$NETWORK_ID" >/dev/null
-note "attached to the private network"
-
-# deploy_container.sh owns the environment map, because an update replaces it
-# wholesale. Re-running it with the URL set is what actually applies the change.
-DEPLOY_OLLAMA_URL="http://$PRIVATE:11434" \
-  bash "$(dirname "$0")/deploy_container.sh" >/dev/null
-note "container redeployed with OLLAMA_BASE_URL set"
+# One update, not two. Attaching the network separately and then re-running
+# deploy_container.sh made Scaleway reject the second call outright:
+# "transient state error for resource 'container' ... current_state: updating".
+# deploy_container.sh owns the whole container definition anyway — an update
+# replaces the environment map wholesale — so the network is handed to it.
+DEPLOY_OLLAMA_URL="http://$PRIVATE:11434" DEPLOY_PRIVATE_NETWORK_ID="$NETWORK_ID"   bash "$(dirname "$0")/deploy_container.sh" >/dev/null
+note "container redeployed on the private network, with OLLAMA_BASE_URL set"
 
 cat <<SUMMARY
 
