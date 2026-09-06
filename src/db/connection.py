@@ -279,6 +279,15 @@ class DatabaseConnection:
                     max_size=config.DB_POOL_MAX_CONN,
                     timeout=5,
                     configure=configure_connection,
+                    # Without this the pool hands out connections the server has
+                    # already dropped, and every request that gets one fails until
+                    # the pool happens to recycle it. A managed database that scales
+                    # to zero makes that a daily event rather than a rare one, but
+                    # `docker compose restart db` reproduces it just as well.
+                    # check_connection sends an empty statement — one round-trip with
+                    # no query to parse — and a connection that fails it is discarded
+                    # and replaced before the caller ever sees it.
+                    check=ConnectionPool.check_connection,
                 )
                 self.is_connected = True
                 self._ensure_extensions_and_tables()
@@ -297,6 +306,7 @@ class DatabaseConnection:
                         max_size=config.DB_POOL_MAX_CONN,
                         timeout=5,
                         configure=configure_connection,
+                        check=ConnectionPool.check_connection,
                     )
                     self.is_connected = True
                     self._ensure_extensions_and_tables()
