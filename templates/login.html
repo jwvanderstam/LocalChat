@@ -8,9 +8,9 @@
     <!-- Same theme bootstrap as base.html so login does not flash a different skin -->
     <script>(function(){var t=localStorage.getItem('lc-theme');if(t)document.documentElement.setAttribute('data-theme',t);var d=localStorage.getItem('lc-dark');if(d!=='0')document.documentElement.setAttribute('data-bs-theme','dark');})();</script>
 
-    <link href="{{ url_for('static', path='css/bootstrap.min.css') }}" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/bootstrap-icons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 <div class="container" style="max-width: 24rem; margin-top: 12vh;">
@@ -44,6 +44,6 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', path='js/auth.js') }}"></script>
+<script src="/static/js/auth.js"></script>
 </body>
 </html>
