@@ -168,6 +168,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
 | `tests/unit/test_oauth_routes_identity.py` | BUG-4 — the OAuth callbacks store a token against a real user or refuse; no `"admin"` string fallback |
 | `tests/unit/test_graphrag_startup_check.py` | GRAPH_RAG_ENABLED cannot look enabled while inert — warns at startup when no spaCy model is installed |
+| `tests/unit/test_templates_use_relative_asset_urls.py` | Templates reference their own assets root-relative — Starlette's `url_for` returns an absolute URL carrying the scheme the app thinks it serves, which is `http` behind a TLS-terminating proxy, and the browser then blocks every stylesheet and script as mixed content |
 | `tests/unit/test_upload_staging_is_cleared.py` | An uploaded document must not outlive the ingest that consumed it — a crash between write and ingest leaves a staged file that nothing deletes, so startup sweeps the staging area |
 | `tests/unit/test_pool_checks_connections.py` | Both pool constructions pass `check` — the normal one and the database-does-not-exist recovery path, which is the one a change forgets |
 | `tests/integration/test_pool_survives_a_lost_database.py` | Kills the pool's own backends with `pg_terminate_backend` and proves the next caller still gets a working connection; includes the unchecked pool failing, so the fix is measured against the bug |
