@@ -582,8 +582,23 @@ Two things the CLI does not tell you until it refuses:
 > absent. That is §5 option 2 applied narrowly, and it is a fraction of option 1's
 > €575/month.
 
-Uploads still live on ephemeral disk and vanish on restart — fine for a smoke test,
-not for real use.
+> **Correction, 2026-09-06.** This page said uploads live on ephemeral disk and vanish
+> on restart, and that a durable store was needed before real use. That is wrong.
+> `UPLOAD_FOLDER` is a *staging area*: a file is written there, ingested, and deleted —
+> twice over, by `_stream_file_ingest` and again in the upload stream's `finally`.
+> Nothing reads it back. The durable copy of a document is its extracted text and
+> embeddings in PostgreSQL, which survives a restart and is covered by the backup
+> recipes in [OPERATIONS.md](OPERATIONS.md).
+>
+> What a restart *can* lose is an upload in flight, and what a crash can leave behind is
+> a staged file nothing will ever delete — the application now clears the staging area at
+> startup, since nothing on a cold start can still be mid-ingest.
+>
+> **Object storage is therefore not needed, and adding it would cost more than it buys:**
+> another service, another credential, and a new thing the teardown must sweep — which
+> [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md) deliberately does not do for buckets, on the
+> grounds that a bucket is the one thing that might hold something unregenerable. The
+> safest place for a document nobody needs to keep is nowhere.
 
 **Phase 4 — Embeddings on CPU.** A `DEV1-M` in `fr-par-2` running Ollama with
 `nomic-embed-text` only, on a private network the container can reach. Point
@@ -598,6 +613,58 @@ already working, so that a GPU Instance is only ever asked to answer one questio
 generation acceptable? Build it beside the CPU Instance, never by resizing it, and delete
 the CPU Instance once generation is confirmed. `L4-1-24G` is €0.787/h ≈ €575/month; the
 whole stack up to this point has cost €0.03.
+
+---
+
+## 10b. The lesson this deployment taught about this document
+
+Nine claims in this guide were tested by actually deploying. **Eight of them were wrong**,
+and one fear turned out to be groundless:
+
+| Claim | Reality |
+|---|---|
+| Retrieval works without Ollama | It does not. Ingest embeds through Ollama, so nothing is stored at all. |
+| The version is on `/api/status` | That endpoint carries no version. |
+| The `scw billing` verbs and fields | Half did not exist; a budget has no name to match on. |
+| The database command is `scw sdb` | It is `scw sdb-sql`, and it requires both CPU bounds. |
+| Terraform's `max_cpu = 15` default also applies to the CLI | It does not. The trap is Terraform-only. |
+| `memory-limit-bytes` takes bytes | It requires a G/GB unit. |
+| TLS to the database is a hardening choice | It is structural: routing is by TLS SNI. |
+| Uploads are lost on restart and need object storage | They are staged and deleted; nothing is lost. |
+| `hnsw.ef_search` will not survive the pooler | It survives. The feared defect does not exist. |
+
+### The pattern, and what actually prevented harm
+
+Every one of those came from reading documentation, reading a provider's behaviour, or
+reasoning about the code — not from running it. That is not a criticism of writing a plan
+before deploying; a plan is how you know what to test. **§11 exists precisely because
+someone knew these claims were unverified, and §11 worked.** Each row it held was checked,
+and the wrong ones were corrected the moment they were.
+
+The damage came from the claims that were *never in §11* — the ones stated as fact,
+confidently enough that nobody thought to list them.
+
+### Why that matters more than being wrong
+
+**An unverified claim in a deployment plan is not neutral. It directs work.**
+
+- "Retrieval works without Ollama" made the no-GPU first pass look sufficient. It made the
+  product's whole reason to exist untestable, and the plan said that was fine.
+- "Uploads are lost on restart and need object storage" would have bought a bucket nobody
+  needed — another service, another credential, and a new thing the teardown must sweep,
+  weakening the one guarantee the kill switch offers. Reading three functions in
+  `document_routes.py` was the entire cost of not doing that.
+
+Both would have produced work: one deferred, one built. Neither was flagged as uncertain,
+because both sounded like descriptions of a system rather than claims about it.
+
+### The rule that follows
+
+**A statement about how the application behaves belongs in §11 unless someone has run it.**
+Not "unless it seems obvious" — the two most costly errors above were the two that seemed
+most obvious. The check is cheap and specific: *whose behaviour is this, and did I watch it?*
+If the answer is "the code's" and "no", it is a claim, and claims go in the register where
+they get tested rather than believed.
 
 ---
 

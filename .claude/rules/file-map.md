@@ -6,7 +6,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 |------|------|
 | `app.py` | Entry point; `main()` + `create_uvicorn_app()` for dev/prod (FastAPI + Uvicorn) |
 | `src/app_fastapi.py` | `create_app()` — FastAPI factory, pure wiring only (no I/O); safe to call in tests |
-| `src/app_bootstrap.py` | `bootstrap_app(app)` — all startup I/O (Ollama, DB, caching, plugins, connectors, reranker); called from `app.py` only |
+| `src/app_bootstrap.py` | `bootstrap_app(app)` — all startup I/O (Ollama, DB, caching, plugins, connectors, reranker) plus `_clear_upload_staging()`, which removes staged uploads an interrupted ingest left behind; called from `app.py` only |
 | `src/config.py` | All configuration constants, loads `.env` |
 | `src/models.py` | Pydantic request/response models |
 | `src/security_fastapi.py` | JWT (`python-jose`), rate limiting (`slowapi`), CORS (Starlette middleware) |
@@ -168,6 +168,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
 | `tests/unit/test_oauth_routes_identity.py` | BUG-4 — the OAuth callbacks store a token against a real user or refuse; no `"admin"` string fallback |
 | `tests/unit/test_graphrag_startup_check.py` | GRAPH_RAG_ENABLED cannot look enabled while inert — warns at startup when no spaCy model is installed |
+| `tests/unit/test_upload_staging_is_cleared.py` | An uploaded document must not outlive the ingest that consumed it — a crash between write and ingest leaves a staged file that nothing deletes, so startup sweeps the staging area |
 | `tests/unit/test_pool_checks_connections.py` | Both pool constructions pass `check` — the normal one and the database-does-not-exist recovery path, which is the one a change forgets |
 | `tests/integration/test_pool_survives_a_lost_database.py` | Kills the pool's own backends with `pg_terminate_backend` and proves the next caller still gets a working connection; includes the unchecked pool failing, so the fix is measured against the bug |
 | `tests/unit/test_db_sslmode.py` | Every database connection carries an explicit `sslmode` — libpq's `prefer` default silently accepts an unencrypted connection, which a managed database over the internet must not |
