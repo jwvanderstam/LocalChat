@@ -30,6 +30,42 @@ what it missed is worse than none.
 
 ---
 
+## What happened when it was tested
+
+*Run in anger against the full test stack on 2026-09-05 — the first `CONFIRM=DESTROY`
+ever executed. Six resources found, five gone on the first pass.*
+
+```
+deleted   instance localchat-embeddings (fr-par-2)
+deleted   namespace localchat (fr-par)          <- takes its container with it
+deleted   database localchat (fr-par)
+FAILED    private network localchat-backend
+          precondition failed: resource is still in use,
+          Private Network must be empty to be deleted
+```
+
+Three things this settled, and one of them was worth the exercise on its own.
+
+**`with-volumes` and `with-ip` work.** The block-volume and reserved-IP sections came back
+*empty* — not skipped, but genuinely nothing left to find, because deleting the instance
+had already taken them. That is the single most important property of this script, and it
+had never been observed until this run.
+
+**The private network failed on a race, not a design error.** A delete returns before the
+deleted resource's network attachments are released, so the network was seconds away from
+deletable when it was asked. A second run cleared it. The script now retries that one
+level three times with a short delay — bounded, because an account that is burning cannot
+wait forever, and free to retry, because a Private Network costs nothing.
+
+**The failure was loud, which is the point.** It named the survivor, told the operator to
+finish it by hand, and exited non-zero. A teardown that quietly leaves something behind is
+worse than none — that is the whole design, and it held under a real failure.
+
+> **Re-running is safe and is the first thing to try.** The second run reported
+> *"Nothing billable found in this project"* and exited 0.
+
+---
+
 ## Why it deletes instead of stopping
 
 A stopped Instance is not a free Instance. Its block volumes bill at full price, and a
