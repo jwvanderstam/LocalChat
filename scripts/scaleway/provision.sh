@@ -134,6 +134,56 @@ for row in rows:
         print(row["access_key"])
 PY
 
+read -r -d '' REFRESH_ENV <<'PY' || true
+"""Rewrite the credential file's connection details, keeping the stored secret.
+
+A database can be destroyed and recreated while the API key survives, and then
+the key is still valid but the host in the file names a database that no longer
+exists. Writing the file only when a key is created — as this script used to —
+leaves the summary correct and the file wrong, which is the worst combination:
+nothing looks broken until a deployment cannot connect.
+"""
+import os, pathlib, stat, sys
+
+out = pathlib.Path(sys.argv[1])
+host, dbname, user = sys.argv[2], sys.argv[3], sys.argv[4]
+if not out.exists():
+    sys.exit("no credential file to refresh")
+
+existing = out.read_text(encoding="utf-8").splitlines()
+def field(name):
+    for line in existing:
+        if line.startswith(name + "="):
+            return line.split("=", 1)[1].strip()
+    return ""
+
+secret = field("PG_PASSWORD")
+if not secret:
+    sys.exit("the credential file holds no PG_PASSWORD")
+
+previous = field("PG_HOST")
+out.write_text(
+    "\n".join(
+        [
+            "# Scaleway Serverless SQL credential for the LocalChat test stack.",
+            "# Written by scripts/scaleway/provision.sh - do not commit.",
+            "# Connection details refreshed; the stored secret was kept.",
+            "PG_HOST=" + host,
+            "PG_PORT=5432",
+            "PG_DB=" + dbname,
+            "PG_USER=" + user,
+            "PG_PASSWORD=" + secret,
+            "PG_SSLMODE=require",
+            "",
+        ]
+    ),
+    encoding="utf-8",
+    newline="\n",
+)
+os.chmod(out, stat.S_IRUSR | stat.S_IWUSR)
+print("changed" if previous != host else "unchanged")
+PY
+
 read -r -d '' WRITE_ENV <<'PY' || true
 import json, os, pathlib, stat, sys
 
@@ -242,11 +292,20 @@ KEY_COUNT=$(scw_json iam api-key list application-id="$APP_ID" \
   | "$PYTHON" -c "$COUNT_KEYS")
 
 if [[ "$KEY_COUNT" -gt 0 && -z "$PROVISION_ROTATE_KEY" ]]; then
-  note "$KEY_COUNT key(s) already exist on this application."
-  note "A secret key is shown once and cannot be read back, so this will not"
-  note "create another. If you no longer hold the secret, rotate it:"
-  note "  PROVISION_ROTATE_KEY=1 bash scripts/scaleway/provision.sh"
-  note "Rotating invalidates the old credential - redeploy the container after."
+  note "$KEY_COUNT key(s) already exist; a secret is shown once and cannot be read back."
+  # The key survives a database being destroyed and recreated, so the details
+  # around the secret must be refreshed even when the secret itself is not.
+  if ! refreshed=$("$PYTHON" -c "$REFRESH_ENV" "$PROVISION_ENV_OUT" "$DB_HOST"        "$PROVISION_DB_NAME" "$APP_ID" 2>&1); then
+    die "$KEY_COUNT key(s) exist but their secret is not in $PROVISION_ENV_OUT ($refreshed).
+A secret cannot be read back, so the only way forward is to replace the key:
+  PROVISION_ROTATE_KEY=1 bash scripts/scaleway/provision.sh
+Rotating invalidates the old credential - redeploy the container afterwards."
+  fi
+  if [[ "$refreshed" == "changed" ]]; then
+    note "reused the stored secret; connection details updated to the current database"
+  else
+    note "reused the stored secret; connection details already correct"
+  fi
 else
   if [[ "$KEY_COUNT" -gt 0 ]]; then
     note "rotating: deleting $KEY_COUNT existing key(s)"
