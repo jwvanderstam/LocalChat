@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LocalChat on Scaleway — deployment PoC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:wght@600&display=swap">
+<style>
+  :root {
+    --ground: #F5F6F3; --surface: #FFFFFF; --ink: #171B21; --ink-soft: #4C5560;
+    --ink-faint: #7C8792; --rule: #D6DAD4; --rule-soft: #E6E9E4;
+    --accent: #2F6F4F; --accent-soft: #E4EFE8; --warn: #A8611B; --warn-soft: #F6EADC;
+    --code-bg: #ECEEE9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101310; --surface: #171B18; --ink: #E7EAE3; --ink-soft: #A8B2AA;
+      --ink-faint: #78827B; --rule: #2C332D; --rule-soft: #222824;
+      --accent: #7FC49A; --accent-soft: #1B2B22; --warn: #D79B54; --warn-soft: #2C2418;
+      --code-bg: #1C211D;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 1rem; line-height: 1.62; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 52rem; margin: 0 auto; padding: clamp(2rem, 5vw, 4rem) clamp(1.1rem, 4vw, 2rem) 5rem; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--ink-faint);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem;
+  }
+  h1 {
+    font-family: "IBM Plex Serif", Georgia, serif; font-weight: 600;
+    font-size: clamp(2rem, 1.6rem + 1.6vw, 2.8rem); line-height: 1.08;
+    letter-spacing: -0.02em; text-wrap: balance; margin: 0.6rem 0 0;
+  }
+  .standfirst { font-size: 1.15rem; color: var(--ink-soft); max-width: 46ch; margin: 0.8rem 0 0; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.5rem; }
+  .figures {
+    display: flex; flex-wrap: wrap; gap: 0 2.4rem;
+    margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px solid var(--rule-soft);
+  }
+  .figure { display: flex; flex-direction: column; padding: 0.2rem 0; }
+  .figure b {
+    font-family: "IBM Plex Mono", monospace; font-size: 1.25rem; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .figure span { font-size: 0.8rem; color: var(--ink-faint); letter-spacing: 0.04em; }
+  section { margin-top: 3rem; }
+  h2 {
+    font-family: "IBM Plex Serif", Georgia, serif; font-weight: 600;
+    font-size: 1.6rem; line-height: 1.18; letter-spacing: -0.015em;
+    text-wrap: balance; margin: 0 0 0.7rem;
+  }
+  h3 { font-size: 1rem; font-weight: 600; margin: 1.8rem 0 0.4rem; }
+  p { margin: 0 0 1rem; max-width: 66ch; }
+  code {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.88em;
+    background: var(--code-bg); padding: 0.08em 0.34em; border-radius: 3px;
+  }
+  pre {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.83rem; line-height: 1.65;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent); padding: 1rem 1.1rem;
+    overflow-x: auto; margin: 1.1rem 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  ul { margin: 0.5rem 0 1rem; padding-left: 1.15rem; max-width: 66ch; }
+  li { margin-bottom: 0.5rem; }
+  li::marker { color: var(--ink-faint); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+  th {
+    text-align: left; font-family: "IBM Plex Mono", monospace; font-weight: 500;
+    font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-faint); padding: 0 0.8rem 0.5rem 0; border-bottom: 1px solid var(--rule);
+  }
+  td { padding: 0.65rem 0.8rem 0.65rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  .note {
+    border-left: 3px solid var(--warn); background: var(--warn-soft);
+    padding: 0.9rem 1.1rem; margin: 1.2rem 0; max-width: 66ch;
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .good { border-left-color: var(--accent); background: var(--accent-soft); }
+  footer {
+    margin-top: 4rem; padding-top: 1.2rem; border-top: 2px solid var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--ink-faint);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="eyebrow">
+      <span>Proof of concept</span><span>Scaleway fr-par</span><span>September 2026</span>
+    </div>
+    <h1>LocalChat on Scaleway</h1>
+    <p class="standfirst">A self-hosted RAG application, stood up on managed cloud
+      infrastructure, verified end to end, and torn down again — for thirteen cents.</p>
+    <div class="figures">
+      <div class="figure"><b>&euro;0.13</b><span>total cost</span></div>
+      <div class="figure"><b>4</b><span>commands to deploy</span></div>
+      <div class="figure"><b>10 / 10</b><span>validation checks</span></div>
+      <div class="figure"><b>2.99 GB</b><span>application image</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>What was built</h2>
+    <p>LocalChat lets people upload documents and ask questions about them, with retrieval
+      over a vector database and a locally hosted language model. This proof of concept
+      answers one question: can it run on managed cloud infrastructure without changing
+      what the product is?</p>
+    <p>It can. The stack is a Serverless Container running the application, a Serverless
+      SQL Database with pgvector for retrieval, and a small Instance serving the embedding
+      model over a private network. No component was rewritten to fit the platform.</p>
+
+    <table>
+      <thead><tr><th>Component</th><th>Service</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Application</td><td>Serverless Container</td><td>3 GB, one instance, no autoscaling</td></tr>
+        <tr><td>Database</td><td>Serverless SQL, PostgreSQL 16</td><td>pgvector 0.8.2, scales to zero when idle</td></tr>
+        <tr><td>Embeddings</td><td>CPU Instance running Ollama</td><td>Reachable only over a private network</td></tr>
+        <tr><td>Text generation</td><td>Not deployed</td><td>Needs a GPU — the next decision</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>How to deploy it</h2>
+    <p>Four commands. All of them are idempotent: running one twice does nothing the
+      second time. They were written after deploying once by hand, so they encode what
+      actually worked rather than what the documentation predicted.</p>
+
+<pre><code>bash   scripts/scaleway/provision.sh          # project, database, scoped credentials
+bash   scripts/scaleway/deploy_container.sh   # the application
+python scripts/scaleway/verify_deployment.py &lt;endpoint&gt;
+bash   scripts/scaleway/deploy_embeddings.sh  # the embedding model host</code></pre>
+
+    <p>The third command is a gate rather than a checklist. It signs in, confirms the
+      deployed image is the version you think it is, ingests a document and retrieves it
+      with a query that shares no words with the text — so a passing result can only come
+      from the vector search actually working. It exits non-zero on failure.</p>
+
+    <h3>Stopping the costs</h3>
+    <p>The platform has no spend cap at any level, so the teardown is a script rather than
+      a habit:</p>
+<pre><code>PROJECT_ID=&lt;project&gt; bash scripts/scaleway/panic_teardown.sh                  # shows what would go
+PROJECT_ID=&lt;project&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.sh  # stops it</code></pre>
+    <p>It deletes rather than stops, because a stopped machine keeps billing for its disks
+      and its reserved address. It refuses to touch anything outside the project it was
+      given.</p>
+  </section>
+
+  <section>
+    <h2>What the deployment disproved</h2>
+    <p>Three things the plan believed turned out to be wrong, and finding them is most of
+      the value of running a proof of concept at all.</p>
+
+    <h3>Retrieval does not work without the model host</h3>
+    <p>The plan assumed a first pass without any language model would still validate
+      document upload and search. It does not: every document chunk is embedded through
+      the model host, so with none reachable nothing is stored at all. The fix was not an
+      expensive GPU — embeddings alone run acceptably on a small CPU machine, at roughly
+      two cents an hour.</p>
+
+    <h3>Encryption to the database is structural, not optional</h3>
+    <p>The managed database selects which database you reach from the encrypted
+      handshake itself. An unencrypted connection cannot name its target, so it fails with
+      a confusing error rather than a security warning. The application had never made
+      this setting explicit; it does now.</p>
+
+    <h3>A health check that never checked</h3>
+    <div class="note">
+      <p>The application's health endpoint reported the database as healthy for the life of
+        the process, because it echoed a flag recorded at startup rather than asking the
+        database anything. On a server that is always running, this behaves like correct
+        code indefinitely. On a database that scales to zero, it reports green while every
+        request fails.</p>
+      <p>This was a latent defect, not a platform requirement — the cloud only made it
+        visible. That is the most transferable lesson here: when moving to managed
+        infrastructure, look for the assumptions an always-present environment was quietly
+        covering.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>What it cost</h2>
+    <p>Thirteen cents for the entire exercise — database, application container, embedding
+      host, private networking, stood up and torn down. The figure matters less than the
+      shape behind it:</p>
+    <ul>
+      <li><strong>Idle costs nothing.</strong> The database scales to zero; the application
+        was pinned to a single instance on purpose, so concurrency cannot multiply the bill.</li>
+      <li><strong>A GPU is the only expensive decision.</strong> Text generation needs one,
+        at roughly &euro;575 per month if left running. Everything else is cents.</li>
+      <li><strong>Nothing stops spend automatically.</strong> A budget alert is an estimate
+        that lags the invoice. The teardown script is the actual brake.</li>
+    </ul>
+    <div class="note good">
+      <p>The sequencing that made this cheap: prove the plumbing on a two-cent machine, so
+        that when an expensive one is finally switched on it has exactly one question left
+        to answer.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where it stands</h2>
+    <p>The document path — upload, embed, store, retrieve — works on this infrastructure
+      and has been verified. Text generation has not been deployed and is the open
+      decision: a GPU instance, or moving to a hosted model API, which is cheaper to run
+      and a change to what the product is rather than to how it is deployed.</p>
+    <p>The stack is currently torn down. It rebuilds from the four commands above.</p>
+  </section>
+
+  <footer>
+    LocalChat proof of concept &middot; deployed and documented September 2026
+  </footer>
+
+</div>
+</body>
+</html>
