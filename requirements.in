@@ -46,7 +46,7 @@ python-jose[cryptography]==3.5.0  # JWT — pulls in ecdsa; PYSEC-2026-1325 is a
 slowapi==0.1.10                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector
-psycopg[binary]==3.3.4
+psycopg[binary]==3.3.5
 psycopg-pool==3.3.1
 
 # Database migrations
@@ -54,7 +54,7 @@ alembic==1.19.1
 sqlalchemy==2.0.52  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
-pydantic==2.13.4
+pydantic==2.13.5
 email-validator==2.3.0
 
 # Document Processing
@@ -81,7 +81,7 @@ spacy==3.8.16      # GraphRAG entity extraction — optional; also run: python -
 # Encryption — OAuth token at-rest encryption
 cryptography==50.0.1
 # Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
-sentence-transformers==6.0.0
+sentence-transformers==6.0.1
 
 # HTTP Requests
 requests==2.34.2

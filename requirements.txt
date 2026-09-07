@@ -295,9 +295,9 @@ psutil==7.2.2
     # via
     #   -r requirements.in
     #   pymupdf4llm
-psycopg[binary]==3.3.4
+psycopg[binary]==3.3.5
     # via -r requirements.in
-psycopg-binary==3.3.4
+psycopg-binary==3.3.5
     # via psycopg
 psycopg-pool==3.3.1
     # via -r requirements.in
@@ -307,7 +307,7 @@ pyasn1==0.6.4
     #   rsa
 pycparser==3.0
     # via cffi
-pydantic==2.13.4
+pydantic==2.13.5
     # via
     #   -r requirements.in
     #   fastapi
@@ -317,7 +317,7 @@ pydantic==2.13.4
     #   spacy
     #   thinc
     #   weasel
-pydantic-core==2.46.4
+pydantic-core==2.46.5
     # via pydantic
 pydantic-settings==2.15.0
     # via litellm
@@ -388,7 +388,7 @@ scipy==1.18.1
     # via
     #   scikit-learn
     #   sentence-transformers
-sentence-transformers==6.0.0
+sentence-transformers==6.0.1
     # via -r requirements.in
 shellingham==1.5.4
     # via typer

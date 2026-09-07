@@ -12,11 +12,11 @@ charset-normalizer==3.5.1
     # via
     #   -c requirements.txt
     #   requests
-coverage[toml]==7.15.4
+coverage[toml]==7.16.0
     # via
     #   -r requirements-dev.in
     #   pytest-cov
-faker==40.37.0
+faker==40.38.0
     # via -r requirements-dev.in
 freezegun==1.5.5
     # via -r requirements-dev.in
