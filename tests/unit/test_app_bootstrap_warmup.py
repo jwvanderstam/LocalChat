@@ -684,6 +684,7 @@ class TestBootstrapApp:
             app_arg.state.startup_status["database"] = True
 
         with patch("src.app_bootstrap.setup_logging") as mock_setup_logging, \
+             patch("src.app_bootstrap._clear_upload_staging") as mock_clear_staging, \
              patch("src.app_bootstrap._init_caching") as mock_init_caching, \
              patch("src.app_bootstrap._init_ollama_service", side_effect=_mark_ollama_ready) as mock_init_ollama, \
              patch("src.app_bootstrap._init_database_service", side_effect=_mark_db_ready) as mock_init_db, \
@@ -695,6 +696,7 @@ class TestBootstrapApp:
             bootstrap_app(app)
 
         mock_setup_logging.assert_called_once()
+        mock_clear_staging.assert_called_once()
         mock_init_caching.assert_called_once_with(app)
         mock_init_ollama.assert_called_once()
         mock_init_db.assert_called_once()
@@ -715,6 +717,7 @@ class TestBootstrapApp:
         app.state.doc_processor = MagicMock()
 
         with patch("src.app_bootstrap.setup_logging"), \
+             patch("src.app_bootstrap._clear_upload_staging"), \
              patch("src.app_bootstrap._init_caching"), \
              patch("src.app_bootstrap._init_ollama_service"), \
              patch("src.app_bootstrap._init_database_service"), \

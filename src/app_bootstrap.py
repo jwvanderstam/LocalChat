@@ -83,6 +83,11 @@ def _clear_upload_staging() -> None:
         return
     removed = 0
     for name in os.listdir(folder):
+        # A dotfile is not a staged upload. `uploads/.gitkeep` is tracked — it is what
+        # keeps the directory in the repository — so sweeping it made every host run of
+        # `python app.py` dirty the working tree.
+        if name.startswith("."):
+            continue
         path = os.path.join(folder, name)
         try:
             if os.path.isfile(path):
