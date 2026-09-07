@@ -247,12 +247,34 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
 
 def _check_metrics_auth(req: Any) -> bool:
-    """Return True if the request is authorised to read metrics."""
+    """Return True if the request is authorised to read metrics.
+
+    Two legitimate callers, and they authenticate differently. A scraper presents
+    METRICS_TOKEN as a bearer token. The admin dashboard is a browser holding an
+    httpOnly session cookie, and cannot present that token — shipping it to the
+    page would publish the very secret it is.
+
+    Requiring the token from both is what made setting METRICS_TOKEN break the
+    observability panel with a silent 403: following the deployment guide's own
+    security advice disabled a feature.
+    """
     from . import config
     if not config.METRICS_TOKEN:
         return True
+
     auth = req.headers.get("authorization", "")
-    return auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN
+    if auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN:
+        return True
+
+    # An authenticated administrator already sees everything on this page.
+    try:
+        from .security_fastapi import _claims_from_request
+
+        return (_claims_from_request(req) or {}).get("role") == "admin"
+    except Exception as e:
+        # Fail closed: an unverifiable session is not an authorised one.
+        logger.debug("[Metrics] Could not read session claims: %s", e)
+        return False
 
 
 def _status(healthy: bool) -> str:
