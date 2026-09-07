@@ -61,6 +61,16 @@ class TestOrphansLeftByAnInterruptedIngest:
         assert nested.is_dir() and (nested / "inner.txt").exists()
         assert not (staging / "orphan.pdf").exists()
 
+    def test_dotfiles_are_left_alone(self, staging):
+        """`uploads/.gitkeep` is tracked; sweeping it dirtied the tree on every host run."""
+        (staging / ".gitkeep").write_text("")
+        (staging / "orphan.pdf").write_text("x")
+
+        _clear_upload_staging()
+
+        assert (staging / ".gitkeep").exists()
+        assert not (staging / "orphan.pdf").exists()
+
 
 class TestItNeverStopsTheApplication:
     def test_a_missing_folder_is_not_an_error(self, tmp_path, monkeypatch):

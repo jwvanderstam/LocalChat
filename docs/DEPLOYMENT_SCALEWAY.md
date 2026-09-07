@@ -533,6 +533,25 @@ connection.
 application id is the login and the API secret key the password — and then the check that
 matters, `CREATE EXTENSION vector`. Nothing has connected to this database yet.
 
+### Signing in: where the admin password comes from
+
+`deploy_container.sh` generates the application secrets on its first run — including
+`ADMIN_PASSWORD`, which is how you sign in — and writes them to a mode-600 file outside
+the repository. It never prints them, so the file is the only copy.
+
+```bash
+grep ADMIN_PASSWORD ~/.config/scw/localchat-deploy.env      # bash
+Select-String ADMIN_PASSWORD $HOME\.config\scw\localchat-deploy.env   # PowerShell
+```
+
+The username is `admin`. Read it in your own terminal rather than through a tool that
+records its output — a password pasted into a transcript is a password that has leaked,
+which is the whole of §10c.
+
+Lost the file, or it no longer matches what is deployed? Delete it and re-run
+`deploy_container.sh`: it generates a fresh set and applies them to the container in the
+same pass. Existing sessions are invalidated, which is the point.
+
 **Phase 2 — Container. Done, 2026-09-05.**
 
 ```
