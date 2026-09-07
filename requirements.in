@@ -71,7 +71,7 @@ python-docx==1.2.0
 python-pptx==1.0.2
 reportlab==5.0.1             # PDF export for conversation download (optional)
 openpyxl==3.1.5         # Excel (.xlsx) ingestion
-litellm==1.99.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
+litellm==1.97.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
                    # HELD at 1.97.0: 1.98.0 hard-depends on boto3, which puts the AWS SDK in the
                    # image of a sovereignty-scoped appliance to reach Bedrock we will never call.
                    # ADR-4 decides the replacement; do not bump this without reading it.

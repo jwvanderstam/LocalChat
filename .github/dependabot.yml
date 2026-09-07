@@ -25,6 +25,19 @@ updates:
       # tried. Remove this entry once one imports in the image.
       - dependency-name: "onnxruntime"
         versions: ["1.29.0"]
+
+      # litellm >=1.98.0 hard-depends on boto3, which puts the AWS SDK into the
+      # image of a sovereignty-scoped appliance to reach a Bedrock endpoint we
+      # will never call. The hold is a standing decision recorded in ADR-4 and
+      # in requirements.in next to the pin; without this entry Dependabot
+      # re-proposes the bump every week and it fails the same unit test each
+      # time: #347 forced ADR-4, and #365 proposed the same bump again. Both
+      # died on the same unit test — boto3 present, so the S3 connector's
+      # graceful-degradation branch stops raising. Drop the entry when the
+      # direct OpenAI-compatible client ADR-4 specifies has landed, not to
+      # make a red run go green.
+      - dependency-name: "litellm"
+        versions: [">=1.98.0"]
     groups:
       # Collapses routine bumps so open-pull-requests-limit stops binding and
       # never silently suppresses an update. Majors stay ungrouped — those are
