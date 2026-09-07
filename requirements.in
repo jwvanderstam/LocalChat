@@ -46,7 +46,7 @@ python-jose[cryptography]==3.5.0  # JWT — pulls in ecdsa; PYSEC-2026-1325 is a
 slowapi==0.1.10                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector
-psycopg[binary]==3.3.4
+psycopg[binary]==3.3.5
 psycopg-pool==3.3.1
 
 # Database migrations
@@ -54,7 +54,7 @@ alembic==1.19.1
 sqlalchemy==2.0.52  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
-pydantic==2.13.4
+pydantic==2.13.5
 email-validator==2.3.0
 
 # Document Processing
@@ -71,7 +71,7 @@ python-docx==1.2.0
 python-pptx==1.0.2
 reportlab==5.0.1             # PDF export for conversation download (optional)
 openpyxl==3.1.5         # Excel (.xlsx) ingestion
-litellm==1.97.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
+litellm==1.99.0    # Cloud model fallback — optional, only needed when CLOUD_FALLBACK_ENABLED=true; >=1.83.7 fixes auth bypass CVEs
                    # HELD at 1.97.0: 1.98.0 hard-depends on boto3, which puts the AWS SDK in the
                    # image of a sovereignty-scoped appliance to reach Bedrock we will never call.
                    # ADR-4 decides the replacement; do not bump this without reading it.
@@ -81,7 +81,7 @@ spacy==3.8.16      # GraphRAG entity extraction — optional; also run: python -
 # Encryption — OAuth token at-rest encryption
 cryptography==50.0.1
 # Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
-sentence-transformers==6.0.0
+sentence-transformers==6.0.1
 
 # HTTP Requests
 requests==2.34.2
