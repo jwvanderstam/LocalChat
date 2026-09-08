@@ -53,7 +53,7 @@ case "$1 $2 $3" in
   "container container list")    printf '%s' "$SCW_FAKE_CONTAINERS" ;;
   "container container create")  echo '{"id":"ctr-new","status":"ready"}' ;;
   "container container update")  echo '{"id":"ctr-x","status":"ready"}' ;;
-  "container container get")     echo '{"id":"ctr-x","status":"ready","public_endpoint":"https://example.fnc.fr-par.scw.cloud"}' ;;
+  "container container get")     echo '{"id":"ctr-x","status":"ready","image":"ghcr.io/jwvanderstam/localchat:sha-deployed","public_endpoint":"https://example.fnc.fr-par.scw.cloud"}' ;;
   "vpc private-network list")    printf '%s' "$SCW_FAKE_NETWORKS" ;;
   "vpc private-network create")  echo '{"id":"pn-new"}' ;;
   "instance security-group list")   printf '%s' "$SCW_FAKE_SECGROUPS" ;;
@@ -235,6 +235,19 @@ class TestTheEmbeddingsInstanceIsBuiltSafely:
         assert "172.16.0.2" in proc.stdout
         update = [c for c in calls if c.startswith("container container update")]
         assert any("OLLAMA_BASE_URL=http://172.16.0.2:11434" in c for c in update)
+
+    def test_rewiring_the_container_keeps_the_image_it_is_running(self, tmp_path):
+        """Phase 4 re-runs Phase 2, so an unpassed knob reverts to Phase 2's default.
+
+        A stack deployed on an explicit tag came back running the release tag
+        DEPLOY_IMAGE_TAG defaults to — silently, because the inner run is
+        redirected to /dev/null.
+        """
+        proc, calls = _run(EMBEDDINGS_SH, tmp_path, **DEPLOYED)
+
+        update = [c for c in calls if c.startswith("container container update")]
+        assert update, proc.stdout
+        assert "image=ghcr.io/jwvanderstam/localchat:sha-deployed" in update[0]
 
     def test_no_model_is_pulled_from_the_script(self, tmp_path):
         """The cloud-init pull failed silently once; the app's endpoint does it now."""

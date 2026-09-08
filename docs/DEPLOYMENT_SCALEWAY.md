@@ -19,9 +19,9 @@ document treats that as a constraint to respect rather than a limitation to work
 
 **The shortest useful path**, and the reasoning is in the sections that follow:
 
-> **The whole stack has been built, verified end to end, and torn down again** — for
-> €0.13, on 2026-09-05. Every phase is now a script, written from what the manual run
-> actually did (D3):
+> **Phases 0 to 4 are done.** The whole stack has been built, verified end to end and torn
+> down more than once — first on 2026-09-05 for €0.13. Only Phase 5, the GPU, is open.
+> Every phase is a script, written from what the manual run actually did (D3):
 >
 > ```bash
 > bash scripts/scaleway/provision.sh          # Phase 1 — project, database, IAM
@@ -32,13 +32,18 @@ document treats that as a constraint to respect rather than a limitation to work
 > ```
 >
 > All of them are idempotent. To tear it down: [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md).
+>
+> **A stack may be standing right now.** It is ephemeral by intent, not by mechanism —
+> nothing deletes it on a timer, and one was found still running two days after it was
+> believed gone. [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md) says what was last left up; the
+> account is the only authority on what actually is.
 
 1. ~~Get a payment method on the account~~ — not required; resources create without one.
 2. Create a Serverless SQL Database with `cpu-max = 1` (§4) — `provision.sh` does this.
 3. Deploy the container from a **pinned version tag**, min scale 1, max scale 1 (§6, §10).
 4. Skip Ollama for the first pass (§5, option 4) — but note it blocks the document path,
    not just chat.
-5. Work through §11 with a live stack in front of you.
+5. Work through §11 with a live stack in front of you — two rows are left.
 6. Add embeddings on a **CPU** Instance before considering a GPU (§5) — the CPU box is a
    disposable stand-in, and everything built around it is what the GPU step reuses.
 
@@ -80,7 +85,7 @@ inherited assumption is visible as a decision.
 | D5 | **`max_cpu = 1`** on the database | The platform ceiling is 15 vCPU, and the Terraform resource *defaults* to it. An explicit ceiling makes runaway compute cost structurally impossible rather than merely unlikely. | Observed contention under real multi-user load. Raise it deliberately; do not discover the default from an invoice. |
 | D6 | **Skip Redis** | `REDIS_ENABLED` defaults false, and at max scale 1 there is no cross-instance cache coherence argument for it. | Outgrowing in-memory caching, which at 25 users is unlikely. |
 | D7 | **Skip Ollama on the first pass** | It is the only expensive line item (§5) and the only one that needs a persistent GPU VM. Everything else validates without it. | Phase 3 passing. Then §5's four options get decided with real credit-burn numbers instead of blind. |
-| D8 | **Accept degraded rate limiting** (§7) | `X-Forwarded-For` is not sanitised at Scaleway's edge, and there is no IP-range middle ground. For a handful of known users this is tolerable. | A public or untrusted user base. §7 lists the alternatives; none is free. **This one is an acceptance, not a fix** — it should be re-read before anyone outside the test group gets a login. |
+| D8 | **Accept degraded rate limiting** (§7) | `X-Forwarded-For` is not sanitised at Scaleway's edge, and there is no IP-range middle ground. For a handful of known users this is tolerable. **Confirmed live 2026-09-08:** the shared bucket is what the deployment does, measured rather than assumed (§11). | A public or untrusted user base. §7 lists the alternatives; none is free. **This one is an acceptance, not a fix** — it should be re-read before anyone outside the test group gets a login. |
 
 ---
 
@@ -329,14 +334,20 @@ When you act on it, **the two targets want different images**: the appliance kee
 
 ### Which tag
 
-Deploy a **version tag**, never `latest` — see §1. As of 2026-08-31 that is
-`ghcr.io/jwvanderstam/localchat:3.0.0`, published by CI from the `v3.0.0` git tag.
+Deploy an **immutable tag**, never `latest` — see §1. For a release that is a version
+tag, `ghcr.io/jwvanderstam/localchat:3.0.0`, published by CI from the `v3.0.0` git tag. To
+test what is on `main` ahead of a release — which is usually what this stack is for — deploy
+`sha-<commit>`, published by CI on every push. `main` runs ahead of `3.0.0`, so the release
+tag is the *older* image whenever a fix has landed since.
 
-`APP_VERSION` is not worth setting on Scaleway. The image's built-in default now matches
-the release, so `GET /api/status` reporting `3.0.0` is a free check that you are running
-the image you think you are. *(Until 2026-08-31 it defaulted to `1.0.0` and compose
-overrode it to `0.5.0`, so this check was worthless — three declarations had drifted apart.
-`tests/unit/test_app_version_is_consistent.py` now holds them together.)*
+`APP_VERSION` is not worth setting on Scaleway, and it is **not** a check that you are
+running the image you think you are. It is a constant in `config.py`: every build since the
+`v3.0.0` tag reports `3.0.0`, so it identifies the release and says nothing about the build.
+On 2026-09-08 a container was deployed on `sha-359069a`, silently reverted to `3.0.0` by
+Phase 4, and reported `3.0.0` throughout. Ask Scaleway which image is deployed
+(`scw container container list`) — that is the only answer that distinguishes builds.
+*(This paragraph also said the version was on `GET /api/status` until 2026-09-08. It is
+admin-only on `GET /api/settings/stats`, as §10's Phase 3 has said since 2026-09-05.)*
 
 ### Debugging: the image is distroless
 
@@ -357,8 +368,14 @@ readable error. See [ADR-3](ADR.md).
 Scaleway does not sanitise `X-Forwarded-For` at the Serverless Containers edge: an external
 caller can set `X-Forwarded-For: 1.2.3.4` and it reaches the container unchanged.
 *[High confidence on the mechanism — a still-open Scaleway community feature request from
-Feb 2024 states it plainly. Moderate on real-world exploitability — not tested against a
-live deployment.]*
+Feb 2024 states it plainly. Untested, and not testable while the deployment trusts no proxy:
+with `TRUSTED_PROXY_IPS` empty the app never reads the header, so a probe cannot tell a
+sanitising edge from an app that ignores it (§11).]*
+
+**What is measured, on the live stack (2026-09-08):** the limiter ignores
+`X-Forwarded-For` entirely and every caller shares one bucket. Rotating a forged header
+across the login limit changed nothing; neither did removing it. That is option 1 below,
+already in force by default.
 
 How LocalChat's limiter is wired (`src/config.py`, `src/app_fastapi.py`,
 `docker-entrypoint.py`, [DEPLOYMENT.md](DEPLOYMENT.md)):
@@ -516,22 +533,25 @@ Do **not** set `APP_VERSION` — see §6.
 setup — the budget, a project and the database all went through. The budget guardrail is
 live: €50 ceiling, €40 alert (§8).
 
-**Phase 1 — Database. Partly done, 2026-09-05.**
+**Phase 1 — Database. Done.** `provision.sh` owns the whole phase now: the scoped project,
+the database, the IAM application, the project-scoped policy and the API key.
 
 ```
 project   localchat-test   986172ba-5b88-4fd0-8d6d-83ac3872a692
-database  localchat        a1315b0e-5461-45ef-bcee-2cc72c5fa028   ready, PG 16, cpu 0–1
-endpoint  postgres://a1315b0e-….pg.sdb.fr-par.scw.cloud:5432/localchat?sslmode=require
+identity  localchat-app    f80a9363-fde6-49b0-80ca-65b0f37a2b56  (policy f301de68, ServerlessSQLDatabaseReadWrite)
+database  localchat        d68f9ef0-4e06-496f-b485-cd22b4ef3382   ready, PG 16, cpu 0–1
+endpoint  postgres://d68f9ef0-….pg.sdb.fr-par.scw.cloud:5432/localchat?sslmode=require
 ```
+
+The database id changes on every rebuild — a teardown deletes it — while the project and
+the IAM identity survive. That asymmetry is why `provision.sh` rewrites the connection
+details in the credential file and reuses the stored API secret: a secret is shown once, so
+recreating the database must not orphan the key that reaches it.
 
 Created with `scw sdb-sql database create name=localchat cpu-min=0 cpu-max=1
 project-id=…` — the CLI requires both CPU bounds, so §4's `max_cpu = 15` trap cannot fire
 on this path. `started: false`: it is scaled to zero and costs nothing until first
-connection.
-
-**Still to do in this phase:** the IAM application, policy and API key (§4) — the
-application id is the login and the API secret key the password — and then the check that
-matters, `CREATE EXTENSION vector`. Nothing has connected to this database yet.
+connection. `CREATE EXTENSION vector` was settled on 2026-09-05 (pgvector 0.8.2, §11).
 
 ### Signing in: where the admin password comes from
 
@@ -552,15 +572,20 @@ Lost the file, or it no longer matches what is deployed? Delete it and re-run
 `deploy_container.sh`: it generates a fresh set and applies them to the container in the
 same pass. Existing sessions are invalidated, which is the point.
 
-**Phase 2 — Container. Done, 2026-09-05.**
+**Phase 2 — Container. Done.** `deploy_container.sh` owns it; ids below are from the
+2026-09-08 rebuild.
 
 ```
-namespace  localchat  17ed14ec-4786-4f45-986b-aa70495e05e9   fr-par
-container  localchat  4f1b26f9-fed6-4364-818a-534a8cd35c34
-endpoint   https://localchat17ed14ec-localchat.functions.fnc.fr-par.scw.cloud
-image      ghcr.io/jwvanderstam/localchat:3.0.0   (pulled from ghcr.io directly)
+namespace  localchat  c69ca6ba-2047-44af-9380-c60312d3daea   fr-par
+container  localchat  d8af0eb1-5208-4982-821c-87289651a182
+endpoint   https://localchatc69ca6ba-localchat.functions.fnc.fr-par.scw.cloud
+image      ghcr.io/jwvanderstam/localchat:sha-359069a   (pulled from ghcr.io directly)
 scale      min 1 / max 1 (D1, D2)      memory 3 GB, 1000 mvCPU      port 5000
 ```
+
+`DEPLOY_IMAGE_TAG` defaults to `3.0.0`, the release tag. Pass a `sha-` tag to deploy what is
+on `main` (§6), and check afterwards which image the container actually holds — Phase 4
+reverted it to the default until 2026-09-08, and no HTTP check can see that.
 
 Reaching `ghcr.io` from Scaleway needed no registry mirroring — the 2.99 GB pull
 took about five minutes from `creating` to `ready`, once.
@@ -573,16 +598,17 @@ Two things the CLI does not tell you until it refuses:
   `environment-variables`. Scaleway stores those separately and returns them as argon2
   hashes, so `container get` never echoes a secret.
 
-**Phase 3 — Validate. Done, with one item blocked.**
+**Phase 3 — Validate. Done.** `verify_deployment.py` runs the whole table; every row passes
+on the 2026-09-08 stack, the last one since Phase 4 exists.
 
 | Check | Result |
 |---|---|
-| `GET /api/health` answers | ✅ 200 in 0.52 s — database `up`, cache `up`, ollama `down` (expected, D7) |
-| The deployed image is the one you think | ✅ `app_version: 3.0.0` |
+| `GET /api/health` answers | ✅ 200 — database `up`, cache `up`, ollama `up` once Phase 4 is deployed |
+| The deployed image is the one you think | ⚠️ **this check cannot do that.** `app_version` is `3.0.0` in every build since the release tag; it proves an app answered. Read the image off the container (§6) |
 | The Alembic chain applied | ✅ 20 tables, head `0016`, admin user seeded |
 | Log in with `ADMIN_PASSWORD` | ✅ 200, session cookie issued |
 | `hnsw.ef_search` survives a transaction | ✅ reads back `100` — §4's caveat does not bite |
-| Upload a document and ask about it | ❌ **blocked without Ollama** — see below |
+| Upload a document and ask about it | ✅ ingest, then a semantic retrieval whose query shares no words with what it matches (similarity 0.49) |
 
 > **The version is not on `/api/status`.** That endpoint returns readiness and feature
 > flags and carries no version at all. `app_version` lives on **`GET /api/settings/stats`**,
@@ -619,19 +645,29 @@ Two things the CLI does not tell you until it refuses:
 > grounds that a bucket is the one thing that might hold something unregenerable. The
 > safest place for a document nobody needs to keep is nowhere.
 
-**Phase 4 — Embeddings on CPU.** A `DEV1-M` in `fr-par-2` running Ollama with
-`nomic-embed-text` only, on a private network the container can reach. Point
-`OLLAMA_BASE_URL` at it and redeploy. This unblocks upload and retrieval — the part of
-Phase 3 that is still untested — and generation stays absent by design. Generation
-performance on CPU is not the point and should not be judged here.
+**Phase 4 — Embeddings on CPU. Done.** A `DEV1-M` in `fr-par-2` running Ollama with
+`nomic-embed-text` only, on a private network the container can reach; `deploy_embeddings.sh`
+builds all of it and re-points `OLLAMA_BASE_URL`. This unblocks upload and retrieval, and
+generation stays absent by design — generation performance on CPU is not the point and
+should not be judged here.
+
+```
+network    localchat-backend      307c667f-26f7-4da9-8f93-2dd5ea26db3b
+security   localchat-ollama       49b8625d-d0fa-46e7-a036-d9a6572fb003   inbound drop
+instance   localchat-embeddings   006b6a04-db91-43f2-b925-c96d17cf5658   DEV1-M, fr-par-2, 172.16.16.2
+```
+
+The model is pulled *through the application* — `verify_deployment.py --pull-model
+nomic-embed-text` — because the security group drops inbound and there is no SSH to the box.
+The pull is also what proves the private network carries traffic.
 
 Everything built in this phase is what Phase 5 reuses. That is the reason it comes first.
 
 **Phase 5 — Decide on the GPU.** Revisit §5 with the plumbing already proven and ingest
 already working, so that a GPU Instance is only ever asked to answer one question: is
 generation acceptable? Build it beside the CPU Instance, never by resizing it, and delete
-the CPU Instance once generation is confirmed. `L4-1-24G` is €0.787/h ≈ €575/month; the
-whole stack up to this point has cost €0.03.
+the CPU Instance once generation is confirmed. `L4-1-24G` is €0.787/h ≈ €575/month; everything up to
+this point has cost about €1.50 in total, across three build-and-destroy cycles.
 
 ---
 
@@ -768,20 +804,20 @@ All read-only except the last row, which created the cost guardrail itself.
 
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
-| The webhook payload shape `{"invoice_start_date": ..., "threshold": ...}` (§8) | From Scaleway's docs; never received | Point the webhook at a request-capture endpoint and set the threshold to €1 so it fires early | The eventual consumer parses this. A wrong shape means it silently no-ops at exactly the moment it should stop the burn — the one failure that costs money. Worth the €1. |
+| The webhook payload shape `{"invoice_start_date": ..., "threshold": ...}` (§8) | From Scaleway's docs; never received. Attempted 2026-09-08 and stopped at the first decision it needs | Point the webhook at a request-capture endpoint and set the threshold to €1 so it fires early. **Decide where first:** the landing host (§13) is ours and already has TLS, but capturing means installing a listener on a public host; a third-party capture service means posting a billing event off-account. Neither is obviously right, so pick deliberately rather than reaching for whichever is nearer | The eventual consumer parses this. A wrong shape means it silently no-ops at exactly the moment it should stop the burn — the one failure that costs money. Worth the €1. |
 | Whether an organisation may hold more than one budget | One now exists and `create` takes no name, but a second was never attempted | `scw billing budget create consumption-limit=1 enabled=false`, then list and delete | If several are allowed, the script's refuse-on-more-than-one guard is the right behaviour but becomes reachable in normal use — and there is still no name to tell them apart. |
 
-### Settleable only against a live stack
+### Settled — checked 2026-09-08 against the live stack
 
-| Claim | Why unsettled | The check | If it differs |
-|---|---|---|---|
-| `X-Forwarded-For` is spoofable at the edge (§7) | Scaleway's own unresolved forum post states the behaviour; not tested | Behavioural, because the app logs no client IP — the limiter keys on `request.client.host` (`src/security_fastapi.py`). Exhaust the limit on a limited endpoint with a fixed `X-Forwarded-For`, then repeat rotating the header. A reset budget means the header is trusted and spoofable; an unchanged one means everyone shares one bucket. | Those are the two failure modes §7 describes and the check distinguishes them. Either way the response is §7's options — the point is to know which you accepted. |
+| Claim | What the check found |
+|---|---|
+| Which of §7's two rate-limiting failure modes is live | **The shared bucket.** 14 logins with one fixed `X-Forwarded-For` gave 9 x 401 then 429; eight more with a rotating header, and three with none, stayed 429. A forged header buys nothing, because `TRUSTED_PROXY_IPS` is empty, no `ProxyHeadersMiddleware` is mounted, and every caller keys on Scaleway's ingress address. **D8 is the state of the deployment, not merely its recommendation.** |
+| Whether `X-Forwarded-For` is *spoofable at the edge* (§7) | **Still open, and this check cannot settle it.** With no proxy trusted, "the edge stripped the header" and "the app ignored it" are indistinguishable from outside. Settling it means setting `TRUSTED_PROXY_IPS` deliberately and repeating the probe — worth doing only if someone proposes to fix the shared bucket that way, since that setting is the exploitable configuration. |
+| Whether Phase 4 preserves the deployed image | **It did not.** Rewiring the container re-ran Phase 2 with defaults and rolled a `sha-` deployment back to `3.0.0`. Fixed; `tests/unit/test_deploy_scripts.py` holds it. |
 
-**Phase 0 gates the rest.** Everything under *Settleable only against a live stack*, plus
-the webhook row above it, needs an account that can create *billable* resources — which
-still needs a payment method on file, still console-only, still only you. The budget created
-on 2026-09-05 does not settle that: a budget is a billing object, free and always available.
-Nothing that costs money has been created.
+**A payment method was never needed.** An earlier note here said everything billable was
+gated behind one. Instances, containers and a database have all been created and billed
+since; the account needs nothing added to it.
 
 ---
 

@@ -64,6 +64,12 @@ worse than none — that is the whole design, and it held under a real failure.
 > **Re-running is safe and is the first thing to try.** The second run reported
 > *"Nothing billable found in this project"* and exited 0.
 
+*Two further runs in anger, 2026-09-06 and 2026-09-08, both exited 0 unattended.* The
+private network needed the retry each time — it succeeded on attempt three on both — so
+that race is the normal case, not the exception, and the bounded retry is what turns it
+back into a clean run. The volume and IP sections came back empty both times as well, which
+is now three observations rather than one.
+
 ---
 
 ## Why it deletes instead of stopping

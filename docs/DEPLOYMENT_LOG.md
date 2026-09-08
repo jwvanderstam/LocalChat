@@ -99,6 +99,80 @@ attempt three, so the retry added after the first run did its job unattended.
 
 ---
 
+## 2026-09-08 — a stack found running, and a rebuild from the scripts
+
+**Done.** Found the 2026-09-06 stack still standing and still billing. Tore it down with
+the kill switch, rebuilt the whole thing from the three scripts onto the current `main`
+build, verified it end to end, and ran the rate-limiting check §11 had been carrying since
+the plan was written. The stack is deliberately left standing at the end of this entry.
+
+**Found.**
+
+| | |
+|---|---|
+| The previous session's stack | **still running**, 35 hours after this log recorded a clean teardown. The teardown happened; the rebuild that followed it was never written down |
+| `deploy_embeddings.sh` | **silently rolled the container back to the default image tag.** Phase 4 rewires the container by re-running Phase 2, passing it two variables — every other knob, `DEPLOY_IMAGE_TAG` among them, fell back to Phase 2's default of `3.0.0`. The inner run is redirected to `/dev/null`, so nothing said so |
+| `verify_deployment.py`'s image check | **cannot see that.** `app_version` is `3.0.0` in every build since the tag, so "deployed image is the expected one" passed against the wrong image |
+| `X-Forwarded-For` at the edge (§7, §11) | **Everyone shares one bucket.** Measured, not inferred — see below |
+| The kill switch, third live run | clean, exit 0. The Private Network again needed the retry, landing on attempt 3; the instance delete took its volume and its IP with it, so the later passes found nothing to do |
+| The stale-credential fix | works. The database was recreated with a new host while its API key survived, and `provision.sh` reused the stored secret and rewrote the connection details — the exact combination that broke on 2026-09-06 |
+| The mixed-content fix (#364) | holds in the real environment: `/login` on the deployed image references `/static/css/style.css` root-relative, where the `3.0.0` image emitted an absolute `http://` URL |
+
+**The image revert, and why nothing caught it.** Phase 2 was deployed on `sha-359069a`,
+Phase 4 reported success, and the container was afterwards running `3.0.0` — a release tag
+four fixes behind `main`. Two independent guards should have caught it and neither could:
+the deploy script prints nothing about the inner run, and the verifier's version check reads
+`app_version`, which is a constant in `config.py` rather than anything derived from the
+build. `deploy_embeddings.sh` now reads the deployed image and hands it back, prints what it
+kept, and `tests/unit/test_deploy_scripts.py` asserts the update carries it. The verifier is
+**deliberately left as it is**: over HTTP there is nothing to compare against, since the
+application does not know which image it came from. Treat its version row as "an app
+answered", not "the right build is deployed".
+
+**The rate-limiting check (§11, §7).** 14 login attempts with one fixed
+`X-Forwarded-For` gave 9 x 401 then 429 — the 10/min limit. Eight more with a rotating
+header, and three with no header at all, stayed 429 throughout. A forged header therefore
+buys nothing: `TRUSTED_PROXY_IPS` is empty on this deployment, so no `ProxyHeadersMiddleware`
+is mounted and the limiter keys on Scaleway's ingress address for every caller. **D8's
+shared-bucket failure mode is the live one**, which is the outcome §7 recommends accepting.
+
+What the check does *not* settle is §7's other half — whether the edge would pass a forged
+header through if the app were told to trust it. It cannot: with no proxy trusted, "the edge
+stripped it" and "the app ignored it" look identical from outside. Settling that means
+setting `TRUSTED_PROXY_IPS` deliberately and repeating the probe, which is worth doing only
+if anyone proposes to fix the shared bucket that way.
+
+**The webhook payload check (§11) was not run.** It needs an endpoint that records what
+Scaleway POSTs. The honest place is the landing host, which we own and which already has
+TLS — but that means installing a capture endpoint on a public host, and the payload is a
+billing event, so a third-party capture service is a different decision rather than an
+easier one. Left open with the €40 alert untouched.
+
+**What is standing.**
+
+```
+project    localchat-test         986172ba-5b88-4fd0-8d6d-83ac3872a692
+database   localchat              d68f9ef0-4e06-496f-b485-cd22b4ef3382   ready, scaled to zero
+namespace  localchat              c69ca6ba-2047-44af-9380-c60312d3daea
+container  localchat              d8af0eb1-5208-4982-821c-87289651a182   sha-359069a
+endpoint   https://localchatc69ca6ba-localchat.functions.fnc.fr-par.scw.cloud
+network    localchat-backend      307c667f-26f7-4da9-8f93-2dd5ea26db3b
+security   localchat-ollama       49b8625d-d0fa-46e7-a036-d9a6572fb003   inbound drop
+instance   localchat-embeddings   006b6a04-db91-43f2-b925-c96d17cf5658   DEV1-M, fr-par-2, 172.16.16.2
+```
+
+Every Phase 3 check passes on this stack, ingest and semantic retrieval included. It burns
+roughly EUR 1.50 a day with `min_scale=1` and the DEV1-M running. **Tear it down when the
+testing stops** — and unlike last time, say so here.
+
+**Cost.** EUR 1.39 in the project this billing period, covering the standing stack and this
+rebuild: DEV1-M 0.81, database 0.27, IPv4 0.20, block storage 0.06, containers 0.05. The
+container line is small only because the Serverless Containers free tier absorbed 2.25 of
+2.30 — and memory has now passed 400,000 GB-s, so the tier is spent for this month and the
+next day of `min_scale=1` bills in full.
+
+---
+
 ## How to add an entry
 
 One section per session, newest at the bottom. Record what was done, what was found that
