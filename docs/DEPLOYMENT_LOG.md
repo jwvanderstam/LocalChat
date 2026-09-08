@@ -144,11 +144,33 @@ stripped it" and "the app ignored it" look identical from outside. Settling that
 setting `TRUSTED_PROXY_IPS` deliberately and repeating the probe, which is worth doing only
 if anyone proposes to fix the shared bucket that way.
 
-**The webhook payload check (§11) was not run.** It needs an endpoint that records what
-Scaleway POSTs. The honest place is the landing host, which we own and which already has
-TLS — but that means installing a capture endpoint on a public host, and the payload is a
-billing event, so a third-party capture service is a different decision rather than an
-easier one. Left open with the €40 alert untouched.
+**The billing guardrail warns at €20, not €40 — and until today it warned nobody at all.**
+Two things about `budget-alert` that this session established:
+
+- **`threshold` is a percentage.** Nothing renders a unit — the API returns a bare
+  `"threshold": 40`, and `consumption_limit` comes back with an empty `currency_code` — so
+  looking at it in the console or the API settles nothing. The constraint does:
+  `threshold=101` and `threshold=150` are both refused with *"must be lower than or equal
+  to 100"*. The guardrail created on 2026-09-05 therefore fires at 40% of €50 = **€20**,
+  and this project's documentation called it €40 in five places for three days. Earlier and
+  more conservative than intended, which is exactly why nobody noticed.
+- **The alert had no notification at all** (`notifications: []`), so firing it would have
+  produced nothing anywhere. `budget-alert-notification create` accepts
+  `email-addresses` and `sms-phone-numbers` alongside `webhook-urls`; an email notification
+  is now attached.
+
+**The webhook is dropped, and the payload check with it.** The shape only matters to code
+that parses it, and that code should not exist: a consumer that tears a stack down on an
+unauthenticated POST is a liability, and a budget alert lags consumption by hours, so it can
+never be the brake — `panic_teardown.sh` with a human in front of it is. Email needs no
+endpoint, no public surface and no third party.
+
+**Whether the alert actually delivers is still unproven.** A 1% alert (€0.50) against ~€5
+of consumption, with email attached, produced no mail in 2 h 33 min. Two candidates, neither
+established: the evaluation runs on a slow cadence, or an alert fires on a *crossing* and
+one created above the line never fires at all. If it is the second, the guardrail is a
+tripwire that must be armed before the spend — and this test was the wrong shape rather than
+the notification being broken.
 
 **Chat was broken, and the cause is in the application, not the deployment.** Every chat
 request came back `{"error": "GenerationError", "message": "Failed to generate response"}`

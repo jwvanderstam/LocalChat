@@ -11,7 +11,7 @@
 # inside it.
 #
 # Usage:
-#   BUDGET_LIMIT=50 ALERT_THRESHOLD=40 [WEBHOOK_URL=https://...] \
+#   BUDGET_LIMIT=50 ALERT_THRESHOLD=40 [WEBHOOK_URL=https://...] \n#     (ALERT_THRESHOLD is a PERCENTAGE of BUDGET_LIMIT, so 40 means 40% = 20)
 #   [SCW_PROFILE=localchat-test] \
 #     bash scripts/scaleway/bootstrap_billing_alert.sh
 #
@@ -36,7 +36,9 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
 
 : "${BUDGET_LIMIT:?set BUDGET_LIMIT — the monthly ceiling in account currency, e.g. 50}"
-: "${ALERT_THRESHOLD:?set ALERT_THRESHOLD — the figure at which the alert fires, e.g. 40}"
+: "${ALERT_THRESHOLD:?set ALERT_THRESHOLD — the PERCENTAGE of BUDGET_LIMIT at which
+the alert fires, 1-100. 40 with a limit of 50 fires at 20, not at 40 — the API takes
+a bare number and refuses anything above 100, which is how the unit was established}"
 WEBHOOK_URL="${WEBHOOK_URL:-}"
 
 command -v scw >/dev/null 2>&1 || die "scw not found on PATH"
@@ -170,7 +172,7 @@ else
   note "created ($budget_id)"
 fi
 
-echo "Alert at $ALERT_THRESHOLD:"
+echo "Alert at $ALERT_THRESHOLD% of the budget:"
 if [[ -n "$alert_id" ]]; then
   note "exists ($alert_id) — not creating a second one"
 else

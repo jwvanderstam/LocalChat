@@ -459,7 +459,7 @@ three levels, which is why nothing here ever creates blind.
 | Level | Identified by | So the script |
 |---|---|---|
 | `budget` | nothing — a budget has **no name**, only `consumption_limit` and `enabled` | updates the one that exists, or creates the first. More than one is **refused**: with no name there is no way to tell which is the guardrail. |
-| `budget-alert` | its `threshold`, read from the budget's nested `alerts[]` | creates one only when no alert at that threshold exists. An alert at a *different* threshold is left alone — two thresholds on one budget are a legitimate configuration. |
+| `budget-alert` | its `threshold` — **a percentage of the budget, not an amount** — read from the budget's nested `alerts[]` | creates one only when no alert at that threshold exists. An alert at a *different* threshold is left alone — two thresholds on one budget are a legitimate configuration. |
 | `budget-alert-notification` | presence in the alert's nested `notifications[]` | attaches a webhook only to an alert that has none. The reply does not expose destinations, so "already notified" is as far as it can tell; repointing means deleting first. |
 
 An unreadable reply is refused rather than read as "absent" — reading a failure as absent
@@ -467,7 +467,15 @@ is exactly what would create the duplicate. Note that `consumption_limit` comes 
 `{currency_code, units, nanos}`, not a scalar.
 
 *[Verified against `scw` 2.61.0 and a live account, 2026-09-05: created the €50 budget and
-its €40 alert, then re-ran twice — the second run was a single GET and no writes.]* The
+its 40% alert, then re-ran twice — the second run was a single GET and no writes.]*
+
+> **`threshold` is a percentage, and this page called it euros until 2026-09-08.** Nothing
+> renders a unit — the API returns a bare `"threshold": 40`, and `consumption_limit` comes
+> back with an empty `currency_code` — so no amount of looking settles it. What settles it
+> is the constraint: `threshold=101` and `threshold=150` are both refused with *"must be
+> lower than or equal to 100"*. So the guardrail created on 2026-09-05 warns at **40% of
+> €50 = €20**, not at €40. Earlier and more conservative than intended, which is why it was
+> never noticed. Raising the warning to €40 means `ALERT_THRESHOLD=80`. The
 decision logic is covered by `tests/unit/test_bootstrap_billing_alert.py`, which runs the
 script against a recording `scw` shim and asserts the exact call sequence.
 
@@ -533,7 +541,7 @@ Do **not** set `APP_VERSION` — see §6.
 
 **Phase 0 — Billing. Done, 2026-09-05.** The account creates resources without further
 setup — the budget, a project and the database all went through. The budget guardrail is
-live: €50 ceiling, €40 alert (§8).
+live: €50 ceiling, alert at 40% of it — €20, not €40 (§8).
 
 **Phase 1 — Database. Done.** `provision.sh` owns the whole phase now: the scoped project,
 the database, the IAM application, the project-scoped policy and the API key.
@@ -819,7 +827,7 @@ All read-only except the last row, which created the cost guardrail itself.
 | `hnsw.ef_search` persistence through Scaleway's pooler (§4) | **It persists.** Reads back `100` in a later transaction, so the pool's `configure` callback is sufficient and `src/db/connection.py` needs no change. |
 | Whether pgvector is available | **Yes, 0.8.2**, via `CREATE EXTENSION vector`. |
 | Whether TLS to the database is optional | **No.** Serverless SQL routes by TLS **SNI**, so an unencrypted client cannot even name its database. `PG_SSLMODE=require` is structural, not hardening. |
-| **The guardrail itself (§8)** | **Created:** budget `acd46bb4` at a €50 ceiling, alert `0de04d05` at €40, no webhook (no consumer exists to receive one). Two further runs made no writes. |
+| **The guardrail itself (§8)** | **Created:** budget `acd46bb4` at a €50 ceiling, alert `0de04d05` at threshold 40 — which is 40 *per cent*, i.e. €20 (established 2026-09-08, below), not the €40 this page then claimed. No webhook (no consumer existed to receive one). Two further runs made no writes. |
 | Whether a payment method is needed before resources can be created (Phase 0) | **No.** A scoped project and a Serverless SQL Database were both created without one. Phase 0 is closed. |
 | What the account is already spending | **€2.31 this period, none of it LocalChat's** — a running `PLAY2-PICO` (`poc-hello-world-par`, fr-par-1) with a flexible IP and a block volume, all in the *default* project. Left alone deliberately; the kill switch refuses that project. |
 
@@ -827,7 +835,8 @@ All read-only except the last row, which created the cost guardrail itself.
 
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
-| The webhook payload shape `{"invoice_start_date": ..., "threshold": ...}` (§8) | From Scaleway's docs; never received. Attempted 2026-09-08 and stopped at the first decision it needs | Point the webhook at a request-capture endpoint and set the threshold to €1 so it fires early. **Decide where first:** the landing host (§13) is ours and already has TLS, but capturing means installing a listener on a public host; a third-party capture service means posting a billing event off-account. Neither is obviously right, so pick deliberately rather than reaching for whichever is nearer | The eventual consumer parses this. A wrong shape means it silently no-ops at exactly the moment it should stop the burn — the one failure that costs money. Worth the €1. |
+| ~~The webhook payload shape (§8)~~ | **Closed 2026-09-08 as not needed.** The shape only matters to code that parses it, and the decision is not to build that: a consumer that tears the stack down on an unauthenticated POST is a liability, and the alert lags consumption by hours so it cannot be a brake anyway. Delivery goes to **email** instead — supported natively, no endpoint, no public surface. Reopen this row if anyone ever builds a machine consumer | — |
+| Whether a budget alert fires when consumption is *already* above the threshold | Set up 2026-09-08 and unresolved. A 1% alert (€0.50) with ~€5 consumed and an email notification attached produced no mail in 2 h 33 min | Leave it armed and look again the next day. If nothing ever arrives, an alert most likely fires on a *crossing* rather than on a standing state — in which case creating one above the line proves nothing, and the check has to be made before the spend, not after | It changes what the guardrail is: a tripwire you must arm in advance, not a condition you can test whenever. It would also mean this test design was wrong rather than the notification being broken. |
 | Whether an organisation may hold more than one budget | One now exists and `create` takes no name, but a second was never attempted | `scw billing budget create consumption-limit=1 enabled=false`, then list and delete | If several are allowed, the script's refuse-on-more-than-one guard is the right behaviour but becomes reachable in normal use — and there is still no name to tell them apart. |
 
 ### Settled — checked 2026-09-08 against the live stack
@@ -836,6 +845,8 @@ All read-only except the last row, which created the cost guardrail itself.
 |---|---|
 | Which of §7's two rate-limiting failure modes is live | **The shared bucket.** 14 logins with one fixed `X-Forwarded-For` gave 9 x 401 then 429; eight more with a rotating header, and three with none, stayed 429. A forged header buys nothing, because `TRUSTED_PROXY_IPS` is empty, no `ProxyHeadersMiddleware` is mounted, and every caller keys on Scaleway's ingress address. **D8 is the state of the deployment, not merely its recommendation.** |
 | Whether `X-Forwarded-For` is *spoofable at the edge* (§7) | **Still open, and this check cannot settle it.** With no proxy trusted, "the edge stripped the header" and "the app ignored it" are indistinguishable from outside. Settling it means setting `TRUSTED_PROXY_IPS` deliberately and repeating the probe — worth doing only if someone proposes to fix the shared bucket that way, since that setting is the exploitable configuration. |
+| What `threshold` on a budget alert means | **A percentage of the budget, not an amount.** Nothing renders a unit, so looking cannot settle it; the constraint can. `threshold=101` and `threshold=150` are both refused with *"must be lower than or equal to 100"*. The guardrail therefore warns at €20, not €40 (§8). |
+| Whether the guardrail can reach a human without a webhook | **Yes.** `budget-alert-notification create` takes `email-addresses.{index}` and `sms-phone-numbers.{index}` as well as `webhook-urls.{index}`. An email notification is now attached to the 40% alert, which until then had `notifications: []` and so delivered nothing, anywhere. |
 | Whether Phase 4 preserves the deployed image | **It did not.** Rewiring the container re-ran Phase 2 with defaults and rolled a `sha-` deployment back to `3.0.0`. Fixed; `tests/unit/test_deploy_scripts.py` holds it. |
 
 **A payment method was never needed.** An earlier note here said everything billable was

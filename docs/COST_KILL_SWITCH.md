@@ -196,5 +196,5 @@ own migration chain on first boot.
 ---
 
 *The budget alert (§8 of the deployment guide) is the smoke detector: €50 ceiling, warning
-at €40. This page is the fire extinguisher. Neither replaces the other, and only one of
+at 40% of it — €20, because the threshold is a percentage. This page is the fire extinguisher. Neither replaces the other, and only one of
 them puts anything out.*
