@@ -64,11 +64,14 @@ worse than none — that is the whole design, and it held under a real failure.
 > **Re-running is safe and is the first thing to try.** The second run reported
 > *"Nothing billable found in this project"* and exited 0.
 
-*Two further runs in anger, 2026-09-06 and 2026-09-08, both exited 0 unattended.* The
-private network needed the retry each time — it succeeded on attempt three on both — so
-that race is the normal case, not the exception, and the bounded retry is what turns it
-back into a clean run. The volume and IP sections came back empty both times as well, which
-is now three observations rather than one.
+*Three further runs in anger, on 2026-09-06 and twice on 2026-09-08.* The private network
+needed the retry every time: it cleared on attempt three in the first two, and in the last
+one **three attempts were not enough** — the script named it, exited 1, and a second run
+deleted it. So the race is the normal case rather than the exception, the bounded retry
+usually absorbs it, and re-running remains the first thing to try when it does not
+(`PN_RETRIES` and `PN_RETRY_DELAY` raise the bound). Nothing is billing meanwhile — a
+Private Network is free. The volume and IP sections came back empty on every run, which is
+now four observations rather than one.
 
 ---
 

@@ -33,10 +33,12 @@ document treats that as a constraint to respect rather than a limitation to work
 >
 > All of them are idempotent. To tear it down: [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md).
 >
-> **A stack may be standing right now.** It is ephemeral by intent, not by mechanism —
-> nothing deletes it on a timer, and one was found still running two days after it was
-> believed gone. [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md) says what was last left up; the
-> account is the only authority on what actually is.
+> **Nothing is standing as of 2026-09-08** — the project lists zero of every billable
+> resource type. But the stack is ephemeral by intent, not by mechanism: nothing deletes it
+> on a timer, and one was once found still running two days after it was believed gone. The
+> resource ids quoted in §10 are from that day's build and are gone with it; the shape is
+> what they are there for. [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md) says what was last left
+> up, and the account is the only authority on what actually is.
 
 1. ~~Get a payment method on the account~~ — not required; resources create without one.
 2. Create a Serverless SQL Database with `cpu-max = 1` (§4) — `provision.sh` does this.
@@ -661,11 +663,32 @@ The model is pulled *through the application* — `verify_deployment.py --pull-m
 nomic-embed-text` — because the security group drops inbound and there is no SSH to the box.
 The pull is also what proves the private network carries traffic.
 
+> **A Phase 4 stack has working retrieval and broken chat, and it does not say so.** With
+> only an embedding model on the box, the app picks *that* as its active chat model at
+> startup — `get_first_available_model()` filters embedding families out and then falls back
+> to the unfiltered list when the filter leaves nothing. `/api/status` then reports
+> `ready: true` with `active_model: nomic-embed-text:latest`, and every chat request returns
+> the opaque `"Failed to generate response"`; the real reason (`does not support chat`, an
+> Ollama 400) reaches the log and nowhere else.
+>
+> This is a defect in the application, not in the deployment — it reproduces anywhere only
+> an embedding model is installed. It is written up in
+> [TROUBLESHOOTING.md](TROUBLESHOOTING.md). Until it is fixed: after pulling a generation
+> model, **set the active model explicitly** (`POST /api/models/active`), because startup
+> only chooses one when none is set.
+
 Everything built in this phase is what Phase 5 reuses. That is the reason it comes first.
 
 **Phase 5 — Decide on the GPU.** Revisit §5 with the plumbing already proven and ingest
 already working, so that a GPU Instance is only ever asked to answer one question: is
-generation acceptable? Build it beside the CPU Instance, never by resizing it, and delete
+generation acceptable?
+
+*Generation has now been run on the CPU box once, as a sanity check rather than a
+measurement: `llama3.2:1b` on the `DEV1-M` answered a RAG question in 32 s, streamed
+tokens, and cited the right chunks — but the 1B model said the canary "is not mentioned in
+the provided document" while that document was in front of it. Retrieval had done its job;
+the model could not use what it was given. That is the question Phase 5 exists to answer,
+and a 1B model on three vCPUs is not the instrument for it.* Build it beside the CPU Instance, never by resizing it, and delete
 the CPU Instance once generation is confirmed. `L4-1-24G` is €0.787/h ≈ €575/month; everything up to
 this point has cost about €1.50 in total, across three build-and-destroy cycles.
 

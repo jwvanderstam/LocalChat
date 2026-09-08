@@ -104,7 +104,8 @@ attempt three, so the retry added after the first run did its job unattended.
 **Done.** Found the 2026-09-06 stack still standing and still billing. Tore it down with
 the kill switch, rebuilt the whole thing from the three scripts onto the current `main`
 build, verified it end to end, and ran the rate-limiting check §11 had been carrying since
-the plan was written. The stack is deliberately left standing at the end of this entry.
+the plan was written. Then found chat broken on the running stack, traced it to a defect in
+the application, wrote it up, and tore the stack down.
 
 **Found.**
 
@@ -116,6 +117,7 @@ the plan was written. The stack is deliberately left standing at the end of this
 | `X-Forwarded-For` at the edge (§7, §11) | **Everyone shares one bucket.** Measured, not inferred — see below |
 | The kill switch, third live run | clean, exit 0. The Private Network again needed the retry, landing on attempt 3; the instance delete took its volume and its IP with it, so the later passes found nothing to do |
 | The stale-credential fix | works. The database was recreated with a new host while its API key survived, and `provision.sh` reused the stored secret and rewrote the connection details — the exact combination that broke on 2026-09-06 |
+| Chat, on the verified stack | **broken, and nothing said so.** An embedding model had been made the active chat model — see below |
 | The mixed-content fix (#364) | holds in the real environment: `/login` on the deployed image references `/static/css/style.css` root-relative, where the `3.0.0` image emitted an absolute `http://` URL |
 
 **The image revert, and why nothing caught it.** Phase 2 was deployed on `sha-359069a`,
@@ -148,7 +150,38 @@ TLS — but that means installing a capture endpoint on a public host, and the p
 billing event, so a third-party capture service is a different decision rather than an
 easier one. Left open with the €40 alert untouched.
 
-**What is standing.**
+**Chat was broken, and the cause is in the application, not the deployment.** Every chat
+request came back `{"error": "GenerationError", "message": "Failed to generate response"}`
+while upload and retrieval worked and `/api/status` reported `ready: true`. The reason
+appeared in one place only, the log:
+
+```
+ERROR src.ollama_client | Ollama API error 400: {"error":"\"nomic-embed-text:latest\" does not support chat"}
+```
+
+The active chat model *was the embedding model*. `_init_ollama_service()` picks an active
+model at startup when none is set; `get_first_available_model()` filters embedding families
+out and then — this is the defect — falls back to the unfiltered list when the filter leaves
+nothing. Phase 4 pulls `nomic-embed-text` and deliberately nothing else, so the fallback is
+guaranteed to fire on exactly the stack this project builds. It prefers a wrong answer to no
+answer, and the wrong answer reaches the user as five opaque words.
+
+Pulling `llama3.2:1b` afterwards did not fix it: the active model is chosen only when unset,
+so it stayed on the embedding model. `POST /api/models/active` did fix it — the same
+question then streamed tokens and cited the right chunks in 32 s.
+
+Written up in [TROUBLESHOOTING.md](TROUBLESHOOTING.md) and beside Phase 4 in the plan.
+**Not fixed in code** — the fix is a two-line change (drop the fallback, or refuse to make an
+embedding model active) plus a decision about what the app should do when it has no model it
+can chat with, and that decision is worth making deliberately rather than at the end of a
+deployment session.
+
+**A second thing the chat showed, and it is not a defect.** With `llama3.2:1b` active, the
+model answered that the canary phrase "is not mentioned in the provided document" — while
+the chunk containing it was the second source it cited. Retrieval did its job; a 1B model on
+three vCPUs did not. That is Phase 5's question, and this is not the instrument for it.
+
+**What was built, and then destroyed.**
 
 ```
 project    localchat-test         986172ba-5b88-4fd0-8d6d-83ac3872a692
@@ -161,12 +194,19 @@ security   localchat-ollama       49b8625d-d0fa-46e7-a036-d9a6572fb003   inbound
 instance   localchat-embeddings   006b6a04-db91-43f2-b925-c96d17cf5658   DEV1-M, fr-par-2, 172.16.16.2
 ```
 
-Every Phase 3 check passes on this stack, ingest and semantic retrieval included. It burns
-roughly EUR 1.50 a day with `min_scale=1` and the DEV1-M running. **Tear it down when the
-testing stops** — and unlike last time, say so here.
+Every Phase 3 check passed on this stack, ingest and semantic retrieval included, and chat
+worked once the active model was corrected by hand.
 
-**Cost.** EUR 1.39 in the project this billing period, covering the standing stack and this
-rebuild: DEV1-M 0.81, database 0.27, IPv4 0.20, block storage 0.06, containers 0.05. The
+**Torn down at the end of the session, and it took two runs.** The instance, the namespace
+and the database went on the first pass; the Private Network did not, and this time the
+three bounded retries were *not* enough — the script named the survivor and exited 1, which
+is the design. A second run deleted it and exited 0. Every resource type in the project then
+listed zero. So three attempts at five seconds is the usual case, not a guarantee:
+`PN_RETRIES` and `PN_RETRY_DELAY` exist for that, and re-running remains the first thing to
+try. Nothing was billing while it retried — a Private Network is free.
+
+**Cost.** EUR 1.48 in the project this billing period, covering the stack found running and
+this DEV1-M 0.83, database 0.31, IPv4 0.21, block storage 0.06, containers 0.07. The
 container line is small only because the Serverless Containers free tier absorbed 2.25 of
 2.30 — and memory has now passed 400,000 GB-s, so the tier is spent for this month and the
 next day of `min_scale=1` bills in full.
