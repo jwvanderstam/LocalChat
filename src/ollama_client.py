@@ -168,7 +168,8 @@ class OllamaClient:
         that string exists, it is returned first.  Otherwise falls back to the
         first model in the list (Ollama orders by modification time).
 
-        Embedding-only models (nomic-embed-text, mxbai-embed, etc.) are skipped.
+        Embedding-only models (nomic-embed-text, mxbai-embed, etc.) are skipped,
+        and None is returned if skipping them leaves nothing.
         """
         success, models = self.list_models()
         if not success or not models:
@@ -181,7 +182,16 @@ class OllamaClient:
             if not any(m['name'].lower().startswith(f) for f in embed_families)
         ]
         if not chat_models:
-            chat_models = models
+            # Never fall back to the unfiltered list. An embedding model made
+            # active answers every chat request with an opaque generation
+            # failure; returning None reaches api_chat's NoModelConfigured 400,
+            # which names the remedy.
+            logger.warning(
+                "No chat-capable model installed (%d embedding-only model(s) present). "
+                "Chat is unavailable until one is pulled.",
+                len(models),
+            )
+            return None
 
         if preferred:
             for m in chat_models:
