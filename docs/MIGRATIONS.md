@@ -111,8 +111,13 @@ alembic upgrade head             # expect "Running upgrade X -> Y"
 alembic current                  # expect your new revision
 ```
 
-No CI job executes migrations (see "How it works"), so this check is manual and it is
-the only thing that catches a broken chain before a deployment does.
+Run these before pushing. CI does execute the chain now —
+`tests/integration/test_migrations_apply.py` (TQ-5b) applies it against a real database in
+the required `integration-tests` job, judged by **exit status**, and asserts that a second
+run applies nothing. *(This paragraph said no CI job executed migrations until 2026-09-08;
+that was true when it was written and TQ-5b has since closed the gap.)* The local check is
+still the faster way to find a bad revision number, and the only one that finds it before
+the push.
 
 ## Upgrade path for existing installations
 

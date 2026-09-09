@@ -64,6 +64,15 @@ worse than none — that is the whole design, and it held under a real failure.
 > **Re-running is safe and is the first thing to try.** The second run reported
 > *"Nothing billable found in this project"* and exited 0.
 
+*Three further runs in anger, on 2026-09-06 and twice on 2026-09-08.* The private network
+needed the retry every time: it cleared on attempt three in the first two, and in the last
+one **three attempts were not enough** — the script named it, exited 1, and a second run
+deleted it. So the race is the normal case rather than the exception, the bounded retry
+usually absorbs it, and re-running remains the first thing to try when it does not
+(`PN_RETRIES` and `PN_RETRY_DELAY` raise the bound). Nothing is billing meanwhile — a
+Private Network is free. The volume and IP sections came back empty on every run, which is
+now four observations rather than one.
+
 ---
 
 ## Why it deletes instead of stopping
@@ -187,5 +196,5 @@ own migration chain on first boot.
 ---
 
 *The budget alert (§8 of the deployment guide) is the smoke detector: €50 ceiling, warning
-at €40. This page is the fire extinguisher. Neither replaces the other, and only one of
+at 40% of it — €20, because the threshold is a percentage. This page is the fire extinguisher. Neither replaces the other, and only one of
 them puts anything out.*
