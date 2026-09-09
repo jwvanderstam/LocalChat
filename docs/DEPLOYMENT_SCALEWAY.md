@@ -673,8 +673,11 @@ The pull is also what proves the private network carries traffic.
 
 > **A Phase 4 stack has working retrieval and no chat, and now it says so.** The box holds
 > an embedding model and nothing else, which is deliberate — so there is no model the app
-> can chat with, and chat requests return a 400 `NoModelConfigured` naming the remedy.
-> Ingest and retrieval are unaffected.
+> can chat with. Chat requests return a 400 `NoModelConfigured` naming the remedy, and
+> `GET /api/status` reports `ready: false` with `active_model: null` beside `ollama: true`
+> and `database: true`. Ingest and retrieval are unaffected, and `/api/health` stays
+> healthy — it tracks the backing services, so a container is never restarted for having
+> no chat model.
 >
 > To chat on a Phase 4 stack, pull a generation model and **set it active explicitly**
 > (`POST /api/models/active`): the active model is chosen only at startup, and only when
@@ -685,8 +688,8 @@ The pull is also what proves the private network carries traffic.
 > back to the unfiltered list when the filter left nothing — so `/api/status` reported
 > `ready: true` naming an embedding model while every chat request returned the opaque
 > `"Failed to generate response"`, the real reason (`does not support chat`, an Ollama 400)
-> reaching the log and nowhere else. The fallback is gone. See
-> [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+> reaching the log and nowhere else. The fallback is gone, and `ready` no longer claims a
+> readiness that excludes chat. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 Everything built in this phase is what Phase 5 reuses. That is the reason it comes first.
 

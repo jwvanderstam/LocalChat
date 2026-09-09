@@ -201,8 +201,12 @@ deployment session.
 > *Fixed 2026-09-09, after this session.* The decision turned out to be already made and
 > already in the code: `api_chat` returns a 400 `NoModelConfigured` naming the remedy when
 > no model is active, and the fallback was the only thing routing past it. Dropping it was
-> enough. `tests/unit/test_active_model_is_chat_capable.py` holds it. The operator note
-> above still stands — a model pulled into a running instance is not selected automatically.
+> enough. `/api/status` was corrected in the same change: `ready` now includes having a
+> model that can chat, so the stack no longer reports `ready: true` for a chat it cannot
+> do. `/api/health` deliberately still tracks only the backing services — a container must
+> not be restarted for having no chat model.
+> `tests/unit/test_active_model_is_chat_capable.py` holds both. The operator note above
+> still stands — a model pulled into a running instance is not selected automatically.
 
 **A second thing the chat showed, and it is not a defect.** With `llama3.2:1b` active, the
 model answered that the canary phrase "is not mentioned in the provided document" — while

@@ -114,3 +114,55 @@ def test_warns_that_chat_is_unavailable_rather_than_failing_silently():
 
     warnings = " ".join(str(c) for c in mock_logger.warning.call_args_list)
     assert "chat" in warnings.lower()
+
+
+# ===========================================================================
+# `/api/status` must not claim readiness it cannot deliver
+# ===========================================================================
+
+
+def _status_payload(active_model):
+    """`GET /api/status` with *active_model*, everything else healthy."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from src.routes_fastapi.api_routes import router
+    from tests.utils.auth import auth_headers, authorise_db
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+    app.state.startup_status = {"database": True, "ollama": True, "ready": True}
+    app.state.db = authorise_db(MagicMock())
+    app.state.doc_processor = MagicMock()
+    app.state.ollama_client = MagicMock()
+    app.state.embedding_cache = None
+    app.state.query_cache = None
+    client = TestClient(app, raise_server_exceptions=True)
+
+    with (
+        patch("src.services.chat.get_doc_count_cached", return_value=(5, True)),
+        patch("src.services.chat.check_ollama_live", return_value=True),
+        patch("src.routes_fastapi.api_routes.config") as cfg,
+    ):
+        cfg.app_state.get_active_model.return_value = active_model
+        cfg.MCP_ENABLED = False
+        cfg.MODEL_ROUTER_ENABLED = False
+        cfg.AGGREGATOR_AGENT_ENABLED = False
+        cfg.GRAPH_RAG_ENABLED = False
+        cfg.LONG_TERM_MEMORY_ENABLED = False
+        return client.get("/api/status", headers=auth_headers()).json()
+
+
+def test_status_is_not_ready_when_no_model_is_active():
+    """Ollama and the database up is not enough — chat is what `ready` promises."""
+    assert _status_payload(None)["ready"] is False
+
+
+def test_status_is_ready_when_a_chat_model_is_active():
+    """The other side of the boundary: nothing else changed, so ready holds."""
+    assert _status_payload("llama3.2:1b")["ready"] is True
+
+
+def test_status_names_the_missing_piece_rather_than_only_refusing():
+    """A false `ready` has to be diagnosable from the same payload."""
+    assert _status_payload(None)["active_model"] is None

@@ -51,6 +51,10 @@ designed outcome on any host where an embedding model was pulled and a generatio
 was not — the Scaleway Phase 4 stack, for instance, pulls `nomic-embed-text` and nothing
 else.
 
+`GET /api/status` says so too: `ready` is false with `active_model: null`, alongside
+`ollama: true` and `database: true`. All three inputs to `ready` are in that payload, so
+which one is missing is visible without reading the log.
+
 **Fix:** pull a generation model, then set it active — the Models screen, or:
 
 ```bash

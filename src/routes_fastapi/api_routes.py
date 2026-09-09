@@ -218,11 +218,17 @@ def api_status(request: Request) -> Any:
 
     ollama_available = chat.check_ollama_live(app_state)
 
+    active_model = config.app_state.get_active_model()
+
     response: dict = {
         "ollama": ollama_available,
         "database": db_available,
-        "ready": ollama_available and db_available,
-        "active_model": config.app_state.get_active_model(),
+        # Chat is what this application is for, so readiness includes having a
+        # model that can do it. Ollama reachable with only an embedding model
+        # installed is not ready — the Scaleway Phase 4 stack by construction.
+        # All three inputs are in this payload, so a false `ready` says which.
+        "ready": ollama_available and db_available and bool(active_model),
+        "active_model": active_model,
         "document_count": doc_count,
         "features": {
             "model_router": config.MODEL_ROUTER_ENABLED,
