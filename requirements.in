@@ -50,7 +50,7 @@ psycopg[binary]==3.3.5
 psycopg-pool==3.3.1
 
 # Database migrations
-alembic==1.19.1
+alembic==1.19.2
 sqlalchemy==2.0.52  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
@@ -58,7 +58,7 @@ pydantic==2.13.5
 email-validator==2.3.0
 
 # Document Processing
-pypdf==6.16.2
+pypdf==6.17.0
 pdfplumber==0.11.10  # Enhanced PDF extraction with table support
 pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
 pymupdf4llm==1.28.2    # Layout-aware PDF extraction for column-heavy documents (optional)
