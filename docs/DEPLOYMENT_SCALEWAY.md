@@ -671,19 +671,22 @@ The model is pulled *through the application* — `verify_deployment.py --pull-m
 nomic-embed-text` — because the security group drops inbound and there is no SSH to the box.
 The pull is also what proves the private network carries traffic.
 
-> **A Phase 4 stack has working retrieval and broken chat, and it does not say so.** With
-> only an embedding model on the box, the app picks *that* as its active chat model at
-> startup — `get_first_available_model()` filters embedding families out and then falls back
-> to the unfiltered list when the filter leaves nothing. `/api/status` then reports
-> `ready: true` with `active_model: nomic-embed-text:latest`, and every chat request returns
-> the opaque `"Failed to generate response"`; the real reason (`does not support chat`, an
-> Ollama 400) reaches the log and nowhere else.
+> **A Phase 4 stack has working retrieval and no chat, and now it says so.** The box holds
+> an embedding model and nothing else, which is deliberate — so there is no model the app
+> can chat with, and chat requests return a 400 `NoModelConfigured` naming the remedy.
+> Ingest and retrieval are unaffected.
 >
-> This is a defect in the application, not in the deployment — it reproduces anywhere only
-> an embedding model is installed. It is written up in
-> [TROUBLESHOOTING.md](TROUBLESHOOTING.md). Until it is fixed: after pulling a generation
-> model, **set the active model explicitly** (`POST /api/models/active`), because startup
-> only chooses one when none is set.
+> To chat on a Phase 4 stack, pull a generation model and **set it active explicitly**
+> (`POST /api/models/active`): the active model is chosen only at startup, and only when
+> unset, so a model pulled into a running container stays unused until it is selected.
+>
+> *Until 2026-09-09 this was a defect rather than a refusal.* The app made the embedding
+> model active — `get_first_available_model()` filtered embedding families out, then fell
+> back to the unfiltered list when the filter left nothing — so `/api/status` reported
+> `ready: true` naming an embedding model while every chat request returned the opaque
+> `"Failed to generate response"`, the real reason (`does not support chat`, an Ollama 400)
+> reaching the log and nowhere else. The fallback is gone. See
+> [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 Everything built in this phase is what Phase 5 reuses. That is the reason it comes first.
 

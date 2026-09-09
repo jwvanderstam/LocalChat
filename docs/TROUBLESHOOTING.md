@@ -39,38 +39,44 @@ ollama pull llama3.2           # or whichever LLM you configured
 
 Set `OLLAMA_MODEL` and `OLLAMA_EMBED_MODEL` in `.env` to match what you pulled.
 
-### Chat returns "Failed to generate response" while upload and retrieval work
+### Chat refuses with "No active model set" while upload and retrieval work
 
 **Symptom:** every chat request ends with
-`{"error": "GenerationError", "message": "Failed to generate response", "done": true}`.
-Documents ingest fine, retrieval finds them, and `GET /api/status` reports `ready: true`.
+`{"error": "NoModelConfigured", "message": "No active model set. Please select a model first."}`
+while documents ingest fine and retrieval finds them.
 
-**Cause:** the active model is an *embedding* model, and Ollama refuses to chat with one.
-The reason appears only in the log:
+**Cause:** only embedding models are installed. Ollama refuses to chat with one, so the
+application declines to make one active rather than pretending it can. This is the
+designed outcome on any host where an embedding model was pulled and a generation model
+was not — the Scaleway Phase 4 stack, for instance, pulls `nomic-embed-text` and nothing
+else.
+
+**Fix:** pull a generation model, then set it active — the Models screen, or:
+
+```bash
+ollama pull llama3.2:1b
+curl -X POST http://localhost:5000/api/models/active   -H 'Content-Type: application/json' -d '{"model":"llama3.2:1b"}'
+```
+
+**Pulling a generation model is not enough on its own.** The active model is chosen only
+at startup, and only when it is unset, so a model pulled into a running instance stays
+unused until an admin selects it or the process restarts. Then check `GET /api/status`
+names the model you expect.
+
+#### On builds before this was fixed
+
+The same situation produced `{"error": "GenerationError", "message": "Failed to generate
+response"}` instead, with the real reason reaching the log and nowhere else:
 
 ```
 ERROR src.ollama_client | Ollama API error 400: {"error":"\"nomic-embed-text:latest\" does not support chat"}
 ```
 
-`_init_ollama_service()` chooses an active model at startup when none is set.
-`get_first_available_model()` filters embedding families out — and then, if that leaves
-nothing, falls back to the unfiltered list. On a host with only `nomic-embed-text` pulled
-that fallback hands back the embedding model *as the chat model*. Nothing downstream
-disagrees: `/api/status` reports `ready: true` and names it as `active_model`.
-
-**Pulling a generation model afterwards does not fix it on its own.** The active model is
-only chosen when it is unset, so it stays on the embedding model until an admin changes it
-or the process restarts with a chat model already present.
-
-**Fix:** set the active model explicitly — the Models screen, or:
-
-```bash
-curl -X POST http://localhost:5000/api/models/active   -H 'Content-Type: application/json' -d '{"model":"llama3.2:1b"}'
-```
-
-Then check `GET /api/status` names the model you expect. Observed on the Scaleway
-deployment on 2026-09-08, where Phase 4 deliberately pulls an embedding model and nothing
-else — see [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md).
+`get_first_available_model()` filtered embedding families out and then fell back to the
+*unfiltered* list when the filter left nothing, so the embedding model became the active
+chat model and `/api/status` reported `ready: true` naming it. The fallback is gone; the
+function now returns `None` and logs that chat is unavailable. Observed on the Scaleway
+deployment on 2026-09-08 — see [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md).
 
 ### Slow responses / GPU not used
 
