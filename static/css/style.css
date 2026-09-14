@@ -1011,6 +1011,14 @@ main > .d-flex.border-bottom {
 
 .model-row-actions { display: flex; gap: 0.35rem; flex: none; }
 
+/* Docs viewer: the document list stays put while the content scrolls, as the
+   settings nav does. Only once the columns sit side by side — stacked, a sticky
+   list would ride over the content. The list scrolls inside the viewport. */
+@media (min-width: 768px) {
+    .docs-nav-card { position: sticky; top: 76px; }
+    .docs-nav-card .list-group { max-height: calc(100vh - 76px - 1rem - 41px); overflow-y: auto; }
+}
+
 @media (max-width: 992px) {
     .docs-layout { flex-direction: column; gap: 1.25rem; }
 
