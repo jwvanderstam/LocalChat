@@ -198,7 +198,7 @@ networkx==3.6.1
     # via
     #   pymupdf-layout
     #   torch
-numpy==2.5.2
+numpy==2.5.3
     # via
     #   -r requirements.in
     #   blis
@@ -251,7 +251,7 @@ nvidia-nvshmem-cu13==3.4.5
     # via torch
 nvidia-nvtx==13.0.85
     # via cuda-toolkit
-onnxruntime==1.28.0
+onnxruntime==1.30.0
     # via
     #   -r requirements.in
     #   pymupdf-layout
@@ -331,7 +331,7 @@ pymupdf-layout==1.28.2
     # via pymupdf4llm
 pymupdf4llm==1.28.2
     # via -r requirements.in
-pypdf==6.17.0
+pypdf==6.18.0
     # via -r requirements.in
 pypdfium2==5.13.0
     # via pdfplumber
