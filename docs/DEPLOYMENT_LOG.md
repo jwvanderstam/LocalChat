@@ -245,6 +245,48 @@ next day of `min_scale=1` bills in full.
 
 ---
 
+## 2026-09-09 — the findings turned into code, and nothing was deployed
+
+**Done.** Merged the three PRs left open by the previous session and fixed the two
+application defects it had found and deferred. **No stack was built.** Nothing in Scaleway
+was created, changed or destroyed, and nothing billed.
+
+This is the first entry for a session that touched the deployment only through the
+repository. It is here because the 2026-09-08 entry recorded a defect as open, and the
+record of a finding is incomplete until the record of its fix sits beside it.
+
+| PR | What landed |
+|---|---|
+| #368 | Phase 4 no longer rolls the container back to the default image; the 2026-09-08 findings and plan corrections |
+| #367 | `alembic` 1.19.1 -> 1.19.2, `pypdf` 6.16.2 -> 6.17.0, grouped into one PR as intended |
+| #369 | An embedding model can no longer become the active chat model, and `/api/status` stops claiming a readiness it cannot deliver |
+
+**Found.**
+
+| | |
+|---|---|
+| The decision the last entry deferred | **did not exist.** It recorded the chat fix as "a two-line change plus a decision about what the app should do when it has no model it can chat with". The decision was already made and already in the code: `api_chat` returns a 400 `NoModelConfigured` naming the remedy. The fallback was the only thing routing past it. It was the two-line change, and no more |
+| `/api/status`'s `ready` | **the same lie one layer up.** Computed as Ollama up AND database up — both true on a box holding only an embedding model — so a Phase 4 stack reported `ready: true` for a chat whose every request is a 400. It now also requires an active model |
+| `/api/health` | **never read that flag**, which is the only reason correcting it is safe. `compute_health_status` derives from the database and Ollama directly. Had it read `ready`, a Phase 4 stack would have gone unhealthy and the container would have been restart-looped for the crime of having no chat model — turning an honest status field into an outage |
+| `verify_deployment.py` | reads `/api/health` and `/api/settings/stats`, never `/api/status`. The Phase 3 gate is untouched by the change |
+| `startup_status["ready"]` | **write-only.** Initialised in `app_fastapi.py` and written in `app_bootstrap.py`, `monitoring.py` and `services/chat.py`; read by nothing in `src/`. Only two tests assert on it. Left alone deliberately — it is pre-existing, and this was not its cleanup |
+| Why the fallback survived a green suite | **no test had ever installed only embedding models.** The two that existed covered "a chat model is present" and "the list is empty", so a filter with a fallback that defeats it looked covered. That is the MISSING-NEGATIVE-SPACE shape `.claude/rules/testing.md` names |
+
+**None of this has run on a Scaleway stack, and that is the point of saying so.** The fixes
+are proven by nine unit tests, each confirmed red with its fix reverted, and by CI. That is
+evidence about the code; it is not evidence about the deployment. §10b's rule is explicit —
+*whose behaviour is this, and did I watch it?* — and the honest answers here are "the
+application's" and "no". §11 carries the row; the next stack settles it.
+
+The specific thing still unwatched: that a Phase 4 stack now boots with **no** active model
+rather than a wrong one, and that ingest and retrieval are unaffected by that. Every part of
+it follows from code that is tested, and the whole of it has never been observed together on
+a real container against a real Ollama box.
+
+**Cost.** EUR 0.00. Nothing was running.
+
+---
+
 ## How to add an entry
 
 One section per session, newest at the bottom. Record what was done, what was found that

@@ -845,6 +845,17 @@ All read-only except the last row, which created the cost guardrail itself.
 | Whether a budget alert fires when consumption is *already* above the threshold | Set up 2026-09-08 and unresolved. A 1% alert (€0.50) with ~€5 consumed and an email notification attached produced no mail in 2 h 33 min | Leave it armed and look again the next day. If nothing ever arrives, an alert most likely fires on a *crossing* rather than on a standing state — in which case creating one above the line proves nothing, and the check has to be made before the spend, not after | It changes what the guardrail is: a tripwire you must arm in advance, not a condition you can test whenever. It would also mean this test design was wrong rather than the notification being broken. |
 | Whether an organisation may hold more than one budget | One now exists and `create` takes no name, but a second was never attempted | `scw billing budget create consumption-limit=1 enabled=false`, then list and delete | If several are allowed, the script's refuse-on-more-than-one guard is the right behaviour but becomes reachable in normal use — and there is still no name to tell them apart. |
 
+### Open — needs the next live stack
+
+Nothing here can be settled without deploying. Each row is application behaviour that is
+tested in CI and has never been watched on Scaleway; the distinction is §10b's whole point.
+
+| Claim | Why unsettled | The check | If it differs |
+|---|---|---|---|
+| That a Phase 4 stack boots with **no** active model rather than a wrong one | Fixed 2026-09-09 in #369 and proven by unit tests only. The previous behaviour — an embedding model made active — was observed live; the corrected behaviour has not been | Deploy Phase 4, then `GET /api/status`: expect `ready: false`, `active_model: null`, `ollama: true`, `database: true`. `GET /api/health` must still report healthy | A `ready: true` means the fallback still has a path. An unhealthy `/api/health` is worse: the container will be restart-looped, and the fix would have to be reconsidered rather than tuned |
+| That ingest and retrieval are unaffected by having no active model | Same change, same reason. The two paths are independent in the code, and that is an argument rather than an observation | The Phase 3 gate already covers it — `verify_deployment.py` ingests and runs a semantic retrieval. Run it against a Phase 4 stack **before** pulling any generation model | If ingest fails, embedding is reaching the active-model path somewhere it should not, and the refusal is too broad |
+| That chat works on a Phase 4 stack once a generation model is pulled **and made active** | The 2026-09-08 session proved this by hand on the old build; the code underneath has since changed | Pull `llama3.2:1b`, `POST /api/models/active`, ask a question about an ingested document | If chat still refuses, the active model is being validated somewhere new, or the pull did not land on the box the container talks to |
+
 ### Settled — checked 2026-09-08 against the live stack
 
 | Claim | What the check found |
