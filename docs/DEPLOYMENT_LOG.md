@@ -293,8 +293,8 @@ a real container against a real Ollama box.
 carrying `onnxruntime`, and the `codeql-action` set) and deleted twelve merged branches that
 had outlived their PRs. Rebuilt the stack from the scripts onto `sha-af6012b`, which is that
 `main`. Settled all three of §11's "needs the next live stack" rows — the ones #369 created
-on 2026-09-09 — by watching them. **The stack was left standing deliberately**, at the
-operator's request, for a look afterwards; the teardown is theirs.
+on 2026-09-09 — by watching them. The stack was left standing for the operator to look
+at, then torn down at the end of the session on their word.
 
 ```
 project    localchat-test   986172ba-5b88-4fd0-8d6d-83ac3872a692
@@ -327,9 +327,13 @@ models     nomic-embed-text, llama3.2:1b (active)
 | The 1% budget alert from 2026-09-08 | **never delivered**, six days on, with the consumption standing above its line the whole time. So an alert fires on a *crossing*, not on a state: the guardrail is a tripwire that has to be armed before the spend. The €50/40 % alert was created on 2026-09-05 with nothing spent, so it is armed correctly; the 2026-09-08 test design was what was wrong |
 | The two temporary rules | were both created — the first `create-rule` call also succeeded; its JSON is nested under `rule`, which the parser missed. Both deleted; the group is back to inbound-drop only, verified |
 
-**Cost.** Not read from the account this session; estimate under €0.20 for the session
-itself. The stack is still running as this is written: a DEV1-M at about €0.02/h, the
-container, and a database that bills while it is active.
+**Torn down at the end of the session.** The kill switch, fifth live run: clean, exit 0,
+six resources, the Private Network again on attempt 3 — that retry has been needed on every
+run since it was added. Every resource type in the project then listed zero.
+
+**Cost.** €1.89 in the project for the billing period, against the €1.48 the 2026-09-08 entry
+recorded for the same period — about €0.41 for this session, before the lag catches up. The
+stack ran for roughly three hours, most of it standing for a look rather than being tested.
 
 ---
 

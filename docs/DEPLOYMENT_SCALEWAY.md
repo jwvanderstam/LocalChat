@@ -33,9 +33,8 @@ document treats that as a constraint to respect rather than a limitation to work
 >
 > All of them are idempotent. To tear it down: [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md).
 >
-> **A stack is standing as of 2026-09-14**, left up deliberately at the end of that session for
-> the operator to look at; its ids are in [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md), and the
-> teardown is theirs. The stack is ephemeral by intent, not by mechanism: nothing deletes it
+> **Nothing is standing as of 2026-09-14** — the project lists zero of every billable
+> resource type. But the stack is ephemeral by intent, not by mechanism: nothing deletes it
 > on a timer, and one was once found still running two days after it was believed gone. The
 > resource ids quoted in §10 are from that day's build and are gone with it; the shape is
 > what they are there for. [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md) says what was last left
