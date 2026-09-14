@@ -371,6 +371,10 @@ second removed it. Every resource type in the project then listed zero.
 **Cost.** €2.01 in the project for the period, against €1.89 read after the afternoon
 teardown — about €0.12 for this run, before the lag.
 
+**Afterwards.** The §12 decision the afternoon left open was taken: the operator's public
+key is registered in `localchat-test` as `localchat-operator`, so the next box that fails
+can be read instead of replaced. Nothing was deployed to try it; §11's row stays open.
+
 ---
 
 ## How to add an entry

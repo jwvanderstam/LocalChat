@@ -854,7 +854,7 @@ about and never watched; the distinction is §10b's whole point.
 
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
-| That there is any way into the Ollama box at all | §5 and `deploy_embeddings.sh` say "the serial console is the way in". On 2026-09-14 a box that never started Ollama could not be examined: the image is Ubuntu Jammy cloud, which sets no password, and a serial console needs one; the account's one SSH key is registered in the *default* project, and Scaleway injects keys per project, so the box had no authorised key either. Neither door was ever tried | Register a key in `localchat-test` (`scw iam ssh-key create project-id=…`), build a box, add a temporary security-group rule for 22 from one IP, `ssh root@<public-ip>`, delete the rule. Then try the serial console once, to close that claim too | If SSH works, that is the way in and §5 should say so. If the console also works, the 2026-09-14 reasoning was wrong and nothing changes |
+| That there is any way into the Ollama box at all | §5 and `deploy_embeddings.sh` say "the serial console is the way in". On 2026-09-14 a box that never started Ollama could not be examined: the image is Ubuntu Jammy cloud, which sets no password, and a serial console needs one; the account's one SSH key was registered in the *default* project, and Scaleway injects keys per project, so the box had no authorised key either. Neither door was ever tried. **The key is now registered** (`localchat-operator`, §12); the row stays until a box is actually entered | On the next stack: add a temporary security-group rule for 22 from one IP, `ssh root@<public-ip>`, read `/var/log/cloud-init-output.log`, delete the rule. Then try the serial console once, to close that claim too | If SSH works, that is the way in and §5 should say so. If the console also works, the 2026-09-14 reasoning was wrong and nothing changes |
 | Why the first box of 2026-09-14 never started Ollama | `/api/tags` was *refused* on both addresses 26 minutes after power-on and still after a reboot, so `install.sh` never ran to completion. The user-data was on the server and intact. The cause is in `/var/log/cloud-init-output.log` on a volume that was deleted with the box | Needs the row above first. Then, the next time a box fails: read that log before deleting anything | Unknown until read. A transient `ollama.com` failure means nothing to fix; a change in `install.sh`'s behaviour on Jammy would mean pinning a version in the cloud-init |
 
 ### Settled — checked 2026-09-14 against the live stack
@@ -897,8 +897,11 @@ These are decisions, not facts. §11 is the companion list of facts.
 - Whether your credit's expiry date changes the urgency of that decision.
 - Whether §7's degraded rate limiting stays accepted (D8) once anyone outside the test
   group has a login.
-- Whether to register an SSH key in `localchat-test` so the Ollama box has a way in (§11,
-  2026-09-14). Without one, a box that fails to start can only be replaced, never read.
+- ~~Whether to register an SSH key in `localchat-test` so the Ollama box has a way in.~~
+  **Answered 2026-09-14: yes.** `localchat-operator` (the same key as `Scaleway-poc`) is
+  registered in the project, so every box built there carries it from boot. The key alone
+  exposes nothing — the security group still drops inbound — and the way in is a temporary
+  rule for 22 from one address, deleted afterwards. §11 still carries the row until it is used.
 
 ---
 
