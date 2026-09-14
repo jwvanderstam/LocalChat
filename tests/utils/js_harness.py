@@ -91,6 +91,7 @@ const widget = () => Object.assign(function () { return { hide() {}, show() {} }
       getOrCreateInstance: () => ({ hide() {}, show() {} }) });
 globalThis.bootstrap = new Proxy({}, { get: () => widget() });
 globalThis.location = { search: '', href: '/', pathname: '/' };
+globalThis.history = { replaceState() {}, pushState() {} };
 
 globalThis.fetch = (url, opts) => {
     calls.push({ url: String(url), method: (opts && opts.method) || 'GET',

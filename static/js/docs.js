@@ -50,6 +50,31 @@ function markActive(slug) {
     });
 }
 
+let catalogue = [];
+
+function normalisePath(path) {
+    const parts = [];
+    path.replace(/\\/g, '/').split('/').forEach(function (part) {
+        if (part === '..') parts.pop();
+        else if (part !== '.' && part !== '') parts.push(part);
+    });
+    return '/' + parts.join('/');
+}
+
+// The docs link each other the way the repository does — `[X](X.md)`, relative to
+// the file — and the server renders that href as written. In the viewer it resolves
+// to /docs/X.md, which nothing serves, so every cross-document link was a 404.
+// The catalogue carries each doc's path, so a relative .md link can be resolved
+// against the current doc's directory and pointed at the slug instead.
+function rewriteDocLinks(html, currentPath) {
+    const base = normalisePath(currentPath).replace(/[^/]*$/, '');
+    return html.replace(/href="([^"#:]+\.md)(#[^"]*)?"/g, function (match, file) {
+        const target = normalisePath(base + file);
+        const doc = catalogue.find(function (d) { return normalisePath(d.path) === target; });
+        return doc ? 'href="#' + doc.slug + '"' : match;
+    });
+}
+
 async function selectDoc(slug) {
     markActive(slug);
     history.replaceState(null, '', '#' + slug);
@@ -61,7 +86,8 @@ async function selectDoc(slug) {
             return;
         }
         const data = await response.json();
-        contentEl.innerHTML = data.html;
+        const current = catalogue.find(function (d) { return d.slug === slug; });
+        contentEl.innerHTML = current ? rewriteDocLinks(data.html, current.path) : data.html;
         await renderMermaidBlocks();
     } catch (error) {
         console.error('Failed to load doc:', error);
@@ -69,10 +95,23 @@ async function selectDoc(slug) {
     }
 }
 
+// A rewritten link is `#slug`, which only moves the hash; selecting the doc is
+// what the nav's own click handler does, so a click inside the content does the same.
+contentEl.addEventListener('click', function (event) {
+    const link = event.target.closest && event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const slug = link.getAttribute('href').slice(1);
+    if (catalogue.some(function (d) { return d.slug === slug; })) {
+        event.preventDefault();
+        selectDoc(slug);
+    }
+});
+
 async function init() {
     try {
         const response = await fetch('/api/repo-docs');
         const docs = await response.json();
+        catalogue = docs;
         renderNav(docs);
         const initialSlug = window.location.hash ? window.location.hash.slice(1) : null;
         if (initialSlug && docs.some(function (d) { return d.slug === initialSlug; })) {
