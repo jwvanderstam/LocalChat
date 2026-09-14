@@ -1,0 +1,5 @@
+# Everything here runs on, or is handed to, a Linux host. A Windows checkout with
+# core.autocrlf=true otherwise ships CRLF: cloud-init received `#cloud-config\r`
+# on 2026-09-14 (DEPLOYMENT_LOG.md), and bash outside Git Bash does not tolerate
+# `\r` in a script at all.
+scripts/scaleway/** text eol=lf

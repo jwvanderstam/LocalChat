@@ -53,7 +53,16 @@ case "$1 $2 $3" in
   "container container list")    printf '%s' "$SCW_FAKE_CONTAINERS" ;;
   "container container create")  echo '{"id":"ctr-new","status":"ready"}' ;;
   "container container update")  echo '{"id":"ctr-x","status":"ready"}' ;;
-  "container container get")     echo '{"id":"ctr-x","status":"ready","image":"ghcr.io/jwvanderstam/localchat:sha-deployed","public_endpoint":"https://example.fnc.fr-par.scw.cloud"}' ;;
+  "container container get")
+    # SCW_FAKE_STATUSES, when set, is a file of one status per line, consumed
+    # top-down; once it is empty the answer is `ready`, as it is when unset.
+    status=ready
+    if [[ -n "${SCW_FAKE_STATUSES:-}" && -s "$SCW_FAKE_STATUSES" ]]; then
+      status=$(head -n1 "$SCW_FAKE_STATUSES")
+      tail -n +2 "$SCW_FAKE_STATUSES" > "$SCW_FAKE_STATUSES.next"
+      mv "$SCW_FAKE_STATUSES.next" "$SCW_FAKE_STATUSES"
+    fi
+    echo "{\\"id\\":\\"ctr-x\\",\\"status\\":\\"$status\\",\\"image\\":\\"ghcr.io/jwvanderstam/localchat:sha-deployed\\",\\"public_endpoint\\":\\"https://example.fnc.fr-par.scw.cloud\\"}" ;;
   "vpc private-network list")    printf '%s' "$SCW_FAKE_NETWORKS" ;;
   "vpc private-network create")  echo '{"id":"pn-new"}' ;;
   "instance security-group list")   printf '%s' "$SCW_FAKE_SECGROUPS" ;;
@@ -204,6 +213,45 @@ class TestASecondRunUpdatesRatherThanDuplicating:
             "secret-environment-variables.METRICS_TOKEN=s4",
         ):
             assert expected in update, f"{expected} was dropped from the update"
+
+
+class TestAnErrorStatusMustPersistBeforeItIsBelieved:
+    """Scaleway reports `error` while a slow first boot is still failing its early
+    liveness probes. On 2026-09-14 it read `error` for 15 s and `ready` 22 s before
+    the app answered; the script had already declared the deployment dead."""
+
+    def _statuses(self, tmp_path, *statuses):
+        path = tmp_path / "statuses"
+        path.write_text("".join(f"{s}\n" for s in statuses), newline="\n")
+        return {"SCW_FAKE_STATUSES": str(path), "DEPLOY_POLL_SECONDS": "0"}
+
+    def test_a_transient_error_is_waited_out(self, tmp_path):
+        proc, calls = _run(
+            CONTAINER_SH, tmp_path, **self._statuses(tmp_path, "error", "error", "ready")
+        )
+
+        assert proc.returncode == 0, proc.stderr
+        assert "status ready" in proc.stdout
+        polls = [c for c in calls if c.startswith("container container get")]
+        assert len(polls) >= 3, "the loop stopped polling before the third answer"
+
+    def test_a_persistent_error_is_still_refused(self, tmp_path):
+        proc, _ = _run(
+            CONTAINER_SH, tmp_path, **self._statuses(tmp_path, "error", "error", "error")
+        )
+
+        assert proc.returncode != 0
+        assert "did not become ready (status: error)" in proc.stderr
+
+    def test_an_error_that_clears_resets_the_count(self, tmp_path):
+        """Two errors, a pending, two more errors: never three in a row, so not final."""
+        proc, _ = _run(
+            CONTAINER_SH,
+            tmp_path,
+            **self._statuses(tmp_path, "error", "error", "pending", "error", "error", "ready"),
+        )
+
+        assert proc.returncode == 0, proc.stderr
 
 
 class TestTheEmbeddingsInstanceIsBuiltSafely:

@@ -287,6 +287,56 @@ a real container against a real Ollama box.
 
 ---
 
+## 2026-09-14 — the three open rows settled, and a box that never came up
+
+**Done.** Merged the three PRs left open (#370, #371, #372 — the log entry, a pip group
+carrying `onnxruntime`, and the `codeql-action` set) and deleted twelve merged branches that
+had outlived their PRs. Rebuilt the stack from the scripts onto `sha-af6012b`, which is that
+`main`. Settled all three of §11's "needs the next live stack" rows — the ones #369 created
+on 2026-09-09 — by watching them. The stack was left standing for the operator to look
+at, then torn down at the end of the session on their word.
+
+```
+project    localchat-test   986172ba-5b88-4fd0-8d6d-83ac3872a692
+database   localchat        a9911331-5129-42f7-aa54-9e505bedb2bb
+namespace  localchat        3b47dd02-f345-49ff-8812-f23e34688bee
+container  localchat        d800cb9b-6366-4af1-829e-21d288082730   sha-af6012b
+endpoint   https://localchat3b47dd02-localchat.functions.fnc.fr-par.scw.cloud
+network    localchat-backend  1be78d2c-ec0d-45a8-9155-6b82d20f4efc
+instance   localchat-embeddings  8b863ff4-1fb6-45da-b8b4-4d70d4fe7c43   DEV1-M  172.16.8.2
+models     nomic-embed-text, llama3.2:1b (active)
+```
+
+**The three rows, watched.**
+
+| §11 row | Expected | Observed |
+|---|---|---|
+| A Phase 4 stack boots with **no** active model | `ready:false, active_model:null, ollama:true, database:true`; `/api/health` healthy | Exactly that. `/api/models` listed one model, `nomic-embed-text`, and nothing had made it active |
+| Ingest and retrieval are unaffected | The Phase 3 gate passes before any chat model exists | Passed: pull, ingest, semantic retrieval at similarity 0.4851 — with `active_model` still `null` |
+| Chat works once a model is pulled **and made active** | Answer cites the ingested document | `llama3.2:1b` pulled in 13 s; `POST /api/models/active` flipped `ready` to `true`; the answer quoted the canary and cited `deployment-probe.md`. TTFT 33.9 s on the CPU box |
+
+**Found.**
+
+| | |
+|---|---|
+| `deploy_container.sh` | **declared the container dead while it was still starting.** Scaleway reported `error` ("unable to start OR not listening on port 5000") at 12:11:21; the script broke its wait loop on that first sighting and exited 1. The container was `ready` at 12:11:36 and `/api/health` answered at 12:11:43. `error` is transient while a slow first boot fails its early liveness probes. Fixed in this PR: three consecutive polls now, with tests |
+| The first Ollama box | **never came up.** 26 minutes after power-on, `/api/tags` was refused — not dropped — on both the private and (via a temporary rule) the public address, so the SYN reached the kernel and nothing was listening. A reboot changed nothing, so the unit was never installed: cloud-init failed at or before `install.sh`. The user-data was on the server and intact. Deleted and rebuilt; the second box answered in 2 min 30 s. **The cause was not read**, and the next row is why |
+| "The serial console is the way in" (§5, `deploy_embeddings.sh`) | **Almost certainly not true, and never tried.** The image is Ubuntu Jammy cloud, which sets no password, and a serial console needs one. The only SSH key on the account (`Scaleway-poc`) is registered in the *default* project, and Scaleway injects keys per project, so the box in `localchat-test` had no authorised key either. Both ways in were closed by construction. A working way in is: a key registered in `localchat-test`, plus a temporary security-group rule on 22 from one IP — the same shape as the diagnostic used above. Whether to register one is in §12 now |
+| The cloud-init the box receives | **carries `\r`.** `core.autocrlf=true` on this checkout makes every file under `scripts/scaleway/` CRLF, and `deploy_embeddings.sh` uploads the yaml verbatim, so the server held `#cloud-config\r\n`. Probably harmless — cloud-init matches the header with `startswith`, YAML normalises line breaks, and this same file built the 2026-09-08 stack — so it is **not** established as the cause above. Fixed regardless with a `.gitattributes` forcing LF on the directory: a Linux-bound file should not depend on the checkout it left |
+| `budget_mb: 0` on every model | **the fit check measures the wrong machine.** `/api/models` computes the budget with `detect()` inside the container, whose CPU backend reports nothing to spend. On a topology where Ollama is elsewhere — which is every Scaleway topology — every model not already loaded shows `fits:false` with a reason naming the container's memory. Cosmetic: `load_model_guard` is called by nothing in `src/`, so no activation is refused by it. Left alone; recorded |
+| The 1% budget alert from 2026-09-08 | **never delivered**, six days on, with the consumption standing above its line the whole time. So an alert fires on a *crossing*, not on a state: the guardrail is a tripwire that has to be armed before the spend. The €50/40 % alert was created on 2026-09-05 with nothing spent, so it is armed correctly; the 2026-09-08 test design was what was wrong |
+| The two temporary rules | were both created — the first `create-rule` call also succeeded; its JSON is nested under `rule`, which the parser missed. Both deleted; the group is back to inbound-drop only, verified |
+
+**Torn down at the end of the session.** The kill switch, fifth live run: clean, exit 0,
+six resources, the Private Network again on attempt 3 — that retry has been needed on every
+run since it was added. Every resource type in the project then listed zero.
+
+**Cost.** €1.89 in the project for the billing period, against the €1.48 the 2026-09-08 entry
+recorded for the same period — about €0.41 for this session, before the lag catches up. The
+stack ran for roughly three hours, most of it standing for a look rather than being tested.
+
+---
+
 ## How to add an entry
 
 One section per session, newest at the bottom. Record what was done, what was found that

@@ -160,6 +160,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `requirements.txt` | **Generated** by pip-compile — full transitive closure with hashes; what Docker and CI install |
 | `requirements-dev.txt` | **Generated** by pip-compile — the test tooling's closure with hashes; CI only |
 | `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
+| `.gitattributes` | Forces LF on `scripts/scaleway/` — those files run on, or are handed to, a Linux host, and a Windows checkout with `core.autocrlf=true` otherwise ships them CRLF (a cloud-init once arrived as `#cloud-config` + CR) |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |
 | `Dockerfile` | Multi-stage build on Docker Hardened Images — `dhi.io/python:3.12-dev` builds the venv, `dhi.io/python:3.12` runs it as uid 65532 with no shell or package manager |
 | `docker-entrypoint.py` | Container entrypoint — expands `SERVER_PORT`/`UVICORN_WORKERS`/`UVICORN_TIMEOUT` (the hardened base has no shell to do it) and `exec`s uvicorn so it stays PID 1 |
