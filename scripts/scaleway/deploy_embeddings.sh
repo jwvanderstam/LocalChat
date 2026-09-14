@@ -11,8 +11,11 @@
 #
 #   * The security group sets `inbound-default-policy=drop`. Scaleway's default
 #     is `accept`, which would put Ollama's port 11434 on the public internet.
-#     The cost is that there is no SSH either — the serial console is the way in
-#     if something goes wrong, and that is the right trade for a disposable box.
+#     The cost is that there is no way in if something goes wrong: the cloud
+#     image sets no password for the serial console to log in with, and a key
+#     only reaches the box if it is registered in *this* project (both reasoned,
+#     neither tried — DEPLOYMENT_SCALEWAY.md §11, 2026-09-14). A box that fails
+#     is replaced, not read; whether to change that is §12's.
 #   * The model is pulled through the application's own POST /api/models/pull,
 #     not from cloud-init. The cloud-init pull failed silently on the first run
 #     and left a box with zero models and no way in to find out why. Pulling

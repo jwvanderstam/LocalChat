@@ -33,8 +33,9 @@ document treats that as a constraint to respect rather than a limitation to work
 >
 > All of them are idempotent. To tear it down: [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md).
 >
-> **Nothing is standing as of 2026-09-08** — the project lists zero of every billable
-> resource type. But the stack is ephemeral by intent, not by mechanism: nothing deletes it
+> **A stack is standing as of 2026-09-14**, left up deliberately at the end of that session for
+> the operator to look at; its ids are in [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md), and the
+> teardown is theirs. The stack is ephemeral by intent, not by mechanism: nothing deletes it
 > on a timer, and one was once found still running two days after it was believed gone. The
 > resource ids quoted in §10 are from that day's build and are gone with it; the shape is
 > what they are there for. [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md) says what was last left
@@ -427,7 +428,9 @@ notification-only: estimate-based, lagged behind the invoice, and computed after
 and taxes in a way that can mislead. Scaleway's own worked example shows a €150 alert
 firing only once €250 of real usage has occurred, because a €100 discount delayed the
 billed amount crossing the threshold. **No product-level spend cap exists anywhere in a
-Scaleway account.**
+Scaleway account.** And an alert fires on the *crossing*: one created above a line already
+passed never fires at all (settled 2026-09-14, §11). The guardrail is a tripwire, armed
+before the spend; the €50 one was, on 2026-09-05, with nothing yet consumed.
 
 The structural ceilings are the real protection, and they are D1 and D5: max scale 1 on the
 container, `max_cpu = 1` on the database. Those make runaway compute impossible rather than
@@ -842,19 +845,32 @@ All read-only except the last row, which created the cost guardrail itself.
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
 | ~~The webhook payload shape (§8)~~ | **Closed 2026-09-08 as not needed.** The shape only matters to code that parses it, and the decision is not to build that: a consumer that tears the stack down on an unauthenticated POST is a liability, and the alert lags consumption by hours so it cannot be a brake anyway. Delivery goes to **email** instead — supported natively, no endpoint, no public surface. Reopen this row if anyone ever builds a machine consumer | — |
-| Whether a budget alert fires when consumption is *already* above the threshold | Set up 2026-09-08 and unresolved. A 1% alert (€0.50) with ~€5 consumed and an email notification attached produced no mail in 2 h 33 min | Leave it armed and look again the next day. If nothing ever arrives, an alert most likely fires on a *crossing* rather than on a standing state — in which case creating one above the line proves nothing, and the check has to be made before the spend, not after | It changes what the guardrail is: a tripwire you must arm in advance, not a condition you can test whenever. It would also mean this test design was wrong rather than the notification being broken. |
+| ~~Whether a budget alert fires when consumption is *already* above the threshold~~ | **Settled 2026-09-14: it does not.** The 1 % alert (€0.50) created on 2026-09-08 with ~€5 already consumed and an email notification attached had delivered nothing six days later. An alert fires on a *crossing*, not on a state — the guardrail is a tripwire that must be armed before the spend (§8). The 2026-09-08 test design was what was wrong, not the notification | — |
 | Whether an organisation may hold more than one budget | One now exists and `create` takes no name, but a second was never attempted | `scw billing budget create consumption-limit=1 enabled=false`, then list and delete | If several are allowed, the script's refuse-on-more-than-one guard is the right behaviour but becomes reachable in normal use — and there is still no name to tell them apart. |
 
 ### Open — needs the next live stack
 
-Nothing here can be settled without deploying. Each row is application behaviour that is
-tested in CI and has never been watched on Scaleway; the distinction is §10b's whole point.
+Nothing here can be settled without deploying. Each row is behaviour that has been reasoned
+about and never watched; the distinction is §10b's whole point.
 
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
-| That a Phase 4 stack boots with **no** active model rather than a wrong one | Fixed 2026-09-09 in #369 and proven by unit tests only. The previous behaviour — an embedding model made active — was observed live; the corrected behaviour has not been | Deploy Phase 4, then `GET /api/status`: expect `ready: false`, `active_model: null`, `ollama: true`, `database: true`. `GET /api/health` must still report healthy | A `ready: true` means the fallback still has a path. An unhealthy `/api/health` is worse: the container will be restart-looped, and the fix would have to be reconsidered rather than tuned |
-| That ingest and retrieval are unaffected by having no active model | Same change, same reason. The two paths are independent in the code, and that is an argument rather than an observation | The Phase 3 gate already covers it — `verify_deployment.py` ingests and runs a semantic retrieval. Run it against a Phase 4 stack **before** pulling any generation model | If ingest fails, embedding is reaching the active-model path somewhere it should not, and the refusal is too broad |
-| That chat works on a Phase 4 stack once a generation model is pulled **and made active** | The 2026-09-08 session proved this by hand on the old build; the code underneath has since changed | Pull `llama3.2:1b`, `POST /api/models/active`, ask a question about an ingested document | If chat still refuses, the active model is being validated somewhere new, or the pull did not land on the box the container talks to |
+| That there is any way into the Ollama box at all | §5 and `deploy_embeddings.sh` say "the serial console is the way in". On 2026-09-14 a box that never started Ollama could not be examined: the image is Ubuntu Jammy cloud, which sets no password, and a serial console needs one; the account's one SSH key is registered in the *default* project, and Scaleway injects keys per project, so the box had no authorised key either. Neither door was ever tried | Register a key in `localchat-test` (`scw iam ssh-key create project-id=…`), build a box, add a temporary security-group rule for 22 from one IP, `ssh root@<public-ip>`, delete the rule. Then try the serial console once, to close that claim too | If SSH works, that is the way in and §5 should say so. If the console also works, the 2026-09-14 reasoning was wrong and nothing changes |
+| Why the first box of 2026-09-14 never started Ollama | `/api/tags` was *refused* on both addresses 26 minutes after power-on and still after a reboot, so `install.sh` never ran to completion. The user-data was on the server and intact. The cause is in `/var/log/cloud-init-output.log` on a volume that was deleted with the box | Needs the row above first. Then, the next time a box fails: read that log before deleting anything | Unknown until read. A transient `ollama.com` failure means nothing to fix; a change in `install.sh`'s behaviour on Jammy would mean pinning a version in the cloud-init |
+
+### Settled — checked 2026-09-14 against the live stack
+
+The three rows #369 created on 2026-09-09, watched on `sha-af6012b` with a DEV1-M holding
+only `nomic-embed-text` until the last row pulled `llama3.2:1b`.
+
+| Claim | What the check found |
+|---|---|
+| That a Phase 4 stack boots with **no** active model rather than a wrong one | **It does.** `/api/status` read `ready: false, active_model: null, ollama: true, database: true`, and `/api/health` stayed `healthy` — so nothing restart-looped for the crime of having no chat model. |
+| That ingest and retrieval are unaffected by having no active model | **They are.** `verify_deployment.py --pull-model nomic-embed-text` passed every row, semantic retrieval at similarity 0.4851, with `active_model` still `null` throughout. |
+| That chat works on a Phase 4 stack once a generation model is pulled **and made active** | **It does.** `llama3.2:1b` pulled through the app in 13 s; `POST /api/models/active` flipped `ready` to `true`; a question about the probe document was answered with the canary quoted exactly and `deployment-probe.md` cited. TTFT 33.9 s on the CPU box. |
+| Whether `deploy_container.sh`'s readiness loop is right to stop on `error` | **It was not.** Scaleway reports `error` transiently while a slow first boot fails its early liveness probes: `error` at 12:11:21, `ready` at 12:11:36, `/api/health` answering at 12:11:43 — and the script had exited 1 on the first sighting. Fixed: three consecutive polls, with tests in `tests/unit/test_deploy_scripts.py`. |
+| What `budget_mb: 0` on every model in `/api/models` means | **The fit check measures the container, not the Ollama box.** `detect()` runs where the app runs; on a topology where Ollama is elsewhere — every Scaleway topology — every model not already loaded shows `fits: false` with a reason naming the container's memory. Cosmetic: `load_model_guard` is called by nothing in `src/`, so no activation is refused by it. Left alone; an application ticket, not a deployment one. |
+| Whether the file cloud-init receives is what the repository holds | **Byte-for-byte, including `\r`.** `core.autocrlf=true` on a Windows checkout makes `scripts/scaleway/` CRLF and `deploy_embeddings.sh` uploads the yaml verbatim, so the server held `#cloud-config\r\n`. Probably harmless — cloud-init matches the header with `startswith`, YAML normalises line breaks, and the same file built the 2026-09-08 stack — and **not** established as the cause of the box above. Fixed regardless with `.gitattributes` forcing LF on the directory. |
 
 ### Settled — checked 2026-09-08 against the live stack
 
@@ -882,6 +898,8 @@ These are decisions, not facts. §11 is the companion list of facts.
 - Whether your credit's expiry date changes the urgency of that decision.
 - Whether §7's degraded rate limiting stays accepted (D8) once anyone outside the test
   group has a login.
+- Whether to register an SSH key in `localchat-test` so the Ollama box has a way in (§11,
+  2026-09-14). Without one, a box that fails to start can only be replaced, never read.
 
 ---
 

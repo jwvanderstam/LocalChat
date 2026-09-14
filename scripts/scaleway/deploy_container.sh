@@ -43,6 +43,8 @@ DEPLOY_MVCPU="${DEPLOY_MVCPU:-1000}"
 DEPLOY_PORT="${DEPLOY_PORT:-5000}"
 DEPLOY_DB_ENV="${DEPLOY_DB_ENV:-$HOME/.config/scw/localchat-db.env}"
 DEPLOY_SECRET_ENV="${DEPLOY_SECRET_ENV:-$HOME/.config/scw/localchat-deploy.env}"
+# How often the readiness loop polls. Only a test has a reason to lower it.
+DEPLOY_POLL_SECONDS="${DEPLOY_POLL_SECONDS:-20}"
 # Empty by default and set by deploy_embeddings.sh. Without it the app boots and
 # serves everything except chat and document ingest, which both need Ollama.
 DEPLOY_OLLAMA_URL="${DEPLOY_OLLAMA_URL:-}"
@@ -259,12 +261,22 @@ else
 fi
 
 echo "Waiting for the container (a 3 GB pull takes a few minutes):"
+# `error` is not final. Scaleway reports it while a slow first boot is still
+# failing its early liveness probes: on 2026-09-14 the container read `error`
+# for 15 s and was `ready` 22 s before the app answered /api/health, and this
+# loop had given up on the first sighting. Only an error that stays is one, so
+# it has to be seen on consecutive polls before the script believes it.
 STATUS=""
+ERRORS=0
 for _ in $(seq 1 60); do
   STATUS=$(scw_json container container get container-id="$CONTAINER_ID" \
     region="$DEPLOY_REGION" | "$PYTHON" -c "$FIELD" status)
-  case "$STATUS" in ready|error) break;; esac
-  sleep 20
+  case "$STATUS" in
+    ready) break ;;
+    error) ERRORS=$((ERRORS + 1)); if [[ $ERRORS -ge 3 ]]; then break; fi ;;
+    *) ERRORS=0 ;;
+  esac
+  sleep "$DEPLOY_POLL_SECONDS"
 done
 note "status $STATUS"
 [[ "$STATUS" == "ready" ]] || die "container did not become ready (status: $STATUS)"
