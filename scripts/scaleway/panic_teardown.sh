@@ -89,7 +89,10 @@ rows() {
 # with "must be empty to be deleted" while being seconds away from deletable.
 # Observed on the first live teardown, 2026-09-05: it failed, then succeeded on a
 # second run. Nothing is burning while this retries — a Private Network is free.
-PN_RETRIES="${PN_RETRIES:-3}"
+# Six, not three: three landed on the last attempt on every live run and ran out
+# on 2026-09-14, so the budget sat exactly at the observed release time with no
+# headroom. The network is the last thing deleted, so waiting here delays nothing.
+PN_RETRIES="${PN_RETRIES:-6}"
 PN_RETRY_DELAY="${PN_RETRY_DELAY:-5}"
 
 # kill_with_retry <label> <scw delete args...>
