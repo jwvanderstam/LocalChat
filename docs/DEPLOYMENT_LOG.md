@@ -337,6 +337,42 @@ stack ran for roughly three hours, most of it standing for a look rather than be
 
 ---
 
+## 2026-09-14, evening — the same day's fixes, deployed from nothing
+
+**Done.** Rebuilt the stack onto `sha-37c7bab` — `main` with #373, #374 and #375 merged an
+hour earlier — ran the Phase 3 gate, the status and chat checks from the afternoon entry,
+confirmed the two Docs-viewer fixes are what the image serves, and tore it down. The point
+was to run the afternoon's fixes through the whole chain unattended, and it did.
+
+```
+database   f3ab1d2d    namespace 9d9ed7d3    container 2eee73a5   sha-37c7bab
+instance   522d0d25    DEV1-M  172.16.8.2    network d9aa0c27
+```
+
+| | Afternoon | Evening |
+|---|---|---|
+| Phase 2 wait loop | quit on a transient `error`; container fine 15 s later | waited it out — `ready` after 4.5 min, no hand on it |
+| Ollama box | the first never started; rebuilt | up on the first poll, about 6 min after creation, LF cloud-init |
+| Phase 3 gate | pass, similarity 0.4851 | pass, similarity 0.4851 |
+| `/api/status` before / after activation | `ready:false, null` → `true, llama3.2:1b` | same |
+| Chat | 36 s, canary quoted, cited | 24 s, canary quoted, cited |
+| Docs viewer | fixes not in the image | `docs.js` carries the link rewrite and `style.css` the sticky rule — served, not just merged |
+
+**Found.**
+
+| | |
+|---|---|
+| The kill switch's retry budget | **ran out.** `PN_RETRIES` defaulted to 3 with 5 s between, 10 s in all; every live run since the retry was added had landed on attempt 3, and this one needed more. The script named the survivor and exited 1, as designed; a second run deleted it. A default that equals the observed need has no headroom — raised to 6, with a test that fails at 3 |
+| One clean box start | **is not evidence about the LF change.** The afternoon's failure was never read, so nothing links it to `\r`. What two runs in one day do establish is that the chain runs from nothing without intervention |
+
+**Torn down.** Two runs of the kill switch: the first left the free Private Network, the
+second removed it. Every resource type in the project then listed zero.
+
+**Cost.** €2.01 in the project for the period, against €1.89 read after the afternoon
+teardown — about €0.12 for this run, before the lag.
+
+---
+
 ## How to add an entry
 
 One section per session, newest at the bottom. Record what was done, what was found that

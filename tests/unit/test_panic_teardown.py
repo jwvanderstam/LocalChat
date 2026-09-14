@@ -202,6 +202,7 @@ class TestThePrivateNetworkIsRetried:
             CONFIRM="DESTROY",
             SCW_FAKE_FLAKY="private-network-id=pn-1",
             SCW_FAKE_FLAKY_TIMES="2",
+            PN_RETRIES="3",
             **FULL_STACK,
         )
 
@@ -216,6 +217,7 @@ class TestThePrivateNetworkIsRetried:
             CONFIRM="DESTROY",
             SCW_FAKE_FLAKY="private-network-id=pn-1",
             SCW_FAKE_FLAKY_TIMES="99",
+            PN_RETRIES="3",
             **FULL_STACK,
         )
 
@@ -223,6 +225,21 @@ class TestThePrivateNetworkIsRetried:
         attempts = [d for d in deletes if d.startswith("vpc private-network delete")]
         assert len(attempts) == 3, "bounded — a burning account cannot wait forever"
         assert "did NOT go away" in proc.stderr
+
+    def test_the_default_budget_outlasts_the_observed_release_time(self, tmp_path):
+        """Three attempts landed on attempt 3 on every live run and ran out on
+        2026-09-14. A default that equals the observed need has no headroom."""
+        proc, _, deletes = _run(
+            tmp_path,
+            CONFIRM="DESTROY",
+            SCW_FAKE_FLAKY="private-network-id=pn-1",
+            SCW_FAKE_FLAKY_TIMES="3",
+            **FULL_STACK,
+        )
+
+        assert proc.returncode == 0, proc.stderr
+        attempts = [d for d in deletes if d.startswith("vpc private-network delete")]
+        assert len(attempts) == 4, "the fourth attempt is the one 2026-09-14 needed"
 
     def test_retrying_does_not_hide_the_failure_from_the_exit_code(self, tmp_path):
         """The whole value of the script is that a partial teardown is loud."""
