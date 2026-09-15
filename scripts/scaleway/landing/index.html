@@ -116,15 +116,71 @@
       <span>Proof of concept</span><span>Scaleway fr-par</span><span>September 2026</span>
     </div>
     <h1>LocalChat on Scaleway</h1>
-    <p class="standfirst">A self-hosted RAG application, stood up on managed cloud
-      infrastructure, verified end to end, and torn down again — for thirteen cents.</p>
+    <p class="standfirst">A self-hosted RAG application, stood up on a European cloud
+      from nothing, verified end to end, and torn down again — five times, for about two
+      euros.</p>
     <div class="figures">
-      <div class="figure"><b>&euro;0.13</b><span>total cost</span></div>
+      <div class="figure"><b>&euro;2.01</b><span>total cost</span></div>
       <div class="figure"><b>4</b><span>commands to deploy</span></div>
-      <div class="figure"><b>10 / 10</b><span>validation checks</span></div>
+      <div class="figure"><b>5</b><span>build-and-destroy cycles</span></div>
       <div class="figure"><b>2.99 GB</b><span>application image</span></div>
     </div>
   </header>
+
+  <section>
+    <h2>Why this exists</h2>
+    <p>Scaleway is a European cloud provider — French-owned, operating data centres in
+      Paris, Amsterdam and Warsaw under EU jurisdiction. For organisations whose
+      sovereignty requirements demand a European infrastructure provider, that makes it
+      one of the few alternatives to hosting everything themselves. Self-hosting is the
+      safe answer to those requirements and also the expensive one: hardware, patching,
+      backups, and someone on call. The question this proof of concept asks is whether a
+      sovereign cloud can carry that load instead. It tests three things: how far
+      deployment can be automated, how billing behaves, and how easy the platform is to
+      work with.</p>
+    <p>The application under test is LocalChat — a self-hosted RAG application that had
+      only ever run on a workstation and in Docker. Running it there says nothing about
+      running it on someone else's infrastructure. So the test is not whether it <em>can</em>
+      be made to run on Scaleway once, by hand, but whether the entire stack can be
+      deployed automatically, from nothing, by scripts, and taken down the same way.</p>
+    <p>The answer is yes, with conditions. The stack — application container, PostgreSQL
+      with pgvector, and a model host on a private network — has been built from an empty
+      project and destroyed again five times, each cycle scripted end to end, for about
+      two euros in total. What it needed to get there:</p>
+    <ul>
+      <li><strong>Scripts written after the first manual deploy, not before.</strong> Every
+        one of the four commands encodes something the documentation did not say — a
+        memory unit the API demands, a status that flickers to <code>error</code> before
+        settling, a network that refuses deletion until its attachments have quietly
+        released.</li>
+      <li><strong>A gate, not a checklist.</strong> A verification script that signs in,
+        ingests a document and retrieves it with a query sharing no words with the text.
+        A deploy is a deploy only when that exits zero.</li>
+      <li><strong>A brake.</strong> The platform has no spend cap. The teardown is a script
+        that deletes rather than stops, because a stopped machine still bills.</li>
+      <li><strong>A way in.</strong> A box that never came up could not be diagnosed, only
+        rebuilt. An SSH key registered in the right project is the difference between a
+        cause and a guess.</li>
+    </ul>
+    <h3>The strong points</h3>
+    <p>Idle costs nothing: the database scales to zero and the container is pinned to one
+      instance. Nothing in the product was rewritten to fit the platform. The cheap part
+      of the stack — everything but a GPU — is cents per hour, so a mistake costs a
+      rebuild, not a bill. And what the scripts encode is now reusable: the same commands,
+      with prefixed and defaulted settings, would stand the stack up in another
+      account.</p>
+    <h3>The attention points</h3>
+    <p>Nothing stops spend automatically; a budget alert lags the invoice, so the brake is
+      discipline plus a script. Encryption to the database is structural — an unencrypted
+      connection cannot even name its target. The managed environment exposes assumptions
+      a workstation covers: a health check that never checked, a retrieval path that
+      silently stores nothing without its model host. Diagnosis on a managed instance
+      needs preparation — console and key — before the failure, not after. And the one
+      expensive component, a GPU, was <strong>scarce</strong> on the day it was checked; a
+      plan that assumes it is available on demand is a plan that waits.</p>
+    <p>The rest of this page is the summary of those cycles. The two pages behind it are
+      the evidence: the log of every session, and the scripts exactly as they run.</p>
+  </section>
 
   <section>
     <h2>What was built</h2>
@@ -142,7 +198,7 @@
         <tr><td>Application</td><td>Serverless Container</td><td>3 GB, one instance, no autoscaling</td></tr>
         <tr><td>Database</td><td>Serverless SQL, PostgreSQL 16</td><td>pgvector 0.8.2, scales to zero when idle</td></tr>
         <tr><td>Embeddings</td><td>CPU Instance running Ollama</td><td>Reachable only over a private network</td></tr>
-        <tr><td>Text generation</td><td>Not deployed</td><td>Needs a GPU — the next decision</td></tr>
+        <tr><td>Text generation</td><td>CPU Instance, same host as embeddings</td><td>Works, slowly: a 1B model answers in 24–36 s. A GPU is the open decision</td></tr>
       </tbody>
     </table>
   </section>
@@ -207,9 +263,10 @@ PROJECT_ID=&lt;project&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.
 
   <section>
     <h2>What it cost</h2>
-    <p>Thirteen cents for the entire exercise — database, application container, embedding
-      host, private networking, stood up and torn down. The figure matters less than the
-      shape behind it:</p>
+    <p>About two euros for the entire exercise — database, application container, model
+      host, private networking, stood up and torn down five times over ten days. Most of
+      it went to one stack that was left standing for two days between sessions. The
+      figure matters less than the shape behind it:</p>
     <ul>
       <li><strong>Idle costs nothing.</strong> The database scales to zero; the application
         was pinned to a single instance on purpose, so concurrency cannot multiply the bill.</li>
@@ -228,8 +285,11 @@ PROJECT_ID=&lt;project&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.
   <section>
     <h2>Where it stands</h2>
     <p>The document path — upload, embed, store, retrieve — works on this infrastructure
-      and has been verified. Text generation has not been deployed and is the open
-      decision: a GPU instance, or moving to a hosted model API, which is cheaper to run
+      and has been verified on every cycle. Text generation has been run on the CPU host:
+      the answer is correct and cites the source, but at half a minute to the first word.
+      The open decision is a GPU instance for the same host, at &euro;0.787 per hour while
+      it runs — the plan is to build it beside the CPU machine for a two-hour session,
+      measure, and tear it down. The alternative, a hosted model API, is cheaper to run
       and a change to what the product is rather than to how it is deployed.</p>
     <p>The stack is currently torn down. It rebuilds from the four commands above.</p>
   </section>
