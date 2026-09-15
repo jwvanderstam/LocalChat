@@ -197,7 +197,7 @@ Options, ordered by how much they preserve the app unmodified:
 
 | # | Option | Code change | Cost | Latency |
 |---|---|---|---|---|
-| 1 | **GPU Instance** running Ollama, on a Private Network attached to the container | None | Highest — hourly, the whole time it is up. `L4-1-24G` is **€0.787/h — about €575/month left running**; `L40S-1-48G` €1.47/h, `H100-1-80G` €2.87/h. *[Measured via `scw instance server-type list zone=fr-par-2`, 2026-09-05.]* | Good |
+| 1 | **GPU Instance** running Ollama, on a Private Network attached to the container | None | Highest — hourly, the whole time it is up. `L4-1-24G` is **€0.787/h — about €575/month left running, €1.60 for a two-hour session**; `L40S-1-48G` €1.47/h, `H100-1-80G` €2.87/h. *[Prices re-measured 2026-09-15, unchanged since 2026-09-05. Availability that day: L4 **scarce**, L40S and H100 **shortage** — a create can be refused, in which case nothing bills.]* | Good |
 | 2 | **CPU Instance** with a small quantised model | None | Much lower | Materially worse — seconds to tens of seconds per response |
 | 3 | **Rewrite the LLM client** for Scaleway's OpenAI-compatible Generative APIs | Two source files | Pay-per-token, no VM | Good |
 | 4 | **Skip it** (D7) | None | €0 | Chat endpoints fail cleanly — **and so does document ingest**, since embedding goes through Ollama too. Boot, auth, database and health all validate; the document path does not (§10, Phase 3) |
@@ -226,11 +226,13 @@ What carries forward is not the instance — it is the plumbing:
 
 - the VPC private network, and proof the container can reach an instance at all
 - the firewall rules
-- the cloud-init that installs Ollama and pulls the model
-- proof that ingest works end to end, which nothing has yet demonstrated
+- the cloud-init that installs Ollama (it pulls no model — that goes through the app, §10)
+- proof that ingest works end to end
+- a way onto a box that fails to start (the SSH key registered 2026-09-14, §12)
 
-Those are exactly what you would otherwise be debugging **for the first time** while a
-€0.787/h meter runs. A GPU Instance bills for every hour it *exists*, not every hour it is
+**All five are in hand as of 2026-09-14** — built from nothing and verified twice that day
+(DEPLOYMENT_LOG.md). Those are exactly what you would otherwise be debugging **for the
+first time** while a €0.787/h meter runs. A GPU Instance bills for every hour it *exists*, not every hour it is
 useful, so an hour of plumbing debug on it is pure waste — and plumbing is where first
 deployments fail.
 
@@ -243,6 +245,18 @@ with their volumes and IP, so tearing down is one command.
 > **Build the GPU as a separate instance. Never resize the CPU one.** Both then exist
 > briefly, you confirm generation works, and only then delete the CPU Instance. Resizing
 > discards the fallback at the moment you are most likely to need it.
+>
+> The build is `deploy_embeddings.sh` with three variables — it passes type and image
+> straight through, and the GPU image lists the L4 as compatible:
+>
+> ```bash
+> EMB_INSTANCE_NAME=localchat-gpu EMB_TYPE=L4-1-24G \
+> EMB_IMAGE=ubuntu_noble_gpu_os_13_nvidia bash scripts/scaleway/deploy_embeddings.sh
+> ```
+>
+> The script finds the network and security group by name and reuses them, creates the
+> box under the new name, and rewires the container to *its* private IP. The CPU box keeps
+> running, unreferenced, until it is deleted. **This has not been run** (§11).
 
 ### One zone: `fr-par-2`
 
@@ -695,18 +709,28 @@ The pull is also what proves the private network carries traffic.
 
 Everything built in this phase is what Phase 5 reuses. That is the reason it comes first.
 
-**Phase 5 — Decide on the GPU.** Revisit §5 with the plumbing already proven and ingest
-already working, so that a GPU Instance is only ever asked to answer one question: is
-generation acceptable?
+**Phase 5 — Decide on the GPU. Open, and unblocked as of 2026-09-14.** Every precondition
+§5 set is met (the list above), so a GPU Instance is only ever asked to answer one question:
+**is generation acceptable — which model, at what speed?**
 
-*Generation has now been run on the CPU box once, as a sanity check rather than a
-measurement: `llama3.2:1b` on the `DEV1-M` answered a RAG question in 32 s, streamed
-tokens, and cited the right chunks — but the 1B model said the canary "is not mentioned in
-the provided document" while that document was in front of it. Retrieval had done its job;
-the model could not use what it was given. That is the question Phase 5 exists to answer,
-and a 1B model on three vCPUs is not the instrument for it.* Build it beside the CPU Instance, never by resizing it, and delete
-the CPU Instance once generation is confirmed. `L4-1-24G` is €0.787/h ≈ €575/month; everything up to
-this point has cost about €1.50 in total, across three build-and-destroy cycles.
+*What the CPU box has already shown, so the GPU is not asked to repeat it.* On 2026-09-08
+`llama3.2:1b` on the `DEV1-M` answered a RAG question in 32 s and cited the right chunks
+but said the canary "is not mentioned" while the document was in front of it. On
+2026-09-14, twice, the same model on the same box **quoted the canary exactly** and cited
+`deployment-probe.md`, at 34 s and 24 s to first token. So the 1B model is not blind to
+its context; it is slow and it is small. Neither is the GPU's question to answer again.
+
+*What the GPU session measures.* An `L4-1-24G` beside the CPU box, `llama3.1:8b` pulled
+through the app, made active, and asked the canary question plus two open questions about
+the same document — time to first token and whether the answer uses the retrieved text.
+"Acceptable" is under five seconds to first token with an answer that quotes or paraphrases
+the source. Then the CPU box is deleted, the GPU box torn down, and the entry written.
+Budget: the L4 for two hours is about €1.60; the whole exercise so far has cost about
+€2.00 across five build-and-destroy cycles.
+
+*What could stop it.* L4 availability read **scarce** on 2026-09-15; a refused create bills
+nothing and is simply tried again later. The GPU image plus Ollama's installer producing a
+CUDA-backed Ollama is assumed from Ollama's documentation, not observed — §11 carries it.
 
 ---
 
@@ -855,6 +879,8 @@ about and never watched; the distinction is §10b's whole point.
 | Claim | Why unsettled | The check | If it differs |
 |---|---|---|---|
 | That there is any way into the Ollama box at all | §5 and `deploy_embeddings.sh` say "the serial console is the way in". On 2026-09-14 a box that never started Ollama could not be examined: the image is Ubuntu Jammy cloud, which sets no password, and a serial console needs one; the account's one SSH key was registered in the *default* project, and Scaleway injects keys per project, so the box had no authorised key either. Neither door was ever tried. **The key is now registered** (`localchat-operator`, §12); the row stays until a box is actually entered | On the next stack: add a temporary security-group rule for 22 from one IP, `ssh root@<public-ip>`, read `/var/log/cloud-init-output.log`, delete the rule. Then try the serial console once, to close that claim too | If SSH works, that is the way in and §5 should say so. If the console also works, the 2026-09-14 reasoning was wrong and nothing changes |
+| That `deploy_embeddings.sh` unchanged builds a GPU box | It passes `type` and `image` through, and `ubuntu_noble_gpu_os_13_nvidia` lists `L4-1-24G` as compatible — read from the marketplace, not run | The three-variable command in §5. Expect `state running`, a private IP, the container rewired | If the create is refused, it is availability (scarce on 2026-09-15), not the script; wait and retry. If the box runs but the container cannot reach it, the GPU image's network setup differs from Jammy's — the SSH key is the way to find out |
+| That Ollama on that image uses the GPU | Ollama's installer detects an NVIDIA driver and ships CUDA libraries; the image has the driver preinstalled. Documented, never observed here | After the pull, `GET /api/models` on the app shows `loaded: true`; on the box, `nvidia-smi` shows the ollama process holding VRAM. A first-token time under a few seconds for an 8B model is the tell from outside | If it runs on CPU, the answer will take a minute and `nvidia-smi` will show nothing — then the installer missed the driver, and the cloud-init needs a CUDA check before it reports ready |
 | Why the first box of 2026-09-14 never started Ollama | `/api/tags` was *refused* on both addresses 26 minutes after power-on and still after a reboot, so `install.sh` never ran to completion. The user-data was on the server and intact. The cause is in `/var/log/cloud-init-output.log` on a volume that was deleted with the box | Needs the row above first. Then, the next time a box fails: read that log before deleting anything | Unknown until read. A transient `ollama.com` failure means nothing to fix; a change in `install.sh`'s behaviour on Jammy would mean pinning a version in the cloud-init |
 
 ### Settled — checked 2026-09-14 against the live stack
@@ -893,7 +919,9 @@ These are decisions, not facts. §11 is the companion list of facts.
 
 - ~~Whether a payment method is required before resources can be created (Phase 0).~~
   **Answered 2026-09-05: not required.** Project and database were created without one.
-- Which Ollama path (§5) — your call once Phase 3 is live and the rate in §11 is real.
+- Which Ollama path (§5). **Decidable since 2026-09-14**: Phase 3 is live and the rate is
+  real (€0.787/h, scarce). The plan's answer is option 1 as a per-session instance, run
+  the way the CPU box is — up while testing, gone after. What is left is your go.
 - Whether your credit's expiry date changes the urgency of that decision.
 - Whether §7's degraded rate limiting stays accepted (D8) once anyone outside the test
   group has a login.
