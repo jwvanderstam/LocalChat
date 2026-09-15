@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Deployment log — LocalChat on Scaleway</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:wght@600&display=swap">
+<style>
+  :root {
+    --ground: #F5F6F3; --surface: #FFFFFF; --ink: #171B21; --ink-soft: #4C5560;
+    --ink-faint: #7C8792; --rule: #D6DAD4; --rule-soft: #E6E9E4;
+    --accent: #2F6F4F; --accent-soft: #E4EFE8; --warn: #A8611B; --warn-soft: #F6EADC;
+    --code-bg: #ECEEE9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101310; --surface: #171B18; --ink: #E7EAE3; --ink-soft: #A8B2AA;
+      --ink-faint: #78827B; --rule: #2C332D; --rule-soft: #222824;
+      --accent: #7FC49A; --accent-soft: #1B2B22; --warn: #D79B54; --warn-soft: #2C2418;
+      --code-bg: #1C211D;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 1rem; line-height: 1.62; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 52rem; margin: 0 auto; padding: clamp(2rem, 5vw, 4rem) clamp(1.1rem, 4vw, 2rem) 5rem; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--ink-faint);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem;
+  }
+  h1 {
+    font-family: "IBM Plex Serif", Georgia, serif; font-weight: 600;
+    font-size: clamp(2rem, 1.6rem + 1.6vw, 2.8rem); line-height: 1.08;
+    letter-spacing: -0.02em; text-wrap: balance; margin: 0.6rem 0 0;
+  }
+  .standfirst { font-size: 1.15rem; color: var(--ink-soft); max-width: 46ch; margin: 0.8rem 0 0; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.5rem; }
+  .figures {
+    display: flex; flex-wrap: wrap; gap: 0 2.4rem;
+    margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px solid var(--rule-soft);
+  }
+  .figure { display: flex; flex-direction: column; padding: 0.2rem 0; }
+  .figure b {
+    font-family: "IBM Plex Mono", monospace; font-size: 1.25rem; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .figure span { font-size: 0.8rem; color: var(--ink-faint); letter-spacing: 0.04em; }
+  section { margin-top: 3rem; }
+  h2 {
+    font-family: "IBM Plex Serif", Georgia, serif; font-weight: 600;
+    font-size: 1.6rem; line-height: 1.18; letter-spacing: -0.015em;
+    text-wrap: balance; margin: 0 0 0.7rem;
+  }
+  h3 { font-size: 1rem; font-weight: 600; margin: 1.8rem 0 0.4rem; }
+  p { margin: 0 0 1rem; max-width: 66ch; }
+  code {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.88em;
+    background: var(--code-bg); padding: 0.08em 0.34em; border-radius: 3px;
+  }
+  pre {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.83rem; line-height: 1.65;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent); padding: 1rem 1.1rem;
+    overflow-x: auto; margin: 1.1rem 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  ul { margin: 0.5rem 0 1rem; padding-left: 1.15rem; max-width: 66ch; }
+  li { margin-bottom: 0.5rem; }
+  li::marker { color: var(--ink-faint); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+  th {
+    text-align: left; font-family: "IBM Plex Mono", monospace; font-weight: 500;
+    font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-faint); padding: 0 0.8rem 0.5rem 0; border-bottom: 1px solid var(--rule);
+  }
+  td { padding: 0.65rem 0.8rem 0.65rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  .note {
+    border-left: 3px solid var(--warn); background: var(--warn-soft);
+    padding: 0.9rem 1.1rem; margin: 1.2rem 0; max-width: 66ch;
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .good { border-left-color: var(--accent); background: var(--accent-soft); }
+  footer {
+    margin-top: 4rem; padding-top: 1.2rem; border-top: 2px solid var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--ink-faint);
+  }
+  footer a { color: var(--ink-soft); }
+  nav.site { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; margin-bottom: 1.4rem; display: flex; gap: 1.4rem; }
+  nav.site a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  nav.site a[aria-current] { color: var(--ink); border-bottom-color: var(--ink); }
+  .more { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin-top: 1.2rem; }
+  .more a { display: block; padding: 1rem 1.1rem; border: 1px solid var(--rule); background: var(--surface); color: inherit; text-decoration: none; }
+  .more a:hover { border-color: var(--accent); }
+  .more b { display: block; font-family: "IBM Plex Serif", Georgia, serif; font-size: 1.1rem; margin-bottom: 0.3rem; }
+  .more span { font-size: 0.9rem; color: var(--ink-soft); }
+</style>
+<style>
+  .script { margin-top: 3rem; }
+  .script-links { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; margin: 0.3rem 0 0.8rem; }
+  .script-links a { color: var(--accent); }
+  pre.source { max-height: 34rem; overflow: auto; font-size: 0.78rem; }
+  h2 { margin-top: 3.2rem; }
+  blockquote { margin: 1.2rem 0; padding: 0.2rem 1.1rem; border-left: 3px solid var(--warn); background: var(--warn-soft); max-width: 66ch; }
+  blockquote h2 { font-size: 1.1rem; margin: 0.6rem 0 0.4rem; }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 2.4rem 0; }
+  .toc { font-size: 0.9rem; columns: 2; column-gap: 2rem; }
+  .toc a { color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="page">
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="log.html" aria-current="page">Deployment log</a>
+    <a href="deploy.html">The scripts</a>
+  </nav>
+  <header>
+    <div class="eyebrow"><span>Record</span><span>Scaleway fr-par</span><span>Every session</span></div>
+    <h1>Deployment log</h1>
+    <p class="standfirst">What each session did, what it found that the plan did not predict, and what it cost.</p>
+  </header>
+<section><p>One entry per session, oldest first, exactly as kept in the repository — with one difference: resource identifiers, private addresses and endpoints are replaced by <code>&lt;id&gt;</code>, <code>&lt;address&gt;</code> and <code>&lt;endpoint&gt;</code>. Everything described here is torn down; the placeholders keep this page about what happened rather than where.</p><ul class="toc">
+    <li><a href="#2026-09-05-first-deployment">2026-09-05 — first deployment</a></li>
+    <li><a href="#2026-09-06-hardening-automation-and-a-rerun">2026-09-06 — hardening, automation, and a rerun</a></li>
+    <li><a href="#2026-09-08-a-stack-found-running-and-a-rebuild-from-the-scripts">2026-09-08 — a stack found running, and a rebuild from the scripts</a></li>
+    <li><a href="#2026-09-09-the-findings-turned-into-code-and-nothing-was-deployed">2026-09-09 — the findings turned into code, and nothing was deployed</a></li>
+    <li><a href="#2026-09-14-the-three-open-rows-settled-and-a-box-that-never-came-up">2026-09-14 — the three open rows settled, and a box that never came up</a></li>
+    <li><a href="#2026-09-14-evening-the-same-day-s-fixes-deployed-from-nothing">2026-09-14, evening — the same day&#x27;s fixes, deployed from nothing</a></li>
+  </ul></section>
+<section><p>A record of every session that touched the Scaleway deployment: what was done, what it
+found, and what it cost. <a href="https://github.com/jwvanderstam/LocalChat/blob/main/docs/DEPLOYMENT_SCALEWAY.md">DEPLOYMENT_SCALEWAY.md</a> is the plan and
+the reference; this is the history of running it.</p>
+<p>It exists because the stack is ephemeral. Deploy, test, destroy is the pattern, so nothing
+in the account is evidence of what happened — the resources are gone by the time anyone
+asks. Without a log, each rebuild starts from the same blank page the last one did.</p>
+<blockquote>
+<h2>No secrets, ever</h2>
+<p><strong>No key, password, token, connection string or secret value appears in this file</strong>, and
+none may be added to it later. Incidents involving secrets are recorded by <em>what happened
+and what was done about it</em>, never by what the value was. Credentials live only in
+mode-600 files outside the repository, written by <code>provision.sh</code> and
+<code>deploy_container.sh</code>.</p>
+<p>Resource IDs, hostnames, prices and timings are fine, and are what make an entry useful.</p>
+</blockquote>
+<hr />
+<h2 id="2026-09-05-first-deployment">2026-09-05 — first deployment</h2>
+<p><strong>Done.</strong> Authenticated the CLI via browser SSO. Rewrote the billing guardrail against the
+real CLI surface. Created the scoped project, the Serverless SQL Database and a
+project-scoped IAM identity. Built and tested the cost kill switch. Deployed the container,
+added a CPU Instance serving embeddings, and proved the document path end to end. Tore it
+all down again.</p>
+<p><strong>Found.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Half the <code>scw billing</code> surface the guardrail assumed</td>
+<td>did not exist — no <code>budget-alert list</code>, and a budget has no name</td>
+</tr>
+<tr>
+<td><code>scw sdb</code>, and Terraform's <code>max_cpu = 15</code> default</td>
+<td>wrong command; the CLI requires both CPU bounds, so the trap is Terraform-only</td>
+</tr>
+<tr>
+<td><code>hnsw.ef_search</code> through the pooler (§4's open caveat)</td>
+<td>survives — the feared defect does not exist</td>
+</tr>
+<tr>
+<td>TLS to the database</td>
+<td>structural, not hardening: routing is by TLS SNI</td>
+</tr>
+<tr>
+<td>"Retrieval works without Ollama"</td>
+<td>false — ingest embeds through Ollama, so nothing is stored at all</td>
+</tr>
+<tr>
+<td>The version endpoint</td>
+<td>not on <code>/api/status</code>; it is admin-only on <code>/api/settings/stats</code></td>
+</tr>
+<tr>
+<td><code>memory-limit-bytes</code></td>
+<td>needs a G/GB unit, not bytes</td>
+</tr>
+<tr>
+<td>Compressed image size</td>
+<td>2.99 GB over 10 layers, of which one layer is 2.96 GB</td>
+</tr>
+<tr>
+<td>GPU price</td>
+<td><code>L4-1-24G</code> is €0.787/h ≈ €575/month</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Kill switch, first live run.</strong> Five of six resources gone on the first pass; the private
+network refused because deletes release their network attachments asynchronously. It named
+the survivor and exited non-zero, which is the design. A retry was added afterwards.</p>
+<p><strong>Cost.</strong> €0.13 for the whole exercise.</p>
+<hr />
+<h2 id="2026-09-06-hardening-automation-and-a-rerun">2026-09-06 — hardening, automation, and a rerun</h2>
+<p><strong>Done.</strong> Fixed two generic application defects the deployment exposed. Scripted phases 2
+to 4 from what the manual run actually did. Gave the landing host TLS and a security group
+of its own. Rebuilt the entire stack from nothing using only the scripts, which is what
+exposed the rest of this entry.</p>
+<p><strong>Application defects fixed.</strong></p>
+<ul>
+<li><code>/api/health</code> echoed a boot-time flag and reported the database healthy through a total
+  outage. It now probes the pool, cached for five seconds.</li>
+<li>The connection pool handed out connections the server had already closed. Reproduced by
+  idling: the first request failed after 2.8 s, a second in 0.22 s, and recovery came
+  minutes later with no intervention. Fixed by checking a connection on checkout.</li>
+<li>Staged uploads outlived an interrupted ingest. <code>UPLOAD_FOLDER</code> is a staging area, not a
+  store — a correction to an earlier claim in this project's own documentation that
+  uploads were lost on restart and needed object storage. They are not, and it does not.</li>
+</ul>
+<p><strong>Script defects, all found by running from nothing.</strong></p>
+<ul>
+<li><strong>A failure path published six secrets.</strong> <code>scw</code> takes secrets as command arguments, and
+  the error handler printed the failing command. One transient-state rejection disclosed
+  every application secret and the database credential. <strong>All were rotated immediately.</strong>
+  The error path now redacts them; the underlying exposure through the process table is
+  documented in §10c and accepted for a single-operator laptop, not for shared CI.</li>
+<li>The credential file went stale when a database was recreated while its key survived. The
+  summary printed the new host and the file kept the old one — the worst combination,
+  because nothing looks broken until a deployment cannot connect.</li>
+<li><code>deploy_embeddings.sh</code> raced itself, issuing a second container update while the first
+  was still applying.</li>
+</ul>
+<p><strong>Landing host.</strong> <code>atospoc.solbyco.nl</code> served a placeholder over plain HTTP on Scaleway's
+Default security group, which accepts all inbound — port 22 open to the internet. Now:
+Let's Encrypt with renewal proven by dry-run, and a security group allowing 80 and 443
+publicly with SSH from the operator's address alone. Enforcement on the running instance
+was verified by listening on an unlisted port and confirming it unreachable.</p>
+<p><strong>The UI was unusable, and the assets were fine.</strong> <code>/static/css/style.css</code> returned 200,
+<code>text/css</code>, 37012 bytes over HTTPS — while the page asked for it over <code>http</code>. Starlette's
+<code>url_for</code> builds an absolute URL from the request, and behind TLS termination that is
+<code>http</code>, which browsers block as mixed content. Every stylesheet and every script refused;
+the "Loading…" that never resolved was the same cause, since the JavaScript never ran.
+Fixed by referencing same-origin assets root-relative, which needs no proxy trust at all.</p>
+<p><strong>Kill switch, second live run.</strong> Clean, exit 0 — and the private network deleted itself on
+attempt three, so the retry added after the first run did its job unattended.</p>
+<hr />
+<h2 id="2026-09-08-a-stack-found-running-and-a-rebuild-from-the-scripts">2026-09-08 — a stack found running, and a rebuild from the scripts</h2>
+<p><strong>Done.</strong> Found the 2026-09-06 stack still standing and still billing. Tore it down with
+the kill switch, rebuilt the whole thing from the three scripts onto the current <code>main</code>
+build, verified it end to end, and ran the rate-limiting check §11 had been carrying since
+the plan was written. Then found chat broken on the running stack, traced it to a defect in
+the application, wrote it up, and tore the stack down.</p>
+<p><strong>Found.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The previous session's stack</td>
+<td><strong>still running</strong>, 35 hours after this log recorded a clean teardown. The teardown happened; the rebuild that followed it was never written down</td>
+</tr>
+<tr>
+<td><code>deploy_embeddings.sh</code></td>
+<td><strong>silently rolled the container back to the default image tag.</strong> Phase 4 rewires the container by re-running Phase 2, passing it two variables — every other knob, <code>DEPLOY_IMAGE_TAG</code> among them, fell back to Phase 2's default of <code>3.0.0</code>. The inner run is redirected to <code>/dev/null</code>, so nothing said so</td>
+</tr>
+<tr>
+<td><code>verify_deployment.py</code>'s image check</td>
+<td><strong>cannot see that.</strong> <code>app_version</code> is <code>3.0.0</code> in every build since the tag, so "deployed image is the expected one" passed against the wrong image</td>
+</tr>
+<tr>
+<td><code>X-Forwarded-For</code> at the edge (§7, §11)</td>
+<td><strong>Everyone shares one bucket.</strong> Measured, not inferred — see below</td>
+</tr>
+<tr>
+<td>The kill switch, third live run</td>
+<td>clean, exit 0. The Private Network again needed the retry, landing on attempt 3; the instance delete took its volume and its IP with it, so the later passes found nothing to do</td>
+</tr>
+<tr>
+<td>The stale-credential fix</td>
+<td>works. The database was recreated with a new host while its API key survived, and <code>provision.sh</code> reused the stored secret and rewrote the connection details — the exact combination that broke on 2026-09-06</td>
+</tr>
+<tr>
+<td>Chat, on the verified stack</td>
+<td><strong>broken, and nothing said so.</strong> An embedding model had been made the active chat model — see below</td>
+</tr>
+<tr>
+<td>The mixed-content fix (#364)</td>
+<td>holds in the real environment: <code>/login</code> on the deployed image references <code>/static/css/style.css</code> root-relative, where the <code>3.0.0</code> image emitted an absolute <code>http://</code> URL</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The image revert, and why nothing caught it.</strong> Phase 2 was deployed on <code>sha-359069a</code>,
+Phase 4 reported success, and the container was afterwards running <code>3.0.0</code> — a release tag
+four fixes behind <code>main</code>. Two independent guards should have caught it and neither could:
+the deploy script prints nothing about the inner run, and the verifier's version check reads
+<code>app_version</code>, which is a constant in <code>config.py</code> rather than anything derived from the
+build. <code>deploy_embeddings.sh</code> now reads the deployed image and hands it back, prints what it
+kept, and <code>tests/unit/test_deploy_scripts.py</code> asserts the update carries it. The verifier is
+<strong>deliberately left as it is</strong>: over HTTP there is nothing to compare against, since the
+application does not know which image it came from. Treat its version row as "an app
+answered", not "the right build is deployed".</p>
+<p><strong>The rate-limiting check (§11, §7).</strong> 14 login attempts with one fixed
+<code>X-Forwarded-For</code> gave 9 x 401 then 429 — the 10/min limit. Eight more with a rotating
+header, and three with no header at all, stayed 429 throughout. A forged header therefore
+buys nothing: <code>TRUSTED_PROXY_IPS</code> is empty on this deployment, so no <code>ProxyHeadersMiddleware</code>
+is mounted and the limiter keys on Scaleway's ingress address for every caller. <strong>D8's
+shared-bucket failure mode is the live one</strong>, which is the outcome §7 recommends accepting.</p>
+<p>What the check does <em>not</em> settle is §7's other half — whether the edge would pass a forged
+header through if the app were told to trust it. It cannot: with no proxy trusted, "the edge
+stripped it" and "the app ignored it" look identical from outside. Settling that means
+setting <code>TRUSTED_PROXY_IPS</code> deliberately and repeating the probe, which is worth doing only
+if anyone proposes to fix the shared bucket that way.</p>
+<p><strong>The billing guardrail warns at €20, not €40 — and until today it warned nobody at all.</strong>
+Two things about <code>budget-alert</code> that this session established:</p>
+<ul>
+<li><strong><code>threshold</code> is a percentage.</strong> Nothing renders a unit — the API returns a bare
+  <code>"threshold": 40</code>, and <code>consumption_limit</code> comes back with an empty <code>currency_code</code> — so
+  looking at it in the console or the API settles nothing. The constraint does:
+  <code>threshold=101</code> and <code>threshold=150</code> are both refused with <em>"must be lower than or equal
+  to 100"</em>. The guardrail created on 2026-09-05 therefore fires at 40% of €50 = <strong>€20</strong>,
+  and this project's documentation called it €40 in five places for three days. Earlier and
+  more conservative than intended, which is exactly why nobody noticed.</li>
+<li><strong>The alert had no notification at all</strong> (<code>notifications: []</code>), so firing it would have
+  produced nothing anywhere. <code>budget-alert-notification create</code> accepts
+  <code>email-addresses</code> and <code>sms-phone-numbers</code> alongside <code>webhook-urls</code>; an email notification
+  is now attached.</li>
+</ul>
+<p><strong>The webhook is dropped, and the payload check with it.</strong> The shape only matters to code
+that parses it, and that code should not exist: a consumer that tears a stack down on an
+unauthenticated POST is a liability, and a budget alert lags consumption by hours, so it can
+never be the brake — <code>panic_teardown.sh</code> with a human in front of it is. Email needs no
+endpoint, no public surface and no third party.</p>
+<p><strong>Whether the alert actually delivers is still unproven.</strong> A 1% alert (€0.50) against ~€5
+of consumption, with email attached, produced no mail in 2 h 33 min. Two candidates, neither
+established: the evaluation runs on a slow cadence, or an alert fires on a <em>crossing</em> and
+one created above the line never fires at all. If it is the second, the guardrail is a
+tripwire that must be armed before the spend — and this test was the wrong shape rather than
+the notification being broken.</p>
+<p><strong>Chat was broken, and the cause is in the application, not the deployment.</strong> Every chat
+request came back <code>{"error": "GenerationError", "message": "Failed to generate response"}</code>
+while upload and retrieval worked and <code>/api/status</code> reported <code>ready: true</code>. The reason
+appeared in one place only, the log:</p>
+<pre><code>ERROR src.ollama_client | Ollama API error 400: {&quot;error&quot;:&quot;\&quot;nomic-embed-text:latest\&quot; does not support chat&quot;}
+</code></pre>
+<p>The active chat model <em>was the embedding model</em>. <code>_init_ollama_service()</code> picks an active
+model at startup when none is set; <code>get_first_available_model()</code> filters embedding families
+out and then — this is the defect — falls back to the unfiltered list when the filter leaves
+nothing. Phase 4 pulls <code>nomic-embed-text</code> and deliberately nothing else, so the fallback is
+guaranteed to fire on exactly the stack this project builds. It prefers a wrong answer to no
+answer, and the wrong answer reaches the user as five opaque words.</p>
+<p>Pulling <code>llama3.2:1b</code> afterwards did not fix it: the active model is chosen only when unset,
+so it stayed on the embedding model. <code>POST /api/models/active</code> did fix it — the same
+question then streamed tokens and cited the right chunks in 32 s.</p>
+<p>Written up in <a href="https://github.com/jwvanderstam/LocalChat/blob/main/docs/TROUBLESHOOTING.md">TROUBLESHOOTING.md</a> and beside Phase 4 in the plan.
+<strong>Not fixed in code</strong> — the fix is a two-line change (drop the fallback, or refuse to make an
+embedding model active) plus a decision about what the app should do when it has no model it
+can chat with, and that decision is worth making deliberately rather than at the end of a
+deployment session.</p>
+<blockquote>
+<p><em>Fixed 2026-09-09, after this session.</em> The decision turned out to be already made and
+already in the code: <code>api_chat</code> returns a 400 <code>NoModelConfigured</code> naming the remedy when
+no model is active, and the fallback was the only thing routing past it. Dropping it was
+enough. <code>/api/status</code> was corrected in the same change: <code>ready</code> now includes having a
+model that can chat, so the stack no longer reports <code>ready: true</code> for a chat it cannot
+do. <code>/api/health</code> deliberately still tracks only the backing services — a container must
+not be restarted for having no chat model.
+<code>tests/unit/test_active_model_is_chat_capable.py</code> holds both. The operator note above
+still stands — a model pulled into a running instance is not selected automatically.</p>
+</blockquote>
+<p><strong>A second thing the chat showed, and it is not a defect.</strong> With <code>llama3.2:1b</code> active, the
+model answered that the canary phrase "is not mentioned in the provided document" — while
+the chunk containing it was the second source it cited. Retrieval did its job; a 1B model on
+three vCPUs did not. That is Phase 5's question, and this is not the instrument for it.</p>
+<p><strong>What was built, and then destroyed.</strong></p>
+<pre><code>project    localchat-test         &lt;id&gt;
+database   localchat              &lt;id&gt;   ready, scaled to zero
+namespace  localchat              &lt;id&gt;
+container  localchat              &lt;id&gt;   sha-359069a
+endpoint   &lt;endpoint&gt;
+network    localchat-backend      &lt;id&gt;
+security   localchat-ollama       &lt;id&gt;   inbound drop
+instance   localchat-embeddings   &lt;id&gt;   DEV1-M, fr-par-2, &lt;address&gt;
+</code></pre>
+<p>Every Phase 3 check passed on this stack, ingest and semantic retrieval included, and chat
+worked once the active model was corrected by hand.</p>
+<p><strong>Torn down at the end of the session, and it took two runs.</strong> The instance, the namespace
+and the database went on the first pass; the Private Network did not, and this time the
+three bounded retries were <em>not</em> enough — the script named the survivor and exited 1, which
+is the design. A second run deleted it and exited 0. Every resource type in the project then
+listed zero. So three attempts at five seconds is the usual case, not a guarantee:
+<code>PN_RETRIES</code> and <code>PN_RETRY_DELAY</code> exist for that, and re-running remains the first thing to
+try. Nothing was billing while it retried — a Private Network is free.</p>
+<p><strong>Cost.</strong> EUR 1.48 in the project this billing period, covering the stack found running and
+this DEV1-M 0.83, database 0.31, IPv4 0.21, block storage 0.06, containers 0.07. The
+container line is small only because the Serverless Containers free tier absorbed 2.25 of
+2.30 — and memory has now passed 400,000 GB-s, so the tier is spent for this month and the
+next day of <code>min_scale=1</code> bills in full.</p>
+<hr />
+<h2 id="2026-09-09-the-findings-turned-into-code-and-nothing-was-deployed">2026-09-09 — the findings turned into code, and nothing was deployed</h2>
+<p><strong>Done.</strong> Merged the three PRs left open by the previous session and fixed the two
+application defects it had found and deferred. <strong>No stack was built.</strong> Nothing in Scaleway
+was created, changed or destroyed, and nothing billed.</p>
+<p>This is the first entry for a session that touched the deployment only through the
+repository. It is here because the 2026-09-08 entry recorded a defect as open, and the
+record of a finding is incomplete until the record of its fix sits beside it.</p>
+<table>
+<thead>
+<tr>
+<th>PR</th>
+<th>What landed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>#368</td>
+<td>Phase 4 no longer rolls the container back to the default image; the 2026-09-08 findings and plan corrections</td>
+</tr>
+<tr>
+<td>#367</td>
+<td><code>alembic</code> 1.19.1 -&gt; 1.19.2, <code>pypdf</code> 6.16.2 -&gt; 6.17.0, grouped into one PR as intended</td>
+</tr>
+<tr>
+<td>#369</td>
+<td>An embedding model can no longer become the active chat model, and <code>/api/status</code> stops claiming a readiness it cannot deliver</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Found.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The decision the last entry deferred</td>
+<td><strong>did not exist.</strong> It recorded the chat fix as "a two-line change plus a decision about what the app should do when it has no model it can chat with". The decision was already made and already in the code: <code>api_chat</code> returns a 400 <code>NoModelConfigured</code> naming the remedy. The fallback was the only thing routing past it. It was the two-line change, and no more</td>
+</tr>
+<tr>
+<td><code>/api/status</code>'s <code>ready</code></td>
+<td><strong>the same lie one layer up.</strong> Computed as Ollama up AND database up — both true on a box holding only an embedding model — so a Phase 4 stack reported <code>ready: true</code> for a chat whose every request is a 400. It now also requires an active model</td>
+</tr>
+<tr>
+<td><code>/api/health</code></td>
+<td><strong>never read that flag</strong>, which is the only reason correcting it is safe. <code>compute_health_status</code> derives from the database and Ollama directly. Had it read <code>ready</code>, a Phase 4 stack would have gone unhealthy and the container would have been restart-looped for the crime of having no chat model — turning an honest status field into an outage</td>
+</tr>
+<tr>
+<td><code>verify_deployment.py</code></td>
+<td>reads <code>/api/health</code> and <code>/api/settings/stats</code>, never <code>/api/status</code>. The Phase 3 gate is untouched by the change</td>
+</tr>
+<tr>
+<td><code>startup_status["ready"]</code></td>
+<td><strong>write-only.</strong> Initialised in <code>app_fastapi.py</code> and written in <code>app_bootstrap.py</code>, <code>monitoring.py</code> and <code>services/chat.py</code>; read by nothing in <code>src/</code>. Only two tests assert on it. Left alone deliberately — it is pre-existing, and this was not its cleanup</td>
+</tr>
+<tr>
+<td>Why the fallback survived a green suite</td>
+<td><strong>no test had ever installed only embedding models.</strong> The two that existed covered "a chat model is present" and "the list is empty", so a filter with a fallback that defeats it looked covered. That is the MISSING-NEGATIVE-SPACE shape <code>.claude/rules/testing.md</code> names</td>
+</tr>
+</tbody>
+</table>
+<p><strong>None of this has run on a Scaleway stack, and that is the point of saying so.</strong> The fixes
+are proven by nine unit tests, each confirmed red with its fix reverted, and by CI. That is
+evidence about the code; it is not evidence about the deployment. §10b's rule is explicit —
+<em>whose behaviour is this, and did I watch it?</em> — and the honest answers here are "the
+application's" and "no". §11 carries the row; the next stack settles it.</p>
+<p>The specific thing still unwatched: that a Phase 4 stack now boots with <strong>no</strong> active model
+rather than a wrong one, and that ingest and retrieval are unaffected by that. Every part of
+it follows from code that is tested, and the whole of it has never been observed together on
+a real container against a real Ollama box.</p>
+<p><strong>Cost.</strong> EUR 0.00. Nothing was running.</p>
+<hr />
+<h2 id="2026-09-14-the-three-open-rows-settled-and-a-box-that-never-came-up">2026-09-14 — the three open rows settled, and a box that never came up</h2>
+<p><strong>Done.</strong> Merged the three PRs left open (#370, #371, #372 — the log entry, a pip group
+carrying <code>onnxruntime</code>, and the <code>codeql-action</code> set) and deleted twelve merged branches that
+had outlived their PRs. Rebuilt the stack from the scripts onto <code>sha-af6012b</code>, which is that
+<code>main</code>. Settled all three of §11's "needs the next live stack" rows — the ones #369 created
+on 2026-09-09 — by watching them. The stack was left standing for the operator to look
+at, then torn down at the end of the session on their word.</p>
+<pre><code>project    localchat-test   &lt;id&gt;
+database   localchat        &lt;id&gt;
+namespace  localchat        &lt;id&gt;
+container  localchat        &lt;id&gt;   sha-af6012b
+endpoint   &lt;endpoint&gt;
+network    localchat-backend  &lt;id&gt;
+instance   localchat-embeddings  &lt;id&gt;   DEV1-M  &lt;address&gt;
+models     nomic-embed-text, llama3.2:1b (active)
+</code></pre>
+<p><strong>The three rows, watched.</strong></p>
+<table>
+<thead>
+<tr>
+<th>§11 row</th>
+<th>Expected</th>
+<th>Observed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A Phase 4 stack boots with <strong>no</strong> active model</td>
+<td><code>ready:false, active_model:null, ollama:true, database:true</code>; <code>/api/health</code> healthy</td>
+<td>Exactly that. <code>/api/models</code> listed one model, <code>nomic-embed-text</code>, and nothing had made it active</td>
+</tr>
+<tr>
+<td>Ingest and retrieval are unaffected</td>
+<td>The Phase 3 gate passes before any chat model exists</td>
+<td>Passed: pull, ingest, semantic retrieval at similarity 0.4851 — with <code>active_model</code> still <code>null</code></td>
+</tr>
+<tr>
+<td>Chat works once a model is pulled <strong>and made active</strong></td>
+<td>Answer cites the ingested document</td>
+<td><code>llama3.2:1b</code> pulled in 13 s; <code>POST /api/models/active</code> flipped <code>ready</code> to <code>true</code>; the answer quoted the canary and cited <code>deployment-probe.md</code>. TTFT 33.9 s on the CPU box</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Found.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploy_container.sh</code></td>
+<td><strong>declared the container dead while it was still starting.</strong> Scaleway reported <code>error</code> ("unable to start OR not listening on port 5000") at 12:11:21; the script broke its wait loop on that first sighting and exited 1. The container was <code>ready</code> at 12:11:36 and <code>/api/health</code> answered at 12:11:43. <code>error</code> is transient while a slow first boot fails its early liveness probes. Fixed in this PR: three consecutive polls now, with tests</td>
+</tr>
+<tr>
+<td>The first Ollama box</td>
+<td><strong>never came up.</strong> 26 minutes after power-on, <code>/api/tags</code> was refused — not dropped — on both the private and (via a temporary rule) the public address, so the SYN reached the kernel and nothing was listening. A reboot changed nothing, so the unit was never installed: cloud-init failed at or before <code>install.sh</code>. The user-data was on the server and intact. Deleted and rebuilt; the second box answered in 2 min 30 s. <strong>The cause was not read</strong>, and the next row is why</td>
+</tr>
+<tr>
+<td>"The serial console is the way in" (§5, <code>deploy_embeddings.sh</code>)</td>
+<td><strong>Almost certainly not true, and never tried.</strong> The image is Ubuntu Jammy cloud, which sets no password, and a serial console needs one. The only SSH key on the account (<code>Scaleway-poc</code>) is registered in the <em>default</em> project, and Scaleway injects keys per project, so the box in <code>localchat-test</code> had no authorised key either. Both ways in were closed by construction. A working way in is: a key registered in <code>localchat-test</code>, plus a temporary security-group rule on 22 from one IP — the same shape as the diagnostic used above. Whether to register one is in §12 now</td>
+</tr>
+<tr>
+<td>The cloud-init the box receives</td>
+<td><strong>carries <code>\r</code>.</strong> <code>core.autocrlf=true</code> on this checkout makes every file under <code>scripts/scaleway/</code> CRLF, and <code>deploy_embeddings.sh</code> uploads the yaml verbatim, so the server held <code>#cloud-config\r\n</code>. Probably harmless — cloud-init matches the header with <code>startswith</code>, YAML normalises line breaks, and this same file built the 2026-09-08 stack — so it is <strong>not</strong> established as the cause above. Fixed regardless with a <code>.gitattributes</code> forcing LF on the directory: a Linux-bound file should not depend on the checkout it left</td>
+</tr>
+<tr>
+<td><code>budget_mb: 0</code> on every model</td>
+<td><strong>the fit check measures the wrong machine.</strong> <code>/api/models</code> computes the budget with <code>detect()</code> inside the container, whose CPU backend reports nothing to spend. On a topology where Ollama is elsewhere — which is every Scaleway topology — every model not already loaded shows <code>fits:false</code> with a reason naming the container's memory. Cosmetic: <code>load_model_guard</code> is called by nothing in <code>src/</code>, so no activation is refused by it. Left alone; recorded</td>
+</tr>
+<tr>
+<td>The 1% budget alert from 2026-09-08</td>
+<td><strong>never delivered</strong>, six days on, with the consumption standing above its line the whole time. So an alert fires on a <em>crossing</em>, not on a state: the guardrail is a tripwire that has to be armed before the spend. The €50/40 % alert was created on 2026-09-05 with nothing spent, so it is armed correctly; the 2026-09-08 test design was what was wrong</td>
+</tr>
+<tr>
+<td>The two temporary rules</td>
+<td>were both created — the first <code>create-rule</code> call also succeeded; its JSON is nested under <code>rule</code>, which the parser missed. Both deleted; the group is back to inbound-drop only, verified</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Torn down at the end of the session.</strong> The kill switch, fifth live run: clean, exit 0,
+six resources, the Private Network again on attempt 3 — that retry has been needed on every
+run since it was added. Every resource type in the project then listed zero.</p>
+<p><strong>Cost.</strong> €1.89 in the project for the billing period, against the €1.48 the 2026-09-08 entry
+recorded for the same period — about €0.41 for this session, before the lag catches up. The
+stack ran for roughly three hours, most of it standing for a look rather than being tested.</p>
+<hr />
+<h2 id="2026-09-14-evening-the-same-day-s-fixes-deployed-from-nothing">2026-09-14, evening — the same day's fixes, deployed from nothing</h2>
+<p><strong>Done.</strong> Rebuilt the stack onto <code>sha-37c7bab</code> — <code>main</code> with #373, #374 and #375 merged an
+hour earlier — ran the Phase 3 gate, the status and chat checks from the afternoon entry,
+confirmed the two Docs-viewer fixes are what the image serves, and tore it down. The point
+was to run the afternoon's fixes through the whole chain unattended, and it did.</p>
+<pre><code>database   &lt;id&gt;    namespace &lt;id&gt;    container &lt;id&gt;   sha-37c7bab
+instance   &lt;id&gt;    DEV1-M  &lt;address&gt;    network &lt;id&gt;
+</code></pre>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Afternoon</th>
+<th>Evening</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Phase 2 wait loop</td>
+<td>quit on a transient <code>error</code>; container fine 15 s later</td>
+<td>waited it out — <code>ready</code> after 4.5 min, no hand on it</td>
+</tr>
+<tr>
+<td>Ollama box</td>
+<td>the first never started; rebuilt</td>
+<td>up on the first poll, about 6 min after creation, LF cloud-init</td>
+</tr>
+<tr>
+<td>Phase 3 gate</td>
+<td>pass, similarity 0.4851</td>
+<td>pass, similarity 0.4851</td>
+</tr>
+<tr>
+<td><code>/api/status</code> before / after activation</td>
+<td><code>ready:false, null</code> → <code>true, llama3.2:1b</code></td>
+<td>same</td>
+</tr>
+<tr>
+<td>Chat</td>
+<td>36 s, canary quoted, cited</td>
+<td>24 s, canary quoted, cited</td>
+</tr>
+<tr>
+<td>Docs viewer</td>
+<td>fixes not in the image</td>
+<td><code>docs.js</code> carries the link rewrite and <code>style.css</code> the sticky rule — served, not just merged</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Found.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The kill switch's retry budget</td>
+<td><strong>ran out.</strong> <code>PN_RETRIES</code> defaulted to 3 with 5 s between, 10 s in all; every live run since the retry was added had landed on attempt 3, and this one needed more. The script named the survivor and exited 1, as designed; a second run deleted it. A default that equals the observed need has no headroom — raised to 6, with a test that fails at 3</td>
+</tr>
+<tr>
+<td>One clean box start</td>
+<td><strong>is not evidence about the LF change.</strong> The afternoon's failure was never read, so nothing links it to <code>\r</code>. What two runs in one day do establish is that the chain runs from nothing without intervention</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Torn down.</strong> Two runs of the kill switch: the first left the free Private Network, the
+second removed it. Every resource type in the project then listed zero.</p>
+<p><strong>Cost.</strong> €2.01 in the project for the period, against €1.89 read after the afternoon
+teardown — about €0.12 for this run, before the lag.</p>
+<p><strong>Afterwards.</strong> The §12 decision the afternoon left open was taken: the operator's public
+key is registered in <code>localchat-test</code> as <code>localchat-operator</code>, so the next box that fails
+can be read instead of replaced. Nothing was deployed to try it; §11's row stays open.</p>
+<hr /></section>
+  <footer>
+    Generated from the repository at commit 93096ee on 2026-09-15
+    &middot; <a href="https://github.com/jwvanderstam/LocalChat">github.com/jwvanderstam/LocalChat</a>
+  </footer>
+</div>
+</body>
+</html>

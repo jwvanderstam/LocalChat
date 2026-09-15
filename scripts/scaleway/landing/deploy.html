@@ -1,0 +1,1749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>The scripts — LocalChat on Scaleway</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:wght@600&display=swap">
+<style>
+  :root {
+    --ground: #F5F6F3; --surface: #FFFFFF; --ink: #171B21; --ink-soft: #4C5560;
+    --ink-faint: #7C8792; --rule: #D6DAD4; --rule-soft: #E6E9E4;
+    --accent: #2F6F4F; --accent-soft: #E4EFE8; --warn: #A8611B; --warn-soft: #F6EADC;
+    --code-bg: #ECEEE9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101310; --surface: #171B18; --ink: #E7EAE3; --ink-soft: #A8B2AA;
+      --ink-faint: #78827B; --rule: #2C332D; --rule-soft: #222824;
+      --accent: #7FC49A; --accent-soft: #1B2B22; --warn: #D79B54; --warn-soft: #2C2418;
+      --code-bg: #1C211D;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 1rem; line-height: 1.62; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 52rem; margin: 0 auto; padding: clamp(2rem, 5vw, 4rem) clamp(1.1rem, 4vw, 2rem) 5rem; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--ink-faint);
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem;
+  }
+  h1 {
+    font-family: "IBM Plex Serif", Georgia, serif; font-weight: 600;
+    font-size: clamp(2rem, 1.6rem + 1.6vw, 2.8rem); line-height: 1.08;
+    letter-spacing: -0.02em; text-wrap: balance; margin: 0.6rem 0 0;
+  }
+  .standfirst { font-size: 1.15rem; color: var(--ink-soft); max-width: 46ch; margin: 0.8rem 0 0; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 1.5rem; }
+  .figures {
+    display: flex; flex-wrap: wrap; gap: 0 2.4rem;
+    margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px solid var(--rule-soft);
+  }
+  .figure { display: flex; flex-direction: column; padding: 0.2rem 0; }
+  .figure b {
+    font-family: "IBM Plex Mono", monospace; font-size: 1.25rem; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .figure span { font-size: 0.8rem; color: var(--ink-faint); letter-spacing: 0.04em; }
+  section { margin-top: 3rem; }
+  h2 {
+    font-family: "IBM Plex Serif", Georgia, serif; font-weight: 600;
+    font-size: 1.6rem; line-height: 1.18; letter-spacing: -0.015em;
+    text-wrap: balance; margin: 0 0 0.7rem;
+  }
+  h3 { font-size: 1rem; font-weight: 600; margin: 1.8rem 0 0.4rem; }
+  p { margin: 0 0 1rem; max-width: 66ch; }
+  code {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.88em;
+    background: var(--code-bg); padding: 0.08em 0.34em; border-radius: 3px;
+  }
+  pre {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.83rem; line-height: 1.65;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent); padding: 1rem 1.1rem;
+    overflow-x: auto; margin: 1.1rem 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  ul { margin: 0.5rem 0 1rem; padding-left: 1.15rem; max-width: 66ch; }
+  li { margin-bottom: 0.5rem; }
+  li::marker { color: var(--ink-faint); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; }
+  th {
+    text-align: left; font-family: "IBM Plex Mono", monospace; font-weight: 500;
+    font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-faint); padding: 0 0.8rem 0.5rem 0; border-bottom: 1px solid var(--rule);
+  }
+  td { padding: 0.65rem 0.8rem 0.65rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  .note {
+    border-left: 3px solid var(--warn); background: var(--warn-soft);
+    padding: 0.9rem 1.1rem; margin: 1.2rem 0; max-width: 66ch;
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .good { border-left-color: var(--accent); background: var(--accent-soft); }
+  footer {
+    margin-top: 4rem; padding-top: 1.2rem; border-top: 2px solid var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--ink-faint);
+  }
+  footer a { color: var(--ink-soft); }
+  nav.site { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; margin-bottom: 1.4rem; display: flex; gap: 1.4rem; }
+  nav.site a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  nav.site a[aria-current] { color: var(--ink); border-bottom-color: var(--ink); }
+  .more { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin-top: 1.2rem; }
+  .more a { display: block; padding: 1rem 1.1rem; border: 1px solid var(--rule); background: var(--surface); color: inherit; text-decoration: none; }
+  .more a:hover { border-color: var(--accent); }
+  .more b { display: block; font-family: "IBM Plex Serif", Georgia, serif; font-size: 1.1rem; margin-bottom: 0.3rem; }
+  .more span { font-size: 0.9rem; color: var(--ink-soft); }
+</style>
+<style>
+  .script { margin-top: 3rem; }
+  .script-links { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; margin: 0.3rem 0 0.8rem; }
+  .script-links a { color: var(--accent); }
+  pre.source { max-height: 34rem; overflow: auto; font-size: 0.78rem; }
+  h2 { margin-top: 3.2rem; }
+  blockquote { margin: 1.2rem 0; padding: 0.2rem 1.1rem; border-left: 3px solid var(--warn); background: var(--warn-soft); max-width: 66ch; }
+  blockquote h2 { font-size: 1.1rem; margin: 0.6rem 0 0.4rem; }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 2.4rem 0; }
+  .toc { font-size: 0.9rem; columns: 2; column-gap: 2rem; }
+  .toc a { color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="page">
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="log.html">Deployment log</a>
+    <a href="deploy.html" aria-current="page">The scripts</a>
+  </nav>
+  <header>
+    <div class="eyebrow"><span>Source</span><span>Scaleway fr-par</span><span>Idempotent</span></div>
+    <h1>The scripts</h1>
+    <p class="standfirst">The deployment, as code: seven files that stand the stack up from nothing, verify it, and take it down again.</p>
+  </header>
+<section><p>Every script below is the one the deployment actually runs, copied from the repository at the commit named in each heading. The link above each goes to the current file, which may be newer than what is shown here.</p><p>They are written to be adapted. Every tunable is an environment variable with a prefixed name and a default — project, region, zone, instance type, image tag, memory — and nothing in them names a specific account, key or address. Secrets are read from files the scripts themselves write, outside any repository, and are never printed. A run against a fresh account creates what is missing and leaves alone what exists.</p><p>The decisions behind each script — why the memory limit needs a unit, why an update re-sends every variable, why the Instance sits behind a security group that drops inbound — are in the header comment of each file and, at length, in <a href="https://github.com/jwvanderstam/LocalChat/blob/main/docs/DEPLOYMENT_SCALEWAY.md">the deployment guide</a>.</p><ul>
+    <li><a href="#provision.sh"><code>provision.sh</code></a> — Phase 1 — the scoped project, the database, and an identity that can reach that database and nothing else.</li>
+    <li><a href="#deploy_container.sh"><code>deploy_container.sh</code></a> — Phase 2 — the application as a Serverless Container, from a version tag.</li>
+    <li><a href="#verify_deployment.py"><code>verify_deployment.py</code></a> — Phase 3 — the gate: signs in, checks the image, ingests a document and retrieves it semantically. Exits non-zero on failure.</li>
+    <li><a href="#deploy_embeddings.sh"><code>deploy_embeddings.sh</code></a> — Phase 4 — an Instance serving embeddings over a private network, wired to the container.</li>
+    <li><a href="#ollama-cloud-init.yaml"><code>ollama-cloud-init.yaml</code></a> — The cloud-init that Phase 4 hands to that Instance. Installs Ollama and deliberately pulls no model.</li>
+    <li><a href="#verify_database.py"><code>verify_database.py</code></a> — A standalone check of a managed database: TLS required, pgvector present, a setting that survives a transaction boundary.</li>
+    <li><a href="#panic_teardown.sh"><code>panic_teardown.sh</code></a> — The cost kill switch — deletes everything billable in one project, most expensive first. Dry run unless CONFIRM=DESTROY.</li>
+  </ul></section>
+  <section class="script" id="provision.sh">
+    <h2><code>provision.sh</code></h2>
+    <p>Phase 1 — the scoped project, the database, and an identity that can reach that database and nothing else.</p>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/provision.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/provision.sh">raw</a><span>shown as of commit 93096ee</span></div>
+    <pre class="source"><code>#!/usr/bin/env bash
+#
+# Stands up the LocalChat test stack&#x27;s Phase 1 on Scaleway: a scoped project, a
+# Serverless SQL Database, and an IAM identity that can reach that database and
+# nothing else. See docs/DEPLOYMENT_SCALEWAY.md §4 and §10.
+#
+# Idempotent at every level except one. Re-running finds what exists and leaves
+# it alone; only the API key cannot work that way, because Scaleway shows a
+# secret key once and never again. That asymmetry is the whole reason this is a
+# script rather than a list of commands in a runbook:
+#
+#   everything    -&gt; look it up by name, create only if absent
+#   the API key   -&gt; create only when the application has none, and write the
+#                    secret straight to PROVISION_ENV_OUT. If a key already exists its
+#                    secret is unrecoverable, so this says so and refuses
+#                    rather than quietly creating a second one.
+#
+# Every tunable is PROVISION_-prefixed on purpose: the application&#x27;s own
+# .env defines APP_NAME, and an unprefixed name silently became the name of
+# the IAM application it created.
+#
+# Usage:
+#   bash scripts/scaleway/provision.sh                       # create or verify
+#   PROVISION_ENV_OUT=~/localchat-db.env bash scripts/scaleway/provision.sh
+#   PROVISION_ROTATE_KEY=1 bash scripts/scaleway/provision.sh          # replace the key
+#
+# The secret is never printed. It goes to PROVISION_ENV_OUT (mode 600), which defaults to
+# a path outside this repository so it cannot be committed by accident.
+#
+# Needs `scw` (authenticated — `scw login`) and Python 3.
+
+# -e matters more here than anywhere: every lookup runs in a command
+# substitution, and `die` inside one only exits the subshell. Without -e a
+# refusal printed its message and then provisioned anyway.
+set -euo pipefail
+
+die() { printf &#x27;error: %s\n&#x27; &quot;$*&quot; &gt;&amp;2; exit 1; }
+note() { printf &#x27;  %s\n&#x27; &quot;$*&quot;; }
+
+PROVISION_PROJECT_NAME=&quot;${PROVISION_PROJECT_NAME:-localchat-test}&quot;
+PROVISION_DB_NAME=&quot;${PROVISION_DB_NAME:-localchat}&quot;
+PROVISION_APP_NAME=&quot;${PROVISION_APP_NAME:-localchat-app}&quot;
+PROVISION_POLICY_NAME=&quot;${PROVISION_POLICY_NAME:-localchat-db-readwrite}&quot;
+PROVISION_CPU_MIN=&quot;${PROVISION_CPU_MIN:-0}&quot;
+PROVISION_CPU_MAX=&quot;${PROVISION_CPU_MAX:-1}&quot;
+PROVISION_KEY_EXPIRES=&quot;${PROVISION_KEY_EXPIRES:-+365d}&quot;
+PROVISION_ENV_OUT=&quot;${PROVISION_ENV_OUT:-$HOME/.config/scw/localchat-db.env}&quot;
+PROVISION_ROTATE_KEY=&quot;${PROVISION_ROTATE_KEY:-}&quot;
+
+# ServerlessSQLDatabaseReadWrite covers data *and* DDL, which the app needs: it
+# runs its own Alembic chain and _ensure_extensions_and_tables() on boot.
+# FullAccess would also permit deleting the database, which it never does.
+PROVISION_PERMISSION_SET=&quot;${PROVISION_PERMISSION_SET:-ServerlessSQLDatabaseReadWrite}&quot;
+
+command -v scw &gt;/dev/null 2&gt;&amp;1 || die &quot;scw not found on PATH&quot;
+PYTHON=&quot;&quot;
+for c in python3 python; do
+  if command -v &quot;$c&quot; &gt;/dev/null 2&gt;&amp;1; then PYTHON=&quot;$c&quot;; break; fi
+done
+[[ -n &quot;$PYTHON&quot; ]] || die &quot;no python3 on PATH&quot;
+
+PROFILE_ARGS=()
+if [[ -n &quot;${SCW_PROFILE:-}&quot; ]]; then
+  PROFILE_ARGS=(--profile &quot;$SCW_PROFILE&quot;)
+fi
+
+scw_json() {
+  local raw
+  if ! raw=$(scw &quot;${PROFILE_ARGS[@]}&quot; &quot;$@&quot; -o json 2&gt;&amp;1); then
+    die &quot;&#x27;scw $*&#x27; failed:&quot;$&#x27;\n&#x27;&quot;$raw&quot;
+  fi
+  printf &#x27;%s&#x27; &quot;$raw&quot;
+}
+
+# Prints the id of the row whose `name` matches, or nothing. Exits non-zero on
+# an unreadable reply so that &quot;cannot tell&quot; never reads as &quot;does not exist&quot;.
+read -r -d &#x27;&#x27; PICK &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+want = sys.argv[1]
+try:
+    rows = json.load(sys.stdin)
+except Exception as exc:
+    sys.exit(&quot;reply was not JSON: %s&quot; % exc)
+if isinstance(rows, dict):
+    rows = next((v for v in rows.values() if isinstance(v, list)), [])
+for row in rows:
+    if not isinstance(row, dict):
+        sys.exit(&quot;reply contained a non-object entry&quot;)
+    if row.get(&quot;name&quot;) == want:
+        print(row.get(&quot;id&quot;, &quot;&quot;))
+        break
+PY
+
+read -r -d &#x27;&#x27; FIELD &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+try:
+    obj = json.load(sys.stdin)
+except Exception as exc:
+    sys.exit(&quot;reply was not JSON: %s&quot; % exc)
+for key in sys.argv[1:]:
+    value = obj.get(key)
+    if value in (None, &quot;&quot;):
+        sys.exit(&quot;reply carried no %s&quot; % key)
+    print(value)
+PY
+
+read -r -d &#x27;&#x27; COUNT_KEYS &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+rows = json.load(sys.stdin)
+if isinstance(rows, dict):
+    rows = next((v for v in rows.values() if isinstance(v, list)), [])
+print(len(rows))
+PY
+
+read -r -d &#x27;&#x27; LIST_ACCESS_KEYS &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+rows = json.load(sys.stdin)
+if isinstance(rows, dict):
+    rows = next((v for v in rows.values() if isinstance(v, list)), [])
+for row in rows:
+    if row.get(&quot;access_key&quot;):
+        print(row[&quot;access_key&quot;])
+PY
+
+read -r -d &#x27;&#x27; REFRESH_ENV &lt;&lt;&#x27;PY&#x27; || true
+&quot;&quot;&quot;Rewrite the credential file&#x27;s connection details, keeping the stored secret.
+
+A database can be destroyed and recreated while the API key survives, and then
+the key is still valid but the host in the file names a database that no longer
+exists. Writing the file only when a key is created — as this script used to —
+leaves the summary correct and the file wrong, which is the worst combination:
+nothing looks broken until a deployment cannot connect.
+&quot;&quot;&quot;
+import os, pathlib, stat, sys
+
+out = pathlib.Path(sys.argv[1])
+host, dbname, user = sys.argv[2], sys.argv[3], sys.argv[4]
+if not out.exists():
+    sys.exit(&quot;no credential file to refresh&quot;)
+
+existing = out.read_text(encoding=&quot;utf-8&quot;).splitlines()
+def field(name):
+    for line in existing:
+        if line.startswith(name + &quot;=&quot;):
+            return line.split(&quot;=&quot;, 1)[1].strip()
+    return &quot;&quot;
+
+secret = field(&quot;PG_PASSWORD&quot;)
+if not secret:
+    sys.exit(&quot;the credential file holds no PG_PASSWORD&quot;)
+
+previous = field(&quot;PG_HOST&quot;)
+out.write_text(
+    &quot;\n&quot;.join(
+        [
+            &quot;# Scaleway Serverless SQL credential for the LocalChat test stack.&quot;,
+            &quot;# Written by scripts/scaleway/provision.sh - do not commit.&quot;,
+            &quot;# Connection details refreshed; the stored secret was kept.&quot;,
+            &quot;PG_HOST=&quot; + host,
+            &quot;PG_PORT=5432&quot;,
+            &quot;PG_DB=&quot; + dbname,
+            &quot;PG_USER=&quot; + user,
+            &quot;PG_PASSWORD=&quot; + secret,
+            &quot;PG_SSLMODE=require&quot;,
+            &quot;&quot;,
+        ]
+    ),
+    encoding=&quot;utf-8&quot;,
+    newline=&quot;\n&quot;,
+)
+os.chmod(out, stat.S_IRUSR | stat.S_IWUSR)
+print(&quot;changed&quot; if previous != host else &quot;unchanged&quot;)
+PY
+
+read -r -d &#x27;&#x27; WRITE_ENV &lt;&lt;&#x27;PY&#x27; || true
+import json, os, pathlib, stat, sys
+
+out, host, dbname = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+try:
+    key = json.load(sys.stdin)
+except Exception as exc:
+    sys.exit(&quot;api-key create did not return JSON: %s&quot; % exc)
+if &quot;secret_key&quot; not in key:
+    sys.exit(&quot;api-key create returned no secret_key&quot;)
+
+out.write_text(
+    &quot;# Scaleway Serverless SQL credential for the LocalChat test stack.\n&quot;
+    &quot;# Written by scripts/scaleway/provision.sh - do not commit.\n&quot;
+    &quot;# Created %s\n&quot;
+    &quot;# EXPIRES %s  &lt;- the deployment stops working on this date.\n&quot;
+    &quot;PG_HOST=%s\n&quot;
+    &quot;PG_PORT=5432\n&quot;
+    &quot;PG_DB=%s\n&quot;
+    &quot;PG_USER=%s\n&quot;
+    &quot;PG_PASSWORD=%s\n&quot;
+    &quot;PG_SSLMODE=require\n&quot;
+    % (
+        key.get(&quot;created_at&quot;, &quot;?&quot;),
+        key.get(&quot;expires_at&quot;, &quot;never - the organisation allows unbounded keys&quot;),
+        host,
+        dbname,
+        key.get(&quot;application_id&quot;, &quot;&quot;),
+        key[&quot;secret_key&quot;],
+    ),
+    encoding=&quot;utf-8&quot;,
+    newline=&quot;\n&quot;,
+)
+os.chmod(out, stat.S_IRUSR | stat.S_IWUSR)
+print(&quot;  created %s, secret written to %s (mode 600)&quot; % (key.get(&quot;access_key&quot;), out))
+PY
+
+find_by_name() {  # find_by_name &lt;name&gt; -- &lt;scw list args...&gt;
+  local want=&quot;$1&quot;; shift 2
+  local raw found
+  raw=$(scw_json &quot;$@&quot;)
+  if ! found=$(printf &#x27;%s&#x27; &quot;$raw&quot; | &quot;$PYTHON&quot; -c &quot;$PICK&quot; &quot;$want&quot; 2&gt;&amp;1); then
+    die &quot;could not read the reply to &#x27;scw $*&#x27; ($found)&quot;
+  fi
+  printf &#x27;%s&#x27; &quot;$found&quot;
+}
+
+echo &quot;Project &#x27;$PROVISION_PROJECT_NAME&#x27;:&quot;
+PROJECT_ID=$(find_by_name &quot;$PROVISION_PROJECT_NAME&quot; -- account project list)
+if [[ -n &quot;$PROJECT_ID&quot; ]]; then
+  note &quot;exists ($PROJECT_ID)&quot;
+else
+  PROJECT_ID=$(scw_json account project create name=&quot;$PROVISION_PROJECT_NAME&quot; \
+    description=&quot;LocalChat test stack&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id) \
+    || die &quot;project creation returned no id&quot;
+  note &quot;created ($PROJECT_ID)&quot;
+fi
+
+echo &quot;Database &#x27;$PROVISION_DB_NAME&#x27;:&quot;
+DB_ID=$(find_by_name &quot;$PROVISION_DB_NAME&quot; -- sdb-sql database list project-id=&quot;$PROJECT_ID&quot;)
+if [[ -n &quot;$DB_ID&quot; ]]; then
+  note &quot;exists ($DB_ID)&quot;
+else
+  # cpu-min/cpu-max are required by the CLI, so the Terraform provider&#x27;s
+  # max_cpu = 15 default cannot silently apply on this path (§4).
+  DB_ID=$(scw_json sdb-sql database create name=&quot;$PROVISION_DB_NAME&quot; \
+    cpu-min=&quot;$PROVISION_CPU_MIN&quot; cpu-max=&quot;$PROVISION_CPU_MAX&quot; project-id=&quot;$PROJECT_ID&quot; \
+    | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id) || die &quot;database creation returned no id&quot;
+  note &quot;created ($DB_ID) with cpu $PROVISION_CPU_MIN-$PROVISION_CPU_MAX&quot;
+fi
+
+DB_ENDPOINT=$(scw_json sdb-sql database get database-id=&quot;$DB_ID&quot; \
+  | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; endpoint) || die &quot;could not read the database endpoint&quot;
+# postgres://&lt;host&gt;:&lt;port&gt;/&lt;db&gt;?sslmode=require -&gt; host
+DB_HOST=$(printf &#x27;%s&#x27; &quot;$DB_ENDPOINT&quot; | sed -e &#x27;s#^postgres://##&#x27; -e &#x27;s#[:/?].*$##&#x27;)
+[[ -n &quot;$DB_HOST&quot; ]] || die &quot;could not parse a host out of: $DB_ENDPOINT&quot;
+note &quot;endpoint $DB_HOST&quot;
+
+echo &quot;IAM application &#x27;$PROVISION_APP_NAME&#x27;:&quot;
+APP_ID=$(find_by_name &quot;$PROVISION_APP_NAME&quot; -- iam application list)
+if [[ -n &quot;$APP_ID&quot; ]]; then
+  note &quot;exists ($APP_ID)&quot;
+else
+  APP_ID=$(scw_json iam application create name=&quot;$PROVISION_APP_NAME&quot; \
+    description=&quot;LocalChat test stack - owns the database credential&quot; \
+    | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id) || die &quot;application creation returned no id&quot;
+  note &quot;created ($APP_ID)&quot;
+fi
+
+echo &quot;Policy &#x27;$PROVISION_POLICY_NAME&#x27; ($PROVISION_PERMISSION_SET, scoped to the project):&quot;
+POLICY_ID=$(find_by_name &quot;$PROVISION_POLICY_NAME&quot; -- iam policy list)
+if [[ -n &quot;$POLICY_ID&quot; ]]; then
+  note &quot;exists ($POLICY_ID)&quot;
+else
+  POLICY_ID=$(scw_json iam policy create name=&quot;$PROVISION_POLICY_NAME&quot; \
+    description=&quot;Scoped to the $PROVISION_PROJECT_NAME project only&quot; \
+    application-id=&quot;$APP_ID&quot; \
+    rules.0.permission-set-names.0=&quot;$PROVISION_PERMISSION_SET&quot; \
+    rules.0.project-ids.0=&quot;$PROJECT_ID&quot; \
+    | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id) || die &quot;policy creation returned no id&quot;
+  note &quot;created ($POLICY_ID)&quot;
+fi
+
+echo &quot;API key:&quot;
+KEY_COUNT=$(scw_json iam api-key list application-id=&quot;$APP_ID&quot; \
+  | &quot;$PYTHON&quot; -c &quot;$COUNT_KEYS&quot;)
+
+if [[ &quot;$KEY_COUNT&quot; -gt 0 &amp;&amp; -z &quot;$PROVISION_ROTATE_KEY&quot; ]]; then
+  note &quot;$KEY_COUNT key(s) already exist; a secret is shown once and cannot be read back.&quot;
+  # The key survives a database being destroyed and recreated, so the details
+  # around the secret must be refreshed even when the secret itself is not.
+  if ! refreshed=$(&quot;$PYTHON&quot; -c &quot;$REFRESH_ENV&quot; &quot;$PROVISION_ENV_OUT&quot; &quot;$DB_HOST&quot;        &quot;$PROVISION_DB_NAME&quot; &quot;$APP_ID&quot; 2&gt;&amp;1); then
+    die &quot;$KEY_COUNT key(s) exist but their secret is not in $PROVISION_ENV_OUT ($refreshed).
+A secret cannot be read back, so the only way forward is to replace the key:
+  PROVISION_ROTATE_KEY=1 bash scripts/scaleway/provision.sh
+Rotating invalidates the old credential - redeploy the container afterwards.&quot;
+  fi
+  if [[ &quot;$refreshed&quot; == &quot;changed&quot; ]]; then
+    note &quot;reused the stored secret; connection details updated to the current database&quot;
+  else
+    note &quot;reused the stored secret; connection details already correct&quot;
+  fi
+else
+  if [[ &quot;$KEY_COUNT&quot; -gt 0 ]]; then
+    note &quot;rotating: deleting $KEY_COUNT existing key(s)&quot;
+    while IFS= read -r ak; do
+      [[ -n &quot;$ak&quot; ]] || continue
+      if scw &quot;${PROFILE_ARGS[@]}&quot; iam api-key delete access-key=&quot;$ak&quot; &gt;/dev/null 2&gt;&amp;1; then
+        note &quot;  deleted $ak&quot;
+      else
+        note &quot;  FAILED to delete $ak&quot;
+      fi
+    done &lt; &lt;(scw_json iam api-key list application-id=&quot;$APP_ID&quot; \
+      | &quot;$PYTHON&quot; -c &quot;$LIST_ACCESS_KEYS&quot;)
+  fi
+
+  umask 077
+  mkdir -p &quot;$(dirname &quot;$PROVISION_ENV_OUT&quot;)&quot; || die &quot;cannot create $(dirname &quot;$PROVISION_ENV_OUT&quot;)&quot;
+  # The secret goes from scw straight into the file. It is never echoed and
+  # never held in a shell variable.
+  if ! scw &quot;${PROFILE_ARGS[@]}&quot; iam api-key create application-id=&quot;$APP_ID&quot; \
+        expires-at=&quot;$PROVISION_KEY_EXPIRES&quot; \
+        description=&quot;LocalChat test stack database credential&quot; -o json \
+        | &quot;$PYTHON&quot; -c &quot;$WRITE_ENV&quot; &quot;$PROVISION_ENV_OUT&quot; &quot;$DB_HOST&quot; &quot;$PROVISION_DB_NAME&quot;; then
+    die &quot;api-key creation failed; the application may now have no usable key.
+Re-run with PROVISION_ROTATE_KEY=1 once the cause is fixed.&quot;
+  fi
+fi
+
+cat &lt;&lt;SUMMARY
+
+Phase 1 is provisioned.
+
+  project   $PROVISION_PROJECT_NAME  $PROJECT_ID
+  database  $PROVISION_DB_NAME  $DB_ID
+  host      $DB_HOST
+  identity  $PROVISION_APP_NAME  $APP_ID  (policy $POLICY_ID, $PROVISION_PERMISSION_SET)
+  env file  $PROVISION_ENV_OUT
+
+The credential is scoped to this project and this database. It cannot reach the
+default project, and it cannot delete the database.
+
+Next: docs/DEPLOYMENT_SCALEWAY.md Phase 2 - the container, from a version tag.
+To tear all of it down: docs/COST_KILL_SWITCH.md.
+SUMMARY
+</code></pre>
+  </section>
+  <section class="script" id="deploy_container.sh">
+    <h2><code>deploy_container.sh</code></h2>
+    <p>Phase 2 — the application as a Serverless Container, from a version tag.</p>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_container.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_container.sh">raw</a><span>shown as of commit 93096ee</span></div>
+    <pre class="source"><code>#!/usr/bin/env bash
+#
+# Phase 2 of docs/DEPLOYMENT_SCALEWAY.md: the Serverless Container namespace and
+# the container itself. Idempotent — a second run updates the existing container
+# rather than creating a second one.
+#
+# Everything here was learned by deploying once by hand (D3). Three details cost
+# a failed attempt each, and none of them is guessable from the CLI help:
+#
+#   * `memory-limit-bytes` does NOT take bytes. It requires a G/GB unit —
+#     3072000000 is refused outright with &quot;size must be defined using the G or
+#     GB unit&quot;. Pass 3GB.
+#   * An update REPLACES the environment map rather than merging into it, so
+#     every variable and every secret is re-sent on every run. Sending only the
+#     one you changed silently drops the rest.
+#   * Secrets belong in `secret-environment-variables`. Scaleway stores those
+#     separately and reads them back as argon2 hashes, so `container get` never
+#     echoes one. Ordinary environment variables are returned in clear.
+#
+# Usage:
+#   bash scripts/scaleway/deploy_container.sh
+#   DEPLOY_IMAGE_TAG=3.0.1 bash scripts/scaleway/deploy_container.sh
+#
+# Reads the database credential written by provision.sh, and generates the
+# application secrets on first run into a second 600-mode file outside the repo.
+# ADMIN_PASSWORD in that file is how you sign in to the deployed app.
+#
+# Needs `scw` (authenticated) and Python 3.
+
+set -euo pipefail
+
+die() { printf &#x27;error: %s\n&#x27; &quot;$*&quot; &gt;&amp;2; exit 1; }
+note() { printf &#x27;  %s\n&#x27; &quot;$*&quot;; }
+
+DEPLOY_PROJECT_NAME=&quot;${DEPLOY_PROJECT_NAME:-localchat-test}&quot;
+DEPLOY_NAMESPACE=&quot;${DEPLOY_NAMESPACE:-localchat}&quot;
+DEPLOY_CONTAINER=&quot;${DEPLOY_CONTAINER:-localchat}&quot;
+DEPLOY_IMAGE_TAG=&quot;${DEPLOY_IMAGE_TAG:-3.0.0}&quot;
+DEPLOY_IMAGE=&quot;${DEPLOY_IMAGE:-ghcr.io/jwvanderstam/localchat:$DEPLOY_IMAGE_TAG}&quot;
+DEPLOY_REGION=&quot;${DEPLOY_REGION:-fr-par}&quot;
+DEPLOY_MEMORY=&quot;${DEPLOY_MEMORY:-3GB}&quot;
+DEPLOY_MVCPU=&quot;${DEPLOY_MVCPU:-1000}&quot;
+DEPLOY_PORT=&quot;${DEPLOY_PORT:-5000}&quot;
+DEPLOY_DB_ENV=&quot;${DEPLOY_DB_ENV:-$HOME/.config/scw/localchat-db.env}&quot;
+DEPLOY_SECRET_ENV=&quot;${DEPLOY_SECRET_ENV:-$HOME/.config/scw/localchat-deploy.env}&quot;
+# How often the readiness loop polls. Only a test has a reason to lower it.
+DEPLOY_POLL_SECONDS=&quot;${DEPLOY_POLL_SECONDS:-20}&quot;
+# Empty by default and set by deploy_embeddings.sh. Without it the app boots and
+# serves everything except chat and document ingest, which both need Ollama.
+DEPLOY_OLLAMA_URL=&quot;${DEPLOY_OLLAMA_URL:-}&quot;
+# Set by deploy_embeddings.sh. Handing the network to this script rather than
+# applying it in a second call is what keeps the two from colliding: Scaleway
+# refuses an update while the previous one is still applying, with
+# &quot;transient state error for resource &#x27;container&#x27;&quot;.
+DEPLOY_PRIVATE_NETWORK_ID=&quot;${DEPLOY_PRIVATE_NETWORK_ID:-}&quot;
+
+command -v scw &gt;/dev/null 2&gt;&amp;1 || die &quot;scw not found on PATH&quot;
+PYTHON=&quot;&quot;
+for c in python3 python; do
+  if command -v &quot;$c&quot; &gt;/dev/null 2&gt;&amp;1; then PYTHON=&quot;$c&quot;; break; fi
+done
+[[ -n &quot;$PYTHON&quot; ]] || die &quot;no python3 on PATH&quot;
+
+PROFILE_ARGS=()
+if [[ -n &quot;${SCW_PROFILE:-}&quot; ]]; then
+  PROFILE_ARGS=(--profile &quot;$SCW_PROFILE&quot;)
+fi
+
+# Secrets are passed to `scw` as arguments, so a failure that echoes the command
+# publishes every one of them — to the terminal, and to whatever collects it.
+# That happened once. The arguments are still shown, because a failure with no
+# context is unfixable, but every secret value is replaced first.
+_redact() {
+  printf &#x27;%s&#x27; &quot;$*&quot; | sed -E &#x27;s/(secret-environment-variables[.][A-Za-z0-9_]+=)[^ ]*/\1***/g&#x27;
+}
+
+scw_json() {
+  local raw
+  if ! raw=$(scw &quot;${PROFILE_ARGS[@]}&quot; &quot;$@&quot; -o json 2&gt;&amp;1); then
+    die &quot;&#x27;scw $(_redact &quot;$@&quot;)&#x27; failed:&quot;$&#x27;\n&#x27;&quot;$raw&quot;
+  fi
+  printf &#x27;%s&#x27; &quot;$raw&quot;
+}
+
+read -r -d &#x27;&#x27; PICK &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+want = sys.argv[1]
+try:
+    rows = json.load(sys.stdin)
+except Exception as exc:
+    sys.exit(&quot;reply was not JSON: %s&quot; % exc)
+if isinstance(rows, dict):
+    rows = next((v for v in rows.values() if isinstance(v, list)), [])
+for row in rows:
+    if isinstance(row, dict) and row.get(&quot;name&quot;) == want:
+        print(row.get(&quot;id&quot;, &quot;&quot;))
+        break
+PY
+
+read -r -d &#x27;&#x27; FIELD &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+try:
+    obj = json.load(sys.stdin)
+except Exception as exc:
+    sys.exit(&quot;reply was not JSON: %s&quot; % exc)
+for key in sys.argv[1:]:
+    value = obj.get(key)
+    if value in (None, &quot;&quot;):
+        sys.exit(&quot;reply carried no %s&quot; % key)
+    print(value)
+PY
+
+read -r -d &#x27;&#x27; MAKE_SECRETS &lt;&lt;&#x27;PY&#x27; || true
+import os, pathlib, secrets, stat, string, sys
+
+from cryptography.fernet import Fernet
+
+out = pathlib.Path(sys.argv[1])
+if out.exists():
+    print(&quot;exists&quot;)
+    raise SystemExit(0)
+out.parent.mkdir(parents=True, exist_ok=True)
+alphabet = string.ascii_letters + string.digits
+out.write_text(
+    &quot;# LocalChat deployment secrets. Mode 600, outside the repo, never commit.\n&quot;
+    &quot;# ADMIN_PASSWORD is how you sign in to the deployed application.\n&quot;
+    &quot;SECRET_KEY=%s\n&quot;
+    &quot;JWT_SECRET_KEY=%s\n&quot;
+    &quot;ENCRYPTION_KEY=%s\n&quot;
+    &quot;METRICS_TOKEN=%s\n&quot;
+    &quot;ADMIN_PASSWORD=%s\n&quot;
+    % (
+        secrets.token_hex(32),
+        secrets.token_hex(32),
+        Fernet.generate_key().decode(),
+        secrets.token_hex(16),
+        &quot;&quot;.join(secrets.choice(alphabet) for _ in range(24)),
+    ),
+    encoding=&quot;utf-8&quot;,
+    newline=&quot;\n&quot;,
+)
+os.chmod(out, stat.S_IRUSR | stat.S_IWUSR)
+print(&quot;created&quot;)
+PY
+
+find_by_name() {  # find_by_name &lt;name&gt; -- &lt;scw list args...&gt;
+  local want=&quot;$1&quot;; shift 2
+  local raw found
+  raw=$(scw_json &quot;$@&quot;)
+  if ! found=$(printf &#x27;%s&#x27; &quot;$raw&quot; | &quot;$PYTHON&quot; -c &quot;$PICK&quot; &quot;$want&quot; 2&gt;&amp;1); then
+    die &quot;could not read the reply to &#x27;scw $*&#x27; ($found)&quot;
+  fi
+  printf &#x27;%s&#x27; &quot;$found&quot;
+}
+
+[[ -f &quot;$DEPLOY_DB_ENV&quot; ]] || die &quot;no database credential at $DEPLOY_DB_ENV
+Run scripts/scaleway/provision.sh first.&quot;
+
+echo &quot;Application secrets:&quot;
+umask 077
+made=$(&quot;$PYTHON&quot; -c &quot;$MAKE_SECRETS&quot; &quot;$DEPLOY_SECRET_ENV&quot;)
+if [[ &quot;$made&quot; == &quot;created&quot; ]]; then
+  note &quot;generated -&gt; $DEPLOY_SECRET_ENV (mode 600)&quot;
+  note &quot;ADMIN_PASSWORD in that file is your login. It is not printed here.&quot;
+else
+  note &quot;reusing $DEPLOY_SECRET_ENV&quot;
+fi
+
+# shellcheck disable=SC1090
+set -a; . &quot;$DEPLOY_DB_ENV&quot;; . &quot;$DEPLOY_SECRET_ENV&quot;; set +a
+for v in PG_HOST PG_PORT PG_DB PG_USER PG_PASSWORD SECRET_KEY JWT_SECRET_KEY \
+         ENCRYPTION_KEY ADMIN_PASSWORD METRICS_TOKEN; do
+  [[ -n &quot;${!v:-}&quot; ]] || die &quot;$v is missing from the credential files&quot;
+done
+
+echo &quot;Project &#x27;$DEPLOY_PROJECT_NAME&#x27;:&quot;
+PROJECT_ID=$(find_by_name &quot;$DEPLOY_PROJECT_NAME&quot; -- account project list)
+[[ -n &quot;$PROJECT_ID&quot; ]] || die &quot;project &#x27;$DEPLOY_PROJECT_NAME&#x27; does not exist — run provision.sh&quot;
+note &quot;$PROJECT_ID&quot;
+
+echo &quot;Namespace &#x27;$DEPLOY_NAMESPACE&#x27;:&quot;
+NAMESPACE_ID=$(find_by_name &quot;$DEPLOY_NAMESPACE&quot; -- container namespace list \
+  project-id=&quot;$PROJECT_ID&quot; region=&quot;$DEPLOY_REGION&quot;)
+if [[ -n &quot;$NAMESPACE_ID&quot; ]]; then
+  note &quot;exists ($NAMESPACE_ID)&quot;
+else
+  NAMESPACE_ID=$(scw_json container namespace create name=&quot;$DEPLOY_NAMESPACE&quot; \
+    project-id=&quot;$PROJECT_ID&quot; region=&quot;$DEPLOY_REGION&quot; \
+    description=&quot;LocalChat test stack&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id)
+  note &quot;created ($NAMESPACE_ID)&quot;
+  for _ in $(seq 1 30); do
+    st=$(scw_json container namespace get namespace-id=&quot;$NAMESPACE_ID&quot; \
+      region=&quot;$DEPLOY_REGION&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; status)
+    [[ &quot;$st&quot; == &quot;ready&quot; ]] &amp;&amp; break
+    sleep 5
+  done
+  note &quot;status $st&quot;
+fi
+
+# Every variable is re-sent on every run, because an update replaces the map.
+ENV_ARGS=(
+  environment-variables.APP_ENV=production
+  environment-variables.SERVER_PORT=&quot;$DEPLOY_PORT&quot;
+  environment-variables.UVICORN_WORKERS=1
+  environment-variables.REDIS_ENABLED=false
+  environment-variables.MCP_ENABLED=false
+  environment-variables.PG_HOST=&quot;$PG_HOST&quot;
+  environment-variables.PG_PORT=&quot;$PG_PORT&quot;
+  environment-variables.PG_DB=&quot;$PG_DB&quot;
+  environment-variables.PG_USER=&quot;$PG_USER&quot;
+  environment-variables.PG_SSLMODE=&quot;${PG_SSLMODE:-require}&quot;
+)
+NETWORK_ARGS=()
+if [[ -n &quot;$DEPLOY_PRIVATE_NETWORK_ID&quot; ]]; then
+  NETWORK_ARGS=(private-network-id=&quot;$DEPLOY_PRIVATE_NETWORK_ID&quot;)
+fi
+
+if [[ -n &quot;$DEPLOY_OLLAMA_URL&quot; ]]; then
+  ENV_ARGS+=(
+    environment-variables.OLLAMA_BASE_URL=&quot;$DEPLOY_OLLAMA_URL&quot;
+    environment-variables.OLLAMA_EMBEDDING_MODEL=&quot;${DEPLOY_EMBEDDING_MODEL:-nomic-embed-text}&quot;
+  )
+fi
+
+SECRET_ARGS=(
+  secret-environment-variables.PG_PASSWORD=&quot;$PG_PASSWORD&quot;
+  secret-environment-variables.SECRET_KEY=&quot;$SECRET_KEY&quot;
+  secret-environment-variables.JWT_SECRET_KEY=&quot;$JWT_SECRET_KEY&quot;
+  secret-environment-variables.ENCRYPTION_KEY=&quot;$ENCRYPTION_KEY&quot;
+  secret-environment-variables.ADMIN_PASSWORD=&quot;$ADMIN_PASSWORD&quot;
+  secret-environment-variables.METRICS_TOKEN=&quot;$METRICS_TOKEN&quot;
+)
+
+echo &quot;Container &#x27;$DEPLOY_CONTAINER&#x27; ($DEPLOY_IMAGE):&quot;
+CONTAINER_ID=$(find_by_name &quot;$DEPLOY_CONTAINER&quot; -- container container list \
+  namespace-id=&quot;$NAMESPACE_ID&quot; region=&quot;$DEPLOY_REGION&quot;)
+
+if [[ -n &quot;$CONTAINER_ID&quot; ]]; then
+  note &quot;exists ($CONTAINER_ID) — updating in place&quot;
+  scw_json container container update container-id=&quot;$CONTAINER_ID&quot; \
+    region=&quot;$DEPLOY_REGION&quot; image=&quot;$DEPLOY_IMAGE&quot; \
+    &quot;${NETWORK_ARGS[@]}&quot; &quot;${ENV_ARGS[@]}&quot; &quot;${SECRET_ARGS[@]}&quot; &gt;/dev/null
+else
+  note &quot;absent — creating&quot;
+  # min/max scale 1 is D1 and D2: no scale-to-zero cold start on a 3 GB image,
+  # and no way for concurrency to multiply the bill.
+  CONTAINER_ID=$(scw_json container container create \
+    namespace-id=&quot;$NAMESPACE_ID&quot; name=&quot;$DEPLOY_CONTAINER&quot; region=&quot;$DEPLOY_REGION&quot; \
+    image=&quot;$DEPLOY_IMAGE&quot; port=&quot;$DEPLOY_PORT&quot; protocol=http1 privacy=public \
+    min-scale=1 max-scale=1 \
+    memory-limit-bytes=&quot;$DEPLOY_MEMORY&quot; mvcpu-limit=&quot;$DEPLOY_MVCPU&quot; \
+    timeout=300s \
+    &quot;${NETWORK_ARGS[@]}&quot; &quot;${ENV_ARGS[@]}&quot; &quot;${SECRET_ARGS[@]}&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id)
+  note &quot;created ($CONTAINER_ID)&quot;
+fi
+
+echo &quot;Waiting for the container (a 3 GB pull takes a few minutes):&quot;
+# `error` is not final. Scaleway reports it while a slow first boot is still
+# failing its early liveness probes: on 2026-09-14 the container read `error`
+# for 15 s and was `ready` 22 s before the app answered /api/health, and this
+# loop had given up on the first sighting. Only an error that stays is one, so
+# it has to be seen on consecutive polls before the script believes it.
+STATUS=&quot;&quot;
+ERRORS=0
+for _ in $(seq 1 60); do
+  STATUS=$(scw_json container container get container-id=&quot;$CONTAINER_ID&quot; \
+    region=&quot;$DEPLOY_REGION&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; status)
+  case &quot;$STATUS&quot; in
+    ready) break ;;
+    error) ERRORS=$((ERRORS + 1)); if [[ $ERRORS -ge 3 ]]; then break; fi ;;
+    *) ERRORS=0 ;;
+  esac
+  sleep &quot;$DEPLOY_POLL_SECONDS&quot;
+done
+note &quot;status $STATUS&quot;
+[[ &quot;$STATUS&quot; == &quot;ready&quot; ]] || die &quot;container did not become ready (status: $STATUS)&quot;
+
+ENDPOINT=$(scw_json container container get container-id=&quot;$CONTAINER_ID&quot; \
+  region=&quot;$DEPLOY_REGION&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; public_endpoint)
+
+cat &lt;&lt;SUMMARY
+
+Phase 2 is deployed.
+
+  namespace  $DEPLOY_NAMESPACE  $NAMESPACE_ID
+  container  $DEPLOY_CONTAINER  $CONTAINER_ID
+  image      $DEPLOY_IMAGE
+  endpoint   $ENDPOINT
+
+Validate it:  python scripts/scaleway/verify_deployment.py $ENDPOINT
+Add embeddings: bash scripts/scaleway/deploy_embeddings.sh
+Tear it down:   docs/COST_KILL_SWITCH.md
+SUMMARY
+</code></pre>
+  </section>
+  <section class="script" id="verify_deployment.py">
+    <h2><code>verify_deployment.py</code></h2>
+    <p>Phase 3 — the gate: signs in, checks the image, ingests a document and retrieves it semantically. Exits non-zero on failure.</p>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_deployment.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_deployment.py">raw</a><span>shown as of commit 93096ee</span></div>
+    <pre class="source"><code>#!/usr/bin/env python3
+&quot;&quot;&quot;Phase 3: prove a deployed LocalChat actually works, and gate on the answer.
+
+Every check here was run by hand against the first Scaleway deployment. Three of
+them found something the deployment plan had wrong, which is why they are a
+script now rather than a checklist someone reads:
+
+* The running version is **not** on ``/api/status`` — that endpoint carries no
+  version at all. It is on ``/api/settings/stats``, which is admin-only.
+* ``/api/health`` reporting a healthy database was, until it was fixed, an echo
+  of a boot-time flag. This asks for a live answer by exercising a route that
+  touches the database.
+* The document path needs an embedding model. Without one, upload fails cleanly
+  and nothing is stored — so &quot;retrieval works without Ollama&quot; is false, and this
+  reports that as a skip rather than a pass.
+
+Usage:
+    python scripts/scaleway/verify_deployment.py &lt;endpoint&gt;
+    python scripts/scaleway/verify_deployment.py &lt;endpoint&gt; --pull-model nomic-embed-text
+
+Reads ADMIN_PASSWORD from the deployment secrets file (``DEPLOY_SECRET_ENV``,
+default ``~/.config/scw/localchat-deploy.env``). Prints no secret. Exits
+non-zero when a check fails, so it can stand in front of a release.
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pathlib
+import sys
+import urllib.error
+import urllib.request
+
+DEFAULT_SECRET_ENV = pathlib.Path.home() / &quot;.config&quot; / &quot;scw&quot; / &quot;localchat-deploy.env&quot;
+PROBE_NAME = &quot;deployment-probe.md&quot;
+CANARY = &quot;quiet-utility-marmoset-4417&quot;
+PROBE_BODY = f&quot;&quot;&quot;# LocalChat deployment probe
+
+This document exists to prove that ingest and retrieval work on the deployed stack.
+
+The canary phrase is: {CANARY}.
+
+The Serverless SQL Database routes connections by TLS SNI, which is why an
+unencrypted connection cannot name the database it wants.
+&quot;&quot;&quot;
+
+
+class Report:
+    def __init__(self) -&gt; None:
+        self.failed = 0
+        self.skipped = 0
+
+    def ok(self, label: str, detail: str = &quot;&quot;) -&gt; None:
+        print(f&quot;  PASS  {label}{f&#x27; — {detail}&#x27; if detail else &#x27;&#x27;}&quot;)
+
+    def bad(self, label: str, detail: str) -&gt; None:
+        self.failed += 1
+        print(f&quot;  FAIL  {label} — {detail}&quot;)
+
+    def skip(self, label: str, detail: str) -&gt; None:
+        self.skipped += 1
+        print(f&quot;  SKIP  {label} — {detail}&quot;)
+
+    def note(self, text: str) -&gt; None:
+        print(f&quot;        {text}&quot;)
+
+
+class Client:
+    &quot;&quot;&quot;The smallest HTTP client that keeps a session cookie.&quot;&quot;&quot;
+
+    def __init__(self, base: str) -&gt; None:
+        self.base = base.rstrip(&quot;/&quot;)
+        self.cookie: str | None = None
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: bytes | None = None,
+        content_type: str | None = None,
+        timeout: int = 120,
+    ) -&gt; tuple[int, bytes]:
+        req = urllib.request.Request(f&quot;{self.base}{path}&quot;, data=body, method=method)
+        if content_type:
+            req.add_header(&quot;Content-Type&quot;, content_type)
+        if self.cookie:
+            req.add_header(&quot;Cookie&quot;, self.cookie)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+                set_cookie = resp.headers.get(&quot;Set-Cookie&quot;)
+                if set_cookie:
+                    self.cookie = set_cookie.split(&quot;;&quot;, 1)[0]
+                return resp.status, resp.read()
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.read()
+
+    def json(self, method: str, path: str, payload: dict | None = None, timeout: int = 120):
+        body = json.dumps(payload).encode() if payload is not None else None
+        status, raw = self.request(
+            method, path, body, &quot;application/json&quot; if body else None, timeout
+        )
+        try:
+            return status, json.loads(raw)
+        except Exception:
+            return status, raw.decode(&quot;utf-8&quot;, &quot;replace&quot;)
+
+
+def load_admin_password() -&gt; str:
+    path = pathlib.Path(os.environ.get(&quot;DEPLOY_SECRET_ENV&quot;, str(DEFAULT_SECRET_ENV)))
+    if not path.exists():
+        sys.exit(f&quot;no secrets file at {path} — run scripts/scaleway/deploy_container.sh&quot;)
+    for line in path.read_text(encoding=&quot;utf-8&quot;).splitlines():
+        if line.startswith(&quot;ADMIN_PASSWORD=&quot;):
+            return line.split(&quot;=&quot;, 1)[1].strip()
+    sys.exit(f&quot;{path} has no ADMIN_PASSWORD&quot;)
+
+
+def multipart(filename: str, content: str) -&gt; tuple[bytes, str]:
+    boundary = &quot;----localchatprobe&quot;
+    body = (
+        f&quot;--{boundary}\r\n&quot;
+        f&#x27;Content-Disposition: form-data; name=&quot;files&quot;; filename=&quot;{filename}&quot;\r\n&#x27;
+        &quot;Content-Type: text/markdown\r\n\r\n&quot;
+        f&quot;{content}\r\n&quot;
+        f&quot;--{boundary}--\r\n&quot;
+    ).encode()
+    return body, f&quot;multipart/form-data; boundary={boundary}&quot;
+
+
+def main() -&gt; int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(&quot;endpoint&quot;, help=&quot;https://…functions.fnc.fr-par.scw.cloud&quot;)
+    parser.add_argument(
+        &quot;--pull-model&quot;,
+        metavar=&quot;NAME&quot;,
+        help=&quot;pull this embedding model through the app before testing ingest&quot;,
+    )
+    parser.add_argument(
+        &quot;--expect-version&quot;, default=&quot;3.0.0&quot;, help=&quot;version the deployed image must report&quot;
+    )
+    args = parser.parse_args()
+
+    client = Client(args.endpoint)
+    report = Report()
+    print(f&quot;Verifying {client.base}\n&quot;)
+
+    status, health = client.json(&quot;GET&quot;, &quot;/api/health&quot;, timeout=60)
+    if status != 200 or not isinstance(health, dict):
+        report.bad(&quot;health answers&quot;, f&quot;HTTP {status}&quot;)
+        return 1
+    checks = health.get(&quot;checks&quot;, {})
+    report.ok(&quot;health answers&quot;, health.get(&quot;status&quot;, &quot;?&quot;))
+    db_up = checks.get(&quot;database&quot;, {}).get(&quot;healthy&quot;)
+    (report.ok if db_up else report.bad)(&quot;database reachable&quot;, checks.get(&quot;database&quot;, {}).get(&quot;status&quot;, &quot;?&quot;))
+    ollama_up = bool(checks.get(&quot;ollama&quot;, {}).get(&quot;healthy&quot;))
+    (report.ok if ollama_up else report.skip)(
+        &quot;ollama reachable&quot;,
+        checks.get(&quot;ollama&quot;, {}).get(&quot;status&quot;, &quot;?&quot;)
+        + (&quot;&quot; if ollama_up else &quot; — ingest and chat cannot work without it&quot;),
+    )
+
+    status, _ = client.json(
+        &quot;POST&quot;, &quot;/api/auth/login&quot;, {&quot;username&quot;: &quot;admin&quot;, &quot;password&quot;: load_admin_password()}
+    )
+    if status != 200:
+        report.bad(&quot;admin can sign in&quot;, f&quot;HTTP {status}&quot;)
+        return 1
+    report.ok(&quot;admin can sign in&quot;)
+
+    status, stats = client.json(&quot;GET&quot;, &quot;/api/settings/stats&quot;)
+    version = (stats or {}).get(&quot;system&quot;, {}).get(&quot;app_version&quot;) if isinstance(stats, dict) else None
+    if version == args.expect_version:
+        report.ok(&quot;deployed image is the expected one&quot;, f&quot;app_version {version}&quot;)
+    else:
+        report.bad(
+            &quot;deployed image is the expected one&quot;,
+            f&quot;reports {version!r}, expected {args.expect_version!r}&quot;,
+        )
+
+    if args.pull_model and ollama_up:
+        print(f&quot;  ....  pulling {args.pull_model} (minutes, streams progress)&quot;)
+        status, _ = client.request(
+            &quot;POST&quot;,
+            &quot;/api/models/pull&quot;,
+            json.dumps({&quot;model&quot;: args.pull_model}).encode(),
+            &quot;application/json&quot;,
+            timeout=1800,
+        )
+        (report.ok if status == 200 else report.bad)(
+            f&quot;pulled {args.pull_model}&quot;, f&quot;HTTP {status}&quot;
+        )
+
+    if not ollama_up:
+        report.skip(&quot;document ingest&quot;, &quot;no embedding model reachable&quot;)
+        report.skip(&quot;semantic retrieval&quot;, &quot;nothing can be ingested&quot;)
+    else:
+        body, content_type = multipart(PROBE_NAME, PROBE_BODY)
+        status, raw = client.request(
+            &quot;POST&quot;, &quot;/api/documents/upload&quot;, body, content_type, timeout=900
+        )
+        text = raw.decode(&quot;utf-8&quot;, &quot;replace&quot;)
+        if status == 200 and &#x27;&quot;success&quot;: true&#x27; in text:
+            report.ok(&quot;document ingest&quot;, PROBE_NAME)
+        else:
+            detail = next(
+                (line for line in text.splitlines() if &quot;message&quot; in line), f&quot;HTTP {status}&quot;
+            )
+            report.bad(&quot;document ingest&quot;, detail[:160])
+
+        # Semantic, not lexical: the query shares no word with the canary, so a
+        # hit can only come from the embedding.
+        status, found = client.json(
+            &quot;POST&quot;, &quot;/api/documents/test&quot;, {&quot;query&quot;: &quot;which animal is named in this document?&quot;}
+        )
+        chunks = (
+            (found or {}).get(&quot;results&quot;, {}).get(&quot;semantic_only&quot;, {}).get(&quot;chunks&quot;, [])
+            if isinstance(found, dict)
+            else []
+        )
+        if chunks and CANARY in json.dumps(chunks):
+            report.ok(&quot;semantic retrieval&quot;, f&quot;similarity {chunks[0].get(&#x27;similarity&#x27;)}&quot;)
+            report.note(&quot;The query shares no words with the canary, so this is the vector arm.&quot;)
+        else:
+            report.bad(&quot;semantic retrieval&quot;, &quot;the probe document did not come back&quot;)
+
+    print()
+    if report.failed:
+        print(f&quot;{report.failed} check(s) failed — this deployment is not good.&quot;)
+        return 1
+    if report.skipped:
+        print(f&quot;All checks passed, {report.skipped} skipped. Phase 3 is incomplete &quot;
+              &quot;until an embedding model is reachable (Phase 4).&quot;)
+        return 0
+    print(&quot;All checks passed. Phase 3 is complete.&quot;)
+    return 0
+
+
+if __name__ == &quot;__main__&quot;:
+    raise SystemExit(main())
+</code></pre>
+  </section>
+  <section class="script" id="deploy_embeddings.sh">
+    <h2><code>deploy_embeddings.sh</code></h2>
+    <p>Phase 4 — an Instance serving embeddings over a private network, wired to the container.</p>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_embeddings.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_embeddings.sh">raw</a><span>shown as of commit 93096ee</span></div>
+    <pre class="source"><code>#!/usr/bin/env bash
+#
+# Phase 4 of docs/DEPLOYMENT_SCALEWAY.md: an Ollama Instance that serves
+# embeddings, so document ingest and retrieval work. Generation is Phase 5&#x27;s
+# question and belongs on a GPU.
+#
+# Idempotent: a second run finds the network, the security group and the
+# instance, and re-wires the container to whatever private IP it has.
+#
+# Three decisions that came out of doing this by hand, each non-obvious:
+#
+#   * The security group sets `inbound-default-policy=drop`. Scaleway&#x27;s default
+#     is `accept`, which would put Ollama&#x27;s port 11434 on the public internet.
+#     The cost is that there is no way in if something goes wrong: the cloud
+#     image sets no password for the serial console to log in with, and a key
+#     only reaches the box if it is registered in *this* project (both reasoned,
+#     neither tried — DEPLOYMENT_SCALEWAY.md §11, 2026-09-14). A box that fails
+#     is replaced, not read; whether to change that is §12&#x27;s.
+#   * The model is pulled through the application&#x27;s own POST /api/models/pull,
+#     not from cloud-init. The cloud-init pull failed silently on the first run
+#     and left a box with zero models and no way in to find out why. Pulling
+#     through the app is idempotent, streams its progress, and exercises the
+#     private network that had to be proven anyway.
+#   * Everything goes in fr-par-2, the one zone offering both the L4 and the
+#     larger L40S — so Phase 5&#x27;s GPU lands beside this box rather than in
+#     another zone with a private network already wired.
+#
+# Usage:
+#   bash scripts/scaleway/deploy_embeddings.sh
+#
+# Needs `scw` (authenticated), Python 3, and a container from deploy_container.sh.
+
+set -euo pipefail
+
+die() { printf &#x27;error: %s\n&#x27; &quot;$*&quot; &gt;&amp;2; exit 1; }
+note() { printf &#x27;  %s\n&#x27; &quot;$*&quot;; }
+
+EMB_PROJECT_NAME=&quot;${EMB_PROJECT_NAME:-localchat-test}&quot;
+EMB_NETWORK_NAME=&quot;${EMB_NETWORK_NAME:-localchat-backend}&quot;
+EMB_SECGROUP_NAME=&quot;${EMB_SECGROUP_NAME:-localchat-ollama}&quot;
+EMB_INSTANCE_NAME=&quot;${EMB_INSTANCE_NAME:-localchat-embeddings}&quot;
+EMB_NAMESPACE=&quot;${EMB_NAMESPACE:-localchat}&quot;
+EMB_CONTAINER=&quot;${EMB_CONTAINER:-localchat}&quot;
+EMB_TYPE=&quot;${EMB_TYPE:-DEV1-M}&quot;
+EMB_IMAGE=&quot;${EMB_IMAGE:-ubuntu_jammy}&quot;
+EMB_ZONE=&quot;${EMB_ZONE:-fr-par-2}&quot;
+EMB_REGION=&quot;${EMB_REGION:-fr-par}&quot;
+EMB_MODEL=&quot;${EMB_MODEL:-nomic-embed-text}&quot;
+EMB_CLOUD_INIT=&quot;${EMB_CLOUD_INIT:-$(dirname &quot;$0&quot;)/ollama-cloud-init.yaml}&quot;
+
+command -v scw &gt;/dev/null 2&gt;&amp;1 || die &quot;scw not found on PATH&quot;
+PYTHON=&quot;&quot;
+for c in python3 python; do
+  if command -v &quot;$c&quot; &gt;/dev/null 2&gt;&amp;1; then PYTHON=&quot;$c&quot;; break; fi
+done
+[[ -n &quot;$PYTHON&quot; ]] || die &quot;no python3 on PATH&quot;
+[[ -f &quot;$EMB_CLOUD_INIT&quot; ]] || die &quot;no cloud-init file at $EMB_CLOUD_INIT&quot;
+
+PROFILE_ARGS=()
+if [[ -n &quot;${SCW_PROFILE:-}&quot; ]]; then
+  PROFILE_ARGS=(--profile &quot;$SCW_PROFILE&quot;)
+fi
+
+scw_json() {
+  local raw
+  if ! raw=$(scw &quot;${PROFILE_ARGS[@]}&quot; &quot;$@&quot; -o json 2&gt;&amp;1); then
+    die &quot;&#x27;scw $*&#x27; failed:&quot;$&#x27;\n&#x27;&quot;$raw&quot;
+  fi
+  printf &#x27;%s&#x27; &quot;$raw&quot;
+}
+
+read -r -d &#x27;&#x27; PICK &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+want = sys.argv[1]
+try:
+    rows = json.load(sys.stdin)
+except Exception as exc:
+    sys.exit(&quot;reply was not JSON: %s&quot; % exc)
+if isinstance(rows, dict):
+    rows = next((v for v in rows.values() if isinstance(v, list)), [])
+for row in rows:
+    if isinstance(row, dict) and row.get(&quot;name&quot;) == want:
+        print(row.get(&quot;id&quot;, &quot;&quot;))
+        break
+PY
+
+read -r -d &#x27;&#x27; FIELD &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+try:
+    obj = json.load(sys.stdin)
+except Exception as exc:
+    sys.exit(&quot;reply was not JSON: %s&quot; % exc)
+obj = obj.get(sys.argv[2], obj) if len(sys.argv) &gt; 2 else obj
+value = obj.get(sys.argv[1])
+if value in (None, &quot;&quot;):
+    sys.exit(&quot;reply carried no %s&quot; % sys.argv[1])
+print(value)
+PY
+
+# The private IPv4 the container will talk to. IPAM is the only place that knows
+# it; the server object reports the NIC but not its address.
+read -r -d &#x27;&#x27; PRIVATE_IP &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+want = sys.argv[1]
+rows = json.load(sys.stdin)
+if isinstance(rows, dict):
+    rows = next((v for v in rows.values() if isinstance(v, list)), [])
+for row in rows:
+    resource = row.get(&quot;resource&quot;) or {}
+    address = row.get(&quot;address&quot;, &quot;&quot;)
+    if resource.get(&quot;name&quot;) == want and &quot;:&quot; not in address:
+        print(address.split(&quot;/&quot;)[0])
+        break
+PY
+
+find_by_name() {  # find_by_name &lt;name&gt; -- &lt;scw list args...&gt;
+  local want=&quot;$1&quot;; shift 2
+  local raw found
+  raw=$(scw_json &quot;$@&quot;)
+  if ! found=$(printf &#x27;%s&#x27; &quot;$raw&quot; | &quot;$PYTHON&quot; -c &quot;$PICK&quot; &quot;$want&quot; 2&gt;&amp;1); then
+    die &quot;could not read the reply to &#x27;scw $*&#x27; ($found)&quot;
+  fi
+  printf &#x27;%s&#x27; &quot;$found&quot;
+}
+
+echo &quot;Project &#x27;$EMB_PROJECT_NAME&#x27;:&quot;
+PROJECT_ID=$(find_by_name &quot;$EMB_PROJECT_NAME&quot; -- account project list)
+[[ -n &quot;$PROJECT_ID&quot; ]] || die &quot;project &#x27;$EMB_PROJECT_NAME&#x27; does not exist — run provision.sh&quot;
+note &quot;$PROJECT_ID&quot;
+
+echo &quot;Private network &#x27;$EMB_NETWORK_NAME&#x27;:&quot;
+NETWORK_ID=$(find_by_name &quot;$EMB_NETWORK_NAME&quot; -- vpc private-network list \
+  project-id=&quot;$PROJECT_ID&quot; region=&quot;$EMB_REGION&quot;)
+if [[ -n &quot;$NETWORK_ID&quot; ]]; then
+  note &quot;exists ($NETWORK_ID)&quot;
+else
+  NETWORK_ID=$(scw_json vpc private-network create name=&quot;$EMB_NETWORK_NAME&quot; \
+    project-id=&quot;$PROJECT_ID&quot; region=&quot;$EMB_REGION&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id)
+  note &quot;created ($NETWORK_ID)&quot;
+fi
+
+echo &quot;Security group &#x27;$EMB_SECGROUP_NAME&#x27; (inbound drop):&quot;
+SECGROUP_ID=$(find_by_name &quot;$EMB_SECGROUP_NAME&quot; -- instance security-group list \
+  project-id=&quot;$PROJECT_ID&quot; zone=&quot;$EMB_ZONE&quot;)
+if [[ -n &quot;$SECGROUP_ID&quot; ]]; then
+  note &quot;exists ($SECGROUP_ID)&quot;
+else
+  SECGROUP_ID=$(scw_json instance security-group create name=&quot;$EMB_SECGROUP_NAME&quot; \
+    project-id=&quot;$PROJECT_ID&quot; zone=&quot;$EMB_ZONE&quot; \
+    inbound-default-policy=drop outbound-default-policy=accept \
+    description=&quot;Ollama embeddings: reachable on the private network, nowhere else&quot; \
+    | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id security_group)
+  note &quot;created ($SECGROUP_ID)&quot;
+fi
+
+echo &quot;Instance &#x27;$EMB_INSTANCE_NAME&#x27; ($EMB_TYPE, $EMB_ZONE):&quot;
+SERVER_ID=$(find_by_name &quot;$EMB_INSTANCE_NAME&quot; -- instance server list \
+  project-id=&quot;$PROJECT_ID&quot; zone=&quot;$EMB_ZONE&quot;)
+if [[ -n &quot;$SERVER_ID&quot; ]]; then
+  note &quot;exists ($SERVER_ID)&quot;
+else
+  SERVER_ID=$(scw_json instance server create name=&quot;$EMB_INSTANCE_NAME&quot; \
+    type=&quot;$EMB_TYPE&quot; image=&quot;$EMB_IMAGE&quot; zone=&quot;$EMB_ZONE&quot; \
+    project-id=&quot;$PROJECT_ID&quot; security-group-id=&quot;$SECGROUP_ID&quot; ip=new \
+    cloud-init=@&quot;$EMB_CLOUD_INIT&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; id)
+  note &quot;created ($SERVER_ID)&quot;
+  scw_json instance private-nic create server-id=&quot;$SERVER_ID&quot; \
+    private-network-id=&quot;$NETWORK_ID&quot; zone=&quot;$EMB_ZONE&quot; &gt;/dev/null
+  note &quot;attached to the private network&quot;
+  scw &quot;${PROFILE_ARGS[@]}&quot; instance server start &quot;$SERVER_ID&quot; zone=&quot;$EMB_ZONE&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  note &quot;powering on&quot;
+fi
+
+for _ in $(seq 1 30); do
+  STATE=$(scw_json instance server get &quot;$SERVER_ID&quot; zone=&quot;$EMB_ZONE&quot; \
+    | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; state)
+  [[ &quot;$STATE&quot; == &quot;running&quot; ]] &amp;&amp; break
+  sleep 10
+done
+note &quot;state $STATE&quot;
+[[ &quot;$STATE&quot; == &quot;running&quot; ]] || die &quot;instance did not reach &#x27;running&#x27; (state: $STATE)&quot;
+
+PRIVATE=$(scw_json ipam ip list private-network-id=&quot;$NETWORK_ID&quot; \
+  | &quot;$PYTHON&quot; -c &quot;$PRIVATE_IP&quot; &quot;$EMB_INSTANCE_NAME&quot;)
+[[ -n &quot;$PRIVATE&quot; ]] || die &quot;the instance has no private IPv4 yet — re-run in a moment&quot;
+note &quot;private IP $PRIVATE&quot;
+
+echo &quot;Wiring the container to http://$PRIVATE:11434:&quot;
+NAMESPACE_ID=$(find_by_name &quot;$EMB_NAMESPACE&quot; -- container namespace list \
+  project-id=&quot;$PROJECT_ID&quot; region=&quot;$EMB_REGION&quot;)
+[[ -n &quot;$NAMESPACE_ID&quot; ]] || die &quot;no namespace &#x27;$EMB_NAMESPACE&#x27; — run deploy_container.sh first&quot;
+CONTAINER_ID=$(find_by_name &quot;$EMB_CONTAINER&quot; -- container container list \
+  namespace-id=&quot;$NAMESPACE_ID&quot; region=&quot;$EMB_REGION&quot;)
+[[ -n &quot;$CONTAINER_ID&quot; ]] || die &quot;no container &#x27;$EMB_CONTAINER&#x27; — run deploy_container.sh first&quot;
+
+# Owning the whole definition cuts both ways: anything not passed to
+# deploy_container.sh falls back to *its* defaults, and DEPLOY_IMAGE_TAG defaults
+# to a release tag. Rewiring a container must not also roll its image back to
+# that default, which is what this did until a stack deployed on an explicit tag
+# came back reporting the release one. So the deployed image is read first and
+# handed straight back. Any other non-default knob (memory, mvCPU) has the same
+# shape; the image is the one that changes which code runs.
+CURRENT_IMAGE=$(scw_json container container get container-id=&quot;$CONTAINER_ID&quot; \
+  region=&quot;$EMB_REGION&quot; | &quot;$PYTHON&quot; -c &quot;$FIELD&quot; image) \
+  || die &quot;could not read the image deployed on container $CONTAINER_ID&quot;
+
+# One update, not two. Attaching the network separately and then re-running
+# deploy_container.sh made Scaleway reject the second call outright:
+# &quot;transient state error for resource &#x27;container&#x27; ... current_state: updating&quot;.
+# deploy_container.sh owns the whole container definition anyway — an update
+# replaces the environment map wholesale — so the network is handed to it.
+DEPLOY_OLLAMA_URL=&quot;http://$PRIVATE:11434&quot; DEPLOY_PRIVATE_NETWORK_ID=&quot;$NETWORK_ID&quot; \
+  DEPLOY_IMAGE=&quot;$CURRENT_IMAGE&quot; \
+  bash &quot;$(dirname &quot;$0&quot;)/deploy_container.sh&quot; &gt;/dev/null
+note &quot;container redeployed on the private network, with OLLAMA_BASE_URL set&quot;
+note &quot;image kept at $CURRENT_IMAGE&quot;
+
+cat &lt;&lt;SUMMARY
+
+Phase 4 is deployed.
+
+  network   $EMB_NETWORK_NAME  $NETWORK_ID
+  security  $EMB_SECGROUP_NAME  $SECGROUP_ID   inbound drop
+  instance  $EMB_INSTANCE_NAME  $SERVER_ID   $PRIVATE
+
+The instance is billing now (DEV1-M is about EUR 0.02/h). Tear it down when you
+stop testing — see docs/COST_KILL_SWITCH.md.
+
+Ollama has no model yet. Pull one through the application, which is idempotent
+and the only path that does not need SSH:
+
+  python scripts/scaleway/verify_deployment.py &lt;endpoint&gt; --pull-model $EMB_MODEL
+SUMMARY
+</code></pre>
+  </section>
+  <section class="script" id="ollama-cloud-init.yaml">
+    <h2><code>ollama-cloud-init.yaml</code></h2>
+    <p>The cloud-init that Phase 4 hands to that Instance. Installs Ollama and deliberately pulls no model.</p>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/ollama-cloud-init.yaml">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/ollama-cloud-init.yaml">raw</a><span>shown as of commit 93096ee</span></div>
+    <pre class="source"><code>#cloud-config
+# Phase 4: an Ollama host that serves embeddings for the LocalChat test stack.
+#
+# It installs Ollama and stops there. It deliberately does NOT pull a model:
+# on the first live run the cloud-init pull failed silently and left a box with
+# zero models, and with inbound traffic dropped by design there was no way in to
+# find out why. Pulling through the application&#x27;s own POST /api/models/pull is
+# idempotent, streams its progress back, needs no SSH, and exercises the private
+# network that has to be proven anyway. See deploy_embeddings.sh.
+#
+# OLLAMA_HOST=0.0.0.0 is required: Ollama binds to 127.0.0.1 by default, which a
+# container on the private network cannot reach. The exposure that would create
+# is closed at the network edge instead — this instance sits behind a security
+# group whose inbound default policy is `drop`, so 11434 answers on the private
+# network and nowhere else.
+
+package_update: true
+
+runcmd:
+  - curl -fsSL https://ollama.com/install.sh | sh
+  - mkdir -p /etc/systemd/system/ollama.service.d
+  - |
+    cat &gt; /etc/systemd/system/ollama.service.d/override.conf &lt;&lt;&#x27;EOF&#x27;
+    [Service]
+    Environment=&quot;OLLAMA_HOST=0.0.0.0:11434&quot;
+    EOF
+  - systemctl daemon-reload
+  - systemctl enable --now ollama
+  - systemctl restart ollama
+  # A marker readable from the serial console. If this file is absent, Ollama
+  # never came up and nothing else on the box is worth reading.
+  - |
+    for i in $(seq 1 60); do
+      if curl -sf http://127.0.0.1:11434/api/tags &gt;/dev/null; then
+        touch /var/log/ollama-ready
+        break
+      fi
+      sleep 2
+    done
+</code></pre>
+  </section>
+  <section class="script" id="verify_database.py">
+    <h2><code>verify_database.py</code></h2>
+    <p>A standalone check of a managed database: TLS required, pgvector present, a setting that survives a transaction boundary.</p>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_database.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_database.py">raw</a><span>shown as of commit 93096ee</span></div>
+    <pre class="source"><code>#!/usr/bin/env python3
+&quot;&quot;&quot;Prove the Scaleway Serverless SQL Database can actually host LocalChat.
+
+Four things decide that, and only one of them is obvious:
+
+1. The credential connects at all, and the connection is really encrypted.
+2. ``CREATE EXTENSION vector`` succeeds — a managed Postgres may not permit it,
+   and the whole retrieval layer depends on it.
+3. ``SET hnsw.ef_search`` survives into a *later* transaction. ``src/db/connection.py``
+   sets it once per physical connection in the pool&#x27;s ``configure`` callback and
+   assumes it sticks. Behind a transaction-pooling proxy it does not, and nothing
+   errors — retrieval just quietly gets worse. This is §4&#x27;s open caveat.
+4. The identity is scoped: it can read and write, and it cannot drop the database.
+
+Run it after ``provision.sh``:
+
+    python scripts/scaleway/verify_database.py
+
+Reads the credential from ``PROVISION_ENV_OUT`` (default
+``~/.config/scw/localchat-db.env``). Prints no secret. Exits non-zero if any
+check fails, so it can gate a deployment.
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import os
+import pathlib
+import sys
+
+try:
+    import psycopg
+except ImportError:  # pragma: no cover - the message is the whole value here
+    sys.exit(&quot;psycopg is not installed: pip install &#x27;psycopg[binary]&#x27;&quot;)
+
+DEFAULT_ENV = pathlib.Path.home() / &quot;.config&quot; / &quot;scw&quot; / &quot;localchat-db.env&quot;
+
+
+def load_credentials(path: pathlib.Path) -&gt; dict[str, str]:
+    if not path.exists():
+        sys.exit(f&quot;no credential file at {path} — run scripts/scaleway/provision.sh first&quot;)
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding=&quot;utf-8&quot;).splitlines():
+        line = line.strip()
+        if not line or line.startswith(&quot;#&quot;) or &quot;=&quot; not in line:
+            continue
+        key, value = line.split(&quot;=&quot;, 1)
+        values[key.strip()] = value.strip()
+    missing = {&quot;PG_HOST&quot;, &quot;PG_PORT&quot;, &quot;PG_DB&quot;, &quot;PG_USER&quot;, &quot;PG_PASSWORD&quot;} - values.keys()
+    if missing:
+        sys.exit(f&quot;{path} is missing {&#x27;, &#x27;.join(sorted(missing))}&quot;)
+    return values
+
+
+class Report:
+    def __init__(self) -&gt; None:
+        self.failed = 0
+
+    def ok(self, label: str, detail: str = &quot;&quot;) -&gt; None:
+        print(f&quot;  PASS  {label}{f&#x27; — {detail}&#x27; if detail else &#x27;&#x27;}&quot;)
+
+    def bad(self, label: str, detail: str) -&gt; None:
+        self.failed += 1
+        print(f&quot;  FAIL  {label} — {detail}&quot;)
+
+    def note(self, text: str) -&gt; None:
+        print(f&quot;        {text}&quot;)
+
+
+def main() -&gt; int:
+    env_path = pathlib.Path(os.environ.get(&quot;PROVISION_ENV_OUT&quot;, str(DEFAULT_ENV)))
+    creds = load_credentials(env_path)
+    report = Report()
+
+    print(f&quot;Verifying {creds[&#x27;PG_HOST&#x27;]}/{creds[&#x27;PG_DB&#x27;]} as {creds[&#x27;PG_USER&#x27;][:8]}…\n&quot;)
+
+    conn_kwargs = {
+        &quot;host&quot;: creds[&quot;PG_HOST&quot;],
+        &quot;port&quot;: int(creds[&quot;PG_PORT&quot;]),
+        &quot;dbname&quot;: creds[&quot;PG_DB&quot;],
+        &quot;user&quot;: creds[&quot;PG_USER&quot;],
+        &quot;password&quot;: creds[&quot;PG_PASSWORD&quot;],
+        &quot;sslmode&quot;: creds.get(&quot;PG_SSLMODE&quot;, &quot;require&quot;),
+        &quot;connect_timeout&quot;: 20,
+    }
+
+    try:
+        conn = psycopg.connect(**conn_kwargs)
+    except Exception as exc:
+        report.bad(&quot;connect&quot;, str(exc).strip().splitlines()[0])
+        return 1
+
+    with conn:
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(&quot;SELECT version()&quot;)
+            row = cur.fetchone()
+            report.ok(&quot;connect&quot;, (row[0] if row else &quot;?&quot;).split(&quot; on &quot;)[0])
+
+            # 1. Encryption. `pg_stat_ssl` is the wrong probe here: it reports the
+            #    pooler&#x27;s own connection to Postgres, which is internal and shows
+            #    no TLS even when the client connection is fully encrypted. The
+            #    honest test is whether the server refuses an unencrypted one.
+            try:
+                psycopg.connect(**{**conn_kwargs, &quot;sslmode&quot;: &quot;disable&quot;}).close()
+                report.bad(&quot;server requires TLS&quot;, &quot;an sslmode=disable connection was accepted&quot;)
+            except Exception as exc:
+                first = str(exc).strip().splitlines()[0]
+                report.ok(&quot;server requires TLS&quot;, &quot;sslmode=disable is refused&quot;)
+                if &quot;ServerNameIndication&quot; in str(exc) or &quot;hostname wasn&#x27;t sent&quot; in str(exc):
+                    report.note(&quot;Routing is by TLS SNI — the database is selected by the&quot;)
+                    report.note(&quot;server name in the handshake, so TLS is structural here,&quot;)
+                    report.note(&quot;not merely advisable. PG_SSLMODE=require is mandatory.&quot;)
+                else:
+                    report.note(first[:100])
+
+            # 2. pgvector.
+            try:
+                cur.execute(&quot;CREATE EXTENSION IF NOT EXISTS vector&quot;)
+                cur.execute(&quot;SELECT extversion FROM pg_extension WHERE extname = &#x27;vector&#x27;&quot;)
+                ver = cur.fetchone()
+                if ver:
+                    report.ok(&quot;pgvector available&quot;, f&quot;version {ver[0]}&quot;)
+                else:
+                    report.bad(&quot;pgvector available&quot;, &quot;CREATE EXTENSION ran but pg_extension has no row&quot;)
+            except Exception as exc:
+                report.bad(&quot;pgvector available&quot;, str(exc).strip().splitlines()[0])
+
+            # 3. The caveat. Set it, end the transaction, then read it back on
+            #    what the pooler may or may not consider the same session.
+            try:
+                cur.execute(&quot;SET hnsw.ef_search = 100&quot;)
+                cur.execute(&quot;COMMIT&quot;)
+                cur.execute(&quot;BEGIN&quot;)
+                cur.execute(&quot;SHOW hnsw.ef_search&quot;)
+                seen = cur.fetchone()
+                observed = seen[0] if seen else &quot;?&quot;
+                cur.execute(&quot;COMMIT&quot;)
+                if str(observed) == &quot;100&quot;:
+                    report.ok(&quot;hnsw.ef_search persists across transactions&quot;, observed)
+                    report.note(&quot;The pool&#x27;s configure callback is enough; §4&#x27;s caveat does not bite.&quot;)
+                else:
+                    report.bad(
+                        &quot;hnsw.ef_search persists across transactions&quot;,
+                        f&quot;read back {observed!r}, expected &#x27;100&#x27;&quot;,
+                    )
+                    report.note(&quot;Set it per checkout or per query in src/db/connection.py.&quot;)
+            except Exception as exc:
+                report.bad(&quot;hnsw.ef_search persists across transactions&quot;, str(exc).strip().splitlines()[0])
+
+            # 4. Scope: writing is allowed, dropping the database is not.
+            try:
+                cur.execute(&quot;CREATE TABLE IF NOT EXISTS _localchat_probe (id int)&quot;)
+                cur.execute(&quot;INSERT INTO _localchat_probe VALUES (1)&quot;)
+                cur.execute(&quot;SELECT count(*) FROM _localchat_probe&quot;)
+                cur.execute(&quot;DROP TABLE _localchat_probe&quot;)
+                report.ok(&quot;DDL and DML permitted&quot;, &quot;create/insert/select/drop table&quot;)
+            except Exception as exc:
+                report.bad(&quot;DDL and DML permitted&quot;, str(exc).strip().splitlines()[0])
+
+            try:
+                cur.execute(f&#x27;DROP DATABASE &quot;{creds[&quot;PG_DB&quot;]}&quot;&#x27;)
+                report.bad(&quot;cannot drop its own database&quot;, &quot;the drop succeeded — the identity is too broad&quot;)
+            except Exception as exc:
+                report.ok(&quot;cannot drop its own database&quot;, str(exc).strip().splitlines()[0][:70])
+
+    print()
+    if report.failed:
+        print(f&quot;{report.failed} check(s) failed — do not deploy against this database yet.&quot;)
+        return 1
+    print(&quot;All checks passed. The database is ready for Phase 2.&quot;)
+    print(&quot;Note: verify-full needs Scaleway&#x27;s CA in sslrootcert; require does not.&quot;)
+    return 0
+
+
+if __name__ == &quot;__main__&quot;:
+    raise SystemExit(main())
+</code></pre>
+  </section>
+  <section class="script" id="panic_teardown.sh">
+    <h2><code>panic_teardown.sh</code></h2>
+    <p>The cost kill switch — deletes everything billable in one project, most expensive first. Dry run unless CONFIRM=DESTROY.</p>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/panic_teardown.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/panic_teardown.sh">raw</a><span>shown as of commit 93096ee</span></div>
+    <pre class="source"><code>#!/usr/bin/env bash
+#
+# Scaleway cost kill switch: delete everything billable in ONE project.
+# See docs/COST_KILL_SWITCH.md.
+#
+# Scaleway has no spend cap (§8 of DEPLOYMENT_SCALEWAY.md). A budget alert is an
+# estimate that lags the invoice and stops nothing. This is what actually stops
+# the burn, and it stops it by deleting — not stopping — because a stopped
+# Instance keeps billing for the volumes and the reserved IP it leaves behind.
+#
+# That is only acceptable because the test stack holds nothing worth keeping:
+# the image is redeployable and the data is test data. Do not point this at a
+# project where that stops being true.
+#
+# Usage:
+#   PROJECT_ID=&lt;uuid&gt; bash scripts/scaleway/panic_teardown.sh              # dry run
+#   PROJECT_ID=&lt;uuid&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.sh
+#
+# Without CONFIRM it only lists what it would delete, so the panic path is:
+# run it, read it, run it again with CONFIRM=DESTROY.
+#
+# Deliberately no `set -e`: one failed delete must not stop the sweep. Failures
+# are collected and the script exits non-zero with them named.
+
+set -uo pipefail
+
+die() { printf &#x27;error: %s\n&#x27; &quot;$*&quot; &gt;&amp;2; exit 1; }
+
+: &quot;${PROJECT_ID:?set PROJECT_ID — the project to empty. This never guesses.}&quot;
+CONFIRM=&quot;${CONFIRM:-}&quot;
+
+command -v scw &gt;/dev/null 2&gt;&amp;1 || die &quot;scw not found on PATH&quot;
+PYTHON=&quot;&quot;
+for c in python3 python; do
+  if command -v &quot;$c&quot; &gt;/dev/null 2&gt;&amp;1; then PYTHON=&quot;$c&quot;; break; fi
+done
+[[ -n &quot;$PYTHON&quot; ]] || die &quot;no python3 on PATH&quot;
+
+PROFILE_ARGS=()
+if [[ -n &quot;${SCW_PROFILE:-}&quot; ]]; then
+  PROFILE_ARGS=(--profile &quot;$SCW_PROFILE&quot;)
+fi
+
+# The default project shares its id with the organisation. Emptying that is a
+# different and much larger act than emptying a scoped project, so it is refused
+# outright rather than confirmed — there is no flag for it here.
+ORG_ID=$(scw &quot;${PROFILE_ARGS[@]}&quot; config get default-organization-id 2&gt;/dev/null || true)
+if [[ -n &quot;$ORG_ID&quot; &amp;&amp; &quot;$PROJECT_ID&quot; == &quot;$ORG_ID&quot; ]]; then
+  die &quot;PROJECT_ID is the organisation&#x27;s default project. Refusing.
+Create a scoped project and put the stack there instead.&quot;
+fi
+
+read -r -d &#x27;&#x27; READ_ROWS &lt;&lt;&#x27;PY&#x27; || true
+import json, sys
+
+sys.stdout.reconfigure(newline=&quot;\n&quot;)
+
+scope_key = sys.argv[1]
+try:
+    rows = json.load(sys.stdin)
+except Exception as exc:
+    sys.exit(&quot;reply was not JSON: %s&quot; % exc)
+if isinstance(rows, dict):
+    # Some list verbs wrap the array; take the first list-valued field.
+    rows = next((v for v in rows.values() if isinstance(v, list)), [])
+for row in rows:
+    if not isinstance(row, dict) or not row.get(&quot;id&quot;):
+        continue
+    print(&quot;%s\t%s\t%s&quot; % (row[&quot;id&quot;], row.get(scope_key, &quot;&quot;), row.get(&quot;name&quot;, &quot;-&quot;)))
+PY
+
+FAILED=()
+PLANNED=0
+
+# rows &lt;scope-key&gt; -- &lt;scw list args...&gt;
+rows() {
+  local scope_key=&quot;$1&quot;; shift 2
+  local raw
+  if ! raw=$(scw &quot;${PROFILE_ARGS[@]}&quot; &quot;$@&quot; project-id=&quot;$PROJECT_ID&quot; -o json 2&gt;&amp;1); then
+    printf &#x27;warning: could not list via &quot;%s&quot; — check by hand:\n%s\n&#x27; &quot;$*&quot; &quot;$raw&quot; &gt;&amp;2
+    FAILED+=(&quot;list: $*&quot;)
+    return
+  fi
+  printf &#x27;%s&#x27; &quot;$raw&quot; | &quot;$PYTHON&quot; -c &quot;$READ_ROWS&quot; &quot;$scope_key&quot;
+}
+
+# Deleting a resource returns before its network attachments are released, so the
+# Private Network — which depends on everything above it having let go — can fail
+# with &quot;must be empty to be deleted&quot; while being seconds away from deletable.
+# Observed on the first live teardown, 2026-09-05: it failed, then succeeded on a
+# second run. Nothing is burning while this retries — a Private Network is free.
+# Six, not three: three landed on the last attempt on every live run and ran out
+# on 2026-09-14, so the budget sat exactly at the observed release time with no
+# headroom. The network is the last thing deleted, so waiting here delays nothing.
+PN_RETRIES=&quot;${PN_RETRIES:-6}&quot;
+PN_RETRY_DELAY=&quot;${PN_RETRY_DELAY:-5}&quot;
+
+# kill_with_retry &lt;label&gt; &lt;scw delete args...&gt;
+kill_with_retry() {
+  local label=&quot;$1&quot;; shift
+  PLANNED=$((PLANNED + 1))
+  if [[ &quot;$CONFIRM&quot; != &quot;DESTROY&quot; ]]; then
+    printf &#x27;  would delete  %s
+&#x27; &quot;$label&quot;
+    return
+  fi
+  local attempt out
+  for attempt in $(seq 1 &quot;$PN_RETRIES&quot;); do
+    if out=$(scw &quot;${PROFILE_ARGS[@]}&quot; &quot;$@&quot; 2&gt;&amp;1); then
+      if [[ &quot;$attempt&quot; -gt 1 ]]; then
+        printf &#x27;  deleted       %s (attempt %s)
+&#x27; &quot;$label&quot; &quot;$attempt&quot;
+      else
+        printf &#x27;  deleted       %s
+&#x27; &quot;$label&quot;
+      fi
+      return
+    fi
+    if [[ &quot;$attempt&quot; -lt &quot;$PN_RETRIES&quot; ]]; then
+      sleep &quot;$PN_RETRY_DELAY&quot;
+    fi
+  done
+  printf &#x27;  FAILED        %s
+    %s
+&#x27; &quot;$label&quot; &quot;$out&quot; &gt;&amp;2
+  FAILED+=(&quot;$label&quot;)
+}
+
+# kill &lt;label&gt; &lt;scw delete args...&gt;
+kill_one() {
+  local label=&quot;$1&quot;; shift
+  PLANNED=$((PLANNED + 1))
+  if [[ &quot;$CONFIRM&quot; != &quot;DESTROY&quot; ]]; then
+    printf &#x27;  would delete  %s\n&#x27; &quot;$label&quot;
+    return
+  fi
+  local out
+  if out=$(scw &quot;${PROFILE_ARGS[@]}&quot; &quot;$@&quot; 2&gt;&amp;1); then
+    printf &#x27;  deleted       %s\n&#x27; &quot;$label&quot;
+  else
+    printf &#x27;  FAILED        %s\n    %s\n&#x27; &quot;$label&quot; &quot;$out&quot; &gt;&amp;2
+    FAILED+=(&quot;$label&quot;)
+  fi
+}
+
+if [[ &quot;$CONFIRM&quot; == &quot;DESTROY&quot; ]]; then
+  printf &#x27;DESTROYING everything billable in project %s\n\n&#x27; &quot;$PROJECT_ID&quot;
+else
+  printf &#x27;Dry run for project %s — nothing will be deleted.\n&#x27; &quot;$PROJECT_ID&quot;
+  printf &#x27;Re-run with CONFIRM=DESTROY to actually stop the burn.\n\n&#x27;
+fi
+
+# Ordered by burn rate. Instances first: a GPU Instance is EUR 0.787/h and up,
+# which is more than everything below it combined.
+echo &quot;Instances (the expensive ones):&quot;
+while IFS=$&#x27;\t&#x27; read -r id zone name; do
+  [[ -n &quot;$id&quot; ]] || continue
+  # with-volumes and with-ip are the whole point: a plain delete leaves block
+  # volumes and a reserved IP behind, and both keep billing silently.
+  kill_one &quot;instance $name ($id, $zone)&quot; instance server delete \
+    server-id=&quot;$id&quot; zone=&quot;$zone&quot; with-volumes=all with-ip=true force-shutdown=true
+done &lt; &lt;(rows zone -- instance server list zone=all)
+
+echo &quot;Serverless Containers (namespace delete removes the containers in it):&quot;
+while IFS=$&#x27;\t&#x27; read -r id region name; do
+  [[ -n &quot;$id&quot; ]] || continue
+  kill_one &quot;namespace $name ($id, $region)&quot; container namespace delete \
+    namespace-id=&quot;$id&quot; region=&quot;$region&quot;
+done &lt; &lt;(rows region -- container namespace list region=all)
+
+echo &quot;Serverless SQL databases:&quot;
+while IFS=$&#x27;\t&#x27; read -r id region name; do
+  [[ -n &quot;$id&quot; ]] || continue
+  kill_one &quot;database $name ($id, $region)&quot; sdb-sql database delete \
+    database-id=&quot;$id&quot; region=&quot;$region&quot;
+done &lt; &lt;(rows region -- sdb-sql database list region=all)
+
+echo &quot;Block volumes left behind (detached volumes bill at full price):&quot;
+while IFS=$&#x27;\t&#x27; read -r id zone name; do
+  [[ -n &quot;$id&quot; ]] || continue
+  kill_one &quot;volume $name ($id, $zone)&quot; block volume delete volume-id=&quot;$id&quot; zone=&quot;$zone&quot;
+done &lt; &lt;(rows zone -- block volume list zone=all)
+
+echo &quot;Reserved IPs (a flexible IP bills whether or not it is attached):&quot;
+while IFS=$&#x27;\t&#x27; read -r id zone name; do
+  [[ -n &quot;$id&quot; ]] || continue
+  kill_one &quot;ip $id ($zone)&quot; instance ip delete ip=&quot;$id&quot; zone=&quot;$zone&quot;
+done &lt; &lt;(rows zone -- instance ip list zone=all)
+
+echo &quot;Private networks (free, but they hold references that block other deletes):&quot;
+while IFS=$&#x27;\t&#x27; read -r id region name; do
+  [[ -n &quot;$id&quot; ]] || continue
+  kill_with_retry &quot;private network $name ($id, $region)&quot; vpc private-network delete \
+    private-network-id=&quot;$id&quot; region=&quot;$region&quot;
+done &lt; &lt;(rows region -- vpc private-network list region=all)
+
+echo
+if [[ &quot;$PLANNED&quot; -eq 0 ]]; then
+  echo &quot;Nothing billable found in this project.&quot;
+elif [[ &quot;$CONFIRM&quot; != &quot;DESTROY&quot; ]]; then
+  printf &#x27;%d resources would be deleted. Re-run with CONFIRM=DESTROY.\n&#x27; &quot;$PLANNED&quot;
+fi
+
+if [[ ${#FAILED[@]} -gt 0 ]]; then
+  printf &#x27;\n%d did NOT go away — delete these in the console now:\n&#x27; &quot;${#FAILED[@]}&quot; &gt;&amp;2
+  printf &#x27;  - %s\n&#x27; &quot;${FAILED[@]}&quot; &gt;&amp;2
+  exit 1
+fi
+
+if [[ &quot;$CONFIRM&quot; == &quot;DESTROY&quot; ]]; then
+  echo
+  echo &quot;Verify with:  scw billing consumption list -o json&quot;
+  echo &quot;Consumption lags, so re-check in an hour before believing it is zero.&quot;
+fi
+</code></pre>
+  </section>
+
+  <footer>
+    Generated from the repository at commit 93096ee on 2026-09-15
+    &middot; <a href="https://github.com/jwvanderstam/LocalChat">github.com/jwvanderstam/LocalChat</a>
+  </footer>
+</div>
+</body>
+</html>
