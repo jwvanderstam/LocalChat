@@ -957,12 +957,27 @@ firewall  security group `atospoc-web` — inbound default drop
             TCP 22  from the operator's IP only
 ```
 
-The page itself is version-controlled at `scripts/scaleway/landing/index.html`, because a
-deliverable that exists only on one machine is not a deliverable. Deploying it is one
-command — nginx serves static files from disk per request, so nothing needs reloading:
+The site is version-controlled under `scripts/scaleway/landing/`, because a deliverable
+that exists only on one machine is not a deliverable. It is three pages:
+
+| Page | What | How it is made |
+|---|---|---|
+| `index.html` | The summary — what was built, how, what it disproved, what it cost | By hand |
+| `log.html` | Every entry of `DEPLOYMENT_LOG.md` | `build.py`, from the log |
+| `deploy.html` | The seven scripts as they are at the build commit, each linked to its current version on GitHub | `build.py`, from the scripts |
+
+Rebuild the generated two whenever the log or a script changes, and commit the result —
+`tests/unit/test_landing_pages.py` fails when they lag:
 
 ```bash
-scp scripts/scaleway/landing/index.html root@212.47.234.196:/var/www/html/index.html
+python scripts/scaleway/landing/build.py
+```
+
+Deploying is one command — nginx serves static files from disk per request, so nothing
+needs reloading:
+
+```bash
+scp scripts/scaleway/landing/*.html root@212.47.234.196:/var/www/html/
 ```
 
 The original placeholder is kept beside it as `index.html.placeholder`, so rolling back is
@@ -973,6 +988,12 @@ a `cp`.
 It is served over the public internet from a host in the *default* project. It carries no
 resource IDs, no private addresses, no keys and no container endpoints — only description.
 A reader should learn what happened, never how to reach something.
+
+The log is full of exactly those, on purpose — they are what make an entry useful to the
+next session — so `build.py` replaces them with `<id>`, `<address>` and `<endpoint>` on
+the way to `log.html`, and refuses to write the page if anything identifier-shaped
+survives. The scripts are checked the same way; they contain none (every tunable is an
+environment variable), which is why they can be published verbatim.
 
 ### Things worth knowing before changing it
 

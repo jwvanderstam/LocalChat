@@ -91,10 +91,25 @@
     margin-top: 4rem; padding-top: 1.2rem; border-top: 2px solid var(--ink);
     font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--ink-faint);
   }
+  footer a { color: var(--ink-soft); }
+  nav.site { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; margin-bottom: 1.4rem; display: flex; gap: 1.4rem; }
+  nav.site a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  nav.site a[aria-current] { color: var(--ink); border-bottom-color: var(--ink); }
+  .more { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin-top: 1.2rem; }
+  .more a { display: block; padding: 1rem 1.1rem; border: 1px solid var(--rule); background: var(--surface); color: inherit; text-decoration: none; }
+  .more a:hover { border-color: var(--accent); }
+  .more b { display: block; font-family: "IBM Plex Serif", Georgia, serif; font-size: 1.1rem; margin-bottom: 0.3rem; }
+  .more span { font-size: 0.9rem; color: var(--ink-soft); }
 </style>
 </head>
 <body>
 <div class="page">
+
+  <nav class="site">
+    <a href="index.html" aria-current="page">Overview</a>
+    <a href="log.html">Deployment log</a>
+    <a href="deploy.html">The scripts</a>
+  </nav>
 
   <header>
     <div class="eyebrow">
@@ -219,8 +234,24 @@ PROJECT_ID=&lt;project&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.
     <p>The stack is currently torn down. It rebuilds from the four commands above.</p>
   </section>
 
+  <section>
+    <h2>The record and the code</h2>
+    <p>This page is the summary. The two behind it are the evidence: every session's log
+      entry as kept in the repository, and the scripts exactly as they run — written with
+      prefixed, defaulted settings and no account-specific values, so they can be adapted
+      to another account or another project without rewriting them.</p>
+    <div class="more">
+      <a href="log.html"><b>Deployment log</b><span>One entry per session: what was done,
+        what it found that the plan did not predict, and what it cost. Identifiers and
+        addresses are replaced by placeholders.</span></a>
+      <a href="deploy.html"><b>The scripts</b><span>The seven files that stand the stack up,
+        verify it and take it down, each linked to its current version on GitHub.</span></a>
+    </div>
+  </section>
+
   <footer>
     LocalChat proof of concept &middot; deployed and documented September 2026
+    &middot; <a href="https://github.com/jwvanderstam/LocalChat">github.com/jwvanderstam/LocalChat</a>
   </footer>
 
 </div>
