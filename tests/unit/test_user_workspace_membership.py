@@ -138,6 +138,12 @@ class TestFallbackPicksAUsableWorkspace:
 
         db = MagicMock()
         db.is_connected = True
+        # Revocation is fail-closed and runs on this path now, so a bare MagicMock
+        # would read every token as revoked; get_user_role decides admin, and "user"
+        # is what keeps this test on the membership path it is about.
+        db.is_token_revoked.return_value = False
+        db.get_user_role.return_value = "user"
+        db.resolve_workspace_api_key.return_value = None
         db.get_default_workspace_id.return_value = default_ws
         db.get_user_workspaces.return_value = [{"id": w} for w in member_of]
         db.get_workspace_member_role.side_effect = (

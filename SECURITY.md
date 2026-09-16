@@ -43,12 +43,18 @@ The items below are known, deliberately **not remediated via the usual route** (
 
 ### 3. JWT revocation honours a bounded 60-second grace window on database outage
 
-- **What**: `require_auth()` (`src/security_fastapi.py`) checks a token's `jti` against the
-  `revoked_tokens` deny-list (`TokensMixin.is_token_revoked`, `src/db/tokens.py`) on every
+- **What**: `resolve_principal()` (`src/security_fastapi.py`) checks a token's `jti` against
+  the `revoked_tokens` deny-list (`TokensMixin.is_token_revoked`, `src/db/tokens.py`) on every
   authenticated request. `_verify_jti_not_revoked()` **fails closed** — if the database is
   unreachable and the token was not verified in the last 60 seconds, the request is refused
   with 401 rather than let through. The residual risk is the grace window itself: a token
   revoked during an outage stays usable for up to 60 seconds after its last successful check.
+- **"Every authenticated request" became true on 2026-09-16.** This entry said it before it
+  was: the check lived in `require_auth()` alone, while `check_workspace_access()` — every
+  document, chat, memory, feedback, annotation and connector route — and `require_admin_dep()`
+  — 31 admin routes — each decoded the token themselves and never asked. A revoked token kept
+  working on all of them until it expired. All three now resolve the caller through one
+  function, which is where the check lives (audit H1).
 - **Why this is accepted**: without the cache, any database blip becomes an authentication
   outage for every logged-in user. The window is bounded, in-process (correct under
   [ADR-1](docs/ADR.md), which fixes this at one node and one process), and the cache is
@@ -117,7 +123,30 @@ The items below are known, deliberately **not remediated via the usual route** (
   the operator's own — at which point the question is whether retrieval can move to a design
   that does not need plaintext in the database, not whether to encrypt this column.
 
-### 7. Connectors read data the application is trusted to reach
+### 7. The env-var admin remains available while the database cannot be read
+
+- **What**: `ADMIN_PASSWORD` authenticates a built-in `admin` account that has no user row.
+  Since decision D6 it is a **bootstrap credential**: it works only while the database holds
+  no live administrator, and an open session stops being administrative the moment one
+  exists. A normal boot seeds a database admin from the same password, so in practice it is
+  withdrawn from the first start.
+- **The residual**: when the database cannot answer, whether a real administrator exists is
+  unknown, and this account is treated as available — which is what it has always been, and
+  is the documented way back in when the database is empty or unreachable. So an outage
+  restores a credential that a healthy installation has withdrawn.
+- **Why accepted**: D6 asked for a credential that a real administrator supersedes, not for
+  the recovery path to be removed, and the two are separable. The exposure is also narrow:
+  reaching it needs `ADMIN_PASSWORD` itself, and with the database down every
+  workspace-scoped route answers 503 regardless, so there is very little to reach.
+- **Before this**: the account could not be demoted or disabled by anyone, had no strength
+  check — the `.env.example` placeholder passed production validation — and kept working
+  beside a *changed* database admin password (audit M1).
+- **Re-review trigger**: any deployment where the database is not the operator's own, or the
+  first time this account is wanted as a true break-glass path — at which point the question
+  is option D6-B (keep it, with a strength check and every use logged), not this middle
+  ground.
+
+### 8. Connectors read data the application is trusted to reach
 
 - **What**: a connector ingests documents from a source the application can reach, and
   everything it ingests becomes answerable through retrieval. The configuration therefore

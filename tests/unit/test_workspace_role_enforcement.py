@@ -28,9 +28,15 @@ def _auth(role: str = "user") -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(USER, {'role': role})}"}
 
 
-def _client(router, prefix: str, member_role: str | None):
+def _client(router, prefix: str, member_role: str | None, global_role: str = "user"):
     state = MagicMock()
     state.db.is_connected = True
+    # See tests/utils/auth.py. Since P0-4 both of these reach every workspace route:
+    # revocation is fail-closed, and `global_role` — not the token claim — is what
+    # grants the admin short-circuit.
+    state.db.is_token_revoked.return_value = False
+    state.db.get_user_role.return_value = global_role
+    state.db.resolve_workspace_api_key.return_value = None
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = DEFAULT_WS
     # Explicit: this caller belongs to no workspace of their own, so scope resolution
@@ -47,19 +53,19 @@ def _client(router, prefix: str, member_role: str | None):
     return TestClient(app, raise_server_exceptions=False)
 
 
-def _documents(member_role: str | None):
+def _documents(member_role: str | None, global_role: str = "user"):
     from src.routes_fastapi.document_routes import router
-    return _client(router, "/api/documents", member_role)
+    return _client(router, "/api/documents", member_role, global_role)
 
 
-def _conversations(member_role: str | None):
+def _conversations(member_role: str | None, global_role: str = "user"):
     from src.routes_fastapi.memory_routes import router
-    return _client(router, "/api", member_role)
+    return _client(router, "/api", member_role, global_role)
 
 
-def _annotations(member_role: str | None):
+def _annotations(member_role: str | None, global_role: str = "user"):
     from src.routes_fastapi.annotation_routes import router
-    return _client(router, "/api", member_role)
+    return _client(router, "/api", member_role, global_role)
 
 
 @pytest.mark.unit
@@ -124,8 +130,17 @@ class TestNonMemberAndAnonymous:
         assert resp.status_code == 401
 
     def test_global_admin_passes_without_membership(self):
-        resp = _documents(None).get("/api/documents/list", headers=_auth(role="admin"))
+        resp = _documents(None, global_role="admin").get(
+            "/api/documents/list", headers=_auth(role="admin")
+        )
         assert resp.status_code == 200
+
+    def test_an_admin_token_alone_does_not_pass(self):
+        """H2 — the claim is minted at login; the database is what decides now."""
+        resp = _documents(None, global_role="user").get(
+            "/api/documents/list", headers=_auth(role="admin")
+        )
+        assert resp.status_code == 403
 
 
 @pytest.mark.unit

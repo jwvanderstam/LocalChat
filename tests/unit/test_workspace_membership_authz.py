@@ -28,10 +28,20 @@ WS = "11111111-1111-1111-1111-111111111111"
 OTHER_USER = "22222222-2222-2222-2222-222222222222"
 
 
-def _client(member_role: str | None) -> TestClient:
-    """App whose caller has *member_role* in workspace WS (None = not a member)."""
+def _client(member_role: str | None, global_role: str = "user") -> TestClient:
+    """App whose caller has *member_role* in workspace WS (None = not a member).
+
+    *global_role* is what the **database** says the caller is. Since H2 it is the only
+    thing that grants the admin short-circuit — a token claiming `role: admin` does
+    not, because that claim is minted at login and outlives a demotion.
+    """
     state = MagicMock()
     state.db.is_connected = True
+    # See tests/utils/auth.py: fail-closed revocation reads a bare mock as revoked,
+    # and the admin short-circuit now reads the role from the database.
+    state.db.is_token_revoked.return_value = False
+    state.db.get_user_role.return_value = global_role
+    state.db.resolve_workspace_api_key.return_value = None
     state.db.get_workspace_member_role.return_value = member_role
     state.db.list_workspace_members.return_value = [{"user_id": OTHER_USER, "role": "owner"}]
     state.db.delete_workspace.return_value = True
@@ -181,9 +191,21 @@ class TestPermittedCallersStillPass:
 
     def test_global_admin_may_delete_without_membership(self):
         """Global admin short-circuits workspace membership, as it does elsewhere."""
-        client = _client(member_role=None)
+        client = _client(member_role=None, global_role="admin")
         resp = client.delete(f"/api/workspaces/{WS}", headers=_auth(role="admin"))
         assert resp.status_code == 200
+
+    def test_a_demoted_admins_token_no_longer_short_circuits(self):
+        """H2 — the claim says admin, the database says user. The database decides.
+
+        The role is minted into the JWT at login and lives as long as the token, so
+        trusting it left a demoted administrator with owner-equivalent access to every
+        workspace until it expired.
+        """
+        client = _client(member_role=None, global_role="user")
+        resp = client.delete(f"/api/workspaces/{WS}", headers=_auth(role="admin"))
+        assert resp.status_code == 403
+        assert not client.app.state.db.delete_workspace.called
 
     def test_authorisation_uses_the_path_workspace_not_a_header(self):
         """Guards the query/path trap: the checked workspace must be the one in the URL."""

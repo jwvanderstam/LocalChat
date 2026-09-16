@@ -36,6 +36,28 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
   `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
 
+- **One authentication resolver, so revocation and the current role apply everywhere**
+  (P0-4, audit findings H1, H2 and M1, decision D6). Three guards each answered "who is
+  this?" their own way, and two of them answered it badly.
+  - **H1**: only `require_auth` checked the revocation deny-list. `check_workspace_access`
+    (every document, chat, memory, feedback, annotation and connector route) and
+    `require_admin_dep` (31 admin routes) never did, so a **revoked token kept working on
+    all of them** until it expired. SECURITY.md §3 had claimed the check ran on every
+    authenticated request since before it was true.
+  - **H2**: `check_workspace_access` read `role` from the JWT, which is minted at login and
+    lives as long as the token — so a **demoted administrator kept the global short-circuit**,
+    and with it owner-equivalent access to every workspace. The role now comes from the
+    database on every request, which also means a *promoted* user gets access without
+    signing in again.
+  - **M1**: the `ADMIN_PASSWORD` account was a permanent second credential that nobody could
+    see, demote or disable, and it kept working beside a changed database password. It is now
+    a **bootstrap credential**: valid only while the database holds no live administrator,
+    which a normal boot ends on first start. The one case left open — an unreadable database,
+    where the question cannot be answered — is recorded in SECURITY.md §7 rather than
+    silently kept.
+  - `resolve_principal()` is the single answer all three call. An AST test fails if any guard
+    reads the `role` claim again.
+
 - **The `local_folder` connector is confined, and creating one is an administrator's
   decision** (P0-3, audit finding C4, decision D3). Any user can create a workspace and
   become its owner, and `ws:owner` was the only check on creating a connector — so any user

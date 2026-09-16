@@ -366,6 +366,22 @@ to empty, in which case the router falls back to the active model.
 |---|---|---|
 | `ADMIN_USERNAME` | `admin` | Username of the seeded administrator |
 | `JWT_ACCESS_TOKEN_EXPIRES` | `7200` | Access-token lifetime in seconds (2 h) |
+| `ADMIN_PASSWORD` | *(empty)* | Seeds the administrator's password on first boot, and is the bootstrap credential until one exists. Production refuses to start without it |
+
+> **`ADMIN_PASSWORD` is a bootstrap credential, not a permanent second password.** It does
+> two things. On every boot it *seeds* a database administrator (idempotently — a restart
+> never resets an existing account's password). And it authenticates a built-in `admin`
+> account that has no user row, which works **only while the database holds no live
+> administrator**. Once one exists — which is normally from the first boot — that path is
+> withdrawn, and an already-open session with it stops being administrative too.
+>
+> Until an external audit in September 2026 it had no such limit: it was a parallel
+> credential nobody could see, demote or disable, it kept working beside a *changed*
+> database password, and the `.env.example` placeholder passed production validation.
+>
+> The one case where it is still accepted is a database that cannot be read, since whether
+> a real administrator exists is then unknowable and this has always been the way back in.
+> See SECURITY.md §7.
 | `ENCRYPTION_KEY` | *(empty)* | Fernet key for encrypted columns. **Enforced at boot (SEC-4)** — production refuses to start without it |
 | `TOKEN_ENCRYPTION_KEY` | *(empty)* | Fernet key for stored OAuth tokens |
 | `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | *(empty)* | Entra app registration for SharePoint and OneDrive |

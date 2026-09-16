@@ -26,6 +26,7 @@ import os
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -88,13 +89,49 @@ def verify_credentials(username: str, password: str) -> tuple[str, str] | None:
     return "admin", "admin"
 
 
+def env_admin_is_available(db: Any) -> bool:
+    """True while the env-var admin is still the bootstrap credential.
+
+    It exists to create the first real administrator and stops being a credential
+    once one exists (decision D6). Before that it was a permanent second password
+    that nobody could see, demote or disable, and it kept working beside a changed
+    database password (audit M1). A normal boot seeds a database admin from the same
+    password, so in practice this returns False from the first start.
+
+    **Unknown counts as available**, deliberately. When the database cannot answer,
+    whether a real administrator exists is not a question this can decide, and the
+    documented behaviour has always been that this account is the way back in when
+    the database is empty or unreachable. D6 asked for a credential that a real
+    administrator supersedes — not for the recovery path to be removed — so the
+    outage case is left exactly as it was. Tightening it is a separate decision,
+    recorded in SECURITY.md.
+    """
+    if db is None or not getattr(db, "is_connected", False):
+        return True
+    try:
+        return db.count_live_admins() == 0
+    except Exception as exc:
+        logger.warning(
+            "[Auth] Could not count administrators; env admin left available: %s", exc
+        )
+        return True
+
+
 def verify_credentials_db(username: str, password: str, db: Any) -> tuple[str, str] | None:
-    """Try DB-backed auth, then fall back to env-var admin."""
+    """Try DB-backed auth, then the env-var admin while it is still a bootstrap path."""
     if db is not None and getattr(db, "is_connected", False):
         db_user = db.verify_user_password(username, password)
         if db_user:
             return str(db_user["id"]), db_user.get("role", "user")
-    return verify_credentials(username, password)
+    if not env_admin_is_available(db):
+        return None
+    result = verify_credentials(username, password)
+    if result:
+        logger.warning(
+            "[Auth] Signed in with the env-var admin because no administrator exists "
+            "in the database. Create one; this credential stops working once you do."
+        )
+    return result
 
 
 # ── Auth dependencies ──────────────────────────────────────────────────────────
@@ -227,17 +264,10 @@ def require_auth(
     # getattr, not truthiness: called directly rather than via Depends, *credentials*
     # is the unresolved Depends sentinel — truthy, but with no .credentials attribute.
     # Left as `if not credentials` this rejected every caller, valid token included.
-    token = getattr(credentials, "credentials", None) or _extract_bearer_token(request)
-    if not token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
     try:
-        payload = _decode_token(token)
-    except Exception:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": "Invalid or expired token"}) from None
-    jti = payload.get("jti")
-    if jti:
-        _verify_jti_not_revoked(jti, getattr(request.app.state, "db", None))
-    return payload["sub"]
+        return resolve_principal(request, credentials).user_id
+    except AuthError as exc:
+        raise HTTPException(exc.status_code, detail={"message": exc.message}) from None
 
 
 def _get_token_claims(credentials: HTTPAuthorizationCredentials | None) -> dict[str, Any]:
@@ -264,11 +294,14 @@ def _current_global_role(request: Request, claims: dict[str, Any]) -> str | None
     sub = claims.get("sub")
     if not sub:
         return None
-    # The env-var admin has no row to look up; it is administrative by construction.
-    if sub == "admin":
-        return "admin"
-
     db = getattr(request.app.state, "db", None)
+    if sub == "admin":
+        # No row to look up. Administrative only while it is still the bootstrap
+        # credential — once a real administrator exists, an env-admin session that
+        # is already open stops being one too, rather than lingering until its token
+        # expires (decision D6).
+        return "admin" if env_admin_is_available(db) else None
+
     if db is None or not getattr(db, "is_connected", False):
         return None
     try:
@@ -290,23 +323,97 @@ def require_admin_dep(
     # Falls back to the request so a browser session (httpOnly cookie, no
     # Authorization header) reaches admin routes too. Without the fallback every
     # admin route 401s for a correctly authenticated cookie session.
-    claims = _get_token_claims(credentials) or _claims_from_request(request)
-    if not claims:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail={"message": _ERR_AUTH_REQUIRED})
+    # Fail closed, as token revocation does (SEC-2): an unverifiable role is not an
+    # administrative one. Said plainly rather than as a 403, so an operator reading
+    # the response knows the difference between "not allowed" and "could not check".
+    try:
+        principal = resolve_principal(
+            request,
+            credentials,
+            database_required="Cannot verify administrator role: database unavailable",
+        )
+    except AuthError as exc:
+        raise HTTPException(exc.status_code, detail={"message": exc.message}) from None
+
+    if not principal.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": "Admin access required"})
+    return principal.user_id
+
+
+class AuthError(Exception):
+    """A principal could not be established. Carries the response to send."""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.message = message
+
+
+@dataclass(frozen=True)
+class Principal:
+    """Who is making this request, decided against the database rather than the token."""
+
+    user_id: str
+    #: The role the database holds *now*. None when it could not be established,
+    #: which every caller treats as "not an administrator".
+    global_role: str | None
+
+    @property
+    def is_admin(self) -> bool:
+        return self.global_role == "admin"
+
+
+def resolve_principal(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = None,
+    *,
+    database_required: str | None = None,
+) -> Principal:
+    """Decode the caller's token, refuse it if revoked, and read their current role.
+
+    The single place all three guards get their answer from. Before this existed,
+    ``require_auth`` checked revocation and the other two did not, so a revoked token
+    still passed every workspace-scoped route and all 31 admin routes (audit H1); and
+    ``check_workspace_access`` read ``role`` from the JWT, so a demoted administrator
+    kept the global short-circuit until their token expired (audit H2).
+
+    The token supplies identity only. The role always comes from the database.
+
+    *database_required*, when given, is the message for a 503 raised if the database
+    cannot answer — checked before the revocation step, because a caller that needs
+    the database to decide must say "could not check" rather than "invalid token".
+    ``require_auth`` passes nothing and keeps the fail-closed 401 that SEC-2 gave it.
+    """
+    token = getattr(credentials, "credentials", None) or _extract_bearer_token(request)
+    if not token:
+        raise AuthError(status.HTTP_401_UNAUTHORIZED, _ERR_AUTH_REQUIRED)
+    try:
+        claims = _decode_token(token)
+    except Exception:
+        raise AuthError(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token") from None
+
+    sub = claims.get("sub")
+    if not sub:
+        raise AuthError(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
 
     db = getattr(request.app.state, "db", None)
-    if claims.get("sub") != "admin" and (db is None or not getattr(db, "is_connected", False)):
-        # Fail closed, as token revocation does (SEC-2): an unverifiable role is not
-        # an administrative one. Said plainly rather than as a 403, so an operator
-        # reading the response knows the difference between "not allowed" and
-        # "could not check".
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"message": "Cannot verify administrator role: database unavailable"},
-        )
-    if _current_global_role(request, claims) != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail={"message": "Admin access required"})
-    return claims.get("sub", "admin")
+    if (
+        database_required is not None
+        and sub != "admin"
+        and (db is None or not getattr(db, "is_connected", False))
+    ):
+        raise AuthError(status.HTTP_503_SERVICE_UNAVAILABLE, database_required)
+
+    jti = claims.get("jti")
+    if jti:
+        try:
+            _verify_jti_not_revoked(jti, db)
+        except HTTPException as exc:
+            detail = exc.detail
+            message = detail.get("message") if isinstance(detail, dict) else str(detail)
+            raise AuthError(exc.status_code, str(message)) from None
+
+    return Principal(user_id=str(sub), global_role=_current_global_role(request, claims))
 
 
 def _claims_from_request(request: Request) -> dict[str, Any]:
@@ -419,15 +526,21 @@ def check_workspace_access(
     if api_key:
         return _check_api_key_access(request, api_key, workspace_id, min_role)
 
-    claims = _claims_from_request(request)
-    if not claims:
-        return (status.HTTP_401_UNAUTHORIZED, _ERR_AUTH_REQUIRED)
-    if claims.get("role") == "admin":
-        # An admin acts on the workspace they named, and only installation-wide
-        # when they named none. That is what this path already did by omission —
-        # it pinned nothing, so get_workspace_id() returned the header or None —
-        # but ALL_WORKSPACES says it, and a route can no longer reach an unscoped
-        # query by forgetting to pass anything (C1/C2).
+    try:
+        principal = resolve_principal(request, database_required="Database unavailable")
+    except AuthError as exc:
+        return (exc.status_code, exc.message)
+    if principal.is_admin:
+        # `principal.is_admin` reads the database, not the token's `role` claim. That
+        # claim is minted at login and lives as long as the token, so a demoted
+        # administrator kept this short-circuit — and with it owner-equivalent access
+        # to every workspace — until it expired (audit H2).
+        #
+        # An admin acts on the workspace they named, and only installation-wide when
+        # they named none. That is what this path already did by omission — it pinned
+        # nothing, so get_workspace_id() returned the header or None — but
+        # ALL_WORKSPACES says it, and a route can no longer reach an unscoped query by
+        # forgetting to pass anything (C1/C2).
         named = workspace_id or get_workspace_id(request)
         request.state.resolved_scope = named or ALL_WORKSPACES
         return None
@@ -444,10 +557,10 @@ def check_workspace_access(
         # Falling straight to the default was wrong for anyone not a member of it:
         # a user granted access to a second workspace saw 403 everywhere until they
         # switched manually, which on a fresh login they had no way to discover.
-        ws_id = _first_workspace_for(db, claims.get("sub")) or db.get_default_workspace_id()
+        ws_id = _first_workspace_for(db, principal.user_id) or db.get_default_workspace_id()
     if not ws_id:
         return (status.HTTP_400_BAD_REQUEST, "No workspace context")
-    role = db.get_workspace_member_role(ws_id, claims.get("sub"))
+    role = db.get_workspace_member_role(ws_id, principal.user_id)
     # A non-member gets None here. Denying is the whole point: treating None as
     # "no role to object to" is what let non-members through (BUG-3).
     if role is None:

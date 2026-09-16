@@ -128,8 +128,9 @@ def _client(member_role: str = "owner", global_role: str = "user"):
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_user_workspaces.return_value = [{"id": WS}]
     state.db.get_default_workspace_id.return_value = WS
-    state.db.get_global_role.return_value = global_role
+    state.db.get_user_role.return_value = global_role
     state.db.is_token_revoked.return_value = False
+    state.db.resolve_workspace_api_key.return_value = None
     state.connector_registry.available_types.return_value = ["local_folder"]
     state.connector_registry.get_class.return_value = LocalFolderConnector
     app = FastAPI()
