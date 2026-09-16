@@ -36,6 +36,25 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
   `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
 
+- **Connecting a Microsoft or Google account works in a browser, and the flow uses PKCE**
+  (P1-3, audit finding M3). The callback resolved the user from the session — but it is
+  reached by a redirect *from the provider*, which is a cross-site navigation, and the
+  session cookie is `SameSite=strict`. No cookie was sent, so the callback returned **401
+  after exchanging the authorization code**: the code was spent, the account was never
+  connected, and retrying required starting over.
+  - The `state` now carries the user who began the flow, so the callback needs no cookie.
+    It also carries an expiry (10 minutes) — entries were previously kept for the life of
+    the process and never pruned — and is single-use, not interchangeable between
+    providers, and consumed even when rejected so it cannot be probed and retried.
+  - **PKCE (S256)** is added to both flows. Without it, anyone who intercepts the redirect
+    — a shoulder-surfed URL, a leaky proxy, browser history — can exchange the code for a
+    token.
+- **Three destructive actions used the native `confirm()` dialog** — deleting a model and
+  the two memory-clearing actions. `repo-hygiene` has banned that since a QA pass lost a
+  document to one, but the calls sat in inline `<script>` blocks where the check could not
+  see them. Extracting those blocks for the CSP surfaced all three; they now use the
+  application's own confirmation modal.
+
 - **Every response now carries security headers, and CORS cannot fall back to a
   wildcard** (P1-4, audit findings M6 and M8). The application sent no
   `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or framing

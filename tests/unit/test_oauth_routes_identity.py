@@ -11,6 +11,8 @@ import pytest
 
 from src.routes_fastapi import oauth_routes
 
+USER = "33333333-3333-3333-3333-333333333333"
+
 
 @pytest.fixture(autouse=True)
 def _clear_states():
@@ -32,35 +34,46 @@ def _token_exchange_succeeds():
 @pytest.mark.parametrize("provider", ["microsoft", "google"])
 class TestOAuthCallbackIdentity:
 
-    def test_callback_stores_no_token_without_an_authenticated_user(
+    def test_callback_stores_no_token_without_a_valid_state(
         self, unauthenticated_client, app, provider
     ):
+        """No pending authorization, no identity, no write.
+
+        This used to assert a 401 from the session. Since P1-3 the callback does
+        not consult the session at all — it cannot, because the provider's redirect
+        is cross-site and the cookie is SameSite=strict — so the state is what
+        carries the identity, and an absent one refuses just as firmly.
+        """
         app.state.db.upsert_oauth_token = MagicMock()
-        oauth_routes._oauth_states["s1"] = "/"
 
         with _token_exchange_succeeds():
             resp = unauthenticated_client.get(
                 f"/api/oauth/{provider}/callback", params={"code": "c1", "state": "s1"}
             )
 
-        assert resp.status_code == 401
+        assert resp.status_code == 400
         app.state.db.upsert_oauth_token.assert_not_called()
 
-    def test_callback_stores_the_token_against_the_authenticated_user(
-        self, client, app, provider
+    def test_callback_stores_the_token_against_the_user_who_authorised(
+        self, unauthenticated_client, app, provider
     ):
+        """BUG-4's guarantee, now carried by the state rather than the session.
+
+        The client here is deliberately unauthenticated: a real browser arrives at
+        this endpoint with no cookie, and the flow must still complete.
+        """
         app.state.db.upsert_oauth_token = MagicMock()
-        oauth_routes._oauth_states["s1"] = "/"
+        state, _ = oauth_routes._remember_authorization(provider, USER)
 
         with _token_exchange_succeeds():
-            resp = client.get(
-                f"/api/oauth/{provider}/callback", params={"code": "c1", "state": "s1"}
+            resp = unauthenticated_client.get(
+                f"/api/oauth/{provider}/callback", params={"code": "c1", "state": state}
             )
 
         assert resp.status_code == 200
         stored = app.state.db.upsert_oauth_token.call_args.kwargs["user_id"]
+        assert stored == USER
         assert stored != "admin"
-        assert stored
 
 
 @pytest.mark.unit

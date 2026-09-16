@@ -193,7 +193,12 @@ async function unloadModel(modelName) {
 
 // Delete model
 async function deleteModel(modelName) {
-    if (!confirm(`Are you sure you want to delete ${modelName}?`)) {
+    const ok = await window.localchatConfirm({
+        title: 'Delete model',
+        body: `Delete ${modelName}? It can be pulled again, but that means downloading it afresh.`,
+        confirmText: 'Delete model',
+    });
+    if (!ok) {
         return;
     }
 

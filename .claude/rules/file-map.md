@@ -31,7 +31,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/feedback_routes.py` | `POST /api/feedback`, `GET /api/feedback/stats` |
 | `src/routes_fastapi/connector_routes.py` | Connector REST API + webhook receiver; `GET /api/connectors/available` |
 | `src/routes_fastapi/auth_routes.py` | `POST /api/auth/login` (issues the session cookie), logout, user management incl. per-user workspace membership (admin), self-service: `GET /api/users/me`, password change |
-| `src/routes_fastapi/oauth_routes.py` | OAuth2 flows for Microsoft (`/api/oauth/microsoft/*`) and Google (`/api/oauth/google/*`) |
+| `src/routes_fastapi/oauth_routes.py` | OAuth2 flows for Microsoft (`/api/oauth/microsoft/*`) and Google (`/api/oauth/google/*`); the pending-authorization store binds each `state` to the user who started it, expires it, and carries its PKCE verifier |
 | `src/routes_fastapi/annotation_routes.py` | Annotation CRUD (`POST /api/annotations`, `GET /api/chunks/{id}/annotations`, `DELETE /api/annotations/{id}`) |
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
@@ -154,6 +154,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/encryption.py` | Canonical Fernet `encrypt()`/`decrypt()` for sensitive text columns at rest |
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request. `get_scope()` returns the scope the request was *authorised* for, and refuses when no guard has run |
+| `tests/unit/test_oauth_state_and_pkce.py` | P1-3 — the OAuth `state` carries the user who began the flow (the callback cannot read the session: the provider's redirect is cross-site and the cookie is SameSite=strict), expires, is single-use, is not interchangeable between providers, and its PKCE challenge is the S256 of a per-flow verifier |
 | `tests/unit/test_security_headers.py` | P1-4 — every response carries a CSP, nosniff, a referrer policy and framing denial; HSTS only over TLS; and CORS never falls back to a wildcard or a scheme-less origin. Asserts the remaining `'unsafe-inline'` too, so removing it is a visible change |
 | `tests/unit/test_upload_isolation_and_size.py` | P1-1/P1-5 — each upload stages into its own directory so two of the same filename cannot collide or delete each other (H4), `MAX_CONTENT_LENGTH` is enforced while the body streams (M2), and more than one uvicorn worker aborts the boot (M7) |
 | `tests/unit/test_mcp_isolation_and_auth.py` | P0-2 — enabling MCP must not widen the workspace scope, and the servers must not be open: token refusals, `search` requiring a workspace on both retrieving servers, and the request-scope the LLM tools read |

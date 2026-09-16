@@ -185,13 +185,23 @@ async function extractMemories() {
 }
 
 async function deleteMemory(id) {
-    if (!confirm('Delete this memory?')) return;
+    const ok = await window.localchatConfirm({
+        title: 'Delete memory',
+        body: 'This memory will be retired and stop informing answers.',
+        confirmText: 'Delete',
+    });
+    if (!ok) return;
     await fetch(`/api/memory/${id}`, { method: 'DELETE' });
     loadMemories();
 }
 
 async function clearAllMemories() {
-    if (!confirm('Delete ALL stored memories? This cannot be undone.')) return;
+    const ok = await window.localchatConfirm({
+        title: 'Clear all memories',
+        body: 'Every stored memory in this workspace will be retired. Answers will stop drawing on them.',
+        confirmText: 'Clear all',
+    });
+    if (!ok) return;
     const status = document.getElementById('memory-action-status');
     status.textContent = 'Clearing…';
     const res = await fetch('/api/memory/', { method: 'DELETE' });
