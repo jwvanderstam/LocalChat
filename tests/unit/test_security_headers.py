@@ -76,15 +76,47 @@ class TestTheContentSecurityPolicyIsMeaningful:
         # Nothing else: a policy that allows any host is not a policy.
         assert "*" not in script_src.replace("'unsafe-inline'", "")
 
-    def test_inline_scripts_are_still_allowed_and_that_is_recorded(self, client):
-        """The known remaining gap, asserted so that closing it is a visible change.
+    def test_inline_scripts_are_not_allowed(self, client):
+        """The gap this row existed to close: an XSS payload cannot execute inline."""
+        script_src = next(
+            d for d in self._csp(client).split("; ") if d.startswith("script-src")
+        )
+        assert "'unsafe-inline'" not in script_src
 
-        Four templates still carry inline <script> blocks and fifteen `on*=`
-        handlers. Dropping 'unsafe-inline' before they are extracted would break
-        every button on Settings and Models, so it stays until they are. When the
-        extraction lands, this test fails and is replaced by its opposite.
+    def test_inline_styles_are_still_allowed_and_that_is_deliberate(self, client):
+        """43 `style=` attributes across the templates, and no XSS lever among them.
+
+        Stripping them is a larger change for much less: an attacker who can inject
+        a style attribute cannot execute code with it. Recorded rather than left to
+        look like an oversight.
         """
-        assert "'unsafe-inline'" in self._csp(client)
+        style_src = next(
+            d for d in self._csp(client).split("; ") if d.startswith("style-src")
+        )
+        assert "'unsafe-inline'" in style_src
+
+    def test_the_one_permitted_inline_script_is_pinned_by_hash(self, client):
+        """base.html and login.html apply the saved theme before first paint.
+
+        It cannot move to a file without flashing the wrong theme on every
+        navigation, so CSP permits exactly it, by hash. Recomputed here from the
+        templates so a change to either fails rather than being silently blocked
+        in the browser.
+        """
+        import base64
+        import hashlib
+        import re
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[2]
+        blocks = set()
+        for name in ("base.html", "login.html"):
+            html = (root / "templates" / name).read_text(encoding="utf-8")
+            blocks.update(re.findall(r"<script>(.*?)</script>", html, re.S))
+
+        assert len(blocks) == 1, f"expected one inline script, found {len(blocks)}"
+        digest = base64.b64encode(hashlib.sha256(blocks.pop().encode()).digest()).decode()
+        assert f"'sha256-{digest}'" in self._csp(client)
 
 
 @pytest.mark.unit
@@ -147,3 +179,40 @@ class TestTheDefaultOriginsCarryAScheme:
 
         assert config.CORS_ORIGINS
         assert all("://" in origin for origin in config.CORS_ORIGINS)
+
+
+@pytest.mark.unit
+class TestTheExtractedScriptsAreActuallyLoaded:
+    """The inline blocks moved to files; a page that forgot its tag is silently dead.
+
+    Nothing else would catch it: the template renders, the console shows no error
+    the suite can see, and the page simply stops working.
+    """
+
+    def _templates(self):
+        from pathlib import Path
+
+        return Path(__file__).resolve().parents[2] / "templates"
+
+    @pytest.mark.parametrize(
+        ("template", "script"),
+        [
+            ("base.html", "/static/js/statusbar.js"),
+            ("models.html", "/static/js/models.js"),
+            ("settings.html", "/static/js/settings-page.js"),
+        ],
+    )
+    def test_each_page_loads_the_file_its_script_moved_to(self, template, script):
+        html = (self._templates() / template).read_text(encoding="utf-8")
+        assert f'<script src="{script}"></script>' in html
+
+    def test_no_template_carries_an_inline_event_handler(self):
+        """CSP blocks them, so one left behind is a control that does nothing."""
+        import re
+
+        offenders = []
+        for path in self._templates().glob("*.html"):
+            html = path.read_text(encoding="utf-8")
+            for match in re.finditer(r"\son(?:click|change|submit|input)=", html):
+                offenders.append(f"{path.name}:{html[:match.start()].count(chr(10)) + 1}")
+        assert not offenders, offenders

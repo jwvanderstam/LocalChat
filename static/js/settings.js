@@ -99,7 +99,7 @@ function renderSwatches(containerId) {
     const activeKey = saved || 'default';
 
     container.innerHTML = THEMES.map(theme => `
-        <div class="theme-swatch-wrap" title="${theme.label}" onclick="applyTheme('${theme.key}')">
+        <div class="theme-swatch-wrap" title="${theme.label}" data-apply-theme="${theme.key}">
             <div class="theme-swatch ${theme.key === activeKey ? 'active' : ''}"
                  data-theme-key="${theme.key}"
                  style="background: linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryEnd} 100%);"></div>
@@ -154,4 +154,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Render swatches on the Appearance tab (only present on /settings)
     renderSwatches('theme-swatches');
+
+    // ── Event wiring ─────────────────────────────────────────────────────────
+    // Replaces the inline `on*=` attributes a strict CSP blocks (audit M6).
+    const darkToggle = document.getElementById('dark-mode-toggle');
+    if (darkToggle) {
+        // The checkbox has to start from the live state; the inline handler only
+        // ever fired on change, so the box was rendered unchecked either way.
+        darkToggle.checked = isDarkMode();
+        darkToggle.addEventListener('change', () => applyDarkMode(darkToggle.checked));
+    }
+
+    // Swatches are re-rendered by renderSwatches(), so this is delegated.
+    document.getElementById('theme-swatches')?.addEventListener('click', (event) => {
+        const swatch = event.target.closest('[data-apply-theme]');
+        if (swatch) applyTheme(swatch.dataset.applyTheme);
+    });
 });

@@ -224,8 +224,8 @@ function displayUploadResults(results) {
                     <i class="bi bi-camera me-2"></i>
                     <strong>${escapeHtml(result.filename)}:</strong> No vision model installed.
                     <div class="mt-2">
-                        <button class="btn btn-sm btn-warning"
-                                onclick="pullVisionModel('${escapeHtml(model)}', '${escapeHtml(reason)}', document.getElementById('${alertId}'))">
+                        <button class="btn btn-sm btn-warning" data-pull-vision-model="${escapeHtml(model)}"
+                                data-pull-reason="${escapeHtml(reason)}" data-alert-id="${alertId}">
                             <i class="bi bi-download me-1"></i>Download ${escapeHtml(model)}
                             <small class="text-muted ms-1">(${escapeHtml(reason)})</small>
                         </button>
@@ -439,7 +439,8 @@ async function loadDocuments() {
                             </h6>
                             ${canWrite ? `
                             <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0"
-                                    onclick="deleteDocument(${doc.id}, '${escapeHtml(doc.filename).replace(/'/g, "\\'")}')"
+                                    data-delete-document="${doc.id}"
+                                    data-document-filename="${escapeHtml(doc.filename)}"
                                     title="Delete document">
                                 <i class="bi bi-trash"></i>
                             </button>` : ''}
@@ -565,3 +566,27 @@ function escapeHtml(str) {
         }
     });
 }
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
+// Replaces the inline `on*=` attributes a strict CSP blocks (audit M6). The two
+// delegated listeners below handle markup this file generates: the elements do not
+// exist when this runs, so the listener sits on a container that does.
+document.getElementById('refresh-btn')?.addEventListener('click', () => loadDocuments());
+document.getElementById('clear-db-btn')?.addEventListener('click', () => clearDatabase());
+
+document.addEventListener('click', (event) => {
+    const deleteBtn = event.target.closest('[data-delete-document]');
+    if (deleteBtn) {
+        // The id went through the DOM as text, so it comes back as one.
+        deleteDocument(Number(deleteBtn.dataset.deleteDocument), deleteBtn.dataset.documentFilename);
+        return;
+    }
+    const pullBtn = event.target.closest('[data-pull-vision-model]');
+    if (pullBtn) {
+        pullVisionModel(
+            pullBtn.dataset.pullVisionModel,
+            pullBtn.dataset.pullReason,
+            document.getElementById(pullBtn.dataset.alertId)
+        );
+    }
+});

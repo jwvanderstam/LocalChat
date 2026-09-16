@@ -632,14 +632,17 @@ limiter = Limiter(
 #: templates/settings.html; everything else is served from this origin.
 _CDN = "https://cdn.jsdelivr.net"
 
-#: `'unsafe-inline'` in script-src is a **known gap**, not an oversight. Four
-#: templates still carry inline <script> blocks and fifteen inline `on*=` handlers,
-#: and a policy without it would break every button on Settings and Models. The
-#: extraction that removes them is the second half of P1-4; when it lands this
-#: entry goes and `tests/unit/test_security_headers.py` is what will say so.
+#: The one inline script left in the templates: the theme applier in the <head> of
+#: base.html and login.html, identical in both. It stays inline because it must run
+#: before first paint — served from a file it would flash the wrong theme on every
+#: navigation — and a hash is how CSP permits exactly that script and nothing else.
+#: `tests/unit/test_security_headers.py` recomputes it from the templates, so the
+#: two cannot drift apart silently.
+_THEME_SCRIPT_HASH = "sha256-mURDYDohEuNmzxIzLK1oZAP9ifehdqnPbZJGkv077ZA="
+
 _CSP = "; ".join([
     "default-src 'self'",
-    f"script-src 'self' 'unsafe-inline' {_CDN}",
+    f"script-src 'self' '{_THEME_SCRIPT_HASH}' {_CDN}",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' data:",

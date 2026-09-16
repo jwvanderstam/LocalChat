@@ -230,7 +230,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/mutation_gate.py` | TQ-3 — runs `mutmut<3` over the isolation-critical modules, screens the result for a broken harness, fails under the agreed kill rate |
 | `.github/workflows/mutation.yml` | Nightly mutation gate (`workflow_dispatch` takes a threshold); not in the ruleset |
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
-| `.github/workflows/tests.yml` | CI: `restore-proof` (OPS-4 — dumps and restores the real schema, asserts a similarity query on the far side, and pins both the superuser and non-superuser recipes in `OPERATIONS.md`); `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `docker-smoke` (builds the hardened image, asserts uid 65532 / no shell / native imports / catalogued docs present, boots it against postgres on a non-default port) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, Conventional Commits warning) + `perf-canary` (PERF-2 — `/api/health` probe under concurrent SSE, 1000 ms ceiling; **required**) + `e2e` (TQ-4 golden path in Chromium; deliberately **not** required — a browser flake would block every merge). Seven jobs; five are in the ruleset. |
+| `.github/workflows/tests.yml` | CI: `restore-proof` (OPS-4 — dumps and restores the real schema, asserts a similarity query on the far side, and pins both the superuser and non-superuser recipes in `OPERATIONS.md`); `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `docker-smoke` (builds the hardened image, asserts uid 65532 / no shell / native imports / catalogued docs present, boots it against postgres on a non-default port) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, inline `on*=` handler ban and inline `<script>` cap — both enforce the CSP, Conventional Commits warning) + `perf-canary` (PERF-2 — `/api/health` probe under concurrent SSE, 1000 ms ceiling; **required**) + `e2e` (TQ-4 golden path in Chromium; deliberately **not** required — a browser flake would block every merge). Seven jobs; five are in the ruleset. |
 | `.github/workflows/sonarcloud.yml` | SonarCloud quality-gate scan on push/PR to main |
 | `.github/workflows/gitleaks.yml` | Secret-scanning on push/PR to main |
 | `.github/workflows/docker-publish.yml` | Builds and publishes the app's Docker image |
@@ -255,6 +255,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `static/js/confirm.js` | `window.localchatConfirm()` — the in-app confirmation modal every destructive action uses; native `confirm()` is banned in `repo-hygiene` |
 | `static/js/auth.js` | Session handling — wraps `fetch` to redirect to `/login` on 401, drives the login form, exposes `localchatLogout()` |
 | `templates/login.html` | Login page — the one template that renders without a session |
+| `static/js/statusbar.js` | Status bar poll (active model, document count) — extracted from `base.html` so the CSP can refuse inline scripts |
+| `static/js/models.js` | Model management page — extracted from `models.html`, same reason |
+| `static/js/settings-page.js` | Settings page: stats, memory actions, RAG parameter sliders — extracted from `settings.html`, same reason |
 | `static/js/docs.js` | Documentation viewer (`templates/docs.html`) — fetches `/api/repo-docs`, renders nav + selected doc HTML |
 | `static/js/bootstrap.bundle.min.js` | Vendored Bootstrap 5 JS bundle |
 | `templates/docs.html` | Documentation viewer shell — nav list + content pane, populated client-side by `docs.js` |
