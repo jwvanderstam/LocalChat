@@ -36,6 +36,22 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
   `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
 
+- **Rate limiting can no longer be bypassed behind the bundled nginx** (P0-5, audit
+  finding H3). The TLS overlay shipped `TRUSTED_PROXY_IPS: "*"` while `nginx.conf` set the
+  header with `$proxy_add_x_forwarded_for`. Together those are a bypass: `*` makes uvicorn
+  trust every peer and take the **leftmost** `X-Forwarded-For` entry, and
+  `$proxy_add_x_forwarded_for` *appends* to whatever the caller already sent — so a request
+  carrying its own header chose its own rate-limit key, and **login brute force was
+  unthrottled on the one path that faces the internet**. The overlay's comment had argued
+  the wildcard was safe because nginx is the sole ingress; the header is forged by the
+  external client, which that reasoning did not cover.
+  - nginx now sends `$remote_addr`, discarding anything the caller supplied, and the
+    overlay pins the `frontend` network to `172.31.240.0/24` and trusts only that. Either
+    half alone closes it; both are in place because they can be changed independently.
+  - **Fronting this nginx with another proxy reverses the first half** — see the note in
+    `DEPLOYMENT.md`.
+
+
 - **One authentication resolver, so revocation and the current role apply everywhere**
   (P0-4, audit findings H1, H2 and M1, decision D6). Three guards each answered "who is
   this?" their own way, and two of them answered it badly.
@@ -71,6 +87,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   - `PUT /api/connectors/{id}` was the same finding through another door: it wrote a new
     `config` with no validation and no re-authorisation, so an owner could repoint a
     connector an administrator had created. A config change now faces both checks.
+
+### Fixed
+
+- **The nginx TLS overlay could not reach the application.** `nginx` declared no
+  `networks:`, so it joined the implicit `default` network while `app` is on
+  `frontend`/`backend` — `proxy_pass http://app:5000` had no DNS entry to resolve. Found
+  while fixing H3 above, by reading `docker compose config` rather than the file. It now
+  joins `frontend`.
 
 ### Changed
 

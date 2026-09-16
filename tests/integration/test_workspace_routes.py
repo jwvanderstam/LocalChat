@@ -190,6 +190,11 @@ class TestDeleteWorkspace:
 
         app.state.db.is_connected = True
         app.state.db.get_workspace_member_role = MagicMock(return_value="editor")
+        # The shared client fixture authorises as admin, so get_user_role answers
+        # "admin" for every id. Since P0-4 that is what grants the global
+        # short-circuit — the token's own claim no longer does — so this caller has
+        # to be a non-admin in the database to be one at all.
+        app.state.db.get_user_role = MagicMock(return_value="user")
         token = create_access_token("33333333-3333-3333-3333-333333333333", {"role": "user"})
         with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
             resp = client.delete(
