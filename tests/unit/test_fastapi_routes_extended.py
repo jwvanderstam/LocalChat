@@ -177,7 +177,7 @@ class TestConnectorRoutesExtended:
         from src.routes_fastapi.connector_routes import router
 
         state = _base_state()
-        state.connector_registry.available_types.return_value = ["local_folder", "s3", "google_drive"]
+        state.connector_registry.available_types.return_value = ["local_folder", "webhook", "google_drive"]
         client = _make_client(router, "/api", state)
         resp = client.get("/api/connectors/types")
         assert resp.status_code == 200

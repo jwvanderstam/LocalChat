@@ -261,8 +261,11 @@ class TestConnectorRegistry:
         reg = ConnectorRegistry()
         types = reg.available_types()
         assert "local_folder" in types
-        assert "s3" in types
         assert "webhook" in types
+        # s3 was removed (audit M5, decision D5): it could not run in the shipped
+        # image at all, and it accepted an owner-supplied endpoint_url while falling
+        # back to the server's own AWS credentials.
+        assert "s3" not in types
 
     def test_get_class_known(self):
         reg = ConnectorRegistry()

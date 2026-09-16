@@ -168,10 +168,10 @@ The items below are known, deliberately **not remediated via the usual route** (
   well as at delivery, must be at least 16 characters, and is compared with
   `hmac.compare_digest`. The fetch goes through `safe_fetch` (§9), so it is capped and
   cannot be pointed at an internal address.
-- **`s3`** accepts an owner-supplied `endpoint_url` and can fall back to the server's own
-  AWS credentials. It also cannot run as shipped, because `boto3` is deliberately not in the
-  image ([ADR-4](docs/ADR.md)). **Open**: tracked as audit M5, awaiting decision D5 on
-  whether it is removed or given explicit-credentials-only handling.
+- **`s3`** — **removed 2026-09-16** (audit M5, decision D5). It accepted an owner-supplied
+  `endpoint_url` and could fall back to the server's own AWS credentials, and it could not
+  run in the shipped image at all, because `boto3` is deliberately not there
+  ([ADR-4](docs/ADR.md)). A connector that cannot run is not a feature worth guarding.
 - **Re-review trigger**: any new connector type whose configuration names something outside
   the workspace — a path, a host, a credential — belongs in `_ADMIN_ONLY_TYPES` and in this
   list, and the question to answer first is what a workspace owner could reach with it.

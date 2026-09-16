@@ -25,7 +25,7 @@ class EventType(enum.StrEnum):
 @dataclass
 class DocumentSource:
     """A document visible to a connector."""
-    source_id: str          # connector-local unique ID (path, S3 key, item ID…)
+    source_id: str          # connector-local unique ID (path, item ID…)
     filename: str           # basename used when storing in LocalChat
     content_type: str = "application/octet-stream"
     last_modified: datetime | None = None
@@ -76,7 +76,7 @@ class BaseConnector(ABC):
     @property
     @abstractmethod
     def connector_type(self) -> str:
-        """Short type string, e.g. 'local_folder', 's3', 'webhook'."""
+        """Short type string, e.g. 'local_folder', 'webhook', 'onedrive'."""
 
     @property
     @abstractmethod

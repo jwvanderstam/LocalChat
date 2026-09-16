@@ -15,14 +15,21 @@ Built with FastAPI, Ollama, PostgreSQL + pgvector and Redis. Hybrid semantic and
 retrieval, a cross-encoder reranker, tool calling, streaming answers, per-workspace
 document isolation, and RAG parameters tunable at runtime.
 
-> **Production-ready for what it claims to be, which is a specific thing.** LocalChat is a
-> single-node, self-hosted appliance for a small team of up to 25 users — see
-> [ADR-1](docs/ADR.md). All eight exit criteria in the
-> [production plan](docs/PRODUCTION_PLAN.md) are met and the hardening gate was lifted on
-> 2026-08-31: fail-closed boot, authorisation enforced by default in CI, a concurrency
-> budget, a mutation-tested security core, restore proven in CI, a reproducible tagged
-> release, migrations executed rather than merely written, and documentation verified
-> against the code.
+> **Hardened beta, for a specific thing.** LocalChat is a single-node, self-hosted
+> appliance for a small team of up to 25 users — see [ADR-1](docs/ADR.md). All eight exit
+> criteria in the [production plan](docs/PRODUCTION_PLAN.md) are met and that hardening
+> gate was lifted on 2026-08-31: fail-closed boot, authorisation enforced by default in CI,
+> a concurrency budget, a mutation-tested security core, restore proven in CI, a
+> reproducible tagged release, migrations executed rather than merely written, and
+> documentation verified against the code.
+>
+> It said **"production-ready"** until 2026-09-16. An external security audit that
+> September found defects those eight criteria were never going to catch — the worst of
+> them reachable by any authenticated user — and while every Critical and High finding is
+> now fixed, remediation is not finished. The remaining work is tracked in
+> [ROADMAP.md](docs/ROADMAP.md); what is knowingly accepted is listed in
+> [SECURITY.md](SECURITY.md). Read those before putting it in front of people you do not
+> already trust.
 >
 > The scope is the important half of that sentence. **Multi-tenant SaaS and horizontal
 > scaling are out of scope** — running more than one replica breaks cache coherence and
@@ -120,7 +127,7 @@ workspace.
 `deleted_at`; purging is a separate, admin-only operation with preconditions. See the
 Clark-Wilson section in [CLAUDE.md](CLAUDE.md).
 
-**Sources.** Document connectors for local folders, S3, SharePoint, OneDrive, Google Drive
+**Sources.** Document connectors for local folders, SharePoint, OneDrive, Google Drive
 and webhooks. Plugins extend the application without modifying it, under an
 [inward-only dependency contract](.claude/rules/plugins.md).
 

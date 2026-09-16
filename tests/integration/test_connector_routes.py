@@ -56,8 +56,8 @@ class TestListConnectorTypes:
         data = resp.json()
         assert data["success"] is True
         assert "local_folder" in data["types"]
-        assert "s3" in data["types"]
         assert "webhook" in data["types"]
+        assert "s3" not in data["types"]  # removed: audit M5, decision D5
 
 
 # ---------------------------------------------------------------------------

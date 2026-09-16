@@ -52,8 +52,6 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
     least 16 characters, and is compared with `hmac.compare_digest`. It was optional — a
     connector without one accepted anything that knew its id — and compared with `!=`.
   - The rebinding residual this does not close is recorded in SECURITY.md §9.
-  - **Not included**: the S3 connector half of this row (M5) is untouched, pending decision
-    D5.
 
 - **Connecting a Microsoft or Google account works in a browser, and the flow uses PKCE**
   (P1-3, audit finding M3). The callback resolved the user from the session — but it is
@@ -218,6 +216,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Removed
 
+- **The S3 connector** (P1-2, audit finding M5, decision D5). It accepted an owner-supplied
+  `endpoint_url` and fell back to the server's own AWS credentials when none were given —
+  and it could not run in the shipped image at all, because `boto3` is deliberately absent
+  ([ADR-4](docs/ADR.md)). Anyone using it was on a host install with `boto3` added by hand;
+  for them this is a removal, and for every containerised deployment it removes a
+  credential-fallback path that never worked. `src/connectors/s3_connector.py`, its tests,
+  its registry entry and its documentation all go.
 - **`gunicorn`**, a runtime dependency nothing invoked — every service is uvicorn — along
   with the `GUNICORN_TIMEOUT` constant no code consumed, its `.env.example` line and its
   `CONFIGURATION.md` row. The three had drifted to different values (300, 600, 600), which

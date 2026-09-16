@@ -132,7 +132,6 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Connectors** | |
 | `src/connectors/base.py` | `BaseConnector` ABC + `DocumentSource`, `DocumentEvent`, `EventType` |
 | `src/connectors/local_folder.py` | Stat-based folder watcher; `resolve_allowed_root()` confines it to `CONNECTOR_LOCAL_ROOTS` (empty disables the type) |
-| `src/connectors/s3_connector.py` | S3/MinIO/R2 via boto3 (optional dep) |
 | `src/connectors/webhook.py` | Receives push events via HTTP POST |
 | `src/connectors/sharepoint_connector.py` | SharePoint connector — Graph API delta queries |
 | `src/connectors/onedrive_connector.py` | OneDrive connector — Graph API delta queries |
