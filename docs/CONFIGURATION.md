@@ -424,7 +424,21 @@ to empty, in which case the router falls back to the active model.
 | Variable | Default | Effect |
 |---|---|---|
 | `APP_VERSION` | `3.0.0` | Reported by `GET /api/status`. See the note below |
-| `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB) |
+| `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB), enforced while the upload streams to disk |
+| `UVICORN_WORKERS` | `1` | Worker processes. **Only `1` is supported** — the app refuses to boot otherwise |
+
+> **`MAX_CONTENT_LENGTH` is now enforced.** It was a Flask-era value echoed in the stats
+> endpoint and applied to nothing: the upload was read with one unbounded call. The body is
+> streamed to disk in 1 MB chunks and refused with **413** the moment it passes the limit.
+> Behind the bundled nginx, `client_max_body_size` in `nginx/nginx.conf` must match — raising
+> this alone would be silently overridden by the proxy's own 1 MB default.
+
+> **`UVICORN_WORKERS` above 1 aborts the boot.** `AppState`, the metrics collector, the
+> rate limiter's counters, the token-revocation cache, the Alembic runner, connector polling
+> and the reranker's scheduler are all in process memory with no coordination between
+> workers, so a second worker does not fail — it diverges, quietly, with two rate-limit
+> budgets and an OAuth callback that cannot find the state the other worker stored. [ADR-1](ADR.md)
+> fixes this product at one node and one process; scale with a second node instead.
 | `LOG_FILE` | `logs/app.log` | Path for the file sink |
 | `PLUGINS_DIR` | `plugins` | Directory scanned for plugins |
 | `PRESENCE_TTL_SECONDS` | `30` | How long a workspace presence entry stays live |

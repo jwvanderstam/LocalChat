@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import queue
+import shutil
+import tempfile
 import threading
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -31,24 +33,69 @@ router = APIRouter()
 _ERR_DB_UNAVAILABLE = "Database unavailable"
 
 
+class UploadTooLargeError(Exception):
+    """An upload exceeded MAX_CONTENT_LENGTH and was abandoned part-written."""
+
+
+#: Read size for streaming an upload to disk. Small enough that the cap is enforced
+#: long before a large file is resident, big enough not to syscall per kilobyte.
+_UPLOAD_CHUNK = 1024 * 1024
+
+
 def _save_upload_file(file: _StarletteUploadFile) -> str | None:
-    """Validate and save a single UploadFile; return path on success or None."""
+    """Validate and save a single UploadFile; return path on success or None.
+
+    Each upload gets its **own directory** under the staging folder. Every upload
+    used to be written to ``UPLOAD_FOLDER/<sanitized name>``, so two workspaces
+    uploading ``report.pdf`` shared one path: one overwrote the other, one's ingest
+    could read the other's bytes, and whichever finished first deleted the file the
+    other was still using (audit H4). A directory rather than ``mkstemp`` because
+    the ingest takes the document's name from the file's basename, and a randomised
+    filename would land in the library.
+
+    Raises :class:`UploadTooLargeError` past ``MAX_CONTENT_LENGTH``. The content is
+    streamed to disk in chunks and the count checked as it goes, so an oversized
+    upload is refused while it arrives rather than after it is all in memory: the
+    read used to be one unbounded ``file.file.read()`` and the limit was never
+    applied to anything (audit M2).
+    """
     if not file.filename:
         return None
     ext = Path(file.filename).suffix.lower()
     if ext not in config.SUPPORTED_EXTENSIONS:
         return None
     safe_name = sanitize_filename(file.filename)
-    file_path = os.path.join(config.UPLOAD_FOLDER, safe_name)
-    if not validate_path(file_path, config.UPLOAD_FOLDER):
-        logger.warning("Rejected upload: resolved path escapes upload folder: %r", safe_name)
+
+    os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
+    staging_dir = tempfile.mkdtemp(prefix=config.UPLOAD_STAGING_PREFIX, dir=config.UPLOAD_FOLDER)
+    file_path = os.path.join(staging_dir, safe_name)
+    if not validate_path(file_path, staging_dir):
+        logger.warning("Rejected upload: resolved path escapes staging dir: %r", safe_name)
+        shutil.rmtree(staging_dir, ignore_errors=True)
         return None
-    content = file.file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
+
+    written = 0
+    try:
+        with open(file_path, "wb") as f:
+            while chunk := file.file.read(_UPLOAD_CHUNK):
+                written += len(chunk)
+                if written > config.MAX_CONTENT_LENGTH:
+                    raise UploadTooLargeError(safe_name)
+                f.write(chunk)
+    except UploadTooLargeError:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        logger.warning(
+            "Rejected upload '%s': larger than MAX_CONTENT_LENGTH (%d bytes)",
+            safe_name, config.MAX_CONTENT_LENGTH,
+        )
+        raise
+    except OSError:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
     ok, err = validate_file_content(file_path, ext)
     if not ok:
-        os.remove(file_path)
+        shutil.rmtree(staging_dir, ignore_errors=True)
         logger.warning("Rejected upload '%s': %s", safe_name, err)
         return None
     return file_path
@@ -137,7 +184,9 @@ async def _generate_upload_sse(
     finally:
         for fp in file_paths:
             try:
-                os.remove(fp)
+                # The whole staging directory, not just the file: each upload gets
+                # its own (H4), and removing only the file would leave it behind.
+                shutil.rmtree(os.path.dirname(fp), ignore_errors=True)
             except OSError:
                 pass
 
@@ -154,11 +203,23 @@ async def api_upload_documents(request: Request) -> Any:
         return JSONResponse({"success": False, "message": "No files provided"}, status_code=400)
 
     file_paths: list[str] = []
-    for file in uploaded_files:
-        if isinstance(file, _StarletteUploadFile):
-            path = _save_upload_file(file)
-            if path:
-                file_paths.append(path)
+    try:
+        for file in uploaded_files:
+            if isinstance(file, _StarletteUploadFile):
+                # Reading the body and writing it to disk are both blocking, and were
+                # being done inline in an async route — one large upload held the
+                # event loop for its whole duration, SSE streams included.
+                path = await run_in_threadpool(_save_upload_file, file)
+                if path:
+                    file_paths.append(path)
+    except UploadTooLargeError:
+        for staged in file_paths:
+            shutil.rmtree(os.path.dirname(staged), ignore_errors=True)
+        limit_mb = config.MAX_CONTENT_LENGTH / (1024 * 1024)
+        return JSONResponse(
+            {"success": False, "message": f"File too large. The limit is {limit_mb:.0f} MB."},
+            status_code=413,
+        )
 
     if not file_paths:
         return JSONResponse({"success": False, "message": "No supported files found"}, status_code=400)

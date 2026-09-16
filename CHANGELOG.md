@@ -36,6 +36,28 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
   `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
 
+- **One upload can no longer read or delete another's file, and none is unbounded**
+  (P1-1, audit findings H4 and M2). Every upload was written to
+  `UPLOAD_FOLDER/<sanitized name>`, so two workspaces uploading `report.pdf` shared one
+  path: one overwrote the other, one ingest could read the other's bytes, and whichever
+  finished first deleted the file the other was still using. Each upload now stages into
+  its own directory — a directory rather than `mkstemp` because the ingest takes the
+  document's name from the file's basename, and a randomised filename would land in the
+  library.
+  - `MAX_CONTENT_LENGTH` is **enforced**, having been a Flask-era value applied to nothing:
+    the body streams to disk in 1 MB chunks and is refused with **413** the moment it passes
+    the limit, instead of being read into memory whole. `nginx.conf` gains a matching
+    `client_max_body_size`, without which the proxy's own 1 MB default would silently
+    override it.
+  - The read and the write were also being done inline in an async route, so one large
+    upload held the event loop for its whole duration. They now run in the threadpool.
+- **More than one uvicorn worker aborts the boot** (P1-5, audit finding M7). `AppState`, the
+  metrics collector, the rate limiter's counters, the revocation cache, the Alembic runner,
+  connector polling and the reranker's scheduler are all in process memory with no
+  coordination, so a second worker did not fail — it diverged silently, with two rate-limit
+  budgets and an OAuth callback unable to find the state the other worker stored. Refused in
+  every environment, because the failure is not production-specific.
+
 - **Enabling the MCP servers no longer removes workspace isolation, and they are no
   longer open** (P0-2, audit finding C3, decision D4). Three holes that were only
   exploitable together:

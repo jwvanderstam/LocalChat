@@ -30,6 +30,7 @@ def create_app(config_override: dict[str, Any] | None = None) -> FastAPI:
 
     Safe to call in tests without mocking.
     """
+    config.validate_single_worker()
     config.validate_secrets()
 
     _cfg = config_override or {}

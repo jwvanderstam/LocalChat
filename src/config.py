@@ -24,6 +24,7 @@ Example:
 """
 
 import json
+import logging
 import os
 import secrets
 from datetime import datetime
@@ -122,6 +123,31 @@ _WEAK_PLACEHOLDERS: frozenset[str] = frozenset({
     'change-this-to-a-random-secret-key-in-production',
     'change-this-to-a-random-jwt-secret-in-production',
 })
+
+
+def validate_single_worker() -> None:
+    """Abort when configured for more than one worker process.
+
+    Not part of validate_secrets because it is not a secret and not
+    production-only: at two workers this application diverges from itself in
+    every environment, and does so silently — two rate-limit budgets, two
+    revocation caches, two copies of the OAuth state a callback needs to find.
+    ADR-1 fixes this product at one node and one process; this makes the setting
+    that contradicts it fail loudly instead of being discovered as a bug.
+
+    Raises SystemExit(1) so uvicorn startup aborts cleanly, as validate_secrets does.
+    """
+    if UVICORN_WORKERS == 1:
+        return
+    logger = logging.getLogger(__name__)
+    logger.critical(
+        "[Security] UVICORN_WORKERS=%s. This application keeps rate limits, token "
+        "revocation, OAuth state and background schedulers in process memory with no "
+        "coordination between workers, so more than one silently diverges rather than "
+        "failing. Run one worker and scale with a second node, or see ADR-1.",
+        UVICORN_WORKERS,
+    )
+    raise SystemExit(1)
 
 
 def validate_secrets() -> None:
@@ -514,6 +540,10 @@ VISION_DESCRIBE_PROMPT: str = (
 
 # Flask settings
 UPLOAD_FOLDER: str = 'uploads'
+# Prefix for the per-upload staging directory. Each upload gets its own so two of
+# the same filename cannot collide (audit H4); the prefix is what lets the startup
+# sweep tell an orphaned one from a directory an operator put there deliberately.
+UPLOAD_STAGING_PREFIX: str = 'upload-'
 MAX_CONTENT_LENGTH: int = int(os.environ.get('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))  # Default: 16MB
 
 # Directories the local_folder connector may be pointed at. Empty — the default —
@@ -525,6 +555,14 @@ MAX_CONTENT_LENGTH: int = int(os.environ.get('MAX_CONTENT_LENGTH', str(16 * 1024
 CONNECTOR_LOCAL_ROOTS: list[str] = [
     r.strip() for r in os.environ.get('CONNECTOR_LOCAL_ROOTS', '').split(',') if r.strip()
 ]
+
+# How many uvicorn worker processes docker-entrypoint.py asks for. Read here as
+# well so the application can refuse a value it cannot honour: AppState, the
+# metrics collector, the rate limiter's counters, the revocation cache, the
+# Alembic runner, connector polling and the reranker's scheduler are all
+# in-process with no cross-process coordination, so at two workers they diverge
+# silently rather than failing (ADR-1, audit M7).
+UVICORN_WORKERS: int = int(os.environ.get('UVICORN_WORKERS', '1'))
 
 # Abort startup when DB is unavailable — prevent silent degraded-mode starts in prod
 REQUIRE_DATABASE: bool = os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true'
