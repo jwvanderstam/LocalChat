@@ -31,6 +31,41 @@ def client() -> TestClient:
     return TestClient(_app())
 
 
+def _inline_scripts(template_name: str) -> list[str]:
+    """Return the text of every inline <script> in a template.
+
+    An HTML parser rather than a regex: `<script >`, a newline inside the tag, or an
+    attribute all produce a script the browser runs and a regex for the literal
+    `<script>` does not see. That difference matters here, because a block this
+    check misses is one the CSP has no hash for and the browser silently refuses.
+    """
+    from html.parser import HTMLParser
+    from pathlib import Path
+
+    class _Collector(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.blocks: list[str] = []
+            self._in_inline_script = False
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            if tag == "script" and not any(name == "src" for name, _ in attrs):
+                self._in_inline_script = True
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "script":
+                self._in_inline_script = False
+
+        def handle_data(self, data: str) -> None:
+            if self._in_inline_script:
+                self.blocks.append(data)
+
+    root = Path(__file__).resolve().parents[2]
+    collector = _Collector()
+    collector.feed((root / "templates" / template_name).read_text(encoding="utf-8"))
+    return collector.blocks
+
+
 @pytest.mark.unit
 class TestEveryResponseCarriesTheHeaders:
     def test_content_security_policy_is_set(self, client):
@@ -55,6 +90,9 @@ class TestTheContentSecurityPolicyIsMeaningful:
     def _csp(self, client) -> str:
         return client.get("/probe").headers["Content-Security-Policy"]
 
+    def _script_src(self, client) -> str:
+        return next(d for d in self._csp(client).split("; ") if d.startswith("script-src"))
+
     def test_objects_are_banned_outright(self, client):
         assert "object-src 'none'" in self._csp(client)
 
@@ -69,19 +107,18 @@ class TestTheContentSecurityPolicyIsMeaningful:
         assert "connect-src 'self'" in self._csp(client)
 
     def test_scripts_are_limited_to_this_origin_and_the_one_cdn(self, client):
-        csp = self._csp(client)
-        script_src = next(d for d in csp.split("; ") if d.startswith("script-src"))
-        assert "'self'" in script_src
-        assert "https://cdn.jsdelivr.net" in script_src
-        # Nothing else: a policy that allows any host is not a policy.
-        assert "*" not in script_src.replace("'unsafe-inline'", "")
+        # Compare whole source expressions, not substrings: "https://cdn.jsdelivr.net"
+        # is also a substring of "https://cdn.jsdelivr.net.evil.example".
+        sources = set(self._script_src(client).split()[1:])
+        assert "'self'" in sources
+        assert "https://cdn.jsdelivr.net" in sources
+        # Nothing wildcarded: a policy that allows any host is not a policy.
+        assert not any(source.startswith("*") or source == "*" for source in sources)
+        assert "data:" not in sources
 
     def test_inline_scripts_are_not_allowed(self, client):
         """The gap this row existed to close: an XSS payload cannot execute inline."""
-        script_src = next(
-            d for d in self._csp(client).split("; ") if d.startswith("script-src")
-        )
-        assert "'unsafe-inline'" not in script_src
+        assert "'unsafe-inline'" not in self._script_src(client)
 
     def test_inline_styles_are_still_allowed_and_that_is_deliberate(self, client):
         """43 `style=` attributes across the templates, and no XSS lever among them.
@@ -105,14 +142,10 @@ class TestTheContentSecurityPolicyIsMeaningful:
         """
         import base64
         import hashlib
-        import re
-        from pathlib import Path
 
-        root = Path(__file__).resolve().parents[2]
         blocks = set()
         for name in ("base.html", "login.html"):
-            html = (root / "templates" / name).read_text(encoding="utf-8")
-            blocks.update(re.findall(r"<script>(.*?)</script>", html, re.S))
+            blocks.update(_inline_scripts(name))
 
         assert len(blocks) == 1, f"expected one inline script, found {len(blocks)}"
         digest = base64.b64encode(hashlib.sha256(blocks.pop().encode()).digest()).decode()
