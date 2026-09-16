@@ -218,19 +218,28 @@ class TestWebhookConnector:
         assert len(events) == 3
         assert c.poll() == []  # drained
 
-    def test_fetch_calls_urlopen(self):
+    def test_fetch_goes_through_safe_fetch(self):
+        """It used to call urlopen directly, past a hostname-string check (audit M4)."""
+        from src.utils.safe_fetch import FetchResult
+
         c = self._make()
         source = DocumentSource(
             source_id="doc-1", filename="f.txt",
             metadata={"fetch_url": "https://example.com/f.txt"},
         )
-        mock_resp = MagicMock()
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_resp.read.return_value = b"content"
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        fetched = FetchResult(
+            url="https://example.com/f.txt",
+            status_code=200,
+            content_type="text/plain",
+            text="content",
+        )
+        with patch("src.connectors.webhook.safe_fetch", return_value=fetched) as safe:
             data = c.fetch(source)
+
         assert data == b"content"
+        # https only: a webhook fetch over plain HTTP is a document in clear text.
+        assert safe.call_args.kwargs["require_https"] is True
+        assert safe.call_args.kwargs["max_bytes"] > 0
 
     def test_fetch_raises_if_no_url(self):
         c = self._make()

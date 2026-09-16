@@ -36,6 +36,25 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
   `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
 
+- **A URL the application is asked to fetch can no longer point inward** (P1-2, audit
+  finding M4). Two places retrieve a URL supplied from outside — the web-search result
+  fetcher and the webhook connector — and both guarded it by inspecting the hostname
+  *string*. An IP literal in a private range was refused; a DNS name was waved through, with
+  a comment in the source admitting the check could not resolve it. So a name pointing at
+  `10.0.0.5`, or a bare compose service name, was fetched by a process sitting on the same
+  network as the database and the model server.
+  - `src/utils/safe_fetch.py` is now the one way either fetches. It resolves the name and
+    refuses if **any** address it answers with is non-public — so a round-robin record
+    cannot be retried until the public answer wins — re-validates every redirect hop, and
+    caps the body and the time. Neither path had any cap, and neither re-checked redirects,
+    which made the first check decorative.
+  - **The webhook secret is mandatory**, at creation as well as at delivery, must be at
+    least 16 characters, and is compared with `hmac.compare_digest`. It was optional — a
+    connector without one accepted anything that knew its id — and compared with `!=`.
+  - The rebinding residual this does not close is recorded in SECURITY.md §9.
+  - **Not included**: the S3 connector half of this row (M5) is untouched, pending decision
+    D5.
+
 - **Connecting a Microsoft or Google account works in a browser, and the flow uses PKCE**
   (P1-3, audit finding M3). The callback resolved the user from the session — but it is
   reached by a redirect *from the provider*, which is a cross-site navigation, and the

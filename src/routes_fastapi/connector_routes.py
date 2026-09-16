@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import threading
 from typing import Annotated, Any
 
@@ -321,12 +322,22 @@ async def receive_webhook(connector_id: str, request: Request) -> Any:
     if connector.get("connector_type") != "webhook":
         return JSONResponse({"success": False, "message": "Not a webhook connector"}, status_code=400)
 
-    secret = connector.get("config", {}).get("secret")
-    if secret:
-        provided = request.headers.get("X-LocalChat-Secret", "")
-        if provided != secret:
-            logger.warning("[Webhook] Bad secret for connector")
-            return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
+    # Mandatory, not "checked when present". This endpoint is public — it has to be,
+    # since the caller is an external system with no session — so the secret is the
+    # whole credential, and a connector configured without one accepted anything that
+    # knew its id (audit M4). compare_digest, not ==, so a secret cannot be recovered
+    # a character at a time from response timing.
+    secret = (connector.get("config") or {}).get("secret") or ""
+    if not secret:
+        logger.error(
+            "[Webhook] Connector has no secret configured; refusing the delivery. "
+            "Set one on the connector."
+        )
+        return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
+    provided = request.headers.get("X-LocalChat-Secret", "")
+    if not hmac.compare_digest(provided, secret):
+        logger.warning("[Webhook] Bad secret for connector")
+        return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
 
     instance = request.app.state.connector_registry.get(connector_id)
     if instance is None:

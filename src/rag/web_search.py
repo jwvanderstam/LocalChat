@@ -14,18 +14,21 @@ Classes:
 
 from __future__ import annotations
 
-import ipaddress
 import re
 from dataclasses import dataclass, field
 from html import unescape
-from urllib.parse import urlparse
 
 import requests
 
 from .. import config
 from ..utils.logging_config import get_logger
+from ..utils.safe_fetch import UnsafeUrlError, safe_fetch
 
 logger = get_logger(__name__)
+
+#: A search result is a page of text. Bounded so a hostile or broken result cannot
+#: hold the fetch open or grow without limit — there was no cap at all (audit M4).
+_MAX_PAGE_BYTES = 2 * 1024 * 1024
 
 
 @dataclass
@@ -171,60 +174,33 @@ class WebSearchProvider:
         """Fetch and extract plain text from each result URL."""
         session = requests.Session()
         session.max_redirects = 5
+        session.headers.update(self._HEADERS)
         for r in results:
-            if not self._is_safe_url(r.url):
-                logger.warning(f"[WEB SEARCH] Skipping unsafe URL: {r.url!r}")
-                continue
             try:
-                resp = session.get(
+                # safe_fetch resolves each hostname and refuses any address that is
+                # not publicly routable, re-validating every redirect. The check it
+                # replaces inspected the hostname string and let DNS names straight
+                # through, so a name pointing at 10.0.0.5 was fetched (audit M4).
+                fetched = safe_fetch(
                     r.url,
-                    headers=self._HEADERS,
                     timeout=self.timeout,
-                    allow_redirects=True,
+                    max_bytes=_MAX_PAGE_BYTES,
+                    session=session,
                 )
-                resp.raise_for_status()
-                content_type = resp.headers.get("Content-Type", "")
-                if not content_type.startswith("text/"):
-                    logger.debug(f"[WEB SEARCH] Skipping non-text response at {r.url!r}: {content_type!r}")
-                    continue
-                text = self._extract_body_text(resp.text)
-                r.page_text = text[: self.max_page_chars] if text else None
+            except UnsafeUrlError as exc:
+                logger.warning("[WEB SEARCH] Refused a search result: %s", exc)
+                continue
             except requests.RequestException as exc:
                 logger.debug(f"[WEB SEARCH] Could not fetch {r.url}: {exc}")
+                continue
 
-    @staticmethod
-    def _is_safe_url(url: str) -> bool:
-        """Return True only for http/https URLs targeting a non-private hostname.
-
-        Blocks loopback, private IP ranges, link-local addresses, and
-        well-known cloud metadata endpoints to prevent SSRF attacks.
-        """
-        try:
-            parsed = urlparse(url)
-            if parsed.scheme not in ("http", "https"):
-                return False
-            hostname = (parsed.hostname or "").lower()
-            if not hostname:
-                return False
-            # Block well-known internal / cloud-metadata hostnames
-            _BLOCKED_HOSTS = {
-                "localhost", "127.0.0.1", "::1", "0.0.0.0",
-                "metadata.google.internal",
-                # Note: 169.254.0.0/16 (link-local, incl. IMDS) is caught below
-                # by addr.is_link_local — no need to hardcode the IP here.
-            }
-            if hostname in _BLOCKED_HOSTS:
-                return False
-            # Block IP literals that fall in private / loopback / link-local ranges
-            try:
-                addr = ipaddress.ip_address(hostname)
-                if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-                    return False
-            except ValueError:
-                pass  # hostname is a DNS name, not an IP literal — proceed
-            return True
-        except Exception:
-            return False
+            if not fetched.content_type.startswith("text/"):
+                logger.debug(
+                    "[WEB SEARCH] Skipping non-text response: %r", fetched.content_type
+                )
+                continue
+            text = self._extract_body_text(fetched.text)
+            r.page_text = text[: self.max_page_chars] if text else None
 
     @staticmethod
     def _extract_body_text(html: str) -> str:

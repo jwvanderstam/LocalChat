@@ -183,15 +183,17 @@ class TestWebSearchFetchPages:
 
         result = WebSearchResult("T", "http://x.com", "S")
 
-        mock_response = MagicMock()
-        mock_response.text = "<html><body><p>Hello world</p></body></html>"
-        mock_response.raise_for_status = MagicMock()
-        mock_response.headers = {"Content-Type": "text/html; charset=utf-8"}
+        from src.utils.safe_fetch import FetchResult
 
-        with patch("src.rag.web_search.requests.Session") as mock_session_class:
-            mock_session = MagicMock()
-            mock_session_class.return_value = mock_session
-            mock_session.get.return_value = mock_response
+        fetched = FetchResult(
+            url="http://x.com",
+            status_code=200,
+            content_type="text/html",
+            text="<html><body><p>Hello world</p></body></html>",
+        )
+        # Fetching goes through safe_fetch now, which resolves the hostname and
+        # refuses any non-public address at every redirect hop (audit M4).
+        with patch("src.rag.web_search.safe_fetch", return_value=fetched):
             provider = WebSearchProvider(max_page_chars=500)
             provider._fetch_page_texts([result])
 

@@ -164,9 +164,10 @@ The items below are known, deliberately **not remediated via the usual route** (
     a `local_folder` connector on `/etc`, and read it back. `ws:owner` was the only check,
     and it is not a barrier when any user may create a workspace. Fixed 2026-09-16.
 - **`webhook`** is a public receiver by design — the connector id plus its secret is the
-  whole credential. The secret is currently optional and compared with `!=` rather than a
-  constant-time comparison, and the fetch has no response size cap. **Open**: tracked as
-  audit M4, scheduled for P1-2.
+  whole credential. **Closed 2026-09-16 (P1-2)**: the secret is mandatory, at creation as
+  well as at delivery, must be at least 16 characters, and is compared with
+  `hmac.compare_digest`. The fetch goes through `safe_fetch` (§9), so it is capped and
+  cannot be pointed at an internal address.
 - **`s3`** accepts an owner-supplied `endpoint_url` and can fall back to the server's own
   AWS credentials. It also cannot run as shipped, because `boto3` is deliberately not in the
   image ([ADR-4](docs/ADR.md)). **Open**: tracked as audit M5, awaiting decision D5 on
@@ -175,7 +176,30 @@ The items below are known, deliberately **not remediated via the usual route** (
   the workspace — a path, a host, a credential — belongs in `_ADMIN_ONLY_TYPES` and in this
   list, and the question to answer first is what a workspace owner could reach with it.
 
-### 9. The MCP servers authenticate with one shared token, not per-user
+### 9. Outbound fetches resolve before they decide, but do not pin the address
+
+- **What**: `src/utils/safe_fetch.py` is the one path by which this application retrieves a
+  URL it was handed — a web-search result, or a webhook's `fetch_url`. It resolves the
+  hostname, refuses the fetch if **any** address the name answers with is private, loopback,
+  link-local, reserved, multicast or unspecified, re-validates every redirect hop, and caps
+  the body and the time.
+- **The residual**: the connection is then made by name. A DNS entry that answers
+  differently between the check and the connection — rebinding — is not defeated. Closing it
+  means pinning the connection to the validated address, which over HTTPS means taking over
+  certificate verification for every outbound fetch.
+- **Why accepted**: the attacker has to control a DNS zone *and* win a race measured in
+  milliseconds, to reach a network where the interesting services already require
+  credentials. The check that is in place closes the finding that was actually reported: a
+  name that simply resolves to `10.0.0.5` used to be fetched.
+- **Before this**: both call sites inspected the hostname *string*. An IP literal in a
+  private range was refused; a DNS name was waved through, with a comment in the source
+  saying the check could not resolve it. Redirects were followed without a second look, and
+  neither path capped the response (audit M4).
+- **Re-review trigger**: any deployment where the internal network holds something reachable
+  without credentials, or the first time an outbound fetch is made on behalf of an untrusted
+  tenant rather than an operator.
+
+### 10. The MCP servers authenticate with one shared token, not per-user
 
 - **What**: the domain MCP servers (`mcp_servers/`, `--profile mcp`, off by default)
   authenticate callers with a single shared secret, `MCP_AUTH_TOKEN`, presented as a bearer
