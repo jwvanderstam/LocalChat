@@ -51,6 +51,15 @@ route; drift between this file and the code is the failure mode it exists to pre
 | `public` | No credentials required. Every entry is deliberate — see the allowlist below. | none |
 | `authenticated` | Any logged-in user. Used where no workspace context exists yet. | `require_auth` |
 | `ws:viewer` / `ws:editor` / `ws:owner` | Membership of the active workspace, at that level or higher. | `check_workspace_access` via `_authz.deny()` |
+
+> **Two connector rows carry a condition the level column cannot express.** Creating a
+> `local_folder` connector, or changing an existing one's `config`, additionally requires a
+> **global administrator** — the row's `ws:owner` is the floor, not the whole rule. The
+> reason is that any user may create a workspace and become its owner, so `ws:owner` is no
+> barrier at all for a decision that names a path on the server's own filesystem (audit C4,
+> decision D3). The path must also resolve inside `CONNECTOR_LOCAL_ROOTS`, which is empty by
+> default and therefore disables the type. Enforced in `connector_routes.py` by
+> `_ADMIN_ONLY_TYPES`; covered by `tests/unit/test_local_folder_least_privilege.py`.
 | **`admin`** | Global `users.role = 'admin'`. Node-wide operations. | `require_admin_dep` |
 
 **Two kinds of principal reach the `ws:*` levels.** A *user*, whose role comes from

@@ -80,7 +80,10 @@ class TestListConnectors:
 
 class TestCreateConnector:
 
-    def test_creates_local_folder_connector(self, client, app, tmp_path):
+    def test_creates_local_folder_connector(self, client, app, tmp_path, monkeypatch):
+        # A local_folder connector is refused unless its path is inside a configured
+        # root; the default empty allowlist disables the type (audit C4).
+        monkeypatch.setattr("src.config.CONNECTOR_LOCAL_ROOTS", [str(tmp_path)])
         app.state.db.create_connector = MagicMock(return_value="conn-new")
         app.state.db.get_connector = MagicMock(return_value=_connector(id="conn-new"))
         resp = client.post("/api/connectors", json={
@@ -106,12 +109,25 @@ class TestCreateConnector:
         })
         assert resp.status_code == 400
 
-    def test_nonexistent_path_returns_400(self, client, app):
+    def test_nonexistent_path_returns_400(self, client, app, tmp_path, monkeypatch):
+        # With a root configured, so this exercises the "directory does not exist"
+        # branch rather than passing for the allowlist's reason.
+        monkeypatch.setattr("src.config.CONNECTOR_LOCAL_ROOTS", [str(tmp_path)])
         resp = client.post("/api/connectors", json={
             "connector_type": "local_folder",
-            "config": {"path": "/nonexistent/path/xyz"},
+            "config": {"path": str(tmp_path / "nonexistent")},
         })
         assert resp.status_code == 400
+
+    def test_path_outside_the_allowed_roots_returns_400(self, client, app, tmp_path, monkeypatch):
+        """Even for an admin: the allowlist is not something admin overrides."""
+        monkeypatch.setattr("src.config.CONNECTOR_LOCAL_ROOTS", [str(tmp_path)])
+        resp = client.post("/api/connectors", json={
+            "connector_type": "local_folder",
+            "config": {"path": "/etc"},
+        })
+        assert resp.status_code == 400
+        assert "CONNECTOR_LOCAL_ROOTS" in resp.json()["message"]
 
 
 # ---------------------------------------------------------------------------

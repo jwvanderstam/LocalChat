@@ -502,6 +502,16 @@ VISION_DESCRIBE_PROMPT: str = (
 UPLOAD_FOLDER: str = 'uploads'
 MAX_CONTENT_LENGTH: int = int(os.environ.get('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))  # Default: 16MB
 
+# Directories the local_folder connector may be pointed at. Empty — the default —
+# disables that connector type outright, which is the safe default: without an
+# allowlist any workspace owner could create a connector on any path the server
+# process can read, and have its contents ingested and answered from (audit C4).
+# Each entry is an absolute path; a connector's path must resolve inside one of
+# them, symlinks followed.
+CONNECTOR_LOCAL_ROOTS: list[str] = [
+    r.strip() for r in os.environ.get('CONNECTOR_LOCAL_ROOTS', '').split(',') if r.strip()
+]
+
 # Abort startup when DB is unavailable — prevent silent degraded-mode starts in prod
 REQUIRE_DATABASE: bool = os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true'
 

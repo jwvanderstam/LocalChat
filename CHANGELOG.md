@@ -36,6 +36,20 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
   `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
 
+- **The `local_folder` connector is confined, and creating one is an administrator's
+  decision** (P0-3, audit finding C4, decision D3). Any user can create a workspace and
+  become its owner, and `ws:owner` was the only check on creating a connector — so any user
+  could point one at any path the server process could read, `/etc` included, and then ask
+  questions about the contents. Two independent conditions now apply: creating *or
+  reconfiguring* a `local_folder` connector requires a global administrator, and its path
+  must resolve inside the new `CONNECTOR_LOCAL_ROOTS` allowlist, which is **empty by default
+  and therefore disables the connector type**. Paths are resolved with `realpath` and
+  compared by whole components, so `..`, a symlink pointing out of an allowed root, and a
+  sibling directory sharing a prefix all fail.
+  - `PUT /api/connectors/{id}` was the same finding through another door: it wrote a new
+    `config` with no validation and no re-authorisation, so an owner could repoint a
+    connector an administrator had created. A config change now faces both checks.
+
 ### Changed
 
 - **The cloud fallback will target OpenAI-compatible endpoints directly rather than through

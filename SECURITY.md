@@ -10,7 +10,7 @@ If you discover a security vulnerability in LocalChat, please report it privatel
 
 ## Known & Accepted Risks
 
-The items below are known, deliberately **not remediated via the usual route** (credential rotation / git history rewrite), and are documented here so a reviewer can establish their status from the repo alone. Reviewed as of 2026-08-20 — re-check every entry against the source when editing this file, and move this date. An entry that is merely old reads exactly like one that is still true.
+The items below are known, deliberately **not remediated via the usual route** (credential rotation / git history rewrite), and are documented here so a reviewer can establish their status from the repo alone. Reviewed as of 2026-09-16 — re-check every entry against the source when editing this file, and move this date. An entry that is merely old reads exactly like one that is still true.
 
 ### 1. Historical leaked local-dev database credential
 
@@ -116,6 +116,35 @@ The items below are known, deliberately **not remediated via the usual route** (
 - **Re-review trigger**: any move to hosted or multi-tenant deployment, where the disk is not
   the operator's own — at which point the question is whether retrieval can move to a design
   that does not need plaintext in the database, not whether to encrypt this column.
+
+### 7. Connectors read data the application is trusted to reach
+
+- **What**: a connector ingests documents from a source the application can reach, and
+  everything it ingests becomes answerable through retrieval. The configuration therefore
+  decides what the application can read, which makes *who may configure one* the control,
+  not what the connector does afterwards.
+- **`local_folder` — global administrator, plus an allowlist.** Its path names the server's
+  own filesystem. Both conditions are enforced independently in
+  `src/routes_fastapi/connector_routes.py`: creating or reconfiguring one requires a global
+  administrator, and the path must resolve inside `CONNECTOR_LOCAL_ROOTS`
+  ([CONFIGURATION.md](docs/CONFIGURATION.md)), which is **empty by default and so disables
+  the type**. Paths are resolved with `realpath` and compared by whole components, so `..`
+  and a symlink pointing out of an allowed root both fail.
+  - This entry exists because the controls did not. A September 2026 external audit
+    reproduced the whole of it: any user could create a workspace, become its owner, create
+    a `local_folder` connector on `/etc`, and read it back. `ws:owner` was the only check,
+    and it is not a barrier when any user may create a workspace. Fixed 2026-09-16.
+- **`webhook`** is a public receiver by design — the connector id plus its secret is the
+  whole credential. The secret is currently optional and compared with `!=` rather than a
+  constant-time comparison, and the fetch has no response size cap. **Open**: tracked as
+  audit M4, scheduled for P1-2.
+- **`s3`** accepts an owner-supplied `endpoint_url` and can fall back to the server's own
+  AWS credentials. It also cannot run as shipped, because `boto3` is deliberately not in the
+  image ([ADR-4](docs/ADR.md)). **Open**: tracked as audit M5, awaiting decision D5 on
+  whether it is removed or given explicit-credentials-only handling.
+- **Re-review trigger**: any new connector type whose configuration names something outside
+  the workspace — a path, a host, a credential — belongs in `_ADMIN_ONLY_TYPES` and in this
+  list, and the question to answer first is what a workspace owner could reach with it.
 
 ## Supply chain
 

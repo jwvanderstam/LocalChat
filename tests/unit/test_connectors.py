@@ -50,7 +50,11 @@ class TestLocalFolderConnector:
         errors = c.validate_config()
         assert errors
 
-    def test_validate_config_valid(self, tmp_path):
+    def test_validate_config_valid(self, tmp_path, monkeypatch):
+        # CONNECTOR_LOCAL_ROOTS is empty by default, which disables the connector
+        # type outright (audit C4). A valid config therefore means "inside a root
+        # the installation configured", and the test has to configure one.
+        monkeypatch.setattr("src.config.CONNECTOR_LOCAL_ROOTS", [str(tmp_path)])
         c = self._make(str(tmp_path))
         assert c.validate_config() == []
 

@@ -392,6 +392,27 @@ to empty, in which case the router falls back to the active model.
 | `LOG_FILE` | `logs/app.log` | Path for the file sink |
 | `PLUGINS_DIR` | `plugins` | Directory scanned for plugins |
 | `PRESENCE_TTL_SECONDS` | `30` | How long a workspace presence entry stays live |
+| `CONNECTOR_LOCAL_ROOTS` | *(empty)* | Comma-separated absolute directories the `local_folder` connector may watch. **Empty disables that connector type** — see below |
+
+> **`CONNECTOR_LOCAL_ROOTS` empty means off, not unrestricted.** A `local_folder`
+> connector ingests a server-side directory and answers from its contents, so whoever
+> chooses the path chooses what the application can read. Until an external audit in
+> September 2026 there was no allowlist and no global check: any user could create a
+> workspace, become its owner, create a connector on any path the server process could
+> read — `/etc` was reproduced — and then ask questions about it.
+>
+> Two independent conditions now apply, and neither substitutes for the other. Creating
+> *or reconfiguring* one requires a **global administrator**, because a workspace owner is
+> not a barrier when any user can create a workspace. And the path must resolve inside one
+> of these roots, with symlinks followed, so an administrator cannot point one at `/etc`
+> either.
+>
+> ```bash
+> CONNECTOR_LOCAL_ROOTS=/srv/localchat/corpus,/mnt/shared/docs
+> ```
+>
+> Paths are compared by whole components after `realpath`, so `/srv/docs-secret` is not
+> inside `/srv/docs`, and a symlink is judged by where it lands rather than where it sits.
 
 > **`APP_VERSION` has three defaults, and they must be bumped together.** `src/config.py`,
 > `docker-compose.yml`'s `${APP_VERSION:-...}`, and the row above all carry the number

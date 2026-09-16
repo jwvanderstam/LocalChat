@@ -131,7 +131,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/docs/service.py` | `DocsService` — loads a fixed catalogue of repo markdown files (`CLAUDE.md`, `.claude/rules/*.md`, `docs/*.md`, `README.md`, `SECURITY.md`), splits into heading-keyed fragments, renders to HTML; backs the `/docs` viewer and `templates/settings.html`'s per-parameter help text |
 | **Connectors** | |
 | `src/connectors/base.py` | `BaseConnector` ABC + `DocumentSource`, `DocumentEvent`, `EventType` |
-| `src/connectors/local_folder.py` | Stat-based folder watcher |
+| `src/connectors/local_folder.py` | Stat-based folder watcher; `resolve_allowed_root()` confines it to `CONNECTOR_LOCAL_ROOTS` (empty disables the type) |
 | `src/connectors/s3_connector.py` | S3/MinIO/R2 via boto3 (optional dep) |
 | `src/connectors/webhook.py` | Receives push events via HTTP POST |
 | `src/connectors/sharepoint_connector.py` | SharePoint connector — Graph API delta queries |
@@ -181,6 +181,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_active_model_is_chat_capable.py` | An embedding model must never become the active chat model — the candidate filter used to fall back to the unfiltered list, which made `nomic-embed-text` the chat model on any host holding only embedders (the Scaleway Phase 4 stack by construction) and turned every chat into an opaque `GenerationError`; also that `/api/status` reports `ready: false` when no model can chat, while `/api/health` deliberately stays healthy so no container is restarted for it |
 | `tests/unit/test_metrics_auth_admits_admins.py` | `_check_metrics_auth()` admits both of the metrics endpoints' legitimate callers — a scraper's `METRICS_TOKEN` bearer and an admin session cookie, which is what the dashboard has and what setting the token used to 403 |
 | `tests/unit/test_ef_search_persistence.py` | A transaction-pooling proxy silently drops `hnsw.ef_search`; the pool now reads it back and warns, and these prove it warns on the observed value, only once, and not at all when it stuck |
+| `tests/unit/test_local_folder_least_privilege.py` | P0-3 — the `local_folder` connector reaches only inside `CONNECTOR_LOCAL_ROOTS`, and only a global admin may create or repoint one. Covers `/etc`, `..`, a symlink out of an allowed root, and a sibling sharing a path prefix (`commonpath`, not `startswith`) |
 | `tests/unit/test_object_authorization_matrix.py` | P0-1 — every route addressing an object by id is scoped to a workspace. Walks the AST of `src/` and fails on any call to a workspace-scoped database method that omits `scope=`, so a *new* route cannot repeat C1/C2 |
 | `tests/unit/test_purge_preconditions.py` | The Clark-Wilson purge TPs — a cited conversation or a user with memberships is refused before any DELETE |
 | `tests/unit/test_processor_entity_extraction.py` | `_extract_entities` — GraphRAG is best-effort; a failure there never fails an ingest |

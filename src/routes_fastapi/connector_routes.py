@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ..security_fastapi import get_current_user_id, require_admin_dep
@@ -26,6 +26,43 @@ _NOT_FOUND = "Connector not found"
 _OWNER_IN_CONFIG = (
     "'user_id' may not be set in config; a connector uses the account of the user who created it"
 )
+
+# Connector types whose configuration names something outside the workspace — a
+# server-side path — and so is a global decision, not a workspace owner's. Any
+# user may create a workspace and become its owner, which is what made
+# `local_folder` a way to read any file the server process can reach (audit C4).
+_ADMIN_ONLY_TYPES = frozenset({"local_folder"})
+
+
+def _refuse_unless_global_admin(request: Request) -> JSONResponse | None:
+    """None when the caller is a global admin, else the refusal to return.
+
+    Delegates to ``require_admin_dep`` rather than re-deriving the check, so the
+    fail-closed behaviour on an unreachable database stays in one place. Passing
+    ``credentials=None`` takes its documented fallback: read the bearer token from
+    the request, which is also how a cookie session reaches it.
+    """
+    try:
+        require_admin_dep(request, None)
+    except HTTPException as exc:
+        detail = exc.detail
+        message = detail.get("message") if isinstance(detail, dict) else str(detail)
+        return JSONResponse({"success": False, "message": message}, status_code=exc.status_code)
+    return None
+
+
+def _invalid_config(registry: Any, connector_type: str, connector_config: dict) -> str | None:
+    """The first validation error for *connector_config*, or None when it is usable."""
+    cls = registry.get_class(connector_type)
+    if cls is None:
+        return f"Unknown connector_type. Available: {registry.available_types()}"
+    try:
+        instance = cls(connector_config)
+    except Exception as exc:
+        logger.warning("Connector config instantiation failed: %s", exc)
+        return "Invalid connector configuration"
+    errors = instance.validate_config()
+    return "; ".join(errors) if errors else None
 
 
 @router.get("/connectors/available")
@@ -91,22 +128,21 @@ async def create_connector(request: Request) -> Any:
     if "user_id" in connector_config:
         return JSONResponse({"success": False, "message": _OWNER_IN_CONFIG}, status_code=400)
 
+    if connector_type in _ADMIN_ONLY_TYPES:
+        refused = _refuse_unless_global_admin(request)
+        if refused:
+            return refused
+
     created_by = require_caller(request)
 
     workspace_id = get_workspace_id(request)
-    cls = registry.get_class(connector_type)
-    try:
-        tmp_instance = cls(connector_config)
-    except Exception as exc:
-        logger.warning("Connector config instantiation failed: %s", exc)
-        return JSONResponse({"success": False, "message": "Invalid connector configuration"}, status_code=400)
-
-    errors = tmp_instance.validate_config()
-    if errors:
-        return JSONResponse({"success": False, "message": "; ".join(errors)}, status_code=400)
+    invalid = _invalid_config(registry, connector_type, connector_config)
+    if invalid:
+        return JSONResponse({"success": False, "message": invalid}, status_code=400)
 
     if not display_name:
-        display_name = tmp_instance.display_name
+        cls = registry.get_class(connector_type)
+        display_name = cls(connector_config).display_name
 
     try:
         db = request.app.state.db
@@ -157,6 +193,24 @@ async def update_connector(connector_id: str, request: Request) -> Any:
     try:
         db = request.app.state.db
         scope = get_scope(request)
+        if "config" in fields:
+            # A config change is a fresh configuration decision, so it faces the same
+            # two checks creation does. Without this, an owner could repoint a
+            # local_folder connector an admin had created — the whole of C4, through
+            # the other door, since nothing here validated or re-authorised.
+            existing = db.get_connector(connector_id, scope=scope)
+            if existing is None:
+                return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
+            connector_type = existing["connector_type"]
+            if connector_type in _ADMIN_ONLY_TYPES:
+                refused = _refuse_unless_global_admin(request)
+                if refused:
+                    return refused
+            invalid = _invalid_config(
+                request.app.state.connector_registry, connector_type, fields["config"]
+            )
+            if invalid:
+                return JSONResponse({"success": False, "message": invalid}, status_code=400)
         updated = db.update_connector(connector_id, scope=scope, **fields)
         if not updated:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
