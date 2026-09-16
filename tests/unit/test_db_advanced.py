@@ -386,6 +386,52 @@ class TestRetireAllDocuments:
             db_module.db.retire_all_documents(scope=None)  # type: ignore[arg-type]
 
 
+class TestPurgeAllDocuments:
+    """The destroy half of D2 — irreversible, admin-only, and only what is retired."""
+
+    def _ctx(self, cursor):
+        from src import db as db_module
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cursor
+        return patch.object(db_module.db, 'get_connection'), conn
+
+    def _run(self):
+        from src import db as db_module
+        cursor = MagicMock()
+        cursor.rowcount = 2
+        mgr, conn = self._ctx(cursor)
+        with mgr as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = conn
+            mock_get_conn.return_value.__exit__.return_value = None
+            purged = db_module.db.purge_all_documents()
+        return cursor, purged
+
+    def test_touches_only_retired_documents(self):
+        """A live document must survive a purge — retiring is the separate decision."""
+        cursor, _ = self._run()
+        for call in cursor.execute.call_args_list:
+            assert "deleted_at IS NOT NULL" in call[0][0]
+
+    def test_a_cited_chunk_is_spared(self):
+        """chunk_stats is the citation history; purging out from under it breaks an IVP."""
+        cursor, _ = self._run()
+        chunk_sql = cursor.execute.call_args_list[0][0][0]
+        assert "chunk_stats" in chunk_sql
+        assert "NOT EXISTS" in chunk_sql
+
+    def test_a_document_keeping_chunks_is_spared(self):
+        """Its chunks were cited, so the document stays to keep the citation resolvable."""
+        cursor, _ = self._run()
+        doc_sql = cursor.execute.call_args_list[1][0][0]
+        assert "DELETE FROM documents" in doc_sql
+        assert "NOT EXISTS" in doc_sql
+        assert "document_chunks" in doc_sql
+
+    def test_reports_how_many_documents_were_destroyed(self):
+        _, purged = self._run()
+        assert purged == 2
+
+
 class TestGetAdjacentChunks:
     """Test get_adjacent_chunks method."""
 

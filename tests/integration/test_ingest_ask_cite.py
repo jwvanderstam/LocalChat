@@ -103,7 +103,7 @@ def ingested(database, ollama, workspace, tmp_path_factory) -> Iterator[str]:
     yield processor
 
     if doc_id is not None:
-        database.delete_document(doc_id, None)
+        database.delete_document(doc_id, None, scope=workspace)
 
 
 @pytest.mark.db

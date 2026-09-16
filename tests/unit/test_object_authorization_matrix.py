@@ -26,7 +26,11 @@ from fastapi.testclient import TestClient
 from src.security_fastapi import create_access_token
 from src.utils.scope import ALL_WORKSPACES, scope_predicate
 
-_SRC = Path(__file__).resolve().parents[2] / "src"
+_ROOT = Path(__file__).resolve().parents[2]
+# Both trees, not just src/. The first version of this scan read src/ alone, and a
+# fixture in tests/integration/ calling delete_document() without a scope reached CI
+# before anything noticed — that suite needs Postgres, so it does not run locally.
+_SCANNED = (_ROOT / "src", _ROOT / "tests")
 
 # Every database method that reaches a workspace-owned object. A method listed here
 # without a keyword-only `scope` fails TestScopedMethodsRequireTheArgument, so the
@@ -82,17 +86,18 @@ class TestEveryScopedCallNamesItsScope:
 
     def _offenders(self) -> list[str]:
         offenders = []
-        for path in sorted(_SRC.rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                func = node.func
-                if not isinstance(func, ast.Attribute) or func.attr not in SCOPED_METHODS:
-                    continue
-                if any(kw.arg == "scope" for kw in node.keywords):
-                    continue
-                offenders.append(f"{path.relative_to(_SRC.parent)}:{node.lineno} {func.attr}()")
+        for root in _SCANNED:
+            for path in sorted(root.rglob("*.py")):
+                tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    func = node.func
+                    if not isinstance(func, ast.Attribute) or func.attr not in SCOPED_METHODS:
+                        continue
+                    if any(kw.arg == "scope" for kw in node.keywords):
+                        continue
+                    offenders.append(f"{path.relative_to(_ROOT)}:{node.lineno} {func.attr}()")
         return offenders
 
     def test_no_call_omits_the_scope(self):
