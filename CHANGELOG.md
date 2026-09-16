@@ -36,6 +36,27 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
   `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
 
+- **Every response now carries security headers, and CORS cannot fall back to a
+  wildcard** (P1-4, audit findings M6 and M8). The application sent no
+  `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or framing
+  header at all, and neither did nginx.
+  - A CSP that bans objects, pins `base-uri` and `form-action`, denies framing and limits
+    scripts to this origin plus the one CDN the pages use. `script-src` still permits
+    `'unsafe-inline'`, because four templates carry inline `<script>` blocks and fifteen
+    inline `on*=` handlers and a policy without it would break every button on Settings and
+    Models — **this is a stated remaining gap**, asserted in
+    `tests/unit/test_security_headers.py` so that closing it is a visible change.
+  - `Strict-Transport-Security` only over TLS, so a development server cannot pin a
+    developer's `localhost` to HTTPS.
+  - nginx repeats them with `always`, because it answers some responses itself — a 413, a
+    502, its own error pages — and those never reach the application's middleware.
+  - **CORS**: the default origins were `localhost,127.0.0.1`, which carry no scheme and so
+    match no browser `Origin` header — the default permitted nothing while appearing to
+    permit something. They now carry schemes, a scheme-less entry aborts the boot, and the
+    `allow_origins=["*"]` fallback is gone: with `allow_credentials=True` it let any site
+    make authenticated cross-origin calls, and an empty `CORS_ORIGINS` reached it by
+    accident rather than by anyone choosing it. Nothing configured now means CORS stays off.
+
 - **One upload can no longer read or delete another's file, and none is unbounded**
   (P1-1, audit findings H4 and M2). Every upload was written to
   `UPLOAD_FOLDER/<sanitized name>`, so two workspaces uploading `report.pdf` shared one

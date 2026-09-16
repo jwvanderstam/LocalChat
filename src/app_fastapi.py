@@ -122,8 +122,9 @@ def _init_security(app: FastAPI, testing: bool) -> None:
     from slowapi.middleware import SlowAPIMiddleware
     from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-    from .security_fastapi import limiter, setup_cors
+    from .security_fastapi import limiter, setup_cors, setup_security_headers
 
+    setup_security_headers(app)
     setup_cors(app)
 
     # slowapi's decorator evaluates limits from the Limiter itself, not from

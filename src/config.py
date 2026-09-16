@@ -112,7 +112,17 @@ else:
 
 # CORS settings
 CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
-CORS_ORIGINS: list[str] = [o.strip() for o in os.environ.get('CORS_ORIGINS', 'localhost,127.0.0.1').split(',')]
+# Origins must carry a scheme: a browser's Origin header is always
+# "scheme://host[:port]", so a bare "localhost" matches nothing and the default
+# silently allowed no cross-origin request at all (audit M8). Entries without one
+# are rejected at boot rather than quietly ignored.
+CORS_ORIGINS: list[str] = [
+    o.strip()
+    for o in os.environ.get(
+        'CORS_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000'
+    ).split(',')
+    if o.strip()
+]
 
 # Admin credentials — legacy env-var admin account + first-start seeding
 ADMIN_USERNAME: str = os.environ.get('ADMIN_USERNAME', 'admin')

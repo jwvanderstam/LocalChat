@@ -161,6 +161,30 @@ class TestTheShippedOverlayMatchesWhatIsTestedHere:
         cannot resolve — the overlay never reached the application at all."""
         assert "frontend" in self._overlay()["services"]["nginx"]["networks"]
 
+    def test_nginx_sets_the_headers_its_own_responses_need(self):
+        """A 413 or a 502 is answered by nginx and never reaches the app middleware."""
+        conf = (_ROOT / "nginx" / "nginx.conf").read_text(encoding="utf-8")
+        for header in (
+            "X-Content-Type-Options",
+            "Referrer-Policy",
+            "X-Frame-Options",
+            "Strict-Transport-Security",
+        ):
+            directive = next(
+                (line.strip() for line in conf.splitlines()
+                 if line.strip().startswith("add_header") and header in line),
+                None,
+            )
+            assert directive is not None, f"nginx sets no {header}"
+            # Without `always` it applies to 2xx/3xx only — not to the error
+            # responses that are the reason for setting it here at all.
+            assert directive.endswith("always;"), directive
+
+    def test_nginx_caps_the_body_size_to_match_the_application(self):
+        """Its own default is 1 MB, so it silently overrides a larger app limit."""
+        conf = (_ROOT / "nginx" / "nginx.conf").read_text(encoding="utf-8")
+        assert "client_max_body_size 16m;" in conf
+
     def test_nginx_replaces_the_forwarded_header_rather_than_appending(self):
         conf = (_ROOT / "nginx" / "nginx.conf").read_text(encoding="utf-8")
         # Directives only. The file explains the old value in a comment, and a

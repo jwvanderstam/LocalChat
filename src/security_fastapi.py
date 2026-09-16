@@ -627,17 +627,94 @@ limiter = Limiter(
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
+#: Where the pages legitimately load scripts and styles from. Two CDN-hosted
+#: libraries (chart.js, mermaid) are referenced by templates/models.html and
+#: templates/settings.html; everything else is served from this origin.
+_CDN = "https://cdn.jsdelivr.net"
+
+#: `'unsafe-inline'` in script-src is a **known gap**, not an oversight. Four
+#: templates still carry inline <script> blocks and fifteen inline `on*=` handlers,
+#: and a policy without it would break every button on Settings and Models. The
+#: extraction that removes them is the second half of P1-4; when it lands this
+#: entry goes and `tests/unit/test_security_headers.py` is what will say so.
+_CSP = "; ".join([
+    "default-src 'self'",
+    f"script-src 'self' 'unsafe-inline' {_CDN}",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+])
+
+
+def setup_security_headers(app: Any) -> None:
+    """Attach the response headers a browser needs to be told, on every response.
+
+    The application sent none of these (audit M6). Each answers a different
+    question the browser would otherwise resolve permissively:
+
+    * ``Content-Security-Policy`` — where scripts, styles and connections may come
+      from, and (``frame-ancestors 'none'``) that nothing may frame this app.
+    * ``X-Content-Type-Options: nosniff`` — an uploaded file served back is treated
+      as its declared type rather than one the browser infers.
+    * ``Referrer-Policy`` — a workspace or document id in a path does not leak to
+      whatever a user clicks through to.
+    * ``Strict-Transport-Security`` — only over TLS, and never on a plain-HTTP
+      request: sending it over HTTP is meaningless, and sending it from a
+      development server pins localhost to HTTPS in the developer's browser.
+    """
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    async def _add_headers(request: Request, call_next: Any) -> Any:
+        response = await call_next(request)
+        response.headers.setdefault("Content-Security-Policy", _CSP)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        # The proxy terminates TLS, so the request arrives as http with the real
+        # scheme in a header ProxyHeadersMiddleware has already applied to the URL.
+        if request.url.scheme == "https":
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return response
+
+    app.add_middleware(BaseHTTPMiddleware, dispatch=_add_headers)
+
+
 def setup_cors(app: Any) -> None:
-    """Add CORSMiddleware to a FastAPI app when CORS is enabled."""
+    """Add CORSMiddleware to a FastAPI app when CORS is enabled.
+
+    No wildcard fallback. ``allow_origins=["*"]`` with ``allow_credentials=True``
+    lets any site make authenticated cross-origin calls against this API, and an
+    empty ``CORS_ORIGINS`` used to arrive there by accident rather than by anyone
+    choosing it (audit M8). Nothing configured now means CORS stays off, which is
+    the same-origin behaviour the application already works under.
+    """
     if not config.CORS_ENABLED:
         return
-    origins = config.CORS_ORIGINS or ["*"]
-    if origins == ["*"] or origins == "*":
-        logger.warning(
-            "CORS is enabled with wildcard origin ('*'). "
-            "Any domain can make cross-origin requests. "
-            "Set CORS_ORIGINS to specific domains for non-localhost deployments."
+    origins = [o for o in config.CORS_ORIGINS if o and o != "*"]
+    if not origins:
+        logger.error(
+            "CORS_ENABLED=true but CORS_ORIGINS names no usable origin — leaving CORS "
+            "off rather than falling back to a wildcard. Set scheme-qualified origins, "
+            "e.g. https://app.example.com"
         )
+        return
+
+    schemeless = [o for o in origins if "://" not in o]
+    if schemeless:
+        logger.error(
+            "CORS_ORIGINS entries must include a scheme; %d entr(y/ies) do not and "
+            "would match no browser Origin header. Use https://host, not host.",
+            len(schemeless),
+        )
+        raise SystemExit(1)
+
     from starlette.middleware.cors import CORSMiddleware
     app.add_middleware(
         CORSMiddleware,
@@ -646,4 +723,4 @@ def setup_cors(app: Any) -> None:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.info("CORS enabled for origins: %s", origins)
+    logger.info("CORS enabled for %d configured origin(s)", len(origins))
