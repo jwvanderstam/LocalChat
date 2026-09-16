@@ -153,7 +153,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/sanitization.py` | HTML/injection cleaning |
 | `src/utils/encryption.py` | Canonical Fernet `encrypt()`/`decrypt()` for sensitive text columns at rest |
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
-| `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request |
+| `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request. `get_scope()` returns the scope the request was *authorised* for, and refuses when no guard has run |
+| `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1) |
 | **Infra / Config** | |
 | `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |
 | `requirements-dev.in` | Test tooling, hand-written; constrained by `requirements.txt`, never installed into the image |
@@ -180,6 +181,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_active_model_is_chat_capable.py` | An embedding model must never become the active chat model — the candidate filter used to fall back to the unfiltered list, which made `nomic-embed-text` the chat model on any host holding only embedders (the Scaleway Phase 4 stack by construction) and turned every chat into an opaque `GenerationError`; also that `/api/status` reports `ready: false` when no model can chat, while `/api/health` deliberately stays healthy so no container is restarted for it |
 | `tests/unit/test_metrics_auth_admits_admins.py` | `_check_metrics_auth()` admits both of the metrics endpoints' legitimate callers — a scraper's `METRICS_TOKEN` bearer and an admin session cookie, which is what the dashboard has and what setting the token used to 403 |
 | `tests/unit/test_ef_search_persistence.py` | A transaction-pooling proxy silently drops `hnsw.ef_search`; the pool now reads it back and warns, and these prove it warns on the observed value, only once, and not at all when it stuck |
+| `tests/unit/test_object_authorization_matrix.py` | P0-1 — every route addressing an object by id is scoped to a workspace. Walks the AST of `src/` and fails on any call to a workspace-scoped database method that omits `scope=`, so a *new* route cannot repeat C1/C2 |
 | `tests/unit/test_purge_preconditions.py` | The Clark-Wilson purge TPs — a cited conversation or a user with memberships is refused before any DELETE |
 | `tests/unit/test_processor_entity_extraction.py` | `_extract_entities` — GraphRAG is best-effort; a failure there never fails an ingest |
 | `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; runs ES modules that import their siblings (`chat.js`) as well as standalone scripts; how frontend branch logic is tested |

@@ -184,7 +184,7 @@ class TestUnextractedConversationsCarryWorkspace:
         m, _ = _memories_mixin(
             fetchall_return=[(conv_id, "Title", datetime(2026, 1, 1), WS_A)]
         )
-        rows = m.get_unextracted_conversations()
+        rows = m.get_unextracted_conversations(scope="ws-1")
         assert rows[0]["workspace_id"] == WS_A
 
 

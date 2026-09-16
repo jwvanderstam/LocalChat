@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger, sanitize_log_value
+from ..utils.scope import Scope, scope_predicate
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -164,12 +165,18 @@ class ConversationsMixin(MixinHost):
                 ]
 
     def get_conversation_messages(
-        self, conversation_id: str
+        self, conversation_id: str, *, scope: Scope
     ) -> list[dict[str, Any]] | None:
-        """Return messages (role, content, timestamp) ordered ASC, or None if conversation not found."""
+        """Return messages (role, content, timestamp) ordered ASC, or None if not found.
+
+        Out of scope reads as not found, so a conversation in another workspace cannot
+        be told apart from one that does not exist (C2).
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get messages: Database is not connected")
 
+        where, params = scope_predicate(scope, "c.workspace_id")
+        bare_where, _ = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -177,13 +184,15 @@ class ConversationsMixin(MixinHost):
                     FROM conversations c
                     JOIN conversation_messages cm ON cm.conversation_id = c.id
                     WHERE c.id = %s AND c.deleted_at IS NULL
+                """ + where + """
                     ORDER BY cm.created_at ASC, cm.id ASC
-                """, (conversation_id,))
+                """, (conversation_id, *params))
                 rows = cursor.fetchall()
                 if not rows:
                     cursor.execute(
-                        "SELECT 1 FROM conversations WHERE id = %s AND deleted_at IS NULL",
-                        (conversation_id,),
+                        "SELECT 1 FROM conversations"
+                        " WHERE id = %s AND deleted_at IS NULL" + bare_where,
+                        (conversation_id, *params),
                     )
                     if not cursor.fetchone():
                         return None
@@ -245,30 +254,38 @@ class ConversationsMixin(MixinHost):
                 conn.commit()
         logger.debug(f"Updated plan_json for message id={message_id}")
 
-    def update_conversation_title(self, conversation_id: str, title: str) -> bool:
+    def update_conversation_title(
+        self, conversation_id: str, title: str, *, scope: Scope
+    ) -> bool:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot update conversation: Database is not connected")
 
+        where, params = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND deleted_at IS NULL",
-                    (title[:255], conversation_id),
+                    "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP"
+                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    (title[:255], conversation_id, *params),
                 )
                 updated = cursor.rowcount > 0
                 conn.commit()
         return updated
 
-    def get_conversation_document_filter(self, conversation_id: str) -> list[str]:
+    def get_conversation_document_filter(
+        self, conversation_id: str, *, scope: Scope
+    ) -> list[str]:
         """Return filenames to restrict retrieval to; empty list means all documents."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get document filter: Database is not connected")
 
+        where, params = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT document_ids FROM conversations WHERE id = %s AND deleted_at IS NULL",
-                    (conversation_id,),
+                    "SELECT document_ids FROM conversations"
+                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    (conversation_id, *params),
                 )
                 row = cursor.fetchone()
         if row is None:
@@ -276,18 +293,20 @@ class ConversationsMixin(MixinHost):
         return list(row[0]) if row[0] else []
 
     def set_conversation_document_filter(
-        self, conversation_id: str, filenames: list[str]
+        self, conversation_id: str, filenames: list[str], *, scope: Scope
     ) -> bool:
         """Store a document filename filter; pass an empty list to clear (all documents)."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot set document filter: Database is not connected")
 
         import json as _json
+        where, params = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE conversations SET document_ids = %s::jsonb WHERE id = %s AND deleted_at IS NULL",
-                    (_json.dumps(filenames), conversation_id),
+                    "UPDATE conversations SET document_ids = %s::jsonb"
+                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    (_json.dumps(filenames), conversation_id, *params),
                 )
                 updated = cursor.rowcount > 0
                 conn.commit()
@@ -295,15 +314,19 @@ class ConversationsMixin(MixinHost):
             logger.debug(f"Set document filter for {conversation_id}: {filenames}")
         return updated
 
-    def delete_conversation(self, conversation_id: str, deleted_by: str | None = None) -> bool:
+    def delete_conversation(
+        self, conversation_id: str, deleted_by: str | None = None, *, scope: Scope
+    ) -> bool:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversation: Database is not connected")
 
+        where, params = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s WHERE id = %s AND deleted_at IS NULL",
-                    (deleted_by, conversation_id),
+                    "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s"
+                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    (deleted_by, conversation_id, *params),
                 )
                 updated = cursor.rowcount > 0
                 conn.commit()

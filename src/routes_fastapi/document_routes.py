@@ -22,7 +22,7 @@ from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.logging_config import sanitize_log_value as _slv
 from ..utils.sanitization import sanitize_filename, validate_path
-from ..utils.workspace import get_workspace_id
+from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 
 logger = get_logger(__name__)
@@ -265,7 +265,9 @@ async def api_search_text(request: Request) -> Any:
     if not search_text:
         return JSONResponse({"success": False, "message": "search_text required"}, status_code=400)
     try:
-        results = request.app.state.db.search_chunks_by_text(search_text, limit)
+        results = request.app.state.db.search_chunks_by_text(
+            search_text, limit, scope=get_scope(request)
+        )
         return {"success": True, "search_text": search_text, "count": len(results), "results": results}
     except Exception:
         logger.exception("Error searching text")
@@ -280,10 +282,13 @@ def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> A
     window = min(window, 5)
     try:
         db = request.app.state.db
-        chunk = db.get_chunk_by_id(chunk_id)
+        scope = get_scope(request)
+        chunk = db.get_chunk_by_id(chunk_id, scope=scope)
         if chunk is None:
             return JSONResponse({"success": False, "message": "Chunk not found"}, status_code=404)
-        adjacent = db.get_adjacent_chunks(chunk["document_id"], chunk["chunk_index"], window_size=window)
+        adjacent = db.get_adjacent_chunks(
+            chunk["document_id"], chunk["chunk_index"], window_size=window, scope=scope
+        )
         return {
             "success": True,
             "chunk_id": chunk_id,
@@ -299,19 +304,56 @@ def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> A
 
 @router.delete("/clear")
 def api_clear_documents(request: Request) -> Any:
-    denied = _deny(request, None, "editor")
+    """Retire every document in the caller's own workspace. Reversible.
+
+    Requires ``owner``: clearing a whole workspace is not the same decision as
+    retiring one document, which an editor may do. It sets ``deleted_at`` and never
+    destroys a row — the irreversible operation is ``/purge-all`` below.
+
+    This route used to hard-delete every document in *every* workspace for any
+    editor of any workspace (C1).
+    """
+    denied = _deny(request, None, "owner")
     if denied:
         return denied
+    caller = get_current_user_id(request)
+    deleted_by = caller if caller and caller != "anonymous" else None
     try:
-        logger.warning("Clearing all documents from database")
-        request.app.state.db.delete_all_documents()
-        return {"success": True, "message": "All documents and chunks have been deleted"}
+        retired = request.app.state.db.retire_all_documents(
+            scope=get_scope(request), deleted_by=deleted_by
+        )
+        return {
+            "success": True,
+            "retired": retired,
+            "message": f"{retired} documents retired. They can be restored until purged.",
+        }
     except DatabaseUnavailableError:
         logger.exception("DB unavailable clearing documents")
         return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
     except Exception:
         logger.exception("Error clearing documents")
         return JSONResponse({"success": False, "message": "Failed to clear documents"}, status_code=500)
+
+
+@router.delete("/purge-all")
+def api_purge_all_documents(
+    request: Request,
+    admin_user_id: Annotated[str, Depends(require_admin_dep)],
+) -> Any:
+    """Hard-delete every retired document, installation-wide. Irreversible, admin only.
+
+    Registered before ``/{doc_id}`` so the literal path is not shadowed by the
+    integer route.
+    """
+    try:
+        purged = request.app.state.db.purge_all_documents()
+        return {"success": True, "purged": purged}
+    except DatabaseUnavailableError:
+        logger.exception("DB unavailable purging documents")
+        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except Exception:
+        logger.exception("Error purging documents")
+        return JSONResponse({"success": False, "message": "Failed to purge documents"}, status_code=500)
 
 
 @router.delete("/{doc_id}/purge")
@@ -359,7 +401,13 @@ def api_delete_document(doc_id: int, request: Request) -> Any:
     caller = get_current_user_id(request)
     deleted_by = caller if caller and caller != "anonymous" else None
     try:
-        request.app.state.db.delete_document(doc_id, deleted_by)
+        deleted = request.app.state.db.delete_document(
+            doc_id, deleted_by, scope=get_scope(request)
+        )
+        if not deleted:
+            return JSONResponse(
+                {"success": False, "message": "Document not found"}, status_code=404
+            )
         return {"success": True}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable deleting document %s", _slv(str(doc_id)))

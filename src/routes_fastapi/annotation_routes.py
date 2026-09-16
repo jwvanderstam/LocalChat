@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from ..security_fastapi import get_current_user_id
 from ..utils.logging_config import get_logger
+from ..utils.workspace import get_scope
 from ._authz import deny as _deny
 
 logger = get_logger(__name__)
@@ -52,7 +53,9 @@ def list_chunk_annotations(chunk_id: int, request: Request) -> Any:
     if denied:
         return denied
     try:
-        annotations = request.app.state.db.get_annotations_for_chunk(chunk_id)
+        annotations = request.app.state.db.get_annotations_for_chunk(
+            chunk_id, scope=get_scope(request)
+        )
         return {"success": True, "annotations": annotations}
     except Exception:
         logger.exception("[Annotations] list error")
@@ -68,7 +71,7 @@ def delete_annotation(annotation_id: str, request: Request) -> Any:
     deleted_by = user_id if user_id and user_id != "anonymous" else None
     try:
         deleted = request.app.state.db.delete_annotation(
-            annotation_id, user_id=user_id, deleted_by=deleted_by
+            annotation_id, user_id=user_id, deleted_by=deleted_by, scope=get_scope(request)
         )
         if not deleted:
             return JSONResponse({"success": False, "message": "Annotation not found"}, status_code=404)

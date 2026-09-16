@@ -8,6 +8,7 @@ import numpy as np
 from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope, scope_predicate
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -81,34 +82,46 @@ class MemoriesMixin(MixinHost):
                 )
                 conn.commit()
 
-    def delete_memory(self, memory_id: str, deleted_by: str | None = None) -> bool:
-        """Soft-delete a single memory by UUID. Returns True if a live row was retired."""
+    def delete_memory(
+        self, memory_id: str, deleted_by: str | None = None, *, scope: Scope
+    ) -> bool:
+        """Soft-delete a single memory by UUID. Returns True if a live row was retired.
+
+        False also covers "exists, but in another workspace" — the caller reports 404
+        either way, so the id space stays opaque.
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete memory: Database not connected")
+        where, params = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
-                    "WHERE id = %s::uuid AND deleted_at IS NULL",
-                    (deleted_by, memory_id),
+                    "WHERE id = %s::uuid AND deleted_at IS NULL" + where,
+                    (deleted_by, memory_id, *params),
                 )
                 conn.commit()
                 return cursor.rowcount > 0
 
-    def delete_all_memories(self, deleted_by: str | None = None) -> int:
-        """Soft-delete all memories. Returns count retired."""
+    def delete_all_memories(self, deleted_by: str | None = None, *, scope: Scope) -> int:
+        """Soft-delete every live memory in *scope*. Returns count retired.
+
+        Unscoped, this retired every user's memories in every workspace for any
+        editor of any one of them (C2).
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete memories: Database not connected")
+        where, params = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
-                    "WHERE deleted_at IS NULL",
-                    (deleted_by,),
+                    "WHERE deleted_at IS NULL" + where,
+                    (deleted_by, *params),
                 )
                 count = cursor.rowcount
                 conn.commit()
-        logger.info(f"Soft-deleted {count} memories")
+        logger.info(f"Soft-deleted {count} memories in scope {scope}")
         return count
 
     def mark_conversation_extracted(self, conversation_id: str) -> None:
@@ -244,10 +257,13 @@ class MemoriesMixin(MixinHost):
             for r in rows
         ]
 
-    def get_unextracted_conversations(self, limit: int = 10) -> list[dict[str, Any]]:
+    def get_unextracted_conversations(
+        self, limit: int = 10, *, scope: Scope
+    ) -> list[dict[str, Any]]:
         """Return conversations whose memory_extracted_at is behind updated_at."""
         if not self.is_connected:
             return []
+        where, params = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -256,10 +272,11 @@ class MemoriesMixin(MixinHost):
                     FROM conversations
                     WHERE deleted_at IS NULL
                       AND (memory_extracted_at IS NULL OR memory_extracted_at < updated_at)
+                    """ + where + """
                     ORDER BY updated_at DESC
                     LIMIT %s
                     """,
-                    (limit,),
+                    (*params, limit),
                 )
                 rows = cursor.fetchall()
         return [

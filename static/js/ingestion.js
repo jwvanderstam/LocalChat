@@ -506,26 +506,18 @@ async function deleteDocument(docId, filename) {
     }
 }
 
-// Clear database
+// Retire every document in the active workspace
 async function clearDatabase() {
-    // Confirm action
+    // One prompt, not two. The second existed because this action was an
+    // irreversible installation-wide wipe; it now retires the active workspace's
+    // documents and an administrator can purge or restore them afterwards.
     const ok = await window.localchatConfirm({
-        title: 'Delete ALL documents',
-        body: 'Every document and chunk will be permanently removed from the database. This cannot be undone.',
-        confirmText: 'Delete everything',
+        title: 'Retire all documents',
+        body: 'Every document in this workspace will be retired. Other workspaces are '
+            + 'untouched, and an administrator can restore them until they are purged.',
+        confirmText: 'Retire all',
     });
     if (!ok) {
-        return;
-    }
-    
-    // Double confirmation
-    // Second prompt kept: this is the one action with no per-item recovery.
-    const reallyOk = await window.localchatConfirm({
-        title: 'Last chance',
-        body: 'Confirm again to delete all documents permanently.',
-        confirmText: 'Delete all permanently',
-    });
-    if (!reallyOk) {
         return;
     }
     
@@ -544,7 +536,8 @@ async function clearDatabase() {
         if (data.success) {
             loadDocuments();
             loadStats();
-            uploadResults.innerHTML = '<div class="alert alert-success">Database cleared — all documents deleted.</div>';
+            const n = data.retired ?? 0;
+            uploadResults.innerHTML = `<div class="alert alert-success">${n} document${n === 1 ? '' : 's'} retired in this workspace. They can be restored until purged.</div>`;
             testResults.innerHTML = '';
         } else {
             uploadResults.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(data.message)}</div>`;
@@ -553,7 +546,7 @@ async function clearDatabase() {
         uploadResults.innerHTML = `<div class="alert alert-danger">Error clearing database: ${escapeHtml(error.message)}</div>`;
     } finally {
         clearBtn.disabled = false;
-        clearBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Clear Database';
+        clearBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Retire All Documents';
     }
 }
 

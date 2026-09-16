@@ -233,11 +233,11 @@ class TestDeleteMemory:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _memories_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.delete_memory("some-uuid")
+            m.delete_memory("some-uuid", scope="ws-1")
 
     def test_executes_delete_when_connected(self):
         m, conn, _ = _memories_mixin()
-        m.delete_memory("mem-uuid")
+        m.delete_memory("mem-uuid", scope="ws-1")
         m.get_connection.assert_called_once()
 
 
@@ -246,11 +246,11 @@ class TestDeleteAllMemories:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _memories_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.delete_all_memories()
+            m.delete_all_memories(scope="ws-1")
 
     def test_returns_count(self):
         m, _, cur = _memories_mixin(rowcount=7)
-        count = m.delete_all_memories()
+        count = m.delete_all_memories(scope="ws-1")
         assert count == 7
 
 
@@ -317,7 +317,7 @@ class TestGetAllMemories:
 class TestGetUnextractedConversations:
     def test_returns_empty_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        assert m.get_unextracted_conversations() == []
+        assert m.get_unextracted_conversations(scope="ws-1") == []
 
     def test_returns_list_of_dicts(self):
         from datetime import datetime
@@ -326,7 +326,7 @@ class TestGetUnextractedConversations:
         m, _, cur = _memories_mixin(
             fetchall_return=[(cid, "My Conversation", datetime(2025, 3, 1), ws_id)]
         )
-        results = m.get_unextracted_conversations()
+        results = m.get_unextracted_conversations(scope="ws-1")
         assert len(results) == 1
         assert results[0]["id"] == cid
         assert results[0]["title"] == "My Conversation"

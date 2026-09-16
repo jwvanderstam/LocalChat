@@ -10,7 +10,8 @@ from fastapi.responses import JSONResponse
 
 from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.logging_config import get_logger
-from ..utils.workspace import get_workspace_id
+from ..utils.scope import ALL_WORKSPACES
+from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 from ._authz import require_caller
 
@@ -119,7 +120,7 @@ async def create_connector(request: Request) -> Any:
         )
         registry.add(connector_id, connector_type, connector_config,
                      workspace_id=workspace_id, owner_user_id=created_by)
-        connector = db.get_connector(connector_id)
+        connector = db.get_connector(connector_id, scope=workspace_id)
         return JSONResponse({"success": True, "connector": connector}, status_code=201)
     except Exception:
         logger.exception("[Connectors] create error")
@@ -132,7 +133,7 @@ def get_connector(connector_id: str, request: Request) -> Any:
     if denied:
         return denied
     try:
-        connector = request.app.state.db.get_connector(connector_id)
+        connector = request.app.state.db.get_connector(connector_id, scope=get_scope(request))
         if connector is None:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "connector": connector}
@@ -155,11 +156,12 @@ async def update_connector(connector_id: str, request: Request) -> Any:
         return JSONResponse({"success": False, "message": _OWNER_IN_CONFIG}, status_code=400)
     try:
         db = request.app.state.db
-        updated = db.update_connector(connector_id, **fields)
+        scope = get_scope(request)
+        updated = db.update_connector(connector_id, scope=scope, **fields)
         if not updated:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         if "config" in fields or "enabled" in fields:
-            row = db.get_connector(connector_id)
+            row = db.get_connector(connector_id, scope=scope)
             if row and row.get("enabled"):
                 request.app.state.connector_registry.add(
                     connector_id, row["connector_type"], row["config"],
@@ -168,7 +170,7 @@ async def update_connector(connector_id: str, request: Request) -> Any:
                 )
             else:
                 request.app.state.connector_registry.remove(connector_id)
-        return {"success": True, "connector": db.get_connector(connector_id)}
+        return {"success": True, "connector": db.get_connector(connector_id, scope=scope)}
     except Exception:
         logger.exception("[Connectors] update error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
@@ -207,7 +209,9 @@ def delete_connector(connector_id: str, request: Request) -> Any:
     actor = get_current_user_id(request)
     deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        deleted = request.app.state.db.delete_connector(connector_id, deleted_by=deleted_by)
+        deleted = request.app.state.db.delete_connector(
+            connector_id, deleted_by=deleted_by, scope=get_scope(request)
+        )
         if not deleted:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         request.app.state.connector_registry.remove(connector_id)
@@ -254,7 +258,10 @@ def sync_history(connector_id: str, request: Request, limit: int = 20) -> Any:
 @router.post("/connectors/{connector_id}/webhook")
 async def receive_webhook(connector_id: str, request: Request) -> Any:
     db = request.app.state.db
-    connector = db.get_connector(connector_id)
+    # No user session here: this is a public receiver, and the connector id plus its
+    # secret is the whole credential. ALL_WORKSPACES says that rather than relying on
+    # an omitted argument to mean it.
+    connector = db.get_connector(connector_id, scope=ALL_WORKSPACES)
     if connector is None:
         return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
     if connector.get("connector_type") != "webhook":

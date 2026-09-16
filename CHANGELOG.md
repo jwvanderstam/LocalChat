@@ -8,6 +8,34 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+### Security
+
+- **Object-level authorization on every route that addresses an object by id** (P0-1,
+  external audit findings C1 and C2). The workspace guard authorised the caller against
+  *their own* workspace and the database call then acted on an object in *any* workspace.
+  The worst case, `DELETE /api/documents/clear`, hard-deleted every document and chunk in
+  the installation for any user holding `editor` in any workspace — and any user can
+  create one. Also affected: chunk text search and chunk-context reads across all
+  workspaces, single-document retire, delete-all-memories, and update/delete of
+  conversations, memories, annotations and connectors by id.
+  - Database methods that reach a workspace-owned object now take a mandatory
+    keyword-only `scope`, and `src/utils/scope.py` removes `None` as a value for it:
+    a scope is a workspace id or the explicit `ALL_WORKSPACES`. Forgetting the argument
+    is a `TypeError`, and passing `None` a `ValueError`, where it used to mean
+    "every workspace".
+  - `check_workspace_access` now pins the authorised scope for all three principals,
+    including the global-admin path, which previously returned without pinning anything
+    and so left the query unscoped.
+  - `tests/unit/test_object_authorization_matrix.py` walks the AST of `src/` and fails on
+    any call that omits the scope, so a newly added route cannot repeat the pattern.
+- **`DELETE /api/documents/clear` retires instead of destroying, within one workspace**
+  (decision D2). It requires `owner`, sets `deleted_at`/`deleted_by`, and touches only the
+  caller's workspace. The irreversible operation moved to a separate admin-only
+  `DELETE /api/documents/purge-all`, which acts only on documents already retired. This
+  restores the Clark-Wilson rule the old endpoint broke outright: a delete TP never issues
+  `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
+  `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
+
 ### Changed
 
 - **The cloud fallback will target OpenAI-compatible endpoints directly rather than through

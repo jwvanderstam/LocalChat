@@ -34,6 +34,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import config
 from .utils.logging_config import get_logger, sanitize_log_value
+from .utils.scope import ALL_WORKSPACES
 from .utils.workspace import get_workspace_id
 
 logger = get_logger(__name__)
@@ -376,6 +377,7 @@ def _check_api_key_access(
     # the header, so a request that omits X-Workspace-ID cannot fall through to the
     # default workspace after authorising against the key's.
     request.state.resolved_workspace_id = key_workspace
+    request.state.resolved_scope = key_workspace
     return None
 
 
@@ -421,6 +423,13 @@ def check_workspace_access(
     if not claims:
         return (status.HTTP_401_UNAUTHORIZED, _ERR_AUTH_REQUIRED)
     if claims.get("role") == "admin":
+        # An admin acts on the workspace they named, and only installation-wide
+        # when they named none. That is what this path already did by omission —
+        # it pinned nothing, so get_workspace_id() returned the header or None —
+        # but ALL_WORKSPACES says it, and a route can no longer reach an unscoped
+        # query by forgetting to pass anything (C1/C2).
+        named = workspace_id or get_workspace_id(request)
+        request.state.resolved_scope = named or ALL_WORKSPACES
         return None
     ws_id = workspace_id or get_workspace_id(request)
     db = getattr(request.app.state, "db", None)
@@ -454,6 +463,7 @@ def check_workspace_access(
     #
     # Set only after the checks pass: a refusal has no authorised workspace to name.
     request.state.resolved_workspace_id = ws_id
+    request.state.resolved_scope = ws_id
     return None
 
 

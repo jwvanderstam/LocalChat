@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import config, exceptions
 from ..rag.retrieval import RetrievalResult
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES, Scope
 
 if TYPE_CHECKING:
     from ..agent.result import AgentResult
@@ -239,12 +240,12 @@ def stop_ollama_liveness(timeout: float = 5.0) -> None:
         thread.join(timeout=timeout)
 
 
-def get_filename_filter(fields: dict, db: Any) -> list[str]:
+def get_filename_filter(fields: dict, db: Any, scope: Scope) -> list[str]:
     conversation_id = fields.get("conversation_id")
     if not conversation_id:
         return []
     try:
-        return db.get_conversation_document_filter(conversation_id)
+        return db.get_conversation_document_filter(conversation_id, scope=scope)
     except Exception as filter_err:
         logger.warning("[RAG] Could not read document filter: %s", filter_err)
         return []
@@ -306,7 +307,10 @@ def retrieve_contexts(
 
     if fields["use_rag"]:
         try:
-            filename_filter = get_filename_filter(fields, db)
+            # A chat request with no workspace resolved is a global admin who named
+            # none; that is what this path already did, said out loud. P0-2 replaces
+            # it with a refusal once retrieval itself fails closed.
+            filename_filter = get_filename_filter(fields, db, workspace_id or ALL_WORKSPACES)
             if plan is not None and plan.is_multi_hop:
                 local_context, sources = get_rag_context_multi_hop(
                     plan.sub_questions, doc_processor, filename_filter,
