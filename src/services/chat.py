@@ -70,14 +70,24 @@ def parse_chat_request(data: dict) -> dict:
 
 
 def try_mcp_rag(
-    message: str, filename_filter: list | None, chunks_retrieved_ref: list[int]
+    message: str,
+    filename_filter: list | None,
+    chunks_retrieved_ref: list[int],
+    workspace_id: str,
 ) -> tuple[str, list[dict]] | None:
+    """Retrieve through the local-docs MCP server, or None to fall back.
+
+    *workspace_id* is passed on rather than dropped. It used to be absent from this
+    call entirely, and the server read a missing workspace as "every workspace", so
+    turning MCP on silently removed workspace isolation from chat (audit C3).
+    """
     try:
         from ..mcp_client import mcp_registry
         result = mcp_registry.local_docs.call_tool("search", {
             "query": message,
             "filters": {"filenames": filename_filter or []},
             "top_k": config.TOP_K_RESULTS,
+            "workspace_id": workspace_id,
         })
         if isinstance(result, dict) and "context" in result:
             context = result["context"]
@@ -100,8 +110,13 @@ def get_rag_context(
     additional_workspace_ids: list[str] | None = None,
     source_ids: list[str] | None = None,
 ) -> tuple[str, list[dict]]:
-    if config.MCP_ENABLED:
-        mcp_result = try_mcp_rag(message, filename_filter, chunks_retrieved_ref)
+    if config.MCP_ENABLED and workspace_id:
+        # No workspace, no MCP: the server now refuses an unscoped search, and
+        # falling through to the direct path keeps the caller's own scoping rules
+        # rather than inventing one here.
+        mcp_result = try_mcp_rag(
+            message, filename_filter, chunks_retrieved_ref, workspace_id
+        )
         if mcp_result is not None:
             return mcp_result
 

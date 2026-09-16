@@ -9,10 +9,20 @@ import src.rag.web_search as web_search_module
 from mcp_servers.web_search import server
 from src.rag.web_search import WebSearchResult
 
+_TOKEN = "test-mcp-token"
+
+
+@pytest.fixture(autouse=True)
+def _configured_token(monkeypatch) -> None:
+    """The MCP servers refuse every call without a shared token (audit C3)."""
+    monkeypatch.setattr("mcp_servers.base._AUTH_TOKEN", _TOKEN)
+
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(server.app)
+    client = TestClient(server.app)
+    client.headers.update({"Authorization": f"Bearer {_TOKEN}"})
+    return client
 
 
 def _mock_provider_class(results: list[WebSearchResult], formatted: str = "formatted web context") -> Mock:

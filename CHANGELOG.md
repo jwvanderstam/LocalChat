@@ -36,6 +36,24 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
   `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
 
+- **Enabling the MCP servers no longer removes workspace isolation, and they are no
+  longer open** (P0-2, audit finding C3, decision D4). Three holes that were only
+  exploitable together:
+  - `get_rag_context` **dropped `workspace_id`** when `MCP_ENABLED=true` and returned the
+    MCP result, so turning the flag on silently un-scoped chat retrieval.
+  - The MCP `search` tool **could not accept a workspace at all**, and retrieval reads a
+    missing workspace as *every* workspace. It is now required, by the handler and by the
+    schema the model is given, on both servers that retrieve.
+  - The servers had **no authentication of any kind** — whatever reached `POST /mcp` was
+    served, by a process sitting on the `backend` network with the database. They now
+    require an `MCP_AUTH_TOKEN` bearer, compared in constant time.
+  - Unset fails closed in three places rather than one: the servers refuse every call, the
+    app refuses to boot with `MCP_ENABLED=true`, and `get_rag_context` falls through to the
+    direct (scoped) path rather than calling an unscoped search.
+  - The LLM's own document-search tools (`search_documents`, `ToolRouter._local_docs`) had
+    the same hole and no argument to fix it with, since the model calls them mid-answer.
+    They now read the workspace the request bound, and **raise** when nothing bound one.
+
 - **Rate limiting can no longer be bypassed behind the bundled nginx** (P0-5, audit
   finding H3). The TLS overlay shipped `TRUSTED_PROXY_IPS: "*"` while `nginx.conf` set the
   header with `$proxy_add_x_forwarded_for`. Together those are a bypass: `*` makes uvicorn

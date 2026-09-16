@@ -340,6 +340,26 @@ to empty, in which case the router falls back to the active model.
 | `MCP_WEB_SEARCH_URL` | `http://localhost:5002` | Web-search server |
 | `MCP_CLOUD_CONNECTORS_URL` | `http://localhost:5003` | Cloud-connectors server |
 | `MCP_TIMEOUT` | `30` | Per-request timeout, seconds |
+| `MCP_AUTH_TOKEN` | *(empty)* | Shared secret between the app and its MCP servers. **Required when `MCP_ENABLED=true`** — see below |
+
+> **`MCP_AUTH_TOKEN` is the MCP servers' entire access control.** They hold no session
+> and no user: whatever reaches `POST /mcp` is served. They also sit on the `backend`
+> network with the database and retrieve from documents, so "whatever reaches them" is
+> the whole corpus.
+>
+> Until an external audit in September 2026 there was no check at all, and the retrieval
+> tool could not even accept a workspace — so with `MCP_ENABLED=true` every answer was
+> drawn from every workspace regardless of who asked. Both halves are fixed: the servers
+> require a bearer token (compared in constant time), and `search` requires a workspace.
+>
+> Unset fails closed in three places rather than one: the servers refuse every call, the
+> app refuses to boot with `MCP_ENABLED=true`, and `get_rag_context` falls through to the
+> direct path rather than calling an unscoped search. Set the same value on the app and on
+> all three servers — `docker-compose.yml` already wires one variable to all four.
+>
+> ```bash
+> MCP_AUTH_TOKEN=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+> ```
 | `MCP_CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive failures before the breaker opens |
 | `MCP_CIRCUIT_RECOVERY_TIMEOUT` | `60` | Seconds the breaker stays open |
 

@@ -153,6 +153,15 @@ def validate_secrets() -> None:
             "CORS_ORIGINS is wildcarded ('*') with CORS enabled — set specific "
             "origin domains for production"
         )
+    # The MCP servers have no session and no user; the token is their whole access
+    # control. Enabling them without one is enabling an unauthenticated service that
+    # can retrieve from every workspace, so it fails at boot rather than at the first
+    # refused call (audit C3).
+    if MCP_ENABLED and not MCP_AUTH_TOKEN:
+        errors.append(
+            "MCP_AUTH_TOKEN must be set when MCP_ENABLED=true — the MCP servers "
+            "have no other authentication, and refuse every call without it"
+        )
     # Without a usable key, encrypt() returns its input and OAuth tokens, message
     # content and long-term memories are written to Postgres in plain text. The
     # only signal is one warning on the first write, per worker — so this has to
@@ -430,6 +439,11 @@ MCP_LOCAL_DOCS_URL: str = os.environ.get('MCP_LOCAL_DOCS_URL', 'http://localhost
 MCP_WEB_SEARCH_URL: str = os.environ.get('MCP_WEB_SEARCH_URL', 'http://localhost:5002')
 MCP_CLOUD_CONNECTORS_URL: str = os.environ.get('MCP_CLOUD_CONNECTORS_URL', 'http://localhost:5003')
 MCP_TIMEOUT: int = int(os.environ.get('MCP_TIMEOUT', '30'))
+# Shared secret the app presents to its MCP servers, and the only thing standing
+# between them and any caller that can reach their ports. They hold no session and
+# no user: whoever reaches /mcp gets whatever the tool returns. Unset means the
+# servers refuse every call rather than serving anonymously (audit C3).
+MCP_AUTH_TOKEN: str = os.environ.get('MCP_AUTH_TOKEN', '')
 # Circuit breaker: open after N consecutive failures, attempt recovery after M seconds
 MCP_CIRCUIT_FAILURE_THRESHOLD: int = int(os.environ.get('MCP_CIRCUIT_FAILURE_THRESHOLD', '5'))
 MCP_CIRCUIT_RECOVERY_TIMEOUT: int = int(os.environ.get('MCP_CIRCUIT_RECOVERY_TIMEOUT', '60'))

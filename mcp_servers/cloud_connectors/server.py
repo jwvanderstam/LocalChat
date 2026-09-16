@@ -31,11 +31,25 @@ _server = MCPServer("cloud-connectors")
 # Tool handlers
 # ---------------------------------------------------------------------------
 
-def search(query: str, filters: dict | None = None, top_k: int = 10) -> dict:
-    """Search documents from all enabled connectors via the core retrieval pipeline."""
+def search(
+    query: str,
+    filters: dict | None = None,
+    top_k: int = 10,
+    workspace_id: str | None = None,
+) -> dict:
+    """Search documents from all enabled connectors via the core retrieval pipeline.
+
+    *workspace_id* is required, for the same reason as the local-docs server: this
+    goes through the same retrieval, and retrieval reads a missing workspace as
+    every workspace (audit C3).
+    """
+    if not workspace_id:
+        raise ValueError("workspace_id is required: refusing to search every workspace")
     try:
         from src.rag import doc_processor
-        results = doc_processor.retrieve_context(query, top_k=top_k)
+        results = doc_processor.retrieve_context(
+            query, top_k=top_k, workspace_id=workspace_id
+        )
         if not results:
             return {"context": "", "sources": []}
         context = doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH)
@@ -72,8 +86,12 @@ _server.register_tool(
             "query": {"type": "string"},
             "filters": {"type": "object"},
             "top_k": {"type": "integer", "default": 10},
+            "workspace_id": {
+                "type": "string",
+                "description": "Workspace to search. Required — retrieval without one reads every workspace",
+            },
         },
-        "required": ["query"],
+        "required": ["query", "workspace_id"],
     },
     handler=search,
 )

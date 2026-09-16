@@ -175,6 +175,27 @@ The items below are known, deliberately **not remediated via the usual route** (
   the workspace — a path, a host, a credential — belongs in `_ADMIN_ONLY_TYPES` and in this
   list, and the question to answer first is what a workspace owner could reach with it.
 
+### 9. The MCP servers authenticate with one shared token, not per-user
+
+- **What**: the domain MCP servers (`mcp_servers/`, `--profile mcp`, off by default)
+  authenticate callers with a single shared secret, `MCP_AUTH_TOKEN`, presented as a bearer
+  token and compared with `hmac.compare_digest`. They hold no session and no user, so that
+  token is the whole of their access control. Workspace scoping is passed *by the caller*:
+  `search` requires a `workspace_id` and refuses without one.
+- **The residual**: anything holding the token can name any workspace. The servers trust the
+  application to pass the workspace it authorised, because they have no way to check — there
+  is no user identity in an MCP call to check it against.
+- **Why accepted**: the servers are off by default, run on the internal `backend` network
+  with their ports bound to loopback, and the only intended caller is the application
+  itself. Decision D4 chose to authorise them rather than remove them.
+- **Before this**: there was no check at all, and `search` could not accept a workspace —
+  so with `MCP_ENABLED=true`, every answer was drawn from every workspace regardless of who
+  asked, and anything that could reach the port got the whole corpus (audit C3).
+- **Re-review trigger**: any caller other than this application, or any deployment where the
+  servers are reachable beyond the compose network — at which point the token should become
+  per-caller, and the workspace should be derived from an identity the server can verify
+  rather than accepted from the request.
+
 ## Supply chain
 
 - Base images are **digest-pinned** (`dhi.io/python:3.12` and `:3.12-dev`). A bare tag

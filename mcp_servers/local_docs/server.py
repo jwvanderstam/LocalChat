@@ -45,16 +45,30 @@ def _get_services():
 # Tool handlers
 # ---------------------------------------------------------------------------
 
-def search(query: str, filters: dict | None = None, top_k: int = 10) -> dict:
+def search(
+    query: str,
+    filters: dict | None = None,
+    top_k: int = 10,
+    workspace_id: str | None = None,
+) -> dict:
     """
     Search local documents using hybrid semantic + lexical retrieval.
 
     Returns a pre-formatted context block and source list so the caller
     does not need to re-implement formatting logic.
+
+    *workspace_id* is required. This tool could not accept one at all, and
+    retrieval reads a missing workspace as "every workspace" — so with
+    MCP_ENABLED=true every answer was drawn from the whole installation
+    regardless of who asked (audit C3).
     """
+    if not workspace_id:
+        raise ValueError("workspace_id is required: refusing to search every workspace")
     doc_processor, _ = _get_services()
     filename_filter = (filters or {}).get("filenames", [])
-    results = doc_processor.retrieve_context(query, filename_filter=filename_filter)
+    results = doc_processor.retrieve_context(
+        query, filename_filter=filename_filter, workspace_id=workspace_id
+    )
     results = results[:top_k]
     logger.info(f"[local-docs] search '{query[:60]}' → {len(results)} chunks")
 
@@ -107,8 +121,12 @@ _server.register_tool(
                 "description": "Optional filters — e.g. {\"filenames\": [\"report.pdf\"]}",
             },
             "top_k": {"type": "integer", "default": 10, "description": "Max chunks to return"},
+            "workspace_id": {
+                "type": "string",
+                "description": "Workspace to search. Required — retrieval without one reads every workspace",
+            },
         },
-        "required": ["query"],
+        "required": ["query", "workspace_id"],
     },
     handler=search,
 )

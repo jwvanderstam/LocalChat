@@ -142,7 +142,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/connectors/registry.py` | `ConnectorRegistry` singleton |
 | `src/connectors/worker.py` | `SyncWorker` daemon — polls connectors, ingests changes |
 | **MCP servers** | |
-| `mcp_servers/base.py` | `MCPServer` base — JSON-RPC 2.0 dispatcher |
+| `mcp_servers/base.py` | `MCPServer` base — JSON-RPC 2.0 dispatcher; `POST /mcp` requires the `MCP_AUTH_TOKEN` bearer (constant-time), and refuses every call when none is configured |
 | `mcp_servers/local_docs/server.py` | Local-docs MCP server; uvicorn port 5001 |
 | `mcp_servers/web_search/server.py` | Web-search MCP server; uvicorn port 5002 |
 | `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server; uvicorn port 5003 |
@@ -154,7 +154,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/encryption.py` | Canonical Fernet `encrypt()`/`decrypt()` for sensitive text columns at rest |
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request. `get_scope()` returns the scope the request was *authorised* for, and refuses when no guard has run |
-| `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1) |
+| `tests/unit/test_mcp_isolation_and_auth.py` | P0-2 — enabling MCP must not widen the workspace scope, and the servers must not be open: token refusals, `search` requiring a workspace on both retrieving servers, and the request-scope the LLM tools read |
+| `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1). Also `request_scope()`/`current_request_scope()`, the per-request workspace the LLM retrieval tools read — they are called by the model, so they have no argument to carry one (P0-2) |
 | **Infra / Config** | |
 | `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |
 | `requirements-dev.in` | Test tooling, hand-written; constrained by `requirements.txt`, never installed into the image |

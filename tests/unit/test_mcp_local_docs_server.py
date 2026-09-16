@@ -7,10 +7,21 @@ from fastapi.testclient import TestClient
 
 from mcp_servers.local_docs import server
 
+WS = "11111111-1111-1111-1111-111111111111"
+_TOKEN = "test-mcp-token"
+
+
+@pytest.fixture(autouse=True)
+def _configured_token(monkeypatch) -> None:
+    """The MCP servers refuse every call without a shared token (audit C3)."""
+    monkeypatch.setattr("mcp_servers.base._AUTH_TOKEN", _TOKEN)
+
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(server.app)
+    client = TestClient(server.app)
+    client.headers.update({"Authorization": f"Bearer {_TOKEN}"})
+    return client
 
 
 def _mock_services(retrieve_results: list, documents: list) -> tuple[Mock, Mock]:
@@ -31,7 +42,7 @@ def test_search_returns_context_and_sources_when_results_found(monkeypatch: pyte
     doc_processor, db = _mock_services(results, [])
     monkeypatch.setattr(server, "_get_services", lambda: (doc_processor, db))
 
-    result = server.search("what is in the report?")
+    result = server.search("what is in the report?", workspace_id=WS)
 
     assert result["context"] == "formatted context"
     assert result["sources"] == [
@@ -59,7 +70,7 @@ def test_search_returns_empty_context_and_sources_when_no_results(monkeypatch: p
     doc_processor, db = _mock_services([], [])
     monkeypatch.setattr(server, "_get_services", lambda: (doc_processor, db))
 
-    result = server.search("no matches here")
+    result = server.search("no matches here", workspace_id=WS)
 
     assert result == {"context": "", "sources": []}
     doc_processor.format_context_for_llm.assert_not_called()
@@ -70,9 +81,11 @@ def test_search_passes_filenames_filter_from_arguments(monkeypatch: pytest.Monke
     doc_processor, db = _mock_services([], [])
     monkeypatch.setattr(server, "_get_services", lambda: (doc_processor, db))
 
-    server.search("query", filters={"filenames": ["a.pdf", "b.pdf"]})
+    server.search("query", filters={"filenames": ["a.pdf", "b.pdf"]}, workspace_id=WS)
 
-    doc_processor.retrieve_context.assert_called_once_with("query", filename_filter=["a.pdf", "b.pdf"])
+    doc_processor.retrieve_context.assert_called_once_with(
+        "query", filename_filter=["a.pdf", "b.pdf"], workspace_id=WS
+    )
 
 
 @pytest.mark.unit
@@ -82,9 +95,12 @@ def test_search_defaults_filename_filter_to_empty_list_when_filters_omitted(
     doc_processor, db = _mock_services([], [])
     monkeypatch.setattr(server, "_get_services", lambda: (doc_processor, db))
 
-    server.search("query")
+    server.search("query", workspace_id=WS)
 
-    doc_processor.retrieve_context.assert_called_once_with("query", filename_filter=[])
+    # The workspace reaches the query — the point of the finding, not a detail.
+    doc_processor.retrieve_context.assert_called_once_with(
+        "query", filename_filter=[], workspace_id=WS
+    )
 
 
 @pytest.mark.unit
@@ -96,7 +112,7 @@ def test_search_truncates_results_to_top_k(monkeypatch: pytest.MonkeyPatch) -> N
     doc_processor, db = _mock_services(results, [])
     monkeypatch.setattr(server, "_get_services", lambda: (doc_processor, db))
 
-    result = server.search("query", top_k=2)
+    result = server.search("query", top_k=2, workspace_id=WS)
 
     assert len(result["sources"]) == 2
 
@@ -166,12 +182,35 @@ def test_tools_call_search_endpoint_returns_content(monkeypatch: pytest.MonkeyPa
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/call",
-            "params": {"name": "search", "arguments": {"query": "test"}},
+            "params": {
+                "name": "search",
+                "arguments": {"query": "test", "workspace_id": WS},
+            },
         },
     )
     body = resp.json()
     assert "content" in body["result"]
     assert '"sources"' in body["result"]["content"][0]["text"]
+
+
+def test_tools_call_search_over_rpc_refuses_without_a_workspace(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    """Over the wire as well as in-process: no workspace, no search."""
+    doc_processor, db = _mock_services([], [])
+    monkeypatch.setattr(server, "_get_services", lambda: (doc_processor, db))
+
+    resp = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "search", "arguments": {"query": "test"}},
+        },
+    )
+    assert "error" in resp.json()
+    assert not doc_processor.retrieve_context.called
 
 
 @pytest.mark.unit
@@ -189,3 +228,18 @@ def test_tools_call_list_sources_endpoint_returns_content(
     assert body["result"]["content"][0]["text"] == (
         '[{"id": 1, "filename": "a.pdf", "chunk_count": 1, "doc_type": "pdf"}]'
     )
+
+
+def test_search_refuses_to_run_without_a_workspace() -> None:
+    """C3 — this tool could not accept a workspace, and retrieval reads a missing
+    one as "every workspace", so MCP_ENABLED=true removed isolation from chat."""
+    with pytest.raises(ValueError, match="workspace_id is required"):
+        server.search("anything")
+
+
+def test_the_search_schema_requires_a_workspace() -> None:
+    """The model is told so too, not just the handler."""
+    schema = next(
+        t for t in server._server._tools.values() if t["name"] == "search"
+    )["inputSchema"]
+    assert "workspace_id" in schema["required"]

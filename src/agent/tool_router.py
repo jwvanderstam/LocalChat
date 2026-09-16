@@ -74,14 +74,21 @@ class ToolRouter:
 
     def _local_docs(self, query: str, filters: dict | None, top_k: int) -> dict:
         from .. import config  # local import avoids circular dependency at module load
+        from ..utils.scope import ALL_WORKSPACES, current_request_scope
 
-        if config.MCP_ENABLED:
+        # The model calls this tool mid-answer, so there is no request argument to
+        # carry a workspace. It reads the one the request bound, and raises when
+        # nothing did — searching every workspace is the defect this closes (C3).
+        scope = current_request_scope()
+
+        if config.MCP_ENABLED and scope is not ALL_WORKSPACES:
             try:
                 from ..mcp_client import mcp_registry
                 result = mcp_registry.local_docs.call_tool("search", {
                     "query": query,
                     "filters": filters or {},
                     "top_k": top_k,
+                    "workspace_id": scope,
                 })
                 if isinstance(result, dict) and "context" in result:
                     return {"context": result["context"], "sources": result.get("sources") or []}
@@ -92,7 +99,10 @@ class ToolRouter:
         # Direct path (default when MCP disabled, or MCP fallback)
         from ..rag.processor import doc_processor
         filename_filter = (filters or {}).get("filenames") or []
-        results = doc_processor.retrieve_context(query, filename_filter=filename_filter)
+        workspace_id = None if scope is ALL_WORKSPACES else scope
+        results = doc_processor.retrieve_context(
+            query, filename_filter=filename_filter, workspace_id=workspace_id
+        )
         results = results[:top_k]
         if not results:
             return {"context": "", "sources": []}
