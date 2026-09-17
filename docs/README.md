@@ -58,6 +58,7 @@ jobs. Which one you need depends on what you are doing right now, not on the top
 | [Roadmap](ROADMAP.md) | What is planned and in what order |
 | [Production plan](PRODUCTION_PLAN.md) | What "production-ready" would require, and what is left |
 | [Authentication plan](AUTH_PLAN.md) | How local login, OIDC and the bypasses fit together |
+| [Remediation plan](REMEDIATION_PLAN.md) | What the September 2026 security audit found, what was decided, and where each fix landed |
 | [Test quality audit](TEST_QUALITY_AUDIT.md) | Why coverage percentage hid weak tests |
 | [n8n integration report](bugreport-n8n-localchat.md) | What broke wiring the first external client |
 

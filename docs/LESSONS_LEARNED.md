@@ -948,6 +948,66 @@ different control entirely.
 
 ---
 
+## 20. Every route had a guard, and a green check said so
+
+v3.0.0 was tagged on 31 August with all eight PRODUCTION_PLAN exit criteria green. The
+second of them — *authz-by-default CI green: every route is protected or explicitly
+allowlisted* — had been true since TQ-1a, and RBAC-2 had walked the whole route surface by
+hand and written the result down in PERMISSIONS.md. Sixteen days later an external audit
+reproduced, with a plain user and one HTTP request, that `DELETE /api/documents/clear`
+hard-deleted every document in the installation ([REMEDIATION_PLAN](REMEDIATION_PLAN.md),
+C1). The modules holding the defect had 96 to 100% line coverage.
+
+**Both checks were right about what they checked.** Every route *did* have a guard. The
+guard established that the caller held a role in *a* workspace — their own, named in the
+`X-Workspace-ID` header. The database call it protected then acted on an object in
+*whatever* workspace the object was in. Nothing connected the two. A route-table check
+sees a dependency attached; a coverage report sees the guard's lines execute; neither
+asks whether the thing authorised and the thing acted upon are the same thing. This is
+Ch. 13's pattern again — a green signal that measured something adjacent to the
+property it was read as proving — and the gate-lift note in PRODUCTION_PLAN had already
+said it in general terms three weeks earlier: *exercising the product found in one
+afternoon what eight criteria of mechanical verification did not*.
+
+**One property produced three of the four criticals.** `workspace_id=None` meant "every
+workspace". It was the fallback the global-admin short-circuit returned by omission, the
+value MCP's `search()` passed because it could not accept a workspace (C3), and the value
+any route that forgot to pass one got for free (C1, C2). An optional argument whose
+absence is the *widest* grant is not a default; it is an authorisation decision made by
+whoever did not write the argument. The audit named this the first driver of the score,
+ahead of every individual defect, and it was right: fixing the routes one at a time
+leaves the next route free to repeat them.
+
+**So the fix changed the value, not the call sites.** `src/utils/scope.py` makes a scope
+a workspace id or the explicit `ALL_WORKSPACES`; `None` is not a value. Every database
+method reaching a workspace-owned object takes it as a mandatory keyword-only argument,
+so forgetting it is a `TypeError` and passing nothing a `ValueError`. The acceptance test
+walks the AST of `src/` and fails on any call that omits `scope=` — deliberately *not* a
+route-table check, because the route-table check was the one that passed.
+
+**The other two highs were documentation that had run ahead of the code.** SECURITY.md §3
+said revocation was checked on every authenticated request; it was checked in
+`require_auth` alone, and the two guards covering every workspace route and 31 admin
+routes never asked (H1). The nginx overlay's comment argued `TRUSTED_PROXY_IPS="*"` was
+safe because nginx was the sole ingress; the header nginx *appended to* was the one the
+client sent, and no test had ever exercised the shipped overlay (H3). Ch. 16 closed an
+alert by changing the expression it named; the documentation form of the same rule is
+that a claimed control is closed by a request that should fail, and does.
+
+**What the plan got wrong, and what that cost.** Nothing material. Its one inference
+(M3, OAuth broken in browsers) held when run. Two of its default decisions were
+overruled — D1 fixed in public rather than in a private advisory fork, D4 kept the MCP
+servers behind a token rather than removing them — and both are recorded in the plan
+with the outcome beside the advice, which is the reason the plan is in the repository
+rather than summarised by this chapter.
+
+**Rule taken from this:** a guard proves the caller may act; it does not prove the object
+is theirs. Test the pairing — role × route × *foreign* object — not the presence of the
+guard. And where an argument's absence would widen access, make absence a type error, so
+the widest grant has to be written down to be granted.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents
