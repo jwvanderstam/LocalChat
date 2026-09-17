@@ -8,6 +8,21 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-09-17
+
+The security release. A September 2026 external audit of the v3.0.0 code returned
+findings graded critical to medium (C1–C4, H1–H4, M1–M8), the worst of them one shape: the
+guard authorised the caller against *their own* workspace, and the query then acted on an
+object in *any* workspace. Every P0 and P1 ticket of the remediation plan is closed
+here, in one PR (#380), and each entry below names the finding it closes. The
+residuals that were accepted rather than fixed are recorded as entries 9 and 10 of
+[SECURITY.md](SECURITY.md).
+
+The rest is what running the product on a real cloud host for the first time turned
+up — a health check that stayed green through a database outage, a pool that handed
+out closed connections, a stack that could not chat and did not say so — plus the
+Scaleway scripts that made that deployment repeatable.
+
 ### Security
 
 - **Object-level authorization on every route that addresses an object by id** (P0-1,
@@ -194,8 +209,44 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
     `config` with no validation and no re-authorisation, so an owner could repoint a
     connector an administrator had created. A config change now faces both checks.
 
+### Added
+
+- **Scaleway deployment, scripted end to end** (#353–#359, #363, #368, #373, #376).
+  `scripts/scaleway/` provisions the project, the Serverless SQL Database and a
+  project-scoped IAM identity (`provision.sh`), deploys the container
+  (`deploy_container.sh`), the private network and an Ollama instance behind an
+  inbound-drop security group (`deploy_embeddings.sh`), gates the result
+  (`verify_deployment.py`, `verify_database.py`), and tears it all down most-expensive-first
+  (`panic_teardown.sh` — dry run unless `CONFIRM=DESTROY`). Every script is idempotent, and
+  each has a unit test of its decisions against a recording `scw` shim. Documented in
+  [DEPLOYMENT_SCALEWAY.md](docs/DEPLOYMENT_SCALEWAY.md), with one log entry per session in
+  [DEPLOYMENT_LOG.md](docs/DEPLOYMENT_LOG.md).
+
 ### Fixed
 
+- **`/api/health` reports the database it can reach now, not the one it reached at boot**
+  (#357). It echoed `startup_status['database']` and stayed green through a total outage.
+  It now runs a query through the pool, with a 5 s TTL.
+- **The pool no longer hands out a connection the server already closed** (#361). Both pool
+  constructions — the normal one and the database-does-not-exist recovery path — now pass
+  `check`; an integration test kills the pool's backends with `pg_terminate_backend` and
+  proves the next caller still gets a working connection.
+- **An embedding model can no longer become the active chat model** (#369). The candidate
+  filter fell back to the unfiltered list, which made `nomic-embed-text` the chat model on
+  any host holding only embedders and turned every chat into an opaque `GenerationError`.
+  `/api/status` now reports `ready: false` when no model can chat; `/api/health` stays
+  healthy on purpose, so no container is restarted for it.
+- **Setting `METRICS_TOKEN` no longer blinds the admin dashboard** (#366). The metrics
+  endpoints admitted the scraper's bearer and nothing else; an admin session cookie is
+  now accepted too.
+- **Staged uploads an interrupted ingest left behind are cleared at startup** (#362).
+- **Static assets are referenced root-relative, not through `url_for`** (#364). Starlette's
+  `url_for` returns an absolute URL carrying the scheme the app thinks it serves — `http`
+  behind a TLS-terminating proxy — and the browser then blocked every stylesheet and script
+  as mixed content.
+- **The Docs viewer resolves cross-document links** (#374) — `[X](X.md)` rendered as
+  `/docs/X.md`, which nothing serves — **and keeps the document list in view while the
+  content scrolls** (#375).
 - **The nginx TLS overlay could not reach the application.** `nginx` declared no
   `networks:`, so it joined the implicit `default` network while `app` is on
   `frontend`/`backend` — `proxy_pass http://app:5000` had no DNS entry to resolve. Found
@@ -389,6 +440,7 @@ eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0-beta.1...v3.0.0
 [3.0.0-beta.1]: https://github.com/jwvanderstam/LocalChat/releases/tag/v3.0.0-beta.1
