@@ -8,6 +8,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+### Documentation
+
+- **The September 2026 remediation plan is in the repository** as
+  [docs/REMEDIATION_PLAN.md](docs/REMEDIATION_PLAN.md), now that every fix it withheld
+  publication for has shipped. The text is as written on 2026-09-16; a banner maps each
+  ticket and decision to where it landed and names what is still open. What the episode
+  taught is [LESSONS_LEARNED Ch. 20](docs/LESSONS_LEARNED.md).
+
 ## [3.1.0] — 2026-09-17
 
 The security release. A September 2026 external audit of the v3.0.0 code returned
