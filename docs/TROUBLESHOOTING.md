@@ -37,7 +37,7 @@ ollama pull nomic-embed-text   # embedding model
 ollama pull llama3.2           # or whichever LLM you configured
 ```
 
-Set `OLLAMA_MODEL` and `OLLAMA_EMBED_MODEL` in `.env` to match what you pulled.
+Set `DEFAULT_MODEL` and `OLLAMA_EMBEDDING_MODEL` in `.env` to match what you pulled.
 
 ### Chat refuses with "No active model set" while upload and retrieval work
 
@@ -325,9 +325,12 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ### High memory usage
 
-**Cause:** In-memory embedding cache holding many vectors.
+**Cause:** the reranker and embedding model are loaded in process, and ingest batches
+embeddings in memory. The in-process embedding cache is not the culprit — it is a fixed
+500-entry LRU (`src/rag/cache.py`), not a tunable.
 
-**Fix:** Reduce `EMBEDDING_CACHE_MAX_SIZE` (default 5000) or switch to Redis cache which uses less application memory.
+**Fix:** lower `EMBEDDING_CONCURRENT_BATCHES` (default 2), or `RERANKER_ENABLED=false` on
+a constrained host. `APP_MEM_LIMIT` in `.env` is the ceiling the container gets.
 
 ### A container restarts or disappears mid-request
 

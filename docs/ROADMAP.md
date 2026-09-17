@@ -759,6 +759,106 @@ The first UI the connector subsystem has ever had. It lives in the document sect
 > is what makes the build safe.
 
 
+## Initiative 10 — Security audit follow-through (P2)
+
+The September 2026 external audit produced a [remediation plan](REMEDIATION_PLAN.md) in three
+tiers. P0 and P1 — the defects — shipped in v3.1.0 (#380). P2 is the tier the plan called
+*structural score drivers*: not holes, but the properties that let the holes exist and go
+unnoticed. Its rows are carried here so they have a scheduled moment, per the MM-2 lesson
+below — an item present in a plan and absent from the sprint table is not scheduled.
+
+Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 of the plan).
+
+---
+
+### P2-1 — Scope as a value, then row-level security as defence in depth ◐
+
+**Driver 1** (scoping optional by design). Two halves:
+
+- **P2-1a ✅** (shipped with P0-1): `src/utils/scope.py` — a scope is a workspace id or the
+  explicit `ALL_WORKSPACES`; every scoped database method takes it keyword-only and
+  mandatory; `tests/unit/test_object_authorization_matrix.py` walks the AST of `src/` and
+  fails on any call that omits it.
+- **P2-1b ⬜**: Postgres row-level security on the workspace-owned tables, with
+  `SET LOCAL app.workspace_id` per transaction, so a query that reaches the database without
+  a scope returns nothing rather than everything. **Acceptance:** an integration test that
+  opens a connection, sets no scope, and gets zero rows from each scoped table.
+  **Precondition:** the pooler question — `SET LOCAL` is transaction-bound, which is exactly
+  what a transaction-pooling proxy preserves and a statement-pooling one does not; see the
+  `hnsw.ef_search` note in DEPLOYMENT_SCALEWAY.md for the same shape.
+
+### P2-2 — Security smoke: boot the shipped compose, then attack it ⬜
+
+**Driver 2** (tests verify mechanisms, not the system). `docker-smoke` boots the `app`
+container alone. This job boots `docker-compose.yml` *with* `docker-compose.nginx.yml` and
+asserts, over the wire: a forged `X-Forwarded-For` does not change the rate-limit key; MCP
+(`--profile mcp`) refuses an unauthenticated call; and the object-authorization matrix passes
+against a real Postgres rather than a mock. **Acceptance:** required check in the ruleset,
+under the same precondition as `perf-canary` — a run on `main` first, and a track record
+before it can block a merge. **Why it is not P0-5's test:** `test_proxy_trust_is_not_wildcarded`
+drives uvicorn's middleware in-process and reads the overlay's YAML; it has never seen nginx
+append a header.
+
+### P2-3 — A retrieval evaluation that measures answers, not just ranks ⬜
+
+**Driver 3** (thin RAG quality evidence). `scripts/eval_retrieval.py` scores 20 pairs on
+recall of the source; nothing measures whether the *answer* is faithful to it or cites it.
+Build a set of ≥100 question/answer/source triples on a representative private corpus;
+report recall@k and MRR, plus faithfulness and citation correctness from an LLM judge
+calibrated against a human-scored sample; run nightly with thresholds. **Acceptance:** a
+baseline recorded in the repo and a regression threshold enforced. **Decides:** DEL-2
+(GraphRAG, deferred on a 20-pair run) and active learning, on these results — this is the
+re-review trigger DEL-2 named.
+
+### P2-4 — No blind `except`, no production `assert` ⬜
+
+**Driver 6** (code hygiene). 120 `BLE001` findings in `src/` and 27 bare `assert`
+statements as of 2026-09-17. Enable `BLE001` in `pyproject.toml`; each surviving
+`except Exception` gets a one-line justification and a log call, per
+[`python.md`](../.claude/rules/python.md); each production `assert` becomes an explicit
+exception, since `python -O` strips them. **Acceptance:** `ruff check .` clean with the rule
+on; `grep -rn "^\s*assert " src` empty.
+
+### P2-5 — CPU-only torch in the image ⬜
+
+**Driver 6.** `sentence-transformers` pulls CUDA torch into an image whose supported
+topology has no GPU in the `app` container (Ollama owns the GPU). Install torch from the
+CPU index in the Dockerfile and measure. **Acceptance:** `docker-smoke` green; image size
+before and after recorded in DEPLOYMENT.md. **Watch:** the lock is compiled on Linux for
+the image (CLAUDE.md, Quality Gates); a CPU-index torch has to survive `pip-compile`, or be
+installed as a separate Dockerfile step outside the lock — decide which before starting.
+
+### P2-6 — Replace `python-jose` with PyJWT ⬜
+
+**Driver 6.** `python-jose` brings `ecdsa`, which is SECURITY.md §2 and the two open
+Dependabot alerts (`GHSA-wj6h-64fc-37mp`, no fix available). PyJWT signs HS256 with the
+standard library. **Acceptance:** `tests/unit/test_security_contract.py` and
+`test_one_authentication_resolver.py` green unchanged; §2 removed; `ecdsa` gone from both
+locks; tokens issued before the swap still verify (same algorithm, same claims).
+
+### P2-7 — Current-state docs apart from the journal, and tests that hold them ◐
+
+**Driver 4** (documentation architecture). Two halves:
+
+- **Doc tests ◐**: `test_configuration_doc_covers_config` (every value read is documented),
+  `test_env_example_is_read` (every value named is read — 2026-09-17), and
+  `test_permissions_doc_matches_routes` exist. Still open: every backticked `src/...` path in
+  a current-state document exists, and every documented `/api/...` endpoint exists.
+- **The split ⬜**: move the journal — this file's history notes, PRODUCTION_PLAN,
+  LESSONS_LEARNED, DEPLOYMENT_LOG, TEST_QUALITY_AUDIT, AUTH_PLAN, REMEDIATION_PLAN — under
+  `docs/history/`, so the path and endpoint tests can target current-state documents only
+  and a stale claim in a journal stays what it is: a record. The in-app catalogue and
+  `test_docs_catalogue_covers_docs` move with it. **Acceptance:** links green; a dated
+  "verified against commit" line at the top of each operator document.
+
+### P2-8 — Surface reduction per D4 and D5 ✅ (closed by decision, 2026-09-16)
+
+**Driver 5.** D5 removed the S3 connector (#380). D4 was taken as **B**, keep MCP behind a
+token, against the plan's advice to remove — recorded with the residual in SECURITY.md §10.
+Nothing further to do unless §10's re-review trigger fires.
+
+---
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -782,7 +882,11 @@ The first UI the connector subsystem has ever had. It lives in the document sect
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
-| **Total** | | **~16 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14) |
+| 15 | P2-6 (PyJWT) + P2-4 (`BLE001`, no production `assert`) — mechanical, each one PR, and P2-6 retires two open Dependabot alerts | 3–4 days |
+| 16 | P2-2 (security smoke against the shipped compose) + P2-1b (row-level security) | 1 week |
+| 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) | 1 week |
+| 18 | P2-3 (answer-level retrieval evaluation) — decides DEL-2 | 1–2 weeks |
+| **Total** | | **~20 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first) |
 
 > **Connectors re-scoped 2026-08-24.** DEL-1b was rewritten rather than executed: Confluence is deleted (no forward use, and the only one of the three carrying a pip dependency), while Google Drive and OneDrive are retained on a stated intent to use them, with maintainer-supplied test cases coming. Re-deriving the removal surface from the code — rather than trusting the ticket — turned up BUG-4 and the fact that the connector subsystem has **never had a UI**, so `PERMISSIONS.md` has been advertising 10 routes for a feature that does not exist. Initiative 9 (CONN-1, CONN-2) makes it real; BUG-4 lands ahead of the gate. Same lesson as DEL-1a a fortnight earlier: a plan is not evidence.
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.

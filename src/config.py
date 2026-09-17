@@ -267,8 +267,8 @@ OLLAMA_NUM_CTX: int = int(os.environ.get('OLLAMA_NUM_CTX', '8192'))
 # produces ~14K chunks; at 512/batch that is ~28 embedding calls. 600 s
 # gives the CPU embedder safe headroom for the worst-case file size.
 OLLAMA_EMBED_TIMEOUT: int = int(os.environ.get('OLLAMA_EMBED_TIMEOUT', '600'))
-# Gunicorn worker timeout (seconds). Must be >= OLLAMA_EMBED_TIMEOUT so a
-# worker is never killed mid-embed. 600 s supports up to ~15MB TXT uploads.
+# UVICORN_TIMEOUT (keep-alive, read by docker-entrypoint.py) must be >= this so
+# a quiet embed stream is not closed mid-file. 600 s covers a ~15 MB TXT upload.
 # Preferred chat model selected at startup when no model is already active.
 # Falls back to the first available model if this name is not installed.
 DEFAULT_MODEL: str = os.environ.get('DEFAULT_MODEL', 'llama3.1')

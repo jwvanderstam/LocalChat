@@ -10,6 +10,24 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Documentation
 
+- **The configuration example and reference say only true things** (remediation plan
+  §4.1, redone rather than merged from the audit's bundle). `.env.example` carried 29
+  variables nothing reads — an SMTP block, gunicorn `WORKERS`, `DEBUG`, `HOST`/`PORT`
+  where the code reads `SERVER_HOST`/`SERVER_PORT` — and four values that silently
+  overrode the code's defaults (`CHUNK_SIZE=768` against 1200). Rewritten;
+  `tests/unit/test_env_example_is_read.py` fails on a dead variable or a drifted value,
+  and on a CONFIGURATION.md reference row nothing reads. CONFIGURATION.md gains
+  `UVICORN_TIMEOUT` (keep-alive, not a request timeout), `SERVER_*` and `BIND_*`, and the
+  real OAuth redirect defaults. TROUBLESHOOTING named three settings that do not exist;
+  OPERATIONS described Kubernetes deployments there are none of; SECURITY §5 and ADR-3 had
+  `onnxruntime` at a pin Dependabot moved a week ago; SECURITY §4 cited the unbuilt plugin
+  contract as a control. README's quick start now says which five values compose refuses
+  to start without, and no longer promises a generated password Docker cannot produce.
+  CLAUDE.md names every ingested format, the real `conversation_messages` table, and which
+  CDI tables lack `deleted_by`. The lint command in both is `ruff check .`, as CI runs it.
+- **The audit's P2 tier is scheduled** — ROADMAP Initiative 10, Sprints 15–18, one ticket
+  per row of the plan with what has already shipped marked (P2-1a with P0-1; P2-8 by
+  decision).
 - **The September 2026 remediation plan is in the repository** as
   [docs/REMEDIATION_PLAN.md](docs/REMEDIATION_PLAN.md), now that every fix it withheld
   publication for has shipped. The text is as written on 2026-09-16; a banner maps each

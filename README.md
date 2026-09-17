@@ -43,8 +43,16 @@ document isolation, and RAG parameters tunable at runtime.
 ```bash
 git clone https://github.com/jwvanderstam/LocalChat
 cd LocalChat
-cp .env.example .env          # set ADMIN_PASSWORD and the secrets; see the note below
+cp .env.example .env          # then set the five values below — compose refuses to start without them
 docker compose up -d          # PostgreSQL, Redis, Ollama and the app
+```
+
+`docker-compose.yml` requires `PG_PASSWORD`, `SECRET_KEY`, `JWT_SECRET_KEY`,
+`ADMIN_PASSWORD` and `ENCRYPTION_KEY` to be non-empty, and `.env.example` ships
+`ENCRYPTION_KEY` empty on purpose — it is a key, not a placeholder. Generate it:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
 Open <http://localhost:5000>. You will be asked to sign in.
@@ -62,13 +70,10 @@ sets those itself, and compose's `environment:` beats `.env`, so `OLLAMA_BASE_UR
 that do matter here are the secrets and tuning: `ADMIN_PASSWORD`, `SECRET_KEY`,
 `JWT_SECRET_KEY`, model names, limits.
 
-**Getting the first password.** If you set `ADMIN_PASSWORD` in `.env`, use that with the
-username `admin`. If you left it empty, an admin account is seeded on first boot with a
-generated password, logged once:
-
-```bash
-docker compose logs app | grep ADMIN_PASSWORD
-```
+**Getting the first password.** Sign in as `admin` with the `ADMIN_PASSWORD` you set;
+first boot seeds the account from it. (Only the host-run path, `python app.py`, can leave
+it empty — the app then generates one and logs it once. Under Docker, compose requires
+the value.)
 
 Then pull a model and select it under **Models** — without an active model, chat returns
 `400 No active model set`:
@@ -128,8 +133,10 @@ workspace.
 Clark-Wilson section in [CLAUDE.md](CLAUDE.md).
 
 **Sources.** Document connectors for local folders, SharePoint, OneDrive, Google Drive
-and webhooks. Plugins extend the application without modifying it, under an
-[inward-only dependency contract](.claude/rules/plugins.md).
+and webhooks. Plugins — a `.py` file dropped into `plugins/` that registers LLM-callable
+tools, per [plugins/README.md](plugins/README.md). The fuller
+[plugin contract](.claude/rules/plugins.md) (services, hooks, manifest) is designed and
+not yet built; its one binding rule is that dependencies point inward.
 
 ## How it works
 
@@ -206,7 +213,7 @@ browsable inside the application under **Docs**.
 ## Development
 
 ```bash
-ruff check src/ tests/                       # lint
+ruff check .                                 # lint — the whole tree, as CI does
 mypy src --ignore-missing-imports            # types
 bandit -r src/ -ll -q -c pyproject.toml      # security
 pytest -m "not (slow or ollama or db)"       # fast suite, no external services
@@ -219,10 +226,10 @@ deliberately. (`docker-smoke` joined the required set on 2026-08-19 and `perf-ca
 2026-08-24; this sentence still said three until 2026-08-27. Read the set back with
 `gh api repos/jwvanderstam/LocalChat/rulesets/14700924`, not from the settings UI.)
 
-**Current state:** 3,008 tests collected; the fast suite runs 2,909 of them (2,888 passed,
-21 skipped) in about 12 minutes at 80.7% coverage. Integration tests need PostgreSQL; some
-also need Ollama, and `tests/e2e/` drives a real browser. Every number here was measured on
-2026-08-27 rather than remembered — see exit criterion 7 in
+**Current state:** 3,327 tests collected; the fast suite runs 3,221 of them (3,199 passed,
+22 skipped) at 80.9% coverage — about 12 minutes on CI, twice that on a laptop. Integration
+tests need PostgreSQL; some also need Ollama, and `tests/e2e/` drives a real browser. Every
+number here was measured on 2026-09-17 rather than remembered — see exit criterion 7 in
 [PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md).
 
 Notable changes per release are in [CHANGELOG.md](CHANGELOG.md).

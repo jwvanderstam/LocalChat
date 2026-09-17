@@ -6,7 +6,7 @@
 
 ## What This Project Is
 
-LocalChat is a production RAG application. Users upload documents (PDF, DOCX, TXT, MD) and chat with them using a locally-running LLM via Ollama. Documents are chunked, embedded, and stored in PostgreSQL with pgvector for hybrid semantic + lexical (tsvector full-text) search. The LLM supports tool/function-calling and optional live web search.
+LocalChat is a production RAG application. Users upload documents (PDF, DOCX, PPTX, XLSX, TXT, MD, EML, and `.py`/`.js`/`.ts` source — see `src/rag/loaders.py`) and chat with them using a locally-running LLM via Ollama. Documents are chunked, embedded, and stored in PostgreSQL with pgvector for hybrid semantic + lexical (tsvector full-text) search. The LLM supports tool/function-calling and optional live web search.
 
 **Runtime deps:** PostgreSQL + pgvector, Ollama (local LLM server), Redis (optional caching).
 
@@ -46,7 +46,7 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 | Validation | Pydantic v2 |
 | Auth / security | python-jose (JWT), slowapi (rate limiting), Starlette CORSMiddleware |
 | Caching | Redis or in-memory fallback |
-| ML / NLP | spaCy (GraphRAG), cross-encoder reranker (optional) |
+| ML / NLP | spaCy (GraphRAG, off by default), cross-encoder reranker (on by default) |
 | Linter | `ruff` |
 | Tests | pytest + pytest-asyncio (`asyncio_mode = "auto"`) + pytest-cov; pytest-playwright for `tests/e2e` (browser installed separately: `playwright install chromium`) |
 
@@ -116,13 +116,15 @@ Full rules across 4 files in `.claude/rules/` — short version here.
 LocalChat applies the Clark-Wilson integrity model to all persistent data. The core rule: **no Transformation Procedure (TP) may leave a Constrained Data Item (CDI) in a state that fails an Integrity Verification Procedure (IVP).**
 
 **CDIs in this codebase** — any entity referenced by ID from other data:
-`documents`, `document_chunks`, `conversations`, `messages`, `users`, `workspaces`, `memories`, `annotations`, `connectors`
+`documents`, `document_chunks`, `conversations`, `conversation_messages`, `users`, `workspaces`, `memories`, `annotations`, `connectors`
 
 **The rule: state transitions, not destruction**
 
 Hard-deleting a CDI while other data still holds its ID breaks IVPs — citations reference missing chunks, conversations reference deleted users. Instead:
 
-- Every CDI table carries `deleted_at TIMESTAMPTZ` and `deleted_by UUID` columns.
+- Every CDI table carries `deleted_at TIMESTAMPTZ` and `deleted_by UUID` columns — except the two
+  that are retired through their parent: `document_chunks` has `deleted_at` only, and
+  `conversation_messages` has neither (a message goes with its conversation).
 - A "delete" TP sets `deleted_at`; it never issues `DELETE FROM` on a CDI.
 - All SELECT queries on CDIs filter `WHERE deleted_at IS NULL`.
 - A hard purge is a *separate, explicitly authorized TP* with a precondition: no active references exist. It is never the default operation.
@@ -164,7 +166,7 @@ Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
 Run all before every commit. All must be clean — CI enforces the same set (`.github/workflows/tests.yml`).
 
 ```bash
-ruff check src/ tests/                       # install once: pip install ruff
+ruff check .                                 # install once: pip install ruff — CI lints the whole tree
 mypy src --ignore-missing-imports            # install once: pip install mypy
 bandit -r src/ -ll -q -c pyproject.toml      # install once: pip install bandit
 pytest -m "not (slow or ollama or db)"       # fast suite, no external services

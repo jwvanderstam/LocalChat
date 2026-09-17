@@ -80,16 +80,17 @@ The items below are known, deliberately **not remediated via the usual route** (
 ### 4. Plugins execute with full application privileges — no sandboxing
 
 - **What**: `PluginLoader.load_file()` (`src/tools/plugin_loader.py`) loads every `.py` file under `plugins/` via `importlib.util.spec_from_file_location` + `exec_module` — genuine Python module execution, not a restricted or sandboxed interpreter. A plugin's top-level code runs with the same OS privileges as the main app: full filesystem access, network access, and (via the services it can import) the same database connection pool.
-- **Why this is accepted**: the plugin contract (`.claude/rules/plugins.md`, `CLAUDE.md`'s "Plugin Contract" section) constrains what a *well-behaved* plugin does architecturally (service/hook boundary, no core imports) — it does not and cannot constrain what an *adversarial* file placed in `plugins/` could do, because Python has no built-in code sandbox. The trust boundary is therefore the filesystem, not the plugin loader: whoever can write to the `plugins/` directory already has the same privileges as the app process, with or without the plugin system.
+- **Why this is accepted**: nothing in the loader constrains a plugin, and nothing is claimed to. The plugin contract in `.claude/rules/plugins.md` (service/hook boundary, no core imports) is a *design, not built* — its own status banner says so — and even built it would only describe what a *well-behaved* plugin does; it could not constrain what an *adversarial* file placed in `plugins/` does, because Python has no built-in code sandbox. What ships is `plugins/README.md`'s loader: any `.py` in the directory runs. The trust boundary is therefore the filesystem, not the plugin loader: whoever can write to the `plugins/` directory already has the same privileges as the app process, with or without the plugin system.
 - **Compensating factor**: `plugins/` is not writable by any unauthenticated or lower-privilege actor in the shipped deployment — it ships as part of the repo/image, not as a runtime-uploadable directory. There is no HTTP endpoint that writes files into `plugins/`.
 - **Re-review trigger**: if LocalChat ever adds a feature that writes an uploaded or admin-submitted file into `plugins/` at runtime (e.g. a "install plugin from URL" admin action), that feature is the point where real sandboxing (subprocess isolation, restricted `__builtins__`, or a plugin marketplace review step) becomes necessary — the current design is safe only because plugin code is deployment-time, not runtime, content.
 
-### 5. `onnxruntime` is pinned to 1.28.0 to avoid a segfault on the hardened base
+### 5. `onnxruntime` is pinned past a release that segfaults on the hardened base
 
-- **What**: `requirements.txt` pins `onnxruntime==1.28.0`. 1.29.0 imports cleanly on
-  `python:3.12-slim` and on the hardened base at 1.28.0, but **segfaults** (SIGSEGV, exit
-  139, no traceback) when 1.29.0 runs on `dhi.io/python:3.12`. The dependency arrives
-  transitively via `pymupdf-layout`; nothing in this codebase imports it directly.
+- **What**: `requirements.txt` pins `onnxruntime==1.30.0`; it was held at 1.28.0 until
+  Dependabot #371 (2026-09-14) moved it and `docker-smoke` proved the image still boots.
+  1.29.0 imports cleanly on `python:3.12-slim`, but **segfaults** (SIGSEGV, exit 139, no
+  traceback) on `dhi.io/python:3.12`. The dependency arrives transitively via
+  `pymupdf-layout`; nothing in this codebase imports it directly.
 - **Why this is accepted**: the root cause is not identified. `ldd` on the native module
   is clean, every library it declares is present, and the shared-library diff between the
   two bases shows nothing it links against. The pin is a workaround with a recorded reason,
@@ -97,9 +98,10 @@ The items below are known, deliberately **not remediated via the usual route** (
 - **Compensating factor**: `docker-smoke` builds and boots the image on every PR, so a
   Dependabot bump back to 1.29.x turns the PR red rather than shipping a container that
   will not start.
-- **Re-review trigger**: a security advisory against 1.28.0, or an onnxruntime release that
-  resolves the crash — test by building the image and importing it, since neither `pip
-  install` nor `docker build` will reveal the problem.
+- **Re-review trigger**: a security advisory against the pinned version, or a bump that
+  turns `docker-smoke` red — test by building the image and importing it, since neither
+  `pip install` nor `docker build` will reveal the problem. The root cause of 1.29.0 is
+  still unidentified, so a later release regressing the same way is not ruled out.
 
 ### 6. Document text is not encrypted at rest
 
