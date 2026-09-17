@@ -223,6 +223,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
 | `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
 | `tests/unit/test_permissions_doc_matches_routes.py` | The IVP for `docs/PERMISSIONS.md` — every route has a row, no row is stale, and the distribution total matches the table |
+| `tests/unit/test_env_example_is_read.py` | The other direction: every variable `.env.example` names, and every row of CONFIGURATION.md's reference tables, is read by `config.py`, `app.py`, the entrypoint or a compose file — 29 were not on 2026-09-16 — and an uncommented example value matches the code's default unless listed as a deliberate placeholder |
 | `tests/unit/test_configuration_doc_covers_config.py` | The IVP for `docs/CONFIGURATION.md` — every env var `config.py` reads is documented, and nothing outside `config.py` calls `os.getenv` |
 | `tests/unit/test_app_version_is_consistent.py` | `APP_VERSION` is declared in `config.py`, `docker-compose.yml` and `CONFIGURATION.md` with nothing deriving it from the tag — this fails when they disagree, as they had (1.0.0 / 0.5.0 / 1.0.0 against a v3 tag) |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
@@ -247,7 +248,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `design/quiet-utility/*.dc.html` | Direction A built out: Chat, Documents, Models, Settings, and `System.dc.html` (tokens + what it removes from `style.css`) |
 | **Frontend** | |
 | `static/js/ui.js` | Pure rendering helpers (no state): `escapeHtml`, `formatMessageText`, `buildSourcesPanel`, etc. |
-| `static/js/conversation.js` | Conversation state + sidebar + message DOM mutations; exports `getChatHistory`, `sendMessage` helpers |
+| `static/js/conversation.js` | Conversation state + sidebar + message DOM mutations; exports `getChatHistory`, `loadConversation`, `addUserMessage`/`addAssistantMessage` and the rename/delete helpers — `sendMessage` lives in `streaming.js` |
 | `static/js/streaming.js` | SSE event loop and `sendMessage()`; owns `isStreaming` flag |
 | `static/js/chat.js` | Slim orchestrator (~90 lines) — wires event listeners to the three modules above |
 | `static/js/ingestion.js` | Document upload progress (SSE) on `templates/documents.html` |

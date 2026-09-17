@@ -29,7 +29,7 @@ export PG_SSLMODE=prefer
 # Host-run only. Under `docker compose up -d` the app service hardcodes
 # OLLAMA_BASE_URL=http://ollama:11434, which overrides .env — see below.
 export OLLAMA_BASE_URL=http://localhost:11434
-export OLLAMA_DEFAULT_MODEL=llama3.2
+export DEFAULT_MODEL=llama3.1          # prefix-matched against what Ollama has
 export OLLAMA_EMBEDDING_MODEL=nomic-embed-text:latest
 # GPU layer offload: -1 = all layers on GPU (default), 0 = CPU only
 export OLLAMA_NUM_GPU=-1
@@ -38,7 +38,6 @@ export OLLAMA_NUM_GPU=-1
 export REDIS_ENABLED=False          # Set to True to enable Redis
 export REDIS_HOST=localhost
 export REDIS_PORT=6379
-export REDIS_DB=0
 export REDIS_PASSWORD=                # Leave empty if no password
 
 # Application Configuration
@@ -46,7 +45,6 @@ export SECRET_KEY=your_secret_key_here
 export JWT_SECRET_KEY=your_jwt_secret_here
 export ADMIN_PASSWORD=your_admin_password_here  # Required for /api/auth/login
 export APP_ENV=production
-export DEBUG=False
 
 # Security Configuration
 export RATELIMIT_ENABLED=True
@@ -217,7 +215,7 @@ OLLAMA_NUM_CTX=8192      # Token context window sent to Ollama
 
 # Ingestion timeouts (supports files up to 15 MB)
 OLLAMA_EMBED_TIMEOUT=600 # Seconds — worst-case 15 MB TXT ~280 s
-UVICORN_TIMEOUT=600      # Must be >= OLLAMA_EMBED_TIMEOUT
+UVICORN_TIMEOUT=600      # keep-alive, not a request timeout; must be >= OLLAMA_EMBED_TIMEOUT
 
 # Cross-encoder reranker (enabled by default)
 # RERANKER_ENABLED=false  # Disable on very slow / embedded hardware
@@ -406,9 +404,9 @@ to empty, in which case the router falls back to the active model.
 | `TOKEN_ENCRYPTION_KEY` | *(empty)* | Fernet key for stored OAuth tokens |
 | `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | *(empty)* | Entra app registration for SharePoint and OneDrive |
 | `MICROSOFT_TENANT_ID` | `common` | Entra tenant |
-| `MICROSOFT_REDIRECT_URI` | *(empty)* | OAuth callback URL |
+| `MICROSOFT_REDIRECT_URI` | `http://localhost:5000/api/oauth/microsoft/callback` | OAuth callback URL — must match the app registration exactly, so set it to the public URL behind a proxy |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(empty)* | Google OAuth client for Drive |
-| `GOOGLE_REDIRECT_URI` | *(empty)* | OAuth callback URL |
+| `GOOGLE_REDIRECT_URI` | `http://localhost:5000/api/oauth/google/callback` | OAuth callback URL — same rule |
 
 ### Rate limiting
 
@@ -426,6 +424,9 @@ to empty, in which case the router falls back to the active model.
 | `APP_VERSION` | `3.1.0` | Reported by `GET /api/status`. See the note below |
 | `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB), enforced while the upload streams to disk |
 | `UVICORN_WORKERS` | `1` | Worker processes. **Only `1` is supported** — the app refuses to boot otherwise |
+| `UVICORN_TIMEOUT` | `600` | uvicorn's `--timeout-keep-alive`, applied by `docker-entrypoint.py`. **Not a request timeout**: it closes a connection that has been idle this long, which for an SSE stream means one that has produced nothing. Keep it ≥ `OLLAMA_EMBED_TIMEOUT`; behind the nginx overlay, `proxy_read_timeout 300s` in `nginx/nginx.conf` is the lower and therefore real ceiling |
+| `SERVER_HOST` / `SERVER_PORT` | `localhost` / `5000` (host-run); `0.0.0.0` / `5000` (container) | Interface and port the process listens on — read by `app.py` and `docker-entrypoint.py`, not `config.py` |
+| `BIND_HOST` / `BIND_PORT` | `127.0.0.1` / `5000` | **Compose only.** The host interface and port `docker-compose.yml` publishes the app on; `BIND_HOST` also governs `db`, `ollama` and the MCP ports. `127.0.0.1` keeps them off the network — the nginx overlay is the supported way out |
 
 > **`MAX_CONTENT_LENGTH` is now enforced.** It was a Flask-era value echoed in the stats
 > endpoint and applied to nothing: the upload was read with one unbounded call. The body is

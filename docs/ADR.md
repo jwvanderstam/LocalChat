@@ -150,8 +150,8 @@ prove the reverted image still boots.
 faster than Debian slim's OS packages get patched — re-run the base-to-base scan above and
 compare, rather than arguing from either vendor's marketing. Or when a dependency the
 application genuinely needs cannot run on a distroless base at all; `onnxruntime` 1.29.0
-already segfaults there and is pinned back to 1.28.0 because of it (LESSONS_LEARNED
-Ch. 17). A second such pin would mean the base is dictating the dependency set, and that
+already segfaults there and was pinned around it — 1.28.0, then 1.30.0 once `docker-smoke`
+proved it boots (LESSONS_LEARNED Ch. 17). A second such pin would mean the base is dictating the dependency set, and that
 is the point at which this trade stops being worth it.
 
 ## ADR-4 — Cloud fallback targets OpenAI-compatible endpoints directly, not a multi-provider adapter

@@ -280,8 +280,7 @@ docker compose exec ollama ollama pull llama3.2   # or your configured model
 ## Container Resource Limits
 
 Every `docker-compose.yml` service declares a memory and CPU ceiling, so no
-single container can exhaust the host. Kubernetes deployments get the
-equivalent from your orchestrator's own resource settings and ignore these.
+single container can exhaust the host.
 
 All values are `.env` overrides (see `.env.example`), sized by default for a
 ~16 GB host:
