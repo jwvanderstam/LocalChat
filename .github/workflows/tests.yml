@@ -716,6 +716,31 @@ jobs:
           fi
           echo "OK: no Flask imports in src/"
 
+      - name: No inline event handlers (Content-Security-Policy)
+        run: |
+          # script-src has no 'unsafe-inline', so an on*= attribute is dead markup:
+          # the browser silently refuses to run it and the control does nothing.
+          # Attach a listener in the page's .js file instead, or a delegated one
+          # when the markup is generated. See audit M6 / P1-4.
+          if git grep -En "\son(click|change|submit|input|load|error|focus|blur)=" -- templates/ static/js/ 2>/dev/null; then
+            echo "::error::Inline event handler found — CSP blocks these. Use addEventListener."
+            exit 1
+          fi
+          echo "OK: no inline event handlers"
+
+      - name: No new inline <script> blocks in templates
+        run: |
+          # Exactly one is permitted, in base.html and login.html: the theme applier
+          # that must run before first paint. It is pinned by hash in the CSP
+          # (src/security_fastapi.py), so a new block anywhere is simply blocked.
+          count=$(git grep -c "<script>" -- templates/ 2>/dev/null | awk -F: '{t+=$2} END {print t+0}')
+          if [ "$count" -gt 2 ]; then
+            echo "::error::$count inline <script> blocks in templates/ (2 permitted: the theme applier in base.html and login.html). CSP blocks the rest."
+            git grep -n "<script>" -- templates/
+            exit 1
+          fi
+          echo "OK: $count inline <script> block(s), within the permitted 2"
+
       - name: No tracked files matching .gitignore
         run: |
           tracked=$(git ls-files --ignored --cached --exclude-standard)

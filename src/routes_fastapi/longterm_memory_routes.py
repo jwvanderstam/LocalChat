@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from .. import config
 from ..security_fastapi import get_current_user_id
 from ..utils.logging_config import get_logger
-from ..utils.workspace import get_workspace_id
+from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 
 logger = get_logger(__name__)
@@ -55,12 +55,13 @@ async def extract_memories(request: Request) -> Any:
     try:
         from ..memory.extractor import MemoryExtractor
         extractor = MemoryExtractor()
-        conversations = app.state.db.get_unextracted_conversations(limit=limit)
+        scope = get_scope(request)
+        conversations = app.state.db.get_unextracted_conversations(limit=limit, scope=scope)
         total_new = processed = 0
 
         for conv in conversations:
             try:
-                messages = app.state.db.get_conversation_messages(conv["id"])
+                messages = app.state.db.get_conversation_messages(conv["id"], scope=scope)
                 msg_list = []
                 for m in messages:
                     if isinstance(m, dict):
@@ -93,7 +94,9 @@ def delete_memory(memory_id: str, request: Request) -> Any:
     actor = get_current_user_id(request)
     deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        deleted = request.app.state.db.delete_memory(memory_id, deleted_by=deleted_by)
+        deleted = request.app.state.db.delete_memory(
+            memory_id, deleted_by=deleted_by, scope=get_scope(request)
+        )
         if not deleted:
             return JSONResponse({"success": False, "message": "Memory not found"}, status_code=404)
         return {"success": True}
@@ -104,13 +107,21 @@ def delete_memory(memory_id: str, request: Request) -> Any:
 
 @router.delete("/")
 def delete_all_memories(request: Request) -> Any:
-    denied = _deny(request, None, "editor")
+    """Retire every memory in the caller's own workspace. Reversible.
+
+    ``owner``, not ``editor``: clearing a whole workspace's memory is a different
+    decision from retiring one memory. It used to retire every user's memories in
+    every workspace (C2).
+    """
+    denied = _deny(request, None, "owner")
     if denied:
         return denied
     actor = get_current_user_id(request)
     deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        count = request.app.state.db.delete_all_memories(deleted_by=deleted_by)
+        count = request.app.state.db.delete_all_memories(
+            deleted_by=deleted_by, scope=get_scope(request)
+        )
         return {"success": True, "deleted": count}
     except Exception:
         logger.exception("[Memory] delete_all_memories error")

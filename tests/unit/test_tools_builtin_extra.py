@@ -2,8 +2,33 @@
 
 from unittest.mock import patch
 
+import pytest
+
 
 class TestSearchDocumentsTool:
+    @pytest.fixture(autouse=True)
+    def _bound_scope(self):
+        """search_documents reads the request's workspace and refuses without one.
+
+        The model calls this tool mid-answer, so there is no argument to carry a
+        workspace; unbound it raises rather than searching every workspace (C3).
+        """
+        from src.utils.scope import request_scope
+
+        with request_scope("11111111-1111-1111-1111-111111111111"):
+            yield
+
+    def test_refuses_outside_a_request_scope(self):
+        from src.tools.registry import tool_registry
+        from src.utils.scope import _REQUEST_SCOPE, ScopeUnavailableError
+
+        token = _REQUEST_SCOPE.set(None)
+        try:
+            with pytest.raises(ScopeUnavailableError):
+                tool_registry.execute("search_documents", {"query": "anything"})
+        finally:
+            _REQUEST_SCOPE.reset(token)
+
     def test_no_results_returns_not_found_message(self):
         from src.tools.registry import tool_registry
 

@@ -24,6 +24,7 @@ Example:
 """
 
 import json
+import logging
 import os
 import secrets
 from datetime import datetime
@@ -111,7 +112,17 @@ else:
 
 # CORS settings
 CORS_ENABLED: bool = os.environ.get('CORS_ENABLED', 'False').lower() == 'true'
-CORS_ORIGINS: list[str] = [o.strip() for o in os.environ.get('CORS_ORIGINS', 'localhost,127.0.0.1').split(',')]
+# Origins must carry a scheme: a browser's Origin header is always
+# "scheme://host[:port]", so a bare "localhost" matches nothing and the default
+# silently allowed no cross-origin request at all (audit M8). Entries without one
+# are rejected at boot rather than quietly ignored.
+CORS_ORIGINS: list[str] = [
+    o.strip()
+    for o in os.environ.get(
+        'CORS_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000'
+    ).split(',')
+    if o.strip()
+]
 
 # Admin credentials — legacy env-var admin account + first-start seeding
 ADMIN_USERNAME: str = os.environ.get('ADMIN_USERNAME', 'admin')
@@ -122,6 +133,31 @@ _WEAK_PLACEHOLDERS: frozenset[str] = frozenset({
     'change-this-to-a-random-secret-key-in-production',
     'change-this-to-a-random-jwt-secret-in-production',
 })
+
+
+def validate_single_worker() -> None:
+    """Abort when configured for more than one worker process.
+
+    Not part of validate_secrets because it is not a secret and not
+    production-only: at two workers this application diverges from itself in
+    every environment, and does so silently — two rate-limit budgets, two
+    revocation caches, two copies of the OAuth state a callback needs to find.
+    ADR-1 fixes this product at one node and one process; this makes the setting
+    that contradicts it fail loudly instead of being discovered as a bug.
+
+    Raises SystemExit(1) so uvicorn startup aborts cleanly, as validate_secrets does.
+    """
+    if UVICORN_WORKERS == 1:
+        return
+    logger = logging.getLogger(__name__)
+    logger.critical(
+        "[Security] UVICORN_WORKERS=%s. This application keeps rate limits, token "
+        "revocation, OAuth state and background schedulers in process memory with no "
+        "coordination between workers, so more than one silently diverges rather than "
+        "failing. Run one worker and scale with a second node, or see ADR-1.",
+        UVICORN_WORKERS,
+    )
+    raise SystemExit(1)
 
 
 def validate_secrets() -> None:
@@ -152,6 +188,15 @@ def validate_secrets() -> None:
         errors.append(
             "CORS_ORIGINS is wildcarded ('*') with CORS enabled — set specific "
             "origin domains for production"
+        )
+    # The MCP servers have no session and no user; the token is their whole access
+    # control. Enabling them without one is enabling an unauthenticated service that
+    # can retrieve from every workspace, so it fails at boot rather than at the first
+    # refused call (audit C3).
+    if MCP_ENABLED and not MCP_AUTH_TOKEN:
+        errors.append(
+            "MCP_AUTH_TOKEN must be set when MCP_ENABLED=true — the MCP servers "
+            "have no other authentication, and refuse every call without it"
         )
     # Without a usable key, encrypt() returns its input and OAuth tokens, message
     # content and long-term memories are written to Postgres in plain text. The
@@ -430,6 +475,11 @@ MCP_LOCAL_DOCS_URL: str = os.environ.get('MCP_LOCAL_DOCS_URL', 'http://localhost
 MCP_WEB_SEARCH_URL: str = os.environ.get('MCP_WEB_SEARCH_URL', 'http://localhost:5002')
 MCP_CLOUD_CONNECTORS_URL: str = os.environ.get('MCP_CLOUD_CONNECTORS_URL', 'http://localhost:5003')
 MCP_TIMEOUT: int = int(os.environ.get('MCP_TIMEOUT', '30'))
+# Shared secret the app presents to its MCP servers, and the only thing standing
+# between them and any caller that can reach their ports. They hold no session and
+# no user: whoever reaches /mcp gets whatever the tool returns. Unset means the
+# servers refuse every call rather than serving anonymously (audit C3).
+MCP_AUTH_TOKEN: str = os.environ.get('MCP_AUTH_TOKEN', '')
 # Circuit breaker: open after N consecutive failures, attempt recovery after M seconds
 MCP_CIRCUIT_FAILURE_THRESHOLD: int = int(os.environ.get('MCP_CIRCUIT_FAILURE_THRESHOLD', '5'))
 MCP_CIRCUIT_RECOVERY_TIMEOUT: int = int(os.environ.get('MCP_CIRCUIT_RECOVERY_TIMEOUT', '60'))
@@ -500,7 +550,29 @@ VISION_DESCRIBE_PROMPT: str = (
 
 # Flask settings
 UPLOAD_FOLDER: str = 'uploads'
+# Prefix for the per-upload staging directory. Each upload gets its own so two of
+# the same filename cannot collide (audit H4); the prefix is what lets the startup
+# sweep tell an orphaned one from a directory an operator put there deliberately.
+UPLOAD_STAGING_PREFIX: str = 'upload-'
 MAX_CONTENT_LENGTH: int = int(os.environ.get('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))  # Default: 16MB
+
+# Directories the local_folder connector may be pointed at. Empty — the default —
+# disables that connector type outright, which is the safe default: without an
+# allowlist any workspace owner could create a connector on any path the server
+# process can read, and have its contents ingested and answered from (audit C4).
+# Each entry is an absolute path; a connector's path must resolve inside one of
+# them, symlinks followed.
+CONNECTOR_LOCAL_ROOTS: list[str] = [
+    r.strip() for r in os.environ.get('CONNECTOR_LOCAL_ROOTS', '').split(',') if r.strip()
+]
+
+# How many uvicorn worker processes docker-entrypoint.py asks for. Read here as
+# well so the application can refuse a value it cannot honour: AppState, the
+# metrics collector, the rate limiter's counters, the revocation cache, the
+# Alembic runner, connector polling and the reranker's scheduler are all
+# in-process with no cross-process coordination, so at two workers they diverge
+# silently rather than failing (ADR-1, audit M7).
+UVICORN_WORKERS: int = int(os.environ.get('UVICORN_WORKERS', '1'))
 
 # Abort startup when DB is unavailable — prevent silent degraded-mode starts in prod
 REQUIRE_DATABASE: bool = os.environ.get('REQUIRE_DATABASE', 'false').lower() == 'true'

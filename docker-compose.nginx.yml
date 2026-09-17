@@ -19,11 +19,18 @@ services:
       # address instead of the caller's, so RATELIMIT_LOGIN stops being per-source
       # and becomes one shared budget for the whole deployment.
       #
-      # Safe here only because nginx is the sole ingress once this overlay is
-      # active — the app publishes no port of its own, so nothing else can reach
-      # it to forge the header. Narrow this to the proxy's address or subnet if
-      # you ever expose the app directly.
-      TRUSTED_PROXY_IPS: "*"
+      # The proxy's subnet, not "*". With "*" uvicorn's ProxyHeadersMiddleware
+      # takes the *leftmost* X-Forwarded-For entry and trusts any peer, so a caller
+      # that sent its own header chose its own rate-limit key — login brute force
+      # was unthrottled on the public path. Naming the subnet makes uvicorn walk
+      # the list from the right and stop at the first address it does not trust,
+      # which is the one nginx observed.
+      #
+      # The previous note here argued this was safe because nginx is the sole
+      # ingress and nothing on the compose network could forge the header. That
+      # was the wrong threat: the header is forged by the external client, and
+      # nginx passed it straight through.
+      TRUSTED_PROXY_IPS: "172.31.240.0/24"
 
   nginx:
     image: nginx:alpine
@@ -36,3 +43,17 @@ services:
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - app
+    # Without this nginx joins the implicit `default` network while app is on
+    # frontend/backend, so `proxy_pass http://app:5000` cannot resolve and the
+    # overlay never reached the application at all. Found while fixing the header.
+    networks:
+      - frontend
+
+networks:
+  # A fixed subnet so TRUSTED_PROXY_IPS can name it. Docker assigns bridge subnets
+  # dynamically otherwise, and the app cannot be configured to trust an address
+  # that is not known until it starts.
+  frontend:
+    ipam:
+      config:
+        - subnet: 172.31.240.0/24

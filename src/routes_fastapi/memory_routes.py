@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, Response
 
 from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.logging_config import get_logger
-from ..utils.workspace import get_workspace_id
+from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 
 logger = get_logger(__name__)
@@ -74,7 +74,9 @@ def get_conversation(conversation_id: str, request: Request) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
-    messages = request.app.state.db.get_conversation_messages(conversation_id)
+    messages = request.app.state.db.get_conversation_messages(
+        conversation_id, scope=get_scope(request)
+    )
     if messages is None:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"id": conversation_id, "messages": messages}
@@ -108,7 +110,9 @@ def export_conversation(conversation_id: str, request: Request, format: str = "j
     if fmt not in ("json", "markdown", "pdf", "docx"):
         return JSONResponse({"error": "Invalid format. Use json, markdown, pdf, or docx."}, status_code=400)
 
-    messages = request.app.state.db.get_conversation_messages(conversation_id)
+    messages = request.app.state.db.get_conversation_messages(
+        conversation_id, scope=get_scope(request)
+    )
     if messages is None:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
 
@@ -152,7 +156,9 @@ def get_conversation_documents(conversation_id: str, request: Request) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
-    filenames = request.app.state.db.get_conversation_document_filter(conversation_id)
+    filenames = request.app.state.db.get_conversation_document_filter(
+        conversation_id, scope=get_scope(request)
+    )
     if filenames is None:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"conversation_id": conversation_id, "document_filter": filenames}
@@ -168,7 +174,9 @@ async def set_conversation_documents(conversation_id: str, request: Request) -> 
     if not isinstance(filenames, list) or not all(isinstance(f, str) for f in filenames):
         return JSONResponse({"error": '"filenames" must be an array of strings'}, status_code=400)
 
-    updated = request.app.state.db.set_conversation_document_filter(conversation_id, filenames)
+    updated = request.app.state.db.set_conversation_document_filter(
+        conversation_id, filenames, scope=get_scope(request)
+    )
     if not updated:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"conversation_id": conversation_id, "document_filter": filenames}
@@ -184,7 +192,9 @@ async def update_conversation(conversation_id: str, request: Request) -> Any:
     if not title:
         return JSONResponse({"error": "Title is required"}, status_code=400)
 
-    updated = request.app.state.db.update_conversation_title(conversation_id, title)
+    updated = request.app.state.db.update_conversation_title(
+        conversation_id, title, scope=get_scope(request)
+    )
     if not updated:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"id": conversation_id, "title": title}
@@ -218,7 +228,9 @@ def delete_conversation(conversation_id: str, request: Request) -> Any:
         return denied
     actor = get_current_user_id(request)
     deleted_by = actor if actor and actor != "anonymous" else None
-    deleted = request.app.state.db.delete_conversation(conversation_id, deleted_by=deleted_by)
+    deleted = request.app.state.db.delete_conversation(
+        conversation_id, deleted_by=deleted_by, scope=get_scope(request)
+    )
     if not deleted:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"success": True}

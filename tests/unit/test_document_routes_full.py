@@ -50,7 +50,12 @@ class TestDocumentDeleteRoute:
         # deleted_by names the caller who retired the document — the Clark-Wilson
         # audit trail. It read None while the RBAC bypass supplied no identity, so
         # this assertion used to prove the trail was empty.
-        app.state.db.delete_document.assert_called_once_with(42, ADMIN_ID)
+        from src.utils.scope import ALL_WORKSPACES
+        args, kwargs = app.state.db.delete_document.call_args
+        assert args == (42, ADMIN_ID)
+        # Every object route now names the workspace it was authorised for, so the
+        # query cannot reach a document in another one (C2).
+        assert kwargs['scope'] is ALL_WORKSPACES
 
     def test_delete_document_returns_success(self, client, app):
         app.state.db.delete_document = MagicMock()
@@ -106,16 +111,23 @@ class TestDocumentPurgeRoute:
 
 
 class TestDocumentClearRoute:
-    def test_clear_all_documents(self, client, app):
-        # Route calls delete_all_documents(); mock the correct method name
-        app.state.db.delete_all_documents = MagicMock()
+    def test_clear_retires_within_a_scope_rather_than_wiping(self, client, app):
+        """/clear retires; it no longer hard-deletes every workspace's documents (C1)."""
+        from src.utils.scope import ALL_WORKSPACES
+
+        app.state.db.retire_all_documents = MagicMock(return_value=4)
         response = client.delete('/api/documents/clear')
-        assert response.status_code in (200, 204)
-        app.state.db.delete_all_documents.assert_called_once()
+        assert response.status_code == 200
+        assert response.json()['retired'] == 4
+        kwargs = app.state.db.retire_all_documents.call_args.kwargs
+        # This client is a global admin naming no workspace, which is the one
+        # caller for whom installation-wide is the authorised answer.
+        assert kwargs['scope'] is ALL_WORKSPACES
+        assert kwargs['deleted_by'] == ADMIN_ID
 
     def test_clear_documents_db_unavailable_returns_503(self, client, app):
         from src.db import DatabaseUnavailableError
-        app.state.db.delete_all_documents = MagicMock(
+        app.state.db.retire_all_documents = MagicMock(
             side_effect=DatabaseUnavailableError("not connected")
         )
         response = client.delete('/api/documents/clear')

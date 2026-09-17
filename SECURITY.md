@@ -10,7 +10,7 @@ If you discover a security vulnerability in LocalChat, please report it privatel
 
 ## Known & Accepted Risks
 
-The items below are known, deliberately **not remediated via the usual route** (credential rotation / git history rewrite), and are documented here so a reviewer can establish their status from the repo alone. Reviewed as of 2026-08-20 — re-check every entry against the source when editing this file, and move this date. An entry that is merely old reads exactly like one that is still true.
+The items below are known, deliberately **not remediated via the usual route** (credential rotation / git history rewrite), and are documented here so a reviewer can establish their status from the repo alone. Reviewed as of 2026-09-16 — re-check every entry against the source when editing this file, and move this date. An entry that is merely old reads exactly like one that is still true.
 
 ### 1. Historical leaked local-dev database credential
 
@@ -43,12 +43,18 @@ The items below are known, deliberately **not remediated via the usual route** (
 
 ### 3. JWT revocation honours a bounded 60-second grace window on database outage
 
-- **What**: `require_auth()` (`src/security_fastapi.py`) checks a token's `jti` against the
-  `revoked_tokens` deny-list (`TokensMixin.is_token_revoked`, `src/db/tokens.py`) on every
+- **What**: `resolve_principal()` (`src/security_fastapi.py`) checks a token's `jti` against
+  the `revoked_tokens` deny-list (`TokensMixin.is_token_revoked`, `src/db/tokens.py`) on every
   authenticated request. `_verify_jti_not_revoked()` **fails closed** — if the database is
   unreachable and the token was not verified in the last 60 seconds, the request is refused
   with 401 rather than let through. The residual risk is the grace window itself: a token
   revoked during an outage stays usable for up to 60 seconds after its last successful check.
+- **"Every authenticated request" became true on 2026-09-16.** This entry said it before it
+  was: the check lived in `require_auth()` alone, while `check_workspace_access()` — every
+  document, chat, memory, feedback, annotation and connector route — and `require_admin_dep()`
+  — 31 admin routes — each decoded the token themselves and never asked. A revoked token kept
+  working on all of them until it expired. All three now resolve the caller through one
+  function, which is where the check lives (audit H1).
 - **Why this is accepted**: without the cache, any database blip becomes an authentication
   outage for every logged-in user. The window is bounded, in-process (correct under
   [ADR-1](docs/ADR.md), which fixes this at one node and one process), and the cache is
@@ -116,6 +122,103 @@ The items below are known, deliberately **not remediated via the usual route** (
 - **Re-review trigger**: any move to hosted or multi-tenant deployment, where the disk is not
   the operator's own — at which point the question is whether retrieval can move to a design
   that does not need plaintext in the database, not whether to encrypt this column.
+
+### 7. The env-var admin remains available while the database cannot be read
+
+- **What**: `ADMIN_PASSWORD` authenticates a built-in `admin` account that has no user row.
+  Since decision D6 it is a **bootstrap credential**: it works only while the database holds
+  no live administrator, and an open session stops being administrative the moment one
+  exists. A normal boot seeds a database admin from the same password, so in practice it is
+  withdrawn from the first start.
+- **The residual**: when the database cannot answer, whether a real administrator exists is
+  unknown, and this account is treated as available — which is what it has always been, and
+  is the documented way back in when the database is empty or unreachable. So an outage
+  restores a credential that a healthy installation has withdrawn.
+- **Why accepted**: D6 asked for a credential that a real administrator supersedes, not for
+  the recovery path to be removed, and the two are separable. The exposure is also narrow:
+  reaching it needs `ADMIN_PASSWORD` itself, and with the database down every
+  workspace-scoped route answers 503 regardless, so there is very little to reach.
+- **Before this**: the account could not be demoted or disabled by anyone, had no strength
+  check — the `.env.example` placeholder passed production validation — and kept working
+  beside a *changed* database admin password (audit M1).
+- **Re-review trigger**: any deployment where the database is not the operator's own, or the
+  first time this account is wanted as a true break-glass path — at which point the question
+  is option D6-B (keep it, with a strength check and every use logged), not this middle
+  ground.
+
+### 8. Connectors read data the application is trusted to reach
+
+- **What**: a connector ingests documents from a source the application can reach, and
+  everything it ingests becomes answerable through retrieval. The configuration therefore
+  decides what the application can read, which makes *who may configure one* the control,
+  not what the connector does afterwards.
+- **`local_folder` — global administrator, plus an allowlist.** Its path names the server's
+  own filesystem. Both conditions are enforced independently in
+  `src/routes_fastapi/connector_routes.py`: creating or reconfiguring one requires a global
+  administrator, and the path must resolve inside `CONNECTOR_LOCAL_ROOTS`
+  ([CONFIGURATION.md](docs/CONFIGURATION.md)), which is **empty by default and so disables
+  the type**. Paths are resolved with `realpath` and compared by whole components, so `..`
+  and a symlink pointing out of an allowed root both fail.
+  - This entry exists because the controls did not. A September 2026 external audit
+    reproduced the whole of it: any user could create a workspace, become its owner, create
+    a `local_folder` connector on `/etc`, and read it back. `ws:owner` was the only check,
+    and it is not a barrier when any user may create a workspace. Fixed 2026-09-16.
+- **`webhook`** is a public receiver by design — the connector id plus its secret is the
+  whole credential. **Closed 2026-09-16 (P1-2)**: the secret is mandatory, at creation as
+  well as at delivery, must be at least 16 characters, and is compared with
+  `hmac.compare_digest`. The fetch goes through `safe_fetch` (§9), so it is capped and
+  cannot be pointed at an internal address.
+- **`s3`** — **removed 2026-09-16** (audit M5, decision D5). It accepted an owner-supplied
+  `endpoint_url` and could fall back to the server's own AWS credentials, and it could not
+  run in the shipped image at all, because `boto3` is deliberately not there
+  ([ADR-4](docs/ADR.md)). A connector that cannot run is not a feature worth guarding.
+- **Re-review trigger**: any new connector type whose configuration names something outside
+  the workspace — a path, a host, a credential — belongs in `_ADMIN_ONLY_TYPES` and in this
+  list, and the question to answer first is what a workspace owner could reach with it.
+
+### 9. Outbound fetches resolve before they decide, but do not pin the address
+
+- **What**: `src/utils/safe_fetch.py` is the one path by which this application retrieves a
+  URL it was handed — a web-search result, or a webhook's `fetch_url`. It resolves the
+  hostname, refuses the fetch if **any** address the name answers with is private, loopback,
+  link-local, reserved, multicast or unspecified, re-validates every redirect hop, and caps
+  the body and the time.
+- **The residual**: the connection is then made by name. A DNS entry that answers
+  differently between the check and the connection — rebinding — is not defeated. Closing it
+  means pinning the connection to the validated address, which over HTTPS means taking over
+  certificate verification for every outbound fetch.
+- **Why accepted**: the attacker has to control a DNS zone *and* win a race measured in
+  milliseconds, to reach a network where the interesting services already require
+  credentials. The check that is in place closes the finding that was actually reported: a
+  name that simply resolves to `10.0.0.5` used to be fetched.
+- **Before this**: both call sites inspected the hostname *string*. An IP literal in a
+  private range was refused; a DNS name was waved through, with a comment in the source
+  saying the check could not resolve it. Redirects were followed without a second look, and
+  neither path capped the response (audit M4).
+- **Re-review trigger**: any deployment where the internal network holds something reachable
+  without credentials, or the first time an outbound fetch is made on behalf of an untrusted
+  tenant rather than an operator.
+
+### 10. The MCP servers authenticate with one shared token, not per-user
+
+- **What**: the domain MCP servers (`mcp_servers/`, `--profile mcp`, off by default)
+  authenticate callers with a single shared secret, `MCP_AUTH_TOKEN`, presented as a bearer
+  token and compared with `hmac.compare_digest`. They hold no session and no user, so that
+  token is the whole of their access control. Workspace scoping is passed *by the caller*:
+  `search` requires a `workspace_id` and refuses without one.
+- **The residual**: anything holding the token can name any workspace. The servers trust the
+  application to pass the workspace it authorised, because they have no way to check — there
+  is no user identity in an MCP call to check it against.
+- **Why accepted**: the servers are off by default, run on the internal `backend` network
+  with their ports bound to loopback, and the only intended caller is the application
+  itself. Decision D4 chose to authorise them rather than remove them.
+- **Before this**: there was no check at all, and `search` could not accept a workspace —
+  so with `MCP_ENABLED=true`, every answer was drawn from every workspace regardless of who
+  asked, and anything that could reach the port got the whole corpus (audit C3).
+- **Re-review trigger**: any caller other than this application, or any deployment where the
+  servers are reachable beyond the compose network — at which point the token should become
+  per-caller, and the workspace should be derived from an identity the server can verify
+  rather than accepted from the request.
 
 ## Supply chain
 

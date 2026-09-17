@@ -9,10 +9,21 @@ import src.db as db_module
 import src.rag as rag_module
 from mcp_servers.cloud_connectors import server
 
+WS = "11111111-1111-1111-1111-111111111111"
+_TOKEN = "test-mcp-token"
+
+
+@pytest.fixture(autouse=True)
+def _configured_token(monkeypatch) -> None:
+    """The MCP servers refuse every call without a shared token (audit C3)."""
+    monkeypatch.setattr("mcp_servers.base._AUTH_TOKEN", _TOKEN)
+
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(server.app)
+    client = TestClient(server.app)
+    client.headers.update({"Authorization": f"Bearer {_TOKEN}"})
+    return client
 
 
 @pytest.mark.unit
@@ -26,7 +37,7 @@ def test_search_returns_context_and_sources_on_success(monkeypatch: pytest.Monke
     doc_processor.format_context_for_llm = Mock(return_value="formatted context")
     monkeypatch.setattr(rag_module, "doc_processor", doc_processor)
 
-    result = server.search("find the policy doc")
+    result = server.search("find the policy doc", workspace_id=WS)
 
     assert result == {
         "context": "formatted context",
@@ -43,9 +54,11 @@ def test_search_passes_top_k_to_retrieve_context(monkeypatch: pytest.MonkeyPatch
     doc_processor.retrieve_context = Mock(return_value=[])
     monkeypatch.setattr(rag_module, "doc_processor", doc_processor)
 
-    server.search("query", top_k=3)
+    server.search("query", top_k=3, workspace_id=WS)
 
-    doc_processor.retrieve_context.assert_called_once_with("query", top_k=3)
+    doc_processor.retrieve_context.assert_called_once_with(
+        "query", top_k=3, workspace_id=WS
+    )
 
 
 @pytest.mark.unit
@@ -54,7 +67,7 @@ def test_search_returns_empty_context_and_sources_when_no_results(monkeypatch: p
     doc_processor.retrieve_context = Mock(return_value=[])
     monkeypatch.setattr(rag_module, "doc_processor", doc_processor)
 
-    result = server.search("no matches")
+    result = server.search("no matches", workspace_id=WS)
 
     assert result == {"context": "", "sources": []}
 
@@ -65,7 +78,7 @@ def test_search_returns_error_dict_when_retrieve_context_raises(monkeypatch: pyt
     doc_processor.retrieve_context = Mock(side_effect=RuntimeError("connector offline"))
     monkeypatch.setattr(rag_module, "doc_processor", doc_processor)
 
-    result = server.search("query")
+    result = server.search("query", workspace_id=WS)
 
     assert result == {"context": "", "sources": [], "error": "connector offline"}
 
@@ -144,7 +157,10 @@ def test_tools_call_search_endpoint_returns_content(monkeypatch: pytest.MonkeyPa
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/call",
-            "params": {"name": "search", "arguments": {"query": "test"}},
+            "params": {
+                "name": "search",
+                "arguments": {"query": "test", "workspace_id": WS},
+            },
         },
     )
     body = resp.json()
@@ -165,3 +181,9 @@ def test_tools_call_list_sources_endpoint_returns_content(
     )
     body = resp.json()
     assert body["result"]["content"][0]["text"] == "[]"
+
+
+def test_search_refuses_to_run_without_a_workspace() -> None:
+    """Same retrieval, same requirement as the local-docs server (audit C3)."""
+    with pytest.raises(ValueError, match="workspace_id is required"):
+        server.search("anything")

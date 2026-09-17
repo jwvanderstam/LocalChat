@@ -190,6 +190,13 @@ services:
       PG_DB:           ${PG_DB:-rag_db}
       OLLAMA_BASE_URL: http://ollama:11434
       SECRET_KEY:      ${SECRET_KEY:?SECRET_KEY must be set}
+      # The servers' whole access control: they hold no session and no user, and
+      # refuse every call without it. Must match the app's value (audit C3).
+      # Not `:?` — compose interpolates every service whether or not its profile is
+      # active, so requiring it here would break `docker compose config` for the
+      # default stack. Unset fails closed instead: the server refuses every call,
+      # and the app refuses to boot with MCP_ENABLED=true and no token.
+      MCP_AUTH_TOKEN:  ${MCP_AUTH_TOKEN:-}
     ports:
       - "${BIND_HOST:-127.0.0.1}:5001:5001"
     healthcheck:
@@ -234,6 +241,13 @@ services:
       - info
     environment:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      # The servers' whole access control: they hold no session and no user, and
+      # refuse every call without it. Must match the app's value (audit C3).
+      # Not `:?` — compose interpolates every service whether or not its profile is
+      # active, so requiring it here would break `docker compose config` for the
+      # default stack. Unset fails closed instead: the server refuses every call,
+      # and the app refuses to boot with MCP_ENABLED=true and no token.
+      MCP_AUTH_TOKEN:  ${MCP_AUTH_TOKEN:-}
     ports:
       - "${BIND_HOST:-127.0.0.1}:5002:5002"
     healthcheck:
@@ -287,6 +301,13 @@ services:
       PG_PASSWORD:     ${PG_PASSWORD}
       PG_DB:           ${PG_DB:-rag_db}
       OLLAMA_BASE_URL: http://ollama:11434
+      # The servers' whole access control: they hold no session and no user, and
+      # refuse every call without it. Must match the app's value (audit C3).
+      # Not `:?` — compose interpolates every service whether or not its profile is
+      # active, so requiring it here would break `docker compose config` for the
+      # default stack. Unset fails closed instead: the server refuses every call,
+      # and the app refuses to boot with MCP_ENABLED=true and no token.
+      MCP_AUTH_TOKEN:  ${MCP_AUTH_TOKEN:-}
     ports:
       - "${BIND_HOST:-127.0.0.1}:5003:5003"
     healthcheck:
@@ -391,6 +412,7 @@ services:
       # Set to true when mcp-local-docs / mcp-web-search / mcp-cloud-connectors
       # are running (docker compose --profile mcp up -d).
       MCP_ENABLED:             ${MCP_ENABLED:-false}
+      MCP_AUTH_TOKEN:          ${MCP_AUTH_TOKEN:-}
       MCP_LOCAL_DOCS_URL:      http://mcp-local-docs:5001
       MCP_WEB_SEARCH_URL:      http://mcp-web-search:5002
       MCP_CLOUD_CONNECTORS_URL: http://mcp-cloud-connectors:5003

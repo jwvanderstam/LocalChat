@@ -103,6 +103,10 @@ class MCPClient:
         self.timeout = timeout
         self._session = requests.Session()
         self._session.headers["Content-Type"] = "application/json"
+        # The servers refuse anonymous calls (audit C3). Sent on every request
+        # rather than negotiated, because there is no session to establish.
+        if config.MCP_AUTH_TOKEN:
+            self._session.headers["Authorization"] = f"Bearer {config.MCP_AUTH_TOKEN}"
         self._cb = CircuitBreaker(
             failure_threshold=config.MCP_CIRCUIT_FAILURE_THRESHOLD,
             recovery_timeout=config.MCP_CIRCUIT_RECOVERY_TIMEOUT,

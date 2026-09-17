@@ -168,9 +168,15 @@ release hard-depends on `boto3`, which pulled `boto3`, `botocore`, `s3transfer`,
 and `python-dateutil` into the runtime lock — the AWS SDK, in the image, to reach Bedrock.
 
 `boto3` is not otherwise a dependency of this project. `src/connectors/s3_connector.py`
-imports it lazily and refuses cleanly when it is absent, which is what made the arrival
+imported it lazily and refused cleanly when it was absent, which is what made the arrival
 visible: `test_raises_import_error_without_boto3` failed, because boto3 was no longer
 absent. The test was right, and it caught a supply-chain expansion nobody asked for.
+
+> **That connector was removed on 2026-09-16** (audit M5, decision D5). The reasoning above
+> is why it could never run in the shipped image, and a connector that cannot run is not a
+> feature — it is an owner-supplied `endpoint_url` and a fallback to the server's own AWS
+> credentials, reachable by anyone who could create a connector. This ADR keeps `boto3` out
+> of the image; removing the one module that wanted it makes that decision cost nothing.
 
 **Why a direct client is sufficient, measured against the code rather than argued.**
 `src/llm_client.py` uses exactly one litellm call:

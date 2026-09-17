@@ -161,7 +161,10 @@ class TestExtractMemories:
     def test_custom_limit_forwarded(self):
         app, client = _make_app(unextracted=[])
         self._post_extract(client, body={"limit": 5})
-        app.state.db.get_unextracted_conversations.assert_called_once_with(limit=5)
+        from src.utils.scope import ALL_WORKSPACES
+        app.state.db.get_unextracted_conversations.assert_called_once_with(
+            limit=5, scope=ALL_WORKSPACES
+        )
 
     def test_limit_capped_at_50(self):
         app, client = _make_app(unextracted=[])
@@ -208,7 +211,11 @@ class TestDeleteMemory:
         # deleted_by names the authenticated caller. It read None while the RBAC
         # bypass was on, so this assertion documented the bypass rather than the
         # Clark-Wilson audit trail it exists for.
-        app.state.db.delete_memory.assert_called_once_with("abc-123", deleted_by=ADMIN_ID)
+        from src.utils.scope import ALL_WORKSPACES
+        kwargs = app.state.db.delete_memory.call_args.kwargs
+        assert app.state.db.delete_memory.call_args.args == ("abc-123",)
+        assert kwargs["deleted_by"] == ADMIN_ID
+        assert kwargs["scope"] is ALL_WORKSPACES
 
     def test_db_raises_returns_500(self):
         app, client = _make_app()

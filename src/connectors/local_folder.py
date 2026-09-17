@@ -31,6 +31,36 @@ logger = get_logger(__name__)
 _Snapshot = dict[str, float]
 
 
+def resolve_allowed_root(path: str) -> str | None:
+    """Return the configured root *path* resolves inside, or None if none does.
+
+    ``realpath`` first, so a symlink pointing out of an allowed root is judged by
+    where it lands rather than where it sits; ``commonpath`` then compares whole
+    path components, which ``startswith`` does not — ``/srv/docs-secret`` starts
+    with ``/srv/docs`` and is a different directory.
+
+    An empty allowlist returns None for every path: the connector type is disabled
+    rather than unrestricted (audit C4, decision D3).
+    """
+    roots = app_config.CONNECTOR_LOCAL_ROOTS
+    if not roots:
+        return None
+    try:
+        candidate = os.path.realpath(path)
+    except OSError:
+        return None
+    for root in roots:
+        try:
+            resolved_root = os.path.realpath(root)
+            # commonpath raises when the two share no anchor at all — a different
+            # drive on Windows, or a relative path against an absolute one.
+            if os.path.commonpath([candidate, resolved_root]) == resolved_root:
+                return resolved_root
+        except (OSError, ValueError):
+            continue
+    return None
+
+
 class LocalFolderConnector(BaseConnector):
     """Watches a local directory and emits events for changed files."""
 
@@ -48,6 +78,17 @@ class LocalFolderConnector(BaseConnector):
         path = self.config.get("path", "").strip()
         if not path:
             errors.append("'path' is required")
+            return errors
+        allowed = resolve_allowed_root(path)
+        if allowed is None:
+            # One message for "outside the allowlist" and for "allowlist is empty",
+            # and it names no path back to the caller: a differing response would
+            # answer "does this directory exist on the server?" for any path asked
+            # about, which is the probe C4 made free.
+            errors.append(
+                "'path' is not inside a directory this installation allows "
+                "(CONNECTOR_LOCAL_ROOTS)"
+            )
         elif not os.path.isdir(path):
             errors.append(f"Directory does not exist: {path}")
         return errors

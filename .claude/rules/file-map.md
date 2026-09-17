@@ -9,7 +9,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/app_bootstrap.py` | `bootstrap_app(app)` — all startup I/O (Ollama, DB, caching, plugins, connectors, reranker) plus `_clear_upload_staging()`, which removes staged uploads an interrupted ingest left behind; called from `app.py` only |
 | `src/config.py` | All configuration constants, loads `.env` |
 | `src/models.py` | Pydantic request/response models |
-| `src/security_fastapi.py` | JWT (`python-jose`), rate limiting (`slowapi`), CORS (Starlette middleware) |
+| `src/security_fastapi.py` | JWT (`python-jose`), rate limiting (`slowapi`), CORS (Starlette middleware), `setup_security_headers()` (CSP + nosniff + referrer + framing + HSTS); `resolve_principal()` — the one place a caller is identified: decode, fail-closed revocation, and the role read from the database |
 | `src/monitoring.py` | `MetricsCollector`, `export_prometheus_metrics`, `get_metrics`; `MetricsMiddleware` (ASGI) for request timing; `compute_health_status` — live-probes the database through the pool (5 s TTL) rather than echoing a boot-time flag |
 | `src/ollama_client.py` | `OllamaClient` singleton — chat (stream + non-stream), embedding, model CRUD, vision, GPU info; `estimate_model_footprint()`, `load_model_guard()`; TTL-cached model list (60 s) and running models (5 s) |
 | `src/llm_client.py` | `LiteLLMClient` cloud-fallback adapter; `ModelClient` Protocol |
@@ -31,7 +31,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/feedback_routes.py` | `POST /api/feedback`, `GET /api/feedback/stats` |
 | `src/routes_fastapi/connector_routes.py` | Connector REST API + webhook receiver; `GET /api/connectors/available` |
 | `src/routes_fastapi/auth_routes.py` | `POST /api/auth/login` (issues the session cookie), logout, user management incl. per-user workspace membership (admin), self-service: `GET /api/users/me`, password change |
-| `src/routes_fastapi/oauth_routes.py` | OAuth2 flows for Microsoft (`/api/oauth/microsoft/*`) and Google (`/api/oauth/google/*`) |
+| `src/routes_fastapi/oauth_routes.py` | OAuth2 flows for Microsoft (`/api/oauth/microsoft/*`) and Google (`/api/oauth/google/*`); the pending-authorization store binds each `state` to the user who started it, expires it, and carries its PKCE verifier |
 | `src/routes_fastapi/annotation_routes.py` | Annotation CRUD (`POST /api/annotations`, `GET /api/chunks/{id}/annotations`, `DELETE /api/annotations/{id}`) |
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
@@ -131,8 +131,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/docs/service.py` | `DocsService` — loads a fixed catalogue of repo markdown files (`CLAUDE.md`, `.claude/rules/*.md`, `docs/*.md`, `README.md`, `SECURITY.md`), splits into heading-keyed fragments, renders to HTML; backs the `/docs` viewer and `templates/settings.html`'s per-parameter help text |
 | **Connectors** | |
 | `src/connectors/base.py` | `BaseConnector` ABC + `DocumentSource`, `DocumentEvent`, `EventType` |
-| `src/connectors/local_folder.py` | Stat-based folder watcher |
-| `src/connectors/s3_connector.py` | S3/MinIO/R2 via boto3 (optional dep) |
+| `src/connectors/local_folder.py` | Stat-based folder watcher; `resolve_allowed_root()` confines it to `CONNECTOR_LOCAL_ROOTS` (empty disables the type) |
 | `src/connectors/webhook.py` | Receives push events via HTTP POST |
 | `src/connectors/sharepoint_connector.py` | SharePoint connector — Graph API delta queries |
 | `src/connectors/onedrive_connector.py` | OneDrive connector — Graph API delta queries |
@@ -142,7 +141,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/connectors/registry.py` | `ConnectorRegistry` singleton |
 | `src/connectors/worker.py` | `SyncWorker` daemon — polls connectors, ingests changes |
 | **MCP servers** | |
-| `mcp_servers/base.py` | `MCPServer` base — JSON-RPC 2.0 dispatcher |
+| `mcp_servers/base.py` | `MCPServer` base — JSON-RPC 2.0 dispatcher; `POST /mcp` requires the `MCP_AUTH_TOKEN` bearer (constant-time), and refuses every call when none is configured |
 | `mcp_servers/local_docs/server.py` | Local-docs MCP server; uvicorn port 5001 |
 | `mcp_servers/web_search/server.py` | Web-search MCP server; uvicorn port 5002 |
 | `mcp_servers/cloud_connectors/server.py` | Cloud-connectors MCP server; uvicorn port 5003 |
@@ -153,7 +152,14 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/sanitization.py` | HTML/injection cleaning |
 | `src/utils/encryption.py` | Canonical Fernet `encrypt()`/`decrypt()` for sensitive text columns at rest |
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
-| `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request |
+| `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request. `get_scope()` returns the scope the request was *authorised* for, and refuses when no guard has run |
+| `tests/unit/test_safe_fetch.py` | P1-2 (M4) — a name resolving to a private address is refused, one private answer among several refuses the whole name, redirects are re-validated at each hop, bodies are capped, and a webhook connector without a secret is invalid |
+| `tests/unit/test_oauth_state_and_pkce.py` | P1-3 — the OAuth `state` carries the user who began the flow (the callback cannot read the session: the provider's redirect is cross-site and the cookie is SameSite=strict), expires, is single-use, is not interchangeable between providers, and its PKCE challenge is the S256 of a per-flow verifier |
+| `tests/unit/test_security_headers.py` | P1-4 — every response carries a CSP, nosniff, a referrer policy and framing denial; HSTS only over TLS; and CORS never falls back to a wildcard or a scheme-less origin. Asserts the remaining `'unsafe-inline'` too, so removing it is a visible change |
+| `tests/unit/test_upload_isolation_and_size.py` | P1-1/P1-5 — each upload stages into its own directory so two of the same filename cannot collide or delete each other (H4), `MAX_CONTENT_LENGTH` is enforced while the body streams (M2), and more than one uvicorn worker aborts the boot (M7) |
+| `tests/unit/test_mcp_isolation_and_auth.py` | P0-2 — enabling MCP must not widen the workspace scope, and the servers must not be open: token refusals, `search` requiring a workspace on both retrieving servers, and the request-scope the LLM tools read |
+| `src/utils/safe_fetch.py` | `safe_fetch()`/`resolve_and_validate()` — the one way this application retrieves a URL it was handed. Resolves the name and refuses any non-public address it answers with, re-validates every redirect, and caps bytes and time. Used by web search and the webhook connector, which each had their own hostname-string check that let DNS names through (M4) |
+| `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1). Also `request_scope()`/`current_request_scope()`, the per-request workspace the LLM retrieval tools read — they are called by the model, so they have no argument to carry one (P0-2) |
 | **Infra / Config** | |
 | `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |
 | `requirements-dev.in` | Test tooling, hand-written; constrained by `requirements.txt`, never installed into the image |
@@ -180,6 +186,10 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_active_model_is_chat_capable.py` | An embedding model must never become the active chat model — the candidate filter used to fall back to the unfiltered list, which made `nomic-embed-text` the chat model on any host holding only embedders (the Scaleway Phase 4 stack by construction) and turned every chat into an opaque `GenerationError`; also that `/api/status` reports `ready: false` when no model can chat, while `/api/health` deliberately stays healthy so no container is restarted for it |
 | `tests/unit/test_metrics_auth_admits_admins.py` | `_check_metrics_auth()` admits both of the metrics endpoints' legitimate callers — a scraper's `METRICS_TOKEN` bearer and an admin session cookie, which is what the dashboard has and what setting the token used to 403 |
 | `tests/unit/test_ef_search_persistence.py` | A transaction-pooling proxy silently drops `hnsw.ef_search`; the pool now reads it back and warns, and these prove it warns on the observed value, only once, and not at all when it stuck |
+| `tests/unit/test_proxy_trust_is_not_wildcarded.py` | P0-5 — drives uvicorn's `ProxyHeadersMiddleware` to prove a forged `X-Forwarded-For` cannot set the rate-limit key, and keeps the shipped overlay matching that. Includes the wildcard case still being forgeable, so the fix is measured against the bug |
+| `tests/unit/test_one_authentication_resolver.py` | P0-4 — all three guards resolve the caller through `resolve_principal`, so revocation is checked everywhere (H1) and the role comes from the database rather than the JWT claim (H2); plus the env-var admin as a bootstrap-only credential (M1/D6). Includes an AST check that no guard reads `claims.get("role")` again |
+| `tests/unit/test_local_folder_least_privilege.py` | P0-3 — the `local_folder` connector reaches only inside `CONNECTOR_LOCAL_ROOTS`, and only a global admin may create or repoint one. Covers `/etc`, `..`, a symlink out of an allowed root, and a sibling sharing a path prefix (`commonpath`, not `startswith`) |
+| `tests/unit/test_object_authorization_matrix.py` | P0-1 — every route addressing an object by id is scoped to a workspace. Walks the AST of `src/` and fails on any call to a workspace-scoped database method that omits `scope=`, so a *new* route cannot repeat C1/C2 |
 | `tests/unit/test_purge_preconditions.py` | The Clark-Wilson purge TPs — a cited conversation or a user with memberships is refused before any DELETE |
 | `tests/unit/test_processor_entity_extraction.py` | `_extract_entities` — GraphRAG is best-effort; a failure there never fails an ingest |
 | `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; runs ES modules that import their siblings (`chat.js`) as well as standalone scripts; how frontend branch logic is tested |
@@ -222,14 +232,14 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/mutation_gate.py` | TQ-3 — runs `mutmut<3` over the isolation-critical modules, screens the result for a broken harness, fails under the agreed kill rate |
 | `.github/workflows/mutation.yml` | Nightly mutation gate (`workflow_dispatch` takes a threshold); not in the ruleset |
 | `.github/workflows/codeql.yml` | CodeQL `security-extended` on push/PR to main + weekly scan |
-| `.github/workflows/tests.yml` | CI: `restore-proof` (OPS-4 — dumps and restores the real schema, asserts a similarity query on the far side, and pins both the superuser and non-superuser recipes in `OPERATIONS.md`); `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `docker-smoke` (builds the hardened image, asserts uid 65532 / no shell / native imports / catalogued docs present, boots it against postgres on a non-default port) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, Conventional Commits warning) + `perf-canary` (PERF-2 — `/api/health` probe under concurrent SSE, 1000 ms ceiling; **required**) + `e2e` (TQ-4 golden path in Chromium; deliberately **not** required — a browser flake would block every merge). Seven jobs; five are in the ruleset. |
+| `.github/workflows/tests.yml` | CI: `restore-proof` (OPS-4 — dumps and restores the real schema, asserts a similarity query on the far side, and pins both the superuser and non-superuser recipes in `OPERATIONS.md`); `unit-tests` (ruff + mypy + bandit + pip-audit + pytest unit) + `integration-tests` (postgres:pg16 service + pytest integration, excludes ollama) + `docker-smoke` (builds the hardened image, asserts uid 65532 / no shell / native imports / catalogued docs present, boots it against postgres on a non-default port) + `repo-hygiene` (tracked-artifact/gitignore check, Flask-import ban, inline `on*=` handler ban and inline `<script>` cap — both enforce the CSP, Conventional Commits warning) + `perf-canary` (PERF-2 — `/api/health` probe under concurrent SSE, 1000 ms ceiling; **required**) + `e2e` (TQ-4 golden path in Chromium; deliberately **not** required — a browser flake would block every merge). Seven jobs; five are in the ruleset. |
 | `.github/workflows/sonarcloud.yml` | SonarCloud quality-gate scan on push/PR to main |
 | `.github/workflows/gitleaks.yml` | Secret-scanning on push/PR to main |
 | `.github/workflows/docker-publish.yml` | Builds and publishes the app's Docker image |
 | `docs/INTEGRATION_TESTS.md` | How to run integration tests locally and CI setup instructions |
 | `docs/TEST_QUALITY_AUDIT.md` | Mutation-testing (mutmut) methodology + per-module test-quality findings; environment setup notes (Docker, isolated worktree, mutmut 2.x vs 3.x) |
-| `docker-compose.nginx.yml` | Nginx TLS overlay — compose with `docker-compose.yml` to add HTTPS termination |
-| `nginx/nginx.conf` | Nginx config template — replace `YOUR_DOMAIN` and mount certs before use |
+| `docker-compose.nginx.yml` | Nginx TLS overlay — compose with `docker-compose.yml` to add HTTPS termination. Pins the `frontend` network to a fixed subnet and trusts only that as a proxy; puts `nginx` on it, without which `proxy_pass` could not resolve `app` |
+| `nginx/nginx.conf` | Nginx config template — replace `YOUR_DOMAIN` and mount certs before use. Sets `X-Forwarded-For` to `$remote_addr` (replacing, not appending) so a caller cannot choose its own rate-limit key |
 | **Design** | |
 | `design/README.md` | What the two design canvases are, what is tracked vs generated, and the state of the redesign |
 | `design/localchat-ui/*.dc.html` | Three minimal directions for the chat screen plus a reproduction of today's UI — the decision record |
@@ -247,6 +257,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `static/js/confirm.js` | `window.localchatConfirm()` — the in-app confirmation modal every destructive action uses; native `confirm()` is banned in `repo-hygiene` |
 | `static/js/auth.js` | Session handling — wraps `fetch` to redirect to `/login` on 401, drives the login form, exposes `localchatLogout()` |
 | `templates/login.html` | Login page — the one template that renders without a session |
+| `static/js/statusbar.js` | Status bar poll (active model, document count) — extracted from `base.html` so the CSP can refuse inline scripts |
+| `static/js/models.js` | Model management page — extracted from `models.html`, same reason |
+| `static/js/settings-page.js` | Settings page: stats, memory actions, RAG parameter sliders — extracted from `settings.html`, same reason |
 | `static/js/docs.js` | Documentation viewer (`templates/docs.html`) — fetches `/api/repo-docs`, renders nav + selected doc HTML |
 | `static/js/bootstrap.bundle.min.js` | Vendored Bootstrap 5 JS bundle |
 | `templates/docs.html` | Documentation viewer shell — nav list + content pane, populated client-side by `docs.js` |

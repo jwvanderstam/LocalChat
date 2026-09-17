@@ -35,9 +35,60 @@ def server() -> MCPServer:
     return srv
 
 
+TOKEN = "test-mcp-token"
+
+
+@pytest.fixture(autouse=True)
+def _configured_token(monkeypatch) -> None:
+    """These servers refuse every call without a token (audit C3)."""
+    monkeypatch.setattr("mcp_servers.base._AUTH_TOKEN", TOKEN)
+
+
 @pytest.fixture
 def client(server: MCPServer) -> TestClient:
-    return TestClient(server.get_asgi_app())
+    client = TestClient(server.get_asgi_app())
+    client.headers.update({"Authorization": f"Bearer {TOKEN}"})
+    return client
+
+
+class TestTheServerRefusesAnonymousCallers:
+    """The whole of their access control: they hold no session and no user."""
+
+    def test_no_token_is_refused(self, server: MCPServer) -> None:
+        anon = TestClient(server.get_asgi_app())
+        resp = anon.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        assert resp.status_code == 401
+        assert resp.json()["error"]["message"] == "Unauthorised"
+
+    def test_a_wrong_token_is_refused(self, server: MCPServer) -> None:
+        wrong = TestClient(server.get_asgi_app())
+        wrong.headers.update({"Authorization": "Bearer not-the-token"})
+        resp = wrong.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        assert resp.status_code == 401
+
+    def test_an_unconfigured_server_refuses_even_a_correct_looking_token(
+        self, server: MCPServer, monkeypatch
+    ) -> None:
+        """Unset means closed, not open — these sit beside the database."""
+        monkeypatch.setattr("mcp_servers.base._AUTH_TOKEN", "")
+        client = TestClient(server.get_asgi_app())
+        client.headers.update({"Authorization": "Bearer anything"})
+        resp = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        assert resp.status_code == 401
+
+    def test_a_tool_cannot_be_reached_without_the_token(self, server: MCPServer) -> None:
+        anon = TestClient(server.get_asgi_app())
+        resp = anon.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "echo", "arguments": {"text": "hi"}},
+            },
+        )
+        assert resp.status_code == 401
+        assert "echoed" not in resp.text
 
 
 @pytest.mark.unit

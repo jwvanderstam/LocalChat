@@ -86,7 +86,7 @@ class TestGetConversationMessages:
         db._cursor.fetchall.return_value = [
             ('user', 'Hello', datetime(2025,1,1)),
         ]
-        result = db.get_conversation_messages('uuid-1')
+        result = db.get_conversation_messages('uuid-1', scope='ws-1')
         assert isinstance(result, list)
         assert result[0]['role'] == 'user'
 
@@ -94,7 +94,7 @@ class TestGetConversationMessages:
         db = _make_db_with_conversations()
         db._cursor.fetchall.return_value = []
         db._cursor.fetchone.return_value = None  # conversation not found
-        result = db.get_conversation_messages('ghost-id')
+        result = db.get_conversation_messages('ghost-id', scope='ws-1')
         assert result is None
 
     def test_get_raises_when_not_connected(self):
@@ -102,7 +102,7 @@ class TestGetConversationMessages:
         db = _make_db_with_conversations()
         db.is_connected = False
         with pytest.raises(DatabaseUnavailableError):
-            db.get_conversation_messages('any-id')
+            db.get_conversation_messages('any-id', scope='ws-1')
 
 
 class TestSaveMessage:
@@ -128,13 +128,13 @@ class TestUpdateConversationTitle:
     def test_update_returns_true_when_found(self):
         db = _make_db_with_conversations()
         db._cursor.rowcount = 1
-        result = db.update_conversation_title('conv-id', 'New Title')
+        result = db.update_conversation_title('conv-id', 'New Title', scope='ws-1')
         assert result is True
 
     def test_update_returns_false_when_not_found(self):
         db = _make_db_with_conversations()
         db._cursor.rowcount = 0
-        result = db.update_conversation_title('ghost-id', 'Title')
+        result = db.update_conversation_title('ghost-id', 'Title', scope='ws-1')
         assert result is False
 
     def test_update_raises_when_not_connected(self):
@@ -142,20 +142,20 @@ class TestUpdateConversationTitle:
         db = _make_db_with_conversations()
         db.is_connected = False
         with pytest.raises(DatabaseUnavailableError):
-            db.update_conversation_title('id', 'title')
+            db.update_conversation_title('id', 'title', scope='ws-1')
 
 
 class TestDeleteConversation:
     def test_delete_returns_true_when_found(self):
         db = _make_db_with_conversations()
         db._cursor.rowcount = 1
-        result = db.delete_conversation('conv-id')
+        result = db.delete_conversation('conv-id', scope='ws-1')
         assert result is True
 
     def test_delete_returns_false_when_not_found(self):
         db = _make_db_with_conversations()
         db._cursor.rowcount = 0
-        result = db.delete_conversation('ghost-id')
+        result = db.delete_conversation('ghost-id', scope='ws-1')
         assert result is False
 
     def test_delete_raises_when_not_connected(self):
@@ -163,7 +163,7 @@ class TestDeleteConversation:
         db = _make_db_with_conversations()
         db.is_connected = False
         with pytest.raises(DatabaseUnavailableError):
-            db.delete_conversation('id')
+            db.delete_conversation('id', scope='ws-1')
 
 
 class TestCreateConversationWithMessage:

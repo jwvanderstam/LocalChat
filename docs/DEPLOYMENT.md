@@ -251,6 +251,26 @@ appears to come from the nginx container and all callers share one rate-limit bu
 see [CONFIGURATION.md](CONFIGURATION.md#rate-limiting-behind-a-reverse-proxy). If you
 front the app with a different proxy, set that variable yourself.
 
+> **It names the proxy's subnet, and it must not be `*`.** Until September 2026 the
+> override shipped `TRUSTED_PROXY_IPS: "*"` while nginx set the header with
+> `$proxy_add_x_forwarded_for`. That combination is a bypass: `*` makes uvicorn trust
+> every peer and take the **leftmost** entry, and `$proxy_add_x_forwarded_for` *appends*
+> to whatever the caller sent — so a request arriving with its own `X-Forwarded-For`
+> chose its own rate-limit key, and login brute force was unthrottled on the one path
+> that faces the internet.
+>
+> Both halves are fixed and each stands alone: nginx now sends `$remote_addr`, replacing
+> anything the caller supplied, and the overlay pins the `frontend` network to
+> `172.31.240.0/24` and trusts only that. **Fronting this nginx with another proxy
+> (a CDN, a cloud load balancer) reverses the first half** — restore
+> `$proxy_add_x_forwarded_for` and add that proxy's address to `TRUSTED_PROXY_IPS`, or
+> the client address you rate-limit on becomes the CDN's.
+>
+> The same change puts `nginx` on the `frontend` network. It had no `networks:` key, so
+> it joined the implicit `default` one while the app is on `frontend`/`backend` —
+> `proxy_pass http://app:5000` could not resolve, and the overlay never reached the
+> application at all.
+
 ## The recommended production topology
 
 One node, one app instance, everything but the proxy on loopback.

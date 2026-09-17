@@ -126,7 +126,8 @@ class TestDocumentRoutesExtended:
         from src.routes_fastapi.document_routes import router
 
         state = _base_state()
-        state.db.delete_document.return_value = None
+        # True: a live document in scope was retired. False is the 404 path now.
+        state.db.delete_document.return_value = True
         state.db.get_document_count.return_value = 0
         client = _make_client(router, "/api/documents", state)
         with patch("src.routes_fastapi.document_routes.config") as mc:
@@ -176,7 +177,7 @@ class TestConnectorRoutesExtended:
         from src.routes_fastapi.connector_routes import router
 
         state = _base_state()
-        state.connector_registry.available_types.return_value = ["local_folder", "s3", "google_drive"]
+        state.connector_registry.available_types.return_value = ["local_folder", "webhook", "google_drive"]
         client = _make_client(router, "/api", state)
         resp = client.get("/api/connectors/types")
         assert resp.status_code == 200

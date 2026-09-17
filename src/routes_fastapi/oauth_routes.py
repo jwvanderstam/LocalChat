@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import secrets
+import threading
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
@@ -26,8 +30,88 @@ _GOOGLE_SCOPES = "openid email https://www.googleapis.com/auth/drive.readonly"
 _GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 _GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
-# In-memory CSRF state store (sufficient for single-process; use Redis for multi-worker)
-_oauth_states: dict[str, str] = {}
+#: How long an authorization may stay in flight. Long enough to read a consent
+#: screen and pick an account, short enough that an abandoned one does not sit in
+#: memory. Entries used to have no expiry at all and were never pruned (audit M3).
+_STATE_TTL = timedelta(minutes=10)
+
+
+@dataclass(frozen=True)
+class _PendingAuthorization:
+    """What /authorize knew and the callback needs.
+
+    ``user_id`` is here because the callback cannot ask the session who is calling:
+    it is reached by a redirect *from the provider*, which is a cross-site
+    navigation, and the session cookie is ``SameSite=strict``. The old code called
+    ``require_caller(request)`` there and got a 401 — after the authorization code
+    had already been spent, so the account was never connected and the code could
+    not be replayed (audit M3).
+
+    ``code_verifier`` is PKCE. Without it, anyone who intercepts the redirect —
+    a shoulder-surfed URL, a leaky proxy, browser history — can exchange the code
+    for a token, because the exchange needs only the code and a client secret the
+    provider already trusts this client to hold.
+    """
+
+    provider: str
+    user_id: str
+    code_verifier: str
+    expires_at: datetime
+
+
+# Single-process by construction (ADR-1, and UVICORN_WORKERS>1 now aborts the boot),
+# so in-memory is correct here rather than merely convenient.
+_oauth_states: dict[str, _PendingAuthorization] = {}
+_oauth_states_lock = threading.Lock()
+
+
+def _pkce_pair() -> tuple[str, str]:
+    """Return (code_verifier, code_challenge) for PKCE S256."""
+    verifier = secrets.token_urlsafe(64)
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    challenge = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    return verifier, challenge
+
+
+def _remember_authorization(provider: str, user_id: str) -> tuple[str, str]:
+    """Record a pending authorization; return (state, code_challenge)."""
+    verifier, challenge = _pkce_pair()
+    state = secrets.token_urlsafe(32)
+    now = datetime.now(UTC)
+    with _oauth_states_lock:
+        # Prune here rather than on a timer: this is the only place the store grows.
+        for key in [k for k, v in _oauth_states.items() if v.expires_at <= now]:
+            del _oauth_states[key]
+        _oauth_states[state] = _PendingAuthorization(
+            provider=provider,
+            user_id=user_id,
+            code_verifier=verifier,
+            expires_at=now + _STATE_TTL,
+        )
+    return state, challenge
+
+
+def _claim_authorization(state: str | None, provider: str) -> _PendingAuthorization | None:
+    """Consume *state*, or None when it is unknown, expired or another provider's.
+
+    Single-use: popped whether or not it turns out to be valid, so a state cannot
+    be replayed even against the branch that rejects it.
+    """
+    if not state:
+        return None
+    with _oauth_states_lock:
+        pending = _oauth_states.pop(state, None)
+    if pending is None:
+        return None
+    if pending.expires_at <= datetime.now(UTC):
+        logger.warning("[OAuth] Rejected an expired authorization state")
+        return None
+    if pending.provider != provider:
+        # A Google state arriving at the Microsoft callback is not a mix-up to
+        # tolerate; the two flows must not be interchangeable.
+        logger.warning("[OAuth] Rejected a state issued for a different provider")
+        return None
+    return pending
 
 
 def _tenant() -> str:
@@ -44,8 +128,7 @@ def microsoft_authorize(request: Request) -> Response:
     if not config.MICROSOFT_CLIENT_ID:
         return JSONResponse({"success": False, "message": "MICROSOFT_CLIENT_ID is not configured"}, status_code=501)
 
-    state = secrets.token_urlsafe(16)
-    _oauth_states[state] = "microsoft"
+    state, challenge = _remember_authorization("microsoft", require_caller(request))
 
     params = {
         "client_id": config.MICROSOFT_CLIENT_ID,
@@ -54,6 +137,8 @@ def microsoft_authorize(request: Request) -> Response:
         "scope": _MS_SCOPES,
         "response_mode": "query",
         "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
     }
     auth_url = _MS_AUTH_URL.format(tenant=_tenant()) + "?" + urlencode(params)
     return RedirectResponse(url=auth_url)
@@ -72,8 +157,8 @@ def microsoft_callback(request: Request) -> JSONResponse:
     if not code:
         return JSONResponse({"success": False, "message": "Missing authorization code"}, status_code=400)
 
-    stored = _oauth_states.pop(state or "", None)
-    if stored is None:
+    pending = _claim_authorization(state, "microsoft")
+    if pending is None:
         return JSONResponse({"success": False, "message": "State mismatch — possible CSRF"}, status_code=400)
 
     try:
@@ -86,6 +171,7 @@ def microsoft_callback(request: Request) -> JSONResponse:
                 "code": code,
                 "redirect_uri": config.MICROSOFT_REDIRECT_URI,
                 "scope": _MS_SCOPES,
+                "code_verifier": pending.code_verifier,
             },
             timeout=15,
         )
@@ -101,7 +187,9 @@ def microsoft_callback(request: Request) -> JSONResponse:
 
     expires_in = int(data.get("expires_in", 3600))
     expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
-    user_id = require_caller(request)
+    # From the state, not the session: this request is a redirect from the provider,
+    # and the SameSite=strict session cookie is not sent on it (audit M3).
+    user_id = pending.user_id
 
     request.app.state.db.upsert_oauth_token(
         user_id=user_id,
@@ -145,8 +233,7 @@ def google_authorize(request: Request) -> Response:
     if not config.GOOGLE_CLIENT_ID:
         return JSONResponse({"success": False, "message": "GOOGLE_CLIENT_ID is not configured"}, status_code=501)
 
-    state = secrets.token_urlsafe(16)
-    _oauth_states[state] = "google"
+    state, challenge = _remember_authorization("google", require_caller(request))
 
     params = {
         "client_id": config.GOOGLE_CLIENT_ID,
@@ -156,6 +243,8 @@ def google_authorize(request: Request) -> Response:
         "access_type": "offline",
         "prompt": "consent",
         "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
     }
     return RedirectResponse(url=_GOOGLE_AUTH_URL + "?" + urlencode(params))
 
@@ -173,8 +262,8 @@ def google_callback(request: Request) -> JSONResponse:
     if not code:
         return JSONResponse({"success": False, "message": "Missing authorization code"}, status_code=400)
 
-    stored = _oauth_states.pop(state or "", None)
-    if stored is None:
+    pending = _claim_authorization(state, "google")
+    if pending is None:
         return JSONResponse({"success": False, "message": "State mismatch — possible CSRF"}, status_code=400)
 
     try:
@@ -186,6 +275,7 @@ def google_callback(request: Request) -> JSONResponse:
                 "client_secret": config.GOOGLE_CLIENT_SECRET,
                 "code": code,
                 "redirect_uri": config.GOOGLE_REDIRECT_URI,
+                "code_verifier": pending.code_verifier,
             },
             timeout=15,
         )
@@ -201,7 +291,9 @@ def google_callback(request: Request) -> JSONResponse:
 
     expires_in = int(data.get("expires_in", 3600))
     expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
-    user_id = require_caller(request)
+    # From the state, not the session: this request is a redirect from the provider,
+    # and the SameSite=strict session cookie is not sent on it (audit M3).
+    user_id = pending.user_id
 
     request.app.state.db.upsert_oauth_token(
         user_id=user_id,

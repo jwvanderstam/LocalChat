@@ -8,6 +8,7 @@ import contextlib
 import logging
 import os
 import secrets
+import shutil
 import threading
 from collections.abc import Iterator
 from typing import Any
@@ -92,6 +93,13 @@ def _clear_upload_staging() -> None:
         try:
             if os.path.isfile(path):
                 os.remove(path)
+                removed += 1
+            elif os.path.isdir(path) and name.startswith(config.UPLOAD_STAGING_PREFIX):
+                # Each upload stages into its own directory so two of the same name
+                # cannot collide (audit H4); an interrupted ingest leaves the whole
+                # directory, not a loose file. Only our own prefix — a directory an
+                # operator put here deliberately is not an orphan.
+                shutil.rmtree(path)
                 removed += 1
         except OSError as e:
             # Best-effort: an undeletable leftover must not stop the application.

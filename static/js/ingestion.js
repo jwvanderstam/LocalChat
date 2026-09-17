@@ -224,8 +224,8 @@ function displayUploadResults(results) {
                     <i class="bi bi-camera me-2"></i>
                     <strong>${escapeHtml(result.filename)}:</strong> No vision model installed.
                     <div class="mt-2">
-                        <button class="btn btn-sm btn-warning"
-                                onclick="pullVisionModel('${escapeHtml(model)}', '${escapeHtml(reason)}', document.getElementById('${alertId}'))">
+                        <button class="btn btn-sm btn-warning" data-pull-vision-model="${escapeHtml(model)}"
+                                data-pull-reason="${escapeHtml(reason)}" data-alert-id="${alertId}">
                             <i class="bi bi-download me-1"></i>Download ${escapeHtml(model)}
                             <small class="text-muted ms-1">(${escapeHtml(reason)})</small>
                         </button>
@@ -439,7 +439,8 @@ async function loadDocuments() {
                             </h6>
                             ${canWrite ? `
                             <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0"
-                                    onclick="deleteDocument(${doc.id}, '${escapeHtml(doc.filename).replace(/'/g, "\\'")}')"
+                                    data-delete-document="${doc.id}"
+                                    data-document-filename="${escapeHtml(doc.filename)}"
                                     title="Delete document">
                                 <i class="bi bi-trash"></i>
                             </button>` : ''}
@@ -506,26 +507,18 @@ async function deleteDocument(docId, filename) {
     }
 }
 
-// Clear database
+// Retire every document in the active workspace
 async function clearDatabase() {
-    // Confirm action
+    // One prompt, not two. The second existed because this action was an
+    // irreversible installation-wide wipe; it now retires the active workspace's
+    // documents and an administrator can purge or restore them afterwards.
     const ok = await window.localchatConfirm({
-        title: 'Delete ALL documents',
-        body: 'Every document and chunk will be permanently removed from the database. This cannot be undone.',
-        confirmText: 'Delete everything',
+        title: 'Retire all documents',
+        body: 'Every document in this workspace will be retired. Other workspaces are '
+            + 'untouched, and an administrator can restore them until they are purged.',
+        confirmText: 'Retire all',
     });
     if (!ok) {
-        return;
-    }
-    
-    // Double confirmation
-    // Second prompt kept: this is the one action with no per-item recovery.
-    const reallyOk = await window.localchatConfirm({
-        title: 'Last chance',
-        body: 'Confirm again to delete all documents permanently.',
-        confirmText: 'Delete all permanently',
-    });
-    if (!reallyOk) {
         return;
     }
     
@@ -544,7 +537,8 @@ async function clearDatabase() {
         if (data.success) {
             loadDocuments();
             loadStats();
-            uploadResults.innerHTML = '<div class="alert alert-success">Database cleared — all documents deleted.</div>';
+            const n = data.retired ?? 0;
+            uploadResults.innerHTML = `<div class="alert alert-success">${n} document${n === 1 ? '' : 's'} retired in this workspace. They can be restored until purged.</div>`;
             testResults.innerHTML = '';
         } else {
             uploadResults.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(data.message)}</div>`;
@@ -553,7 +547,7 @@ async function clearDatabase() {
         uploadResults.innerHTML = `<div class="alert alert-danger">Error clearing database: ${escapeHtml(error.message)}</div>`;
     } finally {
         clearBtn.disabled = false;
-        clearBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Clear Database';
+        clearBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Retire All Documents';
     }
 }
 
@@ -572,3 +566,27 @@ function escapeHtml(str) {
         }
     });
 }
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
+// Replaces the inline `on*=` attributes a strict CSP blocks (audit M6). The two
+// delegated listeners below handle markup this file generates: the elements do not
+// exist when this runs, so the listener sits on a container that does.
+document.getElementById('refresh-btn')?.addEventListener('click', () => loadDocuments());
+document.getElementById('clear-db-btn')?.addEventListener('click', () => clearDatabase());
+
+document.addEventListener('click', (event) => {
+    const deleteBtn = event.target.closest('[data-delete-document]');
+    if (deleteBtn) {
+        // The id went through the DOM as text, so it comes back as one.
+        deleteDocument(Number(deleteBtn.dataset.deleteDocument), deleteBtn.dataset.documentFilename);
+        return;
+    }
+    const pullBtn = event.target.closest('[data-pull-vision-model]');
+    if (pullBtn) {
+        pullVisionModel(
+            pullBtn.dataset.pullVisionModel,
+            pullBtn.dataset.pullReason,
+            document.getElementById(pullBtn.dataset.alertId)
+        );
+    }
+});

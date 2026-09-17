@@ -8,6 +8,200 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+### Security
+
+- **Object-level authorization on every route that addresses an object by id** (P0-1,
+  external audit findings C1 and C2). The workspace guard authorised the caller against
+  *their own* workspace and the database call then acted on an object in *any* workspace.
+  The worst case, `DELETE /api/documents/clear`, hard-deleted every document and chunk in
+  the installation for any user holding `editor` in any workspace — and any user can
+  create one. Also affected: chunk text search and chunk-context reads across all
+  workspaces, single-document retire, delete-all-memories, and update/delete of
+  conversations, memories, annotations and connectors by id.
+  - Database methods that reach a workspace-owned object now take a mandatory
+    keyword-only `scope`, and `src/utils/scope.py` removes `None` as a value for it:
+    a scope is a workspace id or the explicit `ALL_WORKSPACES`. Forgetting the argument
+    is a `TypeError`, and passing `None` a `ValueError`, where it used to mean
+    "every workspace".
+  - `check_workspace_access` now pins the authorised scope for all three principals,
+    including the global-admin path, which previously returned without pinning anything
+    and so left the query unscoped.
+  - `tests/unit/test_object_authorization_matrix.py` walks the AST of `src/` and fails on
+    any call that omits the scope, so a newly added route cannot repeat the pattern.
+- **`DELETE /api/documents/clear` retires instead of destroying, within one workspace**
+  (decision D2). It requires `owner`, sets `deleted_at`/`deleted_by`, and touches only the
+  caller's workspace. The irreversible operation moved to a separate admin-only
+  `DELETE /api/documents/purge-all`, which acts only on documents already retired. This
+  restores the Clark-Wilson rule the old endpoint broke outright: a delete TP never issues
+  `DELETE FROM` on a CDI, and destroy is a distinct, explicitly authorised TP.
+  `DELETE /api/memory/` is likewise `owner` and workspace-scoped.
+
+- **A URL the application is asked to fetch can no longer point inward** (P1-2, audit
+  finding M4). Two places retrieve a URL supplied from outside — the web-search result
+  fetcher and the webhook connector — and both guarded it by inspecting the hostname
+  *string*. An IP literal in a private range was refused; a DNS name was waved through, with
+  a comment in the source admitting the check could not resolve it. So a name pointing at
+  `10.0.0.5`, or a bare compose service name, was fetched by a process sitting on the same
+  network as the database and the model server.
+  - `src/utils/safe_fetch.py` is now the one way either fetches. It resolves the name and
+    refuses if **any** address it answers with is non-public — so a round-robin record
+    cannot be retried until the public answer wins — re-validates every redirect hop, and
+    caps the body and the time. Neither path had any cap, and neither re-checked redirects,
+    which made the first check decorative.
+  - **The webhook secret is mandatory**, at creation as well as at delivery, must be at
+    least 16 characters, and is compared with `hmac.compare_digest`. It was optional — a
+    connector without one accepted anything that knew its id — and compared with `!=`.
+  - The rebinding residual this does not close is recorded in SECURITY.md §9.
+
+- **Connecting a Microsoft or Google account works in a browser, and the flow uses PKCE**
+  (P1-3, audit finding M3). The callback resolved the user from the session — but it is
+  reached by a redirect *from the provider*, which is a cross-site navigation, and the
+  session cookie is `SameSite=strict`. No cookie was sent, so the callback returned **401
+  after exchanging the authorization code**: the code was spent, the account was never
+  connected, and retrying required starting over.
+  - The `state` now carries the user who began the flow, so the callback needs no cookie.
+    It also carries an expiry (10 minutes) — entries were previously kept for the life of
+    the process and never pruned — and is single-use, not interchangeable between
+    providers, and consumed even when rejected so it cannot be probed and retried.
+  - **PKCE (S256)** is added to both flows. Without it, anyone who intercepts the redirect
+    — a shoulder-surfed URL, a leaky proxy, browser history — can exchange the code for a
+    token.
+- **Three destructive actions used the native `confirm()` dialog** — deleting a model and
+  the two memory-clearing actions. `repo-hygiene` has banned that since a QA pass lost a
+  document to one, but the calls sat in inline `<script>` blocks where the check could not
+  see them. Extracting those blocks for the CSP surfaced all three; they now use the
+  application's own confirmation modal.
+
+- **Every response now carries security headers, and CORS cannot fall back to a
+  wildcard** (P1-4, audit findings M6 and M8). The application sent no
+  `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or framing
+  header at all, and neither did nginx.
+  - A CSP that bans objects, pins `base-uri` and `form-action`, denies framing, limits
+    scripts to this origin plus the one CDN the pages use, and **does not allow inline
+    scripts**. Getting there meant extracting ~680 lines of inline JavaScript from three
+    templates into `statusbar.js`, `models.js` and `settings-page.js`, and replacing all
+    nineteen inline `on*=` handlers — fifteen in templates, four in markup generated by
+    JavaScript — with listeners and event delegation.
+  - One inline script remains by design: the theme applier in the `<head>` of `base.html`
+    and `login.html`, which must run before first paint or every navigation flashes the
+    wrong theme. CSP permits exactly it, **by hash**; a test recomputes that hash from the
+    templates so the two cannot drift apart silently.
+  - `style-src` still allows inline styles. 43 `style=` attributes across the templates,
+    and none of them is a lever for executing code — recorded in the tests rather than left
+    looking like an oversight.
+  - `repo-hygiene` now fails on a new inline `on*=` handler or a third inline `<script>`,
+    because under this policy both are silently dead markup rather than a visible error.
+  - `Strict-Transport-Security` only over TLS, so a development server cannot pin a
+    developer's `localhost` to HTTPS.
+  - nginx repeats them with `always`, because it answers some responses itself — a 413, a
+    502, its own error pages — and those never reach the application's middleware.
+  - **CORS**: the default origins were `localhost,127.0.0.1`, which carry no scheme and so
+    match no browser `Origin` header — the default permitted nothing while appearing to
+    permit something. They now carry schemes, a scheme-less entry aborts the boot, and the
+    `allow_origins=["*"]` fallback is gone: with `allow_credentials=True` it let any site
+    make authenticated cross-origin calls, and an empty `CORS_ORIGINS` reached it by
+    accident rather than by anyone choosing it. Nothing configured now means CORS stays off.
+
+- **One upload can no longer read or delete another's file, and none is unbounded**
+  (P1-1, audit findings H4 and M2). Every upload was written to
+  `UPLOAD_FOLDER/<sanitized name>`, so two workspaces uploading `report.pdf` shared one
+  path: one overwrote the other, one ingest could read the other's bytes, and whichever
+  finished first deleted the file the other was still using. Each upload now stages into
+  its own directory — a directory rather than `mkstemp` because the ingest takes the
+  document's name from the file's basename, and a randomised filename would land in the
+  library.
+  - `MAX_CONTENT_LENGTH` is **enforced**, having been a Flask-era value applied to nothing:
+    the body streams to disk in 1 MB chunks and is refused with **413** the moment it passes
+    the limit, instead of being read into memory whole. `nginx.conf` gains a matching
+    `client_max_body_size`, without which the proxy's own 1 MB default would silently
+    override it.
+  - The read and the write were also being done inline in an async route, so one large
+    upload held the event loop for its whole duration. They now run in the threadpool.
+- **More than one uvicorn worker aborts the boot** (P1-5, audit finding M7). `AppState`, the
+  metrics collector, the rate limiter's counters, the revocation cache, the Alembic runner,
+  connector polling and the reranker's scheduler are all in process memory with no
+  coordination, so a second worker did not fail — it diverged silently, with two rate-limit
+  budgets and an OAuth callback unable to find the state the other worker stored. Refused in
+  every environment, because the failure is not production-specific.
+
+- **Enabling the MCP servers no longer removes workspace isolation, and they are no
+  longer open** (P0-2, audit finding C3, decision D4). Three holes that were only
+  exploitable together:
+  - `get_rag_context` **dropped `workspace_id`** when `MCP_ENABLED=true` and returned the
+    MCP result, so turning the flag on silently un-scoped chat retrieval.
+  - The MCP `search` tool **could not accept a workspace at all**, and retrieval reads a
+    missing workspace as *every* workspace. It is now required, by the handler and by the
+    schema the model is given, on both servers that retrieve.
+  - The servers had **no authentication of any kind** — whatever reached `POST /mcp` was
+    served, by a process sitting on the `backend` network with the database. They now
+    require an `MCP_AUTH_TOKEN` bearer, compared in constant time.
+  - Unset fails closed in three places rather than one: the servers refuse every call, the
+    app refuses to boot with `MCP_ENABLED=true`, and `get_rag_context` falls through to the
+    direct (scoped) path rather than calling an unscoped search.
+  - The LLM's own document-search tools (`search_documents`, `ToolRouter._local_docs`) had
+    the same hole and no argument to fix it with, since the model calls them mid-answer.
+    They now read the workspace the request bound, and **raise** when nothing bound one.
+
+- **Rate limiting can no longer be bypassed behind the bundled nginx** (P0-5, audit
+  finding H3). The TLS overlay shipped `TRUSTED_PROXY_IPS: "*"` while `nginx.conf` set the
+  header with `$proxy_add_x_forwarded_for`. Together those are a bypass: `*` makes uvicorn
+  trust every peer and take the **leftmost** `X-Forwarded-For` entry, and
+  `$proxy_add_x_forwarded_for` *appends* to whatever the caller already sent — so a request
+  carrying its own header chose its own rate-limit key, and **login brute force was
+  unthrottled on the one path that faces the internet**. The overlay's comment had argued
+  the wildcard was safe because nginx is the sole ingress; the header is forged by the
+  external client, which that reasoning did not cover.
+  - nginx now sends `$remote_addr`, discarding anything the caller supplied, and the
+    overlay pins the `frontend` network to `172.31.240.0/24` and trusts only that. Either
+    half alone closes it; both are in place because they can be changed independently.
+  - **Fronting this nginx with another proxy reverses the first half** — see the note in
+    `DEPLOYMENT.md`.
+
+
+- **One authentication resolver, so revocation and the current role apply everywhere**
+  (P0-4, audit findings H1, H2 and M1, decision D6). Three guards each answered "who is
+  this?" their own way, and two of them answered it badly.
+  - **H1**: only `require_auth` checked the revocation deny-list. `check_workspace_access`
+    (every document, chat, memory, feedback, annotation and connector route) and
+    `require_admin_dep` (31 admin routes) never did, so a **revoked token kept working on
+    all of them** until it expired. SECURITY.md §3 had claimed the check ran on every
+    authenticated request since before it was true.
+  - **H2**: `check_workspace_access` read `role` from the JWT, which is minted at login and
+    lives as long as the token — so a **demoted administrator kept the global short-circuit**,
+    and with it owner-equivalent access to every workspace. The role now comes from the
+    database on every request, which also means a *promoted* user gets access without
+    signing in again.
+  - **M1**: the `ADMIN_PASSWORD` account was a permanent second credential that nobody could
+    see, demote or disable, and it kept working beside a changed database password. It is now
+    a **bootstrap credential**: valid only while the database holds no live administrator,
+    which a normal boot ends on first start. The one case left open — an unreadable database,
+    where the question cannot be answered — is recorded in SECURITY.md §7 rather than
+    silently kept.
+  - `resolve_principal()` is the single answer all three call. An AST test fails if any guard
+    reads the `role` claim again.
+
+- **The `local_folder` connector is confined, and creating one is an administrator's
+  decision** (P0-3, audit finding C4, decision D3). Any user can create a workspace and
+  become its owner, and `ws:owner` was the only check on creating a connector — so any user
+  could point one at any path the server process could read, `/etc` included, and then ask
+  questions about the contents. Two independent conditions now apply: creating *or
+  reconfiguring* a `local_folder` connector requires a global administrator, and its path
+  must resolve inside the new `CONNECTOR_LOCAL_ROOTS` allowlist, which is **empty by default
+  and therefore disables the connector type**. Paths are resolved with `realpath` and
+  compared by whole components, so `..`, a symlink pointing out of an allowed root, and a
+  sibling directory sharing a prefix all fail.
+  - `PUT /api/connectors/{id}` was the same finding through another door: it wrote a new
+    `config` with no validation and no re-authorisation, so an owner could repoint a
+    connector an administrator had created. A config change now faces both checks.
+
+### Fixed
+
+- **The nginx TLS overlay could not reach the application.** `nginx` declared no
+  `networks:`, so it joined the implicit `default` network while `app` is on
+  `frontend`/`backend` — `proxy_pass http://app:5000` had no DNS entry to resolve. Found
+  while fixing H3 above, by reading `docker compose config` rather than the file. It now
+  joins `frontend`.
+
 ### Changed
 
 - **The cloud fallback will target OpenAI-compatible endpoints directly rather than through
@@ -22,6 +216,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Removed
 
+- **The S3 connector** (P1-2, audit finding M5, decision D5). It accepted an owner-supplied
+  `endpoint_url` and fell back to the server's own AWS credentials when none were given —
+  and it could not run in the shipped image at all, because `boto3` is deliberately absent
+  ([ADR-4](docs/ADR.md)). Anyone using it was on a host install with `boto3` added by hand;
+  for them this is a removal, and for every containerised deployment it removes a
+  credential-fallback path that never worked. `src/connectors/s3_connector.py`, its tests,
+  its registry entry and its documentation all go.
 - **`gunicorn`**, a runtime dependency nothing invoked — every service is uvicorn — along
   with the `GUNICORN_TIMEOUT` constant no code consumed, its `.env.example` line and its
   `CONFIGURATION.md` row. The three had drifted to different values (300, 600, 600), which

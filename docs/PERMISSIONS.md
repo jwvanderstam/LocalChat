@@ -23,7 +23,7 @@ route; drift between this file and the code is the failure mode it exists to pre
 > The instruction above ("regenerate after changing any route") is the thing that did not
 > happen, three times, over three weeks. It is discipline, and discipline is what
 > `PERMISSIONS.md` exists because nobody has. **The counts and rows are now verified
-> mechanically** — 111 `@router` decorators across `src/routes_fastapi/`, 111 rows here,
+> mechanically** — 112 `@router` decorators across `src/routes_fastapi/`, 112 rows here,
 > zero missing and zero stale.
 
 > **Corrected 2026-08-07.** This file listed `GET /api/settings/stats` as `admin`. It had no
@@ -51,6 +51,15 @@ route; drift between this file and the code is the failure mode it exists to pre
 | `public` | No credentials required. Every entry is deliberate — see the allowlist below. | none |
 | `authenticated` | Any logged-in user. Used where no workspace context exists yet. | `require_auth` |
 | `ws:viewer` / `ws:editor` / `ws:owner` | Membership of the active workspace, at that level or higher. | `check_workspace_access` via `_authz.deny()` |
+
+> **Two connector rows carry a condition the level column cannot express.** Creating a
+> `local_folder` connector, or changing an existing one's `config`, additionally requires a
+> **global administrator** — the row's `ws:owner` is the floor, not the whole rule. The
+> reason is that any user may create a workspace and become its owner, so `ws:owner` is no
+> barrier at all for a decision that names a path on the server's own filesystem (audit C4,
+> decision D3). The path must also resolve inside `CONNECTOR_LOCAL_ROOTS`, which is empty by
+> default and therefore disables the type. Enforced in `connector_routes.py` by
+> `_ADMIN_ONLY_TYPES`; covered by `tests/unit/test_local_folder_least_privilege.py`.
 | **`admin`** | Global `users.role = 'admin'`. Node-wide operations. | `require_admin_dep` |
 
 **Two kinds of principal reach the `ws:*` levels.** A *user*, whose role comes from
@@ -65,13 +74,13 @@ Global `admin` short-circuits every workspace check, so an admin passes all `ws:
 
 | Level | Routes |
 |---|---|
-| **admin** | 31 |
+| **admin** | 32 |
 | public | 20 |
 | ws:viewer | 19 |
-| ws:owner | 17 |
-| ws:editor | 13 |
+| ws:owner | 19 |
+| ws:editor | 11 |
 | authenticated | 11 |
-| **Total** | **111** |
+| **Total** | **112** |
 
 Before RBAC-2, **49 of these 102 had no check at all** — including `POST /api/models/pull`,
 `DELETE /api/models/delete` and `POST /api/plugins/reload`, none of which did an internal
@@ -137,7 +146,8 @@ These 20 are unauthenticated **by decision**, each for a stated reason:
 | `document` | POST | `/test` | ws:viewer |
 | `document` | POST | `/search-text` | ws:viewer |
 | `document` | GET | `/chunks/{chunk_id}/context` | ws:viewer |
-| `document` | DELETE | `/clear` | ws:editor |
+| `document` | DELETE | `/clear` | ws:owner |
+| `document` | DELETE | `/purge-all` | **admin** |
 | `document` | DELETE | `/{doc_id}/purge` | **admin** |
 | `document` | DELETE | `/{doc_id}` | ws:editor |
 | `feedback` | POST | `/feedback` | ws:viewer |
@@ -145,7 +155,7 @@ These 20 are unauthenticated **by decision**, each for a stated reason:
 | `longterm_memory` | GET | `/` | ws:viewer |
 | `longterm_memory` | POST | `/extract` | ws:editor |
 | `longterm_memory` | DELETE | `/{memory_id}` | ws:editor |
-| `longterm_memory` | DELETE | `/` | ws:editor |
+| `longterm_memory` | DELETE | `/` | ws:owner |
 | `memory` | GET | `/conversations` | ws:viewer |
 | `memory` | POST | `/conversations` | ws:editor |
 | `memory` | DELETE | `/conversations` | ws:editor |

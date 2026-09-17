@@ -19,6 +19,16 @@ from unittest.mock import MagicMock
 # Helpers
 # ---------------------------------------------------------------------------
 
+_WEBHOOK_SECRET = "a-webhook-secret-long-enough"
+
+
+def _webhook_connector(id="conn-1"):
+    """A webhook connector as one must now be configured: with a secret."""
+    connector = _connector(id=id, connector_type="webhook")
+    connector["config"] = {"secret": _WEBHOOK_SECRET}
+    return connector
+
+
 def _connector(id="conn-1", connector_type="local_folder", enabled=True):
     return {
         "id": id,
@@ -46,8 +56,8 @@ class TestListConnectorTypes:
         data = resp.json()
         assert data["success"] is True
         assert "local_folder" in data["types"]
-        assert "s3" in data["types"]
         assert "webhook" in data["types"]
+        assert "s3" not in data["types"]  # removed: audit M5, decision D5
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +90,10 @@ class TestListConnectors:
 
 class TestCreateConnector:
 
-    def test_creates_local_folder_connector(self, client, app, tmp_path):
+    def test_creates_local_folder_connector(self, client, app, tmp_path, monkeypatch):
+        # A local_folder connector is refused unless its path is inside a configured
+        # root; the default empty allowlist disables the type (audit C4).
+        monkeypatch.setattr("src.config.CONNECTOR_LOCAL_ROOTS", [str(tmp_path)])
         app.state.db.create_connector = MagicMock(return_value="conn-new")
         app.state.db.get_connector = MagicMock(return_value=_connector(id="conn-new"))
         resp = client.post("/api/connectors", json={
@@ -106,12 +119,25 @@ class TestCreateConnector:
         })
         assert resp.status_code == 400
 
-    def test_nonexistent_path_returns_400(self, client, app):
+    def test_nonexistent_path_returns_400(self, client, app, tmp_path, monkeypatch):
+        # With a root configured, so this exercises the "directory does not exist"
+        # branch rather than passing for the allowlist's reason.
+        monkeypatch.setattr("src.config.CONNECTOR_LOCAL_ROOTS", [str(tmp_path)])
         resp = client.post("/api/connectors", json={
             "connector_type": "local_folder",
-            "config": {"path": "/nonexistent/path/xyz"},
+            "config": {"path": str(tmp_path / "nonexistent")},
         })
         assert resp.status_code == 400
+
+    def test_path_outside_the_allowed_roots_returns_400(self, client, app, tmp_path, monkeypatch):
+        """Even for an admin: the allowlist is not something admin overrides."""
+        monkeypatch.setattr("src.config.CONNECTOR_LOCAL_ROOTS", [str(tmp_path)])
+        resp = client.post("/api/connectors", json={
+            "connector_type": "local_folder",
+            "config": {"path": "/etc"},
+        })
+        assert resp.status_code == 400
+        assert "CONNECTOR_LOCAL_ROOTS" in resp.json()["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +276,7 @@ class TestSyncHistory:
 class TestWebhookReceiver:
 
     def test_accepts_valid_added_event(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=_connector(connector_type="webhook"))
+        app.state.db.get_connector = MagicMock(return_value=_webhook_connector())
         mock_instance = MagicMock()
         mock_instance.push_event.return_value = []
         app.state.connector_registry = MagicMock()
@@ -260,8 +286,24 @@ class TestWebhookReceiver:
             "source_id": "doc-1",
             "filename": "report.pdf",
             "fetch_url": "http://example.com/report.pdf",
-        })
+        }, headers={"X-LocalChat-Secret": _WEBHOOK_SECRET})
         assert resp.status_code == 200
+
+    def test_a_connector_without_a_secret_accepts_nothing(self, client, app):
+        """The secret is the only credential a delivery carries, so it is mandatory
+        rather than checked-when-present (audit M4)."""
+        connector = _connector(connector_type="webhook")
+        connector["config"] = {}
+        app.state.db.get_connector = MagicMock(return_value=connector)
+        app.state.connector_registry = MagicMock()
+
+        resp = client.post("/api/connectors/conn-1/webhook", json={
+            "event_type": "added", "source_id": "doc-1", "filename": "r.pdf",
+            "fetch_url": "http://example.com/r.pdf",
+        })
+
+        assert resp.status_code == 403
+        assert not app.state.connector_registry.get.called
 
     def test_wrong_connector_type_returns_400(self, client, app):
         app.state.db.get_connector = MagicMock(return_value=_connector(connector_type="local_folder"))
@@ -274,12 +316,15 @@ class TestWebhookReceiver:
         assert resp.status_code == 404
 
     def test_invalid_payload_returns_400(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=_connector(connector_type="webhook"))
+        app.state.db.get_connector = MagicMock(return_value=_webhook_connector())
         mock_instance = MagicMock()
         mock_instance.push_event.return_value = ["'source_id' is required"]
         app.state.connector_registry = MagicMock()
         app.state.connector_registry.get.return_value = mock_instance
-        resp = client.post("/api/connectors/conn-1/webhook", json={})
+        resp = client.post(
+            "/api/connectors/conn-1/webhook", json={},
+            headers={"X-LocalChat-Secret": _WEBHOOK_SECRET},
+        )
         assert resp.status_code == 400
 
     def test_bad_secret_returns_403(self, client, app):
@@ -309,8 +354,11 @@ class TestWebhookReceiver:
         assert resp.status_code == 200
 
     def test_instance_not_active_returns_503(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=_connector(connector_type="webhook"))
+        app.state.db.get_connector = MagicMock(return_value=_webhook_connector())
         app.state.connector_registry = MagicMock()
         app.state.connector_registry.get.return_value = None
-        resp = client.post("/api/connectors/conn-1/webhook", json={})
+        resp = client.post(
+            "/api/connectors/conn-1/webhook", json={},
+            headers={"X-LocalChat-Secret": _WEBHOOK_SECRET},
+        )
         assert resp.status_code == 503

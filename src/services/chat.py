@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import config, exceptions
 from ..rag.retrieval import RetrievalResult
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES, Scope
 
 if TYPE_CHECKING:
     from ..agent.result import AgentResult
@@ -69,14 +70,24 @@ def parse_chat_request(data: dict) -> dict:
 
 
 def try_mcp_rag(
-    message: str, filename_filter: list | None, chunks_retrieved_ref: list[int]
+    message: str,
+    filename_filter: list | None,
+    chunks_retrieved_ref: list[int],
+    workspace_id: str,
 ) -> tuple[str, list[dict]] | None:
+    """Retrieve through the local-docs MCP server, or None to fall back.
+
+    *workspace_id* is passed on rather than dropped. It used to be absent from this
+    call entirely, and the server read a missing workspace as "every workspace", so
+    turning MCP on silently removed workspace isolation from chat (audit C3).
+    """
     try:
         from ..mcp_client import mcp_registry
         result = mcp_registry.local_docs.call_tool("search", {
             "query": message,
             "filters": {"filenames": filename_filter or []},
             "top_k": config.TOP_K_RESULTS,
+            "workspace_id": workspace_id,
         })
         if isinstance(result, dict) and "context" in result:
             context = result["context"]
@@ -99,8 +110,13 @@ def get_rag_context(
     additional_workspace_ids: list[str] | None = None,
     source_ids: list[str] | None = None,
 ) -> tuple[str, list[dict]]:
-    if config.MCP_ENABLED:
-        mcp_result = try_mcp_rag(message, filename_filter, chunks_retrieved_ref)
+    if config.MCP_ENABLED and workspace_id:
+        # No workspace, no MCP: the server now refuses an unscoped search, and
+        # falling through to the direct path keeps the caller's own scoping rules
+        # rather than inventing one here.
+        mcp_result = try_mcp_rag(
+            message, filename_filter, chunks_retrieved_ref, workspace_id
+        )
         if mcp_result is not None:
             return mcp_result
 
@@ -239,12 +255,12 @@ def stop_ollama_liveness(timeout: float = 5.0) -> None:
         thread.join(timeout=timeout)
 
 
-def get_filename_filter(fields: dict, db: Any) -> list[str]:
+def get_filename_filter(fields: dict, db: Any, scope: Scope) -> list[str]:
     conversation_id = fields.get("conversation_id")
     if not conversation_id:
         return []
     try:
-        return db.get_conversation_document_filter(conversation_id)
+        return db.get_conversation_document_filter(conversation_id, scope=scope)
     except Exception as filter_err:
         logger.warning("[RAG] Could not read document filter: %s", filter_err)
         return []
@@ -306,7 +322,10 @@ def retrieve_contexts(
 
     if fields["use_rag"]:
         try:
-            filename_filter = get_filename_filter(fields, db)
+            # A chat request with no workspace resolved is a global admin who named
+            # none; that is what this path already did, said out loud. P0-2 replaces
+            # it with a refusal once retrieval itself fails closed.
+            filename_filter = get_filename_filter(fields, db, workspace_id or ALL_WORKSPACES)
             if plan is not None and plan.is_multi_hop:
                 local_context, sources = get_rag_context_multi_hop(
                     plan.sub_questions, doc_processor, filename_filter,

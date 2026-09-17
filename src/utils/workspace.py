@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from .scope import Scope
+
 
 def get_workspace_id(request: Request) -> str | None:
     """Return the workspace scope for this request.
@@ -25,3 +27,20 @@ def get_workspace_id(request: Request) -> str | None:
         or request.query_params.get("workspace_id")
         or None
     )
+
+
+def get_scope(request: Request) -> Scope:
+    """Return the workspace scope this request was *authorised* for.
+
+    Set by ``check_workspace_access`` once its checks pass, so reading it is only
+    valid after a guard has run. Unset means no guard ran — a route that forgot
+    one — and the answer is to refuse, not to guess: guessing is what made every
+    unscoped query installation-wide (C1/C2).
+    """
+    scope = getattr(request.state, "resolved_scope", None)
+    if scope is None:
+        raise RuntimeError(
+            "no authorised workspace scope on this request — call the workspace "
+            "guard before reading the scope"
+        )
+    return scope  # type: ignore[no-any-return]

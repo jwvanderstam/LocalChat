@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import hmac
 import threading
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..utils.logging_config import get_logger
-from ..utils.workspace import get_workspace_id
+from ..utils.scope import ALL_WORKSPACES
+from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 from ._authz import require_caller
 
@@ -25,6 +27,43 @@ _NOT_FOUND = "Connector not found"
 _OWNER_IN_CONFIG = (
     "'user_id' may not be set in config; a connector uses the account of the user who created it"
 )
+
+# Connector types whose configuration names something outside the workspace — a
+# server-side path — and so is a global decision, not a workspace owner's. Any
+# user may create a workspace and become its owner, which is what made
+# `local_folder` a way to read any file the server process can reach (audit C4).
+_ADMIN_ONLY_TYPES = frozenset({"local_folder"})
+
+
+def _refuse_unless_global_admin(request: Request) -> JSONResponse | None:
+    """None when the caller is a global admin, else the refusal to return.
+
+    Delegates to ``require_admin_dep`` rather than re-deriving the check, so the
+    fail-closed behaviour on an unreachable database stays in one place. Passing
+    ``credentials=None`` takes its documented fallback: read the bearer token from
+    the request, which is also how a cookie session reaches it.
+    """
+    try:
+        require_admin_dep(request, None)
+    except HTTPException as exc:
+        detail = exc.detail
+        message = detail.get("message") if isinstance(detail, dict) else str(detail)
+        return JSONResponse({"success": False, "message": message}, status_code=exc.status_code)
+    return None
+
+
+def _invalid_config(registry: Any, connector_type: str, connector_config: dict) -> str | None:
+    """The first validation error for *connector_config*, or None when it is usable."""
+    cls = registry.get_class(connector_type)
+    if cls is None:
+        return f"Unknown connector_type. Available: {registry.available_types()}"
+    try:
+        instance = cls(connector_config)
+    except Exception as exc:
+        logger.warning("Connector config instantiation failed: %s", exc)
+        return "Invalid connector configuration"
+    errors = instance.validate_config()
+    return "; ".join(errors) if errors else None
 
 
 @router.get("/connectors/available")
@@ -90,22 +129,21 @@ async def create_connector(request: Request) -> Any:
     if "user_id" in connector_config:
         return JSONResponse({"success": False, "message": _OWNER_IN_CONFIG}, status_code=400)
 
+    if connector_type in _ADMIN_ONLY_TYPES:
+        refused = _refuse_unless_global_admin(request)
+        if refused:
+            return refused
+
     created_by = require_caller(request)
 
     workspace_id = get_workspace_id(request)
-    cls = registry.get_class(connector_type)
-    try:
-        tmp_instance = cls(connector_config)
-    except Exception as exc:
-        logger.warning("Connector config instantiation failed: %s", exc)
-        return JSONResponse({"success": False, "message": "Invalid connector configuration"}, status_code=400)
-
-    errors = tmp_instance.validate_config()
-    if errors:
-        return JSONResponse({"success": False, "message": "; ".join(errors)}, status_code=400)
+    invalid = _invalid_config(registry, connector_type, connector_config)
+    if invalid:
+        return JSONResponse({"success": False, "message": invalid}, status_code=400)
 
     if not display_name:
-        display_name = tmp_instance.display_name
+        cls = registry.get_class(connector_type)
+        display_name = cls(connector_config).display_name
 
     try:
         db = request.app.state.db
@@ -119,7 +157,7 @@ async def create_connector(request: Request) -> Any:
         )
         registry.add(connector_id, connector_type, connector_config,
                      workspace_id=workspace_id, owner_user_id=created_by)
-        connector = db.get_connector(connector_id)
+        connector = db.get_connector(connector_id, scope=workspace_id)
         return JSONResponse({"success": True, "connector": connector}, status_code=201)
     except Exception:
         logger.exception("[Connectors] create error")
@@ -132,7 +170,7 @@ def get_connector(connector_id: str, request: Request) -> Any:
     if denied:
         return denied
     try:
-        connector = request.app.state.db.get_connector(connector_id)
+        connector = request.app.state.db.get_connector(connector_id, scope=get_scope(request))
         if connector is None:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "connector": connector}
@@ -155,11 +193,30 @@ async def update_connector(connector_id: str, request: Request) -> Any:
         return JSONResponse({"success": False, "message": _OWNER_IN_CONFIG}, status_code=400)
     try:
         db = request.app.state.db
-        updated = db.update_connector(connector_id, **fields)
+        scope = get_scope(request)
+        if "config" in fields:
+            # A config change is a fresh configuration decision, so it faces the same
+            # two checks creation does. Without this, an owner could repoint a
+            # local_folder connector an admin had created — the whole of C4, through
+            # the other door, since nothing here validated or re-authorised.
+            existing = db.get_connector(connector_id, scope=scope)
+            if existing is None:
+                return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
+            connector_type = existing["connector_type"]
+            if connector_type in _ADMIN_ONLY_TYPES:
+                refused = _refuse_unless_global_admin(request)
+                if refused:
+                    return refused
+            invalid = _invalid_config(
+                request.app.state.connector_registry, connector_type, fields["config"]
+            )
+            if invalid:
+                return JSONResponse({"success": False, "message": invalid}, status_code=400)
+        updated = db.update_connector(connector_id, scope=scope, **fields)
         if not updated:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         if "config" in fields or "enabled" in fields:
-            row = db.get_connector(connector_id)
+            row = db.get_connector(connector_id, scope=scope)
             if row and row.get("enabled"):
                 request.app.state.connector_registry.add(
                     connector_id, row["connector_type"], row["config"],
@@ -168,7 +225,7 @@ async def update_connector(connector_id: str, request: Request) -> Any:
                 )
             else:
                 request.app.state.connector_registry.remove(connector_id)
-        return {"success": True, "connector": db.get_connector(connector_id)}
+        return {"success": True, "connector": db.get_connector(connector_id, scope=scope)}
     except Exception:
         logger.exception("[Connectors] update error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
@@ -207,7 +264,9 @@ def delete_connector(connector_id: str, request: Request) -> Any:
     actor = get_current_user_id(request)
     deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        deleted = request.app.state.db.delete_connector(connector_id, deleted_by=deleted_by)
+        deleted = request.app.state.db.delete_connector(
+            connector_id, deleted_by=deleted_by, scope=get_scope(request)
+        )
         if not deleted:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         request.app.state.connector_registry.remove(connector_id)
@@ -254,18 +313,31 @@ def sync_history(connector_id: str, request: Request, limit: int = 20) -> Any:
 @router.post("/connectors/{connector_id}/webhook")
 async def receive_webhook(connector_id: str, request: Request) -> Any:
     db = request.app.state.db
-    connector = db.get_connector(connector_id)
+    # No user session here: this is a public receiver, and the connector id plus its
+    # secret is the whole credential. ALL_WORKSPACES says that rather than relying on
+    # an omitted argument to mean it.
+    connector = db.get_connector(connector_id, scope=ALL_WORKSPACES)
     if connector is None:
         return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
     if connector.get("connector_type") != "webhook":
         return JSONResponse({"success": False, "message": "Not a webhook connector"}, status_code=400)
 
-    secret = connector.get("config", {}).get("secret")
-    if secret:
-        provided = request.headers.get("X-LocalChat-Secret", "")
-        if provided != secret:
-            logger.warning("[Webhook] Bad secret for connector")
-            return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
+    # Mandatory, not "checked when present". This endpoint is public — it has to be,
+    # since the caller is an external system with no session — so the secret is the
+    # whole credential, and a connector configured without one accepted anything that
+    # knew its id (audit M4). compare_digest, not ==, so a secret cannot be recovered
+    # a character at a time from response timing.
+    secret = (connector.get("config") or {}).get("secret") or ""
+    if not secret:
+        logger.error(
+            "[Webhook] Connector has no secret configured; refusing the delivery. "
+            "Set one on the connector."
+        )
+        return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
+    provided = request.headers.get("X-LocalChat-Secret", "")
+    if not hmac.compare_digest(provided, secret):
+        logger.warning("[Webhook] Bad secret for connector")
+        return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
 
     instance = request.app.state.connector_registry.get(connector_id)
     if instance is None:

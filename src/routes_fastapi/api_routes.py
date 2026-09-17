@@ -14,6 +14,12 @@ from .. import config, exceptions
 from ..security_fastapi import limiter, require_admin_dep, require_auth
 from ..services import chat
 from ..utils.logging_config import get_logger
+from ..utils.scope import (
+    ALL_WORKSPACES,
+    Scope,
+    bind_request_scope,
+    reset_request_scope,
+)
 from ..utils.workspace import get_workspace_id
 from ._authz import deny as _deny
 
@@ -162,9 +168,15 @@ async def _generate_sse(
     conversation_id: str | None,
     agent_result: Any,
     routed_rationale: str | None,
+    workspace_scope: Scope,
 ) -> AsyncGenerator[str, None]:
     full_response: list[str] = []
     model_used = "local"
+    # Bound for the life of this generator, because the tool executor runs inside
+    # it: the model may call a retrieval tool, and those read the workspace from
+    # the request rather than from their arguments. Unbound they refuse, which is
+    # the point — an unscoped retrieval used to mean every workspace (audit C3).
+    scope_token = bind_request_scope(workspace_scope)
     try:
         if plan is not None:
             yield f"data: {json.dumps({'plan': plan.to_dict()})}\n\n"
@@ -203,7 +215,7 @@ async def _generate_sse(
         logger.exception("[CHAT API] Unexpected error generating response")
         yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
     finally:
-        pass  # ensures cleanup runs on client disconnect
+        reset_request_scope(scope_token)  # also ensures cleanup on client disconnect
 
 
 @router.get("/status")
@@ -338,6 +350,9 @@ async def api_chat(request: Request) -> Any:
             _generate_sse(
                 plan, tool_executor, active_model, app_state, messages, fields,
                 sources, cloud_client, conversation_id, agent_result, routed_rationale,
+                # A chat request with no workspace resolved is a global admin who
+                # named none — the same translation P0-1 made explicit elsewhere.
+                workspace_id or ALL_WORKSPACES,
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

@@ -29,6 +29,10 @@ def _request(headers: dict[str, str], *, member_of: list[str], default_ws: str,
              query_string: bytes = b""):
     db = MagicMock()
     db.is_connected = True
+    # Fail-closed revocation now runs on this path, and the admin short-circuit reads
+    # the role from the database — a bare MagicMock is "revoked" and "admin".
+    db.is_token_revoked.return_value = False
+    db.get_user_role.return_value = "user"
     db.resolve_workspace_api_key.return_value = None
     db.get_default_workspace_id.return_value = default_ws
     db.get_user_workspaces.return_value = [{"id": w} for w in member_of]

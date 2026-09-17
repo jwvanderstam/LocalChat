@@ -25,6 +25,10 @@ def _client(member_role: str | None, global_role: str = "user"):
     state = MagicMock()
     state.db.is_connected = True
     state.db.is_token_revoked.return_value = False
+    # The workspace guard reads the global role from the database rather than the
+    # token claim, so this is what makes the caller an admin (or not).
+    state.db.get_user_role.return_value = global_role
+    state.db.resolve_workspace_api_key.return_value = None
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = WS
     state.db.get_user_by_id.return_value = {"id": USER, "username": "jo", "role": global_role}

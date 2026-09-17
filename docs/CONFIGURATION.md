@@ -340,6 +340,26 @@ to empty, in which case the router falls back to the active model.
 | `MCP_WEB_SEARCH_URL` | `http://localhost:5002` | Web-search server |
 | `MCP_CLOUD_CONNECTORS_URL` | `http://localhost:5003` | Cloud-connectors server |
 | `MCP_TIMEOUT` | `30` | Per-request timeout, seconds |
+| `MCP_AUTH_TOKEN` | *(empty)* | Shared secret between the app and its MCP servers. **Required when `MCP_ENABLED=true`** — see below |
+
+> **`MCP_AUTH_TOKEN` is the MCP servers' entire access control.** They hold no session
+> and no user: whatever reaches `POST /mcp` is served. They also sit on the `backend`
+> network with the database and retrieve from documents, so "whatever reaches them" is
+> the whole corpus.
+>
+> Until an external audit in September 2026 there was no check at all, and the retrieval
+> tool could not even accept a workspace — so with `MCP_ENABLED=true` every answer was
+> drawn from every workspace regardless of who asked. Both halves are fixed: the servers
+> require a bearer token (compared in constant time), and `search` requires a workspace.
+>
+> Unset fails closed in three places rather than one: the servers refuse every call, the
+> app refuses to boot with `MCP_ENABLED=true`, and `get_rag_context` falls through to the
+> direct path rather than calling an unscoped search. Set the same value on the app and on
+> all three servers — `docker-compose.yml` already wires one variable to all four.
+>
+> ```bash
+> MCP_AUTH_TOKEN=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+> ```
 | `MCP_CIRCUIT_FAILURE_THRESHOLD` | `5` | Consecutive failures before the breaker opens |
 | `MCP_CIRCUIT_RECOVERY_TIMEOUT` | `60` | Seconds the breaker stays open |
 
@@ -366,6 +386,22 @@ to empty, in which case the router falls back to the active model.
 |---|---|---|
 | `ADMIN_USERNAME` | `admin` | Username of the seeded administrator |
 | `JWT_ACCESS_TOKEN_EXPIRES` | `7200` | Access-token lifetime in seconds (2 h) |
+| `ADMIN_PASSWORD` | *(empty)* | Seeds the administrator's password on first boot, and is the bootstrap credential until one exists. Production refuses to start without it |
+
+> **`ADMIN_PASSWORD` is a bootstrap credential, not a permanent second password.** It does
+> two things. On every boot it *seeds* a database administrator (idempotently — a restart
+> never resets an existing account's password). And it authenticates a built-in `admin`
+> account that has no user row, which works **only while the database holds no live
+> administrator**. Once one exists — which is normally from the first boot — that path is
+> withdrawn, and an already-open session with it stops being administrative too.
+>
+> Until an external audit in September 2026 it had no such limit: it was a parallel
+> credential nobody could see, demote or disable, it kept working beside a *changed*
+> database password, and the `.env.example` placeholder passed production validation.
+>
+> The one case where it is still accepted is a database that cannot be read, since whether
+> a real administrator exists is then unknowable and this has always been the way back in.
+> See SECURITY.md §7.
 | `ENCRYPTION_KEY` | *(empty)* | Fernet key for encrypted columns. **Enforced at boot (SEC-4)** — production refuses to start without it |
 | `TOKEN_ENCRYPTION_KEY` | *(empty)* | Fernet key for stored OAuth tokens |
 | `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | *(empty)* | Entra app registration for SharePoint and OneDrive |
@@ -388,10 +424,45 @@ to empty, in which case the router falls back to the active model.
 | Variable | Default | Effect |
 |---|---|---|
 | `APP_VERSION` | `3.0.0` | Reported by `GET /api/status`. See the note below |
-| `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB) |
+| `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB), enforced while the upload streams to disk |
+| `UVICORN_WORKERS` | `1` | Worker processes. **Only `1` is supported** — the app refuses to boot otherwise |
+
+> **`MAX_CONTENT_LENGTH` is now enforced.** It was a Flask-era value echoed in the stats
+> endpoint and applied to nothing: the upload was read with one unbounded call. The body is
+> streamed to disk in 1 MB chunks and refused with **413** the moment it passes the limit.
+> Behind the bundled nginx, `client_max_body_size` in `nginx/nginx.conf` must match — raising
+> this alone would be silently overridden by the proxy's own 1 MB default.
+
+> **`UVICORN_WORKERS` above 1 aborts the boot.** `AppState`, the metrics collector, the
+> rate limiter's counters, the token-revocation cache, the Alembic runner, connector polling
+> and the reranker's scheduler are all in process memory with no coordination between
+> workers, so a second worker does not fail — it diverges, quietly, with two rate-limit
+> budgets and an OAuth callback that cannot find the state the other worker stored. [ADR-1](ADR.md)
+> fixes this product at one node and one process; scale with a second node instead.
 | `LOG_FILE` | `logs/app.log` | Path for the file sink |
 | `PLUGINS_DIR` | `plugins` | Directory scanned for plugins |
 | `PRESENCE_TTL_SECONDS` | `30` | How long a workspace presence entry stays live |
+| `CONNECTOR_LOCAL_ROOTS` | *(empty)* | Comma-separated absolute directories the `local_folder` connector may watch. **Empty disables that connector type** — see below |
+
+> **`CONNECTOR_LOCAL_ROOTS` empty means off, not unrestricted.** A `local_folder`
+> connector ingests a server-side directory and answers from its contents, so whoever
+> chooses the path chooses what the application can read. Until an external audit in
+> September 2026 there was no allowlist and no global check: any user could create a
+> workspace, become its owner, create a connector on any path the server process could
+> read — `/etc` was reproduced — and then ask questions about it.
+>
+> Two independent conditions now apply, and neither substitutes for the other. Creating
+> *or reconfiguring* one requires a **global administrator**, because a workspace owner is
+> not a barrier when any user can create a workspace. And the path must resolve inside one
+> of these roots, with symlinks followed, so an administrator cannot point one at `/etc`
+> either.
+>
+> ```bash
+> CONNECTOR_LOCAL_ROOTS=/srv/localchat/corpus,/mnt/shared/docs
+> ```
+>
+> Paths are compared by whole components after `realpath`, so `/srv/docs-secret` is not
+> inside `/srv/docs`, and a symlink is judged by where it lands rather than where it sits.
 
 > **`APP_VERSION` has three defaults, and they must be bumped together.** `src/config.py`,
 > `docker-compose.yml`'s `${APP_VERSION:-...}`, and the row above all carry the number

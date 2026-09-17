@@ -7,6 +7,7 @@ from psycopg.types.json import Jsonb
 
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import escape_sql_like
+from ..utils.scope import Scope, scope_predicate
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -188,25 +189,38 @@ class DocumentsMixin(MixinHost):
                 rows = cursor.fetchall()
         return [{"chunk_id": r[0], "chunk_text": r[1]} for r in rows]
 
-    def delete_document(self, doc_id: int, deleted_by: str | None = None) -> None:
+    def delete_document(
+        self, doc_id: int, deleted_by: str | None = None, *, scope: Scope
+    ) -> bool:
         """
         Soft-delete a document by setting deleted_at / deleted_by.
 
         Chunks are excluded from live RAG queries via the JOIN on documents.deleted_at;
         the chunk rows themselves are left intact so citation history remains valid.
+
+        Returns False when no live document with that id exists *in scope* — which a
+        caller reports as 404, so a document in another workspace is indistinguishable
+        from one that never existed.
         """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete document: Database is not connected")
 
         logger.debug("Soft-deleting document ID: %s", doc_id)
+        where, params = scope_predicate(scope, "workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE documents SET deleted_at = NOW(), deleted_by = %s WHERE id = %s",
-                    (deleted_by, doc_id),
+                    "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
+                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    (deleted_by, doc_id, *params),
                 )
+                matched = cursor.rowcount
                 conn.commit()
+        if not matched:
+            logger.info("Document %s not deleted: no live document with that id in scope", doc_id)
+            return False
         logger.info("Document %s soft-deleted", doc_id)
+        return True
 
     def purge_document(self, doc_id: int) -> bool:
         """
@@ -494,7 +508,7 @@ class DocumentsMixin(MixinHost):
                 return results
 
     def get_adjacent_chunks(
-        self, document_id: int, chunk_index: int, window_size: int = 1
+        self, document_id: int, chunk_index: int, window_size: int = 1, *, scope: Scope
     ) -> list[tuple[str, int]]:
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get adjacent chunks: Database is not connected")
@@ -502,32 +516,45 @@ class DocumentsMixin(MixinHost):
         logger.debug(
             f"Getting adjacent chunks for doc {document_id}, chunk {chunk_index}, window {window_size}"
         )
+        # document_chunks has no workspace of its own; it borrows the document's.
+        where, params = scope_predicate(scope, "d.workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT chunk_text, chunk_index
-                    FROM document_chunks
-                    WHERE document_id = %s
-                      AND chunk_index BETWEEN %s AND %s
-                    ORDER BY chunk_index
+                    SELECT dc.chunk_text, dc.chunk_index
+                    FROM document_chunks dc
+                    JOIN documents d ON d.id = dc.document_id
+                    WHERE dc.document_id = %s
+                      AND dc.chunk_index BETWEEN %s AND %s
+                      AND d.deleted_at IS NULL
+                    """ + where + """
+                    ORDER BY dc.chunk_index
                     """,
-                    (document_id, chunk_index - window_size, chunk_index + window_size),
+                    (document_id, chunk_index - window_size, chunk_index + window_size, *params),
                 )
                 results = cursor.fetchall()
                 logger.debug(f"Retrieved {len(results)} adjacent chunks")
                 return results
 
-    def get_chunk_by_id(self, chunk_id: int) -> dict[str, Any] | None:
+    def get_chunk_by_id(self, chunk_id: int, *, scope: Scope) -> dict[str, Any] | None:
+        """Return a chunk, or None when no live chunk with that id exists in scope.
+
+        Chunk ids are sequential integers, so an unscoped lookup here let anyone walk
+        the whole corpus one id at a time (C2).
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk: Database is not connected")
 
+        where, params = scope_predicate(scope, "d.workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, document_id, chunk_index, chunk_text, metadata"
-                    " FROM document_chunks WHERE id = %s",
-                    (chunk_id,),
+                    "SELECT dc.id, dc.document_id, dc.chunk_index, dc.chunk_text, dc.metadata"
+                    " FROM document_chunks dc"
+                    " JOIN documents d ON d.id = dc.document_id"
+                    " WHERE dc.id = %s AND d.deleted_at IS NULL" + where,
+                    (chunk_id, *params),
                 )
                 row = cursor.fetchone()
         if row is None:
@@ -717,13 +744,19 @@ class DocumentsMixin(MixinHost):
                 return stats
 
     def search_chunks_by_text(
-        self, search_text: str, limit: int = 10
+        self, search_text: str, limit: int = 10, *, scope: Scope
     ) -> list[dict[str, Any]]:
-        """Case-insensitive text search over chunk content (for debugging — not the live search path)."""
+        """Case-insensitive text search over chunk content (for debugging).
+
+        Not the live search path. Scoped, and restricted to live documents:
+        unscoped it returned the text of every chunk in the installation,
+        retired documents included (C2).
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot search chunks by text: Database is not connected")
 
         logger.debug("Searching chunks for text: %s", str(search_text)[:100].replace('\r', '').replace('\n', ' '))
+        where, params = scope_predicate(scope, "d.workspace_id")
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -732,9 +765,11 @@ class DocumentsMixin(MixinHost):
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
                     WHERE dc.chunk_text ILIKE %s ESCAPE '\\'
+                      AND d.deleted_at IS NULL
+                """ + where + """
                     ORDER BY dc.chunk_index
                     LIMIT %s
-                """, (f'%{escape_sql_like(search_text)}%', limit))
+                """, (f'%{escape_sql_like(search_text)}%', *params, limit))
                 results = [
                     {
                         'filename': r[0],
@@ -748,20 +783,71 @@ class DocumentsMixin(MixinHost):
                 logger.info(f"Found {len(results)} chunks containing '{search_text}'")
                 return results
 
-    def delete_all_documents(self) -> None:
-        """Delete every document and all its chunks. WARNING: irreversible."""
+    def retire_all_documents(self, *, scope: Scope, deleted_by: str | None = None) -> int:
+        """Soft-delete every live document in *scope*. Returns how many were retired.
+
+        The reversible half of the retire/destroy split: rows stay, ``deleted_at`` is
+        set, and citations still resolve. This replaced a ``DELETE FROM documents``
+        carrying no scope at all (C1) — which wiped every workspace in the
+        installation and broke the Clark-Wilson rule that a delete TP never destroys
+        a CDI.
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete documents: Database is not connected")
 
-        logger.warning("Deleting ALL documents and chunks")
+        where, params = scope_predicate(scope, "workspace_id")
+        logger.warning("Retiring all documents in scope %s", scope)
         with self.get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("DELETE FROM document_chunks")
+                cursor.execute(
+                    "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
+                    " WHERE deleted_at IS NULL" + where,
+                    (deleted_by, *params),
+                )
+                retired = cursor.rowcount
+                conn.commit()
+        logger.info("Retired %s documents", retired)
+        return retired
+
+    def purge_all_documents(self) -> int:
+        """Hard-delete every *retired* document and its chunks. Irreversible.
+
+        The destroy half, deliberately unreachable from the retire path: it touches
+        only documents already soft-deleted, so destroying data is always two
+        decisions rather than one. A chunk cited in chunk_stats survives, and keeps
+        its document, exactly as the single-document purge behaves.
+        """
+        if not self.is_connected:
+            raise DatabaseUnavailableError("Cannot purge documents: Database is not connected")
+
+        logger.warning("Purging ALL retired documents and their chunks")
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM document_chunks dc
+                    USING documents d
+                    WHERE dc.document_id = d.id
+                      AND d.deleted_at IS NOT NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM chunk_stats cs WHERE cs.chunk_id = dc.id
+                      )
+                    """
+                )
                 chunks_deleted = cursor.rowcount
-                cursor.execute("DELETE FROM documents")
+                cursor.execute(
+                    """
+                    DELETE FROM documents d
+                    WHERE d.deleted_at IS NOT NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM document_chunks dc WHERE dc.document_id = d.id
+                      )
+                    """
+                )
                 docs_deleted = cursor.rowcount
                 conn.commit()
-        logger.info(f"Deleted {docs_deleted} documents and {chunks_deleted} chunks")
+        logger.info("Purged %s documents and %s chunks", docs_deleted, chunks_deleted)
+        return docs_deleted
 
     def get_stale_documents(self, max_age_hours: int, workspace_id: str | None = None) -> list[dict[str, Any]]:
         """Return documents whose last_ingested_at is older than max_age_hours.

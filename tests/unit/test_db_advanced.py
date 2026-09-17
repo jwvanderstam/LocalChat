@@ -280,8 +280,11 @@ class TestSearchChunksByText:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_chunks_by_text("keyword", limit=10)
+            results = db_module.db.search_chunks_by_text("keyword", limit=10, scope="ws-1")
 
+            sql, params = mock_cursor.execute.call_args[0]
+            assert "d.workspace_id = %s" in sql
+            assert "ws-1" in params
             assert len(results) == 2
             assert results[0]['filename'] == "doc.pdf"
             assert 'preview' in results[0]
@@ -301,7 +304,7 @@ class TestSearchChunksByText:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_chunks_by_text("nonexistent")
+            results = db_module.db.search_chunks_by_text("nonexistent", scope="ws-1")
 
             assert results == []
 
@@ -322,34 +325,111 @@ class TestSearchChunksByText:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_chunks_by_text("test", limit=5)
+            results = db_module.db.search_chunks_by_text("test", limit=5, scope="ws-1")
 
             assert len(results) <= 5
 
 
-class TestDeleteAllDocuments:
-    """Test delete_all_documents method."""
+class TestRetireAllDocuments:
+    """retire_all_documents replaced an unscoped DELETE FROM (C1)."""
 
-    def test_delete_all_documents_success(self):
-        """Test deleting all documents."""
+    def _ctx(self, cursor):
+        from src import db as db_module
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cursor
+        mgr = patch.object(db_module.db, 'get_connection')
+        return mgr, conn
+
+    def test_retires_only_the_given_workspace(self):
+        """The UPDATE carries the workspace, so other workspaces are untouched."""
         from src import db as db_module
 
-        mock_cursor = MagicMock()
-        mock_cursor.rowcount = 10  # First for chunks, then for docs
-
-        mock_conn = MagicMock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_conn.commit = MagicMock()
-
-        with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            mock_get_conn.return_value.__enter__.return_value = mock_conn
+        cursor = MagicMock()
+        cursor.rowcount = 10
+        mgr, conn = self._ctx(cursor)
+        with mgr as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            # Should not raise
-            db_module.db.delete_all_documents()
+            retired = db_module.db.retire_all_documents(scope="ws-1", deleted_by="u-1")
 
-            # Verify commit was called
-            assert mock_conn.commit.called
+        sql, params = cursor.execute.call_args[0]
+        assert "workspace_id = %s" in sql
+        assert "ws-1" in params
+        assert retired == 10
+
+    def test_retires_rather_than_destroys(self):
+        """Clark-Wilson: a delete TP sets deleted_at and never issues DELETE FROM."""
+        from src import db as db_module
+
+        cursor = MagicMock()
+        cursor.rowcount = 3
+        mgr, conn = self._ctx(cursor)
+        with mgr as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = conn
+            mock_get_conn.return_value.__exit__.return_value = None
+
+            db_module.db.retire_all_documents(scope="ws-1")
+
+        sql = cursor.execute.call_args[0][0]
+        assert "UPDATE documents" in sql
+        assert "deleted_at" in sql
+        assert "DELETE FROM" not in sql.upper()
+
+    def test_refuses_an_absent_scope(self):
+        """No scope is not "every workspace" — it is a programming error."""
+        import pytest
+
+        from src import db as db_module
+
+        with pytest.raises(ValueError, match="workspace scope is required"):
+            db_module.db.retire_all_documents(scope=None)  # type: ignore[arg-type]
+
+
+class TestPurgeAllDocuments:
+    """The destroy half of D2 — irreversible, admin-only, and only what is retired."""
+
+    def _ctx(self, cursor):
+        from src import db as db_module
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cursor
+        return patch.object(db_module.db, 'get_connection'), conn
+
+    def _run(self):
+        from src import db as db_module
+        cursor = MagicMock()
+        cursor.rowcount = 2
+        mgr, conn = self._ctx(cursor)
+        with mgr as mock_get_conn:
+            mock_get_conn.return_value.__enter__.return_value = conn
+            mock_get_conn.return_value.__exit__.return_value = None
+            purged = db_module.db.purge_all_documents()
+        return cursor, purged
+
+    def test_touches_only_retired_documents(self):
+        """A live document must survive a purge — retiring is the separate decision."""
+        cursor, _ = self._run()
+        for call in cursor.execute.call_args_list:
+            assert "deleted_at IS NOT NULL" in call[0][0]
+
+    def test_a_cited_chunk_is_spared(self):
+        """chunk_stats is the citation history; purging out from under it breaks an IVP."""
+        cursor, _ = self._run()
+        chunk_sql = cursor.execute.call_args_list[0][0][0]
+        assert "chunk_stats" in chunk_sql
+        assert "NOT EXISTS" in chunk_sql
+
+    def test_a_document_keeping_chunks_is_spared(self):
+        """Its chunks were cited, so the document stays to keep the citation resolvable."""
+        cursor, _ = self._run()
+        doc_sql = cursor.execute.call_args_list[1][0][0]
+        assert "DELETE FROM documents" in doc_sql
+        assert "NOT EXISTS" in doc_sql
+        assert "document_chunks" in doc_sql
+
+    def test_reports_how_many_documents_were_destroyed(self):
+        _, purged = self._run()
+        assert purged == 2
 
 
 class TestGetAdjacentChunks:
@@ -376,7 +456,8 @@ class TestGetAdjacentChunks:
             results = db_module.db.get_adjacent_chunks(
                 document_id=1,
                 chunk_index=1,
-                window_size=1
+                window_size=1,
+                scope="ws-1",
             )
 
             assert len(results) == 3
@@ -451,7 +532,7 @@ class TestDocumentSoftDelete:
         with patch.object(db, 'get_connection') as mock_gc:
             mock_gc.return_value.__enter__.return_value = conn
             mock_gc.return_value.__exit__.return_value = None
-            db.delete_document(99, 'user-uuid-123')
+            db.delete_document(99, 'user-uuid-123', scope='ws-1')
 
         sql = cursor.execute.call_args[0][0]
         assert 'UPDATE' in sql.upper()
@@ -467,7 +548,7 @@ class TestDocumentSoftDelete:
         with patch.object(db, 'get_connection') as mock_gc:
             mock_gc.return_value.__enter__.return_value = conn
             mock_gc.return_value.__exit__.return_value = None
-            db.delete_document(7)  # no deleted_by
+            db.delete_document(7, scope='ws-1')  # no deleted_by
 
         params = cursor.execute.call_args[0][1]
         # params = (deleted_by, doc_id) — deleted_by should be None

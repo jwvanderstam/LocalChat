@@ -353,21 +353,67 @@ class TestRequireAdminDep:
 
         assert _current_global_role(MagicMock(), {"role": "admin"}) is None
 
-    def test_the_env_var_admin_still_works_without_a_database(self):
-        """That account has no row to look up; it is administrative by construction,
-        and it is the way back in when the database is empty."""
-        from src.security_fastapi import create_access_token, require_admin_dep
+    def _env_admin_request(self, db):
+        from src.security_fastapi import create_access_token
 
         token = create_access_token("admin", {"role": "admin"})
         req = MagicMock()
-        req.headers.get = lambda k, default="": (f"Bearer {token}" if k == "Authorization" else default)
+        req.headers.get = lambda k, default="": (
+            f"Bearer {token}" if k == "Authorization" else default
+        )
         req.cookies = {}
+        req.app.state.db = db
+        return req
+
+    def test_the_env_var_admin_needs_no_user_row(self):
+        """That account has no row to look up; it is the way in while none exists."""
+        from src.security_fastapi import require_admin_dep
+
+        db = MagicMock()
+        db.is_connected = True
+        db.is_token_revoked.return_value = False
+        db.count_live_admins.return_value = 0
+
+        assert require_admin_dep(self._env_admin_request(db), credentials=None) == "admin"
+
+    def test_the_env_var_admin_stops_once_a_real_admin_exists(self):
+        """D6 — it bootstraps the first administrator and then stops being a credential.
+
+        An open session goes with it, rather than lasting until the token expires:
+        before this, nobody could demote or disable that account at all (audit M1).
+        """
+        from fastapi import HTTPException
+
+        from src.security_fastapi import require_admin_dep
+
+        db = MagicMock()
+        db.is_connected = True
+        db.is_token_revoked.return_value = False
+        db.count_live_admins.return_value = 1
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_admin_dep(self._env_admin_request(db), credentials=None)
+        assert exc_info.value.status_code == 403
+
+    def test_an_unverifiable_token_is_refused_on_admin_routes_too(self):
+        """H1 — revocation is checked here now, and it fails closed like everywhere else.
+
+        Admin routes used not to check revocation at all, so a revoked token kept
+        working on all 31 of them. Making them consistent means an unreachable
+        database refuses here exactly as it already did on every other route — the
+        application is unusable in that state either way (SECURITY.md §3).
+        """
+        from fastapi import HTTPException
+
+        from src.security_fastapi import require_admin_dep
+
         db = MagicMock()
         db.is_connected = False
-        db.is_token_revoked.return_value = False
-        req.app.state.db = db
 
-        assert require_admin_dep(req, credentials=None) == "admin"
+        with pytest.raises(HTTPException) as exc_info:
+            require_admin_dep(self._env_admin_request(db), credentials=None)
+        assert exc_info.value.status_code == 401
+        assert "verify token status" in exc_info.value.detail["message"]
 
 
 @pytest.mark.unit
