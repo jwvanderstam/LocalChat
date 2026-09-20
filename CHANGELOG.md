@@ -8,6 +8,20 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The hardened base images are re-pinned, and Dependabot now watches them.** Both
+  `Dockerfile` digests had been unchanged since #287 (2026-08-19) because
+  `.github/dependabot.yml` covered `pip` and `github-actions` and nothing else. A Docker
+  Hardened Image is rebuilt continuously and its superseded digests are collected, so the
+  pin did not drift quietly the way a stale version range does — it stopped resolving, and
+  every build failed with `failed to resolve source metadata … not found`. That takes
+  `docker-smoke`, a required check, down with it, so nothing could merge. Re-pinned to the
+  current digests and a `docker` ecosystem added, grouped so the builder and runtime stages
+  move together. The recurrence guard matters more than the re-pin: this is Ch. 11's lesson
+  in a file Dependabot could not see, and it is the same argument CLAUDE.md already makes
+  for choosing `pip-compile` over `uv`.
+
 ### Documentation
 
 - **The configuration example and reference say only true things** (remediation plan

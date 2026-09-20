@@ -50,6 +50,35 @@ updates:
       prefix: "deps"
       include: "scope"
  
+  # The Dockerfile's two hardened base images. Absent until 2026-09-20, which is
+  # why both digests sat untouched from #287 (2026-08-19) until the registry
+  # stopped serving them and every build died on "failed to resolve source
+  # metadata". A Docker Hardened Image is rebuilt continuously and its
+  # superseded digests are collected, so a pin nobody bumps does not go stale
+  # quietly the way a version range does -- it becomes unresolvable. Same
+  # lesson as Ch. 11, and the same argument CLAUDE.md makes for pip-compile
+  # over uv: a dependency Dependabot cannot see is one nobody updates.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    reviewers:
+      - "jwvanderstam"
+    labels:
+      - "dependencies"
+      - "automated"
+    # Both stages are the same upstream image and must move together: a builder
+    # and a runtime from different rebuilds is the mixed-version failure the
+    # codeql-action group below exists to prevent, one layer down.
+    groups:
+      hardened-base:
+        patterns:
+          - "dhi.io/python"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
   # GitHub Actions versies
   - package-ecosystem: "github-actions"
     directory: "/"
