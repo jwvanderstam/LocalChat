@@ -8,6 +8,18 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+### Security
+
+- **`python-jose` replaced by `PyJWT`** (ROADMAP P2-6). The old library pulled `ecdsa`,
+  whose timing side-channel has no upstream fix and had been an accepted risk in
+  SECURITY.md §2 with a `pip-audit --ignore-vuln` suppression holding CI green. PyJWT
+  signs HS256 over `hmac`/`hashlib` and pulls nothing, so `ecdsa`, `rsa` and `pyasn1`
+  are gone from both locks and from the image, the suppression is gone with them, and
+  that step now runs with none at all. Same algorithm and same claims, so tokens issued
+  before the swap still verify — `tests/unit/test_jwt_library_is_pyjwt.py` pins that
+  against a token minted by jose before it was uninstalled, which is evidence that
+  cannot be reproduced afterwards.
+
 ### Documentation
 
 - **The configuration example and reference say only true things** (remediation plan

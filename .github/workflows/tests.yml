@@ -103,12 +103,10 @@ jobs:
       - name: Dependency vulnerability scan (pip-audit)
         run: |
           pip install pip-audit
-          # PYSEC-2026-1325: ecdsa timing side-channel, no upstream fix.
-          # This app hardcodes HS256 (src/security_fastapi.py _ALGORITHM)
-          # and passes algorithms=["HS256"] to jwt.decode(), so the
-          # vulnerable ECDSA path is unreachable. See SECURITY.md.
-          # All other CVEs still fail this step.
-          pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
+          # No suppressions. The one that lived here (PYSEC-2026-1325, ecdsa)
+          # went with python-jose in P2-6; adding another needs the same
+          # justification in SECURITY.md that one had.
+          pip-audit -r requirements.txt
 
       # pip-audit only reports CVEs. This reports plain version drift, which
       # Dependabot's open-pull-requests-limit can silently suppress — an

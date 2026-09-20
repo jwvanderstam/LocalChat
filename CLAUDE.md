@@ -44,7 +44,7 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 | LLM | Ollama (local); LiteLLM cloud fallback |
 | HTTP client | httpx — `httpx.Client` (sync admin/embedding); `httpx.AsyncClient` (async inference) |
 | Validation | Pydantic v2 |
-| Auth / security | python-jose (JWT), slowapi (rate limiting), Starlette CORSMiddleware |
+| Auth / security | PyJWT (JWT), slowapi (rate limiting), Starlette CORSMiddleware |
 | Caching | Redis or in-memory fallback |
 | ML / NLP | spaCy (GraphRAG, off by default), cross-encoder reranker (on by default) |
 | Linter | `ruff` |
@@ -59,7 +59,7 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 **Request flow:**
 1. `APIRouter` in `src/routes_fastapi/` — thin handler, no business logic
 2. Pydantic model in `src/models.py` validates; `src/utils/sanitization.py` cleans
-3. `src/security_fastapi.py` — JWT (`python-jose`), rate limiting (`slowapi`), CORS
+3. `src/security_fastapi.py` — JWT (`PyJWT`), rate limiting (`slowapi`), CORS
 4. Service packages handle business logic
 5. Chat and upload responses stream via `StreamingResponse` (async SSE)
 
