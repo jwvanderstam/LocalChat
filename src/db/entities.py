@@ -45,7 +45,8 @@ class EntitiesMixin(MixinHost):
                     (name[:255], entity_type[:50]),
                 )
                 row = cursor.fetchone()
-                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                if row is None:
+                    raise AssertionError("INSERT ... RETURNING id always returns a row")
                 entity_id: str = row[0]
                 conn.commit()
         return entity_id
@@ -166,11 +167,13 @@ class EntitiesMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute("SELECT COUNT(*) FROM entities")
                 entity_row = cursor.fetchone()
-                assert entity_row is not None, "SELECT COUNT(*) always returns a row"
+                if entity_row is None:
+                    raise AssertionError("SELECT COUNT(*) always returns a row")
                 entity_count = entity_row[0]
                 cursor.execute("SELECT COUNT(*) FROM entity_relations")
                 relation_row = cursor.fetchone()
-                assert relation_row is not None, "SELECT COUNT(*) always returns a row"
+                if relation_row is None:
+                    raise AssertionError("SELECT COUNT(*) always returns a row")
                 relation_count = relation_row[0]
         return {"entity_count": entity_count, "relation_count": relation_count}
 

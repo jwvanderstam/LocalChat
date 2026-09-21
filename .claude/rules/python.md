@@ -30,6 +30,10 @@
 ## Code hygiene
 
 - No commented-out code. Delete it — git is the history.
+- No `assert` in `src/`. `python -O` strips them, so an invariant written that way is
+  not enforced by the interpreter that ships. Write `if not <cond>: raise
+  AssertionError("why")` — same exception, same message, and it survives. `ruff`
+  enforces this (`S101`); `tests/**` is exempt, where a stripped assert is harmless.
 - No `_old`, `_v2`, `_backup` name variants. Rename or delete.
 - No bare `# type: ignore`. Scope every one to its error code — `# type: ignore[attr-defined]`,
   `# type: ignore[import]` — so it silences the one thing it was added for and a second,

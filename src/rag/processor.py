@@ -153,7 +153,8 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         chunker_fn, chunker_version = ChunkerRegistry.get_chunker(doc_type)
         ok, err, chunks, raw = chunker_fn(self, file_path, filename, progress_callback)
         if ok:
-            assert chunks is not None, "chunker guarantees chunks when ok=True"
+            if chunks is None:
+                raise AssertionError("chunker guarantees chunks when ok=True")
             logger.info(f"Generated {len(chunks)} chunks via {chunker_version}")
         return ok, err, chunks, raw, doc_type.value, chunker_version
 

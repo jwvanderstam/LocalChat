@@ -134,7 +134,8 @@ class FeedbackMixin(MixinHost):
                     (days,),
                 )
                 row = cur.fetchone()
-                assert row is not None, "SELECT COUNT(*) always returns a row"
+                if row is None:
+                    raise AssertionError("SELECT COUNT(*) always returns a row")
                 total, positive, negative = (row[0] or 0, row[1] or 0, row[2] or 0)
 
                 cur.execute(
@@ -196,7 +197,8 @@ class FeedbackMixin(MixinHost):
                     """,
                     (min_retrieved, max_positive_ratio, limit),
                 )
-                assert cur.description is not None, "SELECT always populates cursor.description"
+                if cur.description is None:
+                    raise AssertionError("SELECT always populates cursor.description")
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
@@ -260,7 +262,8 @@ class FeedbackMixin(MixinHost):
                     """,
                     (days,),
                 )
-                assert cur.description is not None, "SELECT always populates cursor.description"
+                if cur.description is None:
+                    raise AssertionError("SELECT always populates cursor.description")
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 

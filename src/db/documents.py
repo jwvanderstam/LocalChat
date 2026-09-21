@@ -65,7 +65,8 @@ class DocumentsMixin(MixinHost):
                 (filename, content, Jsonb(metadata or {}), content_hash, doc_type, chunker_version, workspace_id, language, source_id),
             )
             row = cursor.fetchone()
-            assert row is not None, "INSERT ... RETURNING id always returns a row"
+            if row is None:
+                raise AssertionError("INSERT ... RETURNING id always returns a row")
             return row[0]
 
         if conn is not None:
@@ -245,7 +246,8 @@ class DocumentsMixin(MixinHost):
                     (doc_id,),
                 )
                 row = cursor.fetchone()
-                assert row is not None, "SELECT EXISTS always returns a row"
+                if row is None:
+                    raise AssertionError("SELECT EXISTS always returns a row")
                 if row[0]:
                     logger.info("Purge of document %s blocked: chunk_stats references exist", doc_id)
                     return False
@@ -582,7 +584,8 @@ class DocumentsMixin(MixinHost):
                 else:
                     cursor.execute("SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL")
                 row = cursor.fetchone()
-                assert row is not None, "SELECT COUNT(*) always returns a row"
+                if row is None:
+                    raise AssertionError("SELECT COUNT(*) always returns a row")
                 count = row[0]
                 logger.debug(f"Document count: {count}")
                 return count
@@ -612,7 +615,8 @@ class DocumentsMixin(MixinHost):
                         """
                     )
                 row = cursor.fetchone()
-                assert row is not None, "SELECT COUNT(*) always returns a row"
+                if row is None:
+                    raise AssertionError("SELECT COUNT(*) always returns a row")
                 count = row[0]
                 logger.debug(f"Chunk count: {count}")
                 return count
@@ -709,7 +713,8 @@ class DocumentsMixin(MixinHost):
                     FROM document_chunks
                 """)
                 row = cursor.fetchone()
-                assert row is not None, "SELECT COUNT(*)/AVG(...) always returns a row"
+                if row is None:
+                    raise AssertionError("SELECT COUNT(*)/AVG(...) always returns a row")
                 total = row[0]
                 with_embeddings = row[1]
                 avg_length = float(row[2]) if row[2] else 0.0

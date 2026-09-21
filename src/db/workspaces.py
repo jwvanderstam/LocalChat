@@ -66,7 +66,8 @@ class WorkspacesMixin(MixinHost):
                     (name[:255], description, system_prompt, model_class),
                 )
                 row = cur.fetchone()
-                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                if row is None:
+                    raise AssertionError("INSERT ... RETURNING id always returns a row")
                 workspace_id = str(row[0])
                 # Same transaction as the workspace insert: a committed workspace with
                 # no owner is exactly the unreachable state this parameter exists to stop.

@@ -129,7 +129,8 @@ class DocumentLoaderMixin:
 
     def _extract_pymupdf4llm_text(self, file_path: str) -> str:
         """Extract text from a PDF using pymupdf4llm (layout-aware, handles multi-column)."""
-        assert _pymupdf4llm is not None, "caller must check PYMUPDF4LLM_AVAILABLE before calling"
+        if _pymupdf4llm is None:
+            raise AssertionError("caller must check PYMUPDF4LLM_AVAILABLE before calling")
         text = _pymupdf4llm.to_markdown(file_path)
         logger.info(f"pymupdf4llm extraction: {len(text):,} chars")
         if len(text) < 100:
@@ -185,7 +186,8 @@ class DocumentLoaderMixin:
 
     def _extract_pypdf2_text(self, file_path: str) -> str:
         """Extract full concatenated text from a PDF using pypdf."""
-        assert _pypdf is not None, "caller must check PDF_AVAILABLE before calling"
+        if _pypdf is None:
+            raise AssertionError("caller must check PDF_AVAILABLE before calling")
         text = ""
         with open(file_path, 'rb') as f:
             pdf_reader = _pypdf.PdfReader(f)
@@ -223,7 +225,8 @@ class DocumentLoaderMixin:
 
     def _load_pages_pypdf2(self, file_path: str) -> list[dict[str, Any]]:
         """Load per-page data with metadata using pypdf."""
-        assert _pypdf is not None, "caller must check PDF_AVAILABLE before calling"
+        if _pypdf is None:
+            raise AssertionError("caller must check PDF_AVAILABLE before calling")
         pages_data = []
         with open(file_path, 'rb') as f:
             pdf_reader = _pypdf.PdfReader(f)
@@ -493,7 +496,8 @@ class DocumentLoaderMixin:
             logger.error(_PPTX_NOT_INSTALLED)
             return False, _PPTX_NOT_INSTALLED
 
-        assert Presentation is not None, "caller must check PPTX_AVAILABLE before calling"
+        if Presentation is None:
+            raise AssertionError("caller must check PPTX_AVAILABLE before calling")
         try:
             logger.info(f"Loading PPTX file: {file_path}")
             prs = Presentation(file_path)
@@ -577,7 +581,8 @@ class DocumentLoaderMixin:
             logger.error(_XLSX_NOT_INSTALLED)
             return False, _XLSX_NOT_INSTALLED
 
-        assert _openpyxl is not None, "caller must check XLSX_AVAILABLE before calling"
+        if _openpyxl is None:
+            raise AssertionError("caller must check XLSX_AVAILABLE before calling")
         try:
             logger.info(f"Loading Excel file: {file_path}")
             wb = _openpyxl.load_workbook(file_path, read_only=True, data_only=True)

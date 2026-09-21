@@ -2,7 +2,10 @@
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+# S101 only, not the whole flake8-bandit set: `bandit` itself runs in CI and owns
+# that job. This one rule is here because `python -O` strips `assert`, so an
+# invariant written that way is not enforced by the interpreter that ships (P2-4).
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "S101"]
 ignore = [
     "E501",    # line-too-long — enforced by reviewer judgment, not tooling
     "E402",    # module-import-not-at-top — intentional in several modules

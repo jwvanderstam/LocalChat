@@ -20,6 +20,21 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   against a token minted by jose before it was uninstalled, which is evidence that
   cannot be reproduced afterwards.
 
+### Changed
+
+- **No production `assert`** (ROADMAP P2-4a). All 27 in `src/` were mypy type-narrowing
+  invariants — `row is not None` after an `INSERT ... RETURNING`, `_pypdf is not None`
+  behind an `AVAILABLE` flag — and `python -O` discards every one of them, which would turn
+  a named, located invariant into an `AttributeError` somewhere downstream. Each is now
+  `if <cond>: raise AssertionError(<the same message>)`: same exception type, same text,
+  and the interpreter can no longer drop it. `S101` is selected in `pyproject.toml` so
+  `ruff check .` holds the line, with `tests/**` still exempt.
+  Nothing here runs `python -O` or sets `PYTHONOPTIMIZE` — not the Dockerfile, the
+  entrypoint, compose or any workflow — so this closed a latent hole rather than a live
+  one. Recorded that way on purpose: the reason to fix it is that the invariants were
+  written in the one form the shipping interpreter may discard, not that they were being
+  discarded.
+
 ### Documentation
 
 - **The configuration example and reference say only true things** (remediation plan
