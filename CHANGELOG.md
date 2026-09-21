@@ -10,6 +10,18 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Documentation
 
+- **TROUBLESHOOTING names the `build-and-push` transient that reads like a broken pin.**
+  A ~30-second failure resolving the hardened base digest (`unexpected media type
+  application/octet-stream … not found`) is not an expired digest: `docker-smoke` builds
+  from the identical digest on every PR and was green on the same commit minutes later,
+  and a re-run of the failing job built cleanly with no change. The entry says to re-run
+  first, records that a local `docker manifest inspect` reports a failure that looks like
+  confirmation and is not, and names anonymous-pull throttling as the hypothesis with the
+  authenticated-pull fix behind a credentials decision. Written because an hour and a
+  withdrawn PR went into re-pinning digests that were never broken.
+
+### Documentation
+
 - **The configuration example and reference say only true things** (remediation plan
   §4.1, redone rather than merged from the audit's bundle). `.env.example` carried 29
   variables nothing reads — an SMTP block, gunicorn `WORKERS`, `DEBUG`, `HOST`/`PORT`
