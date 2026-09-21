@@ -143,7 +143,7 @@ class WorkspaceKeysMixin(MixinHost):
                         "UPDATE workspace_api_keys SET last_used_at = NOW() WHERE id = %s",
                         (key_id,),
                     )
-        except Exception:
+        except Exception:  # noqa: BLE001 — last_used_at is telemetry; failing to record it must not fail the authentication it follows
             logger.debug("[WorkspaceKeys] Could not record last_used_at for %s", key_id)
 
     def list_workspace_api_keys(self, workspace_id: str) -> list[dict[str, Any]]:

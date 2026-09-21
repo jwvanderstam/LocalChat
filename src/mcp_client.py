@@ -187,7 +187,7 @@ class MCPClient:
             try:
                 result = self._rpc("health", {})
                 ok = (result or {}).get("status") == "ok"
-            except Exception:
+            except Exception:  # noqa: BLE001 — a health probe: any failure to reach the server is exactly what 'unhealthy' means
                 ok = False
             self._health_cache = ok
             self._health_checked_at = now

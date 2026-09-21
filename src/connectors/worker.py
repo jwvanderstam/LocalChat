@@ -140,7 +140,7 @@ class SyncWorker:
         # ADDED or MODIFIED — fetch and ingest
         try:
             data = connector.fetch(event.source)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — daemon loop: one unreachable document must not stop the sync
             logger.warning(
                 f"[SyncWorker] Could not fetch {event.source.filename}: {exc}"
             )
@@ -206,7 +206,7 @@ class SyncWorker:
                 logger.debug(f"[SyncWorker] Re-ingested: {filename}")
             else:
                 logger.warning(f"[SyncWorker] Re-ingest failed for {filename}: {message}")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — same — a re-ingest failure is per-document, not per-run
             logger.warning(f"[SyncWorker] Re-ingest error for {filename}: {exc}")
 
     def _handle_delete(self, source) -> None:
@@ -214,5 +214,5 @@ class SyncWorker:
             deleted = self._db.delete_document_by_filename(source.filename)
             if deleted:
                 logger.info(f"[SyncWorker] Deleted document: {source.filename}")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — same — a delete that fails is retried on the next poll
             logger.warning(f"[SyncWorker] Could not delete {source.filename}: {exc}")

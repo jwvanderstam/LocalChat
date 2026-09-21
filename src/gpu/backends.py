@@ -60,7 +60,7 @@ class NvidiaBackend:
             if total == 0:
                 return None
             return cls(total, free)
-        except Exception:
+        except Exception:  # noqa: BLE001 — probes a vendor binary that may be absent, unreadable or a different version
             logger.debug("nvidia-smi probe failed", exc_info=True)
             return None
 
@@ -107,7 +107,7 @@ class AppleBackend:
             total_bytes = int(result.stdout.strip().split(":")[1].strip())
             total_mb = total_bytes // (1024 * 1024)
             return cls(total_mb, total_mb)  # free = total; OS manages the pool
-        except Exception:
+        except Exception:  # noqa: BLE001 — same, for the Apple sysctl probe
             logger.debug("Apple sysctl probe failed", exc_info=True)
             return None
 

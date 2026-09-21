@@ -105,7 +105,7 @@ def promote_model(db: Any, version_id: str) -> bool:
         from ..rag.reranker import reload_reranker
         reload_reranker(model_path)
         return True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — promotion is reported as False; the running model is untouched
         logger.warning(f"[Pipeline] Promote failed: {exc}")
         return False
 

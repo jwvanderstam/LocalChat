@@ -292,7 +292,7 @@ class FeedbackMixin(MixinHost):
                 }
                 for r in rows
             ]
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — reranker version bookkeeping is advisory; retrieval works without it
             logger.warning(f"[Reranker] version query failed: {exc}")
             return []
 
@@ -320,7 +320,7 @@ class FeedbackMixin(MixinHost):
                     )
                     row = cur.fetchone()
                     return str(row[0]) if row is not None else None
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — same — the model still loads, it is just not recorded
             logger.warning(f"[Reranker] Could not persist version: {exc}")
             return None
 
@@ -343,6 +343,6 @@ class FeedbackMixin(MixinHost):
                         "UPDATE reranker_versions SET active = TRUE WHERE id = %s", (version_id,)
                     )
             return model_path
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — same — activation is reported to the caller as None
             logger.warning(f"[Reranker] Activation failed: {exc}")
             return None

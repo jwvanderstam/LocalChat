@@ -58,7 +58,7 @@ class MemoryRetriever:
             ok, embedding = ollama_client.generate_embedding(embedding_model, query)
             if not ok or not embedding:
                 return []
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — embedding the query is the optional half; no embedding means no memories, not an error
             logger.debug(f"[Memory] Embedding failed for retrieval: {exc}")
             return []
 
@@ -70,15 +70,15 @@ class MemoryRetriever:
                 workspace_id=workspace_id,
                 additional_workspace_ids=additional_workspace_ids,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — vector search over an optional subsystem; the prompt is built without memories
             logger.warning(f"[Memory] Search failed: {exc}")
             return []
 
         if memories:
             try:
                 db.update_memory_usage([m["id"] for m in memories])
-            except Exception:
-                pass  # non-critical
+            except Exception:  # noqa: BLE001 — usage bookkeeping; the memories have already been retrieved and returned
+                logger.debug("[Memory] Could not record memory usage", exc_info=True)
             logger.info(f"[Memory] Retrieved {len(memories)} memories for prompt injection")
 
         return memories

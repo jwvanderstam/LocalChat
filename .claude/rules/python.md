@@ -17,7 +17,11 @@
 
 - Never use bare `except:`. Minimum: `except Exception as e:`.
 - Catch the narrowest applicable exception type.
-- Use `except Exception` only at SSE stream top-level boundaries — always log `e`.
+- Use `except Exception` only where the breadth is the point — an SSE boundary, an
+  optional subsystem, a per-item loop that must not abandon the rest. `ruff` enforces
+  this (`BLE001`). Clear it by narrowing, by calling `logger.exception`, or with
+  `# noqa: BLE001 — <what degrades, and to what>`. A bare `# noqa: BLE001` is the thing
+  the rule exists to prevent; write the reason or narrow the catch. Always log.
 - Re-raise with context: `raise SomeError("msg") from e`, not swallowed or re-raised without cause.
 
 ## Comments

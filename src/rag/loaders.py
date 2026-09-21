@@ -88,7 +88,7 @@ def _detect_language(text: str) -> str | None:
         return detect(text[:2000])
     except ImportError:
         return None
-    except Exception:
+    except Exception:  # noqa: BLE001 — probes an optional third-party extractor; absence and import-time failure are both normal
         return None
 
 
@@ -246,7 +246,7 @@ class DocumentLoaderMixin:
         """Attempt pymupdf4llm extraction; return empty string on failure."""
         try:
             return self._extract_pymupdf4llm_text(file_path)
-        except Exception as mupdf_error:
+        except Exception as mupdf_error:  # noqa: BLE001 — third-party PDF extractor — falls through to the next one in the chain
             logger.warning(f"{_EXTRACTOR_PYMUPDF4LLM} extraction failed: {mupdf_error}, trying next extractor")
             if loader_pref == 'pymupdf4llm':
                 logger.warning("PDF_LOADER=pymupdf4llm but extraction failed — no fallback configured")
@@ -268,7 +268,7 @@ class DocumentLoaderMixin:
                 try:
                     text = self._extract_pdfplumber_text(pdfplumber, file_path)
                     method = _EXTRACTOR_PDFPLUMBER
-                except Exception as plumber_error:
+                except Exception as plumber_error:  # noqa: BLE001 — same, falling through to pypdf
                     logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF}")
 
         if not text and loader_pref in ('auto', 'pypdf', 'pymupdf4llm', 'pdfplumber'):

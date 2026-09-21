@@ -105,7 +105,7 @@ class OAuthTokensMixin(MixinHost):
             if expires_at.tzinfo is None:
                 expires_at = expires_at.replace(tzinfo=UTC)
             return datetime.now(UTC) >= expires_at
-        except Exception:
+        except (ValueError, TypeError, AttributeError):
             return True
 
     def delete_oauth_token(self, user_id: str, provider: str) -> bool:

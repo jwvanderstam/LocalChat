@@ -211,7 +211,7 @@ class GoogleDriveConnector(BaseConnector):
         if mt := item.get('modifiedTime'):
             try:
                 last_modified = datetime.fromisoformat(mt.replace('Z', '+00:00'))
-            except Exception:
+            except (ValueError, TypeError, AttributeError):
                 pass
 
         mime_type = item.get('mimeType', '')

@@ -34,7 +34,7 @@ def _collect_document_stats(app_state: Any) -> dict:
             "chunk_count": db.get_chunk_count(),
             "db_available": True,
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — the panel renders with zeros and db_available=False rather than failing
         logger.warning("Settings: could not fetch document stats: %s", exc)
         return {"document_count": 0, "chunk_count": 0, "db_available": False}
 
@@ -59,7 +59,7 @@ def _collect_cache_stats(app_state: Any) -> dict:
                 "size": stats.size,
                 "max_size": stats.max_size,
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — one stats block out of several; the others still render
             logger.warning("Settings: could not fetch %s stats: %s", key, exc)
     return result
 
@@ -80,7 +80,7 @@ def _get_loaded_models(ollama_client: Any) -> list:
                 "processor": m.get("processor", "unknown"),
             })
         return result
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — GPU stats are decoration on this page
         logger.debug("Settings: could not fetch running model GPU stats: %s", exc)
         return []
 
@@ -90,7 +90,7 @@ def _get_gpu_info(ollama_client: Any) -> list:
         return []
     try:
         return ollama_client.get_gpu_info()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — same, for hardware info
         logger.debug("Settings: could not fetch GPU hardware info: %s", exc)
         return []
 
@@ -99,8 +99,8 @@ def _collect_system_info(app_state: Any) -> dict:
     active_model = "—"
     try:
         active_model = config.app_state.get_active_model() or "—"
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 — the active model is display-only here; the em dash is the honest default
+        logger.debug("Could not read active model for system info", exc_info=True)
 
     ollama_client = getattr(app_state, "ollama_client", None)
     return {

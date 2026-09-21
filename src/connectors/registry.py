@@ -83,7 +83,7 @@ class ConnectorRegistry:
             with self._lock:
                 self._instances[connector_id] = instance
             return instance
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — a connector class is third-party-shaped; construction can fail in ways this cannot enumerate
             logger.warning(f"[Connectors] Failed to instantiate {connector_type}: {exc}")
             return None
 

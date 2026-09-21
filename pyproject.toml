@@ -4,8 +4,12 @@ target-version = "py312"
 [tool.ruff.lint]
 # S101 only, not the whole flake8-bandit set: `bandit` itself runs in CI and owns
 # that job. This one rule is here because `python -O` strips `assert`, so an
-# invariant written that way is not enforced by the interpreter that ships (P2-4).
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "S101"]
+# invariant written that way is not enforced by the interpreter that ships (P2-4a).
+#
+# BLE001 (P2-4b): `except Exception` must be argued, not reached for. Every
+# suppression in src/ names what degrades and to what — a bare `# noqa: BLE001`
+# is the thing this rule exists to prevent, so it does not count as compliance.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "S101", "BLE001"]
 ignore = [
     "E501",    # line-too-long — enforced by reviewer judgment, not tooling
     "E402",    # module-import-not-at-top — intentional in several modules
@@ -15,7 +19,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]  # allow assert in tests
+"tests/**" = ["S101", "BLE001"]  # assert is the point here, and a test that catches
+                                 # broadly to prove a failure path risks nothing in production
+"scripts/**" = ["BLE001"]        # operational one-shots run by a human at a terminal: catching
+                                 # broadly to print a diagnostic and exit non-zero is the job
 
 [tool.pytest.ini_options]
 python_files = ["test_*.py"]

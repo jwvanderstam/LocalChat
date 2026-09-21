@@ -71,7 +71,7 @@ class BatchEmbeddingProcessor:
                 start, end = future_to_range[future]
                 try:
                     batch_embeddings = future.result()
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — one batch is counted as failed and the rest of the corpus still embeds
                     logger.warning(f"Batch [{start}:{end}] failed: {exc}")
                     failed += end - start
                     continue
@@ -100,6 +100,6 @@ class BatchEmbeddingProcessor:
         try:
             success, embedding = self.ollama_client.generate_embedding(model, text)
             return embedding if success else None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — a single embedding; None is the documented 'could not' answer
             logger.debug(f"Embedding generation failed: {e}")
             return None

@@ -66,7 +66,7 @@ def suggest_documents(
             workspace_id=workspace_id,
             threshold=feedback_threshold,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — a suggestions query; an empty list is a valid answer
         logger.warning(f"[ActiveLearning] could not fetch queries: {exc}")
         return []
 

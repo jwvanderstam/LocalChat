@@ -89,7 +89,7 @@ class RerankerModel:
             pairs = [(query, p) for p in passages]
             scores = self._model.predict(pairs)
             return [float(s) for s in scores]
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — scoring is a refinement; an empty list leaves the retrieval order as it was
             logger.warning(f"[Reranker] scoring failed: {exc}")
             return []
 
@@ -116,7 +116,7 @@ class RerankerModel:
                 self._model_path = resolved
                 logger.info("[Reranker] Loaded fine-tuned model")
                 return
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — a fine-tuned model that will not load falls back to the base model below
                 logger.warning(f"[Reranker] Could not load fine-tuned model ({exc}), falling back to base")
 
         # Fall back to base model
@@ -124,7 +124,7 @@ class RerankerModel:
             self._model = CrossEncoder(_BASE_MODEL)
             self._model_path = _BASE_MODEL
             logger.info(f"[Reranker] Loaded base model: {_BASE_MODEL}")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — and if the base will not load either, the reranker is simply off
             logger.warning(f"[Reranker] Could not load base model: {exc}")
 
     def _resolve_model_path(self, model_path: str | None) -> str | None:

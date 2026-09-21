@@ -154,7 +154,7 @@ class RetrievalMixin:
                 source_ids=source_ids or [],
             )
             return list(results) if results else []
-        except Exception as lex_exc:
+        except Exception as lex_exc:  # noqa: BLE001 — the lexical arm is half of hybrid search; the semantic arm still answers
             logger.debug(f"[RAG] Lexical search skipped: {lex_exc}")
             return []
 
@@ -325,7 +325,7 @@ class RetrievalMixin:
                         r['combined_score'] = (1.0 - w) * r['combined_score'] + w * ce
                     deduped = sorted(deduped, key=lambda x: x['combined_score'], reverse=True)
                     logger.debug("[RAG] Cross-encoder reranking applied")
-        except Exception as ce_exc:
+        except Exception as ce_exc:  # noqa: BLE001 — cross-encoder reranking is optional; the deduped order stands
             logger.debug(f"[RAG] Cross-encoder reranking skipped: {ce_exc}")
         return deduped
 
@@ -460,7 +460,7 @@ class RetrievalMixin:
                 if extra_terms:
                     query_clean = query_clean + " " + " ".join(extra_terms)
                     logger.debug(f"[GraphRAG] Expanded query with: {extra_terms}")
-            except Exception as graph_exc:
+            except Exception as graph_exc:  # noqa: BLE001 — GraphRAG expansion is optional; the query proceeds unexpanded
                 logger.debug(f"[GraphRAG] Expansion skipped: {graph_exc}")
 
         _app_query_cache = self._get_app_cache()

@@ -112,7 +112,7 @@ class QueryPlanner:
                 f" sub_questions={len(plan.sub_questions)}"
             )
             return plan
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — planning is an optimisation; None means answer the query as asked
             logger.debug(f"[Planner] Planning failed (non-fatal): {exc}")
             return None
 

@@ -328,8 +328,8 @@ class OllamaClient:
                     return "llava:13b", f"13 B — {gb} GB free VRAM"
                 if max_free_mb >= 4_000:
                     return "llava:7b", f"7 B — {gb} GB free VRAM"
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — VRAM probe is advisory; any failure falls back to the CPU-safe suggestion
+            logger.debug("Vision-model VRAM probe failed; suggesting CPU-compatible", exc_info=True)
         return "moondream:1.8b", "1.8 B — CPU-compatible"
 
     def describe_image(
@@ -402,7 +402,7 @@ class OllamaClient:
         if response.status_code == 404:
             try:
                 ollama_detail = response.json().get("error", "")
-            except Exception:
+            except Exception:  # noqa: BLE001 — the server's error body is opaque by definition; the raw text is the best available detail
                 ollama_detail = response.text[:200]
 
             raise InvalidModelError(
@@ -678,7 +678,7 @@ class OllamaClient:
             logger.warning(
                 f"Batch embed failed: HTTP {response.status_code}; falling back to per-text"
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — batch embedding is an optimisation; the per-text path below is the correctness guarantee
             logger.warning(f"Batch embedding error: {exc}; falling back to per-text")
 
         fallback_results = []
@@ -711,7 +711,7 @@ class OllamaClient:
                 self._running_models_cache = result
                 self._running_models_cache_time = now
                 return result
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — /api/ps is advisory; the cached answer or an empty list is correct enough
             logger.debug("Could not fetch running models from /api/ps: %s", e)
         return self._running_models_cache if self._running_models_cache is not None else []
 
@@ -843,15 +843,15 @@ class OllamaClient:
                 # Refresh before sleeping so the cache is warm from the first request
                 try:
                     self.get_running_models(_background=True)
-                except Exception:
-                    pass
+                except Exception:  # noqa: BLE001 — background cache refresh; the next tick retries and callers fall back to a live call
+                    logger.debug("Background running-models refresh failed", exc_info=True)
                 gpu_tick += 1
                 if gpu_tick >= 6:  # ~24 s — refresh before 30 s TTL expires
                     gpu_tick = 0
                     try:
                         self.get_gpu_info()
-                    except Exception:
-                        pass
+                    except Exception:  # noqa: BLE001 — same, for the GPU tick
+                        logger.debug("Background GPU-info refresh failed", exc_info=True)
                 time.sleep(4.0)
 
         t = threading.Thread(target=_refresh_loop, name="ollama-cache-refresh", daemon=True)

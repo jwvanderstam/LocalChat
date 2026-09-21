@@ -169,7 +169,7 @@ class DocumentsMixin(MixinHost):
                         (filenames,),
                     )
                     return cursor.fetchone() is not None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — returns the conservative answer (local-only) when the query cannot be run
             logger.warning(f"any_local_only_sources query failed: {e}")
             return True  # Conservative: treat as local-only on error
 
@@ -880,7 +880,7 @@ class DocumentsMixin(MixinHost):
                         {'id': row[0], 'filename': row[1], 'workspace_id': row[2]}
                         for row in cursor.fetchall()
                     ]
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — a maintenance query; an empty list is the safe answer
             logger.warning(f"get_stale_documents failed: {exc}")
             return []
 
@@ -896,5 +896,5 @@ class DocumentsMixin(MixinHost):
                         (doc_id,),
                     )
                     conn.commit()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — a bookkeeping write; the ingest it belongs to has already succeeded
             logger.warning(f"update_last_ingested_at failed for doc {doc_id}: {exc}")

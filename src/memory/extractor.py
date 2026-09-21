@@ -85,7 +85,7 @@ class MemoryExtractor:
 
         try:
             raw_memories = await self._call_llm(transcript, model, ollama_client)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — the conversation is marked extracted either way, so a bad turn is not retried forever
             logger.warning(f"[Memory] LLM extraction failed for conv {conversation_id}: {exc}")
             db.mark_conversation_extracted(conversation_id)
             return 0
@@ -133,7 +133,7 @@ class MemoryExtractor:
                 workspace_id=workspace_id,
             )
             return True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — one memory failing to store is reported to the caller as False
             logger.warning(f"[Memory] Failed to store memory: {exc}")
             return False
 

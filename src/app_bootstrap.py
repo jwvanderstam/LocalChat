@@ -193,7 +193,7 @@ def _warmup_embedding_model(ollama_client: Any) -> None:
                 logger.info("Embedding model warm-up complete")
             else:
                 logger.warning("Embedding model warm-up returned no data (non-fatal)")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — warm-up is best-effort; the app boots cold rather than not at all
         logger.warning(f"Embedding model warm-up failed (non-fatal): {e}")
 
 
@@ -244,7 +244,7 @@ def _warmup_reranker() -> None:
             logger.info("Reranker warm-up complete")
         else:
             logger.warning("Reranker warm-up: no model available (non-fatal)")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — same for the reranker — a cold model is slower, not broken
         logger.warning(f"Reranker warm-up failed (non-fatal): {e}")
 
 
@@ -264,7 +264,7 @@ def _init_database_service(app: Any, db: Any) -> None:
             purged = db.purge_expired_tokens()
             if purged:
                 logger.info("Purged %d expired revoked token(s)", purged)
-        except Exception as _purge_err:
+        except Exception as _purge_err:  # noqa: BLE001 — opportunistic housekeeping; expired rows are purged again on the next boot
             logger.debug("Could not purge expired tokens: %s", _purge_err)
         return
     logger.error(db_message)
@@ -378,7 +378,7 @@ def _seed_admin_user(db: Any) -> None:
             username=config.ADMIN_USERNAME,
             hashed_password=hash_user_password(admin_password),
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — seeding is skipped, not fatal — the env-var admin is still the way in
         logger.warning(f"[Auth] Admin seeding skipped: {exc}")
         return
 
@@ -403,7 +403,7 @@ def _init_connectors(app: Any, db: Any, doc_processor: Any) -> None:
         app.state.sync_worker = worker
         app.state.connector_registry = connector_registry
         logger.info("[Connectors] Sync worker started")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — the app runs without connectors; a sync worker that will not start must not stop the boot
         logger.warning(f"[Connectors] Failed to start sync worker: {exc}", exc_info=True)
         app.state.sync_worker = None
         app.state.connector_registry = None
@@ -450,7 +450,7 @@ def _init_caching(app: Any) -> None:
 
         logger.info(f"Caching initialized ({type(embedding_backend).__name__})")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — REDIS_STRICT below decides whether this is fatal; that is the policy, not this handler
         if config.REDIS_ENABLED and config.REDIS_STRICT:
             import sys
             logger.critical(
