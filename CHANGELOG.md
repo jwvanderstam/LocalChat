@@ -83,6 +83,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   The codebase was not careless. The 15 handlers that were genuinely wrong are the value
   here; the other 105 comments are the price of a rule that makes the next one deliberate.
 
+- **Dependabot watches the Dockerfile's base images.** `.github/dependabot.yml` declared
+  `pip` and `github-actions` and nothing else, so both hardened base digests sat untouched
+  from #287 (2026-08-19) with nothing ever proposing a newer one — 33 days on an image
+  whose whole selling point is that it is rebuilt continuously for CVE patching. Grouped,
+  because the builder and runtime stages are the same upstream image and are only correct
+  together. The digests themselves are current and were not changed: `docker-smoke` builds
+  from them on every PR and has stayed green throughout.
+
 ### Documentation
 
 - **The configuration example and reference say only true things** (remediation plan

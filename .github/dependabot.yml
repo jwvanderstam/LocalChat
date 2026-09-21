@@ -50,6 +50,36 @@ updates:
       prefix: "deps"
       include: "scope"
  
+  # The Dockerfile's two hardened base images. Absent until 2026-09-21, which is
+  # why both digests sat untouched from #287 (2026-08-19) onwards with nothing
+  # proposing a newer one -- 33 days on a base image whose whole selling point is
+  # that it is rebuilt continuously for CVE patching.
+  #
+  # The same argument CLAUDE.md already makes for keeping pip-compile over uv:
+  # a dependency Dependabot cannot see is a dependency nobody updates. It was
+  # made about the Python locks and never extended to the file that picks the
+  # interpreter they are installed into.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    reviewers:
+      - "jwvanderstam"
+    labels:
+      - "dependencies"
+      - "automated"
+    # Both stages are the same upstream image and are only correct together: a
+    # builder and a runtime from different rebuilds is the mixed-version failure
+    # the codeql-action group below exists to prevent, one layer down.
+    groups:
+      hardened-base:
+        patterns:
+          - "dhi.io/python"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
   # GitHub Actions versies
   - package-ecosystem: "github-actions"
     directory: "/"
