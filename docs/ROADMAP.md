@@ -779,13 +779,38 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   explicit `ALL_WORKSPACES`; every scoped database method takes it keyword-only and
   mandatory; `tests/unit/test_object_authorization_matrix.py` walks the AST of `src/` and
   fails on any call that omits it.
-- **P2-1b ⬜**: Postgres row-level security on the workspace-owned tables, with
-  `SET LOCAL app.workspace_id` per transaction, so a query that reaches the database without
-  a scope returns nothing rather than everything. **Acceptance:** an integration test that
-  opens a connection, sets no scope, and gets zero rows from each scoped table.
-  **Precondition:** the pooler question — `SET LOCAL` is transaction-bound, which is exactly
-  what a transaction-pooling proxy preserves and a statement-pooling one does not; see the
-  `hnsw.ef_search` note in DEPLOYMENT_SCALEWAY.md for the same shape.
+- **P2-1b ⬜** (precondition settled 2026-09-24): Postgres row-level security on the
+  workspace-owned tables, with the scope set per transaction, so a query that reaches the
+  database without one returns nothing rather than everything. **Acceptance:** an
+  integration test that opens a connection, sets no scope, and gets zero rows from each
+  scoped table.
+
+  **The pooler precondition is answered, and it is not the `ef_search` problem.**
+  `tests/integration/test_set_local_scope_mechanism.py` is the probe, committed so the
+  answer is reproducible rather than remembered. The difference is the mechanism, not the
+  setting: `ef_search` is a *session*-level `SET` made once per physical connection that
+  every later transaction depends on, which is exactly what a pooler does not guarantee. A
+  transaction-local scope cannot outlive the transaction that set it, and a
+  transaction-pooling proxy holds one server connection for the whole of a transaction by
+  definition — so it is safe there by construction. All four cases hold on pg16: no scope
+  gives zero rows, a scope selects its own workspace, the scope is gone after `COMMIT`, and
+  a later transaction does not inherit an earlier one.
+
+  Scaleway's own pgvector note, quoted in DEPLOYMENT_SCALEWAY.md §4 as the warning that
+  raised this question — *"Query options using SET command require to be used in a single
+  transaction"* — is a description of this approach rather than an objection to it.
+
+  **Two findings for whoever implements it.** `SET LOCAL app.workspace_id = %s` does not
+  work: `SET` is a utility statement and takes no bind parameter, so the only way to write
+  it is to interpolate the id into SQL — an injection site on the value that decides what
+  the caller can see. Use `set_config('app.workspace_id', %s, true)`, which means the same
+  thing and takes a parameter. And RLS does not apply to a superuser or to the table's
+  owner, so the application must connect as neither, or the policy is inert while every
+  test of it passes.
+
+  **What is still open** is narrower than before: only a *statement*-level pooler would
+  break this, and Scaleway's wording implies transaction pooling. That is one fact to
+  confirm against the deployed database, not a design question.
 
 ### P2-2 — Security smoke: boot the shipped compose, then attack it ⬜
 

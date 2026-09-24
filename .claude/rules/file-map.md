@@ -87,6 +87,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/CONFIGURATION.md` | Configuration reference — every env var, default and effect (lifted out of README) |
 | `docs/MIGRATIONS.md` | Migration docs — how to apply, write, and roll back |
 | `tests/integration/test_migrations_apply.py` | TQ-5b — the migration chain applies against a real database, lands on the single head, and a second run does nothing |
+| `tests/integration/test_set_local_scope_mechanism.py` | P2-1b's precondition, made executable — a transaction-local scope plus RLS returns zero rows when unset, does not survive `COMMIT`, and is not inherited by the next transaction; the properties `hnsw.ef_search` lacks |
 | `tests/integration/test_list_params_survive_vector_adapters.py` | A `list[str]` query parameter reaches Postgres intact — the pgvector dumper was registered for every `list` and broke every `= ANY(%s)`: the document filename filter, `source_ids`, and GraphRAG's entity lookup |
 | `docs/OPERATIONS.md` | Backup/restore/maintenance runbook |
 | `docs/ROADMAP.md` | Living initiative/ticket plan (current: v3.0 — hygiene, Clark-Wilson, RBAC, GKB, model management, plugin contract) |
