@@ -42,7 +42,7 @@ Werkzeug==3.1.8  # used by src/db/users.py for password hashing (werkzeug.securi
 redis==8.1.0  # Redis cache backend (optional but recommended)
 
 # Security
-python-jose[cryptography]==3.5.0  # JWT — pulls in ecdsa; PYSEC-2026-1325 is an accepted risk, see SECURITY.md
+PyJWT==2.14.0                       # JWT — HS256 over hashlib; pure Python, no ecdsa (P2-6)
 slowapi==0.1.10                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector

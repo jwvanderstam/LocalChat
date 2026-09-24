@@ -26,20 +26,19 @@ The items below are known, deliberately **not remediated via the usual route** (
   - `docker-compose.yml`'s `db` service publishes port 5432 as `"${BIND_HOST:-127.0.0.1}:5432:5432"`, so by default Postgres is bound to localhost only and is **not reachable from outside the host**, even on a machine with a public IP and no firewall — matching the pattern already used by the `app`, `ollama`, `mcp-local-docs`, `mcp-web-search`, and `mcp-cloud-connectors` services in the same file. (`ollama` publishes `"${BIND_HOST:-127.0.0.1}:${OLLAMA_BIND_PORT:-11434}:11434"` so the host-run dev path can reach it; containers use the `backend` network and do not need it.)
 - **Forward-looking control**: gitleaks secret scanning now runs in CI (`.github/workflows/gitleaks.yml`) and as a local pre-commit hook (`.pre-commit-config.yaml`) to prevent any *new* credential leak. Both only scan the push/PR diff or staged changes — never full history — so they never re-encounter this historical leak; `.gitleaks.toml` deliberately has no allowlist entry for it (see that file's header comment for why) and only allowlists CI's own non-secret placeholder test credentials.
 
-### 2. `ecdsa` timing side-channel — PYSEC-2026-1325
+### 2. `ecdsa` timing side-channel — PYSEC-2026-1325 — resolved 2026-09-20
 
-- **What**: `ecdsa` (a transitive dependency of `python-jose[cryptography]`, used for JWT auth) has a known timing side-channel in its ECDSA sign/verify implementation, tracked as PYSEC-2026-1325. The `ecdsa` maintainers treat timing side-channel attacks as out of scope for the library; no fix is planned.
-- **Why it doesn't affect LocalChat**: `src/security_fastapi.py` hardcodes `_ALGORITHM = "HS256"` for both signing and verification:
-  - `jwt.encode(payload, config.JWT_SECRET_KEY, algorithm=_ALGORITHM)`
-  - `jwt.decode(token, config.JWT_SECRET_KEY, algorithms=[_ALGORITHM])`
+**No longer an accepted risk.** `python-jose[cryptography]` was replaced by `PyJWT`
+(ROADMAP P2-6), which signs and verifies HS256 over the standard library's `hmac`
+and `hashlib`. It pulls no `ecdsa`, no `rsa` and no `pyasn1`, so the vulnerable code
+is not in either lock and not in the image — the risk is removed rather than reasoned
+around. The `pip-audit --ignore-vuln PYSEC-2026-1325` suppression in
+`.github/workflows/tests.yml` went with it, and that step now runs with no suppressions
+at all.
 
-  HS256 is HMAC-based and never touches `ecdsa`'s ECDSA code path. The `algorithms=[_ALGORITHM]` allowlist passed to `jwt.decode()` also means python-jose *rejects* any token claiming a different algorithm (e.g. ES256) — an attacker cannot force the app into the vulnerable code path via a crafted token either. The vulnerable code is present on disk as a transitive dependency but is provably unreachable through this app's own JWT usage.
-- **Disposition**: Risk accepted; no upstream fix exists to remediate to. Suppressed in CI with a documented reason so it doesn't perpetually flag red without context, while every *other* vulnerability still fails the build:
-  ```
-  pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
-  ```
-  See `.github/workflows/tests.yml` (`unit-tests` job → "Dependency vulnerability scan (pip-audit)" step).
-- **Re-review trigger**: revisit if LocalChat ever adds an ECDSA-based JWT algorithm (e.g. ES256), or if `ecdsa`/`python-jose` ships a fix and the pin can be bumped.
+The entry is kept at its number because `CHANGELOG.md` and four current documents cite
+the sections below it by number; renumbering would silently break those references for
+a gain of one deleted heading.
 
 ### 3. JWT revocation honours a bounded 60-second grace window on database outage
 

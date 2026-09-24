@@ -828,13 +828,18 @@ before and after recorded in DEPLOYMENT.md. **Watch:** the lock is compiled on L
 the image (CLAUDE.md, Quality Gates); a CPU-index torch has to survive `pip-compile`, or be
 installed as a separate Dockerfile step outside the lock — decide which before starting.
 
-### P2-6 — Replace `python-jose` with PyJWT ⬜
+### P2-6 — Replace `python-jose` with PyJWT ✅ (done 2026-09-20)
 
-**Driver 6.** `python-jose` brings `ecdsa`, which is SECURITY.md §2 and the two open
+**Driver 6.** `python-jose` brought `ecdsa`, which was SECURITY.md §2 and the two open
 Dependabot alerts (`GHSA-wj6h-64fc-37mp`, no fix available). PyJWT signs HS256 with the
-standard library. **Acceptance:** `tests/unit/test_security_contract.py` and
-`test_one_authentication_resolver.py` green unchanged; §2 removed; `ecdsa` gone from both
-locks; tokens issued before the swap still verify (same algorithm, same claims).
+standard library. **Acceptance met:** `test_security_contract.py` and
+`test_one_authentication_resolver.py` are green unchanged; §2 is retired in place (kept at
+its number — `CHANGELOG.md` and four current documents cite the sections below it, and
+renumbering would break those references silently); `ecdsa`, `rsa` and `pyasn1` are gone
+from both locks, and the `pip-audit --ignore-vuln` suppression with them. The compatibility
+half needed a fixture rather than an argument: `tests/unit/test_jwt_library_is_pyjwt.py`
+carries a token minted by jose before it was uninstalled, because once the library is gone
+that evidence cannot be produced again.
 
 ### P2-7 — Current-state docs apart from the journal, and tests that hold them ◐
 
@@ -882,7 +887,7 @@ Nothing further to do unless §10's re-review trigger fires.
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
-| 15 | P2-6 (PyJWT) + P2-4 (`BLE001`, no production `assert`) — mechanical, each one PR, and P2-6 retires two open Dependabot alerts | 3–4 days |
+| 15 | P2-6 (PyJWT) ✅ done 2026-09-20 + P2-4 (`BLE001`, no production `assert`) ⬜ — mechanical, each one PR; P2-6 retired two open Dependabot alerts | 3–4 days |
 | 16 | P2-2 (security smoke against the shipped compose) + P2-1b (row-level security) | 1 week |
 | 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) — decides DEL-2 | 1–2 weeks |

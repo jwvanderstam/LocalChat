@@ -66,7 +66,6 @@ cryptography==50.0.1
     # via
     #   -r requirements.in
     #   pdfminer-six
-    #   python-jose
 cuda-bindings==13.3.1
     # via torch
 cuda-pathfinder==1.7.0
@@ -86,8 +85,6 @@ distro==1.9.0
     # via openai
 dnspython==2.8.0
     # via email-validator
-ecdsa==0.19.2
-    # via python-jose
 email-validator==2.3.0
     # via -r requirements.in
 et-xmlfile==2.0.0
@@ -301,10 +298,6 @@ psycopg-binary==3.3.5
     # via psycopg
 psycopg-pool==3.3.1
     # via -r requirements.in
-pyasn1==0.6.4
-    # via
-    #   python-jose
-    #   rsa
 pycparser==3.0
     # via cffi
 pydantic==2.13.5
@@ -323,6 +316,8 @@ pydantic-settings==2.15.0
     # via litellm
 pygments==2.21.0
     # via rich
+pyjwt==2.14.0
+    # via -r requirements.in
 pymupdf==1.28.2
     # via
     #   pymupdf-layout
@@ -343,8 +338,6 @@ python-dotenv==1.2.3
     #   litellm
     #   pydantic-settings
     #   uvicorn
-python-jose[cryptography]==3.5.0
-    # via -r requirements.in
 python-multipart==0.0.32
     # via -r requirements.in
 python-pptx==1.0.2
@@ -378,8 +371,6 @@ rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
-rsa==4.9.1
-    # via python-jose
 safetensors==0.8.0
     # via transformers
 scikit-learn==1.9.0
@@ -393,9 +384,7 @@ sentence-transformers==6.0.1
 shellingham==1.5.4
     # via typer
 six==1.17.0
-    # via
-    #   ecdsa
-    #   langdetect
+    # via langdetect
 slowapi==0.1.10
     # via -r requirements.in
 smart-open==8.0.1

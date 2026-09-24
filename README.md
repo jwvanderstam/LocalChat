@@ -185,7 +185,7 @@ requests.
 | LLM | Ollama, local; LiteLLM cloud fallback |
 | Embeddings | nomic-embed-text |
 | Cache | Redis, with an in-memory fallback |
-| Auth | python-jose (JWT), slowapi (rate limiting) |
+| Auth | PyJWT (JWT), slowapi (rate limiting) |
 | Validation | Pydantic 2 |
 | Migrations | Alembic |
 | Tests | pytest + pytest-asyncio |

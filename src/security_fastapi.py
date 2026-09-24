@@ -2,7 +2,7 @@
 FastAPI Security — JWT auth, rate limiting, CORS, admin guards.
 
 Uses:
-  - python-jose for JWT encode/decode
+  - PyJWT for JWT encode/decode
   - slowapi for rate limiting
   - FastAPI dependency injection for auth guards
   - Starlette CORSMiddleware for CORS
@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -58,8 +59,6 @@ _bearer = HTTPBearer(auto_error=False)
 
 def create_access_token(identity: str, additional_claims: dict[str, Any] | None = None) -> str:
     """Return a signed JWT for *identity*."""
-    from jose import jwt
-
     payload: dict[str, Any] = {
         "sub": identity,
         "jti": str(uuid.uuid4()),
@@ -71,7 +70,6 @@ def create_access_token(identity: str, additional_claims: dict[str, Any] | None 
 
 
 def _decode_token(token: str) -> dict[str, Any]:
-    from jose import jwt
     return jwt.decode(token, config.JWT_SECRET_KEY, algorithms=[_ALGORITHM])
 
 

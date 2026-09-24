@@ -26,7 +26,7 @@
 > | P1-5 | M7 | ✅ | `1eb02ca` |
 > | D7 | README claim | ✅ | "Hardened beta", 2026-09-16 |
 > | P2-1 | driver 1 | ◐ | The `Scope` value object and the static CI check shipped with P0-1. Row-level security has not |
-> | P2-2..P2-8 | drivers 2–6 | ⏳ | [ROADMAP Initiative 10](ROADMAP.md#initiative-10--security-audit-follow-through-p2), Sprints 15–18 (2026-09-17). P2-8 is closed by decision: S3 removed, MCP kept behind a token |
+> | P2-2..P2-8 | drivers 2–6 | ⏳ | [ROADMAP Initiative 10](ROADMAP.md#initiative-10--security-audit-follow-through-p2), Sprints 15–18 (2026-09-17). P2-6 shipped 2026-09-20 (PyJWT; SECURITY §2 retired). P2-8 is closed by decision: S3 removed, MCP kept behind a token |
 > | §4.1 sweep | docs | ✅ | The bundle was never merged; the sweep was redone from the table on 2026-09-17, re-verified row by row against the code (29 dead variables rather than 26; `onnxruntime` at 1.30.0 rather than 1.28.0). `tests/unit/test_env_example_is_read.py` holds it |
 >
 > What this episode taught is [LESSONS_LEARNED Ch. 20](LESSONS_LEARNED.md#20-every-route-had-a-guard-and-a-green-check-said-so).
