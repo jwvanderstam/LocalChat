@@ -27,6 +27,15 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   not reset it, it *leaks* it between clients — which is why a passing read-back is not a
   clean bill of health. That correction never reached the code.
 
+- **P2-2's prerequisites are established by trying them, not by reading.** The shipped TLS
+  overlay **cannot boot**: `nginx/certs/` does not exist in the repository and
+  `docker-compose.nginx.yml` mounts it, so nginx refuses at config load with
+  `cannot load certificate`. A CI job that boots the overlay has to generate a throwaway
+  self-signed pair first. Also recorded: the probe should send `Host: YOUR_DOMAIN` rather
+  than rewrite the config it is meant to verify, and `--profile mcp` needs
+  `MCP_AUTH_TOKEN` actually set — with it empty the servers refuse every call regardless,
+  so the token test would pass without testing the token.
+
 ### Security
 
 - **`python-jose` replaced by `PyJWT`** (ROADMAP P2-6). The old library pulled `ecdsa`,
