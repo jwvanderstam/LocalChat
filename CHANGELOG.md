@@ -8,6 +8,25 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+### Documentation
+
+- **P2-1b's pooler precondition is settled, with the probe committed** as
+  `tests/integration/test_set_local_scope_mechanism.py`. The ticket had asked whether a
+  per-transaction workspace scope would be dropped behind a pooler the way
+  `hnsw.ef_search` is. It is not, and the difference is the mechanism: `ef_search` is a
+  session-level `SET` made once per physical connection that every later transaction
+  depends on; a transaction-local scope cannot outlive its own transaction, and a
+  transaction-pooling proxy holds one server connection for the whole of a transaction by
+  definition. Two implementation findings came out of running it — `SET LOCAL x = %s`
+  takes no bind parameter, so `set_config(..., true)` is the form that avoids
+  interpolating the value that decides visibility; and RLS is inert for a superuser or the
+  table owner, so the app must connect as neither.
+- **`_warn_if_ef_search_did_not_stick` no longer explains the failure with a mechanism
+  that was corrected months ago.** Its docstring said a transaction pooler resets session
+  state between transactions. DEPLOYMENT_SCALEWAY.md §4 established that pgbouncer does
+  not reset it, it *leaks* it between clients — which is why a passing read-back is not a
+  clean bill of health. That correction never reached the code.
+
 ### Security
 
 - **`python-jose` replaced by `PyJWT`** (ROADMAP P2-6). The old library pulled `ecdsa`,

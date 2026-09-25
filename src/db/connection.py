@@ -36,12 +36,21 @@ def _warn_if_ef_search_did_not_stick(conn: Any) -> None:
     """Check that ``SET hnsw.ef_search`` survived a transaction boundary.
 
     ``configure_connection`` sets the GUC once per physical connection and every
-    later query relies on it persisting. Behind a *transaction*-pooling proxy —
-    Scaleway's Serverless SQL Database, or pgbouncer in transaction mode — session
-    state is reset between transactions, so the setting is gone by the first real
-    query. Nothing fails: HNSW search silently runs at the server default instead
-    of 100, and recall drops with no error anywhere. Reading it back in a separate
+    later query relies on it persisting — a *session*-level assumption. Behind a
+    transaction-pooling proxy (Scaleway's Serverless SQL Database, or pgbouncer in
+    transaction mode) a client's transactions are not guaranteed the same server
+    connection, so the setting is absent on whichever ones never carried it.
+    Nothing fails: HNSW search silently runs at the server default instead of 100,
+    and recall drops with no error anywhere. Reading it back in a separate
     transaction is what turns that into a signal.
+
+    **A passing read-back is not a clean bill of health.** pgbouncer in transaction
+    mode does not *reset* session state, it leaks it between clients, so this check
+    can pass on the one server connection that happens to carry the setting while
+    later queries still degrade. Behind a pooler, confirm with ``SHOW
+    hnsw.ef_search`` on a live connection under load. (This paragraph used to say
+    the pooler resets session state; DEPLOYMENT_SCALEWAY.md §4 corrected that
+    mechanism and the correction never reached this docstring.)
     """
     global _ef_search_warning_issued
     try:
