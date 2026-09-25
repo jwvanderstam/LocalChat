@@ -85,7 +85,8 @@ class ConversationsMixin(MixinHost):
                     ),
                 )
                 row = cursor.fetchone()
-                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                if row is None:
+                    raise AssertionError("INSERT ... RETURNING id always returns a row")
                 message_id = row[0]
                 conn.commit()
         logger.debug(f"Created conversation {conversation_id} with first message (id={message_id})")
@@ -232,7 +233,8 @@ class ConversationsMixin(MixinHost):
                     (conversation_id, role, _encrypt(content), Jsonb(plan_json) if plan_json else None, conversation_id),
                 )
                 row = cursor.fetchone()
-                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                if row is None:
+                    raise AssertionError("INSERT ... RETURNING id always returns a row")
                 message_id = row[0]
                 conn.commit()
         logger.debug(f"Saved {role} message (id={message_id}) to conversation {conversation_id}")

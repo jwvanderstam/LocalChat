@@ -63,7 +63,8 @@ class UsersMixin(MixinHost):
                     (username.lower().strip(), email, hashed_password, role),
                 )
                 row = cur.fetchone()
-                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                if row is None:
+                    raise AssertionError("INSERT ... RETURNING id always returns a row")
                 user_id = str(row[0])
         logger.info(f"[Users] Created user '{username}' id={user_id}")
         return user_id
@@ -182,7 +183,8 @@ class UsersMixin(MixinHost):
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
                 row = cur.fetchone()
-                assert row is not None, "SELECT COUNT(*) always returns a row"
+                if row is None:
+                    raise AssertionError("SELECT COUNT(*) always returns a row")
                 return row[0]
 
     def count_live_admins(self) -> int:
@@ -195,7 +197,8 @@ class UsersMixin(MixinHost):
                     "SELECT COUNT(*) FROM users WHERE role = 'admin' AND deleted_at IS NULL"
                 )
                 row = cur.fetchone()
-                assert row is not None, "SELECT COUNT(*) always returns a row"
+                if row is None:
+                    raise AssertionError("SELECT COUNT(*) always returns a row")
                 return row[0]
 
     def _would_remove_last_admin(self, user_id: str) -> bool:

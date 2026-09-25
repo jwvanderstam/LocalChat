@@ -48,7 +48,8 @@ class AnnotationsMixin(MixinHost):
                     (chunk_id, text.strip(), user_id, conversation_id),
                 )
                 row = cur.fetchone()
-                assert row is not None, "INSERT ... RETURNING id always returns a row"
+                if row is None:
+                    raise AssertionError("INSERT ... RETURNING id always returns a row")
                 annotation_id = str(row[0])
                 conn.commit()
         logger.debug(f"[Annotations] Created {annotation_id} on chunk {chunk_id}")

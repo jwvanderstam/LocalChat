@@ -100,7 +100,8 @@ class WorkspaceKeysMixin(MixinHost):
                     (workspace_id, name.strip()[:120], prefix, key_hash, role, created_by),
                 )
                 row = cur.fetchone()
-                assert row is not None, "INSERT ... RETURNING always returns a row"
+                if row is None:
+                    raise AssertionError("INSERT ... RETURNING always returns a row")
                 cols = [d[0] for d in cur.description or []]
         logger.info("[WorkspaceKeys] Key '%s' created for workspace %s", prefix, sanitize_log_value(workspace_id))
         return full_key, _jsonable(dict(zip(cols, row, strict=True)))

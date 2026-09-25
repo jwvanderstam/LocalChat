@@ -114,7 +114,8 @@ def _handle_rate_limit_exceeded(request: Request, exc: Exception) -> Response:
     dispatches ``RateLimitExceeded`` instances here.
     """
     from slowapi import _rate_limit_exceeded_handler
-    assert isinstance(exc, RateLimitExceeded)
+    if not isinstance(exc, RateLimitExceeded):
+        raise AssertionError("registered for RateLimitExceeded only")
     return _rate_limit_exceeded_handler(request, exc)
 
 
