@@ -372,6 +372,48 @@ Pre-commit hooks do this automatically if installed:
 pre-commit install
 ```
 
+### `build-and-push` fails in ~30 seconds on the hardened base image
+
+**Symptom:** the job dies almost immediately, long before anything is built:
+
+```
+dhi.io/python:3.12-dev@sha256:...: failed to resolve source metadata for
+dhi.io/python:3.12-dev@sha256:...: unexpected media type
+application/octet-stream for sha256:...: not found
+```
+
+**Re-run the job first.** This was observed on 2026-09-20 and the re-run of the same
+commit, with the same `Dockerfile` and the same pinned digests, built cleanly in 24
+minutes. No change was made in between.
+
+**What it is not.** `not found` reads as though the pinned digest has been garbage
+collected and needs re-pinning. It had not. `docker-smoke` builds from the identical
+digest on every PR and was green on the same commit, three minutes later, on a different
+runner — a build cannot succeed against a digest the registry will not serve. A local
+`docker manifest inspect` on the digest *does* report `manifest verification failed`,
+which looks like confirmation and is not: inspecting the tag resolves fine, and the
+classic builder pulls the digest without complaint. One client's error is not the
+registry's answer.
+
+An hour and a wrong PR went into re-pinning digests that were never broken. The cheap
+first move on a ~30-second CI failure is a re-run, not a theory.
+
+**What it probably is.** `dhi.io` is pulled **unauthenticated** — this repository has no
+`docker/login-action` for it, only for `ghcr.io`, and that step is skipped on pull-request
+events anyway. A throttled anonymous pull returns a body that is not a manifest, which is
+exactly what `unexpected media type application/octet-stream` describes. Stated as the
+hypothesis it is: it fits every observation and has not been proven.
+
+**If it stops being occasional,** add a `docker/login-action` step for `dhi.io` ahead of
+the build so the pull is authenticated and the failure mode becomes deterministic. That
+needs registry credentials in repository secrets, which is a decision rather than a fix.
+
+**Why it does not block a merge.** `build-and-push` is deliberately outside the required
+set (CLAUDE.md, "Pull Requests and Merging") — it takes 15-20 minutes and would gate every
+merge. The image *is* gated, by `docker-smoke`, which builds the same `Dockerfile` in
+about three minutes and is required. A red `build-and-push` beside a green `docker-smoke`
+is this failure, not a broken image.
+
 ### `pytest` fails at import: `No module named 'faker'`
 
 **Symptom:** `pytest` aborts loading `tests/conftest.py`, and `pip install -r requirements.txt`
