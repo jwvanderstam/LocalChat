@@ -1,0 +1,46 @@
+# CI-only overlay for the `security-smoke` job (P2-2).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.nginx.yml \
+#                  -f docker-compose.ci.yml --profile mcp up -d
+#
+# This file exists because a GitHub-hosted runner cannot provide two things the
+# shipped stack asks for. It replaces those two and NOTHING else — the point of
+# the job is to attack the configuration as shipped, and an overlay that rewrote
+# the thing under test would prove something else.
+# `tests/unit/test_ci_overlay_is_narrow.py` is what holds that line; it fails if
+# this file grows a key beyond the ones below.
+#
+#   1. The NVIDIA device reservations on `app` and `ollama`. Compose enforces
+#      `reservations.devices` when it STARTS a container, not when it validates
+#      the file, so on a host without the nvidia runtime both services die with
+#      `could not select device driver "nvidia" with capabilities: [[gpu]]` and
+#      the stack never comes up. `docker compose config` looks perfectly fine.
+#
+#   2. The Ollama image. It is 9.7 GB on top of an app image around 10 GB, and a
+#      runner has roughly 14 GB of free disk — `docker-smoke` already builds the
+#      app image close to that ceiling. Nothing this job asserts involves Ollama:
+#      `app` only declares `condition: service_started` against it, and
+#      `/api/health` probes the database rather than the model server, which is
+#      why `docker-smoke` already boots healthy with no Ollama behind its
+#      OLLAMA_BASE_URL.
+#
+# Neither replacement touches proxy trust, the MCP token, the nginx config or any
+# network — the three things the job actually probes.
+
+services:
+  app:
+    deploy:
+      resources:
+        reservations:
+          devices: !reset []
+
+  ollama:
+    image: alpine:3.22
+    command: ["sleep", "infinity"]
+    # The shipped check runs the `ollama` binary, which this stub does not carry.
+    healthcheck:
+      disable: true
+    deploy:
+      resources:
+        reservations:
+          devices: !reset []

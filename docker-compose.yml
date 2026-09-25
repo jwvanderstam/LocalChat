@@ -190,6 +190,11 @@ services:
       PG_DB:           ${PG_DB:-rag_db}
       OLLAMA_BASE_URL: http://ollama:11434
       SECRET_KEY:      ${SECRET_KEY:?SECRET_KEY must be set}
+      # The runtime image pins APP_ENV=production (Dockerfile), and these servers
+      # import src.config, which raises without this. Absent until 2026-09-25:
+      # local-docs and cloud-connectors crash-looped on every `--profile mcp up`,
+      # and web-search only survived because its src import is lazy.
+      JWT_SECRET_KEY:  ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       # The servers' whole access control: they hold no session and no user, and
       # refuse every call without it. Must match the app's value (audit C3).
       # Not `:?` — compose interpolates every service whether or not its profile is
@@ -241,6 +246,11 @@ services:
       - info
     environment:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      # The runtime image pins APP_ENV=production (Dockerfile), and these servers
+      # import src.config, which raises without this. Absent until 2026-09-25:
+      # local-docs and cloud-connectors crash-looped on every `--profile mcp up`,
+      # and web-search only survived because its src import is lazy.
+      JWT_SECRET_KEY:  ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       # The servers' whole access control: they hold no session and no user, and
       # refuse every call without it. Must match the app's value (audit C3).
       # Not `:?` — compose interpolates every service whether or not its profile is
@@ -295,6 +305,11 @@ services:
         condition: service_healthy
     environment:
       SECRET_KEY:      ${SECRET_KEY:?SECRET_KEY must be set}
+      # The runtime image pins APP_ENV=production (Dockerfile), and these servers
+      # import src.config, which raises without this. Absent until 2026-09-25:
+      # local-docs and cloud-connectors crash-looped on every `--profile mcp up`,
+      # and web-search only survived because its src import is lazy.
+      JWT_SECRET_KEY:  ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       PG_HOST:         db
       PG_PORT:         5432
       PG_USER:         ${PG_USER:-postgres}

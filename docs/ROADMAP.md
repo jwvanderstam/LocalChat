@@ -812,20 +812,42 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   break this, and Scaleway's wording implies transaction pooling. That is one fact to
   confirm against the deployed database, not a design question.
 
-### P2-2 — Security smoke: boot the shipped compose, then attack it ⬜
+### P2-2 — Security smoke: boot the shipped compose, then attack it ◐
 
 **Driver 2** (tests verify mechanisms, not the system). `docker-smoke` boots the `app`
 container alone. This job boots `docker-compose.yml` *with* `docker-compose.nginx.yml` and
 asserts, over the wire: a forged `X-Forwarded-For` does not change the rate-limit key; MCP
 (`--profile mcp`) refuses an unauthenticated call; and the object-authorization matrix passes
-against a real Postgres rather than a mock. **Acceptance:** required check in the ruleset,
-under the same precondition as `perf-canary` — a run on `main` first, and a track record
-before it can block a merge. **Why it is not P0-5's test:** `test_proxy_trust_is_not_wildcarded`
-drives uvicorn's middleware in-process and reads the overlay's YAML; it has never seen nginx
-append a header.
+against a real Postgres rather than a mock. **Why it is not P0-5's test:**
+`test_proxy_trust_is_not_wildcarded` drives uvicorn's middleware in-process and reads the
+overlay's YAML; it has never seen nginx append a header.
 
-**Three prerequisites, established by trying it on 2026-09-24 rather than by reading.**
-None is hard; all three stop the job dead if it is written without them.
+Split in two, because the halves are not the same size or the same kind of work — the same
+reason P2-4 was split.
+
+- **P2-2a ✅** — the job, and the two configuration attacks. `security-smoke` in
+  `.github/workflows/tests.yml` boots both compose files with `--profile mcp` and probes
+  through nginx: fifteen failed logins from fifteen forged source addresses must still be
+  rate-limited (H3), and all three MCP servers must refuse a missing *and* a wrong bearer
+  while answering a correct one (C3). The last of those is not decoration — with
+  `MCP_AUTH_TOKEN` unset the servers refuse everything, so a refusal on its own is the
+  tautological case and proves nothing about the token check.
+- **P2-2b ⬜** — the object-authorization matrix against a real Postgres, over the wire.
+  Today's `tests/integration/test_workspace_routes.py` and its neighbours are `MagicMock`
+  throughout, and `test_object_authorization_matrix.py` is an AST walk of `src/`; neither
+  has ever addressed a foreign workspace's object through a running stack. This needs a
+  fixture that provisions two users and two workspaces against the booted database, which
+  is why it is its own ticket. **Acceptance:** for each role, an object in a foreign
+  workspace yields 404 or 403 over HTTP.
+
+**Not in the ruleset yet**, deliberately, under the same precondition as `perf-canary` and
+`docker-smoke`: a check cannot be referenced by the ruleset before it has reported on the
+default branch at least once, and neither should it block a merge before it has a track
+record. Add it once P2-2b lands and the pair has run clean for a while.
+
+**Eight prerequisites. Four were established by trying it on 2026-09-24, four more while
+writing the job on 2026-09-25.** None is hard; all six stop the job dead if it is written
+without them.
 
 1. **The overlay cannot boot as shipped.** `nginx/certs/` does not exist in this
    repository, and `docker-compose.nginx.yml` mounts it read-only. nginx refuses at config
@@ -836,16 +858,18 @@ None is hard; all three stop the job dead if it is written without them.
    BIO_new_file() failed ... No such file or directory
    ```
 
-   The job must generate a throwaway self-signed pair into `nginx/certs/` before
+   The job generates a throwaway self-signed pair into `nginx/certs/` before
    `docker compose up`. `docker-smoke` already generates a Fernet key with `openssl` for
    the same reason, so the pattern is established — and a per-run key is the right shape
-   here too, so the throwaway never resembles a real one.
+   here too, so the throwaway never resembles a real one. `nginx/certs/` was added to
+   `.gitignore` in the same commit: the step writes a private key into the working tree,
+   and an operator's real pair belongs in exactly the same place.
 
 2. **`nginx.conf` ships `server_name YOUR_DOMAIN`** in both server blocks, by design — it
-   is a template. Rather than substituting it, the probe should send
-   `Host: YOUR_DOMAIN`, which matches what is shipped and tests the file as written.
-   Do not edit the config in CI: a job that rewrites the thing it is verifying proves
-   something else.
+   is a template. Rather than substituting it, the probe sends `Host: YOUR_DOMAIN` (via
+   `curl --resolve`, which sets SNI as well), which matches what is shipped and tests the
+   file as written. Do not edit the config in CI: a job that rewrites the thing it is
+   verifying proves something else.
 
 3. **`--profile mcp` needs `MCP_AUTH_TOKEN` set to test the refusal.** All three servers
    read `MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}` and `mcp_servers/base.py` refuses *every*
@@ -854,11 +878,64 @@ None is hard; all three stop the job dead if it is written without them.
    tautological case. Set it, then assert both sides: a call with no bearer is refused,
    and a call with the right one is not.
 
-A fourth, for whoever writes it: nginx resolves `proxy_pass http://app:5000` at config
-load, so `app` must be up before nginx starts or the boot fails with
-`host not found in upstream "app"`. Compose's `depends_on` handles the ordering, but a
-`docker compose up` that starts nginx first for any reason will fail this way and it looks
-like a config error rather than a race.
+4. nginx resolves `proxy_pass http://app:5000` at config load, so `app` must be up before
+   nginx starts or the boot fails with `host not found in upstream "app"`. Compose's
+   `depends_on` handles the ordering, but a `docker compose up` that starts nginx first for
+   any reason will fail this way and it looks like a config error rather than a race.
+
+5. **The GPU device reservations stop the stack on any runner.** `app` and `ollama` both
+   declare `deploy.resources.reservations.devices` with `driver: nvidia`, and Compose
+   enforces that when it *starts* a container rather than when it validates the file. On a
+   host without the nvidia runtime the container never runs:
+
+   ```
+   Error response from daemon: could not select device driver "nvidia" with capabilities: [[gpu]]
+   ```
+
+   `docker compose config` renders perfectly valid output the whole time, which is why
+   reading the files does not find this. Verified by pointing a throwaway service at a
+   driver that does not exist and watching Compose fail at start, not at config.
+
+6. **Disk.** The app image is around 10 GB and a GitHub-hosted runner has roughly 14 GB
+   free; `docker-smoke` already builds close to that ceiling with nothing else on disk.
+   Pulling `ollama/ollama` (9.7 GB) on top of it is not affordable, and nothing this job
+   asserts involves Ollama — `app` only declares `condition: service_started` against it,
+   and `/api/health` probes the database, which is why `docker-smoke` already boots healthy
+   with no Ollama behind its `OLLAMA_BASE_URL`.
+
+   5 and 6 are answered together by `docker-compose.ci.yml`, a third overlay that resets
+   the two device reservations and stubs the Ollama image. That file is a standing hazard —
+   every key it grows is a key the job silently stops testing — so
+   `tests/unit/test_ci_overlay_is_narrow.py` pins its surface as an *equality* check, and a
+   key nobody anticipated fails it too. Confirmed to bite by smuggling
+   `TRUSTED_PROXY_IPS: "*"` — the H3 bug itself — into the overlay: two tests go red.
+
+
+7. **nginx caches the upstream address.** It resolves `proxy_pass http://app:5000`
+   once, at config load. Recreate `app` afterwards — any `up` that replaces only that
+   service — and nginx keeps proxying to the address the container no longer has, so
+   every probe returns 502 while `app` is healthy on its own loopback and its logs show
+   nothing wrong. A `docker restart` of nginx is the whole fix. The job starts the stack
+   once and never hits this, but it costs ten confusing minutes when iterating on the job
+   by hand, and the symptom points at the application rather than at the proxy.
+
+8. **`--profile mcp` did not work at all, and that is what writing this job found.**
+   `Dockerfile` pins `ENV APP_ENV=production` into the runtime stage, so every container
+   built from it is in production mode regardless of compose. `src/config.py` then raises
+   `ValueError: JWT_SECRET_KEY must be set in production!` at module import — and no
+   `mcp-*` service passed `JWT_SECRET_KEY`; only `app` did. `mcp-local-docs` and
+   `mcp-cloud-connectors` import `src.config` at module level, so both crash-looped on
+   every `docker compose --profile mcp up`. `mcp-web-search` survived only because its
+   `src` import sits inside a function, and would have failed on the first search instead.
+
+   Fixed in the same commit by passing the variable to all three, with
+   `tests/unit/test_compose_passes_production_required_vars.py` as the cheap standing
+   check — it derives the required set from `config.py`'s own `raise` statements, so a
+   third production-required variable fails there rather than in a container that will
+   not start. This is the same shape as the exec-form defect of 2026-08-27, found the
+   same way and for the same reason: no CI job had ever started the `mcp` profile. That
+   is precisely the gap P2-2 exists to close, and it closed it before the job had run
+   once in CI.
 
 ### P2-3 — A retrieval evaluation that measures answers, not just ranks ⬜
 
@@ -972,7 +1049,7 @@ Nothing further to do unless §10's re-review trigger fires.
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
 | 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ + P2-4b (`BLE001`) ✅ 2026-09-21 — **sprint complete**. P2-6 retired two open Dependabot alerts. P2-4b was the one item that was not mechanical: 120 handlers read individually, 4 narrowed, 11 that were failing silently given a log | 3–4 days |
-| 16 | P2-2 (security smoke against the shipped compose) + P2-1b (row-level security) | 1 week |
+| 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) + P2-1b (row-level security) | 1 week |
 | 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) — decides DEL-2 | 1–2 weeks |
 | **Total** | | **~20 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first) |

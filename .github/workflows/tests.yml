@@ -663,6 +663,180 @@ jobs:
           fi
           echo "OK: running and healthy"
 
+  # P2-2 — the shipped compose, booted and then attacked.
+  #
+  # Every other job tests a mechanism in isolation: `test_proxy_trust_is_not_wildcarded`
+  # drives uvicorn's ProxyHeadersMiddleware in-process and reads the overlay's YAML, and
+  # has never seen nginx append a header; `test_mcp_isolation_and_auth` calls the servers'
+  # ASGI app directly. `docker-smoke` boots `app` alone, with no proxy in front of it.
+  # Nothing in CI has ever run the two files an operator actually deploys, together.
+  #
+  # Boots docker-compose.yml + docker-compose.nginx.yml (+ docker-compose.ci.yml, which
+  # replaces only what a runner cannot provide — see that file and the test that pins it)
+  # and asserts over the wire, through nginx:
+  #   1. a forged X-Forwarded-For does not buy a fresh rate-limit budget (audit H3)
+  #   2. the MCP servers refuse an unauthenticated call, and accept an authenticated one
+  #      (audit C3) — both sides, because with MCP_AUTH_TOKEN unset they refuse
+  #      everything and the first assertion would pass without testing the token at all
+  security-smoke:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    env:
+      # APP_ENV is production here, overriding the workflow-level development: that is
+      # what docker-compose.yml defaults to and therefore what ships. JWT_SECRET_KEY is
+      # a literal for the same reason as docker-smoke — the shared one is 22 characters
+      # and production requires 32.
+      APP_ENV: production
+      JWT_SECRET_KEY: ci-smoke-jwt-secret-key-32chars-minimum
+      # nginx/nginx.conf ships `server_name YOUR_DOMAIN` in both server blocks, by
+      # design — it is a template. The probes send that name rather than substituting
+      # it, so the file is tested exactly as an operator receives it.
+      SMOKE_HOST: YOUR_DOMAIN
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # The app image is around 10 GB and a runner has roughly 14 GB free. docker-smoke
+      # already builds close to that ceiling with nothing else on disk; this job adds
+      # Postgres, Redis and nginx alongside it.
+      - name: Reclaim runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          df -h / | tail -1
+
+      # nginx/certs/ is not in the repository and docker-compose.nginx.yml mounts it
+      # read-only, so nginx refuses at CONFIG LOAD — `cannot load certificate ...
+      # BIO_new_file() failed` — and the stack never comes up. Generated per run, valid
+      # for a day, so this throwaway never resembles a deployment's real pair.
+      - name: Generate a throwaway TLS pair for nginx
+        run: |
+          mkdir -p nginx/certs
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout nginx/certs/privkey.pem \
+            -out nginx/certs/fullchain.pem \
+            -subj "/CN=$SMOKE_HOST"
+          # Checked rather than assumed: openssl can fail after writing the key but
+          # before the certificate, and nginx then reports a missing file at config
+          # load several steps later, looking like a compose problem.
+          for f in nginx/certs/privkey.pem nginx/certs/fullchain.pem; do
+            if [ ! -s "$f" ]; then
+              echo "::error::$f was not generated"
+              exit 1
+            fi
+          done
+          echo "OK: throwaway certificate for $SMOKE_HOST"
+
+      - name: Generate the per-run secrets
+        run: |
+          # APP_ENV=production refuses to boot without a valid Fernet key (SEC-4).
+          echo "ENCRYPTION_KEY=$(openssl rand 32 | base64 | tr '+/' '-_')" >> "$GITHUB_ENV"
+          # Set, not empty: mcp_servers/base.py refuses every call when no token is
+          # configured, so an empty value makes the refusal test pass for the wrong
+          # reason. Prerequisite 3 in the ticket.
+          echo "MCP_AUTH_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Boot the shipped stack behind nginx
+        env:
+          MCP_ENABLED: "true"
+        run: |
+          docker compose \
+            -f docker-compose.yml -f docker-compose.nginx.yml -f docker-compose.ci.yml \
+            --profile mcp up -d --build
+          docker compose \
+            -f docker-compose.yml -f docker-compose.nginx.yml -f docker-compose.ci.yml \
+            --profile mcp ps
+
+      - name: Wait for the application through nginx
+        run: |
+          code=""
+          for i in $(seq 1 60); do
+            code=$(curl -sk -o /tmp/health.json -w '%{http_code}' \
+              --resolve "$SMOKE_HOST:443:127.0.0.1" \
+              "https://$SMOKE_HOST/api/health" || true)
+            [ "$code" = "200" ] && break
+            sleep 3
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::/api/health through nginx did not return 200 within 180s (last: ${code:-none})"
+            docker compose \
+              -f docker-compose.yml -f docker-compose.nginx.yml -f docker-compose.ci.yml \
+              --profile mcp logs --tail 60
+            exit 1
+          fi
+          cat /tmp/health.json
+          echo "OK: reachable through the shipped nginx"
+
+      # Audit H3. RATELIMIT_LOGIN is 10/minute, so a caller that cannot choose its own
+      # key must be refused within 15 attempts. With the bug — TRUSTED_PROXY_IPS="*" and
+      # nginx appending rather than replacing X-Forwarded-For — every request below
+      # carries a different leftmost address, lands in its own bucket, and none of them
+      # is ever a 429. That is what makes this probe distinguish the fix from the bug
+      # rather than merely exercising it.
+      - name: A forged X-Forwarded-For does not buy a fresh rate-limit budget
+        run: |
+          seen429=0
+          for i in $(seq 1 15); do
+            code=$(curl -sk -o /dev/null -w '%{http_code}' \
+              --resolve "$SMOKE_HOST:443:127.0.0.1" \
+              -H "X-Forwarded-For: 10.9.8.$i" \
+              -H 'Content-Type: application/json' \
+              -d '{"username":"nobody","password":"wrong"}' \
+              "https://$SMOKE_HOST/api/auth/login")
+            echo "  attempt $i (X-Forwarded-For 10.9.8.$i) -> $code"
+            if [ "$code" = "429" ]; then
+              seen429=1
+              break
+            fi
+          done
+          if [ "$seen429" != "1" ]; then
+            echo "::error::15 failed logins from 15 forged source addresses were never rate-limited; the caller is choosing its own rate-limit key (audit H3)"
+            exit 1
+          fi
+          echo "OK: the forged header did not move the bucket"
+
+      # Audit C3. Both sides: a refusal alone is satisfied by MCP_AUTH_TOKEN being unset,
+      # which is the tautological case the ticket warns about.
+      - name: The MCP servers refuse an unauthenticated call and accept an authenticated one
+        run: |
+          rpc='{"jsonrpc":"2.0","id":1,"method":"health"}'
+          fail=0
+          for port in 5001 5002 5003; do
+            none=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+              -d "$rpc" "http://127.0.0.1:$port/mcp")
+            wrong=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+              -H 'Authorization: Bearer not-the-token' -d "$rpc" "http://127.0.0.1:$port/mcp")
+            right=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+              -H "Authorization: Bearer $MCP_AUTH_TOKEN" -d "$rpc" "http://127.0.0.1:$port/mcp")
+            echo "  port $port -> no-bearer=$none wrong-bearer=$wrong right-bearer=$right"
+            if [ "$none" != "401" ]; then
+              echo "::error::port $port accepted a call with no bearer ($none)"
+              fail=1
+            fi
+            if [ "$wrong" != "401" ]; then
+              echo "::error::port $port accepted a wrong bearer ($wrong)"
+              fail=1
+            fi
+            if [ "$right" != "200" ]; then
+              echo "::error::port $port refused the correct bearer ($right); the token check is not being exercised"
+              fail=1
+            fi
+          done
+          if [ "$fail" != "0" ]; then
+            exit 1
+          fi
+          echo "OK: all three servers refuse without the token and answer with it"
+
+      - name: Stack logs
+        if: always()
+        run: |
+          docker compose \
+            -f docker-compose.yml -f docker-compose.nginx.yml -f docker-compose.ci.yml \
+            --profile mcp logs --tail 40 || true
+          docker compose \
+            -f docker-compose.yml -f docker-compose.nginx.yml -f docker-compose.ci.yml \
+            --profile mcp down -v || true
+
   repo-hygiene:
     runs-on: ubuntu-latest
 
