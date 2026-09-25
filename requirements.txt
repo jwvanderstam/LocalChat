@@ -10,7 +10,7 @@ aiohttp==3.14.3
     # via litellm
 aiosignal==1.4.0
     # via aiohttp
-alembic==1.19.2
+alembic==1.20.0
     # via -r requirements.in
 annotated-doc==0.0.5
     # via
@@ -292,11 +292,11 @@ psutil==7.2.2
     # via
     #   -r requirements.in
     #   pymupdf4llm
-psycopg[binary]==3.3.5
+psycopg[binary]==3.3.6
     # via -r requirements.in
-psycopg-binary==3.3.5
+psycopg-binary==3.3.6
     # via psycopg
-psycopg-pool==3.3.1
+psycopg-pool==3.3.2
     # via -r requirements.in
 pycparser==3.0
     # via cffi
@@ -326,7 +326,7 @@ pymupdf-layout==1.28.2
     # via pymupdf4llm
 pymupdf4llm==1.28.2
     # via -r requirements.in
-pypdf==6.18.0
+pypdf==6.19.0
     # via -r requirements.in
 pypdfium2==5.13.0
     # via pdfplumber
@@ -379,7 +379,7 @@ scipy==1.18.1
     # via
     #   scikit-learn
     #   sentence-transformers
-sentence-transformers==6.0.1
+sentence-transformers==6.1.0
     # via -r requirements.in
 shellingham==1.5.4
     # via typer
@@ -397,7 +397,7 @@ spacy-legacy==3.0.12
     # via spacy
 spacy-loggers==1.0.5
     # via spacy
-sqlalchemy==2.0.52
+sqlalchemy==2.0.54
     # via
     #   -r requirements.in
     #   alembic
@@ -470,7 +470,7 @@ typing-inspection==0.4.4
     #   pydantic-settings
 urllib3==2.7.0
     # via requests
-uvicorn[standard]==0.52.4
+uvicorn[standard]==0.53.0
     # via -r requirements.in
 uvloop==0.22.1
     # via uvicorn
