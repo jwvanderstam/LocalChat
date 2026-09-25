@@ -824,6 +824,42 @@ before it can block a merge. **Why it is not P0-5's test:** `test_proxy_trust_is
 drives uvicorn's middleware in-process and reads the overlay's YAML; it has never seen nginx
 append a header.
 
+**Three prerequisites, established by trying it on 2026-09-24 rather than by reading.**
+None is hard; all three stop the job dead if it is written without them.
+
+1. **The overlay cannot boot as shipped.** `nginx/certs/` does not exist in this
+   repository, and `docker-compose.nginx.yml` mounts it read-only. nginx refuses at config
+   load, not at request time:
+
+   ```
+   nginx: [emerg] cannot load certificate "/etc/nginx/certs/fullchain.pem":
+   BIO_new_file() failed ... No such file or directory
+   ```
+
+   The job must generate a throwaway self-signed pair into `nginx/certs/` before
+   `docker compose up`. `docker-smoke` already generates a Fernet key with `openssl` for
+   the same reason, so the pattern is established — and a per-run key is the right shape
+   here too, so the throwaway never resembles a real one.
+
+2. **`nginx.conf` ships `server_name YOUR_DOMAIN`** in both server blocks, by design — it
+   is a template. Rather than substituting it, the probe should send
+   `Host: YOUR_DOMAIN`, which matches what is shipped and tests the file as written.
+   Do not edit the config in CI: a job that rewrites the thing it is verifying proves
+   something else.
+
+3. **`--profile mcp` needs `MCP_AUTH_TOKEN` set to test the refusal.** All three servers
+   read `MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}` and `mcp_servers/base.py` refuses *every*
+   call when none is configured. With the variable empty the servers refuse for the wrong
+   reason and the test passes without exercising the token check at all — the
+   tautological case. Set it, then assert both sides: a call with no bearer is refused,
+   and a call with the right one is not.
+
+A fourth, for whoever writes it: nginx resolves `proxy_pass http://app:5000` at config
+load, so `app` must be up before nginx starts or the boot fails with
+`host not found in upstream "app"`. Compose's `depends_on` handles the ordering, but a
+`docker compose up` that starts nginx first for any reason will fail this way and it looks
+like a config error rather than a race.
+
 ### P2-3 — A retrieval evaluation that measures answers, not just ranks ⬜
 
 **Driver 3** (thin RAG quality evidence). `scripts/eval_retrieval.py` scores 20 pairs on

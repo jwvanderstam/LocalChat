@@ -8,25 +8,6 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
-### Documentation
-
-- **P2-1b's pooler precondition is settled, with the probe committed** as
-  `tests/integration/test_set_local_scope_mechanism.py`. The ticket had asked whether a
-  per-transaction workspace scope would be dropped behind a pooler the way
-  `hnsw.ef_search` is. It is not, and the difference is the mechanism: `ef_search` is a
-  session-level `SET` made once per physical connection that every later transaction
-  depends on; a transaction-local scope cannot outlive its own transaction, and a
-  transaction-pooling proxy holds one server connection for the whole of a transaction by
-  definition. Two implementation findings came out of running it — `SET LOCAL x = %s`
-  takes no bind parameter, so `set_config(..., true)` is the form that avoids
-  interpolating the value that decides visibility; and RLS is inert for a superuser or the
-  table owner, so the app must connect as neither.
-- **`_warn_if_ef_search_did_not_stick` no longer explains the failure with a mechanism
-  that was corrected months ago.** Its docstring said a transaction pooler resets session
-  state between transactions. DEPLOYMENT_SCALEWAY.md §4 established that pgbouncer does
-  not reset it, it *leaks* it between clients — which is why a passing read-back is not a
-  clean bill of health. That correction never reached the code.
-
 ### Security
 
 - **`python-jose` replaced by `PyJWT`** (ROADMAP P2-6). The old library pulled `ecdsa`,
@@ -55,6 +36,32 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   discarded.
 
 ### Documentation
+
+- **P2-1b's pooler precondition is settled, with the probe committed** as
+  `tests/integration/test_set_local_scope_mechanism.py`. The ticket had asked whether a
+  per-transaction workspace scope would be dropped behind a pooler the way
+  `hnsw.ef_search` is. It is not, and the difference is the mechanism: `ef_search` is a
+  session-level `SET` made once per physical connection that every later transaction
+  depends on; a transaction-local scope cannot outlive its own transaction, and a
+  transaction-pooling proxy holds one server connection for the whole of a transaction by
+  definition. Two implementation findings came out of running it — `SET LOCAL x = %s`
+  takes no bind parameter, so `set_config(..., true)` is the form that avoids
+  interpolating the value that decides visibility; and RLS is inert for a superuser or the
+  table owner, so the app must connect as neither.
+- **`_warn_if_ef_search_did_not_stick` no longer explains the failure with a mechanism
+  that was corrected months ago.** Its docstring said a transaction pooler resets session
+  state between transactions. DEPLOYMENT_SCALEWAY.md §4 established that pgbouncer does
+  not reset it, it *leaks* it between clients — which is why a passing read-back is not a
+  clean bill of health. That correction never reached the code.
+
+- **P2-2's prerequisites are established by trying them, not by reading.** The shipped TLS
+  overlay **cannot boot**: `nginx/certs/` does not exist in the repository and
+  `docker-compose.nginx.yml` mounts it, so nginx refuses at config load with
+  `cannot load certificate`. A CI job that boots the overlay has to generate a throwaway
+  self-signed pair first. Also recorded: the probe should send `Host: YOUR_DOMAIN` rather
+  than rewrite the config it is meant to verify, and `--profile mcp` needs
+  `MCP_AUTH_TOKEN` actually set — with it empty the servers refuse every call regardless,
+  so the token test would pass without testing the token.
 
 - **TROUBLESHOOTING names the `build-and-push` transient that reads like a broken pin.**
   A ~30-second failure resolving the hardened base digest (`unexpected media type
@@ -92,6 +99,7 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   from them on every PR and has stayed green throughout.
 
 ### Documentation
+
 
 - **The configuration example and reference say only true things** (remediation plan
   §4.1, redone rather than merged from the audit's bundle). `.env.example` carried 29
