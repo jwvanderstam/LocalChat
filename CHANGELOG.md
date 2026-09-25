@@ -98,9 +98,6 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   together. The digests themselves are current and were not changed: `docker-smoke` builds
   from them on every PR and has stayed green throughout.
 
-### Documentation
-
-
 - **The configuration example and reference say only true things** (remediation plan
   §4.1, redone rather than merged from the audit's bundle). `.env.example` carried 29
   variables nothing reads — an SMTP block, gunicorn `WORKERS`, `DEBUG`, `HOST`/`PORT`
