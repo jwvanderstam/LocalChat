@@ -141,7 +141,7 @@ class AggregatorAgent:
                         f"[Agent] OK  {tool!r} '{q[:40]}' "
                         f"→ {len(srcs)} src, {latency_ms:.0f}ms"
                     )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — one tool's failure is recorded in the trace; the other tools in the fan-out still run
                     tool_trace.append(ToolCall(
                         tool=tool, query=q, success=False,
                         latency_ms=0.0, error=str(exc),
@@ -224,7 +224,7 @@ class AggregatorAgent:
             try:
                 result = self._router.dispatch(tool, query, filters, top_k)
                 return result, (time.monotonic() - t0) * 1000
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — kept as last_exc and re-raised once the retry budget is spent
                 last_exc = exc
                 if attempt < max_retries:
                     logger.warning(

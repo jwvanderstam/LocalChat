@@ -8,6 +8,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 router = APIRouter()
 
 
@@ -62,7 +66,8 @@ def settings(request: Request) -> HTMLResponse:
     try:
         from .settings_routes import gather_admin_stats
         stats = gather_admin_stats(request.app.state)
-    except Exception:
+    except Exception:  # noqa: BLE001 — a template must render; an admin panel with empty stats beats a 500
+        logger.debug("Could not gather admin stats for the settings page", exc_info=True)
         stats = {}
     docs_service = request.app.state.docs_service
     # Body only: each slider already carries the same wording as its own label, and

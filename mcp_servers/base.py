@@ -87,7 +87,7 @@ class MCPServer:
                 )
             try:
                 body = await request.json()
-            except Exception:
+            except Exception:  # noqa: BLE001 — a JSON-RPC body that will not parse is an empty body; the dispatcher below returns the protocol's own error
                 body = {}
             if not isinstance(body, dict):
                 body = {}

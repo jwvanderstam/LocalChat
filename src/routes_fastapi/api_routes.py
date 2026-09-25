@@ -259,7 +259,7 @@ def api_status(request: Request) -> Any:
         try:
             from ..mcp_client import mcp_registry
             response["mcp_servers"] = mcp_registry.health_summary()
-        except Exception as mcp_err:
+        except Exception as mcp_err:  # noqa: BLE001 — MCP health is a sub-report; status answers with an 'unavailable' marker instead
             logger.warning("[MCP] health_summary failed: %s", mcp_err)
             response["mcp_servers"] = {"error": "unavailable"}
 
@@ -267,8 +267,8 @@ def api_status(request: Request) -> Any:
         try:
             from ..agent.models import model_registry
             response["model_routing"] = model_registry.summary()
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — model routing is an optional report; status must answer without it
+            logger.debug("Could not read model routing summary", exc_info=True)
 
     return response
 

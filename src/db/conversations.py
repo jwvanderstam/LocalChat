@@ -428,6 +428,6 @@ class ConversationsMixin(MixinHost):
                         params,
                     )
                     return [row[0] for row in cursor.fetchall()]
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — a reporting query; the caller renders an empty list rather than failing
             logger.warning(f"get_low_confidence_queries failed: {exc}")
             return []

@@ -386,7 +386,7 @@ def setup_logging(
             continue
         try:
             handler = builders[name]()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — a sink that cannot be built is collected and reported; logging must still start
             failed.append((name, f"{type(exc).__name__}: {exc}"))
             continue
         handler.addFilter(request_id_filter)

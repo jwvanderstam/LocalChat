@@ -330,8 +330,8 @@ class DatabaseConnection:
             if self.connection_pool is not None:
                 try:
                     self.connection_pool.close(timeout=2)
-                except Exception:
-                    pass
+                except Exception:  # noqa: BLE001 — recovery path — the pool is being discarded anyway; a close that fails must not mask the original error
+                    logger.debug("Discarding a pool that would not close cleanly", exc_info=True)
                 self.connection_pool = None
             error_msg = f"Database connection failed: {str(e)}"
             logger.exception(error_msg)
@@ -757,7 +757,7 @@ class DatabaseConnection:
                 logger.info("Closing database connection pool...")
                 self.connection_pool.close(timeout=2)
                 logger.info("Connection pool closed successfully")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — shutdown path; a pool that will not close cleanly must not raise out of the exit handler
                 logger.warning(f"Error closing connection pool: {e}", exc_info=True)
             finally:
                 self.is_connected = False

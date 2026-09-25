@@ -41,7 +41,7 @@ def get_valid_access_token(user_id: str, db: Any) -> str:
             if expires_at.tzinfo is None:
                 expires_at = expires_at.replace(tzinfo=UTC)
             needs_refresh = datetime.now(UTC) >= (expires_at - timedelta(seconds=60))
-        except Exception:
+        except Exception:  # noqa: BLE001 — an expiry that will not parse is treated as expired — the safe direction
             needs_refresh = True
 
     if not needs_refresh:

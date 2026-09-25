@@ -77,7 +77,7 @@ async def extract_memories(request: Request) -> Any:
                     workspace_id=conv.get("workspace_id"),
                 )
                 processed += 1
-            except Exception:
+            except Exception:  # noqa: BLE001 — per-conversation extraction in a batch; one failure must not abandon the rest
                 logger.warning("[Memory] Extraction failed for conv %s", conv["id"], exc_info=True)
 
         return {"success": True, "conversations_processed": processed, "new_memories": total_new}

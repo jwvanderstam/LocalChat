@@ -59,7 +59,7 @@ def _invalid_config(registry: Any, connector_type: str, connector_config: dict) 
         return f"Unknown connector_type. Available: {registry.available_types()}"
     try:
         instance = cls(connector_config)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — instantiates a connector config class to validate it; construction can fail any number of ways
         logger.warning("Connector config instantiation failed: %s", exc)
         return "Invalid connector configuration"
     errors = instance.validate_config()
@@ -79,8 +79,8 @@ def list_available_connectors(request: Request) -> Any:
             token = db.get_oauth_token(user_id or "", provider) if user_id and db.is_connected else None
             if token:
                 available.append({"type": provider, "authorized": True})
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — availability is advisory; the list is returned with whatever could be determined
+            logger.debug("Could not probe connector availability", exc_info=True)
     return {"success": True, "available": available}
 
 

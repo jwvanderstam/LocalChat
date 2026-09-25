@@ -108,7 +108,7 @@ def env_admin_is_available(db: Any) -> bool:
         return True
     try:
         return db.count_live_admins() == 0
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — cannot count administrators, so the env admin stays available — the documented fail-open, argued in the docstring
         logger.warning(
             "[Auth] Could not count administrators; env admin left available: %s", exc
         )
@@ -162,7 +162,7 @@ def decode_token_for_revocation(token: str) -> dict[str, Any] | None:
     """Decode a JWT for revocation — returns claims dict or None on any failure."""
     try:
         return _decode_token(token)
-    except Exception:
+    except Exception:  # noqa: BLE001 — a token that will not decode for any reason is not a token; the caller gets None
         return None
 
 
@@ -182,7 +182,7 @@ def get_current_user_id(
     try:
         payload = _decode_token(token)
         return payload.get("sub")
-    except Exception:
+    except Exception:  # noqa: BLE001 — same — no identity rather than an error
         return None
 
 
@@ -239,7 +239,7 @@ def _verify_jti_not_revoked(jti: str, db: Any) -> None:
             return
         except HTTPException:
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001 — falls back to the cached answer; the cache TTL is what bounds this, not the exception type
             logger.warning("[Auth] Revocation check failed; falling back to cache")
 
     if _recently_verified(jti):
@@ -273,7 +273,7 @@ def _get_token_claims(credentials: HTTPAuthorizationCredentials | None) -> dict[
         return {}
     try:
         return _decode_token(credentials.credentials)
-    except Exception:
+    except Exception:  # noqa: BLE001 — unreadable claims are no claims
         return {}
 
 
@@ -308,7 +308,7 @@ def _current_global_role(request: Request, claims: dict[str, Any]) -> str | None
         # deleted_at, so a retired administrator resolves to None and loses access on
         # the next request rather than at token expiry.
         return db.get_user_role(sub)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — the role is unreadable, so no role is granted — fail closed
         logger.warning("[Auth] Could not read role for %s: %s", sanitize_log_value(str(sub)), exc)
         return None
 
@@ -387,7 +387,7 @@ def resolve_principal(
         raise AuthError(status.HTTP_401_UNAUTHORIZED, _ERR_AUTH_REQUIRED)
     try:
         claims = _decode_token(token)
-    except Exception:
+    except Exception:  # noqa: BLE001 — every decode failure is one 401 with one message; distinguishing them would be an oracle
         raise AuthError(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token") from None
 
     sub = claims.get("sub")
@@ -421,7 +421,7 @@ def _claims_from_request(request: Request) -> dict[str, Any]:
         return {}
     try:
         return _decode_token(token)
-    except Exception:
+    except Exception:  # noqa: BLE001 — same — no claims rather than a partial answer
         return {}
 
 
@@ -497,7 +497,7 @@ def _first_workspace_for(db: Any, user_id: str | None) -> str | None:
         return None
     try:
         owned = db.get_user_workspaces(user_id)
-    except Exception:
+    except Exception:  # noqa: BLE001 — a convenience lookup; None means the caller resolves the workspace some other way
         return None
     return str(owned[0]["id"]) if owned else None
 

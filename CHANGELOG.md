@@ -66,6 +66,23 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   authenticated-pull fix behind a credentials decision. Written because an hour and a
   withdrawn PR went into re-pinning digests that were never broken.
 
+- **`except Exception` is now an argument rather than a reflex** (ROADMAP P2-4b). `BLE001`
+  is selected in `pyproject.toml` and every one of the 120 sites in `src/` was read rather
+  than swept. **4 were narrowed** — three connectors and `oauth_tokens` parse an ISO-8601
+  string out of a JSON payload and now catch `(ValueError, TypeError, AttributeError)`, so
+  an unexpected error surfaces instead of being absorbed. **11 were failing silently** —
+  `pass` or a bare fallback with no record whatsoever — and gained a
+  `logger.debug(..., exc_info=True)`; one of them, the settings page handler, had no logger
+  in the module at all and would have rendered an empty admin panel with nothing anywhere
+  saying why. The rest carry `# noqa: BLE001 — <reason>` naming what degrades and to what.
+  `tests/**` and `scripts/**` are exempted with a stated reason; `mcp_servers/` is held to
+  the same standard as `src/`.
+  Worth recording what the measurement showed, because it contradicts the ticket's framing:
+  of the 237 `except Exception` handlers in `src/`, **195 already logged** — ruff exempts a
+  handler that calls `logging.exception` or re-raises, which is why only 120 were flagged.
+  The codebase was not careless. The 15 handlers that were genuinely wrong are the value
+  here; the other 105 comments are the price of a rule that makes the next one deliberate.
+
 ### Documentation
 
 - **The configuration example and reference say only true things** (remediation plan

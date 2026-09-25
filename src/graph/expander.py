@@ -56,7 +56,7 @@ class QueryExpander:
                 for ent in doc.ents
                 if ent.label_ in _KEEP_TYPES and 2 <= len(ent.text.strip()) <= 200
             ]
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — GraphRAG is off by default and optional when on; expansion failure returns the unexpanded query
             logger.debug(f"[GraphRAG] Query entity extraction failed: {exc}")
             return []
 
@@ -69,7 +69,7 @@ class QueryExpander:
             if related:
                 logger.info(f"[GraphRAG] Expanded query with {len(related)} entity terms")
             return related
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — same — retrieval proceeds on the original terms
             logger.debug(f"[GraphRAG] Graph expansion failed: {exc}")
             return []
 

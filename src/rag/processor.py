@@ -204,7 +204,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         """Extract chunk data from a completed parallel embedding future. Returns None on failure."""
         try:
             result = future.result()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — one chunk's embedding task; the ingest reports it and continues
             logger.warning(f"Chunk embedding task failed: {exc}")
             return None
         if not result:
@@ -332,7 +332,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 for cid, cd in zip(chunk_ids, chunks_data, strict=False)
             ]
             EntityExtractor().extract_for_document(doc_id, chunks_with_ids, db)
-        except Exception as graph_exc:
+        except Exception as graph_exc:  # noqa: BLE001 — GraphRAG enrichment is best-effort and never fails an ingest
             logger.warning(f"[GraphRAG] Entity extraction failed (non-fatal): {graph_exc}")
 
     @timed('rag.ingest_document')

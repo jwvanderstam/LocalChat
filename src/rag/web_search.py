@@ -156,7 +156,7 @@ class WebSearchProvider:
         try:
             with DDGS() as ddgs:
                 raw = ddgs.text(query, max_results=self.max_results)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — a third-party search client over the network; no results is a valid outcome
             logger.warning(f"[WEB SEARCH] DuckDuckGo search failed: {exc}")
             return []
 

@@ -835,30 +835,37 @@ baseline recorded in the repo and a regression threshold enforced. **Decides:** 
 (GraphRAG, deferred on a 20-pair run) and active learning, on these results — this is the
 re-review trigger DEL-2 named.
 
-### P2-4 — No blind `except`, no production `assert` ◐
+### P2-4 — No blind `except`, no production `assert` ✅ (done 2026-09-21)
 
-**Driver 6** (code hygiene). Both counts in the plan were exact, re-measured 2026-09-21:
-120 `BLE001` findings in `src/` and 27 `assert` statements. Split, because the two halves
-are not the same size or the same kind of work.
+**Driver 6** (code hygiene). Both counts in the plan were exact, re-measured on the day:
+120 `BLE001` findings in `src/` and 27 `assert` statements. Shipped as two PRs, because the
+halves are not the same size or the same kind of work.
 
-- **P2-4a ✅ (done 2026-09-21)** — the asserts. All 27 are mypy type-narrowing invariants
-  (`row is not None` after `INSERT ... RETURNING`, `_pypdf is not None` behind an
-  `AVAILABLE` flag), each already carrying a good message. Each became
-  `if <cond>: raise AssertionError(<same message>)`, which keeps the exception type and the
-  text and is immune to `-O`. `S101` is now selected in `pyproject.toml`, so `ruff check .`
-  is the standing guard rather than a grep — `tests/**` keeps its exemption.
-  Worth recording that **nothing in this repository runs `python -O` or sets
-  `PYTHONOPTIMIZE`** — not the Dockerfile, the entrypoint, compose or any workflow. So this
-  closed a latent hole, not a live one, and the honest reason to do it is that the
-  invariants were written in the one form the shipping interpreter is free to discard.
-- **P2-4b ⬜** — the 120 blind excepts. Of the 237 `except Exception` handlers in `src/`,
-  195 already log, 33 are silent and 9 re-raise. The silent ones are the actual work; the
-  rest need a `# noqa: BLE001` that states why the breadth is right. **This is not
-  mechanical, and it must not be done as a sweep** — 120 blanket suppressions would turn
-  `ruff check .` green while verifying nothing, which is the failure
-  [`testing.md`](../.claude/rules/testing.md) names for coverage, one tool over.
-  **Acceptance:** `BLE001` selected and `ruff check .` clean, with every suppression
-  carrying a reason.
+- **P2-4a ✅** — the asserts. All 27 were mypy type-narrowing invariants (`row is not None`
+  after an `INSERT ... RETURNING`, `_pypdf is not None` behind an `AVAILABLE` flag), each
+  already carrying a message. Each became `if <cond>: raise AssertionError(<same message>)`,
+  which keeps the exception type — `test_app_entrypoint.py` asserts on it — and is immune to
+  `-O`. `S101` is selected, so `ruff check .` is the guard rather than a grep.
+  Recorded honestly as latent: **nothing here runs `python -O` or sets `PYTHONOPTIMIZE`**.
+- **P2-4b ✅** — the 120 blind excepts. Deliberately *not* a sweep:
+  - **4 were narrowed rather than suppressed** — three connectors and `oauth_tokens` parse
+    an ISO-8601 string out of a JSON payload, so they now catch
+    `(ValueError, TypeError, AttributeError)` and an unexpected error surfaces.
+  - **11 were silent** — `pass` or a bare fallback with no record at all. They keep their
+    breadth, which was right, and gained a `logger.debug(..., exc_info=True)`, which was
+    missing. One of them (`web_routes`) had no logger in the module at all.
+  - **The rest carry `# noqa: BLE001 — <reason>`** naming what degrades and to what. A bare
+    `# noqa: BLE001` is the thing the rule exists to prevent and does not count as
+    compliance; `pyproject.toml` says so next to the rule.
+  - `tests/**` and `scripts/**` are exempted with a stated reason rather than annotated.
+  - `mcp_servers/` is held to the same standard as `src/` — it ships.
+
+  The useful finding, for whoever reads this next: of the 237 `except Exception` handlers in
+  `src/`, **195 already logged**, which is why `BLE001` flagged only 120 — ruff exempts a
+  handler that calls `logging.exception` or re-raises. The codebase was not careless here;
+  it was undocumented. The value delivered is the 15 handlers that were actually wrong
+  (4 too broad, 11 invisible), plus a rule that makes the next one an argument instead of a
+  reflex.
 
 ### P2-5 — CPU-only torch in the image ⬜
 
@@ -928,7 +935,7 @@ Nothing further to do unless §10's re-review trigger fires.
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
-| 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ 2026-09-21 + P2-4b (`BLE001`) ⬜ — P2-6 retired two open Dependabot alerts; P2-4b is 120 sites of judgement, not a sweep, and is the one part of this sprint that is not mechanical | 3–4 days |
+| 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ + P2-4b (`BLE001`) ✅ 2026-09-21 — **sprint complete**. P2-6 retired two open Dependabot alerts. P2-4b was the one item that was not mechanical: 120 handlers read individually, 4 narrowed, 11 that were failing silently given a log | 3–4 days |
 | 16 | P2-2 (security smoke against the shipped compose) + P2-1b (row-level security) | 1 week |
 | 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) — decides DEL-2 | 1–2 weeks |

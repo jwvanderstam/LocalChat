@@ -271,7 +271,7 @@ def _check_metrics_auth(req: Any) -> bool:
         from .security_fastapi import _claims_from_request
 
         return (_claims_from_request(req) or {}).get("role") == "admin"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — fail closed — an unverifiable session is not an authorised one, whatever went wrong
         # Fail closed: an unverifiable session is not an authorised one.
         logger.debug("[Metrics] Could not read session claims: %s", e)
         return False
@@ -314,7 +314,7 @@ def _live_check_database(app) -> bool:
             with conn.cursor() as cur:
                 cur.execute('SELECT 1')
                 up = cur.fetchone() is not None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — the probe's job is to report the database as unreachable, which every failure here means
         # Degraded, not fatal: the caller turns this into a 503 for the probe to act on.
         logger.warning("[Health] Database probe failed: %s", e)
         up = False
@@ -332,8 +332,8 @@ def _live_check_ollama(app, db_up: bool) -> bool:
             ollama_up, _ = app.ollama_client.check_connection()
             app.startup_status['ollama'] = ollama_up
             app.startup_status['ready'] = ollama_up and db_up
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 — a late Ollama re-probe; the already-computed value stands if it fails
+            logger.debug("Late Ollama connection re-probe failed", exc_info=True)
     return ollama_up
 
 

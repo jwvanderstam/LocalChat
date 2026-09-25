@@ -96,7 +96,7 @@ def try_mcp_rag(
             if not context:
                 logger.warning("[RAG/MCP] No chunks retrieved from local-docs server")
             return context, sources
-    except Exception as mcp_err:
+    except Exception as mcp_err:  # noqa: BLE001 — MCP is optional; the direct retrieval path below is the fallback
         logger.warning("[RAG/MCP] local-docs call failed, falling back to direct: %s", mcp_err)
     return None
 
@@ -166,7 +166,7 @@ def get_web_context(message: str) -> tuple[str, list[dict]]:
                     return context, sources
                 logger.warning("[ENHANCED/MCP] Web search server returned no results")
                 return "", []
-        except Exception as mcp_err:
+        except Exception as mcp_err:  # noqa: BLE001 — same, for web search
             logger.warning("[ENHANCED/MCP] web-search call failed, falling back: %s", mcp_err)
 
     from ..rag.web_search import WebSearchProvider, to_source_dict
@@ -189,7 +189,7 @@ def get_doc_count_cached(db: Any, workspace_id: str | None) -> tuple[int, bool]:
                 count = db.get_document_count(workspace_id=workspace_id)
                 _status_doc_count_cache[workspace_id] = (count, now)
                 return count, True
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — the count is displayed, not depended on; 0 with has_docs=False is the safe pair
                 logger.warning("Could not get document count: %s", exc)
                 return 0, False
         return cached[0], True
@@ -209,7 +209,7 @@ def _ollama_refresh_worker(app_state: Any) -> None:
     while not _ollama_refresh_stop.wait(_OLLAMA_STATUS_TTL):
         try:
             available, _ = app_state.ollama_client.check_connection()
-        except Exception:
+        except Exception:  # noqa: BLE001 — an availability probe — any failure means unavailable, which is what is recorded
             available = False
         with _ollama_status_lock:
             _ollama_status_cache[:] = [available, time.monotonic()]
@@ -261,7 +261,7 @@ def get_filename_filter(fields: dict, db: Any, scope: Scope) -> list[str]:
         return []
     try:
         return db.get_conversation_document_filter(conversation_id, scope=scope)
-    except Exception as filter_err:
+    except Exception as filter_err:  # noqa: BLE001 — the document filter is a refinement; unfiltered retrieval is correct, just broader
         logger.warning("[RAG] Could not read document filter: %s", filter_err)
         return []
 
@@ -294,7 +294,7 @@ def retrieve_via_aggregator(
             agent_result.contexts_by_tool.get("web_search", ""),
             agent_result.sources,
         ), agent_result
-    except Exception as agent_err:
+    except Exception as agent_err:  # noqa: BLE001 — the agent path is an optimisation; direct retrieval is the guarantee
         logger.warning("[Agent] Failed, falling back to direct retrieval: %s", agent_err)
         return None
 
@@ -347,7 +347,7 @@ def retrieve_contexts(
         try:
             web_context, web_sources = get_web_context(fields["message"])
             sources.extend(web_sources)
-        except Exception as web_err:
+        except Exception as web_err:  # noqa: BLE001 — web grounding is additive; the answer is given without it
             logger.warning("[ENHANCED] Web search failed, continuing without: %s", web_err)
 
     return local_context, web_context, sources, None
@@ -374,7 +374,7 @@ def get_rag_context_multi_hop(
         for future in as_completed(futures):
             try:
                 all_results.extend(future.result())
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — one sub-question of a plan; the others still contribute
                 logger.warning("[Planner] Sub-question retrieval failed: %s", exc)
 
     seen: dict[int, RetrievalResult] = {}
@@ -429,7 +429,7 @@ def persist_user_message(
         else:
             message_id = app_state.db.save_message(conversation_id, "user", message, plan_json=plan_json)
         return conversation_id, message_id
-    except Exception as mem_err:
+    except Exception as mem_err:  # noqa: BLE001 — persistence failure must not lose the answer the user is already receiving
         logger.warning("[MEMORY] Could not persist user message: %s", mem_err)
         return None, None
 
@@ -439,7 +439,7 @@ def persist_assistant_message(app_state: Any, conversation_id: str | None, text:
         return None
     try:
         return app_state.db.save_message(conversation_id, "assistant", text)
-    except Exception as mem_err:
+    except Exception as mem_err:  # noqa: BLE001 — same, for the assistant message
         logger.warning("[MEMORY] Could not persist assistant message: %s", mem_err)
         return None
 
@@ -464,7 +464,7 @@ def any_local_only_sources(sources: list[dict] | None, app_state: Any) -> bool:
         return False
     try:
         return app_state.db.any_local_only_sources(filenames)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — returns True — the conservative answer keeps the query local rather than sending it to a cloud model
         logger.warning("[CloudFallback] local_only check failed: %s", exc)
         return True
 
@@ -476,7 +476,7 @@ def update_chunk_stats(app_state: Any, sources: list[dict]) -> None:
     if chunk_ids:
         try:
             app_state.db.increment_chunk_retrieved(chunk_ids)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — chunk_stats is feedback telemetry, written after the answer is served
             logger.debug("[Feedback] chunk_stats update failed: %s", exc)
 
 
@@ -521,7 +521,7 @@ async def retrieve_plan_and_memory(
         try:
             from ..rag.planner import QueryPlanner
             plan = await QueryPlanner().plan(fields["message"], active_model, ollama_client)
-        except Exception as plan_err:
+        except Exception as plan_err:  # noqa: BLE001 — planning is skipped and the query is answered as asked
             logger.warning("[Planner] Unexpected error (skipped): %s", plan_err)
 
     memory_context = ""
@@ -537,7 +537,7 @@ async def retrieve_plan_and_memory(
                 additional_workspace_ids=fields.get("additional_workspace_ids") or [],
             )
             memory_context = MemoryRetriever.format_for_prompt(memories)
-        except Exception as mem_err:
+        except Exception as mem_err:  # noqa: BLE001 — memory retrieval is optional; the prompt is built without it
             logger.debug("[Memory] Retrieval skipped: %s", mem_err)
 
     return plan, memory_context
@@ -554,6 +554,6 @@ def apply_model_routing(
             from ..agent.router import ModelRouter
             doc_types = [dt for s in sources if (dt := s.get("doc_type"))]
             return ModelRouter().select(fields["message"], plan=plan, doc_types=doc_types, active_model=active_model)
-        except Exception as router_err:
+        except Exception as router_err:  # noqa: BLE001 — routing falls back to the active model, which is always a valid choice
             logger.warning("[Router] Selection failed, using active model: %s", router_err)
     return active_model, None

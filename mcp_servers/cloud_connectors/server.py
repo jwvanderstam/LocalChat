@@ -58,7 +58,7 @@ def search(
             for r in results
         ]
         return {"context": context, "sources": sources}
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — JSON-RPC: the failure is returned to the caller in the result envelope, not raised across the transport
         logger.warning(f"[cloud-connectors] search error: {exc}")
         return {"context": "", "sources": [], "error": str(exc)}
 
@@ -68,7 +68,7 @@ def list_sources() -> list[dict]:
     try:
         from src.db import db
         return db.list_connectors() if db.is_connected else []
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — same — an empty source list is the protocol-level answer
         logger.warning(f"[cloud-connectors] list_sources error: {exc}")
         return []
 

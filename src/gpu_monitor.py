@@ -102,7 +102,7 @@ class GpuMonitor:
                 except (ValueError, IndexError) as exc:
                     logger.debug("Skipping malformed nvidia-smi line: %s (%s)", line, exc)
             return gpus
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — subprocess probe of a vendor tool; absence and malformed output are both normal
             logger.debug("nvidia-smi query failed: %s", exc)
             return []
 
@@ -142,6 +142,6 @@ class GpuMonitor:
                     "temperature_c": None,
                 })
             return gpus
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — same, for rocm-smi
             logger.debug("rocm-smi query failed: %s", exc)
             return []

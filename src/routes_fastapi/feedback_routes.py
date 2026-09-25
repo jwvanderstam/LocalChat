@@ -51,7 +51,7 @@ async def submit_feedback(request: Request) -> Any:
                 request.app.state.db.increment_chunk_negative(source_chunk_ids)
         logger.info("[Feedback] Recorded rating and id")
         return JSONResponse({"ok": True, "id": feedback_id}, status_code=201)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — turned into a 500 with a fixed message — the exception text is never shown to the caller
         logger.warning(f"[Feedback] insert_feedback failed: {exc}")
         return JSONResponse({"error": "could not record feedback"}, status_code=500)
 
@@ -69,6 +69,6 @@ def feedback_stats(request: Request, _admin: Annotated[str, Depends(require_admi
             "trend": db.get_feedback_trend(days=days),
             "stale_chunks": db.get_stale_chunks(limit=20),
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — same, for the stats query
         logger.warning(f"[Feedback] stats query failed: {exc}")
         return JSONResponse({"error": "could not retrieve stats"}, status_code=500)

@@ -93,7 +93,7 @@ class ToolRouter:
                 if isinstance(result, dict) and "context" in result:
                     return {"context": result["context"], "sources": result.get("sources") or []}
                 logger.warning("[ToolRouter] local_docs MCP returned unexpected shape — falling back")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — MCP is the optional path; any transport or protocol error must reach the direct fallback below
                 logger.warning(f"[ToolRouter] local_docs MCP failed — falling back to direct: {exc}")
 
         # Direct path (default when MCP disabled, or MCP fallback)
@@ -138,7 +138,7 @@ class ToolRouter:
                         ],
                     }
                 logger.warning("[ToolRouter] web_search MCP returned unexpected shape — falling back")
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — same — the direct web-search path is the fallback
                 logger.warning(f"[ToolRouter] web_search MCP failed — falling back to direct: {exc}")
 
         # Direct path
@@ -166,7 +166,7 @@ class ToolRouter:
                         "context": result.get("context") or "",
                         "sources": result.get("sources") or [],
                     }
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — cloud connectors are optional; the caller proceeds without them
                 logger.warning(f"[ToolRouter] cloud_connectors MCP failed: {exc}")
 
         # No direct path — cloud connectors route through the MCP server

@@ -149,7 +149,7 @@ def _stream_file_ingest(app_state: Any, file_path: str, workspace_id: str | None
             try:
                 model, reason = app_state.ollama_client.suggest_vision_model()
                 result_payload["suggest_pull"] = {"model": model, "reason": reason}
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — a UI suggestion; its absence changes nothing about the upload
                 logger.debug("Could not determine vision model suggestion: %s", exc)
 
     events.append(f"data: {json.dumps({'result': result_payload})}\n\n")

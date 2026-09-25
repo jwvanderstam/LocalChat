@@ -191,7 +191,7 @@ class SharePointConnector(BaseConnector):
         if lm := item.get('lastModifiedDateTime'):
             try:
                 last_modified = datetime.fromisoformat(lm.replace('Z', '+00:00'))
-            except Exception:
+            except (ValueError, TypeError, AttributeError):
                 pass
         return DocumentSource(
             source_id=item['id'],
