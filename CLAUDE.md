@@ -213,9 +213,10 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Pull Requests and Merging
 
 **`main` is gated.** The "Code Verification" ruleset targets the default branch
-and requires five checks to pass before anything merges: `unit-tests`,
-`integration-tests`, `repo-hygiene`, `docker-smoke`, `perf-canary`. A PR with red
-or missing checks cannot be merged — this is enforced, not a convention.
+and requires six checks to pass before anything merges: `unit-tests`,
+`integration-tests`, `repo-hygiene`, `docker-smoke`, `perf-canary`, `security-smoke`.
+A PR with red or missing checks cannot be merged — this is enforced, not a
+convention.
 
 `docker-smoke` joined the set on 2026-08-19, once #287 had given it a run on the
 default branch — a check cannot be referenced by the ruleset before it has reported
@@ -236,6 +237,22 @@ which is why the ceiling is set from the distribution rather than from ambition 
 and why raising it to clear a red run is explicitly forbidden in
 `tests/perf/test_concurrency_canary.py`.
 
+`security-smoke` joined on 2026-09-26, the same day P2-2a merged (#396) — under the
+same precondition (a run on the default branch first, which `8e3e32b` gave it) but,
+unlike the two above, **without** waiting for a track record. That was a deliberate
+call: the ticket's own advice was to wait for P2-2b, on the grounds that one green run
+is not a track record and that requiring two-thirds of P2-2 locks in a partial gate.
+The maintainer overrode it. What the job buys is the one thing no other check sees —
+the shipped `docker-compose.yml` and `docker-compose.nginx.yml` booted *together*, with
+`--profile mcp`, and then attacked over the wire. It earned the place before it was ever
+required: writing it found that `--profile mcp` could not start two of its three servers
+at all (`JWT_SECRET_KEY` never reached them, and the image pins `APP_ENV=production`).
+
+It is also the one required check that boots eight containers and drives them through
+TLS, so it has the most flake surface of the six. If it goes red, read the probe output
+before assuming a regression — and do not relax a probe to clear a run, the same rule
+`perf-canary` carries.
+
 Verify the set by reading it back through the API, not from the settings UI — see
 LESSONS_LEARNED Ch. 11 on a ruleset that rendered as correct in the form that
 created it:
@@ -244,7 +261,7 @@ created it:
 gh api repos/jwvanderstam/LocalChat/rulesets/14700924 --jq '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | "\(.context) \(.integration_id)"]'
 ```
 
-All five must report `integration_id 15368` — a same-named check from another app
+All six must report `integration_id 15368` — a same-named check from another app
 would satisfy the ruleset without running this workflow.
 
 Deliberately *not* required: `build-and-push` (15–20 min, would block every

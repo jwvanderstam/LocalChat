@@ -20,9 +20,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   (audit H3), and all three MCP servers must refuse a missing *and* a wrong bearer while
   answering a correct one (audit C3) — the last because with `MCP_AUTH_TOKEN` unset they
   refuse everything, so a refusal alone proves nothing about the token check.
-  Deliberately **not** in the required set yet: a check must report on the default branch
-  before the ruleset can reference it, the same precondition `docker-smoke` and
-  `perf-canary` were held to.
+  **Required on `main` since 2026-09-26**, once its own merge (`8e3e32b`) had given it the
+  run on the default branch the ruleset needs before it can reference a check. Added ahead
+  of the track record the ticket advised waiting for — a deliberate override, recorded in
+  ROADMAP P2-2a and in CLAUDE.md beside `docker-smoke`'s and `perf-canary`'s entries. It is
+  the only required check that boots eight containers and drives them through TLS, so it
+  carries the most flake surface of the six; a probe is never relaxed to clear a red run.
 - **`docker-compose.ci.yml`**, the third overlay the job needs, and
   `tests/unit/test_ci_overlay_is_narrow.py`, which stops it growing. Two things a
   GitHub-hosted runner cannot provide: the NVIDIA device reservations on `app` and

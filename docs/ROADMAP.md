@@ -840,10 +840,21 @@ reason P2-4 was split.
   is why it is its own ticket. **Acceptance:** for each role, an object in a foreign
   workspace yields 404 or 403 over HTTP.
 
-**Not in the ruleset yet**, deliberately, under the same precondition as `perf-canary` and
-`docker-smoke`: a check cannot be referenced by the ruleset before it has reported on the
-default branch at least once, and neither should it block a merge before it has a track
-record. Add it once P2-2b lands and the pair has run clean for a while.
+**Required since 2026-09-26.** The precondition was met by `8e3e32b`, P2-2a's own merge,
+which gave the check its first run on the default branch; the ruleset now lists six checks
+and `CLAUDE.md` records the entry beside `docker-smoke`'s and `perf-canary`'s.
+
+This paragraph previously advised waiting for P2-2b before requiring it — one green run is
+not a track record, and requiring two-thirds of P2-2 locks in a partial gate. **The
+maintainer overrode that advice**, and the override is recorded rather than the advice
+quietly deleted: the reasoning was not wrong, it was outweighed. What settles it in favour
+of requiring the job early is that it found a defect (prerequisite 8) before it had run in
+CI once, which is evidence that the gap it covers is real and currently unguarded.
+
+The residual risk is flake, and it is the largest of the six: this is the only required
+check that boots eight containers and drives them through TLS. If it goes red, read the
+probe output before assuming a regression, and do not relax a probe to clear a run — the
+rule `tests/perf/test_concurrency_canary.py` states for `perf-canary` applies here too.
 
 **Nine prerequisites. Four were established by trying it on 2026-09-24, four more while
 writing the job on 2026-09-25, and the ninth by the job's first CI run.** None is hard;
