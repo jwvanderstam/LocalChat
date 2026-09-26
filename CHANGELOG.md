@@ -10,6 +10,22 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Added
 
+- **The object-authorization matrix now runs over HTTP against a real Postgres**
+  (ROADMAP P2-2b). `tests/unit/test_object_authorization_matrix.py` walks the AST and
+  proves no scoped database call omits `scope=`; every workspace test in
+  `tests/integration/` was `MagicMock` throughout, so nothing reproduced the audit's C1
+  and C2 the way they were found — through a request. This drives a plain user holding
+  workspace A at workspace B's documents, chunks, conversations, memories, annotations,
+  connectors and keys: 49 tests, 43 of them one route each.
+  The route list is derived from `app.openapi()`, so a route added tomorrow is covered
+  tomorrow — `app.routes` is unusable here because this FastAPI version leaves included
+  routers wrapped as `_IncludedRouter` with `path=None`, and the naive walk finds zero
+  routes while appearing to pass. An unclassified path parameter fails the run rather
+  than dropping its routes, and the fixture proves its objects are reachable by their
+  owner before any refusal counts, because a 404 is a passing result and an empty
+  fixture would otherwise be a flawless green run over nothing. Verified non-vacuous by
+  reintroducing C2 on one route: exactly one test went red, naming it.
+
 - **`security-smoke`: the shipped compose, booted and then attacked** (ROADMAP P2-2a).
   Every existing job tests a mechanism in isolation — `test_proxy_trust_is_not_wildcarded`
   drives uvicorn's middleware in-process and has never seen nginx append a header, and
