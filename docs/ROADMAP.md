@@ -845,8 +845,9 @@ reason P2-4 was split.
 default branch at least once, and neither should it block a merge before it has a track
 record. Add it once P2-2b lands and the pair has run clean for a while.
 
-**Eight prerequisites. Four were established by trying it on 2026-09-24, four more while
-writing the job on 2026-09-25.** None is hard; all six stop the job dead if it is written
+**Nine prerequisites. Four were established by trying it on 2026-09-24, four more while
+writing the job on 2026-09-25, and the ninth by the job's first CI run.** None is hard;
+all nine stop the job dead if it is written
 without them.
 
 1. **The overlay cannot boot as shipped.** `nginx/certs/` does not exist in this
@@ -936,6 +937,28 @@ without them.
    same way and for the same reason: no CI job had ever started the `mcp` profile. That
    is precisely the gap P2-2 exists to close, and it closed it before the job had run
    once in CI.
+
+
+9. **The CPU limits exceed a runner, and that is what the first CI run failed on** —
+   not the GPU and not disk, both of which the overlay had already handled: the image
+   built and every `reservations.devices` reset held. `docker-compose.yml` defaults
+   `OLLAMA_CPU_LIMIT` to 12 and `APP_CPU_LIMIT` to 8; a GitHub-hosted runner has four,
+   and Docker refuses the container before it starts:
+
+   ```
+   Error response from daemon: range of CPUs is from 0.01 to 4.00,
+   as there are only 4 CPUs available
+   ```
+
+   Not a defect. Those values are sized for the single-node appliance ADR-1 describes,
+   and every one is an environment knob exactly so a smaller host can lower it. So the
+   job sets them through compose interpolation rather than in `docker-compose.ci.yml` —
+   the file under test stays untouched and the overlay stays as narrow as its own test
+   requires. All five are set rather than only the two that exceed four, so the job does
+   not depend on the runner having any particular core count.
+
+   Worth keeping as the honest record of what reading could not find: prerequisites 5
+   and 6 were predicted correctly and neither was what went red first.
 
 ### P2-3 — A retrieval evaluation that measures answers, not just ranks ⬜
 

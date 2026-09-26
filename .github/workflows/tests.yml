@@ -693,6 +693,21 @@ jobs:
       # design — it is a template. The probes send that name rather than substituting
       # it, so the file is tested exactly as an operator receives it.
       SMOKE_HOST: YOUR_DOMAIN
+      # A GitHub-hosted runner has 4 CPUs; docker-compose.yml defaults
+      # OLLAMA_CPU_LIMIT to 12 and APP_CPU_LIMIT to 8, and Docker refuses the
+      # container outright — `range of CPUs is from 0.01 to 4.00, as there are only
+      # 4 CPUs available` — before anything starts. Not a defect: those values are
+      # sized for the single-node appliance ADR-1 describes, and every one of them is
+      # an env knob precisely so a smaller host can lower it. Set through compose
+      # interpolation rather than in docker-compose.ci.yml, so the file under test is
+      # untouched and the overlay stays as narrow as its test requires. All five are
+      # set, not just the two that exceed 4, so the job does not depend on the runner
+      # having any particular core count.
+      APP_CPU_LIMIT: "2"
+      OLLAMA_CPU_LIMIT: "1"
+      DB_CPU_LIMIT: "2"
+      REDIS_CPU_LIMIT: "1"
+      MCP_CPU_LIMIT: "1"
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

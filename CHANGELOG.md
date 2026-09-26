@@ -32,6 +32,9 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   about 14 GB of runner disk. The overlay replaces exactly those and nothing else, because
   every key it grows is a key the job silently stops testing; the test pins its surface as
   an equality check so an unanticipated key fails too.
+  A third runner constraint — `OLLAMA_CPU_LIMIT` 12 and `APP_CPU_LIMIT` 8 against a
+  runner's 4 CPUs, which Docker refuses outright — is handled by setting the documented
+  env knobs in the job, leaving the compose file itself untouched.
 
 ### Fixed
 
