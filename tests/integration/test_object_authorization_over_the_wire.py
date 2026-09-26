@@ -236,7 +236,10 @@ def _server_errors(admin: httpx.Client) -> str:
             for line in raw
             if any(k in line for k in ("Error", "error", "Traceback", "File \"", "raise", "psycopg"))
         ]
-        return " || ".join(interesting[-25:])[:2500] or str(raw[-10:])[:2500]
+        # The TAIL, not the head: a traceback ends with the exception type and message,
+        # and the previous run truncated exactly that away after 2500 characters of
+        # site-packages frames.
+        return " || ".join(interesting[-40:])[-2500:] or str(raw[-10:])[-2500:]
     except (httpx.HTTPError, ValueError) as exc:
         return f"(could not read the server log: {exc})"
 
