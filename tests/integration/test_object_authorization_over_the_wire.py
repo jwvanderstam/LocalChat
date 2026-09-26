@@ -211,6 +211,26 @@ def server_env() -> dict[str, str]:
     }
 
 
+def _server_errors(admin: httpx.Client) -> str:
+    """The server's own recent ERROR lines, for a failure message.
+
+    A live-server test sees a status code; the traceback is in the server process,
+    whose log lives in a tmp directory on the runner and is never printed. `GET
+    /api/logs` is the application tailing its own log for the admin viewer, so the
+    test can just ask. Without this a 500 in CI is a number with no explanation, which
+    is exactly where the webhook route left us.
+    """
+    try:
+        response = admin.get("/api/logs", params={"limit": 40, "level": "ERROR"}, timeout=15.0)
+        if response.status_code != 200:
+            return f"(could not read the server log: HTTP {response.status_code})"
+        body = response.json()
+        entries = body.get("logs") or body.get("entries") or body
+        return str(entries)[:1500]
+    except (httpx.HTTPError, ValueError) as exc:
+        return f"(could not read the server log: {exc})"
+
+
 def _client(base_url: str) -> httpx.Client:
     return httpx.Client(base_url=base_url, timeout=30.0, follow_redirects=False)
 
@@ -503,6 +523,9 @@ class TestThePublicWebhookReceiver:
             json={},
             timeout=15.0,
         )
-        # The body is in the message because this returned 500 on CI while returning 403
-        # locally, and a bare status code said nothing about why.
-        assert response.status_code == 403, response.text[:300]
+        # Both the response body and the server's own ERROR log are in the message:
+        # this returned 500 on CI while returning 403 locally, and a bare status code
+        # said nothing about why.
+        detail = response.text[:300]
+        errors = _server_errors(provisioned["admin"])
+        assert response.status_code == 403, f"{detail} | server log: {errors}"
