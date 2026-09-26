@@ -8,6 +8,50 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
+### Added
+
+- **`security-smoke`: the shipped compose, booted and then attacked** (ROADMAP P2-2a).
+  Every existing job tests a mechanism in isolation — `test_proxy_trust_is_not_wildcarded`
+  drives uvicorn's middleware in-process and has never seen nginx append a header, and
+  `docker-smoke` boots `app` with no proxy in front of it. Nothing in CI had ever run the
+  two files an operator actually deploys, together. This job boots `docker-compose.yml`
+  with `docker-compose.nginx.yml` and `--profile mcp`, then probes over the wire: fifteen
+  failed logins from fifteen forged `X-Forwarded-For` addresses must still be rate-limited
+  (audit H3), and all three MCP servers must refuse a missing *and* a wrong bearer while
+  answering a correct one (audit C3) — the last because with `MCP_AUTH_TOKEN` unset they
+  refuse everything, so a refusal alone proves nothing about the token check.
+  Deliberately **not** in the required set yet: a check must report on the default branch
+  before the ruleset can reference it, the same precondition `docker-smoke` and
+  `perf-canary` were held to.
+- **`docker-compose.ci.yml`**, the third overlay the job needs, and
+  `tests/unit/test_ci_overlay_is_narrow.py`, which stops it growing. Two things a
+  GitHub-hosted runner cannot provide: the NVIDIA device reservations on `app` and
+  `ollama` — Compose enforces those when it *starts* a container, so a GPU-less host fails
+  with `could not select device driver "nvidia"` while `docker compose config` renders
+  valid output throughout — and a 9.7 GB Ollama image on top of a ~10 GB app image with
+  about 14 GB of runner disk. The overlay replaces exactly those and nothing else, because
+  every key it grows is a key the job silently stops testing; the test pins its surface as
+  an equality check so an unanticipated key fails too.
+  A third runner constraint — `OLLAMA_CPU_LIMIT` 12 and `APP_CPU_LIMIT` 8 against a
+  runner's 4 CPUs, which Docker refuses outright — is handled by setting the documented
+  env knobs in the job, leaving the compose file itself untouched.
+
+### Fixed
+
+- **`docker compose --profile mcp up` could not start two of the three MCP servers.**
+  The runtime image pins `ENV APP_ENV=production` (`Dockerfile`), so every container built
+  from it is in production mode whatever compose says, and `src/config.py` raises
+  `JWT_SECRET_KEY must be set in production!` at module import. No `mcp-*` service passed
+  that variable — only `app` did. `mcp-local-docs` and `mcp-cloud-connectors` import
+  `src.config` at module level and crash-looped on every start; `mcp-web-search` survived
+  only because its `src` import is inside a function, and would have failed on the first
+  search instead. All three now receive it.
+  Found by booting the profile for `security-smoke` — no CI job had ever started it, the
+  same blind spot that hid the exec-form defect in 2026-08. The cheap standing check is
+  `tests/unit/test_compose_passes_production_required_vars.py`, which derives the required
+  set from `config.py`'s own `raise` statements so a third variable fails there rather
+  than in a container that will not start.
+
 ### Security
 
 - **`python-jose` replaced by `PyJWT`** (ROADMAP P2-6). The old library pulled `ecdsa`,

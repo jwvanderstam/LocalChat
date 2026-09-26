@@ -147,3 +147,8 @@ coverage.json
 # published canvas back.
 design/*/localchat-*.html
 design/from-canvas/
+
+# TLS material for the bundled nginx overlay. An operator drops their real
+# fullchain.pem/privkey.pem here, and `security-smoke` generates a throwaway pair
+# into the same place on every run — neither has any business in the repository.
+nginx/certs/
