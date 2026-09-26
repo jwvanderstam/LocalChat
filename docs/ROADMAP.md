@@ -1048,6 +1048,141 @@ Nothing further to do unless §10's re-review trigger fires.
 
 ---
 
+## Initiative 11: Production evidence the audit did not ask for
+
+Added 2026-09-26, from a comparison of LocalChat against a public checklist of eighteen
+production-AI practices. Most of that list is either out of scope by
+[ADR-1](ADR.md) (multi-tenant SaaS, horizontal scale, a dedicated inference server) or
+already tracked here. Three items were real gaps, not covered by any ticket, and cheap
+relative to what they protect. They are scheduled **directly after the P2 tier** (Sprints
+15 to 18) and **ahead of Sprints 8 to 14** in execution order.
+
+Order within the initiative is a dependency, not a ranking: EV-1 first, because GR-1
+changes how retrieved context is assembled into the prompt, and EV-1 is what makes that
+change measurable before it lands.
+
+---
+
+### EV-1: Retrieval regression gate on every PR ⬜
+
+**What.** A CI job, `retrieval-gate`, runs `scripts/eval_retrieval.py` over the 20 pairs
+in `tests/eval/retrieval_cases.yaml` against `docs/`, with `tests/utils/fake_ollama.py`
+as the embedding model and the Postgres service the integration job already starts. It
+fails when recall@1, recall@5 or MRR fall below a baseline committed as
+`tests/eval/baseline.json`.
+
+**This reverses a recorded decision, so the reason has to be stated.** The script's own
+docstring says it is not wired into CI because "with a stubbed model the numbers measure
+the stub". That is right for the question the script was written for (is retrieval
+*good*, does GraphRAG earn its place) and wrong for this one. A gate asks a narrower
+question: *did this PR change the ranking?* `fake_ollama` embeds text as a bag of words
+precisely so that ordering is a property of the retrieval code rather than of the stub.
+With the model held fixed, any movement in the score was caused by the diff: the hybrid
+blend, chunking, the lexical arm, filters, query expansion, context assembly.
+
+What it cannot see, and must not be read as covering: anything that depends on semantic
+similarity beyond word overlap, and any change of embedding model. That stays P2-3's job.
+
+- **No tolerance band.** The stub is deterministic, so the comparison is exact. A PR that
+  edits `docs/` may legitimately move the score; updating `baseline.json` is then part of
+  that diff, visible in review. Raising or lowering the baseline to clear a red run is
+  the same forbidden move as raising `perf-canary`'s ceiling.
+- **The reranker.** The cross-encoder downloads from Hugging Face on first use. Decide on
+  the first run whether the gate caches the model or runs with `RERANKER_ENABLED=false`,
+  and record which in the job: a gate that silently skipped the reranker would be
+  reporting on a pipeline that does not ship.
+- **Relation to P2-3.** Complementary, not overlapping. P2-3 is nightly, real models,
+  answer-level. EV-1 is per-PR, stubbed, rank-level. Once P2-3's triple set exists, EV-1
+  can score the question/source half of it too.
+
+**Acceptance:** baseline committed; a throwaway commit that sets the lexical arm's weight
+to zero turns the job red (the proof that it measures something, per `testing.md`); the
+script's docstring amended to state both uses. **Not in the ruleset** until it has a
+track record on `main`, under the `perf-canary` precedent.
+
+### GR-1: Treat retrieved content as untrusted input ⬜
+
+**The threat.** Documents, connector-synced files and web results are text chosen by
+someone other than the person asking. Today they are concatenated into the prompt with no
+marking of where they came from, and nothing in `src/` detects or neutralises
+instruction-shaped content (checked 2026-09-26: `src/utils/sanitization.py` handles
+filenames, control characters and SQL `LIKE` patterns; nothing handles injection). The
+September audit was scoped to authorisation and deployment, so this class was never in it.
+
+**The impact paths in this codebase**, rather than in general:
+
+1. **Answer manipulation behind a real citation.** An injected claim is served with a
+   genuine source link, which is worse than an uncited one: the citation is what makes a
+   reader trust it.
+2. **Memory poisoning.** `src/memory/extractor.py` builds its transcript from every turn,
+   assistant turns included. An injection that shapes an answer can therefore be
+   extracted into long-term memory and resurface in later conversations in that
+   workspace, long after the document is gone. This is the one path on which an injection
+   *persists*. Spread across workspaces is already bounded by P0-1's scope and BUG-1.
+3. **Tool calls**, with `--profile mcp` enabled, driven by injected text.
+
+**Build, cheapest and most reliable first:**
+
+- **GR-1a: provenance-delimited context.** Each retrieved chunk is wrapped in a delimiter
+  that carries its source, and the system prompt states that delimited content is data,
+  not instruction. This *reduces* the risk; it does not remove it. Small local models
+  follow that instruction unreliably, and the ticket must not claim more.
+- **GR-1b: close the memory path structurally.** Memory extraction reads user turns
+  only, or excludes spans derived from retrieved context. Because this is where an
+  injection persists, it is the one path worth closing by construction rather than by
+  heuristic.
+- **GR-1c: flag at ingest.** A pattern scan of chunks for instruction-shaped text (role
+  markers, "ignore previous instructions", tool-call syntax) that flags the document in
+  the UI and logs it. It does not block. It is a heuristic and will miss things, and it
+  will flag documents *about* prompt injection, including this repository's own `docs/`,
+  which is EV-1's corpus. The false-positive rate on that corpus is the first thing to
+  measure.
+
+**Out of scope:** classifier-based detection (a second model in the request path, on a
+CPU-only container) and PII redaction (nothing leaves the machine unless the cloud
+fallback is on; revisit together with [ADR-4](ADR.md)).
+
+**Acceptance:** an adversarial fixture set of at least ten documents with embedded
+instructions (plain text, table cells, PPTX speaker notes, white-on-white PDF text),
+ingested in an integration test that asserts: the delimiters are present in the assembled
+prompt; nothing from a retrieved chunk reaches memory extraction; and every fixture is
+flagged at ingest. It does **not** assert that the model obeys: against `fake_ollama` that
+would be tautological, and against a real model it is nondeterministic. Model resistance
+belongs in P2-3's nightly judge as an added case category. The residual is recorded in
+[SECURITY.md](../SECURITY.md).
+
+### OBS-1: Token accounting per request, and cost where there is one ⬜
+
+**The gap.** `/api/metrics` and the Grafana dashboard (`docs/grafana-dashboard.json`, 16
+panels) cover traffic, retrieval latency, cache and connector sync. Nothing records how
+many tokens a request consumed: no `prompt_eval_count`, `eval_count` or `usage` is read
+anywhere in `src/` (checked 2026-09-26).
+
+**Why it matters differently per backend.** Ollama on the Scaleway GPU is billed by the
+hour, not per token, so there tokens are a capacity and latency signal: a prompt that
+quadrupled after a `MAX_CONTEXT_LENGTH` change shows up here before it shows up anywhere
+else. The LiteLLM cloud fallback is billed per token, and Scaleway has no hard spend cap
+([DEPLOYMENT_SCALEWAY.md](DEPLOYMENT_SCALEWAY.md) §8, [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md)),
+so on that path cost per request is the only early signal before the invoice.
+
+- **OBS-1a: metrics.** Read `prompt_eval_count` and `eval_count` from Ollama's final
+  `done: true` chunk (`src/ollama_client.py` already parses it) and `usage` from the
+  LiteLLM response. Export counters labelled by model and by path (`local` or `cloud`),
+  **never** by user or workspace: label cardinality, and `/api/metrics` is readable by
+  anyone holding `METRICS_TOKEN`. Cost for the cloud path from LiteLLM's cost helper;
+  none for Ollama. A dashboard row, and an example alert rule on cloud spend rate.
+- **OBS-1b (optional): persist per message.** Token counts on the message row (additive
+  migration), so a conversation's consumption is queryable after a restart. In-process
+  metrics are lost on every restart (Known Accepted Debt, first entry). Build only if
+  OBS-1a's numbers are wanted historically rather than as a live signal.
+
+**Acceptance:** `fake_ollama` emits `prompt_eval_count`/`eval_count` in its `done` chunk;
+a streamed chat increments the counters by exactly those values (exact value, per
+`testing.md`, not "greater than zero"); the cloud path is unit-tested against a canned
+LiteLLM response; the dashboard JSON is updated and still imports.
+
+---
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -1075,8 +1210,12 @@ Nothing further to do unless §10's re-review trigger fires.
 | 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) + P2-1b (row-level security) | 1 week |
 | 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) — decides DEL-2 | 1–2 weeks |
-| **Total** | | **~20 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first) |
+| 19 | EV-1 (retrieval regression gate on every PR) | 2–3 days |
+| 20 | GR-1a + GR-1b + GR-1c (retrieved content as untrusted input) | 1 week |
+| 21 | OBS-1a (token accounting, cloud cost) + OBS-1b if wanted | 3–4 days |
+| **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
+> **Initiative 11 added 2026-09-26 (Sprints 19 to 21).** Three gaps from comparing LocalChat against an external checklist of production-AI practices: no per-PR retrieval regression gate (EV-1), no handling of instructions embedded in retrieved content (GR-1), and no token or cost accounting per request (OBS-1). Scheduled directly after the audit's P2 tier and ahead of Sprints 8 to 14. EV-1 knowingly reverses the "not wired into CI" line in `scripts/eval_retrieval.py`; the ticket records why that line was right for the question it answered and does not apply to a gate.
 > **Connectors re-scoped 2026-08-24.** DEL-1b was rewritten rather than executed: Confluence is deleted (no forward use, and the only one of the three carrying a pip dependency), while Google Drive and OneDrive are retained on a stated intent to use them, with maintainer-supplied test cases coming. Re-deriving the removal surface from the code — rather than trusting the ticket — turned up BUG-4 and the fact that the connector subsystem has **never had a UI**, so `PERMISSIONS.md` has been advertising 10 routes for a feature that does not exist. Initiative 9 (CONN-1, CONN-2) makes it real; BUG-4 lands ahead of the gate. Same lesson as DEL-1a a fortnight earlier: a plan is not evidence.
 > **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
 > **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
