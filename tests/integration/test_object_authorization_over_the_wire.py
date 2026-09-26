@@ -120,6 +120,16 @@ _DUMMY_GLOBAL_ID = "00000000-0000-4000-8000-000000000000"
 #: assertion than skipping the route: if either ever starts returning a foreign
 #: workspace's rows, this fails. Changing the status codes is a behaviour change to a
 #: shipped API and belongs in its own reviewed change, not smuggled into a test.
+#: Deliberately reachable from any workspace, so the matrix's question does not apply.
+#:
+#: `POST /api/connectors/{connector_id}/webhook` is a *public receiver*: the caller is an
+#: external system with no session, so the route passes `ALL_WORKSPACES` on purpose and
+#: the connector's secret is the whole credential. Asserting a workspace refusal here was
+#: wrong — it passed locally only because a missing secret also yields 403, which is the
+#: right answer for the wrong reason, and exactly the tautology this module is careful
+#: about elsewhere. Its real contract is asserted in `TestThePublicWebhookReceiver`.
+_PUBLIC_BY_DESIGN = {("POST", "/api/connectors/{connector_id}/webhook")}
+
 _DISCLOSES_NOTHING: dict[tuple[str, str], str] = {
     ("GET", "/api/conversations/{conversation_id}/documents"): "document_filter",
     ("GET", "/api/chunks/{chunk_id}/annotations"): "annotations",
@@ -153,7 +163,9 @@ def matrix_routes() -> list[tuple[str, str]]:
     return [
         (m, p)
         for m, p in object_routes()
-        if "public" not in _kinds(p) and (m, p) not in _DISCLOSES_NOTHING
+        if "public" not in _kinds(p)
+        and (m, p) not in _DISCLOSES_NOTHING
+        and (m, p) not in _PUBLIC_BY_DESIGN
     ]
 
 
@@ -466,3 +478,31 @@ def test_a_known_deviation_answers_200_but_discloses_nothing(
     assert response.json()[_DISCLOSES_NOTHING[(method, path)]] == [], (
         f"{method} {path} disclosed a foreign workspace's rows: {response.text[:200]}"
     )
+
+
+class TestThePublicWebhookReceiver:
+    """The one route the matrix excludes needs its own contract asserted, not a pass.
+
+    It is reachable from any workspace by design, so "does it refuse a foreign object"
+    is the wrong question. The right one is whether the secret is really the credential
+    — audit M4 — which is what these check.
+    """
+
+    _PATH = "/api/connectors/{connector_id}/webhook"
+
+    def test_an_unknown_connector_is_not_found(self, provisioned: dict[str, Any]) -> None:
+        response = provisioned["caller"].post(
+            self._PATH.replace("{connector_id}", _DUMMY_GLOBAL_ID), json={}, timeout=15.0
+        )
+        assert response.status_code == 404, response.text[:300]
+
+    def test_a_delivery_without_the_secret_is_refused(self, provisioned: dict[str, Any]) -> None:
+        """No `X-LocalChat-Secret`, so `compare_digest` fails and the delivery is refused."""
+        response = provisioned["caller"].post(
+            self._PATH.replace("{connector_id}", str(provisioned["objects"]["connector_id"])),
+            json={},
+            timeout=15.0,
+        )
+        # The body is in the message because this returned 500 on CI while returning 403
+        # locally, and a bare status code said nothing about why.
+        assert response.status_code == 403, response.text[:300]

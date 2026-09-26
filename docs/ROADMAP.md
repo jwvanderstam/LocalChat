@@ -862,6 +862,21 @@ reason P2-4 was split.
   empty — stronger than a skip, and it fails the day either starts returning foreign rows.
   Changing a shipped route's status code is its own reviewed change, not a test's business.
 
+  **One route came out of the matrix, because the matrix was asking it the wrong
+  question.** `POST /api/connectors/{connector_id}/webhook` is a public receiver: the
+  caller is an external system with no session, so the route passes `ALL_WORKSPACES`
+  deliberately and the connector's secret is the whole credential (audit M4). Asserting
+  a workspace refusal there passed locally only because a missing secret *also* yields
+  403 — the right answer for the wrong reason, which is the tautology this module is
+  careful about everywhere else. Its real contract now has its own test: an unknown
+  connector is 404, and a delivery without the secret is 403.
+
+  It surfaced because CI returned **500** there where a local run returned 403, and that
+  difference is **not yet explained** — `_row_to_connector` decrypts nothing and
+  `get_connector` has no obvious throw. The two focused tests carry the response body in
+  their assertion message so the next CI run says what the 500 actually was, rather than
+  repeating a bare status code.
+
 **Required since 2026-09-26.** The precondition was met by `8e3e32b`, P2-2a's own merge,
 which gave the check its first run on the default branch; the ruleset now lists six checks
 and `CLAUDE.md` records the entry beside `docker-smoke`'s and `perf-canary`'s.
