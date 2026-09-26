@@ -221,12 +221,22 @@ def _server_errors(admin: httpx.Client) -> str:
     is exactly where the webhook route left us.
     """
     try:
-        response = admin.get("/api/logs", params={"limit": 40, "level": "ERROR"}, timeout=15.0)
+        # No level filter: `logger.exception` writes the traceback as its own lines,
+        # and those are not ERROR records — filtering to ERROR returns the message
+        # without the exception that caused it, which is what the previous run showed.
+        response = admin.get("/api/logs", params={"limit": 300}, timeout=15.0)
         if response.status_code != 200:
             return f"(could not read the server log: HTTP {response.status_code})"
         body = response.json()
-        entries = body.get("logs") or body.get("entries") or body
-        return str(entries)[:1500]
+        records = body.get("records") or body.get("logs") or []
+        raw = [r.get("raw", "") for r in records if isinstance(r, dict)]
+        # Keep the traceback frames and the exception line, drop routine chatter.
+        interesting = [
+            line
+            for line in raw
+            if any(k in line for k in ("Error", "error", "Traceback", "File \"", "raise", "psycopg"))
+        ]
+        return " || ".join(interesting[-25:])[:2500] or str(raw[-10:])[:2500]
     except (httpx.HTTPError, ValueError) as exc:
         return f"(could not read the server log: {exc})"
 
