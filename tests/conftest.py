@@ -179,14 +179,39 @@ def mock_ollama_client():
 
 @pytest.fixture
 def app():
-    """Provide a FastAPI test application instance."""
+    """Provide a FastAPI test application instance.
+
+    `create_app()` binds `app.state.db` to the real `src.db.db` singleton, so a test
+    writing `app.state.db.some_method = MagicMock(...)` — as 183 of them do — mutates a
+    process-wide object. Plain assignment is not undone at the end of the test, and the
+    mock is then still in place for every test that follows in the same session.
+
+    That is not hypothetical: `test_connector_routes.py` leaves `create_connector`
+    returning the string `"conn-new"`, and `test_object_authorization_over_the_wire.py`
+    provisions through the same singleton. It received `"conn-new"` instead of a real
+    id, and the route under test then asked Postgres for a connector whose id is not a
+    UUID — `InvalidTextRepresentation`, surfacing as a 500 on CI, two files away from
+    the assignment that caused it.
+
+    So the fixture restores the singleton's instance `__dict__` afterwards. Deleting the
+    attributes a test added un-shadows the real bound methods; restoring the ones it
+    overwrote puts back whatever was there. `tests/utils/auth.py` already tells callers
+    to pass `monkeypatch=` for this reason — this makes it true whether they do or not.
+    """
     from src.app_fastapi import create_app
     from src.connectors.registry import connector_registry
 
     test_app = create_app(config_override={"TESTING": True})
+    db = test_app.state.db
+    before = dict(vars(db))
+
     test_app.state.db.is_connected = True
     test_app.state.connector_registry = connector_registry
-    return test_app
+    try:
+        yield test_app
+    finally:
+        vars(db).clear()
+        vars(db).update(before)
 
 
 @pytest.fixture

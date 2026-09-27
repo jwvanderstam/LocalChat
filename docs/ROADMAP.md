@@ -832,13 +832,50 @@ reason P2-4 was split.
   while answering a correct one (C3). The last of those is not decoration — with
   `MCP_AUTH_TOKEN` unset the servers refuse everything, so a refusal on its own is the
   tautological case and proves nothing about the token check.
-- **P2-2b ⬜** — the object-authorization matrix against a real Postgres, over the wire.
+- **P2-2b ✅** (2026-09-26) — the object-authorization matrix against a real Postgres, over the wire.
   Today's `tests/integration/test_workspace_routes.py` and its neighbours are `MagicMock`
   throughout, and `test_object_authorization_matrix.py` is an AST walk of `src/`; neither
   has ever addressed a foreign workspace's object through a running stack. This needs a
   fixture that provisions two users and two workspaces against the booted database, which
-  is why it is its own ticket. **Acceptance:** for each role, an object in a foreign
-  workspace yields 404 or 403 over HTTP.
+  is why it is its own ticket. **Acceptance met:** 49 tests, 43 of them one route each.
+
+  Three things were worth more than the routes they cover. The route list is derived from
+  `app.openapi()` rather than `app.routes` — this FastAPI version wraps included routers in
+  `_IncludedRouter` objects whose `path` is `None`, so the obvious walk finds nothing and
+  the suite would have passed by testing zero routes. An unclassified path parameter fails
+  the run instead of dropping its routes, so a derived matrix cannot quietly shrink. And
+  because a 404 is a *pass* here, the fixture asserts its own objects are reachable by
+  their owner first — without that an empty fixture is a perfect green run.
+
+  Proven non-vacuous by reintroducing the audit's C2 on
+  `DELETE /api/conversations/{conversation_id}` (scope replaced with `ALL_WORKSPACES`):
+  exactly one test went red, naming that route.
+
+  **Two deviations found, neither a hole.** `GET /api/conversations/{id}/documents` and
+  `GET /api/chunks/{chunk_id}/annotations` answer 200 with an empty payload for an object
+  outside the caller's scope, where P0-1's acceptance asks for 404. Both scope correctly,
+  so nothing is disclosed, and the conversation one is not an existence oracle either — a
+  foreign id and a nonexistent id are indistinguishable. The conversation route *intends*
+  to refuse: it checks `if filenames is None`, and that branch is unreachable because
+  `get_conversation_document_filter` is typed `list[str]` and returns `[]` for a missing
+  row. They are recorded in `_DISCLOSES_NOTHING` with an assertion that their payload is
+  empty — stronger than a skip, and it fails the day either starts returning foreign rows.
+  Changing a shipped route's status code is its own reviewed change, not a test's business.
+
+  **One route came out of the matrix, because the matrix was asking it the wrong
+  question.** `POST /api/connectors/{connector_id}/webhook` is a public receiver: the
+  caller is an external system with no session, so the route passes `ALL_WORKSPACES`
+  deliberately and the connector's secret is the whole credential (audit M4). Asserting
+  a workspace refusal there passed locally only because a missing secret *also* yields
+  403 — the right answer for the wrong reason, which is the tautology this module is
+  careful about everywhere else. Its real contract now has its own test: an unknown
+  connector is 404, and a delivery without the secret is 403.
+
+  It surfaced because CI returned **500** there where a local run returned 403, and that
+  difference is **not yet explained** — `_row_to_connector` decrypts nothing and
+  `get_connector` has no obvious throw. The two focused tests carry the response body in
+  their assertion message so the next CI run says what the 500 actually was, rather than
+  repeating a bare status code.
 
 **Required since 2026-09-26.** The precondition was met by `8e3e32b`, P2-2a's own merge,
 which gave the check its first run on the default branch; the ruleset now lists six checks
