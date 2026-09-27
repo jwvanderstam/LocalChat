@@ -82,6 +82,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0014_rbac1_backfill_workspace_members.py` | RBAC-1: backfills workspace_members — admins own every live workspace, other users get editor on the default one |
 | `migrations/versions/0015_workspace_api_keys.py` | Adds workspace_api_keys — scoped, revocable credentials for programmatic workspace access |
 | `migrations/versions/0016_connectors_created_by.py` | BUG-4: adds connectors.created_by — the only source of the identity whose OAuth token a connector may spend |
+| `migrations/versions/0017_p21b_row_level_security.py` | P2-1b: row-level security on the seven workspace-owned tables plus the three that inherit a workspace through a parent, keyed on a transaction-local `app.workspace_id`. Creates the `localchat_scoped` NOLOGIN role, because RLS does not apply to a superuser or a table's owner — without a role to switch into, every policy is inert while every test of it passes |
+| `tests/integration/test_row_level_security.py` | The IVP for 0017 — an unscoped transaction sees zero rows from all ten protected tables, a foreign scope sees zero, and the owning scope sees its own. Creates and migrates its **own** database: the shared CI one gets its schema from `_ensure_extensions_and_tables()` and never the Alembic chain, so this would have skipped in CI and a vacuous pass would have looked identical to a real one |
 | `CHANGELOG.md` | Notable changes per release; starts at v3.0.0-beta.1, earlier work is in the commit history |
 | `docs/README.md` | Documentation index — Diátaxis quadrants; the map every other doc is reached from |
 | `docs/CONFIGURATION.md` | Configuration reference — every env var, default and effect (lifted out of README) |

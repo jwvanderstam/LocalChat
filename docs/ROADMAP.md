@@ -779,7 +779,7 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   explicit `ALL_WORKSPACES`; every scoped database method takes it keyword-only and
   mandatory; `tests/unit/test_object_authorization_matrix.py` walks the AST of `src/` and
   fails on any call that omits it.
-- **P2-1b ⬜** (precondition settled 2026-09-24): Postgres row-level security on the
+- **P2-1b ◐** (database half shipped 2026-09-27): Postgres row-level security on the
   workspace-owned tables, with the scope set per transaction, so a query that reaches the
   database without one returns nothing rather than everything. **Acceptance:** an
   integration test that opens a connection, sets no scope, and gets zero rows from each
@@ -807,6 +807,43 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   thing and takes a parameter. And RLS does not apply to a superuser or to the table's
   owner, so the application must connect as neither, or the policy is inert while every
   test of it passes.
+
+  **The database half is built** (migration `0017`, `tests/integration/test_row_level_security.py`).
+  Ten tables carry the policy: the seven with a `workspace_id` — `documents`, `conversations`,
+  `memories`, `answer_feedback`, `connectors`, `workspace_api_keys`, `workspace_members` — plus
+  `document_chunks`, `conversation_messages` and `annotations`, which borrow their parent's
+  through an `EXISTS` predicate. The list came from `information_schema` against a fully
+  migrated database, not from reading the DDL: `chunk_stats` looks like a workspace-owned table
+  and has no such column, and `documents`/`conversations`/`memories` only gain theirs in
+  migration `0003`, so both a grep of `connection.py` and a query against an unmigrated
+  database give the wrong answer.
+
+  Verified: an unscoped transaction sees zero rows from all ten, a foreign scope sees zero, the
+  owning scope sees its own, and the scope does not survive a `COMMIT`. Proven non-vacuous by
+  disabling RLS on `documents` — three tests go red, each naming that table.
+
+  Two findings for whoever finishes it. The test **creates and migrates its own database**,
+  because the shared CI one gets its schema from `_ensure_extensions_and_tables()` and never
+  from the Alembic chain — `test_migrations_apply.py` uses a throwaway of its own and the
+  integration job runs plain `pytest`. Written against the shared database this module would
+  have skipped in CI, and a vacuous pass is indistinguishable from a real one. And the policies
+  exclude rows whose `workspace_id` is NULL, which is right today (migration `0003` backfilled
+  every row) but is a decision GKB-1 must revisit, since its global knowledge base is specified
+  as exactly those rows.
+
+  **The application half is not wired, deliberately.** RLS needs the scope set per transaction,
+  and `get_connection()` does not know it — scope arrives per *method*, as `scope=` on each
+  mixin call. The intended hook was the `request_scope()` contextvar from P0-2, but that is
+  bound in exactly one place: `api_routes.py:179`, for the chat SSE stream, read by the LLM
+  retrieval tools. Hooking `get_connection()` to it today would protect the chat path and
+  nothing else, while reading as though the whole application were covered — worse than not
+  wiring it. Real coverage needs the scope bound wherever a request's scope is *authorised*
+  (`get_scope()`, i.e. every guarded route), and a decision about the `ALL_WORKSPACES` paths —
+  admin operations, the webhook receiver, `SyncWorker` — which stay on the owner role and so
+  bypass RLS by not switching role at all.
+
+  Until then the migration is **inert for the application**, which connects as the owner. That
+  is deliberate and safe: the capability exists, is tested, and enforces nothing yet.
 
   **What is still open** is narrower than before: only a *statement*-level pooler would
   break this, and Scaleway's wording implies transaction pooling. That is one fact to

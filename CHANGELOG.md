@@ -10,6 +10,24 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Added
 
+- **Row-level security on the workspace-owned tables** (ROADMAP P2-1b, database half).
+  Migration `0017` puts a policy on ten tables — the seven carrying a `workspace_id`, plus
+  `document_chunks`, `conversation_messages` and `annotations`, which borrow their parent's —
+  keyed on a transaction-local `app.workspace_id`. Written with
+  `set_config('app.workspace_id', %s, true)` rather than `SET LOCAL app.workspace_id = %s`,
+  because `SET` is a utility statement that takes no bind parameter: the only way to write it
+  is to interpolate the one value that decides what the caller can see.
+  It also creates a `NOLOGIN` role to switch into, since RLS does not apply to a superuser or
+  to a table's owner — without one every policy is inert while every test of it passes.
+  `tests/integration/test_row_level_security.py` is the IVP: an unscoped transaction sees zero
+  rows from all ten, a foreign scope sees zero, the owning scope sees its own. It creates and
+  migrates its own database, because the shared CI one never has the Alembic chain applied and
+  the module would otherwise have skipped there.
+  **Inert for the application today**, which connects as the owner: the capability is built and
+  tested but enforces nothing until the scope is set per transaction. That half needs the
+  request scope bound on every guarded route rather than only the chat stream, and is written
+  up in the ticket rather than half-done here.
+
 - **The object-authorization matrix now runs over HTTP against a real Postgres**
   (ROADMAP P2-2b). `tests/unit/test_object_authorization_matrix.py` walks the AST and
   proves no scoped database call omits `scope=`; every workspace test in

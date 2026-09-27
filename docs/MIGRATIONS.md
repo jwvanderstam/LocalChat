@@ -35,7 +35,8 @@ migrations/
     0013_documents_unique_filename_workspace.py  one live document per (filename, workspace)
     0014_rbac1_backfill_workspace_members.py  RBAC-1: backfill workspace_members
     0015_workspace_api_keys.py                workspace_api_keys table
-    0016_connectors_created_by.py             BUG-4: connectors.created_by  ← current head
+    0016_connectors_created_by.py             BUG-4: connectors.created_by
+    0017_p21b_row_level_security.py           P2-1b: RLS on the workspace-owned tables  ← current head
 ```
 
 > **This listing stopped at `0004` until 2026-08-27**, while twelve more migrations had
