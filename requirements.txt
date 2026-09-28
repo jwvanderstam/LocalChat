@@ -107,8 +107,6 @@ fsspec==2026.7.0
     # via
     #   huggingface-hub
     #   torch
-greenlet==3.5.5
-    # via sqlalchemy
 h11==0.16.0
     # via
     #   -r requirements.in
@@ -296,7 +294,7 @@ psycopg[binary]==3.3.6
     # via -r requirements.in
 psycopg-binary==3.3.6
     # via psycopg
-psycopg-pool==3.3.2
+psycopg-pool==3.3.3
     # via -r requirements.in
 pycparser==3.0
     # via cffi
@@ -316,7 +314,7 @@ pydantic-settings==2.15.0
     # via litellm
 pygments==2.21.0
     # via rich
-pyjwt==2.14.0
+pyjwt==2.15.0
     # via -r requirements.in
 pymupdf==1.28.2
     # via
@@ -397,7 +395,7 @@ spacy-legacy==3.0.12
     # via spacy
 spacy-loggers==1.0.5
     # via spacy
-sqlalchemy==2.0.54
+sqlalchemy==2.1.0
     # via
     #   -r requirements.in
     #   alembic
