@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 _ERR_INTERNAL = "Internal server error"
+_NOT_FOUND = "Chunk not found"
 
 
 @router.post("/annotations", status_code=201)
@@ -53,9 +54,17 @@ def list_chunk_annotations(chunk_id: int, request: Request) -> Any:
     if denied:
         return denied
     try:
-        annotations = request.app.state.db.get_annotations_for_chunk(
-            chunk_id, scope=get_scope(request)
-        )
+        scope = get_scope(request)
+        # The chunk is resolved first so a chunk outside this scope reads as not found,
+        # rather than as a chunk with no annotations. get_annotations_for_chunk joins on
+        # the document's workspace and so never leaked anything — but answering 200 for
+        # someone else's chunk still told the caller it exists, and left the route unable
+        # to say "no such chunk" at all.
+        if request.app.state.db.get_chunk_by_id(chunk_id, scope=scope) is None:
+            return JSONResponse(
+                {"success": False, "message": _NOT_FOUND}, status_code=404
+            )
+        annotations = request.app.state.db.get_annotations_for_chunk(chunk_id, scope=scope)
         return {"success": True, "annotations": annotations}
     except Exception:
         logger.exception("[Annotations] list error")

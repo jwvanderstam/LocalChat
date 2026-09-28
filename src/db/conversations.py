@@ -276,8 +276,15 @@ class ConversationsMixin(MixinHost):
 
     def get_conversation_document_filter(
         self, conversation_id: str, *, scope: Scope
-    ) -> list[str]:
-        """Return filenames to restrict retrieval to; empty list means all documents."""
+    ) -> list[str] | None:
+        """Filenames retrieval is restricted to, or None when there is no such
+        conversation in scope.
+
+        The distinction matters to the caller: an empty list means "this conversation
+        exists and is unfiltered", None means "you cannot see this conversation". Both
+        used to be [], which made the route's own 404 branch unreachable and had it
+        answer 200 for a conversation in someone else's workspace.
+        """
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get document filter: Database is not connected")
 
@@ -291,7 +298,7 @@ class ConversationsMixin(MixinHost):
                 )
                 row = cursor.fetchone()
         if row is None:
-            return []
+            return None
         return list(row[0]) if row[0] else []
 
     def set_conversation_document_filter(
