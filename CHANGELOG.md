@@ -75,6 +75,16 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Fixed
 
+- **With `AGGREGATOR_AGENT_ENABLED=true`, chat retrieved nothing from the workspace's
+  documents.** The retrieval tools read the request's workspace from a contextvar (P0-2),
+  and two things kept it from them: the chat route bound it only for the SSE stream, after
+  retrieval had already run, and `AggregatorAgent` dispatched its jobs on a
+  `ThreadPoolExecutor`, which does not carry contextvars. Every `local_docs` job raised
+  `ScopeUnavailableError` in its worker and came back empty, marked partial. It failed closed —
+  no other workspace's data was reachable — and the flag is off by default. The route now
+  binds the scope around retrieval, and each job runs in a copy of the caller's context;
+  `tests/unit/test_aggregator_carries_request_scope.py` pins each half separately.
+
 - **`docker compose --profile mcp up` could not start two of the three MCP servers.**
   The runtime image pins `ENV APP_ENV=production` (`Dockerfile`), so every container built
   from it is in production mode whatever compose says, and `src/config.py` raises
