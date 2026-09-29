@@ -28,6 +28,17 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   request scope bound on every guarded route rather than only the chat stream, and is written
   up in the ticket rather than half-done here.
 
+- **ADR-5: workspace isolation is enforced in the database** (ROADMAP P2-1b-i). Records the
+  decision for the application half of row-level security — the scope is *passed* to
+  `get_connection(scope=)` by the method that already holds it, not bound in a contextvar —
+  together with what that commits LocalChat to (shared-schema tenancy as the boundary; the
+  operator as installation owner) and what it does not (a single node). The 18 by-id methods
+  now hand their scope to the connection, and `test_object_authorization_matrix.py` fails any
+  that does not. Migration `0018` grants the application identity `SET` on
+  `localchat_scoped`, without which a managed database would refuse the role switch.
+  **No behaviour change yet**: `get_connection` accepts the scope and does not act on it until
+  the 34 methods still taking `workspace_id: str | None` — retrieval among them — are converted.
+
 - **The object-authorization matrix now runs over HTTP against a real Postgres**
   (ROADMAP P2-2b). `tests/unit/test_object_authorization_matrix.py` walks the AST and
   proves no scoped database call omits `scope=`; every workspace test in

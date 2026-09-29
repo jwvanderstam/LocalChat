@@ -93,7 +93,7 @@ class MemoriesMixin(MixinHost):
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete memory: Database not connected")
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
@@ -112,7 +112,7 @@ class MemoriesMixin(MixinHost):
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete memories: Database not connected")
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
@@ -264,7 +264,7 @@ class MemoriesMixin(MixinHost):
         if not self.is_connected:
             return []
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """

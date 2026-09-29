@@ -178,7 +178,7 @@ class ConversationsMixin(MixinHost):
 
         where, params = scope_predicate(scope, "c.workspace_id")
         bare_where, _ = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT cm.role, cm.content, cm.created_at
@@ -263,7 +263,7 @@ class ConversationsMixin(MixinHost):
             raise DatabaseUnavailableError("Cannot update conversation: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP"
@@ -282,7 +282,7 @@ class ConversationsMixin(MixinHost):
             raise DatabaseUnavailableError("Cannot get document filter: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT document_ids FROM conversations"
@@ -303,7 +303,7 @@ class ConversationsMixin(MixinHost):
 
         import json as _json
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET document_ids = %s::jsonb"
@@ -323,7 +323,7 @@ class ConversationsMixin(MixinHost):
             raise DatabaseUnavailableError("Cannot delete conversation: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s"
