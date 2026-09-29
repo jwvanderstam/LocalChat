@@ -100,6 +100,30 @@ class TestDocumentRoutesExtended:
         assert data["success"] is True
         assert "results" in data
 
+    def test_test_retrieval_searches_only_the_callers_workspace(self):
+        """It called retrieve_context with no workspace, returning every workspace's
+        chunk previews to any viewer."""
+        from src.routes_fastapi.document_routes import router
+        from tests.utils.auth import auth_headers
+
+        ws = "11111111-1111-1111-1111-111111111111"
+        state = authenticated_state(role="user", member_role="viewer", workspaces=[{"id": ws}])
+        state.doc_processor.retrieve_context.return_value = []
+        app = FastAPI()
+        app.include_router(router, prefix="/api/documents")
+        app.state = state
+        client = TestClient(app, raise_server_exceptions=True)
+
+        resp = client.post(
+            "/api/documents/test",
+            json={"query": "what is the revenue?"},
+            headers=auth_headers(**{"X-Workspace-ID": ws}),
+        )
+
+        assert resp.status_code == 200
+        calls = state.doc_processor.retrieve_context.call_args_list
+        assert [c.kwargs.get("workspace_id") for c in calls] == [ws, ws]
+
     def test_chunk_context_not_found(self):
         from src.routes_fastapi.document_routes import router
 

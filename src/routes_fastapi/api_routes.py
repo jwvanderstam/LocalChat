@@ -22,6 +22,7 @@ from ..utils.scope import (
 )
 from ..utils.workspace import get_workspace_id
 from ._authz import deny as _deny
+from ._authz import deny_additional as _deny_additional
 
 try:
     from pydantic import ValidationError as PydanticValidationError
@@ -297,6 +298,12 @@ async def api_chat(request: Request) -> Any:
         except ImportError:
             logger.exception("Failed to import required modules")
             return JSONResponse({"success": False, "message": "Server configuration error"}, status_code=500)
+
+        # The guard above authorised the request's own workspace only. These reach
+        # document and memory retrieval, so each must be authorised the same way.
+        denied = _deny_additional(request, fields["additional_workspace_ids"], "viewer")
+        if denied:
+            return denied
 
         active_model = config.app_state.get_active_model()
         if not active_model:

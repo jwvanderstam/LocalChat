@@ -97,6 +97,38 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `pip-compile --upgrade-package`; nothing else in either lock changed. Dependabot's #401 carries
   the PyJWT bump but not urllib3, which is why this is its own change.
 
+- **Chat retrieved from any workspace named in `additional_workspace_ids`.** The workspace
+  guard on `POST /api/chat` authorised the request's own workspace and nothing else; the
+  extra ids from the request body went straight into document retrieval (one pipeline run
+  per id) and into long-term memory search, and what they found reached the prompt, the
+  answer and the streamed `sources`. Any user who knew another workspace's id could read
+  from it through chat — and so could a **workspace API key**, whose scope
+  `WORKSPACE_API_KEYS.md` documents as impossible to widen. Workspace ids are UUIDs, so this
+  needed one; the audit graded the same "reachable by UUID" shape as C2. Reproduced at the
+  route layer before the fix: a plain user's request carried a foreign id into
+  `retrieve_context` and was answered with 200. Each extra id is now authorised like the
+  primary one — membership at viewer or above, admins any, an API key none — and one
+  unauthorised id refuses the whole request with 403 rather than being dropped, so a caller
+  cannot mistake a partial answer for a complete one. No frontend sends the field.
+  P2-2b's over-the-wire matrix did not see it because it addresses objects by **path**
+  parameter; this one arrived in the body.
+
+- **`POST /api/documents/test` returned chunk previews from every workspace.** The
+  retrieval-diagnostics route is open to viewers, and called `retrieve_context` with no
+  workspace — which reads as every workspace — so any viewer could query the whole
+  installation and receive the first 200 characters of each matching chunk, with filename
+  and page. It now searches the workspace the guard authorised, as its neighbours do.
+
+- **The `list_documents` LLM tool listed every workspace's documents.** It called
+  `db.get_all_documents()` with no argument, which reads as installation-wide, so any
+  chat user could ask the model what documents exist and get back other workspaces'
+  filenames, chunk counts and upload dates — metadata, not content, but the C1/C2 class.
+  Tool calling is on by default (`TOOL_CALLING_ENABLED=true`), so this was reachable as
+  shipped. It now reads the request's scope the way its sibling `search_documents` has
+  since P0-2, and refuses when none is bound. Found while sorting the
+  `workspace_id: str | None` methods for P2-1b-ii; not in the September audit, whose
+  static scan covered routes rather than tools.
+
 - **`python-jose` replaced by `PyJWT`** (ROADMAP P2-6). The old library pulled `ecdsa`,
   whose timing side-channel has no upstream fix and had been an accepted risk in
   SECURITY.md §2 with a `pip-audit --ignore-vuln` suppression holding CI green. PyJWT

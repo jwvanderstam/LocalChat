@@ -290,12 +290,21 @@ async def api_test_retrieval(request: Request) -> Any:
 
     try:
         doc_processor = request.app.state.doc_processor
+        # The workspace the guard authorised. Without it retrieve_context searched every
+        # workspace and this route returned their chunk previews to any viewer.
+        workspace_id = get_workspace_id(request)
         # Two full retrievals — embedding call, pgvector scan and reranking, twice.
         results_hybrid = await run_in_threadpool(
-            doc_processor.retrieve_context, query, use_hybrid_search=True
+            doc_processor.retrieve_context,
+            query,
+            use_hybrid_search=True,
+            workspace_id=workspace_id,
         )
         results_semantic = await run_in_threadpool(
-            doc_processor.retrieve_context, query, use_hybrid_search=False
+            doc_processor.retrieve_context,
+            query,
+            use_hybrid_search=False,
+            workspace_id=workspace_id,
         )
         return {
             "success": True,

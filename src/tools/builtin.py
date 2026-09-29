@@ -85,7 +85,7 @@ def search_documents(query: str) -> str:
 
 @tool_registry.register(
     name="list_documents",
-    description="List all documents that have been uploaded and ingested into the system.",
+    description="List the documents that have been uploaded and ingested into this workspace.",
     parameters={
         "type": "object",
         "properties": {},
@@ -93,12 +93,17 @@ def search_documents(query: str) -> str:
     },
 )
 def list_documents(**_kwargs) -> str:
-    """Return a human-readable list of all ingested documents."""
+    """Return a human-readable list of the request workspace's ingested documents."""
     from ..db import db
+    from ..utils.scope import current_request_scope
 
     logger.info("[TOOL] list_documents")
+    # As search_documents: the model calls this, so the workspace comes from the request.
+    # It used to call get_all_documents() bare, which lists every workspace's documents.
+    scope = current_request_scope()
+    workspace_id = scope if isinstance(scope, str) else None
     try:
-        documents = db.get_all_documents()
+        documents = db.get_all_documents(workspace_id=workspace_id)
     except Exception as exc:
         logger.exception("[TOOL] list_documents failed")
         return f"Could not retrieve documents: {exc}"

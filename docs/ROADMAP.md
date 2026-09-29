@@ -845,6 +845,16 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   Until then the migration is **inert for the application**, which connects as the owner. That
   is deliberate and safe: the capability exists, is tested, and enforces nothing yet.
 
+  **Sorting the `workspace_id: str | None` methods for P2-1b-ii found three disclosures**
+  (2026-09-29), fixed on their own ahead of the conversion rather than queued behind it:
+  chat's `additional_workspace_ids` were never authorised, `POST /api/documents/test`
+  retrieved with no workspace, and the `list_documents` LLM tool listed every workspace. All
+  three are the driver-1 shape — an omitted or unchecked workspace read as "every workspace" —
+  on paths the P2-2b matrix cannot see, since none addresses an object by path parameter.
+  The same sort corrected the count: 16 of the 34 methods are filters where `None` means
+  every workspace; 5 take the workspace a new row lands in, and 13 take the workspace itself
+  as the object. P2-1b-ii converts the 16.
+
   **What is still open** is narrower than before: only a *statement*-level pooler would
   break this, and Scaleway's wording implies transaction pooling. That is one fact to
   confirm against the deployed database, not a design question.

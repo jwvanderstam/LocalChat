@@ -9,7 +9,22 @@ from __future__ import annotations
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from ..security_fastapi import check_workspace_access, get_current_user_id
+from ..security_fastapi import (
+    check_additional_workspace_access,
+    check_workspace_access,
+    get_current_user_id,
+)
+
+
+def deny_additional(
+    request: Request, workspace_ids: list[str], min_role: str
+) -> JSONResponse | None:
+    """``deny`` for the workspaces a request names beyond its own scope."""
+    denial = check_additional_workspace_access(request, workspace_ids, min_role)
+    if denial is None:
+        return None
+    code, message = denial
+    return JSONResponse({"success": False, "message": message}, status_code=code)
 
 
 def deny(request: Request, workspace_id: str | None, min_role: str) -> JSONResponse | None:
