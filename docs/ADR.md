@@ -292,11 +292,14 @@ raises the cost of ever leaving it. That is accumulated investment rather than t
 lock-in, and it is recorded here so it is a known quantity when ADR-1's own revisit
 condition fires, rather than an unseen reason not to act on it.
 
-**Coverage, stated plainly.** The seam reaches the 18 methods that address an object by id.
-34 more — retrieval (`search_similar_chunks`, `search_lexical_chunks`, `search_memories`)
-among them — still take `workspace_id: str | None`, where `None` means every workspace: the
-pattern P0-1 removed from the by-id paths. They are converted to `Scope` before the role
-switch is turned on, so that retrieval is covered from the first day RLS enforces anything.
+**Coverage, stated plainly.** The seam reaches 33 methods: the 18 that address an object by
+id (P2-1b-i) and the 15 filters — retrieval among them — that took
+`workspace_id: str | None` with `None` meaning every workspace (P2-1b-ii). Deliberately
+outside it: the inserts and `document_exists`, which take the workspace a row is written to,
+and the methods in `workspaces.py` and `workspace_keys.py`, which take the workspace itself.
+The inserts matter for the switch: a policy with only `USING` checks new rows against it too,
+so a scoped transaction can only write into its own workspace. (Sorting those 34 methods
+first found 16 filters; `document_exists` turned out to be a write-side check.)
 
 **Revisit when:** tenant administrators must be separated from platform operators, or a
 deployment requires that operators cannot read workspace content. Then the `ALL_WORKSPACES`

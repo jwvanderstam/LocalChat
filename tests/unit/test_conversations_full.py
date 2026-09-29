@@ -4,6 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
+
 
 def _make_db_with_conversations():
     """Build a minimal object that exercises ConversationsMixin."""
@@ -57,7 +59,7 @@ class TestListConversations:
     def test_list_returns_empty_when_none(self):
         db = _make_db_with_conversations()
         db._cursor.fetchall.return_value = []
-        result = db.list_conversations()
+        result = db.list_conversations(scope=ALL_WORKSPACES)
         assert result == []
 
     def test_list_returns_rows_as_dicts(self):
@@ -66,7 +68,7 @@ class TestListConversations:
         db._cursor.fetchall.return_value = [
             ('uuid-1', 'Chat One', datetime(2025,1,1), datetime(2025,1,2), 3),
         ]
-        result = db.list_conversations()
+        result = db.list_conversations(scope=ALL_WORKSPACES)
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0]['id'] == 'uuid-1'
@@ -76,7 +78,7 @@ class TestListConversations:
         db = _make_db_with_conversations()
         db.is_connected = False
         with pytest.raises(DatabaseUnavailableError):
-            db.list_conversations()
+            db.list_conversations(scope=ALL_WORKSPACES)
 
 
 class TestGetConversationMessages:

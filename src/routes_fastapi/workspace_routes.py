@@ -19,7 +19,7 @@ from ..security_fastapi import (
     require_auth,
 )
 from ..utils.logging_config import get_logger
-from ..utils.workspace import get_workspace_id
+from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 
 logger = get_logger(__name__)
@@ -322,7 +322,7 @@ def workspace_suggestions(workspace_id: str, request: Request, top_k: int = 10) 
     top_k = min(top_k, 50)
     try:
         from ..rag.active_learning import suggest_documents
-        suggestions = suggest_documents(workspace_id, request.app.state.db, top_k=top_k)
+        suggestions = suggest_documents(get_scope(request), request.app.state.db, top_k=top_k)
         return {"success": True, "workspace_id": workspace_id, "suggestions": suggestions}
     except Exception:
         logger.exception("[Workspaces] suggestions error")
@@ -336,7 +336,7 @@ def workspace_ontology(workspace_id: str, request: Request, top_n: int = 20) -> 
         return denied
     top_n = min(top_n, 100)
     try:
-        ontology = request.app.state.db.get_workspace_ontology(workspace_id, top_n=top_n)
+        ontology = request.app.state.db.get_workspace_ontology(top_n=top_n, scope=get_scope(request))
         return {"success": True, "workspace_id": workspace_id, **ontology}
     except Exception:
         logger.exception("[Workspaces] ontology error")

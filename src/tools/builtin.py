@@ -66,14 +66,13 @@ logger = get_logger(__name__)
 def search_documents(query: str) -> str:
     """Execute a RAG retrieval and return formatted context."""
     from ..rag import doc_processor
-    from ..utils.scope import ALL_WORKSPACES, current_request_scope
+    from ..utils.scope import current_request_scope
 
     logger.info(f"[TOOL] search_documents: query={query!r}")
     # Same reason as ToolRouter._local_docs: the model calls this, so the workspace
     # comes from the request rather than the arguments, and its absence raises (C3).
     scope = current_request_scope()
-    workspace_id = None if scope is ALL_WORKSPACES else scope
-    results = doc_processor.retrieve_context(query, top_k=5, workspace_id=workspace_id)
+    results = doc_processor.retrieve_context(query, top_k=5, scope=scope)
     if not results:
         return "No relevant documents found for this query."
     return doc_processor.format_context_for_llm(results, max_length=4000)
@@ -101,9 +100,8 @@ def list_documents(**_kwargs) -> str:
     # As search_documents: the model calls this, so the workspace comes from the request.
     # It used to call get_all_documents() bare, which lists every workspace's documents.
     scope = current_request_scope()
-    workspace_id = scope if isinstance(scope, str) else None
     try:
-        documents = db.get_all_documents(workspace_id=workspace_id)
+        documents = db.get_all_documents(scope=scope)
     except Exception as exc:
         logger.exception("[TOOL] list_documents failed")
         return f"Could not retrieve documents: {exc}"

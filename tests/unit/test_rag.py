@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
 from tests.utils.helpers import (
     generate_mock_embedding,
     generate_mock_search_results,
@@ -307,7 +308,7 @@ class TestRetrieval:
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
         mock_db.search_similar_chunks.return_value = generate_mock_search_results(5)
 
-        results = processor.retrieve_context("test query")
+        results = processor.retrieve_context("test query", scope=ALL_WORKSPACES)
 
         assert isinstance(results, list)
 
@@ -322,7 +323,7 @@ class TestRetrieval:
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
         mock_db.search_similar_chunks.return_value = generate_mock_search_results(3)
 
-        results = processor.retrieve_context("test query", top_k=3, min_similarity=0.5)
+        results = processor.retrieve_context("test query", top_k=3, min_similarity=0.5, scope=ALL_WORKSPACES)
 
         assert isinstance(results, list)
         mock_db.search_similar_chunks.assert_called_once()
@@ -338,7 +339,7 @@ class TestRetrieval:
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
         mock_db.search_similar_chunks.return_value = []
 
-        processor.retrieve_context("test", file_type_filter=".pdf")
+        processor.retrieve_context("test", file_type_filter=".pdf", scope=ALL_WORKSPACES)
 
         call_args = mock_db.search_similar_chunks.call_args
         assert call_args[1]['file_type_filter'] == ".pdf"
@@ -352,7 +353,7 @@ class TestRetrieval:
 
         mock_ollama.get_embedding_model.return_value = None
 
-        results = processor.retrieve_context("test query")
+        results = processor.retrieve_context("test query", scope=ALL_WORKSPACES)
 
         assert results == []
 
@@ -417,7 +418,7 @@ class TestRAGIntegration:
         assert success is True
 
         # Retrieve context
-        results = processor.retrieve_context("test query")
+        results = processor.retrieve_context("test query", scope=ALL_WORKSPACES)
         assert isinstance(results, list)
 
     @patch('src.rag.processor.db')
@@ -504,7 +505,7 @@ class TestRAGEdgeCases:
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
         mock_db.search_similar_chunks.return_value = []
 
-        results = processor.retrieve_context("")
+        results = processor.retrieve_context("", scope=ALL_WORKSPACES)
 
         # Should handle gracefully
         assert isinstance(results, list)

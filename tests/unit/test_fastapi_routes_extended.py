@@ -122,7 +122,7 @@ class TestDocumentRoutesExtended:
 
         assert resp.status_code == 200
         calls = state.doc_processor.retrieve_context.call_args_list
-        assert [c.kwargs.get("workspace_id") for c in calls] == [ws, ws]
+        assert [c.kwargs.get("scope") for c in calls] == [ws, ws]
 
     def test_chunk_context_not_found(self):
         from src.routes_fastapi.document_routes import router

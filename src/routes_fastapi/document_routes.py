@@ -24,6 +24,7 @@ from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.logging_config import sanitize_log_value as _slv
 from ..utils.sanitization import sanitize_filename, validate_path
+from ..utils.scope import Scope
 from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 
@@ -163,7 +164,7 @@ def _stream_file_ingest(app_state: Any, file_path: str, workspace_id: str | None
 
 
 async def _generate_upload_sse(
-    app_state: Any, file_paths: list[str], workspace_id: str | None,
+    app_state: Any, file_paths: list[str], workspace_id: str | None, scope: Scope,
 ) -> AsyncGenerator[str, None]:
     try:
         for file_path in file_paths:
@@ -176,7 +177,7 @@ async def _generate_upload_sse(
             )
             for event in events:
                 yield event
-        doc_count = app_state.db.get_document_count(workspace_id=workspace_id)
+        doc_count = app_state.db.get_document_count(scope=scope)
         yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
     except Exception:
         logger.exception("Upload stream error")
@@ -225,7 +226,9 @@ async def api_upload_documents(request: Request) -> Any:
         return JSONResponse({"success": False, "message": "No supported files found"}, status_code=400)
 
     return StreamingResponse(
-        _generate_upload_sse(request.app.state, file_paths, get_workspace_id(request)),
+        _generate_upload_sse(
+            request.app.state, file_paths, get_workspace_id(request), get_scope(request)
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -237,7 +240,7 @@ def api_list_documents(request: Request) -> Any:
     if denied:
         return denied
     try:
-        documents = request.app.state.db.get_all_documents(workspace_id=get_workspace_id(request))
+        documents = request.app.state.db.get_all_documents(scope=get_scope(request))
         return {"success": True, "documents": documents}
     except DatabaseUnavailableError:
         logger.exception("DB unavailable listing documents")
@@ -252,13 +255,13 @@ def api_document_stats(request: Request) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
-    workspace_id = get_workspace_id(request)
+    scope = get_scope(request)
     try:
         db = request.app.state.db
         return {
             "success": True,
-            "document_count": db.get_document_count(workspace_id=workspace_id),
-            "chunk_count": db.get_chunk_count(workspace_id=workspace_id),
+            "document_count": db.get_document_count(scope=scope),
+            "chunk_count": db.get_chunk_count(scope=scope),
             "chunk_statistics": db.get_chunk_statistics(),
             "max_upload_size": config.MAX_CONTENT_LENGTH,
         }
@@ -292,19 +295,19 @@ async def api_test_retrieval(request: Request) -> Any:
         doc_processor = request.app.state.doc_processor
         # The workspace the guard authorised. Without it retrieve_context searched every
         # workspace and this route returned their chunk previews to any viewer.
-        workspace_id = get_workspace_id(request)
+        scope = get_scope(request)
         # Two full retrievals — embedding call, pgvector scan and reranking, twice.
         results_hybrid = await run_in_threadpool(
             doc_processor.retrieve_context,
             query,
             use_hybrid_search=True,
-            workspace_id=workspace_id,
+            scope=scope,
         )
         results_semantic = await run_in_threadpool(
             doc_processor.retrieve_context,
             query,
             use_hybrid_search=False,
-            workspace_id=workspace_id,
+            scope=scope,
         )
         return {
             "success": True,

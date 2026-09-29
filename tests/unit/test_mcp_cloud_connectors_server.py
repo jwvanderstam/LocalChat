@@ -57,7 +57,7 @@ def test_search_passes_top_k_to_retrieve_context(monkeypatch: pytest.MonkeyPatch
     server.search("query", top_k=3, workspace_id=WS)
 
     doc_processor.retrieve_context.assert_called_once_with(
-        "query", top_k=3, workspace_id=WS
+        "query", top_k=3, scope=WS
     )
 
 

@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from src.utils.scope import ALL_WORKSPACES
 from tests.utils.auth import ADMIN_ID
 
 
@@ -194,15 +195,16 @@ class TestDocumentStatsRoute:
         app.state.db.get_chunk_count = MagicMock(return_value=10)
         app.state.db.get_chunk_statistics = MagicMock(return_value={})
         client.get('/api/documents/stats', headers={'X-Workspace-ID': 'ws-abc'})
-        app.state.db.get_document_count.assert_called_once_with(workspace_id='ws-abc')
-        app.state.db.get_chunk_count.assert_called_once_with(workspace_id='ws-abc')
+        app.state.db.get_document_count.assert_called_once_with(scope='ws-abc')
+        app.state.db.get_chunk_count.assert_called_once_with(scope='ws-abc')
 
-    def test_stats_no_workspace_header_passes_none(self, client, app):
+    def test_stats_no_workspace_header_passes_all_workspaces(self, client, app):
         app.state.db.get_document_count = MagicMock(return_value=5)
         app.state.db.get_chunk_count = MagicMock(return_value=25)
         app.state.db.get_chunk_statistics = MagicMock(return_value={})
         client.get('/api/documents/stats')
-        app.state.db.get_document_count.assert_called_once_with(workspace_id=None)
+        # The client is an admin who named no workspace: installation-wide, said out loud.
+        app.state.db.get_document_count.assert_called_once_with(scope=ALL_WORKSPACES)
 
 
 class TestDocumentSearchRoute:

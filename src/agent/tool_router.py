@@ -99,9 +99,8 @@ class ToolRouter:
         # Direct path (default when MCP disabled, or MCP fallback)
         from ..rag.processor import doc_processor
         filename_filter = (filters or {}).get("filenames") or []
-        workspace_id = None if scope is ALL_WORKSPACES else scope
         results = doc_processor.retrieve_context(
-            query, filename_filter=filename_filter, workspace_id=workspace_id
+            query, filename_filter=filename_filter, scope=scope
         )
         results = results[:top_k]
         if not results:

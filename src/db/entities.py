@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope, scope_predicate
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -177,20 +178,14 @@ class EntitiesMixin(MixinHost):
                 relation_count = relation_row[0]
         return {"entity_count": entity_count, "relation_count": relation_count}
 
-    def get_workspace_ontology(
-        self, workspace_id: str | None = None, top_n: int = 20
-    ) -> dict[str, Any]:
-        """Return workspace-scoped ontology: top entity types and relation patterns.
-
-        When workspace_id is None, aggregates across all documents.
-        """
+    def get_workspace_ontology(self, top_n: int = 20, *, scope: Scope) -> dict[str, Any]:
+        """Return the ontology of *scope*: top entity types and relation patterns."""
         if not self.is_connected:
             return {"entity_types": [], "relation_patterns": []}
 
-        ws_filter = "AND d.workspace_id = %s" if workspace_id else ""
-        params_ws: list[Any] = [workspace_id] if workspace_id else []
+        ws_filter, params_ws = scope_predicate(scope, "d.workspace_id")
 
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 # Top entity types by occurrence in workspace docs
                 cursor.execute(
