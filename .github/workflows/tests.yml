@@ -106,7 +106,16 @@ jobs:
           # No suppressions. The one that lived here (PYSEC-2026-1325, ecdsa)
           # went with python-jose in P2-6; adding another needs the same
           # justification in SECURITY.md that one had.
-          pip-audit -r requirements.txt
+          #
+          # torch is installed as 2.13.0+cpu from the PyTorch CPU index (P2-5), a version
+          # PyPI does not list, so a plain `pip-audit -r` SKIPS it and still passes. A +cpu
+          # build is the public release's source, so it carries that release's advisories:
+          # audit the lock with the local tag stripped, as pinned (the lock is the full
+          # closure, so --no-deps loses nothing), and --strict so a package that cannot be
+          # audited fails the step instead of vanishing from it.
+          sed -E 's/^(torch==[^+]+)\+cpu$/\1/' requirements.txt > /tmp/requirements-audit.txt
+          grep -q '^torch==[0-9.]*$' /tmp/requirements-audit.txt
+          pip-audit --strict --disable-pip --no-deps -r /tmp/requirements-audit.txt
 
       # pip-audit only reports CVEs. This reports plain version drift, which
       # Dependabot's open-pull-requests-limit can silently suppress — an
@@ -574,6 +583,9 @@ jobs:
           docker run --rm --entrypoint python localchat:smoke -c '
           import psycopg, onnxruntime, torch, spacy, sentence_transformers
           print("psycopg", psycopg.__version__, "| onnxruntime", onnxruntime.__version__)
+          # P2-5: the app container has no GPU; a CUDA torch is gigabytes of dead weight.
+          assert torch.version.cuda is None, f"CUDA torch in the image: {torch.__version__}"
+          print("torch", torch.__version__, "(CPU)")
           '
 
       # .dockerignore excluding docs/ or .claude/ would leave the in-app docs

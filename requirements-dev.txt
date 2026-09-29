@@ -4,6 +4,8 @@
 #
 #    pip-compile --no-index --no-strip-extras --output-file=requirements-dev.txt requirements-dev.in
 #
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 certifi==2026.7.22
     # via
     #   -c requirements.txt

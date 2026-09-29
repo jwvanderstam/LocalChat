@@ -1088,7 +1088,7 @@ halves are not the same size or the same kind of work.
   (4 too broad, 11 invisible), plus a rule that makes the next one an argument instead of a
   reflex.
 
-### P2-5 — CPU-only torch in the image ⬜
+### P2-5 — CPU-only torch in the image ✅ (2026-09-29)
 
 **Driver 6.** `sentence-transformers` pulls CUDA torch into an image whose supported
 topology has no GPU in the `app` container (Ollama owns the GPU). Install torch from the
@@ -1096,6 +1096,19 @@ CPU index in the Dockerfile and measure. **Acceptance:** `docker-smoke` green; i
 before and after recorded in DEPLOYMENT.md. **Watch:** the lock is compiled on Linux for
 the image (CLAUDE.md, Quality Gates); a CPU-index torch has to survive `pip-compile`, or be
 installed as a separate Dockerfile step outside the lock — decide which before starting.
+
+**Decided: in the lock.** `requirements.in` names the PyTorch CPU index; PEP 440 orders
+`2.13.0+cpu` above `2.13.0`, so the resolver prefers it without torch being pinned, and the
+image and CI install the same wheels. The Linux recompile changed nothing else: `torch` became
+`+cpu` and fifteen `nvidia-*`, three `cuda-*` and `triton` left the lock. **9.50 GB → 2.95 GB**,
+same commit, recorded in DEPLOYMENT.md.
+
+One thing the choice cost, caught before it shipped: `pip-audit -r` **skips** `2.13.0+cpu` —
+PyPI does not list it — and still passes, so torch had silently left the vulnerability scan.
+CI now audits the lock with the local tag stripped (a `+cpu` build carries the public
+release's advisories), pinned as written, with `--strict` so an unauditable package fails
+the step. `tests/unit/test_lock_is_cpu_only.py` fails if the lock regains a CUDA torch.
+Not verifiable before it runs: how Dependabot handles the `+cpu` pin on its next bump.
 
 ### P2-6 — Replace `python-jose` with PyJWT ✅ (done 2026-09-20)
 
