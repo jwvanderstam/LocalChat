@@ -37,7 +37,8 @@ migrations/
     0015_workspace_api_keys.py                workspace_api_keys table
     0016_connectors_created_by.py             BUG-4: connectors.created_by
     0017_p21b_row_level_security.py           P2-1b: RLS on the workspace-owned tables
-    0018_p21b_grant_scoped_role.py            P2-1b: the app identity may SET ROLE localchat_scoped  ← current head
+    0018_p21b_grant_scoped_role.py            P2-1b: the app identity may SET ROLE localchat_scoped
+    0019_p21b_scoped_role_default_privileges.py  P2-1b: future tables reachable by the scoped role  ← current head
 ```
 
 > **This listing stopped at `0004` until 2026-08-27**, while twelve more migrations had

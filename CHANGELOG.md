@@ -108,6 +108,22 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `pip-compile --upgrade-package`; nothing else in either lock changed. Dependabot's #401 carries
   the PyJWT bump but not urllib3, which is why this is its own change.
 
+- **Row-level security is enforced** (ROADMAP P2-1b-iii, ADR-5). A workspace-scoped
+  transaction now runs as `localchat_scoped` with `app.workspace_id` set, both
+  transaction-local, so Postgres refuses every other workspace's rows even from a query that
+  forgot its `WHERE` clause; `ALL_WORKSPACES` stays on the owner role. Migration `0019` gives
+  the role default privileges, so a table a later release adds is not "permission denied" on
+  the scoped path only, and memory search runs once per authorised workspace, since a scoped
+  transaction sees one.
+  Measuring the cost found a recall regression the tests could not: under the policy Postgres
+  swaps the exact per-workspace vector scan for the HNSW index filtered afterwards, and top-40
+  semantic search returned 19 rows on average, as few as 0. Scoped transactions therefore also
+  set `hnsw.iterative_scan = strict_order` and `hnsw.ef_search = 400` — all 40 rows, 92%
+  overlap with the exact answer, 3.8 ms median against 9.1 ms before. This requires
+  **pgvector 0.8 or later**; an older one refuses the setting and scoped queries fail loudly.
+  `tests/integration/test_row_level_security.py` proves each part against Postgres and fails
+  with it removed.
+
 - **`GET /api/status` reported any workspace's document count.** Status requires only a
   session, and counted documents for whatever `X-Workspace-ID` named — so a caller could read
   the count of a workspace they are not a member of, or of the whole installation by sending
