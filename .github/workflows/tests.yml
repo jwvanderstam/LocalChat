@@ -466,9 +466,29 @@ jobs:
           psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE restorer LOGIN PASSWORD 'restore_ci';"
           psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE rag_db_managed OWNER restorer;"
           psql -d rag_db_managed -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
-          PGPASSWORD=restore_ci pg_restore -U restorer -h localhost -d rag_db_managed             --no-owner --no-comments --exit-on-error /tmp/rag_db.dump
+          PGPASSWORD=restore_ci pg_restore -U restorer -h localhost -d rag_db_managed             --no-owner --no-privileges --no-comments --exit-on-error /tmp/rag_db.dump
           test "$(psql -d rag_db_managed -tAc 'SELECT count(*) FROM document_chunks WHERE embedding IS NOT NULL')" = "1"
-          echo "OK: --no-owner --no-comments carries a non-superuser restore"
+          echo "OK: --no-owner --no-privileges --no-comments carries a non-superuser restore"
+
+      # --no-privileges drops the dump's grants to localchat_scoped: a new cluster has no
+      # such role for them to name. The application re-applies the role and its grants at
+      # boot (_apply_scoped_role), so a restored database is usable once the app starts.
+      # The role already exists in this cluster, so this proves the re-grant, not the
+      # creation a genuinely new cluster needs.
+      - name: Boot re-grants the scoped role on a restored database
+        env:
+          PG_HOST: localhost
+          PG_PORT: "5432"
+          PG_USER: postgres
+          PG_PASSWORD: ci_test_password
+          PG_DB: rag_db_managed
+          SECRET_KEY: ci-test-secret-key-32chars-minimum
+          APP_ENV: development
+        run: |
+          test "$(psql -d rag_db_managed -tAc "SELECT has_table_privilege('localchat_scoped', 'documents', 'SELECT')")" = "f"
+          python -c "from src.db import Database; ok, msg = Database().initialize(); raise SystemExit(0 if ok else msg)"
+          test "$(psql -d rag_db_managed -tAc "SELECT has_table_privilege('localchat_scoped', 'documents', 'SELECT')")" = "t"
+          echo "OK: boot restored the scoped role's grants"
 
       # Row counts prove the rows arrived. Only a similarity query proves the
       # embeddings did — a vector column can restore as the right shape and the

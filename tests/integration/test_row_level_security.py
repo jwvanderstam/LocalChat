@@ -269,19 +269,37 @@ def test_the_application_identity_may_switch_into_the_scoped_role(conn: Any) -> 
     assert rows == [(True,)]
 
 
-def test_a_table_created_after_the_migrations_is_reachable_by_the_scoped_role(conn: Any) -> None:
-    """Migration 0019 — default privileges.
+def _scoped_can_read(conn: Any, table: str) -> bool:
+    try:
+        with conn.transaction():
+            conn.execute(f'SET LOCAL ROLE "{ROLE}"')
+            conn.execute(f"SELECT count(*) FROM {table}")
+        return True
+    except psycopg.errors.InsufficientPrivilege:
+        return False
 
-    The base schema is created at boot before the chain runs, so a table a later release
-    adds would otherwise exist with no grant for the role: fine as the owner, "permission
-    denied" on the scoped path only.
+
+def test_a_table_added_later_is_granted_to_the_scoped_role_at_boot(conn: Any) -> None:
+    """A table a later release adds exists with no grant for the role until the next boot.
+
+    Boot re-applies the grants (`_apply_scoped_role`) rather than a migration setting
+    default privileges, because a dump carrying ALTER DEFAULT PRIVILEGES cannot be
+    restored by a non-superuser — restore-proof found that (P2-1b-iii). Both halves are
+    asserted, so this proves the boot step does the granting.
     """
     name = f"rls_later_{uuid.uuid4().hex[:8]}"
     conn.execute(f"CREATE TABLE {name} (id int)")
     try:
-        with conn.transaction():
-            conn.execute(f'SET LOCAL ROLE "{ROLE}"')
-            assert conn.execute(f"SELECT count(*) FROM {name}").fetchone()[0] == 0
+        assert not _scoped_can_read(conn, name)
+        boot = subprocess.run(
+            [sys.executable, "-c",
+             "from src.db import Database; ok, msg = Database().initialize();"
+             " raise SystemExit(0 if ok else msg)"],
+            cwd=_ROOT, env={**os.environ, "PG_DB": conn.info.dbname},
+            capture_output=True, text=True, timeout=120,
+        )
+        assert boot.returncode == 0, boot.stdout + boot.stderr
+        assert _scoped_can_read(conn, name)
     finally:
         conn.execute(f"DROP TABLE {name}")
 

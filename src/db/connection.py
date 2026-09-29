@@ -47,6 +47,31 @@ SCOPED_HNSW_ITERATIVE_SCAN = "strict_order"
 SCOPED_HNSW_EF_SEARCH = 400
 
 
+def _apply_scoped_role(cursor: Any) -> None:
+    """Make ``localchat_scoped`` exist, reachable by this identity, and able to use every table.
+
+    Run at every boot, not only in a migration. A role is a cluster object, so ``pg_dump``
+    never carries it: restore into a new cluster and the database says 0017 ran while the
+    role it created does not exist, and every scoped query fails. Re-granting the tables here
+    also covers a table a later release adds — which ``ALTER DEFAULT PRIVILEGES`` would too,
+    but a dump carrying that cannot be restored by a non-superuser (restore-proof, P2-1b-iii).
+    """
+    cursor.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{SCOPED_ROLE}') THEN
+                CREATE ROLE {SCOPED_ROLE} NOLOGIN;
+            END IF;
+        END $$;
+        """
+    )
+    cursor.execute(f"GRANT {SCOPED_ROLE} TO CURRENT_USER")
+    cursor.execute(f"GRANT USAGE ON SCHEMA public TO {SCOPED_ROLE}")
+    cursor.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {SCOPED_ROLE}")
+    cursor.execute(f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {SCOPED_ROLE}")
+
+
 def _enter_scope(conn: Any, workspace_id: str) -> None:
     """Restrict the transaction *conn* is about to open to *workspace_id* (ADR-5)."""
     # An autocommit connection makes every statement its own transaction, so both
@@ -753,8 +778,18 @@ class DatabaseConnection:
                 """)
                 logger.debug("revoked_tokens table ensured")
 
+                # Last, so it grants the tables created above.
+                _apply_scoped_role(cursor)
+                logger.debug("scoped role ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
+
+    def ensure_scoped_role(self) -> None:
+        """Re-apply the scoped role's grants; call after migrations, which may add tables."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                _apply_scoped_role(cursor)
 
     @contextmanager
     def get_connection(

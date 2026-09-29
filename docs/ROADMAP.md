@@ -863,10 +863,14 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
     `None` is an explicit `ALL_WORKSPACES`. It finishes P2-1a — "forgot the argument = every
     workspace" is gone from every read path. Converting also surfaced a fourth, smaller
     disclosure: `GET /api/status` counted documents for any `X-Workspace-ID`.
-  - **P2-1b-iii ✅** (2026-09-29) — the role switch in `get_connection()`, migration `0019`
-    (default privileges, so a table a later release adds is not "permission denied" on the
-    scoped path only), and memory search run once per authorised workspace, since a scoped
-    transaction sees one. The CI-database worry did not materialise: a fresh Postgres runs the
+  - **P2-1b-iii ✅** (2026-09-29) — the role switch in `get_connection()`, the role and its
+    grants re-applied at every boot (a role is a cluster object `pg_dump` never carries, so a
+    restore into a new cluster otherwise left 0017 recorded and its role missing), and memory
+    search run once per authorised workspace, since a scoped transaction sees one.
+    `restore-proof` caught the path to this: a first version set default privileges in a
+    migration, and a dump carrying `ALTER DEFAULT PRIVILEGES` cannot be restored by a
+    non-superuser. Looking closer showed the managed restore recipe had been broken since
+    `0017` for any new cluster; it gains `--no-privileges`, and the application re-grants. The CI-database worry did not materialise: a fresh Postgres runs the
     whole integration suite green, because every fixture that reaches a scoped path already
     migrates, and a missing role fails loudly rather than passing.
 
