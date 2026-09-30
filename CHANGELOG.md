@@ -91,6 +91,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Security
 
+- **PyJWT 2.15.0 and urllib3 2.8.0**, for CVE-2026-101918 (PyJWT) and CVE-2026-97687, -97688
+  and -97689 (urllib3). Newly published advisories that turned `pip-audit` red on `main` and on
+  every open PR at once. urllib3 is transitive, so it moved by a targeted
+  `pip-compile --upgrade-package`; nothing else in either lock changed. Dependabot's #401 carries
+  the PyJWT bump but not urllib3, which is why this is its own change.
+
 - **`python-jose` replaced by `PyJWT`** (ROADMAP P2-6). The old library pulled `ecdsa`,
   whose timing side-channel has no upstream fix and had been an accepted risk in
   SECURITY.md §2 with a `pip-audit --ignore-vuln` suppression holding CI green. PyJWT
