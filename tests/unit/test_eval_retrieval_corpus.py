@@ -94,6 +94,28 @@ class TestIngestCorpusFileSelection:
         assert "skipped no_extension" in out
         assert "skipped notes.md" not in out
 
+    def test_documents_in_subfolders_are_ingested(self, tmp_path, monkeypatch):
+        """A real document set lives in folders; iterdir read the top level only, so a
+        corpus of 274 files ingested as 4 and its cases scored against an empty database."""
+        seen: list[str] = []
+
+        class _Processor:
+            def ingest_document(self, path, workspace_id=None):
+                seen.append(Path(path).relative_to(tmp_path).as_posix())
+                return True, "ok", None
+
+        monkeypatch.setitem(
+            sys.modules, "src.rag.processor", type(sys)("src.rag.processor")
+        )
+        sys.modules["src.rag.processor"].doc_processor = _Processor()
+        (tmp_path / "top.pdf").write_bytes(b"x")
+        (tmp_path / "rfp" / "exhibits").mkdir(parents=True)
+        (tmp_path / "rfp" / "brief.docx").write_bytes(b"x")
+        (tmp_path / "rfp" / "exhibits" / "pricing.xlsx").write_bytes(b"x")
+
+        assert ev.ingest_corpus(tmp_path, None) == 3
+        assert sorted(seen) == ["rfp/brief.docx", "rfp/exhibits/pricing.xlsx", "top.pdf"]
+
 
 @pytest.mark.unit
 class TestResolveSource:

@@ -1,0 +1,44 @@
+{
+  "label": "private customer RFP and contract corpus (208 documents, 105 cases)",
+  "date": "2026-09-29",
+  "cases": 105,
+  "answer_model": "llama3.2",
+  "judge_model": "mistral",
+  "judge_prompt": "v1",
+  "rejudged": "2026-09-30",
+  "tolerance": 0.05,
+  "metrics": {
+    "source_recall@1": 0.143,
+    "source_recall@5": 0.505,
+    "source_mrr": 0.284,
+    "proof_recall": 0.448,
+    "citation_correct": 0.552,
+    "answer_correct": 0.771,
+    "faithfulness": 0.895
+  },
+  "calibration": {
+    "graders": [
+      "claude"
+    ],
+    "missing_results": [
+      8
+    ],
+    "correct": {
+      "n": 14,
+      "exact": 0.643,
+      "within_one": 0.929
+    },
+    "faithful": {
+      "n": 19,
+      "exact": 0.526,
+      "within_one": 0.947
+    }
+  },
+  "notes": [
+    "Cases drafted by mistral, reviewed and corrected by an AI assistant (claude), approved by the maintainer; not human-verified case by case.",
+    "Judge agreement was measured against an AI assistant's grades, not a human's. Human calibration (ROADMAP P2-3) remains open.",
+    "Judge v1 is lenient against those grades: mean bias +0.21 on correct, +0.16 on faithful (n=14/19). answer_correct and faithfulness are overstated; use them to detect regressions, not as absolute quality.",
+    "Judge v2 (every specific checked) scored bias +0.04 correct / -0.26 faithful with 6 of 105 verdicts unparseable; kept in the script for comparison.",
+    "Retrieval metrics do not depend on the judge. Corpus has 64 file names duplicated across folders; source matching is by file name."
+  ]
+}

@@ -124,6 +124,8 @@ scratch.py
 !/scripts/bench_concurrency.py
 !/scripts/mutation_gate.py
 !/scripts/eval_retrieval.py
+!/scripts/eval_answers.py
+!/scripts/eval_review.html
 # Not ad-hoc: deployment scripts, documented in the Scaleway plan and the file map.
 !/scripts/scaleway/
 /test_docx.py
