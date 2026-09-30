@@ -190,7 +190,7 @@ class TestCalibrationScoring:
         assert out["graders"] == ["claude"]
         assert out["missing_results"] == [3]
         assert out["correct"]["n"] == 1   # case 2's reference changed after it was graded
-        assert out["faithful"] == {"n": 2, "exact": 1.0, "within_one": 1.0}
+        assert out["faithful"] == {"n": 2, "exact": 1.0, "within_one": 1.0, "judge_bias": 0.0}
 
 
 class TestInstrumentMismatch:
@@ -203,3 +203,40 @@ class TestInstrumentMismatch:
         """A stricter judge lowers the scores without the chat changing at all."""
         run = {**self.BASELINE, "judge_prompt": "v2"}
         assert [m.split()[0] for m in ev.instrument_mismatch(run, self.BASELINE)] == ["judge_prompt"]
+
+
+class TestJudgeBias:
+    def test_a_lenient_judge_has_a_positive_bias(self):
+        """Agreement alone hides which way the misses lean; this is what says a metric is overstated."""
+        pairs = [("no", "yes"), ("partial", "yes"), ("yes", "yes"), ("no", "no")]
+        assert ev.mean_bias(pairs) == round(3 / 4 - 1.5 / 4, 3)
+
+    def test_nothing_graded_is_none_not_zero(self):
+        assert ev.mean_bias([("", "yes")]) is None
+
+
+class TestQuickCalibrationSheet:
+    def test_a_correct_only_sheet_carries_no_context_and_scores_only_correct(self, tmp_path, capsys):
+        import json
+        import types
+
+        results = tmp_path / "results.json"
+        results.write_text(json.dumps({"results": [
+            {"id": i, "question": f"q{i}", "reference_answer": "r", "answer": "a",
+             "context": "C" * 5000, "correct": 1.0, "faithful": 1.0} for i in range(1, 4)
+        ]}))
+        sheet = tmp_path / "quick.json"
+        ev.cmd_calibrate(types.SimpleNamespace(
+            results=results, score=None, out=sheet, n=3, seed=7, dims="correct"))
+        made = json.loads(sheet.read_text())
+        assert made["dims"] == ["correct"]
+        assert all("context" not in c and "human_faithful" not in c for c in made["cases"])
+
+        for c in made["cases"]:
+            c["human_correct"] = "partial"
+        sheet.write_text(json.dumps(made))
+        capsys.readouterr()
+        ev.cmd_calibrate(types.SimpleNamespace(results=results, score=sheet))
+        out = json.loads(capsys.readouterr().out)
+        assert set(out) == {"graders", "missing_results", "correct"}
+        assert out["correct"]["judge_bias"] == 0.5

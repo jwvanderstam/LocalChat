@@ -112,6 +112,8 @@ function rebuildOrder(keepId) {
 
 // ── calibration mode: blind human grading of judged answers (eval_answers.py calibrate) ──
 const isCal = () => Boolean(data && data.mode === "calibration");
+// Which grades this sheet asks for; a quick sheet asks only "correct" and carries no context.
+const dims = () => (data && Array.isArray(data.dims) && data.dims.length ? data.dims : ["correct", "faithful"]);
 const DIMS = {
   correct: "Correct — does the answer give the same information as the reference answer?",
   faithful: "Faithful — is every claim in the answer supported by the context?",
@@ -120,8 +122,9 @@ let dim = "correct";
 
 function renderCal() {
   const c = cases()[order[pos]];
-  if (!c.human_correct) dim = "correct";
-  else if (!c.human_faithful) dim = "faithful";
+  const next = dims().find((d) => !c["human_" + d]);
+  if (next) dim = next;
+  else if (!dims().includes(dim)) dim = dims()[0];
   const row = (d) => `
     <div class="grade ${d === dim ? "active" : ""}">
       <p>${esc(DIMS[d])}</p>
@@ -137,8 +140,8 @@ function renderCal() {
       <label>Question</label><div class="passage">${esc(c.question)}</div>
       <label>Reference answer</label><div class="passage">${esc(c.reference_answer)}</div>
       <label>Assistant's answer</label><div class="passage">${esc(c.answer)}</div>
-      <label>Context the assistant was given</label><div class="passage">${esc(c.context)}</div>
-      ${row("correct")}${row("faithful")}
+      ${c.context == null ? "" : `<label>Context the assistant was given</label><div class="passage">${esc(c.context)}</div>`}
+      ${dims().map(row).join("")}
       <div class="actions">
         <button id="prev">← Previous</button>
         <button id="next">Next →</button>
@@ -155,10 +158,10 @@ function gradeCal(d, value) {
   if (!order.length) return;
   const c = cases()[order[pos]];
   c["human_" + d] = value;
-  c.status = c.human_correct && c.human_faithful ? "scored" : "pending";
+  c.status = dims().every((x) => c["human_" + x]) ? "scored" : "pending";
   scheduleSave(0);
-  if (c.status !== "scored") { dim = "faithful"; render(); return; }
-  dim = "correct";
+  if (c.status !== "scored") { dim = dims().find((x) => !c["human_" + x]); render(); return; }
+  dim = dims()[0];
   const filtered = $("filter").value === "pending";
   rebuildOrder(filtered ? null : c.id);
   if (!filtered) move(1); else render();
@@ -298,7 +301,9 @@ document.addEventListener("keydown", (e) => {
   if (isCal()) {
     const grades = { y: "yes", p: "partial", n: "no" };
     if (grades[k]) gradeCal(dim, grades[k]);
-    else if (k === "c" || k === "f") { dim = k === "c" ? "correct" : "faithful"; render(); }
+    else if ((k === "c" || k === "f") && dims().includes(k === "c" ? "correct" : "faithful")) {
+      dim = k === "c" ? "correct" : "faithful"; render();
+    }
     else if (e.key === "ArrowRight") move(1);
     else if (e.key === "ArrowLeft") move(-1);
     else return;

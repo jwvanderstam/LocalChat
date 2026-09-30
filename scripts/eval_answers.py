@@ -151,6 +151,18 @@ def regressions(summary: dict[str, float], baseline: dict[str, Any]) -> list[str
     ]
 
 
+def mean_bias(pairs: list[tuple[str, str]]) -> float | None:
+    """Mean judge score minus mean human score over (human, judge) pairs: how far off, and which way.
+
+    Agreement says how often the judge matches; bias says whether its misses lean one way —
+    the number that tells a reader how much a judged metric is overstated.
+    """
+    scored = [(grade(h), grade(j)) for h, j in pairs if grade(h) is not None and grade(j) is not None]
+    if not scored:
+        return None
+    return round(sum(j for _, j in scored) / len(scored) - sum(h for h, _ in scored) / len(scored), 3)
+
+
 def instrument_mismatch(run_info: dict[str, Any], baseline: dict[str, Any]) -> list[str]:
     """What differs between how a run and the baseline were measured.
 
@@ -448,7 +460,8 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
 
     results = json.loads(args.results.read_text(encoding="utf-8"))["results"]
     if args.score:
-        sheet = yaml.safe_load(args.score.read_text(encoding="utf-8"))["cases"]
+        data = yaml.safe_load(args.score.read_text(encoding="utf-8"))
+        sheet = data["cases"]
         by_id = {r["id"]: r for r in results}
         inverse = {v: k for k, v in GRADES.items()}
         # A case rejected after grading has no result; say so rather than fail on it.
@@ -456,30 +469,36 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
         # "correct" is graded against the reference answer shown on the sheet; where the case's
         # reference has since been fixed, the grade and the judge answer different questions.
         same_ref = [c for c in scored if c["reference_answer"] == by_id[c["id"]]["reference_answer"]]
-        out = {
+        out: dict[str, Any] = {
             # The sheet says who graded it. Agreement with a model is not calibration against a
             # human, which is what P2-3 asks for; the grader travels with the number.
             "graders": sorted({str(c.get("grader", "human")) for c in scored}),
             "missing_results": [c["id"] for c in sheet if c["id"] not in by_id],
-            "correct": agreement([(c["human_correct"], inverse.get(by_id[c["id"]]["correct"], "")) for c in same_ref]),
-            "faithful": agreement([(c["human_faithful"], inverse.get(by_id[c["id"]]["faithful"], "")) for c in scored]),
         }
+        for dim in data.get("dims", ["correct", "faithful"]):
+            rows = same_ref if dim == "correct" else scored
+            pairs = [(c[f"human_{dim}"], inverse.get(by_id[c["id"]][dim], "")) for c in rows]
+            out[dim] = {**agreement(pairs), "judge_bias": mean_bias(pairs)}
         print(json.dumps(out, indent=2))
         return
     refuse_inside_repo(args.out)
+    dims = args.dims.split(",")
     sample = random.Random(args.seed).sample(results, min(args.n, len(results)))
     # Blind: the judge's verdicts are not on the sheet. JSON, so eval_review.html can score it.
+    # Without "faithful" the context is left off: grading "correct" needs only the reference,
+    # which is what makes a quick human pass (about ten seconds an answer) possible.
     sheet = [{
         "id": r["id"], "status": "pending", "question": r["question"],
-        "reference_answer": r["reference_answer"], "answer": r["answer"], "context": r["context"],
-        "human_correct": "", "human_faithful": "",
+        "reference_answer": r["reference_answer"], "answer": r["answer"],
+        **({"context": r["context"]} if "faithful" in dims else {}),
+        **{f"human_{d}": "" for d in dims},
     } for r in sample]
     args.out.write_text(json.dumps({
-        "mode": "calibration",
-        "instructions": "Score each answer: human_correct and human_faithful are yes, partial or no.",
+        "mode": "calibration", "dims": dims,
+        "instructions": "Grade each answer yes, partial or no on: " + ", ".join(dims),
         "cases": sheet,
     }, indent=1, ensure_ascii=False), encoding="utf-8")
-    print(f"{len(sheet)} answers to score in {args.out}")
+    print(f"{len(sheet)} answers to grade on {', '.join(dims)} in {args.out}")
 
 
 def cmd_check(args: argparse.Namespace) -> None:
@@ -543,6 +562,8 @@ def main() -> None:
     c.add_argument("--score", type=Path)
     c.add_argument("--n", type=int, default=20)
     c.add_argument("--seed", type=int, default=7)
+    c.add_argument("--dims", default="correct,faithful",
+                   help="what to grade; 'correct' alone makes a quick pass with no context to read")
 
     k = sub.add_parser("check")
     k.add_argument("--results", type=Path, required=True)
