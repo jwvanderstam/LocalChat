@@ -1070,9 +1070,12 @@ approved by the maintainer. `llama3.2` answers, `mistral` judges.
 |---|---|---|---|---|---|---|
 | 0.14 | 0.51 | 0.28 | 0.45 | 0.55 | 0.77 | 0.90 |
 
-\*Judge-scored, and lenient: against an assistant's grades of 20 answers the judge ran
-+0.21 on correct and +0.16 on faithful. The baseline is a regression tripwire, not a quality
-claim; `check` refuses to compare runs measured with a different model or judge prompt.
+\*Judge-scored, and lenient. Against two calibration sheets — 38 grades by an AI assistant,
+2 by the maintainer — judge `v1` overstated *correct* by +0.21 and +0.30, and *faithful* by
++0.16. Judge `v2` was near-unbiased on *correct* (−0.03) and scored the same answers 0.52:
+**the chat answers correctly about half the time**, not 77%. The baseline keeps `v1` because
+it parses reliably, as a regression tripwire; `check` refuses to compare runs measured with a
+different model or judge prompt.
 
 **What it found.** *Retrieval, not generation, is the weak link:* the source document ranks
 first for 14% of questions, and most wrong answers had no answer in their context — the model
@@ -1083,9 +1086,10 @@ those but over-corrects, so both are kept for comparison. Building it also found
 4 documents of 274), and that drafting picked tables of contents and templates, now filtered.
 
 **Still open:**
-- **Human calibration.** The 20 calibration answers were graded by an AI assistant, not a
-  person; agreement with a model is not what this ticket asks for. Grading them by hand in
-  `eval_review.html` and re-running `calibrate --score` closes it.
+- **Human calibration.** 38 of the 40 calibration grades are an AI assistant's; agreement with
+  a model is not what this ticket asks for. `calibrate --dims correct` makes a sheet a person
+  can grade in a few minutes in `eval_review.html`; doing so and re-running `calibrate --score`
+  closes it. Deferred by the maintainer, 2026-10-01.
 - **DEL-2.** GraphRAG was not compared on this corpus yet.
 - **Nightly.** Needs a machine with a model; the command is the same when there is one.
 

@@ -17,28 +17,43 @@
     "faithfulness": 0.895
   },
   "calibration": {
-    "graders": [
-      "claude"
-    ],
-    "missing_results": [
-      8
-    ],
-    "correct": {
-      "n": 14,
-      "exact": 0.643,
-      "within_one": 0.929
+    "first_sheet_old_references": {
+      "graders": [
+        "claude"
+      ],
+      "missing_results": [
+        8
+      ],
+      "correct": {
+        "n": 14,
+        "exact": 0.643,
+        "within_one": 0.929
+      },
+      "faithful": {
+        "n": 19,
+        "exact": 0.526,
+        "within_one": 0.947
+      }
     },
-    "faithful": {
-      "n": 19,
-      "exact": 0.526,
-      "within_one": 0.947
+    "quick_sheet_correct_fixed_references": {
+      "graders": [
+        "claude",
+        "human"
+      ],
+      "missing_results": [],
+      "correct": {
+        "n": 20,
+        "exact": 0.6,
+        "within_one": 0.8,
+        "judge_bias": 0.3
+      }
     }
   },
   "notes": [
     "Cases drafted by mistral, reviewed and corrected by an AI assistant (claude), approved by the maintainer; not human-verified case by case.",
-    "Judge agreement was measured against an AI assistant's grades, not a human's. Human calibration (ROADMAP P2-3) remains open.",
-    "Judge v1 is lenient against those grades: mean bias +0.21 on correct, +0.16 on faithful (n=14/19). answer_correct and faithfulness are overstated; use them to detect regressions, not as absolute quality.",
-    "Judge v2 (every specific checked) scored bias +0.04 correct / -0.26 faithful with 6 of 105 verdicts unparseable; kept in the script for comparison.",
+    "Calibration grades are an AI assistant's (38 of 40) plus 2 by the maintainer. Human calibration (ROADMAP P2-3) remains open.",
+    "Judge v1 overstates answer_correct: bias +0.21 (first sheet, n=14) and +0.30 (quick sheet on corrected references, n=20). Judge v2 is near-unbiased on correct (-0.03, n=20), and scores answer_correct 0.52 on the same answers: the better estimate is that the chat answers correctly about half the time.",
+    "Judge v1 also overstates faithfulness (+0.16, n=19); v2 is harsh there (-0.26) and fails to parse 6 of 105 verdicts. v1 is the baseline judge for consistency: use answer_correct and faithfulness to detect regressions, not as absolute quality.",
     "Retrieval metrics do not depend on the judge. Corpus has 64 file names duplicated across folders; source matching is by file name."
   ]
 }
