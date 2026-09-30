@@ -16,7 +16,8 @@ repository's docs. This scores what a user experiences, on a corpus of their own
 
 Metrics, over accepted cases:
 
-    source_recall@1/@5, source_mrr  the case's source document among the retrieved sources
+    source_recall@1/@5, source_mrr  the case's source document among the retrieved documents,
+                                    ranked by relevance (best chunk score), not by position
     proof_recall                    the verbatim proof passage is in the context the model saw
     citation_correct                the source document is among the sources the user is shown
     answer_correct                  judge: the answer matches the reference (yes 1, partial .5)
@@ -113,15 +114,20 @@ def grade(value: Any) -> float | None:
     return GRADES.get(str(value).strip().lower())
 
 
-def source_rank(source: str, retrieved: list[str]) -> int | None:
-    """1-based rank of the case's source among retrieved file names, compared by base name."""
-    wanted = Path(source).name.casefold()
-    seen: list[str] = []
-    for name in retrieved:
+def relevance_rank(source: str, scored: list[tuple[str, float]]) -> int | None:
+    """1-based rank of the case's source among retrieved documents ordered by relevance.
+
+    Each document scores as its best chunk. Not the order retrieval returns them in: that is
+    alphabetical by file name (reading order, `_rank_and_finalize`), so ranking by position
+    measured the alphabet — the first baseline's "source@1 = 0.14" did exactly that.
+    """
+    best: dict[str, float] = {}
+    for name, score in scored:
         base = Path(name).name.casefold()
-        if base not in seen:
-            seen.append(base)
-    return seen.index(wanted) + 1 if wanted in seen else None
+        best[base] = max(best.get(base, float("-inf")), score)
+    order = sorted(best, key=lambda k: best[k], reverse=True)
+    wanted = Path(source).name.casefold()
+    return order.index(wanted) + 1 if wanted in order else None
 
 
 def summarise(results: list[dict[str, Any]]) -> dict[str, float]:
@@ -171,7 +177,7 @@ def instrument_mismatch(run_info: dict[str, Any], baseline: dict[str, Any]) -> l
     """
     return [
         f"{key} {run_info.get(key)!r} vs baseline {baseline.get(key)!r}"
-        for key in ("answer_model", "judge_model", "judge_prompt")
+        for key in ("answer_model", "judge_model", "judge_prompt", "retrieval")
         if run_info.get(key) != baseline.get(key)
     ]
 
@@ -186,6 +192,25 @@ def agreement(pairs: list[tuple[str, str]]) -> dict[str, float]:
         "exact": round(sum(h == j for h, j in scored) / len(scored), 3),
         "within_one": round(sum(abs(h - j) <= 0.5 for h, j in scored) / len(scored), 3),
     }
+
+
+def pin_retrieval_settings(config: Any) -> dict[str, Any]:
+    """Drop the persisted RAG overrides for this process and return the settings in force.
+
+    The settings page writes overrides to app_state.json in the working directory, and
+    retrieval prefers them to the code's defaults. The first baseline was measured through a
+    maintainer's local file (TOP_K_RESULTS 40, RERANK_TOP_K 10) that nobody else has — and a
+    sweep of those settings by environment variable changed nothing. In memory only: the file
+    is not touched.
+    """
+    config.app_state.state.pop("rag_params", None)
+    keys = ("TOP_K_RESULTS", "RERANK_TOP_K", "DIVERSITY_THRESHOLD", "SEMANTIC_WEIGHT")
+    settings = {k: config.app_state.get_rag_param(k) for k in keys}
+    settings.update({
+        k: getattr(config, k)
+        for k in ("RERANKER_ENABLED", "RERANKER_WEIGHT", "CHUNK_SIZE", "CHUNK_OVERLAP", "MAX_CONTEXT_LENGTH")
+    })
+    return settings
 
 
 # ── model calls ───────────────────────────────────────────────────────────────
@@ -379,9 +404,9 @@ def cmd_run(args: argparse.Namespace) -> None:
     from src.ollama_client import OllamaClient
     from src.rag.processor import doc_processor
     from src.routes_fastapi.api_routes import _build_context_prompt
-    from src.services import chat
 
     refuse_inside_repo(args.out)
+    settings = pin_retrieval_settings(config)
     cases = _load_accepted(args.cases)
     ok, message = db.initialize()
     if not ok:
@@ -398,28 +423,43 @@ def cmd_run(args: argparse.Namespace) -> None:
 
     results = []
     for n, case in enumerate(cases, 1):
-        context, sources = chat.get_rag_context(case["question"], doc_processor, [0])
-        rank = source_rank(case["source"], [s["filename"] for s in sources])
-        messages, final = _build_context_prompt(case["question"], context, "", [], True, False)
-        messages.append({"role": "user", "content": final})
-        reply = loop.run_until_complete(client.generate_chat_completion(args.model, messages))
-        answer = reply["message"]["content"]
+        # What chat.get_rag_context does with MCP off, unrolled to keep each chunk's score.
+        retrieved = doc_processor.retrieve_context(case["question"])
+        context = doc_processor.format_context_for_llm(retrieved, max_length=config.MAX_CONTEXT_LENGTH)
+        scored = [
+            (r.filename, r.metadata["rerank_score"] if r.metadata.get("rerank_score") is not None
+             else r.metadata.get("combined_score", r.similarity))
+            for r in retrieved
+        ]
         result = {
             "id": case["id"], "question": case["question"], "source": case["source"],
-            "reference_answer": case["reference_answer"], "answer": answer,
+            "reference_answer": case["reference_answer"],
             # Exactly what the judge saw, so a human calibrating it can see the same.
-            "context": context[:6000] or "(no documents were retrieved)", "rank": rank,
+            "context": context[:6000] or "(no documents were retrieved)",
+            "rank": relevance_rank(case["source"], scored),
             "proof_in_context": normalise(case["proof"]) in normalise(context),
+            "answer": None, "correct": None, "faithful": None,
         }
-        result.update(judge(result, args.judge_model, args.judge_prompt))
+        if not args.retrieval_only:
+            messages, final = _build_context_prompt(case["question"], context, "", [], True, False)
+            messages.append({"role": "user", "content": final})
+            reply = loop.run_until_complete(client.generate_chat_completion(args.model, messages))
+            result["answer"] = reply["message"]["content"]
+            result.update(judge(result, args.judge_model, args.judge_prompt))
         results.append(result)
         print(f"  {n}/{len(cases)}", end="\r")
     loop.close()
     summary = summarise(results)
+    if args.retrieval_only:
+        # No answers, no verdicts: the judged metrics would read 0.0, which is a claim, not a gap.
+        summary = {k: v for k, v in summary.items() if k not in ("answer_correct", "faithfulness")}
     run_info = {
         "date": datetime.date.today().isoformat(), "cases": len(results),
-        "answer_model": args.model, "judge_model": args.judge_model,
-        "judge_prompt": args.judge_prompt,
+        # A retrieval-only run names no models, so `check` will not compare it with the baseline.
+        "answer_model": None if args.retrieval_only else args.model,
+        "judge_model": None if args.retrieval_only else args.judge_model,
+        "judge_prompt": None if args.retrieval_only else args.judge_prompt,
+        "retrieval": settings,
     }
     args.out.write_text(
         json.dumps({"run": run_info, "summary": summary, "results": results}, indent=2, ensure_ascii=False),
@@ -548,6 +588,8 @@ def main() -> None:
     r.add_argument("--model", default="llama3.2")
     r.add_argument("--judge-model", default="mistral")
     r.add_argument("--judge-prompt", choices=sorted(JUDGE_PROMPTS), default="v2")
+    r.add_argument("--retrieval-only", action="store_true",
+                   help="retrieval metrics only: no answers, no judge; seconds, not an hour")
 
     j = sub.add_parser("rejudge")
     j.add_argument("--results", type=Path, required=True)

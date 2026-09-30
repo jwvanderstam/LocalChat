@@ -1,20 +1,30 @@
 {
   "label": "private customer RFP and contract corpus (208 documents, 105 cases)",
-  "date": "2026-09-29",
+  "date": "2026-09-30",
   "cases": 105,
   "answer_model": "llama3.2",
   "judge_model": "mistral",
   "judge_prompt": "v1",
-  "rejudged": "2026-09-30",
+  "retrieval": {
+    "TOP_K_RESULTS": 30,
+    "RERANK_TOP_K": 12,
+    "DIVERSITY_THRESHOLD": 0.7,
+    "SEMANTIC_WEIGHT": 0.7,
+    "RERANKER_ENABLED": true,
+    "RERANKER_WEIGHT": 0.3,
+    "CHUNK_SIZE": 1200,
+    "CHUNK_OVERLAP": 150,
+    "MAX_CONTEXT_LENGTH": 24576
+  },
   "tolerance": 0.05,
   "metrics": {
-    "source_recall@1": 0.143,
-    "source_recall@5": 0.505,
-    "source_mrr": 0.284,
-    "proof_recall": 0.448,
-    "citation_correct": 0.552,
-    "answer_correct": 0.771,
-    "faithfulness": 0.895
+    "source_recall@1": 0.41,
+    "source_recall@5": 0.562,
+    "source_mrr": 0.479,
+    "proof_recall": 0.467,
+    "citation_correct": 0.571,
+    "answer_correct": 0.662,
+    "faithfulness": 0.933
   },
   "calibration": {
     "first_sheet_old_references": {
@@ -50,10 +60,10 @@
     }
   },
   "notes": [
+    "Retrieval settings are the repository defaults (recorded under retrieval); ranks are by relevance (best chunk score). The first baseline ranked by position, which retrieval returns alphabetically, and ran with a maintainer's local app_state.json overrides; both are corrected here.",
     "Cases drafted by mistral, reviewed and corrected by an AI assistant (claude), approved by the maintainer; not human-verified case by case.",
-    "Calibration grades are an AI assistant's (38 of 40) plus 2 by the maintainer. Human calibration (ROADMAP P2-3) remains open.",
-    "Judge v1 overstates answer_correct: bias +0.21 (first sheet, n=14) and +0.30 (quick sheet on corrected references, n=20). Judge v2 is near-unbiased on correct (-0.03, n=20), and scores answer_correct 0.52 on the same answers: the better estimate is that the chat answers correctly about half the time.",
-    "Judge v1 also overstates faithfulness (+0.16, n=19); v2 is harsh there (-0.26) and fails to parse 6 of 105 verdicts. v1 is the baseline judge for consistency: use answer_correct and faithfulness to detect regressions, not as absolute quality.",
-    "Retrieval metrics do not depend on the judge. Corpus has 64 file names duplicated across folders; source matching is by file name."
+    "Calibration grades are an AI assistant's (38 of 40) plus 2 by the maintainer, taken on the previous run's answers with the same judge; they characterise the judge, not these exact answers. Human calibration (ROADMAP P2-3) was deferred by the maintainer.",
+    "Judge v1 overstates answer_correct (bias +0.21 and +0.30 on two sheets); judge v2 is near-unbiased on correct (-0.03) and scores these same answers 0.514: the chat answers correctly about half the time. v1 is kept as the baseline judge for consistency; use its judged metrics to detect regressions, not as absolute quality.",
+    "Retrieval misses concentrate in office formats: the source document was not retrieved for 76% of Excel, 67% PowerPoint and 52% Word questions, against 20% for PDF."
   ]
 }

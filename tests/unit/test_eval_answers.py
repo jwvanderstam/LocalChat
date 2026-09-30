@@ -51,14 +51,48 @@ class TestJsonFromAModelReply:
         assert ev.parse_json_object("I cannot answer that.") is None
 
 
-class TestSourceRank:
-    def test_rank_counts_documents_not_chunks(self):
-        """Three chunks of one file are one rank; otherwise MRR punishes a thorough retriever."""
-        retrieved = ["a.pdf", "a.pdf", "a.pdf", "b.docx"]
-        assert ev.source_rank("folder/b.docx", retrieved) == 2
+class TestRelevanceRank:
+    def test_documents_rank_by_their_best_chunk_not_their_position(self):
+        """Retrieval returns documents alphabetically; ranking by position measured the alphabet."""
+        scored = [("a.pdf", 0.2), ("a.pdf", 0.3), ("b.docx", 0.9), ("c.pptx", 0.5)]
+        assert ev.relevance_rank("folder/b.docx", scored) == 1
+        assert ev.relevance_rank("a.pdf", scored) == 3
+
+    def test_several_chunks_of_one_document_are_one_rank(self):
+        scored = [("a.pdf", 0.9), ("a.pdf", 0.8), ("a.pdf", 0.7), ("b.docx", 0.6)]
+        assert ev.relevance_rank("b.docx", scored) == 2
 
     def test_a_missing_source_has_no_rank(self):
-        assert ev.source_rank("c.pptx", ["a.pdf", "b.docx"]) is None
+        assert ev.relevance_rank("c.pptx", [("a.pdf", 1.0)]) is None
+
+
+class TestPinnedRetrievalSettings:
+    def test_persisted_overrides_are_ignored_and_the_file_is_untouched(self, tmp_path):
+        """A maintainer's app_state.json decided the first baseline's retrieval settings."""
+        import types
+
+        state_file = tmp_path / "app_state.json"
+        state_file.write_text('{"rag_params": {"TOP_K_RESULTS": 40}}')
+
+        class _State:
+            def __init__(self):
+                self.state = {"rag_params": {"TOP_K_RESULTS": 40}}
+
+            def get_rag_param(self, key):
+                return self.state.get("rag_params", {}).get(key, {"TOP_K_RESULTS": 30}.get(key, 1))
+
+        cfg = types.SimpleNamespace(
+            app_state=_State(), RERANKER_ENABLED=True, RERANKER_WEIGHT=0.3,
+            CHUNK_SIZE=1200, CHUNK_OVERLAP=150, MAX_CONTEXT_LENGTH=24576,
+        )
+        settings = ev.pin_retrieval_settings(cfg)
+        assert settings["TOP_K_RESULTS"] == 30
+        assert state_file.read_text() == '{"rag_params": {"TOP_K_RESULTS": 40}}'
+
+    def test_different_retrieval_settings_are_not_comparable(self):
+        base = {"answer_model": "m", "judge_model": "j", "judge_prompt": "v1", "retrieval": {"TOP_K_RESULTS": 30}}
+        run = {**base, "retrieval": {"TOP_K_RESULTS": 40}}
+        assert [m.split()[0] for m in ev.instrument_mismatch(run, base)] == ["retrieval"]
 
 
 class TestSummary:

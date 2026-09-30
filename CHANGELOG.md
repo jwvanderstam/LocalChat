@@ -17,8 +17,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   answers. The first baseline — 105 cases on a 208-document customer RFP and contract corpus —
   is in `tests/eval/answer_baseline.json` with its caveats: the judge is lenient, and it was
   compared against an AI assistant's grades, so human calibration remains open.
-  The clearest finding needs no judge: **the source document ranks first for 14% of
-  questions**, and most wrong answers had no answer in their context.
+  The clearest finding needs no judge: **the source document is never retrieved for 43% of
+  questions**, concentrated in office formats (Excel 76%, PowerPoint 67%, Word 52%, PDF 20%),
+  and most wrong answers had no answer in their context.
+  Measuring it corrected the harness twice: retrieval returns documents alphabetically, so rank
+  is now taken from relevance scores, not position; and a local `app_state.json` silently
+  overrode the retrieval settings, so the evaluation now pins the defaults and records them.
   **`eval_retrieval.py` ingested only the top level of a corpus folder**, so a real document
   set in subfolders ingested as 4 documents of 274, and every case from a subfolder was scored
   against a database that never held it. It now walks subfolders.

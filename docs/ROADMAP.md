@@ -1068,18 +1068,28 @@ approved by the maintainer. `llama3.2` answers, `mistral` judges.
 
 | source@1 | source@5 | MRR | proof in context | citation correct | answer correct* | faithful* |
 |---|---|---|---|---|---|---|
-| 0.14 | 0.51 | 0.28 | 0.45 | 0.55 | 0.77 | 0.90 |
+| 0.41 | 0.56 | 0.48 | 0.47 | 0.57 | 0.66 | 0.93 |
 
-\*Judge-scored, and lenient. Against two calibration sheets — 38 grades by an AI assistant,
-2 by the maintainer — judge `v1` overstated *correct* by +0.21 and +0.30, and *faithful* by
-+0.16. Judge `v2` was near-unbiased on *correct* (−0.03) and scored the same answers 0.52:
-**the chat answers correctly about half the time**, not 77%. The baseline keeps `v1` because
-it parses reliably, as a regression tripwire; `check` refuses to compare runs measured with a
-different model or judge prompt.
+Repository-default retrieval settings, ranked by relevance. \*Judge-scored, and lenient.
+Against two calibration sheets — 38 grades by an AI assistant, 2 by the maintainer — judge
+`v1` overstated *correct* by +0.21 and +0.30, and *faithful* by +0.16. Judge `v2` was
+near-unbiased on *correct* (−0.03) and scores these answers 0.51: **the chat answers correctly
+about half the time**, not 66%. The baseline keeps `v1` because it parses reliably, as a
+regression tripwire; `check` refuses to compare runs measured with a different model, judge
+prompt or retrieval settings.
 
-**What it found.** *Retrieval, not generation, is the weak link:* the source document ranks
-first for 14% of questions, and most wrong answers had no answer in their context — the model
-then mostly declined correctly. The judge's failure mode is a correct core with an invented
+A first version of this baseline read 0.14 / 0.51 / 0.28 for the rank metrics, and was wrong
+twice over: it ranked by position, and `_rank_and_finalize` returns documents *alphabetically*
+(a reading-order sort), so it measured the alphabet; and it ran through a maintainer's local
+`app_state.json`, whose persisted overrides beat the defaults and every env var a sweep set.
+
+**What it found.** *Retrieval recall, not generation, is the weak link:* the source document
+is never retrieved for 43% of questions, and most wrong answers had no answer in their
+context — the model then mostly declined correctly. Once retrieved, it usually ranks first
+(41 of 57). The misses concentrate in office formats — not retrieved for 76% of Excel, 67%
+PowerPoint and 52% Word questions, against 20% for PDF — and are not a threshold or pool-size
+effect: those passages rank ~130–620 of ~21k chunks, and doubling `TOP_K_RESULTS` changes
+nothing. That is the gap structured office ingest is meant to close. The judge's failure mode is a correct core with an invented
 specific (a clause number, a section, a template name); a stricter judge prompt (`v2`) catches
 those but over-corrects, so both are kept for comparison. Building it also found that
 `eval_retrieval.ingest_corpus` read only the top level of a folder (a real corpus ingested as
