@@ -316,7 +316,7 @@ pydantic-settings==2.15.0
     # via litellm
 pygments==2.21.0
     # via rich
-pyjwt==2.14.0
+pyjwt==2.15.0
     # via -r requirements.in
 pymupdf==1.28.2
     # via
@@ -468,7 +468,7 @@ typing-inspection==0.4.4
     #   fastapi
     #   pydantic
     #   pydantic-settings
-urllib3==2.7.0
+urllib3==2.8.0
     # via requests
 uvicorn[standard]==0.53.0
     # via -r requirements.in
