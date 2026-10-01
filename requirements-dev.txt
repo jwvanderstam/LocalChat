@@ -90,7 +90,7 @@ typing-extensions==4.16.0
     #   -c requirements.txt
     #   pyee
     #   pytest-asyncio
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -c requirements.txt
     #   requests
