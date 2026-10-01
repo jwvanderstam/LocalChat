@@ -25,8 +25,16 @@
 > | P1-4 | M6, M8 | ✅ | `ab7f66e`, `2966310`, `dcc2559` |
 > | P1-5 | M7 | ✅ | `1eb02ca` |
 > | D7 | README claim | ✅ | "Hardened beta", 2026-09-16 |
-> | P2-1 | driver 1 | ◐ | The `Scope` value object and the static CI check shipped with P0-1. Row-level security has not |
-> | P2-2..P2-8 | drivers 2–6 | ⏳ | [ROADMAP Initiative 10](ROADMAP.md#initiative-10--security-audit-follow-through-p2), Sprints 15–18 (2026-09-17). P2-6 shipped 2026-09-20 (PyJWT; SECURITY §2 retired). P2-8 is closed by decision: S3 removed, MCP kept behind a token |
+> | P2-1 | driver 1 | ◐ | The `Scope` value object and the static CI check shipped with P0-1. Row-level security is in the schema (#400, migration 0017: policies plus the `localchat_scoped` role) but **not yet enforced** — the application never switches into that role, so every policy is inert until it does |
+> | P2-2 | driver 2 | ✅ | `security-smoke` (#396) boots the shipped compose with the nginx overlay and `--profile mcp`; required since 2026-09-26 (#398). The object-authorization matrix runs over the wire against real Postgres (#399) |
+> | P2-3 | driver 3 | ⏳ | Not merged |
+> | P2-4 | driver 6 | ✅ | No production `assert` (#388); every blind `except` argued or narrowed under `BLE001` (#389), 2026-09-25 |
+> | P2-5 | driver 6 | ⏳ | Not merged |
+> | P2-6 | driver 6 | ✅ | PyJWT, 2026-09-24 (#384); SECURITY §2 retired |
+> | P2-7 | driver 4 | ⏳ | Not started |
+> | P2-8 | driver 5 | ✅ | Closed by decision: S3 removed, MCP kept behind a token |
+>
+> P2 is scheduled as [ROADMAP Initiative 10](ROADMAP.md#initiative-10--security-audit-follow-through-p2), Sprints 15–18. P2 rows last checked against `main` on 2026-10-01.
 > | §4.1 sweep | docs | ✅ | The bundle was never merged; the sweep was redone from the table on 2026-09-17, re-verified row by row against the code (29 dead variables rather than 26; `onnxruntime` at 1.30.0 rather than 1.28.0). `tests/unit/test_env_example_is_read.py` holds it |
 >
 > What this episode taught is [LESSONS_LEARNED Ch. 20](LESSONS_LEARNED.md#20-every-route-had-a-guard-and-a-green-check-said-so).
