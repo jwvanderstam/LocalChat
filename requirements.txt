@@ -107,8 +107,6 @@ fsspec==2026.7.0
     # via
     #   huggingface-hub
     #   torch
-greenlet==3.5.5
-    # via sqlalchemy
 h11==0.16.0
     # via
     #   -r requirements.in
@@ -167,7 +165,7 @@ lxml==6.1.2
     #   python-pptx
 mako==1.4.1
     # via alembic
-markdown==3.10.3
+markdown==3.11
     # via -r requirements.in
 markdown-it-py==4.2.0
     # via rich
@@ -296,7 +294,7 @@ psycopg[binary]==3.3.6
     # via -r requirements.in
 psycopg-binary==3.3.6
     # via psycopg
-psycopg-pool==3.3.2
+psycopg-pool==3.3.3
     # via -r requirements.in
 pycparser==3.0
     # via cffi
@@ -397,7 +395,7 @@ spacy-legacy==3.0.12
     # via spacy
 spacy-loggers==1.0.5
     # via spacy
-sqlalchemy==2.0.54
+sqlalchemy==2.1.1
     # via
     #   -r requirements.in
     #   alembic
@@ -470,7 +468,7 @@ typing-inspection==0.4.4
     #   pydantic-settings
 urllib3==2.8.0
     # via requests
-uvicorn[standard]==0.53.0
+uvicorn[standard]==0.54.0
     # via -r requirements.in
 uvloop==0.22.1
     # via uvicorn
@@ -485,7 +483,7 @@ weasel==1.0.0
     # via spacy
 websockets==17.1
     # via uvicorn
-werkzeug==3.1.8
+werkzeug==3.1.9
     # via -r requirements.in
 wrapt==2.3.0
     # via
