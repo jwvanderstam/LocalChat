@@ -35,6 +35,7 @@ Usage (when AGGREGATOR_AGENT_ENABLED=true in config):
 
 from __future__ import annotations
 
+import contextvars
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING
@@ -118,9 +119,13 @@ class AggregatorAgent:
             )
 
         with ThreadPoolExecutor(max_workers=min(len(jobs), _MAX_PARALLEL)) as pool:
+            # A copy of the caller's context per job: the tools read the request's
+            # workspace from a contextvar (P0-2), and a plain submit runs them without it,
+            # so every local_docs job raised ScopeUnavailableError and came back empty.
             future_to_job = {
                 pool.submit(
-                    self._dispatch_with_retry, tool, q, filters, top_k, max_retries
+                    contextvars.copy_context().run,
+                    self._dispatch_with_retry, tool, q, filters, top_k, max_retries,
                 ): (tool, q)
                 for tool, q in jobs
             }

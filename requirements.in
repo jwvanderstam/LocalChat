@@ -30,6 +30,15 @@
 #
 # Test-only tooling lives in `requirements-dev.in` and is deliberately absent from
 # the production image.
+#
+# CPU-only torch (ROADMAP P2-5). sentence-transformers pulls torch, and PyPI's Linux wheel
+# is the CUDA build with fifteen nvidia-* packages and triton behind it — gigabytes in an
+# image whose `app` container never has a GPU (Ollama owns it). The PyTorch CPU index
+# serves each release as `+cpu`, which PEP 440 orders above the plain release, so the
+# resolver prefers it without torch being pinned here. If that index ever lags a release
+# the resolver falls back to CUDA silently; tests/unit/test_lock_is_cpu_only.py fails
+# when it does.
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 # Web Framework — FastAPI (ASGI)
 fastapi==0.141.1

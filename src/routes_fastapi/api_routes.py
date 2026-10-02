@@ -22,6 +22,7 @@ from ..utils.logging_config import get_logger
 from ..utils.scope import (
     Scope,
     bind_request_scope,
+    request_scope,
     reset_request_scope,
 )
 from ..utils.workspace import get_scope, get_workspace_id
@@ -339,13 +340,19 @@ async def api_chat(request: Request) -> Any:
         # inline in an async route it holds the event loop for the whole retrieval, so
         # one slow query stalls every other request — including SSE streams mid-flight.
         # Per ADR-2 the threadpool is the final answer here, not a stopgap.
-        local_ctx, web_ctx, sources, agent_result = await run_in_threadpool(
-            chat.retrieve_contexts,
-            fields, app_state.doc_processor, app_state.db, chunks_retrieved_ref,
-            plan=plan, scope=scope,
-            additional_workspace_ids=fields.get("additional_workspace_ids") or None,
-            source_ids=fields.get("active_source_ids") or None,
-        )
+        #
+        # The scope is bound for retrieval as well as for the stream: with
+        # AGGREGATOR_AGENT_ENABLED the tools run here, and they read the request's
+        # workspace from the contextvar. It used to be bound only in _generate_sse, after
+        # retrieval, so every aggregator local_docs job refused and came back empty.
+        with request_scope(scope):
+            local_ctx, web_ctx, sources, agent_result = await run_in_threadpool(
+                chat.retrieve_contexts,
+                fields, app_state.doc_processor, app_state.db, chunks_retrieved_ref,
+                plan=plan, scope=scope,
+                additional_workspace_ids=fields.get("additional_workspace_ids") or None,
+                source_ids=fields.get("active_source_ids") or None,
+            )
 
         active_model, routed_rationale = chat.apply_model_routing(fields, active_model, sources, plan)
         messages, final_message = _build_context_prompt(

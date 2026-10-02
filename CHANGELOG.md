@@ -10,6 +10,23 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Added
 
+- **Answer-level evaluation** (ROADMAP P2-3). `scripts/eval_answers.py` drafts test cases from
+  a private document corpus, answers them through the chat's own retrieval and prompt, has a
+  local judge model grade correctness and faithfulness, and checks a run against a committed
+  baseline; `scripts/eval_review.html` is an offline viewer for reviewing cases and grading
+  answers. The first baseline — 105 cases on a 208-document customer RFP and contract corpus —
+  is in `tests/eval/answer_baseline.json` with its caveats: the judge is lenient, and it was
+  compared against an AI assistant's grades, so human calibration remains open.
+  The clearest finding needs no judge: **the source document is never retrieved for 43% of
+  questions**, concentrated in office formats (Excel 76%, PowerPoint 67%, Word 52%, PDF 20%),
+  and most wrong answers had no answer in their context.
+  Measuring it corrected the harness twice: retrieval returns documents alphabetically, so rank
+  is now taken from relevance scores, not position; and a local `app_state.json` silently
+  overrode the retrieval settings, so the evaluation now pins the defaults and records them.
+  **`eval_retrieval.py` ingested only the top level of a corpus folder**, so a real document
+  set in subfolders ingested as 4 documents of 274, and every case from a subfolder was scored
+  against a database that never held it. It now walks subfolders.
+
 - **Row-level security on the workspace-owned tables** (ROADMAP P2-1b, database half).
   Migration `0017` puts a policy on ten tables — the seven carrying a `workspace_id`, plus
   `document_chunks`, `conversation_messages` and `annotations`, which borrow their parent's —
@@ -85,6 +102,16 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   env knobs in the job, leaving the compose file itself untouched.
 
 ### Fixed
+
+- **With `AGGREGATOR_AGENT_ENABLED=true`, chat retrieved nothing from the workspace's
+  documents.** The retrieval tools read the request's workspace from a contextvar (P0-2),
+  and two things kept it from them: the chat route bound it only for the SSE stream, after
+  retrieval had already run, and `AggregatorAgent` dispatched its jobs on a
+  `ThreadPoolExecutor`, which does not carry contextvars. Every `local_docs` job raised
+  `ScopeUnavailableError` in its worker and came back empty, marked partial. It failed closed —
+  no other workspace's data was reachable — and the flag is off by default. The route now
+  binds the scope around retrieval, and each job runs in a copy of the caller's context;
+  `tests/unit/test_aggregator_carries_request_scope.py` pins each half separately.
 
 - **Two routes answered 200 for an object outside the caller's scope**, where P0-1's
   acceptance asks for 404. Neither disclosed anything — both scoped correctly — so this is
@@ -204,6 +231,17 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   cannot be reproduced afterwards.
 
 ### Changed
+
+- **The application image is 2.95 GB, down from 9.50 GB** (ROADMAP P2-5). `sentence-transformers`
+  pulled PyPI's CUDA torch — fifteen `nvidia-*` packages, three `cuda-*` and `triton` — into an
+  image whose `app` container never has a GPU. `requirements.in` now names the PyTorch CPU
+  index and the lock carries `torch==2.13.0+cpu`; nothing else moved. The reranker, the one
+  torch consumer, boots and runs its warm-up on the CPU build.
+  **The vulnerability scan kept torch in view.** `pip-audit -r` skips a `+cpu` version, which
+  PyPI does not list, and still passes; CI now audits the lock with the local tag stripped and
+  `--strict`, so torch is scanned under its public version and an unauditable package fails
+  the step. `docker-smoke` asserts `torch.version.cuda is None`, and
+  `tests/unit/test_lock_is_cpu_only.py` fails if the lock regains a CUDA torch.
 
 - **"Every workspace" is now a value you pass, never a default you fall into**
   (ROADMAP P2-1b-ii). Fifteen database methods took `workspace_id: str | None = None` and

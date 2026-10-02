@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eval Case Review</title>
+<!--
+  P2-3 — review the cases `scripts/eval_answers.py draft` proposes, one at a time.
+  Open this file in Edge or Chrome, pick the cases JSON, and decide. Every change is saved
+  straight back to that file. Fully offline: no server, no network, nothing uploaded — the
+  cases quote a private corpus. `eval_answers.py run --cases <file>.json` reads the result.
+-->
+<style>
+:root {
+  --bg: #f6f6f4; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e2e1dc;
+  --accept: #1f7a4d; --reject: #b3261e; --pending: #8a6d1d; --mark: #fff0a8; --focus: #2f5fd0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --panel: #1f1f1d; --ink: #ecebe6; --muted: #a09f98; --line: #34332f;
+    --accept: #5cc38f; --reject: #f08a82; --pending: #d9b95c; --mark: #5a4b0f; --focus: #8aa8ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; z-index: 1; }
+header h1 { font-size: 15px; margin: 0 8px 0 0; }
+.counts span { margin-right: 10px; font-variant-numeric: tabular-nums; }
+.bar { flex: 1 1 160px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; min-width: 120px; }
+.bar > div { height: 100%; background: var(--accept); width: 0; }
+button, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+button.accept { border-color: var(--accept); color: var(--accept); }
+button.reject { border-color: var(--reject); color: var(--reject); }
+main { max-width: 900px; margin: 0 auto; padding: 16px; }
+.empty { text-align: center; color: var(--muted); padding: 60px 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.status { font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.status.accepted { color: var(--accept); } .status.rejected { color: var(--reject); } .status.pending { color: var(--pending); }
+label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 14px 0 4px; }
+textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 8px; resize: vertical; }
+.passage { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px;
+  white-space: pre-wrap; font-size: 14px; max-height: 320px; overflow: auto; }
+mark { background: var(--mark); color: inherit; padding: 0 1px; border-radius: 2px; }
+.nomatch { color: var(--reject); font-size: 12px; }
+.actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.actions .spacer { flex: 1; }
+.keys { color: var(--muted); font-size: 12px; margin-top: 10px; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 11px; }
+.saved { color: var(--muted); font-size: 12px; }
+.status.scored { color: var(--accept); }
+.grade { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-top: 12px; }
+.grade.active { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.grade p { margin: 0 0 6px; font-size: 14px; }
+.grade button.on { background: var(--line); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Eval case review</h1>
+  <button id="open">Open cases…</button>
+  <select id="filter" aria-label="Show">
+    <option value="all">All cases</option>
+    <option value="pending" selected>Pending</option>
+    <option value="accepted">Accepted</option>
+    <option value="rejected">Rejected</option>
+  </select>
+  <div class="counts" id="counts"></div>
+  <div class="bar" aria-hidden="true"><div id="progress"></div></div>
+  <span class="saved" id="saved"></span>
+</header>
+<main id="main"><p class="empty">Open the cases JSON written by <code>eval_answers.py draft</code>.<br>
+Edge or Chrome saves every decision back to that file.</p></main>
+
+<script>
+"use strict";
+let handle = null, data = null, order = [], pos = 0, saveTimer = null;
+const $ = (id) => document.getElementById(id);
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Highlight the proof in the passage the way eval_answers.py matches it: case-insensitive,
+// with any run of whitespace equivalent.
+function highlight(passage, proof) {
+  const words = String(proof || "").trim().split(/\s+/).filter(Boolean)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!words.length) return { html: esc(passage), found: false };
+  const re = new RegExp(words.join("\\s+"), "i");
+  const m = re.exec(passage);
+  if (!m) return { html: esc(passage), found: false };
+  return {
+    html: esc(passage.slice(0, m.index)) + "<mark>" + esc(m[0]) + "</mark>" + esc(passage.slice(m.index + m[0].length)),
+    found: true,
+  };
+}
+
+function cases() { return data ? data.cases : []; }
+
+function rebuildOrder(keepId) {
+  const f = $("filter").value;
+  order = cases().map((c, i) => i).filter((i) => f === "all" || cases()[i].status === f);
+  const at = keepId == null ? -1 : order.findIndex((i) => cases()[i].id === keepId);
+  pos = at >= 0 ? at : Math.min(pos, Math.max(order.length - 1, 0));
+}
+
+// ── calibration mode: blind human grading of judged answers (eval_answers.py calibrate) ──
+const isCal = () => Boolean(data && data.mode === "calibration");
+// Which grades this sheet asks for; a quick sheet asks only "correct" and carries no context.
+const dims = () => (data && Array.isArray(data.dims) && data.dims.length ? data.dims : ["correct", "faithful"]);
+const DIMS = {
+  correct: "Correct — does the answer give the same information as the reference answer?",
+  faithful: "Faithful — is every claim in the answer supported by the context?",
+};
+let dim = "correct";
+
+function renderCal() {
+  const c = cases()[order[pos]];
+  const next = dims().find((d) => !c["human_" + d]);
+  if (next) dim = next;
+  else if (!dims().includes(dim)) dim = dims()[0];
+  const row = (d) => `
+    <div class="grade ${d === dim ? "active" : ""}">
+      <p>${esc(DIMS[d])}</p>
+      ${["yes", "partial", "no"].map((v) => `<button data-d="${d}" data-v="${v}" aria-pressed="${c["human_" + d] === v}"
+        class="${c["human_" + d] === v ? "on" : ""}">${v[0].toUpperCase() + v.slice(1)}</button>`).join(" ")}
+    </div>`;
+  $("main").innerHTML = `
+    <div class="card">
+      <div class="meta">
+        <span>Answer ${esc(c.id)} · ${pos + 1} of ${order.length} shown</span>
+        <span class="status ${esc(c.status)}">${esc(c.status)}</span>
+      </div>
+      <label>Question</label><div class="passage">${esc(c.question)}</div>
+      <label>Reference answer</label><div class="passage">${esc(c.reference_answer)}</div>
+      <label>Assistant's answer</label><div class="passage">${esc(c.answer)}</div>
+      ${c.context == null ? "" : `<label>Context the assistant was given</label><div class="passage">${esc(c.context)}</div>`}
+      ${dims().map(row).join("")}
+      <div class="actions">
+        <button id="prev">← Previous</button>
+        <button id="next">Next →</button>
+      </div>
+      <p class="keys"><kbd>Y</kbd> yes · <kbd>P</kbd> partial · <kbd>N</kbd> no — grades the highlighted
+        question, then the next · <kbd>C</kbd>/<kbd>F</kbd> choose correct/faithful · <kbd>←</kbd>/<kbd>→</kbd> move.</p>
+    </div>`;
+  document.querySelectorAll(".grade button").forEach((b) => { b.onclick = () => gradeCal(b.dataset.d, b.dataset.v); });
+  $("prev").onclick = () => move(-1);
+  $("next").onclick = () => move(1);
+}
+
+function gradeCal(d, value) {
+  if (!order.length) return;
+  const c = cases()[order[pos]];
+  c["human_" + d] = value;
+  c.status = dims().every((x) => c["human_" + x]) ? "scored" : "pending";
+  scheduleSave(0);
+  if (c.status !== "scored") { dim = dims().find((x) => !c["human_" + x]); render(); return; }
+  dim = dims()[0];
+  const filtered = $("filter").value === "pending";
+  rebuildOrder(filtered ? null : c.id);
+  if (!filtered) move(1); else render();
+}
+
+function counts() {
+  if (isCal()) {
+    const scored = cases().filter((c) => c.status === "scored").length;
+    $("counts").innerHTML = `<span>${scored} scored</span><span>${cases().length - scored} pending</span>`;
+    $("progress").style.width = `${Math.round((scored / (cases().length || 1)) * 100)}%`;
+    return;
+  }
+  const n = { pending: 0, accepted: 0, rejected: 0 };
+  cases().forEach((c) => { n[c.status] = (n[c.status] || 0) + 1; });
+  const total = cases().length || 1;
+  $("counts").innerHTML = `<span>${n.accepted} accepted</span><span>${n.rejected} rejected</span><span>${n.pending} pending</span>`;
+  $("progress").style.width = `${Math.round(((n.accepted + n.rejected) / total) * 100)}%`;
+}
+
+function render() {
+  counts();
+  if (!data) return;
+  if (!order.length) {
+    $("main").innerHTML = `<p class="empty">No ${$("filter").value === "all" ? "" : $("filter").value + " "}cases.</p>`;
+    return;
+  }
+  if (isCal()) { renderCal(); return; }
+  const c = cases()[order[pos]];
+  const hl = highlight(c.passage, c.proof);
+  $("main").innerHTML = `
+    <div class="card">
+      <div class="meta">
+        <span>Case ${esc(c.id)} · ${pos + 1} of ${order.length} shown</span>
+        <span class="status ${esc(c.status)}">${esc(c.status)}</span>
+      </div>
+      <div class="meta"><span>${esc(c.source)}</span></div>
+      <label for="q">Question</label>
+      <textarea id="q" rows="2">${esc(c.question)}</textarea>
+      <label for="a">Reference answer</label>
+      <textarea id="a" rows="3">${esc(c.reference_answer)}</textarea>
+      <label>Passage ${hl.found ? "(proof highlighted)" : ""}</label>
+      <div class="passage">${hl.html}</div>
+      ${hl.found ? "" : `<p class="nomatch">Proof not found in this passage excerpt: ${esc(c.proof)}</p>`}
+      <div class="actions">
+        <button id="prev">← Previous</button>
+        <button id="next">Next →</button>
+        <span class="spacer"></span>
+        <button class="reject" id="reject">Reject (R)</button>
+        <button class="accept" id="accept">Accept (A)</button>
+      </div>
+      <p class="keys"><kbd>A</kbd> accept · <kbd>R</kbd> reject · <kbd>P</kbd> back to pending ·
+        <kbd>←</kbd>/<kbd>→</kbd> move · edits in the text boxes save as you type.</p>
+    </div>`;
+  $("q").addEventListener("input", (e) => { c.question = e.target.value; scheduleSave(); });
+  $("a").addEventListener("input", (e) => { c.reference_answer = e.target.value; scheduleSave(); });
+  $("prev").onclick = () => move(-1);
+  $("next").onclick = () => move(1);
+  $("accept").onclick = () => decide("accepted");
+  $("reject").onclick = () => decide("rejected");
+}
+
+function move(step) {
+  if (!order.length) return;
+  pos = Math.max(0, Math.min(order.length - 1, pos + step));
+  render();
+}
+
+function decide(status) {
+  if (!order.length) return;
+  const c = cases()[order[pos]];
+  c.status = status;
+  scheduleSave(0);
+  const filtered = $("filter").value !== "all" && $("filter").value !== status;
+  // In a filtered view the decided case leaves the list, so the next one slides into place.
+  rebuildOrder(filtered ? null : c.id);
+  if (!filtered) move(1); else render();
+}
+
+function scheduleSave(delay = 600) {
+  clearTimeout(saveTimer);
+  $("saved").textContent = "unsaved…";
+  saveTimer = setTimeout(save, delay);
+}
+
+async function save() {
+  const text = JSON.stringify(data, null, 1);
+  if (handle && handle.createWritable) {
+    try {
+      const w = await handle.createWritable();
+      await w.write(text);
+      await w.close();
+      $("saved").textContent = "saved " + new Date().toLocaleTimeString();
+      return;
+    } catch (err) {
+      $("saved").textContent = "save failed: " + err.message;
+      return;
+    }
+  }
+  $("saved").innerHTML = '<button id="dl">Download cases.json</button>';
+  $("dl").onclick = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = "cases.json";
+    a.click();
+  };
+}
+
+async function openFile() {
+  let file;
+  if (window.showOpenFilePicker) {
+    [handle] = await window.showOpenFilePicker({ types: [{ description: "Cases", accept: { "application/json": [".json"] } }] });
+    file = await handle.getFile();
+  } else {
+    file = await new Promise((resolve) => {
+      const input = Object.assign(document.createElement("input"), { type: "file", accept: ".json" });
+      input.onchange = () => resolve(input.files[0]);
+      input.click();
+    });
+  }
+  data = JSON.parse(await file.text());
+  if (!Array.isArray(data.cases)) throw new Error("no cases array in this file");
+  $("filter").innerHTML = isCal()
+    ? '<option value="pending" selected>Pending</option><option value="scored">Scored</option><option value="all">All answers</option>'
+    : '<option value="all">All cases</option><option value="pending" selected>Pending</option>'
+      + '<option value="accepted">Accepted</option><option value="rejected">Rejected</option>';
+  document.querySelector("header h1").textContent = isCal() ? "Judge calibration" : "Eval case review";
+  $("saved").textContent = handle && handle.createWritable ? "changes save to " + file.name : "this browser cannot save in place; use Download";
+  rebuildOrder(null);
+  render();
+}
+
+$("open").onclick = () => openFile().catch((err) => { if (err.name !== "AbortError") alert(err.message); });
+$("filter").onchange = () => { rebuildOrder(null); pos = 0; render(); };
+document.addEventListener("keydown", (e) => {
+  if (!data || e.target.tagName === "TEXTAREA" || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (isCal()) {
+    const grades = { y: "yes", p: "partial", n: "no" };
+    if (grades[k]) gradeCal(dim, grades[k]);
+    else if ((k === "c" || k === "f") && dims().includes(k === "c" ? "correct" : "faithful")) {
+      dim = k === "c" ? "correct" : "faithful"; render();
+    }
+    else if (e.key === "ArrowRight") move(1);
+    else if (e.key === "ArrowLeft") move(-1);
+    else return;
+    e.preventDefault();
+    return;
+  }
+  if (k === "a") decide("accepted");
+  else if (k === "r") decide("rejected");
+  else if (k === "p") decide("pending");
+  else if (e.key === "ArrowRight") move(1);
+  else if (e.key === "ArrowLeft") move(-1);
+  else return;
+  e.preventDefault();
+});
+</script>
+</body>
+</html>
