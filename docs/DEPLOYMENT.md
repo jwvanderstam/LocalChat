@@ -195,6 +195,7 @@ What that means when you operate it:
 | **No shell** | `docker exec <container> sh` does not work. There is nothing to `exec` into. Debug with `--entrypoint python`, or read the logs. |
 | **No package manager** | You cannot `apt-get install` a missing library into a running container. A missing native library shows up as **SIGSEGV on import** — exit 139, no traceback. |
 | `CMD` and `HEALTHCHECK` are exec form | No shell means no `${VAR:-default}`. `docker-entrypoint.py` expands `SERVER_HOST`, `SERVER_PORT`, `UVICORN_WORKERS` and `UVICORN_TIMEOUT`, then `exec`s uvicorn so it stays PID 1 and still receives signals. |
+| **CPU-only torch** (P2-5) | The image is **2.95 GB**, down from **9.50 GB** built from the same commit with PyPI's CUDA torch (2026-09-29). The `app` container never has a GPU — Ollama owns it — so fifteen `nvidia-*` packages, three `cuda-*` and `triton` were dead weight. The one torch consumer, the cross-encoder reranker, runs on CPU either way. `docker-smoke` asserts `torch.version.cuda is None`. |
 
 **Debugging without a shell:**
 

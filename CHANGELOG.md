@@ -215,6 +215,17 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Changed
 
+- **The application image is 2.95 GB, down from 9.50 GB** (ROADMAP P2-5). `sentence-transformers`
+  pulled PyPI's CUDA torch — fifteen `nvidia-*` packages, three `cuda-*` and `triton` — into an
+  image whose `app` container never has a GPU. `requirements.in` now names the PyTorch CPU
+  index and the lock carries `torch==2.13.0+cpu`; nothing else moved. The reranker, the one
+  torch consumer, boots and runs its warm-up on the CPU build.
+  **The vulnerability scan kept torch in view.** `pip-audit -r` skips a `+cpu` version, which
+  PyPI does not list, and still passes; CI now audits the lock with the local tag stripped and
+  `--strict`, so torch is scanned under its public version and an unauditable package fails
+  the step. `docker-smoke` asserts `torch.version.cuda is None`, and
+  `tests/unit/test_lock_is_cpu_only.py` fails if the lock regains a CUDA torch.
+
 - **"Every workspace" is now a value you pass, never a default you fall into**
   (ROADMAP P2-1b-ii). Fifteen database methods took `workspace_id: str | None = None` and
   read `None` as every workspace — the pattern P0-1 removed from the by-id paths, still
