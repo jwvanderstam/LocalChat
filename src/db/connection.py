@@ -19,7 +19,7 @@ from psycopg_pool import ConnectionPool
 
 from .. import config
 from ..utils.logging_config import get_logger
-from ..utils.scope import Scope
+from ..utils.scope import Scope, scope_predicate
 
 logger = get_logger(__name__)
 
@@ -31,6 +31,62 @@ _PG_TRANSACTION_INTRANS = 2  # psycopg TransactionStatus.INTRANS
 _ef_search_warning_issued = False
 
 EF_SEARCH_EXPECTED = "100"
+
+#: Created by migration 0017, granted to the application by 0018. NOLOGIN: reached only
+#: by switching into it inside a transaction, never by connecting.
+SCOPED_ROLE = "localchat_scoped"
+
+#: Row-level security turns vector search from an exact per-workspace scan into the HNSW
+#: index filtered afterwards, and a plain filtered HNSW scan returns what survives of
+#: ef_search global candidates: 19 of 40 requested on average, as few as 0 (P2-1b-iii
+#: benchmark, 10k clustered chunks over five workspaces). Iterative scan keeps walking the
+#: index until the LIMIT is met, in exact distance order; ef_search 400 brought overlap
+#: with the exact answer to 92% at a 3.8 ms median, against 9.1 ms for the exact scan.
+#: Needs pgvector 0.8+; an older one refuses the setting and the transaction fails loudly.
+SCOPED_HNSW_ITERATIVE_SCAN = "strict_order"
+SCOPED_HNSW_EF_SEARCH = 400
+
+
+def _apply_scoped_role(cursor: Any) -> None:
+    """Make ``localchat_scoped`` exist, reachable by this identity, and able to use every table.
+
+    Run at every boot, not only in a migration. A role is a cluster object, so ``pg_dump``
+    never carries it: restore into a new cluster and the database says 0017 ran while the
+    role it created does not exist, and every scoped query fails. Re-granting the tables here
+    also covers a table a later release adds — which ``ALTER DEFAULT PRIVILEGES`` would too,
+    but a dump carrying that cannot be restored by a non-superuser (restore-proof, P2-1b-iii).
+    """
+    cursor.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{SCOPED_ROLE}') THEN
+                CREATE ROLE {SCOPED_ROLE} NOLOGIN;
+            END IF;
+        END $$;
+        """
+    )
+    cursor.execute(f"GRANT {SCOPED_ROLE} TO CURRENT_USER")
+    cursor.execute(f"GRANT USAGE ON SCHEMA public TO {SCOPED_ROLE}")
+    cursor.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {SCOPED_ROLE}")
+    cursor.execute(f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {SCOPED_ROLE}")
+
+
+def _enter_scope(conn: Any, workspace_id: str) -> None:
+    """Restrict the transaction *conn* is about to open to *workspace_id* (ADR-5)."""
+    # An autocommit connection makes every statement its own transaction, so both
+    # settings below would lapse before the query they exist for. Refuse rather than
+    # run unenforced while looking enforced.
+    if conn.autocommit is True:
+        raise RuntimeError("a scoped transaction needs autocommit off")
+    scope_predicate(workspace_id, "workspace_id")  # refuses "", as every scoped query does
+    with conn.cursor() as cur:
+        cur.execute(f"SET LOCAL ROLE {SCOPED_ROLE}")
+        # set_config, not SET LOCAL: SET takes no bind parameter, so writing it would mean
+        # interpolating the one value that decides what the caller can see.
+        cur.execute("SELECT set_config('app.workspace_id', %s, true)", (workspace_id,))
+        cur.execute(f"SET LOCAL hnsw.iterative_scan = {SCOPED_HNSW_ITERATIVE_SCAN}")
+        cur.execute(f"SET LOCAL hnsw.ef_search = {SCOPED_HNSW_EF_SEARCH}")
 
 
 def _warn_if_ef_search_did_not_stick(conn: Any) -> None:
@@ -722,8 +778,18 @@ class DatabaseConnection:
                 """)
                 logger.debug("revoked_tokens table ensured")
 
+                # Last, so it grants the tables created above.
+                _apply_scoped_role(cursor)
+                logger.debug("scoped role ensured")
+
                 conn.commit()
                 logger.info("All database extensions and tables verified")
+
+    def ensure_scoped_role(self) -> None:
+        """Re-apply the scoped role's grants; call after migrations, which may add tables."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                _apply_scoped_role(cursor)
 
     @contextmanager
     def get_connection(
@@ -735,10 +801,12 @@ class DatabaseConnection:
         Commits on clean exit, rolls back on exception, always returns
         the connection to the pool.
 
-        ``scope`` is the workspace the transaction is restricted to. It is accepted but
-        not yet acted on: P2-1b turns it into ``SET LOCAL ROLE localchat_scoped`` plus
-        ``set_config('app.workspace_id', ...)`` once every workspace-owned method passes
-        one (ADR-5). ``None`` and ``ALL_WORKSPACES`` stay on the owner role.
+        ``scope`` is the workspace the transaction is restricted to (ADR-5). A workspace
+        id switches the transaction into ``localchat_scoped`` with ``app.workspace_id`` set,
+        so the row-level security policies from migration 0017 refuse every other
+        workspace's rows even if the query forgot to. Both settings are transaction-local:
+        they end at commit or rollback, so a pooled connection cannot carry one request's
+        scope into the next. ``None`` and ``ALL_WORKSPACES`` stay on the owner role.
 
         Raises:
             DatabaseUnavailableError: If the connection pool is not initialised.
@@ -750,6 +818,8 @@ class DatabaseConnection:
             )
         connection = self.connection_pool.getconn()
         try:
+            if isinstance(scope, str):
+                _enter_scope(connection, scope)
             yield connection
             if connection.info.transaction_status == _PG_TRANSACTION_INTRANS:
                 connection.commit()

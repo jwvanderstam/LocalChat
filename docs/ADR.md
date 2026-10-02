@@ -301,6 +301,20 @@ The inserts matter for the switch: a policy with only `USING` checks new rows ag
 so a scoped transaction can only write into its own workspace. (Sorting those 34 methods
 first found 16 filters; `document_exists` turned out to be a write-side check.)
 
+**Enforced 2026-09-29 (P2-1b-iii), with one consequence the design did not predict.** The
+policy changes the vector-search plan: an exact per-workspace scan becomes the HNSW index
+filtered afterwards, which on its own returned 19 of 40 requested rows on average and as few
+as 0. Scoped transactions therefore also set `hnsw.iterative_scan = strict_order` and
+`hnsw.ef_search = 400` (full counts, 92% overlap with the exact answer, faster than before);
+the benchmark is in ROADMAP P2-1b-iii. This ties the enforcement to pgvector 0.8 or later.
+
+**The role is re-applied at every boot, not owned by a migration.** A role is a cluster
+object, so `pg_dump` never carries it, and a restore into a new cluster left the database
+recording 0017 as applied while its role did not exist. `_ensure_extensions_and_tables()`
+now creates the role if missing and re-grants it the tables, which also covers tables a
+later release adds. The application identity therefore needs `CREATEROLE`, or the provider
+must create `localchat_scoped` once — the same requirement 0017 already had.
+
 **Revisit when:** tenant administrators must be separated from platform operators, or a
 deployment requires that operators cannot read workspace content. Then the `ALL_WORKSPACES`
 paths move off the owner role — to the second-pool design above, through the same seam.

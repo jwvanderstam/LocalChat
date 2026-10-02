@@ -70,6 +70,8 @@ SCOPED_METHODS = {
     "search_memories",
     "is_duplicate_memory",
     "get_all_memories",
+    # P2-1b-iii: one scoped transaction per workspace, since RLS sees only one.
+    "_search_memories_in_scope",
 }
 
 WS = "11111111-1111-1111-1111-111111111111"
