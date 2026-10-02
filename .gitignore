@@ -87,6 +87,8 @@ TestResults/
 
 # Archive/history
 history/
+# The journal (ROADMAP P2-7) is tracked; the rule above predates it.
+!docs/history/
 
 # Uploads
 uploads/*
