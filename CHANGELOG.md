@@ -10,6 +10,23 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Added
 
+- **Answer-level evaluation** (ROADMAP P2-3). `scripts/eval_answers.py` drafts test cases from
+  a private document corpus, answers them through the chat's own retrieval and prompt, has a
+  local judge model grade correctness and faithfulness, and checks a run against a committed
+  baseline; `scripts/eval_review.html` is an offline viewer for reviewing cases and grading
+  answers. The first baseline — 105 cases on a 208-document customer RFP and contract corpus —
+  is in `tests/eval/answer_baseline.json` with its caveats: the judge is lenient, and it was
+  compared against an AI assistant's grades, so human calibration remains open.
+  The clearest finding needs no judge: **the source document is never retrieved for 43% of
+  questions**, concentrated in office formats (Excel 76%, PowerPoint 67%, Word 52%, PDF 20%),
+  and most wrong answers had no answer in their context.
+  Measuring it corrected the harness twice: retrieval returns documents alphabetically, so rank
+  is now taken from relevance scores, not position; and a local `app_state.json` silently
+  overrode the retrieval settings, so the evaluation now pins the defaults and records them.
+  **`eval_retrieval.py` ingested only the top level of a corpus folder**, so a real document
+  set in subfolders ingested as 4 documents of 274, and every case from a subfolder was scored
+  against a database that never held it. It now walks subfolders.
+
 - **Row-level security on the workspace-owned tables** (ROADMAP P2-1b, database half).
   Migration `0017` puts a policy on ten tables — the seven carrying a `workspace_id`, plus
   `document_chunks`, `conversation_messages` and `annotations`, which borrow their parent's —

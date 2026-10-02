@@ -1111,7 +1111,7 @@ without them.
    Worth keeping as the honest record of what reading could not find: prerequisites 5
    and 6 were predicted correctly and neither was what went red first.
 
-### P2-3 — A retrieval evaluation that measures answers, not just ranks ⬜
+### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; human calibration open)
 
 **Driver 3** (thin RAG quality evidence). `scripts/eval_retrieval.py` scores 20 pairs on
 recall of the source; nothing measures whether the *answer* is faithful to it or cites it.
@@ -1121,6 +1121,53 @@ calibrated against a human-scored sample; run nightly with thresholds. **Accepta
 baseline recorded in the repo and a regression threshold enforced. **Decides:** DEL-2
 (GraphRAG, deferred on a 20-pair run) and active learning, on these results — this is the
 re-review trigger DEL-2 named.
+
+**Built (2026-09-30):** `scripts/eval_answers.py` — `draft`, `run`, `rejudge`, `calibrate`,
+`check` — and `scripts/eval_review.html`, an offline viewer for reviewing cases and grading
+calibration answers. Answers go through the chat's own path (`get_rag_context`,
+`_build_context_prompt`, `OllamaClient`), so the numbers describe the chat. Run manually, not
+nightly: there is no model on a GitHub runner, and the corpus is private.
+
+**Baseline** (`tests/eval/answer_baseline.json`): a private customer RFP and contract corpus
+of 208 documents; 105 cases, drafted by `mistral`, reviewed and corrected by an AI assistant,
+approved by the maintainer. `llama3.2` answers, `mistral` judges.
+
+| source@1 | source@5 | MRR | proof in context | citation correct | answer correct* | faithful* |
+|---|---|---|---|---|---|---|
+| 0.41 | 0.56 | 0.48 | 0.47 | 0.57 | 0.66 | 0.93 |
+
+Repository-default retrieval settings, ranked by relevance. \*Judge-scored, and lenient.
+Against two calibration sheets — 38 grades by an AI assistant, 2 by the maintainer — judge
+`v1` overstated *correct* by +0.21 and +0.30, and *faithful* by +0.16. Judge `v2` was
+near-unbiased on *correct* (−0.03) and scores these answers 0.51: **the chat answers correctly
+about half the time**, not 66%. The baseline keeps `v1` because it parses reliably, as a
+regression tripwire; `check` refuses to compare runs measured with a different model, judge
+prompt or retrieval settings.
+
+A first version of this baseline read 0.14 / 0.51 / 0.28 for the rank metrics, and was wrong
+twice over: it ranked by position, and `_rank_and_finalize` returns documents *alphabetically*
+(a reading-order sort), so it measured the alphabet; and it ran through a maintainer's local
+`app_state.json`, whose persisted overrides beat the defaults and every env var a sweep set.
+
+**What it found.** *Retrieval recall, not generation, is the weak link:* the source document
+is never retrieved for 43% of questions, and most wrong answers had no answer in their
+context — the model then mostly declined correctly. Once retrieved, it usually ranks first
+(41 of 57). The misses concentrate in office formats — not retrieved for 76% of Excel, 67%
+PowerPoint and 52% Word questions, against 20% for PDF — and are not a threshold or pool-size
+effect: those passages rank ~130–620 of ~21k chunks, and doubling `TOP_K_RESULTS` changes
+nothing. That is the gap structured office ingest is meant to close. The judge's failure mode is a correct core with an invented
+specific (a clause number, a section, a template name); a stricter judge prompt (`v2`) catches
+those but over-corrects, so both are kept for comparison. Building it also found that
+`eval_retrieval.ingest_corpus` read only the top level of a folder (a real corpus ingested as
+4 documents of 274), and that drafting picked tables of contents and templates, now filtered.
+
+**Still open:**
+- **Human calibration.** 38 of the 40 calibration grades are an AI assistant's; agreement with
+  a model is not what this ticket asks for. `calibrate --dims correct` makes a sheet a person
+  can grade in a few minutes in `eval_review.html`; doing so and re-running `calibrate --score`
+  closes it. Deferred by the maintainer, 2026-10-01.
+- **DEL-2.** GraphRAG was not compared on this corpus yet.
+- **Nightly.** Needs a machine with a model; the command is the same when there is one.
 
 ### P2-4 — No blind `except`, no production `assert` ✅ (done 2026-09-21)
 

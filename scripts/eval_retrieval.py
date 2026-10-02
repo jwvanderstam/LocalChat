@@ -150,8 +150,11 @@ def ingest_corpus(corpus: Path, workspace_id: str | None) -> int:
     from src import config
     from src.rag.processor import doc_processor
 
+    # rglob, not iterdir: a real document set lives in folders. iterdir read only the top
+    # level, so a corpus of 274 files in subfolders ingested as 4, and every case whose
+    # source sat in a subfolder was scored against a database that never held it.
     supported, skipped = [], []
-    for path in sorted(corpus.iterdir()):
+    for path in sorted(corpus.rglob("*")):
         if not path.is_file():
             continue
         (supported if path.suffix.lower() in config.SUPPORTED_EXTENSIONS else skipped).append(path)
