@@ -1284,8 +1284,8 @@ Nothing further to do unless §10's re-review trigger fires.
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
 | 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ + P2-4b (`BLE001`) ✅ 2026-09-21 — **sprint complete**. P2-6 retired two open Dependabot alerts. P2-4b was the one item that was not mechanical: 120 handlers read individually, 4 narrowed, 11 that were failing silently given a log | 3–4 days |
 | 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) ✅ (#399) + P2-1b (row-level security) ✅ 2026-10-02 (#400, #404, #406, #407) — **sprint complete** | 1 week |
-| 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) | 1 week |
-| 18 | P2-3 (answer-level retrieval evaluation) — decides DEL-2 | 1–2 weeks |
+| 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) ✅ 2026-10-02 (#408) | 1 week |
+| 18 | P2-3 (answer-level retrieval evaluation) ◐ baseline merged 2026-10-02 (#410); judge calibration open — decides DEL-2 | 1–2 weeks |
 | **Total** | | **~20 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first) |
 
 > **Connectors re-scoped 2026-08-24.** DEL-1b was rewritten rather than executed: Confluence is deleted (no forward use, and the only one of the three carrying a pip dependency), while Google Drive and OneDrive are retained on a stated intent to use them, with maintainer-supplied test cases coming. Re-deriving the removal surface from the code — rather than trusting the ticket — turned up BUG-4 and the fact that the connector subsystem has **never had a UI**, so `PERMISSIONS.md` has been advertising 10 routes for a feature that does not exist. Initiative 9 (CONN-1, CONN-2) makes it real; BUG-4 lands ahead of the gate. Same lesson as DEL-1a a fortnight earlier: a plan is not evidence.
