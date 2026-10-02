@@ -102,24 +102,6 @@ _BODIES: dict[tuple[str, str], dict[str, Any]] = {
 #: which does not depend on the object existing.
 _DUMMY_GLOBAL_ID = "00000000-0000-4000-8000-000000000000"
 
-#: Two routes answer 200 for an object outside the caller's scope instead of the 404
-#: P0-1's acceptance asks for. **Neither discloses anything**, which is why they are
-#: recorded here rather than treated as holes:
-#:
-#: * `GET /api/conversations/{conversation_id}/documents` — the route *intends* to 404:
-#:   `memory_routes.py` checks `if filenames is None`. That branch is unreachable,
-#:   because `get_conversation_document_filter` is typed `list[str]` and returns `[]`
-#:   when the row is missing (`src/db/conversations.py:293`). A foreign conversation and
-#:   a nonexistent one are therefore indistinguishable, so it is not an existence oracle
-#:   either — just a dead branch and a wrong status.
-#: * `GET /api/chunks/{chunk_id}/annotations` — `get_annotations_for_chunk` scopes
-#:   correctly, joining on `d.workspace_id`, so a foreign chunk yields no annotations.
-#:   The route returns that empty list with 200 rather than refusing.
-#:
-#: The value is the response key that must be **empty**. That is deliberately a stronger
-#: assertion than skipping the route: if either ever starts returning a foreign
-#: workspace's rows, this fails. Changing the status codes is a behaviour change to a
-#: shipped API and belongs in its own reviewed change, not smuggled into a test.
 #: Deliberately reachable from any workspace, so the matrix's question does not apply.
 #:
 #: `POST /api/connectors/{connector_id}/webhook` is a *public receiver*: the caller is an
@@ -130,10 +112,17 @@ _DUMMY_GLOBAL_ID = "00000000-0000-4000-8000-000000000000"
 #: about elsewhere. Its real contract is asserted in `TestThePublicWebhookReceiver`.
 _PUBLIC_BY_DESIGN = {("POST", "/api/connectors/{connector_id}/webhook")}
 
-_DISCLOSES_NOTHING: dict[tuple[str, str], str] = {
-    ("GET", "/api/conversations/{conversation_id}/documents"): "document_filter",
-    ("GET", "/api/chunks/{chunk_id}/annotations"): "annotations",
-}
+#: Empty, and that is the point. Two routes used to answer 200 with an empty payload for
+#: an object outside the caller's scope — `GET /api/conversations/{id}/documents` and
+#: `GET /api/chunks/{chunk_id}/annotations`. Neither disclosed anything, so they were held
+#: here with an assertion that their payload stayed empty rather than skipped. Both were
+#: fixed to refuse on 2026-09-28, which made those assertions fail — which is what the
+#: mechanism is for, and why the rows are gone rather than the tests.
+#:
+#: The refusal matrix below now covers both. Keep this dict for the next one: a route that
+#: answers where it should refuse belongs here with the reason and an emptiness assertion,
+#: never in a skip list.
+_DISCLOSES_NOTHING: dict[tuple[str, str], str] = {}
 
 
 def _spec_paths() -> dict[str, Any]:
@@ -487,6 +476,10 @@ def test_a_foreign_workspaces_object_is_refused(
     )
 
 
+@pytest.mark.skipif(
+    not _DISCLOSES_NOTHING,
+    reason="no recorded deviations: every route in the matrix refuses rather than answering",
+)
 @pytest.mark.parametrize(("method", "path"), sorted(_DISCLOSES_NOTHING), ids=lambda v: str(v))
 def test_a_known_deviation_answers_200_but_discloses_nothing(
     method: str, path: str, provisioned: dict[str, Any]

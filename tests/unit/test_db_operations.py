@@ -24,6 +24,8 @@ from unittest.mock import MagicMock, patch
 import psycopg
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
+
 
 @pytest.fixture(autouse=True)
 def _ensure_db_connected():
@@ -159,7 +161,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            docs = db_module.db.get_all_documents()
+            docs = db_module.db.get_all_documents(scope=ALL_WORKSPACES)
 
             assert len(docs) == 2
             assert docs[0]['filename'] == "doc1.pdf"
@@ -180,7 +182,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            count = db_module.db.get_document_count()
+            count = db_module.db.get_document_count(scope=ALL_WORKSPACES)
 
             assert count == 5
             assert isinstance(count, int)
@@ -375,7 +377,7 @@ class TestChunkOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            count = db_module.db.get_chunk_count()
+            count = db_module.db.get_chunk_count(scope=ALL_WORKSPACES)
 
             assert count == 100
             assert isinstance(count, int)
@@ -406,7 +408,7 @@ class TestVectorSearch:
 
             results = db_module.db.search_similar_chunks(
                 query_embedding=query_embedding,
-                top_k=5
+                top_k=5, scope=ALL_WORKSPACES
             )
 
             assert len(results) == 2
@@ -434,7 +436,7 @@ class TestVectorSearch:
 
             results = db_module.db.search_similar_chunks(
                 query_embedding=query_embedding,
-                top_k=2
+                top_k=2, scope=ALL_WORKSPACES
             )
 
             assert len(results) <= 2
@@ -457,7 +459,7 @@ class TestVectorSearch:
             mock_get_conn.return_value.__exit__.return_value = None
 
             results = db_module.db.search_similar_chunks(
-                query_embedding=query_embedding
+                query_embedding=query_embedding, scope=ALL_WORKSPACES
             )
 
             assert results == []
@@ -484,7 +486,7 @@ class TestLexicalSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_lexical_chunks(query="exact code ABC-123", top_k=5)
+            results = db_module.db.search_lexical_chunks(query="exact code ABC-123", top_k=5, scope=ALL_WORKSPACES)
 
             assert len(results) == 2
             assert results[0] == ("chunk text 1", "doc1.pdf", 0, 0.55, {}, 1)
@@ -504,7 +506,7 @@ class TestLexicalSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_lexical_chunks(query="nothing matches this")
+            results = db_module.db.search_lexical_chunks(query="nothing matches this", scope=ALL_WORKSPACES)
 
             assert results == []
 
@@ -513,7 +515,7 @@ class TestLexicalSearch:
         from src import db as db_module
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            results = db_module.db.search_lexical_chunks(query="   ")
+            results = db_module.db.search_lexical_chunks(query="   ", scope=ALL_WORKSPACES)
 
             assert results == []
             mock_get_conn.assert_not_called()
@@ -533,7 +535,7 @@ class TestLexicalSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.search_lexical_chunks(query="term", filename_filter=["a.pdf", "b.pdf"])
+            db_module.db.search_lexical_chunks(query="term", filename_filter=["a.pdf", "b.pdf"], scope=ALL_WORKSPACES)
 
             executed_sql, params = mock_cursor.execute.call_args.args
             assert "d.filename = ANY(%s)" in executed_sql
@@ -565,7 +567,7 @@ class TestErrorHandling:
             # so it records that search does not swallow a failed connection into
             # an empty result set, which would read as "no matching documents".
             with pytest.raises(psycopg.OperationalError):
-                db_module.db.search_similar_chunks(query_embedding=[0.1] * 768)
+                db_module.db.search_similar_chunks(query_embedding=[0.1] * 768, scope=ALL_WORKSPACES)
 
 
 class TestDatabaseStats:
@@ -586,8 +588,8 @@ class TestDatabaseStats:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            doc_count = db_module.db.get_document_count()
-            chunk_count = db_module.db.get_chunk_count()
+            doc_count = db_module.db.get_document_count(scope=ALL_WORKSPACES)
+            chunk_count = db_module.db.get_chunk_count(scope=ALL_WORKSPACES)
 
             assert doc_count == 5
             assert chunk_count == 100

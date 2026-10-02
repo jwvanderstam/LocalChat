@@ -54,6 +54,24 @@ SCOPED_METHODS = {
     "get_connector",
     "update_connector",
     "delete_connector",
+    # P2-1b-ii: the filters where `workspace_id=None` used to mean every workspace.
+    "search_similar_chunks",
+    "search_lexical_chunks",
+    "get_document_count",
+    "get_chunk_count",
+    "get_all_documents",
+    "get_stale_documents",
+    "count_conversations",
+    "list_conversations",
+    "delete_all_conversations",
+    "get_low_confidence_queries",
+    "list_connectors",
+    "get_workspace_ontology",
+    "search_memories",
+    "is_duplicate_memory",
+    "get_all_memories",
+    # P2-1b-iii: one scoped transaction per workspace, since RLS sees only one.
+    "_search_memories_in_scope",
 }
 
 WS = "11111111-1111-1111-1111-111111111111"
@@ -148,6 +166,70 @@ class TestScopedMethodsRequireTheArgument:
             elif scope.default is not inspect.Parameter.empty:
                 problems.append(f"{name}: scope has a default, so it can be omitted")
         assert not problems, problems
+
+
+def _scoped_db_methods() -> dict[str, ast.FunctionDef]:
+    """Every method in src/db that takes a keyword-only ``scope``, by name."""
+    found = {}
+    for path in sorted((_ROOT / "src" / "db").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name != "get_connection" and any(
+                a.arg == "scope" for a in node.args.kwonlyargs
+            ):
+                found[node.name] = node
+    return found
+
+
+def _connections_missing_the_scope(method: ast.FunctionDef) -> list[int]:
+    """Lines where *method* opens a connection without handing it its own ``scope``."""
+    return [
+        call.lineno
+        for call in ast.walk(method)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "get_connection"
+        and not any(
+            kw.arg == "scope" and isinstance(kw.value, ast.Name) and kw.value.id == "scope"
+            for kw in call.keywords
+        )
+    ]
+
+
+@pytest.mark.unit
+class TestScopedMethodsHandTheirScopeToTheConnection:
+    """P2-1b's seam: row-level security acts on the connection, so the scope must reach it.
+
+    A method that takes a scope and opens its connection without one would, once the role
+    switch is on, run as the owner and bypass every policy — while the matrix above still
+    reports it as scoped. ADR-5.
+    """
+
+    def test_the_scan_finds_exactly_the_scoped_methods(self):
+        # Non-vacuity, and drift in both directions: a scan that found nothing would pass
+        # the test below, and a new scoped method must join SCOPED_METHODS too.
+        assert set(_scoped_db_methods()) == SCOPED_METHODS
+
+    def test_every_scoped_method_passes_its_scope_to_get_connection(self):
+        problems = [
+            f"{name}: line {line}"
+            for name, method in sorted(_scoped_db_methods().items())
+            for line in _connections_missing_the_scope(method)
+        ]
+        assert not problems, (
+            "These open a connection without their scope, so row-level security would "
+            "never see it. Use self.get_connection(scope=scope):\n  " + "\n  ".join(problems)
+        )
+
+    def test_the_check_recognises_a_connection_without_the_scope(self):
+        method = ast.parse(
+            "def f(self, *, scope):\n"
+            "    with self.get_connection() as a: pass\n"
+            "    with self.get_connection(scope=ALL_WORKSPACES) as b: pass\n"
+            "    with self.get_connection(scope=scope) as c: pass\n"
+        ).body[0]
+        assert isinstance(method, ast.FunctionDef)
+        assert _connections_missing_the_scope(method) == [2, 3]
 
 
 @pytest.mark.unit

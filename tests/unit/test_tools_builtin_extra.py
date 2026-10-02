@@ -54,6 +54,48 @@ class TestSearchDocumentsTool:
 
 
 class TestListDocumentsTool:
+    WS = "11111111-1111-1111-1111-111111111111"
+
+    @pytest.fixture(autouse=True)
+    def _bound_scope(self):
+        """Same contract as search_documents: the workspace comes from the request."""
+        from src.utils.scope import request_scope
+
+        with request_scope(self.WS):
+            yield
+
+    def test_refuses_outside_a_request_scope(self):
+        from src.tools.registry import tool_registry
+        from src.utils.scope import _REQUEST_SCOPE, ScopeUnavailableError
+
+        token = _REQUEST_SCOPE.set(None)
+        try:
+            with patch('src.db.db.get_all_documents', return_value=[]) as get_all, \
+                 pytest.raises(ScopeUnavailableError):
+                tool_registry.execute("list_documents", {})
+            get_all.assert_not_called()
+        finally:
+            _REQUEST_SCOPE.reset(token)
+
+    def test_lists_only_the_request_workspace(self):
+        """It called get_all_documents() bare, listing every workspace's documents."""
+        from src.tools.registry import tool_registry
+
+        with patch('src.db.db.get_all_documents', return_value=[]) as get_all:
+            tool_registry.execute("list_documents", {})
+
+        get_all.assert_called_once_with(scope=self.WS)
+
+    def test_all_workspaces_is_an_explicit_scope_not_a_default(self):
+        from src.tools.registry import tool_registry
+        from src.utils.scope import ALL_WORKSPACES, request_scope
+
+        with request_scope(ALL_WORKSPACES), \
+             patch('src.db.db.get_all_documents', return_value=[]) as get_all:
+            tool_registry.execute("list_documents", {})
+
+        get_all.assert_called_once_with(scope=ALL_WORKSPACES)
+
     def test_no_documents_returns_message(self):
         from src.tools.registry import tool_registry
 

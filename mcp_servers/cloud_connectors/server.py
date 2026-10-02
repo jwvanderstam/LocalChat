@@ -48,7 +48,7 @@ def search(
     try:
         from src.rag import doc_processor
         results = doc_processor.retrieve_context(
-            query, top_k=top_k, workspace_id=workspace_id
+            query, top_k=top_k, scope=workspace_id
         )
         if not results:
             return {"context": "", "sources": []}
@@ -67,7 +67,9 @@ def list_sources() -> list[dict]:
     """Return all configured connectors from the database."""
     try:
         from src.db import db
-        return db.list_connectors() if db.is_connected else []
+        from src.utils.scope import ALL_WORKSPACES
+        # Token-authenticated and installation-wide, as before; said rather than defaulted.
+        return db.list_connectors(scope=ALL_WORKSPACES) if db.is_connected else []
     except Exception as exc:  # noqa: BLE001 — same — an empty source list is the protocol-level answer
         logger.warning(f"[cloud-connectors] list_sources error: {exc}")
         return []

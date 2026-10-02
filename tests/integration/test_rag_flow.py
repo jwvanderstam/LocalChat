@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from src.rag.retrieval import RetrievalResult
+from src.utils.scope import ALL_WORKSPACES
 
 SAMPLE_CHUNKS = [
     RetrievalResult(
@@ -128,9 +129,9 @@ class TestRagFlow:
         mock_retrieve.assert_called_once_with(
             "Tell me about pgvector",
             filename_filter=[],
-            workspace_id=None,
             additional_workspace_ids=None,
             source_ids=[],
+            scope=ALL_WORKSPACES,
         )
 
     def test_context_text_forwarded_to_llm(self, app, client):

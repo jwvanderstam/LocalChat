@@ -113,10 +113,10 @@ class TestIngestProducesRetrievableChunks:
         assert ingested is not None
 
     def test_chunks_were_stored(self, database, workspace):
-        assert database.get_chunk_count(workspace_id=workspace) > 0
+        assert database.get_chunk_count(scope=workspace) > 0
 
     def test_the_document_is_listed_in_its_workspace(self, database, workspace):
-        names = [d["filename"] for d in database.get_all_documents(workspace_id=workspace)]
+        names = [d["filename"] for d in database.get_all_documents(scope=workspace)]
         assert "vector_search.txt" in names
 
 
@@ -124,25 +124,25 @@ class TestIngestProducesRetrievableChunks:
 @pytest.mark.parametrize(("query", "expected_term"), QUERIES, ids=[q[1] for q in QUERIES])
 class TestAskReturnsTheRightSection:
     def test_retrieval_returns_something(self, ingested, workspace, query, expected_term):
-        results = ingested.retrieve_context(query, workspace_id=workspace)
+        results = ingested.retrieve_context(query, scope=workspace)
         assert results, f"no chunks retrieved for {query!r}"
 
     def test_top_chunk_is_the_section_that_answers(self, ingested, workspace, query,
                                                    expected_term):
         """The assertion the whole harness exists for: the *right* chunk ranks first."""
-        results = ingested.retrieve_context(query, workspace_id=workspace)
+        results = ingested.retrieve_context(query, scope=workspace)
         assert expected_term.lower() in results[0].chunk_text.lower()
 
 
 @pytest.mark.db
 class TestCitationsPointAtTheSource:
     def test_result_carries_its_filename(self, ingested, workspace):
-        results = ingested.retrieve_context(QUERIES[0][0], workspace_id=workspace)
+        results = ingested.retrieve_context(QUERIES[0][0], scope=workspace)
         assert results[0].filename == "vector_search.txt"
 
     def test_result_carries_a_chunk_id_that_exists(self, ingested, database, workspace):
         """A citation with no resolvable chunk is what the Clark-Wilson rules forbid."""
-        results = ingested.retrieve_context(QUERIES[0][0], workspace_id=workspace)
+        results = ingested.retrieve_context(QUERIES[0][0], scope=workspace)
         assert isinstance(results[0].chunk_id, int)
         assert results[0].chunk_id > 0
 
@@ -151,7 +151,7 @@ class TestCitationsPointAtTheSource:
         """The negative space. Without it, a retriever that returns every chunk for
         every query would pass every test above."""
         results = ingested.retrieve_context(
-            "marsupial husbandry in temperate climates", workspace_id=workspace
+            "marsupial husbandry in temperate climates", scope=workspace
         )
         assert results == []
 
@@ -163,7 +163,7 @@ class TestWorkspaceIsolationHoldsOnTheRealPath:
         the path it would have travelled."""
         other = database.create_workspace(f"tq2-other-{uuid.uuid4().hex[:8]}", owner_id=None)
         try:
-            results = ingested.retrieve_context(QUERIES[0][0], workspace_id=other)
+            results = ingested.retrieve_context(QUERIES[0][0], scope=other)
             assert results == []
         finally:
             database.delete_workspace(other)

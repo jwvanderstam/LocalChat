@@ -84,7 +84,7 @@ def test_search_passes_filenames_filter_from_arguments(monkeypatch: pytest.Monke
     server.search("query", filters={"filenames": ["a.pdf", "b.pdf"]}, workspace_id=WS)
 
     doc_processor.retrieve_context.assert_called_once_with(
-        "query", filename_filter=["a.pdf", "b.pdf"], workspace_id=WS
+        "query", filename_filter=["a.pdf", "b.pdf"], scope=WS
     )
 
 
@@ -99,7 +99,7 @@ def test_search_defaults_filename_filter_to_empty_list_when_filters_omitted(
 
     # The workspace reaches the query — the point of the finding, not a detail.
     doc_processor.retrieve_context.assert_called_once_with(
-        "query", filename_filter=[], workspace_id=WS
+        "query", filename_filter=[], scope=WS
     )
 
 

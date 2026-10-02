@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.utils.scope import ALL_WORKSPACES
 from tests.utils.auth import ADMIN_ID, admin_headers, authorise_db
 
 # ---------------------------------------------------------------------------
@@ -78,14 +79,14 @@ class TestListMemories:
         app, client = _make_app()
         client.get("/api/memory/?limit=10&offset=20")
         app.state.db.get_all_memories.assert_called_once_with(
-            limit=10, offset=20, workspace_id=None
+            limit=10, offset=20, scope=ALL_WORKSPACES
         )
 
     def test_workspace_header_scopes_the_listing(self):
         app, client = _make_app()
         ws_id = "11111111-1111-1111-1111-111111111111"
         client.get("/api/memory/", headers={"X-Workspace-ID": ws_id})
-        assert app.state.db.get_all_memories.call_args.kwargs["workspace_id"] == ws_id
+        assert app.state.db.get_all_memories.call_args.kwargs["scope"] == ws_id
 
     def test_limit_capped_at_500(self):
         app, client = _make_app()
