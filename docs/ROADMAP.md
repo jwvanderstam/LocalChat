@@ -1240,10 +1240,12 @@ that evidence cannot be produced again.
 
 **Driver 4** (documentation architecture). Two halves:
 
-- **Doc tests ◐**: `test_configuration_doc_covers_config` (every value read is documented),
-  `test_env_example_is_read` (every value named is read — 2026-09-17), and
-  `test_permissions_doc_matches_routes` exist. Still open: every backticked `src/...` path in
-  a current-state document exists, and every documented `/api/...` endpoint exists.
+- **Doc tests ✅**: `test_configuration_doc_covers_config` (every value read is documented),
+  `test_env_example_is_read` (every value named is read — 2026-09-17),
+  `test_permissions_doc_matches_routes`, and `test_docs_reference_what_exists` (2026-10-02):
+  every backticked repository path in a current-state document exists, and every documented
+  `/api/...` endpoint is served. Until the split, the journal is excluded by name; the first
+  run found no drift, only four deliberate mentions of absent files and Ollama's own API.
 - **The split ⬜**: move the journal — this file's history notes, PRODUCTION_PLAN,
   LESSONS_LEARNED, DEPLOYMENT_LOG, TEST_QUALITY_AUDIT, AUTH_PLAN, REMEDIATION_PLAN — under
   `docs/history/`, so the path and endpoint tests can target current-state documents only

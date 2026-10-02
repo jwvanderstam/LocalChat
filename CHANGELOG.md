@@ -10,6 +10,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Added
 
+- **Documents are held to the code they describe** (ROADMAP P2-7).
+  `tests/unit/test_docs_reference_what_exists.py` fails when a current-state document names a
+  repository path that does not exist or an `/api/...` endpoint the application does not serve.
+  The journal (CHANGELOG, ROADMAP, LESSONS_LEARNED and the other records) is excluded: a stale
+  path there is a fact about the past. Deliberate exceptions are listed with a reason, and an
+  exception that stops being needed fails too.
+
 - **Answer-level evaluation** (ROADMAP P2-3). `scripts/eval_answers.py` drafts test cases from
   a private document corpus, answers them through the chat's own retrieval and prompt, has a
   local judge model grade correctness and faithfulness, and checks a run against a committed
