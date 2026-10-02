@@ -262,7 +262,9 @@ def get_filename_filter(fields: dict, db: Any, scope: Scope) -> list[str]:
     if not conversation_id:
         return []
     try:
-        return db.get_conversation_document_filter(conversation_id, scope=scope)
+        # None means the conversation is not in this scope; retrieval is then simply
+        # unfiltered, which is what it was before a filter was ever set.
+        return db.get_conversation_document_filter(conversation_id, scope=scope) or []
     except Exception as filter_err:  # noqa: BLE001 — the document filter is a refinement; unfiltered retrieval is correct, just broader
         logger.warning("[RAG] Could not read document filter: %s", filter_err)
         return []

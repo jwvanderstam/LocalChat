@@ -86,6 +86,25 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Fixed
 
+- **Two routes answered 200 for an object outside the caller's scope**, where P0-1's
+  acceptance asks for 404. Neither disclosed anything — both scoped correctly — so this is
+  a contract fix, not a leak being closed.
+  `GET /api/conversations/{id}/documents` *intended* to refuse: it checks
+  `if filenames is None`, and that branch was unreachable because
+  `get_conversation_document_filter` was typed `list[str]` and returned `[]` for a missing
+  row. It now returns `None` when no conversation is in scope, which is what the sibling
+  `get_conversation_messages` has always done ("out of scope reads as not found"). Its one
+  internal caller, `src/services/chat.py`, coalesces to `[]`: a conversation the scope
+  cannot see means retrieval is unfiltered, as it was before any filter existed.
+  `GET /api/chunks/{chunk_id}/annotations` now resolves the chunk through the already-scoped
+  `get_chunk_by_id` and 404s when it is not in scope. `get_annotations_for_chunk` joins on
+  the document's workspace and never leaked rows, but answering 200 for someone else's chunk
+  still confirmed it exists, and left the route unable to say "no such chunk" at all.
+  Found by P2-2b's matrix, which held both in `_DISCLOSES_NOTHING` with an assertion that
+  their payload stayed empty. Fixing them made those assertions fail — which is what that
+  mechanism is for — so the rows are gone and the refusal matrix now covers 45 routes rather
+  than 43. Reverting either fix fails exactly its own case.
+
 - **`docker compose --profile mcp up` could not start two of the three MCP servers.**
   The runtime image pins `ENV APP_ENV=production` (`Dockerfile`), so every container built
   from it is in production mode whatever compose says, and `src/config.py` raises
