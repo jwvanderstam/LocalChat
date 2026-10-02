@@ -248,7 +248,7 @@ so that trade should be made explicitly rather than by taking a Dependabot bump.
 
 ---
 
-## ADR-5: The generation path is a deterministic pipeline; agentic orchestration is an experiment until an answer-level eval says otherwise
+## ADR-6: The generation path is a deterministic pipeline; agentic orchestration is an experiment until an answer-level eval says otherwise
 
 **Proposed 2026-10-01.** Supersedes nothing. Records a choice the code has been making
 implicitly, and in two directions at once.
