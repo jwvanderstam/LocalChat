@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import config
 from ..security_fastapi import require_admin_dep
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -30,8 +31,9 @@ def _collect_document_stats(app_state: Any) -> dict:
         return {"document_count": 0, "chunk_count": 0, "db_available": False}
     try:
         return {
-            "document_count": db.get_document_count(),
-            "chunk_count": db.get_chunk_count(),
+            # Admin-only (settings_stats_api): the installation's totals by design.
+            "document_count": db.get_document_count(scope=ALL_WORKSPACES),
+            "chunk_count": db.get_chunk_count(scope=ALL_WORKSPACES),
             "db_available": True,
         }
     except Exception as exc:  # noqa: BLE001 — the panel renders with zeros and db_available=False rather than failing

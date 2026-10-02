@@ -8,6 +8,7 @@ Tests database operations, connection pooling, and vector similarity search.
 import numpy as np
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
 from tests.utils.helpers import generate_mock_embedding
 from tests.utils.mocks import MockDatabase
 
@@ -99,7 +100,7 @@ class TestDocumentOperations:
     def test_get_document_count_starts_at_zero(self):
         """Should start with zero documents."""
         db = MockDatabase()
-        count = db.get_document_count()
+        count = db.get_document_count(scope=ALL_WORKSPACES)
         assert count == 0
 
     def test_get_document_count_increases(self):
@@ -107,10 +108,10 @@ class TestDocumentOperations:
         db = MockDatabase()
 
         db.insert_document("doc1.pdf", "content1")
-        assert db.get_document_count() == 1
+        assert db.get_document_count(scope=ALL_WORKSPACES) == 1
 
         db.insert_document("doc2.pdf", "content2")
-        assert db.get_document_count() == 2
+        assert db.get_document_count(scope=ALL_WORKSPACES) == 2
 
     def test_get_all_documents_returns_list(self):
         """Should return list of all documents."""
@@ -119,7 +120,7 @@ class TestDocumentOperations:
         db.insert_document("doc1.pdf", "content1")
         db.insert_document("doc2.pdf", "content2")
 
-        docs = db.get_all_documents()
+        docs = db.get_all_documents(scope=ALL_WORKSPACES)
         assert isinstance(docs, list)
         assert len(docs) == 2
 
@@ -129,10 +130,10 @@ class TestDocumentOperations:
 
         db.insert_document("doc1.pdf", "content1")
         db.insert_document("doc2.pdf", "content2")
-        assert db.get_document_count() == 2
+        assert db.get_document_count(scope=ALL_WORKSPACES) == 2
 
         db.delete_all_documents()
-        assert db.get_document_count() == 0
+        assert db.get_document_count(scope=ALL_WORKSPACES) == 0
 
 
 # ============================================================================
@@ -155,7 +156,7 @@ class TestChunkOperations:
         ]
 
         db.insert_chunks_batch(chunks_data)
-        assert db.get_chunk_count() == 2
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 2
 
     def test_insert_chunks_updates_count(self):
         """Should update chunk count."""
@@ -167,7 +168,7 @@ class TestChunkOperations:
         ]
 
         db.insert_chunks_batch(chunks_data)
-        assert db.get_chunk_count() == 1
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 1
 
     def test_insert_chunks_updates_document_count(self):
         """Should update document chunk count."""
@@ -185,7 +186,7 @@ class TestChunkOperations:
     def test_get_chunk_count_starts_at_zero(self):
         """Should start with zero chunks."""
         db = MockDatabase()
-        count = db.get_chunk_count()
+        count = db.get_chunk_count(scope=ALL_WORKSPACES)
         assert count == 0
 
     def test_chunks_associated_with_document(self):
@@ -218,7 +219,7 @@ class TestVectorSimilaritySearch:
         db = MockDatabase()
         query_embedding = generate_mock_embedding()
 
-        results = db.search_similar_chunks(query_embedding)
+        results = db.search_similar_chunks(query_embedding, scope=ALL_WORKSPACES)
         assert isinstance(results, list)
 
     def test_search_with_no_chunks(self):
@@ -226,7 +227,7 @@ class TestVectorSimilaritySearch:
         db = MockDatabase()
         query_embedding = generate_mock_embedding()
 
-        results = db.search_similar_chunks(query_embedding)
+        results = db.search_similar_chunks(query_embedding, scope=ALL_WORKSPACES)
         assert results == []
 
     def test_search_returns_top_k_results(self):
@@ -242,7 +243,7 @@ class TestVectorSimilaritySearch:
         db.insert_chunks_batch(chunks_data)
 
         query_embedding = generate_mock_embedding()
-        results = db.search_similar_chunks(query_embedding, top_k=5)
+        results = db.search_similar_chunks(query_embedding, top_k=5, scope=ALL_WORKSPACES)
 
         assert len(results) <= 5
 
@@ -257,7 +258,7 @@ class TestVectorSimilaritySearch:
         db.insert_chunks_batch(chunks_data)
 
         query_embedding = generate_mock_embedding()
-        results = db.search_similar_chunks(query_embedding, top_k=1)
+        results = db.search_similar_chunks(query_embedding, top_k=1, scope=ALL_WORKSPACES)
 
         if results:
             result = results[0]
@@ -286,14 +287,14 @@ class TestVectorSimilaritySearch:
         query_embedding = generate_mock_embedding()
 
         # Search without filter should return both
-        results_all = db.search_similar_chunks(query_embedding, top_k=10)
+        results_all = db.search_similar_chunks(query_embedding, top_k=10, scope=ALL_WORKSPACES)
         assert len(results_all) <= 2
 
         # Search with filter (would filter in real implementation)
         results_pdf = db.search_similar_chunks(
             query_embedding,
             top_k=10,
-            file_type_filter=".pdf"
+            file_type_filter=".pdf", scope=ALL_WORKSPACES
         )
         assert isinstance(results_pdf, list)
 
@@ -316,7 +317,7 @@ class TestEmbeddingFormat:
         chunks_data = [(doc_id, "chunk", 0, embedding)]
 
         db.insert_chunks_batch(chunks_data)
-        assert db.get_chunk_count() == 1
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 1
 
     def test_accepts_numpy_embeddings(self):
         """Should accept numpy array embeddings."""
@@ -327,7 +328,7 @@ class TestEmbeddingFormat:
         chunks_data = [(doc_id, "chunk", 0, embedding)]
 
         db.insert_chunks_batch(chunks_data)
-        assert db.get_chunk_count() == 1
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 1
 
 
 # ============================================================================
@@ -383,18 +384,18 @@ class TestDatabaseIntegration:
         db.insert_chunks_batch(chunks_data)
 
         # Verify counts
-        assert db.get_document_count() == 1
-        assert db.get_chunk_count() == 5
+        assert db.get_document_count(scope=ALL_WORKSPACES) == 1
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 5
 
         # Search
         query_embedding = generate_mock_embedding()
-        results = db.search_similar_chunks(query_embedding, top_k=3)
+        results = db.search_similar_chunks(query_embedding, top_k=3, scope=ALL_WORKSPACES)
         assert len(results) <= 3
 
         # Delete all
         db.delete_all_documents()
-        assert db.get_document_count() == 0
-        assert db.get_chunk_count() == 0
+        assert db.get_document_count(scope=ALL_WORKSPACES) == 0
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 0
 
     def test_multiple_documents_workflow(self):
         """Should handle multiple documents."""
@@ -414,12 +415,12 @@ class TestDatabaseIntegration:
             db.insert_chunks_batch(chunks_data)
 
         # Verify totals
-        assert db.get_document_count() == 3
-        assert db.get_chunk_count() == 6
+        assert db.get_document_count(scope=ALL_WORKSPACES) == 3
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 6
 
         # Search should work across all documents
         query_embedding = generate_mock_embedding()
-        results = db.search_similar_chunks(query_embedding, top_k=10)
+        results = db.search_similar_chunks(query_embedding, top_k=10, scope=ALL_WORKSPACES)
         assert len(results) <= 6
 
 
@@ -455,14 +456,14 @@ class TestDatabaseEdgeCases:
         """Should handle zero top_k."""
         db = MockDatabase()
         query_embedding = generate_mock_embedding()
-        results = db.search_similar_chunks(query_embedding, top_k=0)
+        results = db.search_similar_chunks(query_embedding, top_k=0, scope=ALL_WORKSPACES)
         assert results == []
 
     def test_insert_chunks_empty_list(self):
         """Should handle empty chunks list."""
         db = MockDatabase()
         db.insert_chunks_batch([])
-        assert db.get_chunk_count() == 0
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 0
 
     def test_document_exists_empty_filename(self):
         """Should handle empty filename check."""
@@ -482,5 +483,5 @@ class TestDatabaseEdgeCases:
             ]
             db.insert_chunks_batch(chunks_data)
 
-        assert db.get_document_count() == 10
-        assert db.get_chunk_count() == 30
+        assert db.get_document_count(scope=ALL_WORKSPACES) == 10
+        assert db.get_chunk_count(scope=ALL_WORKSPACES) == 30

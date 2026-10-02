@@ -7,6 +7,8 @@ Provides pre-configured mock objects for common dependencies.
 import random
 from unittest.mock import MagicMock, Mock
 
+from src.utils.scope import Scope
+
 
 class MockDatabase:
     """Mock database for testing."""
@@ -61,7 +63,7 @@ class MockDatabase:
         return inserted_ids
 
     def search_similar_chunks(self, query_embedding: list[float], top_k: int = 5,
-                            file_type_filter: str | None = None) -> list[tuple]:
+                            file_type_filter: str | None = None, *, scope: Scope) -> list[tuple]:
         """Search for similar chunks."""
         results = []
         for chunk in list(self.chunks.values())[:top_k]:
@@ -76,15 +78,15 @@ class MockDatabase:
             ))
         return results
 
-    def get_document_count(self, workspace_id: str | None = None) -> int:
+    def get_document_count(self, *, scope: Scope) -> int:
         """Get document count."""
         return len(self.documents)
 
-    def get_chunk_count(self, workspace_id: str | None = None) -> int:
+    def get_chunk_count(self, *, scope: Scope) -> int:
         """Get chunk count."""
         return len(self.chunks)
 
-    def get_all_documents(self) -> list[dict]:
+    def get_all_documents(self, *, scope: Scope) -> list[dict]:
         """Get all documents."""
         return list(self.documents.values())
 

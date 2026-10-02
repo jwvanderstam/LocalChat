@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 from .. import config as app_config
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES
 from .base import EventType
 
 if TYPE_CHECKING:
@@ -181,7 +182,9 @@ class SyncWorker:
         """Periodically re-ingest documents older than REINGEST_MAX_AGE_HOURS."""
         while not self._stop_event.is_set():
             try:
-                stale = self._db.get_stale_documents(app_config.REINGEST_MAX_AGE_HOURS)
+                stale = self._db.get_stale_documents(
+                    app_config.REINGEST_MAX_AGE_HOURS, scope=ALL_WORKSPACES
+                )
                 if stale:
                     logger.info(f"[SyncWorker] Re-ingesting {len(stale)} stale document(s)")
                 for doc in stale:

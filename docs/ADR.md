@@ -248,6 +248,81 @@ so that trade should be made explicitly rather than by taking a Dependabot bump.
 
 ---
 
+## ADR-5 — Workspace isolation is enforced in the database, through row-level security
+
+**Accepted 2026-09-29** (P2-1b). Builds on migration `0017`; does not supersede ADR-1.
+
+**Decision.** A workspace-scoped transaction runs as the restricted role `localchat_scoped`
+with `app.workspace_id` set, both transaction-local, so Postgres refuses rows outside the
+scope even when the application forgets to. The scope reaches the connection **explicitly**:
+every database method that takes a `Scope` passes it to `get_connection(scope=)`, and
+`tests/unit/test_object_authorization_matrix.py` fails any method that does not. The
+installation-wide paths — `ALL_WORKSPACES`: an admin naming no workspace, the webhook
+receiver, `SyncWorker` — stay on the owner role and so bypass the policies by design.
+
+**Rejected alternatives.** *An ambient contextvar bound by the workspace guard*, read by
+`get_connection()`: implicit, and it silently drops at context boundaries — the SSE
+generator, threadpool handlers, worker threads — so coverage would read as complete while
+being partial, the outcome ROADMAP P2-1b warned about. *A second connection pool logging
+in as a restricted identity*: the strongest option, since the request path would never
+hold owner credentials, but it doubles the pool and adds a credential to every deployment
+— more than a single-node appliance needs. `get_connection(scope=)` is the seam it would
+plug into, so choosing the first option now does not foreclose it.
+
+**What this commits to** — written down because it deepens a path rather than choosing one:
+
+- **Shared-schema tenancy as the security boundary.** Every workspace lives in one schema,
+  told apart by `workspace_id`. Migration `0003` and P0-1 made that choice; this turns it
+  from a convention into a mechanism the application depends on. It is a pattern that scales
+  well past this deployment — it is not the small-team assumption.
+- **Operator = installation owner.** The `ALL_WORKSPACES` paths run as the owner, which
+  encodes one trusted operator who may see every workspace. **This is the small-workgroup
+  assumption**, and it is contained in one branch of `get_connection()`.
+- **Postgres as the enforcement layer.** The second line of defence exists only there.
+  Already implied by pgvector, so the marginal commitment is small.
+
+**What this does not commit to.** A single node. The scope is transaction-local, so it
+survives a transaction-pooling proxy and multiple replicas, and adds no in-process state.
+The constraints that do tie LocalChat to one process are older and are recorded elsewhere:
+in-memory rate limits, revocation cache and OAuth state (why M7 aborts a boot with more
+than one worker), the synchronous database layer (ADR-2), and in-process SSE.
+
+**The broader point.** The P0 → P1 → P2 hardening is correct *for ADR-1*, and each step
+raises the cost of ever leaving it. That is accumulated investment rather than technical
+lock-in, and it is recorded here so it is a known quantity when ADR-1's own revisit
+condition fires, rather than an unseen reason not to act on it.
+
+**Coverage, stated plainly.** The seam reaches 33 methods: the 18 that address an object by
+id (P2-1b-i) and the 15 filters — retrieval among them — that took
+`workspace_id: str | None` with `None` meaning every workspace (P2-1b-ii). Deliberately
+outside it: the inserts and `document_exists`, which take the workspace a row is written to,
+and the methods in `workspaces.py` and `workspace_keys.py`, which take the workspace itself.
+The inserts matter for the switch: a policy with only `USING` checks new rows against it too,
+so a scoped transaction can only write into its own workspace. (Sorting those 34 methods
+first found 16 filters; `document_exists` turned out to be a write-side check.)
+
+**Enforced 2026-09-29 (P2-1b-iii), with one consequence the design did not predict.** The
+policy changes the vector-search plan: an exact per-workspace scan becomes the HNSW index
+filtered afterwards, which on its own returned 19 of 40 requested rows on average and as few
+as 0. Scoped transactions therefore also set `hnsw.iterative_scan = strict_order` and
+`hnsw.ef_search = 400` (full counts, 92% overlap with the exact answer, faster than before);
+the benchmark is in ROADMAP P2-1b-iii. This ties the enforcement to pgvector 0.8 or later.
+
+**The role is re-applied at every boot, not owned by a migration.** A role is a cluster
+object, so `pg_dump` never carries it, and a restore into a new cluster left the database
+recording 0017 as applied while its role did not exist. `_ensure_extensions_and_tables()`
+now creates the role if missing and re-grants it the tables, which also covers tables a
+later release adds. The application identity therefore needs `CREATEROLE`, or the provider
+must create `localchat_scoped` once — the same requirement 0017 already had.
+
+**Revisit when:** tenant administrators must be separated from platform operators, or a
+deployment requires that operators cannot read workspace content. Then the `ALL_WORKSPACES`
+paths move off the owner role — to the second-pool design above, through the same seam.
+Also revisit for GKB-1: the policies exclude rows whose `workspace_id` is NULL, which is
+exactly how the global knowledge base is specified.
+
+---
+
 ## Recording a new ADR
 
 Add it here when a choice would otherwise be re-argued. State the decision in one sentence,

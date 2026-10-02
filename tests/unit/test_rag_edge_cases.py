@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
+
 
 @pytest.fixture
 def retrieval_stack():
@@ -214,7 +216,7 @@ class TestRetrievalEdgeCases:
         from src.rag import doc_processor
 
         try:
-            result = doc_processor.retrieve_context(None)
+            result = doc_processor.retrieve_context(None, scope=ALL_WORKSPACES)
             assert isinstance(result, (str, list))
         except (TypeError, AttributeError):
             pass  # Acceptable to reject None
@@ -229,7 +231,7 @@ class TestRetrievalEdgeCases:
         from src.rag import doc_processor
 
         _, ollama = retrieval_stack
-        doc_processor.retrieve_context("word " * 1000)
+        doc_processor.retrieve_context("word " * 1000, scope=ALL_WORKSPACES)
 
         embedded = ollama.generate_embedding.call_args[0][1]
         assert len(embedded.split()) == 1000
@@ -245,7 +247,7 @@ class TestRetrievalEdgeCases:
         from src.rag import doc_processor
 
         mock_db, _ = retrieval_stack
-        doc_processor.retrieve_context("test <>&\"' query")
+        doc_processor.retrieve_context("test <>&\"' query", scope=ALL_WORKSPACES)
 
         assert mock_db.search_lexical_chunks.call_args[0][0] == "test query"
 

@@ -5,7 +5,7 @@ Active Learning — Knowledge Gap Suggestions
 Identifies topics in user queries where the knowledge base has poor coverage,
 by comparing query terms against document content and feedback ratings.
 
-Entry point: ``suggest_documents(workspace_id, db) -> list[str]``
+Entry point: ``suggest_documents(scope, db) -> list[str]``
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from collections import Counter
 from typing import Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope
 
 logger = get_logger(__name__)
 
@@ -40,7 +41,7 @@ def _extract_terms(text: str) -> list[str]:
 
 
 def suggest_documents(
-    workspace_id: str | None,
+    scope: Scope,
     db: Any,
     top_k: int = 10,
     feedback_threshold: float = 0.5,
@@ -53,7 +54,7 @@ def suggest_documents(
     3. Return the top-k most frequent terms as suggested document topics.
 
     Args:
-        workspace_id: Workspace to scope queries to, or None for all.
+        scope: Workspace to scope queries to, or ALL_WORKSPACES.
         db: Database instance (must implement get_low_confidence_queries).
         top_k: How many suggestions to return.
         feedback_threshold: Feedback rating below which a query counts as poor.
@@ -63,8 +64,8 @@ def suggest_documents(
     """
     try:
         queries = db.get_low_confidence_queries(
-            workspace_id=workspace_id,
             threshold=feedback_threshold,
+            scope=scope,
         )
     except Exception as exc:  # noqa: BLE001 — a suggestions query; an empty list is a valid answer
         logger.warning(f"[ActiveLearning] could not fetch queries: {exc}")

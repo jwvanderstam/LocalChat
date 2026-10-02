@@ -8,7 +8,7 @@ Additional tests for RAG functionality
 Author: LocalChat Team
 Created: January 2025
 """
-
+from src.utils.scope import ALL_WORKSPACES
 
 
 class TestTextChunking:
@@ -106,7 +106,7 @@ class TestRetrieval:
         from src.rag import doc_processor
 
         try:
-            result = doc_processor.retrieve_context("")
+            result = doc_processor.retrieve_context("", scope=ALL_WORKSPACES)
             assert isinstance(result, (str, list))
         except (ValueError, TypeError):
             pass  # Acceptable to reject

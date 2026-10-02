@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
+
 # Mark all tests
 pytestmark = [pytest.mark.unit, pytest.mark.rag]
 
@@ -427,7 +429,7 @@ class TestContextRetrieval:
 
     def test_retrieve_context_success(self, doc_processor, mock_db, mock_ollama):
         """Should retrieve relevant context."""
-        results = doc_processor.retrieve_context("test query", top_k=3)
+        results = doc_processor.retrieve_context("test query", top_k=3, scope=ALL_WORKSPACES)
 
         assert len(results) <= 3
         assert all(len(r) == 6 for r in results)  # (text, filename, idx, sim, metadata, chunk_id)
@@ -436,7 +438,7 @@ class TestContextRetrieval:
         """Should handle no results."""
         mock_db.search_similar_chunks.return_value = []
 
-        results = doc_processor.retrieve_context("test query")
+        results = doc_processor.retrieve_context("test query", scope=ALL_WORKSPACES)
 
         assert results == []
 
@@ -445,7 +447,7 @@ class TestContextRetrieval:
         mock_db.search_similar_chunks.return_value = [
             ("chunk text 1", "report.pdf", 0, 0.95, {}, 1),
         ]
-        doc_processor.retrieve_context("test query", file_type_filter=".pdf")
+        doc_processor.retrieve_context("test query", file_type_filter=".pdf", scope=ALL_WORKSPACES)
 
         call_args = mock_db.search_similar_chunks.call_args
         assert call_args[1]['file_type_filter'] == ".pdf"
@@ -459,7 +461,7 @@ class TestContextRetrieval:
             ("chunk 3", "doc.pdf", 2, 0.80, {}, 3),
         ]
 
-        results = doc_processor.retrieve_context("test query")
+        results = doc_processor.retrieve_context("test query", scope=ALL_WORKSPACES)
 
         # Results should be returned (re-ranking applied internally)
         assert len(results) > 0
@@ -472,14 +474,14 @@ class TestContextRetrieval:
             ("chunk 3", "doc.pdf", 2, 0.85, {}, 3),
         ]
 
-        results = doc_processor.retrieve_context("test query", min_similarity=0.70)
+        results = doc_processor.retrieve_context("test query", min_similarity=0.70, scope=ALL_WORKSPACES)
 
         # Should filter out low similarity results
         assert all(r[3] >= 0.70 for r in results)
 
     def test_retrieve_context_query_preprocessing(self, doc_processor, mock_db, mock_ollama):
         """Should preprocess query."""
-        results = doc_processor.retrieve_context("What's   the  answer?")
+        results = doc_processor.retrieve_context("What's   the  answer?", scope=ALL_WORKSPACES)
 
         # Should clean up whitespace and contractions and return a list
         assert isinstance(results, list)
@@ -488,7 +490,7 @@ class TestContextRetrieval:
         """Should handle no embedding model available."""
         mock_ollama.get_embedding_model.return_value = None
 
-        results = doc_processor.retrieve_context("test query")
+        results = doc_processor.retrieve_context("test query", scope=ALL_WORKSPACES)
 
         assert results == []
 
@@ -498,7 +500,7 @@ class TestContextRetrieval:
         mock_ollama.generate_embedding.return_value = (False, [])
         with patch('src.rag.retrieval.embedding_cache') as mock_cache:
             mock_cache.get.return_value = None  # prevent cross-test cache hit
-            results = doc_processor.retrieve_context("test query")
+            results = doc_processor.retrieve_context("test query", scope=ALL_WORKSPACES)
 
         assert results == []
 
