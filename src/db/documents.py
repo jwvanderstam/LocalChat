@@ -208,7 +208,7 @@ class DocumentsMixin(MixinHost):
 
         logger.debug("Soft-deleting document ID: %s", doc_id)
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
@@ -330,15 +330,16 @@ class DocumentsMixin(MixinHost):
         min_similarity: float = 0.0,
         file_type_filter: str | None = None,
         filename_filter: list[str] | None = None,
-        workspace_id: str | None = None,
         source_ids: list[str] | None = None,
+        *,
+        scope: Scope,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """Search via pgvector HNSW; min_similarity applied at DB level to avoid transferring chunks that fail the threshold."""
         if not self.is_connected:
             raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
 
         logger.debug(f"Searching for top {top_k} similar chunks (min_similarity={min_similarity})")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 embedding_str = self._embedding_to_pg_array(query_embedding)
                 max_distance = 1.0 - min_similarity  # cosine distance = 1 - similarity
@@ -353,9 +354,9 @@ class DocumentsMixin(MixinHost):
                     where_extra += "  AND d.filename = ANY(%s)\n"
                     params.append(filename_filter)
                     logger.debug(f"Searching with filename filter: {len(filename_filter)} file(s)")
-                if workspace_id:
-                    where_extra += "  AND d.workspace_id = %s\n"
-                    params.append(workspace_id)
+                scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+                where_extra += f"{scope_sql}\n"
+                params.extend(scope_params)
                 if source_ids:
                     where_extra += "  AND d.source_id = ANY(%s)\n"
                     params.append(source_ids)
@@ -390,8 +391,9 @@ class DocumentsMixin(MixinHost):
         top_k: int = 5,
         file_type_filter: str | None = None,
         filename_filter: list[str] | None = None,
-        workspace_id: str | None = None,
         source_ids: list[str] | None = None,
+        *,
+        scope: Scope,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """Full-corpus lexical search via tsvector/GIN — an independent retrieval
         arm, not a rerank of vector-search candidates. A chunk can surface here
@@ -409,7 +411,7 @@ class DocumentsMixin(MixinHost):
             return []
 
         logger.debug(f"Lexical search for top {top_k} chunks")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 where_extra = ""
                 params: list = [query]
@@ -419,9 +421,9 @@ class DocumentsMixin(MixinHost):
                 if filename_filter:
                     where_extra += "  AND d.filename = ANY(%s)\n"
                     params.append(filename_filter)
-                if workspace_id:
-                    where_extra += "  AND d.workspace_id = %s\n"
-                    params.append(workspace_id)
+                scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+                where_extra += f"{scope_sql}\n"
+                params.extend(scope_params)
                 if source_ids:
                     where_extra += "  AND d.source_id = ANY(%s)\n"
                     params.append(source_ids)
@@ -520,7 +522,7 @@ class DocumentsMixin(MixinHost):
         )
         # document_chunks has no workspace of its own; it borrows the document's.
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -549,7 +551,7 @@ class DocumentsMixin(MixinHost):
             raise DatabaseUnavailableError("Cannot get chunk: Database is not connected")
 
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT dc.id, dc.document_id, dc.chunk_index, dc.chunk_text, dc.metadata"
@@ -569,20 +571,18 @@ class DocumentsMixin(MixinHost):
             'metadata': row[4] or {},
         }
 
-    def get_document_count(self, workspace_id: str | None = None) -> int:
-        """Return the number of documents, optionally scoped to a workspace."""
+    def get_document_count(self, *, scope: Scope) -> int:
+        """Return the number of live documents in *scope*."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get document count: Database is not connected")
 
-        with self.get_connection() as conn:
+        scope_sql, scope_params = scope_predicate(scope, "workspace_id")
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
-                if workspace_id:
-                    cursor.execute(
-                        "SELECT COUNT(*) FROM documents WHERE workspace_id = %s AND deleted_at IS NULL",
-                        (workspace_id,),
-                    )
-                else:
-                    cursor.execute("SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL")
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL{scope_sql}",
+                    scope_params,
+                )
                 row = cursor.fetchone()
                 if row is None:
                     raise AssertionError("SELECT COUNT(*) always returns a row")
@@ -590,30 +590,22 @@ class DocumentsMixin(MixinHost):
                 logger.debug(f"Document count: {count}")
                 return count
 
-    def get_chunk_count(self, workspace_id: str | None = None) -> int:
-        """Return the number of chunks, optionally scoped to a workspace."""
+    def get_chunk_count(self, *, scope: Scope) -> int:
+        """Return the number of chunks of live documents in *scope*."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk count: Database is not connected")
 
-        with self.get_connection() as conn:
+        scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
-                if workspace_id:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) FROM document_chunks dc
-                        JOIN documents d ON dc.document_id = d.id
-                        WHERE d.workspace_id = %s AND d.deleted_at IS NULL
-                        """,
-                        (workspace_id,),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) FROM document_chunks dc
-                        JOIN documents d ON dc.document_id = d.id
-                        WHERE d.deleted_at IS NULL
-                        """
-                    )
+                cursor.execute(
+                    f"""
+                    SELECT COUNT(*) FROM document_chunks dc
+                    JOIN documents d ON dc.document_id = d.id
+                    WHERE d.deleted_at IS NULL{scope_sql}
+                    """,
+                    scope_params,
+                )
                 row = cursor.fetchone()
                 if row is None:
                     raise AssertionError("SELECT COUNT(*) always returns a row")
@@ -621,32 +613,23 @@ class DocumentsMixin(MixinHost):
                 logger.debug(f"Chunk count: {count}")
                 return count
 
-    def get_all_documents(self, workspace_id: str | None = None) -> list[dict[str, Any]]:
-        """List documents (id, filename, created_at, chunk_count), optionally scoped to a workspace."""
+    def get_all_documents(self, *, scope: Scope) -> list[dict[str, Any]]:
+        """List live documents in *scope* (id, filename, created_at, chunk_count)."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get documents: Database is not connected")
 
         logger.debug("Getting all documents")
-        with self.get_connection() as conn:
+        scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
-                if workspace_id:
-                    cursor.execute("""
-                        SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
-                        FROM documents d
-                        LEFT JOIN document_chunks dc ON d.id = dc.document_id
-                        WHERE d.workspace_id = %s AND d.deleted_at IS NULL
-                        GROUP BY d.id, d.filename, d.created_at
-                        ORDER BY d.created_at DESC
-                    """, (workspace_id,))
-                else:
-                    cursor.execute("""
-                        SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
-                        FROM documents d
-                        LEFT JOIN document_chunks dc ON d.id = dc.document_id
-                        WHERE d.deleted_at IS NULL
-                        GROUP BY d.id, d.filename, d.created_at
-                        ORDER BY d.created_at DESC
-                    """)
+                cursor.execute(f"""
+                    SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
+                    FROM documents d
+                    LEFT JOIN document_chunks dc ON d.id = dc.document_id
+                    WHERE d.deleted_at IS NULL{scope_sql}
+                    GROUP BY d.id, d.filename, d.created_at
+                    ORDER BY d.created_at DESC
+                """, scope_params)
                 rows = cursor.fetchall()
                 documents = [
                     {
@@ -762,7 +745,7 @@ class DocumentsMixin(MixinHost):
 
         logger.debug("Searching chunks for text: %s", str(search_text)[:100].replace('\r', '').replace('\n', ' '))
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT d.filename, dc.chunk_index, dc.chunk_text,
@@ -802,7 +785,7 @@ class DocumentsMixin(MixinHost):
 
         where, params = scope_predicate(scope, "workspace_id")
         logger.warning("Retiring all documents in scope %s", scope)
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
@@ -854,27 +837,27 @@ class DocumentsMixin(MixinHost):
         logger.info("Purged %s documents and %s chunks", docs_deleted, chunks_deleted)
         return docs_deleted
 
-    def get_stale_documents(self, max_age_hours: int, workspace_id: str | None = None) -> list[dict[str, Any]]:
+    def get_stale_documents(self, max_age_hours: int, *, scope: Scope) -> list[dict[str, Any]]:
         """Return documents whose last_ingested_at is older than max_age_hours.
 
         Documents without last_ingested_at fall back to created_at for comparison.
         """
         if not self.is_connected:
             return []
+        # Outside the try: a missing scope is a programming error, not a query failure
+        # for the handler below to turn into an empty list.
+        scope_sql, scope_params = scope_predicate(scope, "workspace_id")
         try:
-            with self.get_connection() as conn:
+            with self.get_connection(scope=scope) as conn:
                 with conn.cursor() as cursor:
-                    sql = """
+                    sql = f"""
                         SELECT id, filename, workspace_id
                         FROM documents
                         WHERE COALESCE(last_ingested_at, created_at)
                               < NOW() - (INTERVAL '1 hour' * %s)
-                          AND deleted_at IS NULL
+                          AND deleted_at IS NULL{scope_sql}
                     """
-                    params: list[Any] = [max_age_hours]
-                    if workspace_id:
-                        sql += " AND workspace_id = %s"
-                        params.append(workspace_id)
+                    params: list[Any] = [max_age_hours, *scope_params]
                     cursor.execute(sql, params)
                     return [
                         {'id': row[0], 'filename': row[1], 'workspace_id': row[2]}

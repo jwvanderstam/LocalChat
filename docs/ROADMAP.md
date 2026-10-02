@@ -771,7 +771,7 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
 
 ---
 
-### P2-1 — Scope as a value, then row-level security as defence in depth ◐
+### P2-1 — Scope as a value, then row-level security as defence in depth ✅ (enforced 2026-09-29)
 
 **Driver 1** (scoping optional by design). Two halves:
 
@@ -779,7 +779,7 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   explicit `ALL_WORKSPACES`; every scoped database method takes it keyword-only and
   mandatory; `tests/unit/test_object_authorization_matrix.py` walks the AST of `src/` and
   fails on any call that omits it.
-- **P2-1b ◐** (database half shipped 2026-09-27): Postgres row-level security on the
+- **P2-1b ✅** (database half 2026-09-27, enforced 2026-09-29): Postgres row-level security on the
   workspace-owned tables, with the scope set per transaction, so a query that reaches the
   database without one returns nothing rather than everything. **Acceptance:** an
   integration test that opens a connection, sets no scope, and gets zero rows from each
@@ -845,11 +845,71 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   Until then the migration is **inert for the application**, which connects as the owner. That
   is deliberate and safe: the capability exists, is tested, and enforces nothing yet.
 
+  **Decided 2026-09-29 — [ADR-5](ADR.md).** The premise above was half right: `get_connection()`
+  does not know the scope, but every scoped method does, and it is already mandatory there. So
+  the scope is *passed*, not bound — `get_connection(scope=)` — and the contextvar route is
+  rejected for dropping silently at context boundaries. `ALL_WORKSPACES` stays on the owner
+  role. Deciding it surfaced the real gap: `scope` reaches only the 18 by-id methods, while 34
+  others, retrieval among them, still take `workspace_id: str | None` with `None` meaning every
+  workspace. Switching RLS on first would have covered everything except the path documents
+  leave by. So the application half is three PRs, in this order:
+
+  - **P2-1b-i** — ADR-5, the `get_connection(scope=)` seam on the 18 by-id methods, an AST
+    check that each hands its own scope to the connection, and migration `0018` granting the
+    application identity `SET` on `localchat_scoped`. No behaviour change.
+  - **P2-1b-ii ✅** (2026-09-29) — the 15 filter methods, and the retrieval chain above them,
+    take a mandatory `Scope`; `SCOPED_METHODS` lists 33 and the AST check holds both the call
+    sites and the connection hand-off. Behaviour-preserving by construction: every former
+    `None` is an explicit `ALL_WORKSPACES`. It finishes P2-1a — "forgot the argument = every
+    workspace" is gone from every read path. Converting also surfaced a fourth, smaller
+    disclosure: `GET /api/status` counted documents for any `X-Workspace-ID`.
+  - **P2-1b-iii ✅** (2026-09-29) — the role switch in `get_connection()`, the role and its
+    grants re-applied at every boot (a role is a cluster object `pg_dump` never carries, so a
+    restore into a new cluster otherwise left 0017 recorded and its role missing), and memory
+    search run once per authorised workspace, since a scoped transaction sees one.
+    `restore-proof` caught the path to this: a first version set default privileges in a
+    migration, and a dump carrying `ALTER DEFAULT PRIVILEGES` cannot be restored by a
+    non-superuser. Looking closer showed the managed restore recipe had been broken since
+    `0017` for any new cluster; it gains `--no-privileges`, and the application re-grants. The CI-database worry did not materialise: a fresh Postgres runs the
+    whole integration suite green, because every fixture that reaches a scoped path already
+    migrates, and a missing role fails loudly rather than passing.
+
+    **The latency measurement found a recall regression, not a latency one.** Under RLS the
+    planner swaps the exact per-workspace vector scan for the HNSW index with the policy
+    applied afterwards; a filtered HNSW scan returns what survives of `ef_search` global
+    candidates. On 10,000 clustered chunks over five workspaces, top-40 semantic search
+    returned 19 rows on average and as few as 0 — while every other test stayed green.
+    `hnsw.iterative_scan = strict_order` plus `ef_search = 400`, both `SET LOCAL` in the scoped
+    transaction, restore it:
+
+    | Scoped path | Rows of 40 | Overlap with exact | Semantic median / p95 |
+    |---|---|---|---|
+    | before (owner, exact plan) | 40 | 100% | 9.1 / 10.1 ms |
+    | RLS, plain | 19.3 (min 0) | 48% | 1.9 / 2.4 ms |
+    | RLS + iterative, ef 100 | 40 | 84% | 2.5 / 4.0 ms |
+    | **RLS + iterative, ef 400** | **40** | **92%** | **3.8 / 4.9 ms** |
+
+    Lexical search costs about +0.6 ms under RLS. A small workspace (1% of chunks) kept the
+    exact plan throughout. The same filtered-HNSW loss can reach the owner path too once an
+    installation is large enough for the planner to prefer the index; that is outside this
+    ticket, and P2-3's answer-level evaluation is where it would show.
+
+  **Sorting the `workspace_id: str | None` methods for P2-1b-ii found three disclosures**
+  (2026-09-29), fixed on their own ahead of the conversion rather than queued behind it:
+  chat's `additional_workspace_ids` were never authorised, `POST /api/documents/test`
+  retrieved with no workspace, and the `list_documents` LLM tool listed every workspace. All
+  three are the driver-1 shape — an omitted or unchecked workspace read as "every workspace" —
+  on paths the P2-2b matrix cannot see, since none addresses an object by path parameter.
+  The same sort corrected the count: 16 of the 34 methods are filters where `None` means
+  every workspace; 5 take the workspace a new row lands in, and 13 take the workspace itself
+  as the object. On inspection `document_exists` belonged with the writes (`None` there means
+  "no workspace", matched with `IS NOT DISTINCT FROM`), so P2-1b-ii converted 15.
+
   **What is still open** is narrower than before: only a *statement*-level pooler would
   break this, and Scaleway's wording implies transaction pooling. That is one fact to
   confirm against the deployed database, not a design question.
 
-### P2-2 — Security smoke: boot the shipped compose, then attack it ◐
+### P2-2 — Security smoke: boot the shipped compose, then attack it ✅ (done 2026-09-26)
 
 **Driver 2** (tests verify mechanisms, not the system). `docker-smoke` boots the `app`
 container alone. This job boots `docker-compose.yml` *with* `docker-compose.nginx.yml` and
@@ -888,7 +948,7 @@ reason P2-4 was split.
   `DELETE /api/conversations/{conversation_id}` (scope replaced with `ALL_WORKSPACES`):
   exactly one test went red, naming that route.
 
-  **Two deviations found, neither a hole.** `GET /api/conversations/{id}/documents` and
+  **Two deviations found, neither a hole — both fixed on 2026-09-28.** `GET /api/conversations/{id}/documents` and
   `GET /api/chunks/{chunk_id}/annotations` answer 200 with an empty payload for an object
   outside the caller's scope, where P0-1's acceptance asks for 404. Both scope correctly,
   so nothing is disclosed, and the conversation one is not an existence oracle either — a
@@ -897,7 +957,13 @@ reason P2-4 was split.
   `get_conversation_document_filter` is typed `list[str]` and returns `[]` for a missing
   row. They are recorded in `_DISCLOSES_NOTHING` with an assertion that their payload is
   empty — stronger than a skip, and it fails the day either starts returning foreign rows.
-  Changing a shipped route's status code is its own reviewed change, not a test's business.
+  Changing a shipped route's status code was left as its own reviewed change rather than
+  smuggled into a test — and then made. The mixin now returns `None` for a conversation
+  outside scope, matching its sibling `get_conversation_messages`, and the annotations route
+  resolves the chunk through the scoped `get_chunk_by_id` first. `_DISCLOSES_NOTHING` is
+  empty as a result: the deviation tests failed the moment the routes were fixed, which is
+  precisely why they were written that way rather than as skips. The matrix covers 45 routes
+  now, and reverting either fix fails exactly its own case.
 
   **One route came out of the matrix, because the matrix was asking it the wrong
   question.** `POST /api/connectors/{connector_id}/webhook` is a public receiver: the
@@ -1157,7 +1223,7 @@ Nothing further to do unless §10's re-review trigger fires.
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
 | 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ + P2-4b (`BLE001`) ✅ 2026-09-21 — **sprint complete**. P2-6 retired two open Dependabot alerts. P2-4b was the one item that was not mechanical: 120 handlers read individually, 4 narrowed, 11 that were failing silently given a log | 3–4 days |
-| 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) + P2-1b (row-level security) | 1 week |
+| 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) ✅ 2026-09-26 + P2-1b (row-level security) ◐ — database half ✅ 2026-09-27 (#400), application half open | 1 week |
 | 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) — decides DEL-2 | 1–2 weeks |
 | **Total** | | **~20 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first) |

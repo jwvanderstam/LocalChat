@@ -148,6 +148,7 @@ class TestTheDocumentFilterNarrowsRetrieval:
         """
         result = _run(database, """
 from src.db import Database
+from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
 keep = db.insert_document('keep.md', 'alpha beta', {}, 'hash-keep')
 drop = db.insert_document('drop.md', 'alpha beta', {}, 'hash-drop')
@@ -160,12 +161,12 @@ db.insert_chunks_batch([(keep, 'alpha beta gamma', 0, emb),
 FILENAME = 1
 # Subset, not equality: the fixture database is module-scoped and earlier tests
 # have left their own documents in it.
-unfiltered = db.search_similar_chunks(emb, top_k=10, min_similarity=-1.0)
+unfiltered = db.search_similar_chunks(emb, top_k=10, min_similarity=-1.0, scope=ALL_WORKSPACES)
 files = {r[FILENAME] for r in unfiltered}
 assert {'keep.md', 'drop.md'} <= files, files
 
 filtered = db.search_similar_chunks(emb, top_k=10, min_similarity=-1.0,
-                                    filename_filter=['keep.md'])
+                                    filename_filter=['keep.md'], scope=ALL_WORKSPACES)
 assert filtered, 'filter returned nothing at all'
 assert {r[FILENAME] for r in filtered} == {'keep.md'}, {r[FILENAME] for r in filtered}
 db.close()
@@ -181,11 +182,12 @@ class TestEmbeddingsStillRoundTrip:
         """What the removed dumper was believed to be for. The loader still does it."""
         result = _run(database, """
 from src.db import Database
+from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
 doc = db.insert_document('vec.md', 'body', {}, 'hash-vec')
 emb = [0.125] * 768
 db.insert_chunks_batch([(doc, 'body', 0, emb)])
-hits = db.search_similar_chunks(emb, top_k=1, min_similarity=-1.0)
+hits = db.search_similar_chunks(emb, top_k=1, min_similarity=-1.0, scope=ALL_WORKSPACES)
 assert hits, 'vector search returned nothing'
 assert hits[0][1] == 'vec.md', hits[0][1]       # filename
 assert abs(hits[0][3] - 1.0) < 1e-6, hits[0][3]  # similarity to itself is 1.0

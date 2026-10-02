@@ -350,6 +350,35 @@ class TestApiStatus:
         data = self._get_status(db_ok=False).json()
         assert data["database"] is False
 
+    OWN = "11111111-1111-1111-1111-111111111111"
+    FOREIGN = "22222222-2222-2222-2222-222222222222"
+
+    def _status_for_header(self, workspace_header: str) -> tuple[MagicMock, dict]:
+        """A plain user who is a member of OWN only, asking about *workspace_header*."""
+        app, client = _make_chat_app()
+        app.state.db.get_workspace_member_role.side_effect = (
+            lambda ws, _user: "viewer" if ws == self.OWN else None
+        )
+        counter = MagicMock(return_value=(7, True))
+        with patch("src.services.chat.get_doc_count_cached", counter), \
+             patch("src.services.chat.check_ollama_live", return_value=True), \
+             patch("src.routes_fastapi.api_routes.config") as cfg:
+            cfg.app_state.get_active_model.return_value = "llama3.2"
+            resp = client.get("/api/status", headers={"X-Workspace-ID": workspace_header})
+        return counter, resp.json()
+
+    def test_counts_the_callers_own_workspace(self):
+        counter, data = self._status_for_header(self.OWN)
+        assert counter.call_args.args[1] == self.OWN
+        assert data["document_count"] == 7
+
+    def test_a_foreign_workspace_header_counts_nothing(self):
+        """Status needs only a session, and it counted whatever X-Workspace-ID named —
+        any workspace's document count, or the installation's with no header."""
+        counter, data = self._status_for_header(self.FOREIGN)
+        counter.assert_not_called()
+        assert data["document_count"] == 0
+
 
 # ===========================================================================
 # check_ollama_live — background refresh, never blocks request path
