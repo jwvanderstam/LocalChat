@@ -42,25 +42,25 @@
 
 # Web Framework — FastAPI (ASGI)
 fastapi==0.141.1
-uvicorn[standard]==0.53.0
+uvicorn[standard]==0.54.0
 httpx==0.28.1          # async inference + sync admin/embedding client
 
-Werkzeug==3.1.8  # used by src/db/users.py for password hashing (werkzeug.security)
+Werkzeug==3.1.9  # used by src/db/users.py for password hashing (werkzeug.security)
 
 # Caching
 redis==8.1.0  # Redis cache backend (optional but recommended)
 
 # Security
-PyJWT==2.15.0                       # JWT — HS256 over hashlib; pure Python, no ecdsa (P2-6)
+PyJWT==2.15.1                       # JWT — HS256 over hashlib; pure Python, no ecdsa (P2-6)
 slowapi==0.1.10                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector
 psycopg[binary]==3.3.6
-psycopg-pool==3.3.2
+psycopg-pool==3.3.3
 
 # Database migrations
 alembic==1.20.0
-sqlalchemy==2.0.54  # required by alembic; postgresql+psycopg dialect for psycopg3
+sqlalchemy==2.1.1  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
 pydantic==2.13.5
@@ -107,7 +107,7 @@ numpy==2.5.3
 python-multipart==0.0.32
 
 # Markdown rendering
-markdown==3.10.3
+markdown==3.11
 
 # Environment configuration
 python-dotenv==1.2.3
