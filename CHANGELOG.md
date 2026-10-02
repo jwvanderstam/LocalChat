@@ -108,6 +108,32 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   `pip-compile --upgrade-package`; nothing else in either lock changed. Dependabot's #401 carries
   the PyJWT bump but not urllib3, which is why this is its own change.
 
+- **Row-level security is enforced** (ROADMAP P2-1b-iii, ADR-5). A workspace-scoped
+  transaction now runs as `localchat_scoped` with `app.workspace_id` set, both
+  transaction-local, so Postgres refuses every other workspace's rows even from a query that
+  forgot its `WHERE` clause; `ALL_WORKSPACES` stays on the owner role. Memory search runs once
+  per authorised workspace, since a scoped transaction sees one.
+  **The role and its grants are re-applied at every boot**, not only by migration `0017`: a
+  role is a cluster object that `pg_dump` never carries, so a restore into a new cluster left
+  the database claiming 0017 had run while the role it created did not exist. Re-granting at
+  boot also covers tables a later release adds.
+  **The managed-Postgres restore recipe was broken on `main` since `0017`, and is fixed.** Its
+  `GRANT ... TO localchat_scoped` names a role a new cluster does not have, so
+  `pg_restore --exit-on-error` stopped with `role "localchat_scoped" does not exist`. The
+  recipe in `OPERATIONS.md` gains `--no-privileges`; the application restores the grants when
+  it starts. Verified end to end in a second, empty cluster: a non-superuser identity with
+  `CREATEROLE` restored the dump, booted, created the role, and served a scoped query.
+  `restore-proof` found the first half of this — an `ALTER DEFAULT PRIVILEGES` this PR briefly
+  added cannot be restored by a non-superuser at all — and now asserts the re-grant.
+  Measuring the cost found a recall regression the tests could not: under the policy Postgres
+  swaps the exact per-workspace vector scan for the HNSW index filtered afterwards, and top-40
+  semantic search returned 19 rows on average, as few as 0. Scoped transactions therefore also
+  set `hnsw.iterative_scan = strict_order` and `hnsw.ef_search = 400` — all 40 rows, 92%
+  overlap with the exact answer, 3.8 ms median against 9.1 ms before. This requires
+  **pgvector 0.8 or later**; an older one refuses the setting and scoped queries fail loudly.
+  `tests/integration/test_row_level_security.py` proves each part against Postgres and fails
+  with it removed.
+
 - **`GET /api/status` reported any workspace's document count.** Status requires only a
   session, and counted documents for whatever `X-Workspace-ID` named — so a caller could read
   the count of a workspace they are not a member of, or of the whole installation by sending

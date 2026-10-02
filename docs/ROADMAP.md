@@ -771,7 +771,7 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
 
 ---
 
-### P2-1 — Scope as a value, then row-level security as defence in depth ◐
+### P2-1 — Scope as a value, then row-level security as defence in depth ✅ (enforced 2026-09-29)
 
 **Driver 1** (scoping optional by design). Two halves:
 
@@ -779,7 +779,7 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   explicit `ALL_WORKSPACES`; every scoped database method takes it keyword-only and
   mandatory; `tests/unit/test_object_authorization_matrix.py` walks the AST of `src/` and
   fails on any call that omits it.
-- **P2-1b ◐** (database half shipped 2026-09-27): Postgres row-level security on the
+- **P2-1b ✅** (database half 2026-09-27, enforced 2026-09-29): Postgres row-level security on the
   workspace-owned tables, with the scope set per transaction, so a query that reaches the
   database without one returns nothing rather than everything. **Acceptance:** an
   integration test that opens a connection, sets no scope, and gets zero rows from each
@@ -863,9 +863,36 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
     `None` is an explicit `ALL_WORKSPACES`. It finishes P2-1a — "forgot the argument = every
     workspace" is gone from every read path. Converting also surfaced a fourth, smaller
     disclosure: `GET /api/status` counted documents for any `X-Workspace-ID`.
-  - **P2-1b-iii** — the role switch in `get_connection()`. Needs the shared CI database to
-    have the role, which today only the Alembic chain creates; and retrieval latency measured
-    before and after, since `perf-canary` sees event-loop stalls, not query time.
+  - **P2-1b-iii ✅** (2026-09-29) — the role switch in `get_connection()`, the role and its
+    grants re-applied at every boot (a role is a cluster object `pg_dump` never carries, so a
+    restore into a new cluster otherwise left 0017 recorded and its role missing), and memory
+    search run once per authorised workspace, since a scoped transaction sees one.
+    `restore-proof` caught the path to this: a first version set default privileges in a
+    migration, and a dump carrying `ALTER DEFAULT PRIVILEGES` cannot be restored by a
+    non-superuser. Looking closer showed the managed restore recipe had been broken since
+    `0017` for any new cluster; it gains `--no-privileges`, and the application re-grants. The CI-database worry did not materialise: a fresh Postgres runs the
+    whole integration suite green, because every fixture that reaches a scoped path already
+    migrates, and a missing role fails loudly rather than passing.
+
+    **The latency measurement found a recall regression, not a latency one.** Under RLS the
+    planner swaps the exact per-workspace vector scan for the HNSW index with the policy
+    applied afterwards; a filtered HNSW scan returns what survives of `ef_search` global
+    candidates. On 10,000 clustered chunks over five workspaces, top-40 semantic search
+    returned 19 rows on average and as few as 0 — while every other test stayed green.
+    `hnsw.iterative_scan = strict_order` plus `ef_search = 400`, both `SET LOCAL` in the scoped
+    transaction, restore it:
+
+    | Scoped path | Rows of 40 | Overlap with exact | Semantic median / p95 |
+    |---|---|---|---|
+    | before (owner, exact plan) | 40 | 100% | 9.1 / 10.1 ms |
+    | RLS, plain | 19.3 (min 0) | 48% | 1.9 / 2.4 ms |
+    | RLS + iterative, ef 100 | 40 | 84% | 2.5 / 4.0 ms |
+    | **RLS + iterative, ef 400** | **40** | **92%** | **3.8 / 4.9 ms** |
+
+    Lexical search costs about +0.6 ms under RLS. A small workspace (1% of chunks) kept the
+    exact plan throughout. The same filtered-HNSW loss can reach the owner path too once an
+    installation is large enough for the planner to prefer the index; that is outside this
+    ticket, and P2-3's answer-level evaluation is where it would show.
 
   **Sorting the `workspace_id: str | None` methods for P2-1b-ii found three disclosures**
   (2026-09-29), fixed on their own ahead of the conversion rather than queued behind it:
