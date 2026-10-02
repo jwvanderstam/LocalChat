@@ -31,7 +31,7 @@
 > | P2-4 | driver 6 | ✅ | No production `assert` (#388); every blind `except` argued or narrowed under `BLE001` (#389), 2026-09-25 |
 > | P2-5 | driver 6 | ⏳ | Open in #408, not merged |
 > | P2-6 | driver 6 | ✅ | PyJWT, 2026-09-24 (#384); SECURITY §2 retired |
-> | P2-7 | driver 4 | ⏳ | Not started |
+> | P2-7 | driver 4 | ◐ | Doc tests in part: `test_configuration_doc_covers_config`, `test_env_example_is_read` and `test_permissions_doc_matches_routes` hold. Still open: the `src/...` path and `/api/...` endpoint tests, and the split of the journal under `docs/history/` |
 > | P2-8 | driver 5 | ✅ | Closed by decision: S3 removed, MCP kept behind a token |
 > | §4.1 sweep | docs | ✅ | The bundle was never merged; the sweep was redone from the table on 2026-09-17, re-verified row by row against the code (29 dead variables rather than 26; `onnxruntime` at 1.30.0 rather than 1.28.0). `tests/unit/test_env_example_is_read.py` holds it |
 >
