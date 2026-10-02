@@ -12,6 +12,8 @@ Covers:
 
 from unittest.mock import MagicMock
 
+from src.utils.scope import ALL_WORKSPACES
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -49,20 +51,20 @@ class TestMemoryRetrieverRetrieve:
 
     def test_returns_empty_when_db_not_connected(self):
         r = self._retriever()
-        result = r.retrieve("query", _make_ollama(), _make_db(connected=False))
+        result = r.retrieve("query", _make_ollama(), _make_db(connected=False), scope=ALL_WORKSPACES)
         assert result == []
 
     def test_returns_empty_when_no_embedding_model(self):
         r = self._retriever()
         ollama = _make_ollama()
         ollama.get_embedding_model.return_value = None
-        result = r.retrieve("query", ollama, _make_db())
+        result = r.retrieve("query", ollama, _make_db(), scope=ALL_WORKSPACES)
         assert result == []
 
     def test_returns_empty_when_embedding_fails(self):
         r = self._retriever()
         ollama = _make_ollama(embedding_ok=False)
-        result = r.retrieve("query", ollama, _make_db())
+        result = r.retrieve("query", ollama, _make_db(), scope=ALL_WORKSPACES)
         assert result == []
 
     def test_returns_empty_when_embedding_raises(self):
@@ -70,28 +72,28 @@ class TestMemoryRetrieverRetrieve:
         ollama = MagicMock()
         ollama.get_embedding_model.return_value = "model"
         ollama.generate_embedding.side_effect = RuntimeError("timeout")
-        result = r.retrieve("query", ollama, _make_db())
+        result = r.retrieve("query", ollama, _make_db(), scope=ALL_WORKSPACES)
         assert result == []
 
     def test_returns_empty_when_search_raises(self):
         r = self._retriever()
         db = _make_db()
         db.search_memories.side_effect = Exception("DB error")
-        result = r.retrieve("query", _make_ollama(), db)
+        result = r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
         assert result == []
 
     def test_returns_memories_on_success(self):
         r = self._retriever()
         memories = [{"id": 1, "content": "fact A", "memory_type": "fact"}]
         db = _make_db(memories=memories)
-        result = r.retrieve("query", _make_ollama(), db)
+        result = r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
         assert result == memories
 
     def test_calls_update_memory_usage_on_hit(self):
         r = self._retriever()
         memories = [{"id": 7, "content": "fact", "memory_type": "fact"}]
         db = _make_db(memories=memories)
-        r.retrieve("query", _make_ollama(), db)
+        r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
         db.update_memory_usage.assert_called_once_with([7])
 
     def test_usage_update_failure_is_silent(self):
@@ -100,19 +102,19 @@ class TestMemoryRetrieverRetrieve:
         db = _make_db(memories=memories)
         db.update_memory_usage.side_effect = Exception("quota exceeded")
         # Should not raise
-        result = r.retrieve("query", _make_ollama(), db)
+        result = r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
         assert result == memories
 
     def test_no_usage_update_when_no_memories(self):
         r = self._retriever()
         db = _make_db(memories=[])
-        r.retrieve("query", _make_ollama(), db)
+        r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
         db.update_memory_usage.assert_not_called()
 
     def test_passes_top_k_and_min_similarity_to_search(self):
         r = self._retriever()
         db = _make_db()
-        r.retrieve("query", _make_ollama(), db, top_k=5, min_similarity=0.7)
+        r.retrieve("query", _make_ollama(), db, top_k=5, min_similarity=0.7, scope=ALL_WORKSPACES)
         db.search_memories.assert_called_once()
         call_kwargs = db.search_memories.call_args
         assert call_kwargs.kwargs.get("top_k") == 5 or call_kwargs.args[1] == 5

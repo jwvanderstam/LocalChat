@@ -181,6 +181,7 @@ def ingest_corpus(corpus: Path, workspace_id: str | None) -> int:
 
 def score(cases: list[Case], top_k: int, workspace_id: str | None) -> dict[str, Any]:
     from src.rag.processor import doc_processor
+    from src.utils.scope import ALL_WORKSPACES
 
     hits_at_1 = 0
     hits_at_5 = 0
@@ -188,8 +189,10 @@ def score(cases: list[Case], top_k: int, workspace_id: str | None) -> dict[str, 
     misses: list[tuple[str, str]] = []
 
     for case in cases:
+        # --workspace-id is optional for a maintainer's own corpus; without it the run
+        # scores the whole database, as it always has.
         results = doc_processor.retrieve_context(
-            case.question, top_k=top_k, workspace_id=workspace_id
+            case.question, top_k=top_k, scope=workspace_id or ALL_WORKSPACES
         )
         # Chunks collapse to the file they came from, in rank order, first win.
         ranked: list[str] = []

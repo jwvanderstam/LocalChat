@@ -15,6 +15,7 @@ import pytest
 os.environ.setdefault("PG_PASSWORD", "test-sentinel")
 
 from src.rag.retrieval import RetrievalMixin
+from src.utils.scope import ALL_WORKSPACES
 
 # ---------------------------------------------------------------------------
 # Minimal concrete class for testing the mixin
@@ -162,7 +163,7 @@ class TestRunRetrievalPipelineThreshold:
             top_k=5,
             min_similarity=0.30,
             file_type_filter=None,
-            use_hybrid_search=True,
+            use_hybrid_search=True, scope=ALL_WORKSPACES,
         )
 
         assert "only_lexical.pdf:0" in filtered
@@ -187,7 +188,7 @@ class TestRunRetrievalPipelineThreshold:
             top_k=5,
             min_similarity=0.30,
             file_type_filter=None,
-            use_hybrid_search=True,
+            use_hybrid_search=True, scope=ALL_WORKSPACES,
         )
 
         assert "semantic_only.pdf:0" in filtered
@@ -208,7 +209,7 @@ class TestRunRetrievalPipelineThreshold:
             top_k=5,
             min_similarity=0.30,
             file_type_filter=None,
-            use_hybrid_search=True,
+            use_hybrid_search=True, scope=ALL_WORKSPACES,
         )
 
         assert "weak.pdf:0" not in filtered

@@ -108,7 +108,7 @@ class TestEnablingMcpDoesNotWidenTheScope:
             patch.object(chat.config, "MCP_ENABLED", True),
             patch.object(chat, "try_mcp_rag") as mcp_call,
         ):
-            chat.get_rag_context("q", doc_processor, [0], workspace_id=None)
+            chat.get_rag_context("q", doc_processor, [0], scope=ALL_WORKSPACES)
 
         assert not mcp_call.called
         assert doc_processor.retrieve_context.called
@@ -182,4 +182,4 @@ class TestToolsReadTheRequestScope:
         ):
             ToolRouter()._local_docs("q", None, 5)
 
-        assert doc_processor.retrieve_context.call_args.kwargs["workspace_id"] == WS
+        assert doc_processor.retrieve_context.call_args.kwargs["scope"] == WS

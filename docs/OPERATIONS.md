@@ -77,6 +77,14 @@ each fails only after the previous one is solved:
 | `CREATE EXTENSION vector` | `permission denied to create extension` | pre-create it as superuser, or via the provider's console |
 | `COMMENT ON EXTENSION vector` | `must be owner of extension vector` | `--no-comments` |
 | `ALTER TABLE ... OWNER TO postgres` | `must be able to SET ROLE "postgres"` | `--no-owner` |
+| `GRANT ... TO localchat_scoped` | `role "localchat_scoped" does not exist` (a new cluster) | `--no-privileges` |
+
+The last row is the row-level-security role (ADR-5). A role belongs to the cluster, not the
+database, so `pg_dump` never carries it and a new cluster does not have it. `--no-privileges`
+skips the grants that name it; **the application re-creates the role and its grants when it
+starts**, so the restored database is fully usable once LocalChat boots against it. That needs
+the application identity to hold `CREATEROLE`, or the provider to create `localchat_scoped`
+(`NOLOGIN`) once.
 
 So the working recipe there is:
 
@@ -85,8 +93,10 @@ So the working recipe there is:
 psql -d rag_db_restore -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
 pg_restore -U app_user -d rag_db_restore \
-  --no-owner --no-comments --exit-on-error \
+  --no-owner --no-privileges --no-comments --exit-on-error \
   rag_db_20260101_120000.dump
+
+# then start LocalChat against it — boot restores the scoped role's grants
 ```
 
 #### This procedure is verified

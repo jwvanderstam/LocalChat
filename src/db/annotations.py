@@ -66,7 +66,7 @@ class AnnotationsMixin(MixinHost):
         if not self.is_connected:
             return []
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -122,7 +122,7 @@ class AnnotationsMixin(MixinHost):
         """ + where + """
             )
         """
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 if user_id:
                     cur.execute(

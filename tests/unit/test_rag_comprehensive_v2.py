@@ -20,6 +20,8 @@ Created: January 2025
 
 from unittest.mock import patch
 
+from src.utils.scope import ALL_WORKSPACES
+
 
 class TestDocumentProcessingPipeline:
     """Test complete document processing pipeline."""
@@ -87,7 +89,7 @@ class TestContextRetrieval:
         mock_db.search_by_keyword.return_value = []
 
         proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
-        result = proc.retrieve_context("test query", top_k=5)
+        result = proc.retrieve_context("test query", top_k=5, scope=ALL_WORKSPACES)
 
         assert isinstance(result, (str, list))
 
@@ -105,7 +107,7 @@ class TestContextRetrieval:
         mock_db.search_by_keyword.return_value = []
 
         proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
-        result = proc.retrieve_context("query", top_k=10)
+        result = proc.retrieve_context("query", top_k=10, scope=ALL_WORKSPACES)
         assert isinstance(result, (str, list))
 
 
@@ -124,7 +126,7 @@ class TestHybridSearch:
                 mock_db.search_by_keyword.return_value = []
 
                 try:
-                    result = doc_processor.retrieve_context("query", use_hybrid=True)
+                    result = doc_processor.retrieve_context("query", use_hybrid=True, scope=ALL_WORKSPACES)
                     assert isinstance(result, (str, list))
                 except TypeError:
                     pass  # Method may not support this yet
@@ -257,7 +259,7 @@ class TestRetrievalEdgeCases:
         mock_db.search_by_keyword.return_value = []
 
         proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
-        result = proc.retrieve_context("query")
+        result = proc.retrieve_context("query", scope=ALL_WORKSPACES)
 
         assert isinstance(result, (str, list))
 
@@ -276,7 +278,7 @@ class TestRetrievalEdgeCases:
 
         proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
         try:
-            result = proc.retrieve_context("query", min_similarity=0.8)
+            result = proc.retrieve_context("query", min_similarity=0.8, scope=ALL_WORKSPACES)
             assert isinstance(result, (str, list))
         except TypeError:
             pass  # Parameter may not exist
