@@ -54,12 +54,12 @@ cases:
     answered_by: the version CI and the Dockerfile use
 
   - question: How was test quality measured, and what did it find?
-    source: docs/TEST_QUALITY_AUDIT.md
+    source: docs/history/TEST_QUALITY_AUDIT.md
     proof: "mutmut"
     answered_by: the mutation-testing methodology and per-module findings
 
   - question: What is the plan for single sign-on with Entra or Google?
-    source: docs/AUTH_PLAN.md
+    source: docs/history/AUTH_PLAN.md
     proof: "OIDC"
     answered_by: the AUTH-3 step of the authentication build plan
 
@@ -89,12 +89,12 @@ cases:
     answered_by: local setup instructions
 
   - question: What is the exit criteria for calling this production grade?
-    source: docs/PRODUCTION_PLAN.md
+    source: docs/history/PRODUCTION_PLAN.md
     proof: "Exit criteria"
     answered_by: the eight conditions
 
   - question: Why was the dependency lock file deleted?
-    source: docs/LESSONS_LEARNED.md
+    source: docs/history/LESSONS_LEARNED.md
     proof: "lock file"
     answered_by: Chapter 11's dependency-pipeline repair
 

@@ -37,7 +37,7 @@ document treats that as a constraint to respect rather than a limitation to work
 > resource type. But the stack is ephemeral by intent, not by mechanism: nothing deletes it
 > on a timer, and one was once found still running two days after it was believed gone. The
 > resource ids quoted in §10 are from that day's build and are gone with it; the shape is
-> what they are there for. [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md) says what was last left
+> what they are there for. [DEPLOYMENT_LOG.md](history/DEPLOYMENT_LOG.md) says what was last left
 > up, and the account is the only authority on what actually is.
 
 1. ~~Get a payment method on the account~~ — not required; resources create without one.

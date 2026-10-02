@@ -7,8 +7,8 @@ an empty path, and the document read as authoritative regardless.
 
 The journal — the records of what was planned and what happened — is excluded on purpose.
 A stale path in LESSONS_LEARNED is a fact about the past; correcting it would falsify the
-record. ROADMAP P2-7's other half moves those files under `docs/history/`; until it does,
-they are listed by name in `_JOURNAL`.
+record. Most of it lives in `docs/history/`, which the `docs/*.md` glob does not descend
+into; the two records that stay where readers expect them are named in `_JOURNAL`.
 """
 
 from __future__ import annotations
@@ -21,16 +21,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
-#: Records of the past, not descriptions of the present (ROADMAP P2-7 names them).
+#: Records of the past kept outside `docs/history/`. ROADMAP still carries its history
+#: notes alongside the plan; extracting them is a separate editorial pass.
 _JOURNAL = {
     "CHANGELOG.md",
-    "docs/AUTH_PLAN.md",
-    "docs/DEPLOYMENT_LOG.md",
-    "docs/LESSONS_LEARNED.md",
-    "docs/PRODUCTION_PLAN.md",
-    "docs/REMEDIATION_PLAN.md",
     "docs/ROADMAP.md",
-    "docs/TEST_QUALITY_AUDIT.md",
 }
 
 #: (document, path) pairs that name a file which does not exist, deliberately.
@@ -141,6 +136,11 @@ class TestPathsNamedInDocsExist:
 
     def test_the_scan_reads_a_reference_it_must_find(self):
         assert "src/app_fastapi.py" in _paths_named("CLAUDE.md")
+
+    def test_the_history_directory_is_the_journal_and_is_not_scanned(self):
+        history = sorted(p.name for p in (ROOT / "docs" / "history").glob("*.md"))
+        assert "LESSONS_LEARNED.md" in history
+        assert [d for d in _current_state_docs() if d.startswith("docs/history/")] == []
 
 
 @pytest.mark.unit

@@ -3,7 +3,7 @@
 
 `index.html` is written by hand. The two pages beside it are not:
 
-* ``log.html``    — every entry of docs/DEPLOYMENT_LOG.md, rendered.
+* ``log.html``    — every entry of docs/history/DEPLOYMENT_LOG.md, rendered.
 * ``deploy.html`` — the deployment scripts as they are at the build commit, each
                     linked to its current version on GitHub.
 
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import html
 import pathlib
+import posixpath
 import re
 import subprocess
 import sys
@@ -36,7 +37,7 @@ import markdown
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 HERE = pathlib.Path(__file__).resolve().parent
-LOG = ROOT / "docs" / "DEPLOYMENT_LOG.md"
+LOG = ROOT / "docs" / "history" / "DEPLOYMENT_LOG.md"
 GITHUB = "https://github.com/jwvanderstam/LocalChat"
 
 # Order is the order a deployment runs them; the purpose line is what a reader
@@ -143,11 +144,15 @@ def build_log() -> str:
     body = body.split("\n", 1)[1]  # drop the H1; the page has its own
     redacted = redact(body)
     rendered = markdown.markdown(redacted, extensions=["fenced_code", "tables"])
-    # The log links its siblings the way the repository does; on this host they
-    # would be 404s, so they go to the repository instead.
+    # The log links other documents the way the repository does, relative to itself;
+    # on this host they would be 404s, so they go to the repository instead.
+    log_dir = LOG.parent.relative_to(ROOT).as_posix()
     rendered = re.sub(
-        r'href="([A-Za-z_]+\.md)(#[^"]*)?"',
-        lambda m: f'href="{GITHUB}/blob/main/docs/{m.group(1)}{m.group(2) or ""}"',
+        r'href="([A-Za-z_./]+\.md)(#[^"]*)?"',
+        lambda m: (
+            f'href="{GITHUB}/blob/main/'
+            f'{posixpath.normpath(posixpath.join(log_dir, m.group(1)))}{m.group(2) or ""}"'
+        ),
         rendered,
     )
     # A leak that survived redaction is a build failure, not a page.

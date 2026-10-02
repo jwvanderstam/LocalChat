@@ -17,7 +17,7 @@ document isolation, and RAG parameters tunable at runtime.
 
 > **Hardened beta, for a specific thing.** LocalChat is a single-node, self-hosted
 > appliance for a small team of up to 25 users — see [ADR-1](docs/ADR.md). All eight exit
-> criteria in the [production plan](docs/PRODUCTION_PLAN.md) are met and that hardening
+> criteria in the [production plan](docs/history/PRODUCTION_PLAN.md) are met and that hardening
 > gate was lifted on 2026-08-31: fail-closed boot, authorisation enforced by default in CI,
 > a concurrency budget, a mutation-tested security core, restore proven in CI, a
 > reproducible tagged release, migrations executed rather than merely written, and
@@ -203,7 +203,7 @@ Full index: **[docs/README.md](docs/README.md)** — organised by
 | Deploy this properly | [Deployment](docs/DEPLOYMENT.md), [Operations](docs/OPERATIONS.md) |
 | Connect a bot or workflow | [Workspace API keys](docs/WORKSPACE_API_KEYS.md), [Discord via n8n](docs/n8n-discord-setup.md) |
 | Look up a setting | [Configuration](docs/CONFIGURATION.md), [RAG settings](docs/SETTINGS.md) |
-| Understand a decision | [ADRs](docs/ADR.md), [Lessons learned](docs/LESSONS_LEARNED.md) |
+| Understand a decision | [ADRs](docs/ADR.md), [Lessons learned](docs/history/LESSONS_LEARNED.md) |
 | Fix something broken | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | Contribute code | [CLAUDE.md](CLAUDE.md) and [.claude/rules/](.claude/rules/) |
 
@@ -230,7 +230,7 @@ deliberately. (`docker-smoke` joined the required set on 2026-08-19 and `perf-ca
 22 skipped) at 80.9% coverage — about 12 minutes on CI, twice that on a laptop. Integration
 tests need PostgreSQL; some also need Ollama, and `tests/e2e/` drives a real browser. Every
 number here was measured on 2026-09-17 rather than remembered — see exit criterion 7 in
-[PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md).
+[PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md).
 
 Notable changes per release are in [CHANGELOG.md](CHANGELOG.md).
 

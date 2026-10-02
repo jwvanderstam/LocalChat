@@ -25,7 +25,7 @@ jobs. Which one you need depends on what you are doing right now, not on the top
 |---|---|
 | [Deployment](DEPLOYMENT.md) | Running the stack with Docker Compose, TLS, secrets, upgrades |
 | [Deployment on Scaleway](DEPLOYMENT_SCALEWAY.md) | Standing up a managed-cloud test stack — service mapping, cost ceilings, what is still unverified |
-| [Deployment log](DEPLOYMENT_LOG.md) | What each deployment session did, found and cost — the history the ephemeral stack cannot keep |
+| [Deployment log](history/DEPLOYMENT_LOG.md) | What each deployment session did, found and cost — the history the ephemeral stack cannot keep |
 | [Cost kill switch](COST_KILL_SWITCH.md) | How to stop Scaleway spend immediately — there is no spend cap, so this is the only brake |
 | [Operations](OPERATIONS.md) | Backup, restore, routine maintenance |
 | [Migrations](MIGRATIONS.md) | Applying, writing or rolling back a schema change |
@@ -51,15 +51,18 @@ jobs. Which one you need depends on what you are doing right now, not on the top
 
 *Understanding-oriented: why the system is the way it is.*
 
+Documents under `history/` are records: they say what was planned or found at the time,
+and are not updated when the code moves on.
+
 | Document | Question it answers |
 |---|---|
 | [Architecture decisions](ADR.md) | What was decided, and what would reopen it |
-| [Lessons learned](LESSONS_LEARNED.md) | How the design got here, chronologically |
+| [Lessons learned](history/LESSONS_LEARNED.md) | How the design got here, chronologically |
 | [Roadmap](ROADMAP.md) | What is planned and in what order |
-| [Production plan](PRODUCTION_PLAN.md) | What "production-ready" would require, and what is left |
-| [Authentication plan](AUTH_PLAN.md) | How local login, OIDC and the bypasses fit together |
-| [Remediation plan](REMEDIATION_PLAN.md) | What the September 2026 security audit found, what was decided, and where each fix landed |
-| [Test quality audit](TEST_QUALITY_AUDIT.md) | Why coverage percentage hid weak tests |
+| [Production plan](history/PRODUCTION_PLAN.md) | What "production-ready" would require, and what is left |
+| [Authentication plan](history/AUTH_PLAN.md) | How local login, OIDC and the bypasses fit together |
+| [Remediation plan](history/REMEDIATION_PLAN.md) | What the September 2026 security audit found, what was decided, and where each fix landed |
+| [Test quality audit](history/TEST_QUALITY_AUDIT.md) | Why coverage percentage hid weak tests |
 | [n8n integration report](bugreport-n8n-localchat.md) | What broke wiring the first external client |
 
 ## Contributor standards

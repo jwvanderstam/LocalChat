@@ -2,7 +2,7 @@
 
 A chronological account of LocalChat's architecture and process decisions,
 built from `git log` (935 commits, 2025-12-28 → present) and
-[`docs/ROADMAP.md`](ROADMAP.md). Each chapter cites the commits it's built
+[`docs/ROADMAP.md`](../ROADMAP.md). Each chapter cites the commits it's built
 from so the rationale stays traceable back to source, the same way this
 project's own root-cause investigations are expected to work
 (see Chapter 7). This is a history, not a changelog — `git log` already
@@ -736,7 +736,7 @@ had been copy-pasted three times.
 exception's text, that assertion passes either way — constant and exception message both
 contain the phrase. #284 made the raise site use a *different* string, so the test now
 distinguishes them. This is the tautological-assertion shape from
-[`.claude/rules/testing.md`](../.claude/rules/testing.md): an assertion that holds by
+[`.claude/rules/testing.md`](../../.claude/rules/testing.md): an assertion that holds by
 construction regardless of which branch produced it. It is also why the first fix looked
 convincing.
 
@@ -816,7 +816,7 @@ which is what rules out the dependency pinning as the cause. What it did *not* b
 (10.2 GB to 10.1 GB — the base is noise beside torch and CUDA), and not "zero CVE" either,
 since the hardened base's *own* Python packages carry three Highs that Debian slim does not.
 The honest case is structural — no shell, no package manager, nonroot by default — and
-that is what [ADR-3](ADR.md) records, with a revisit condition that can be re-measured
+that is what [ADR-3](../ADR.md) records, with a revisit condition that can be re-measured
 rather than re-argued.
 
 **Rule taken from this:** a CI job is not verified by reading it. Run it, against the real

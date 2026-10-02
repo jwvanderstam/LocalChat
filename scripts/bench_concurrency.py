@@ -6,7 +6,7 @@ more than one client. A single-user stopwatch cannot see it: the request that bl
 the loop is the one that finishes on time.
 
 Reports p50/p95 time-to-first-token and total stream time. Run it against a seeded
-corpus before and after a change and record both in docs/PRODUCTION_PLAN.md.
+corpus before and after a change and record both in docs/history/PRODUCTION_PLAN.md.
 
     python scripts/bench_concurrency.py --url http://localhost:5000 --key lcw_... \
         --clients 10 --requests 20

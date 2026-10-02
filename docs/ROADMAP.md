@@ -7,7 +7,7 @@ v3.0 targets six workstreams: **repository hygiene & single-framework consolidat
 
 The guiding constraint across all of them: **the core stays stable and clean.** Plugins may request services and hooks; they may never define core interfaces or become a dependency the core cannot build without. See the "Plugin Contract" section in `CLAUDE.md` and [`.claude/rules/plugins.md`](../.claude/rules/plugins.md).
 
-**Hardening plan:** [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) holds the production-grade hardening track (ADR-1/ADR-2 and sprints PG-0..PG-8) from the 2026-08-04 external audit. It was a *gate on this roadmap*, not a parallel one: Sprints 8-14 below could not start until its Exit Criteria were green. **All eight criteria are green and the gate was lifted on 2026-08-31** — Sprints 8-14 are un-queued and the freeze rule is over. Confirmed bugs were always exempt from that gate, per the Sprint 5 precedent.
+**Hardening plan:** [`PRODUCTION_PLAN.md`](history/PRODUCTION_PLAN.md) holds the production-grade hardening track (ADR-1/ADR-2 and sprints PG-0..PG-8) from the 2026-08-04 external audit. It was a *gate on this roadmap*, not a parallel one: Sprints 8-14 below could not start until its Exit Criteria were green. **All eight criteria are green and the gate was lifted on 2026-08-31** — Sprints 8-14 are un-queued and the freeze rule is over. Confirmed bugs were always exempt from that gate, per the Sprint 5 precedent.
 
 ---
 
@@ -340,7 +340,7 @@ Two inputs from BUG-3 that this ticket exists to generalise: routes had *coverag
 >
 > **A first attempt broke every guarded route.** `require_auth(request)`, called directly rather than through `Depends`, hit the unresolved `Depends` sentinel and returned 401 for *every* caller including valid tokens — the same defect fixed in `get_current_user_id` in #217, still present in its sibling. Caught by the one test asserting a permitted caller still passes. That is the half of a security test suite that is easy to omit and the only half that catches over-tightening.
 >
-> **Not done here:** the mechanical version. TQ-1 in [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) introspects the route table in CI so a new unguarded route fails by default. This audit is a snapshot; TQ-1 is the ratchet, and it deletes the testing bypass that hid all of this.
+> **Not done here:** the mechanical version. TQ-1 in [`PRODUCTION_PLAN.md`](history/PRODUCTION_PLAN.md) introspects the route table in CI so a new unguarded route fails by default. This audit is a snapshot; TQ-1 is the ratchet, and it deletes the testing bypass that hid all of this.
 
 ---
 
@@ -699,7 +699,7 @@ So any workspace owner may create a connector carrying **another user's UUID** a
 
 Google Drive and OneDrive were retained from DEL-1b on a stated intent to use them (2026-08-24). This initiative makes them real: the authorisation model first as a decision, then the UI that consumes it.
 
-~~**Gated behind the [`PRODUCTION_PLAN.md`](PRODUCTION_PLAN.md) Exit Criteria**~~ — the gate was lifted on 2026-08-31. BUG-4 had already run ahead of it, per the Sprint 5 precedent.
+~~**Gated behind the [`PRODUCTION_PLAN.md`](history/PRODUCTION_PLAN.md) Exit Criteria**~~ — the gate was lifted on 2026-08-31. BUG-4 had already run ahead of it, per the Sprint 5 precedent.
 
 ---
 
@@ -761,7 +761,7 @@ The first UI the connector subsystem has ever had. It lives in the document sect
 
 ## Initiative 10 — Security audit follow-through (P2)
 
-The September 2026 external audit produced a [remediation plan](REMEDIATION_PLAN.md) in three
+The September 2026 external audit produced a [remediation plan](history/REMEDIATION_PLAN.md) in three
 tiers. P0 and P1 — the defects — shipped in v3.1.0 (#380). P2 is the tier the plan called
 *structural score drivers*: not holes, but the properties that let the holes exist and go
 unnoticed. Its rows are carried here so they have a scheduled moment, per the MM-2 lesson
@@ -1246,12 +1246,17 @@ that evidence cannot be produced again.
   every backticked repository path in a current-state document exists, and every documented
   `/api/...` endpoint is served. Until the split, the journal is excluded by name; the first
   run found no drift, only four deliberate mentions of absent files and Ollama's own API.
-- **The split ⬜**: move the journal — this file's history notes, PRODUCTION_PLAN,
+- **The split ◐**: move the journal — this file's history notes, PRODUCTION_PLAN,
   LESSONS_LEARNED, DEPLOYMENT_LOG, TEST_QUALITY_AUDIT, AUTH_PLAN, REMEDIATION_PLAN — under
   `docs/history/`, so the path and endpoint tests can target current-state documents only
   and a stale claim in a journal stays what it is: a record. The in-app catalogue and
   `test_docs_catalogue_covers_docs` move with it. **Acceptance:** links green; a dated
   "verified against commit" line at the top of each operator document.
+  - **Moved 2026-10-02**: the six whole files are in `docs/history/`; every relative link
+    resolves, the catalogue keeps its slugs, and the path/endpoint test excludes the directory.
+  - **Still open**: extracting this file's history notes (an editorial pass, reviewed on its
+    own), and the "verified against commit" lines — each operator document re-read against the
+    code first, since the line is only worth something if it is true.
 
 ### P2-8 — Surface reduction per D4 and D5 ✅ (closed by decision, 2026-09-16)
 
@@ -1411,7 +1416,7 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 6b | RBAC-2 (route permission audit) ✅ done — see [PERMISSIONS.md](PERMISSIONS.md); CW-3 (audit log) ⏭️ deferred to v4.0 | — |
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | 7b | BUG-4 (bind a connector to its creator; six `or "admin"` fallbacks in the OAuth routes) ✅ done & merged (#308) | — |
-| PG-0..PG-8 | **Production-grade hardening** ✅ — see [PRODUCTION_PLAN.md](PRODUCTION_PLAN.md). Gated everything below; **gate lifted 2026-08-31**. | done |
+| PG-0..PG-8 | **Production-grade hardening** ✅ — see [PRODUCTION_PLAN.md](history/PRODUCTION_PLAN.md). Gated everything below; **gate lifted 2026-08-31**. | done |
 | 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |

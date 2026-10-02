@@ -4,7 +4,7 @@ Notable changes to LocalChat. Format follows [Keep a Changelog](https://keepacha
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file starts at v3.0.0-beta.1. Earlier work is in the commit history and, with the
-reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
+reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
@@ -239,6 +239,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Changed
 
+- **The journal moved to `docs/history/`** (ROADMAP P2-7): PRODUCTION_PLAN, LESSONS_LEARNED,
+  DEPLOYMENT_LOG, TEST_QUALITY_AUDIT, AUTH_PLAN and REMEDIATION_PLAN. They are records of what
+  was planned and found, and they now sit apart from the documents that describe the code as
+  it is. Every relative link was rewritten in both directions, the in-app docs viewer keeps its
+  slugs, and the landing-page builder, the retrieval eval cases and the mutation gate point at
+  the new paths. ROADMAP stays where it is for now.
+
 - **The application image is 2.95 GB, down from 9.50 GB** (ROADMAP P2-5). `sentence-transformers`
   pulled PyPI's CUDA torch — fifteen `nvidia-*` packages, three `cuda-*` and `triton` — into an
   image whose `app` container never has a GPU. `requirements.in` now names the PyTorch CPU
@@ -363,10 +370,10 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   per row of the plan with what has already shipped marked (P2-1a with P0-1; P2-8 by
   decision).
 - **The September 2026 remediation plan is in the repository** as
-  [docs/REMEDIATION_PLAN.md](docs/REMEDIATION_PLAN.md), now that every fix it withheld
+  [docs/REMEDIATION_PLAN.md](docs/history/REMEDIATION_PLAN.md), now that every fix it withheld
   publication for has shipped. The text is as written on 2026-09-16; a banner maps each
   ticket and decision to where it landed and names what is still open. What the episode
-  taught is [LESSONS_LEARNED Ch. 20](docs/LESSONS_LEARNED.md).
+  taught is [LESSONS_LEARNED Ch. 20](docs/history/LESSONS_LEARNED.md).
 
 ## [3.1.0] — 2026-09-17
 
@@ -580,7 +587,7 @@ Scaleway scripts that made that deployment repeatable.
   (`panic_teardown.sh` — dry run unless `CONFIRM=DESTROY`). Every script is idempotent, and
   each has a unit test of its decisions against a recording `scw` shim. Documented in
   [DEPLOYMENT_SCALEWAY.md](docs/DEPLOYMENT_SCALEWAY.md), with one log entry per session in
-  [DEPLOYMENT_LOG.md](docs/DEPLOYMENT_LOG.md).
+  [DEPLOYMENT_LOG.md](docs/history/DEPLOYMENT_LOG.md).
 
 ### Fixed
 
@@ -643,7 +650,7 @@ Scaleway scripts that made that deployment repeatable.
 ## [3.0.0] — 2026-08-31
 
 The stable release. `3.0.0-beta.1` shipped on 2026-08-26 with seven of the eight
-[PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md) exit criteria met; the eighth — migrations
+[PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md) exit criteria met; the eighth — migrations
 executed against a real database in CI, not merely written — closed on 2026-08-27, and
 the hardening gate was lifted on 2026-08-31. The scope is unchanged and is the point:
 a single-node, self-hosted appliance for a team of 25 or fewer, per [ADR-1](docs/ADR.md).
@@ -704,7 +711,7 @@ The v3.0 cycle: 19 June – 26 August 2026, 89 feature and fix commits, ~1,074 c
 `main` in total.
 
 A beta, deliberately. [ADR-1](docs/ADR.md) scopes LocalChat to a single-node, self-hosted
-appliance for 25 users or fewer, and [PRODUCTION_PLAN](docs/PRODUCTION_PLAN.md) lists eight
+appliance for 25 users or fewer, and [PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md) lists eight
 conditions that gate the stable claim. Seven held at the time of this release; the
 eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
 

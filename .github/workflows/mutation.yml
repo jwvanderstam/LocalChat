@@ -47,7 +47,7 @@ jobs:
 
       # mutmut<3 is required, not a preference: 3.x asserts that a mutated
       # module's name never starts with `src.`, which collides with this repo's
-      # imports. See docs/TEST_QUALITY_AUDIT.md.
+      # imports. See docs/history/TEST_QUALITY_AUDIT.md.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
