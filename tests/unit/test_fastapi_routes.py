@@ -152,6 +152,15 @@ class TestAnnotationRoutes:
         assert resp.status_code == 200
         assert resp.json()["annotations"] == []
 
+    def test_list_chunk_annotations_is_404_for_a_chunk_outside_scope(self):
+        from src.routes_fastapi.annotation_routes import router
+
+        state = _base_state()
+        state.db.get_chunk_by_id.return_value = None
+        client = _make_client(router, "/api", state)
+        resp = client.get("/api/chunks/5/annotations")
+        assert resp.status_code == 404
+
     def test_delete_annotation_not_found(self):
         from src.routes_fastapi.annotation_routes import router
 

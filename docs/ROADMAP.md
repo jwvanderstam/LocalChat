@@ -909,7 +909,7 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   break this, and Scaleway's wording implies transaction pooling. That is one fact to
   confirm against the deployed database, not a design question.
 
-### P2-2 — Security smoke: boot the shipped compose, then attack it ◐
+### P2-2 — Security smoke: boot the shipped compose, then attack it ✅ (done 2026-09-26)
 
 **Driver 2** (tests verify mechanisms, not the system). `docker-smoke` boots the `app`
 container alone. This job boots `docker-compose.yml` *with* `docker-compose.nginx.yml` and
@@ -948,7 +948,7 @@ reason P2-4 was split.
   `DELETE /api/conversations/{conversation_id}` (scope replaced with `ALL_WORKSPACES`):
   exactly one test went red, naming that route.
 
-  **Two deviations found, neither a hole.** `GET /api/conversations/{id}/documents` and
+  **Two deviations found, neither a hole — both fixed on 2026-09-28.** `GET /api/conversations/{id}/documents` and
   `GET /api/chunks/{chunk_id}/annotations` answer 200 with an empty payload for an object
   outside the caller's scope, where P0-1's acceptance asks for 404. Both scope correctly,
   so nothing is disclosed, and the conversation one is not an existence oracle either — a
@@ -957,7 +957,13 @@ reason P2-4 was split.
   `get_conversation_document_filter` is typed `list[str]` and returns `[]` for a missing
   row. They are recorded in `_DISCLOSES_NOTHING` with an assertion that their payload is
   empty — stronger than a skip, and it fails the day either starts returning foreign rows.
-  Changing a shipped route's status code is its own reviewed change, not a test's business.
+  Changing a shipped route's status code was left as its own reviewed change rather than
+  smuggled into a test — and then made. The mixin now returns `None` for a conversation
+  outside scope, matching its sibling `get_conversation_messages`, and the annotations route
+  resolves the chunk through the scoped `get_chunk_by_id` first. `_DISCLOSES_NOTHING` is
+  empty as a result: the deviation tests failed the moment the routes were fixed, which is
+  precisely why they were written that way rather than as skips. The matrix covers 45 routes
+  now, and reverting either fix fails exactly its own case.
 
   **One route came out of the matrix, because the matrix was asking it the wrong
   question.** `POST /api/connectors/{connector_id}/webhook` is a public receiver: the
@@ -1217,7 +1223,7 @@ Nothing further to do unless §10's re-review trigger fires.
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
 | 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ + P2-4b (`BLE001`) ✅ 2026-09-21 — **sprint complete**. P2-6 retired two open Dependabot alerts. P2-4b was the one item that was not mechanical: 120 handlers read individually, 4 narrowed, 11 that were failing silently given a log | 3–4 days |
-| 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) + P2-1b (row-level security) | 1 week |
+| 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) ✅ 2026-09-26 + P2-1b (row-level security) ◐ — database half ✅ 2026-09-27 (#400), application half open | 1 week |
 | 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) — decides DEL-2 | 1–2 weeks |
 | **Total** | | **~20 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first) |
