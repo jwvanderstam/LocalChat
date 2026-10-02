@@ -19,6 +19,7 @@ from psycopg_pool import ConnectionPool
 
 from .. import config
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope
 
 logger = get_logger(__name__)
 
@@ -92,7 +93,9 @@ class MixinHost:
     is_connected: bool = False
 
     @contextmanager
-    def get_connection(self) -> Generator[psycopg.Connection, None, None]:
+    def get_connection(
+        self, *, scope: Scope | None = None
+    ) -> Generator[psycopg.Connection, None, None]:
         yield cast(psycopg.Connection, None)
 
     @staticmethod
@@ -723,12 +726,19 @@ class DatabaseConnection:
                 logger.info("All database extensions and tables verified")
 
     @contextmanager
-    def get_connection(self) -> Generator[psycopg.Connection, None, None]:
+    def get_connection(
+        self, *, scope: Scope | None = None
+    ) -> Generator[psycopg.Connection, None, None]:
         """
         Yield a connection from the pool.
 
         Commits on clean exit, rolls back on exception, always returns
         the connection to the pool.
+
+        ``scope`` is the workspace the transaction is restricted to. It is accepted but
+        not yet acted on: P2-1b turns it into ``SET LOCAL ROLE localchat_scoped`` plus
+        ``set_config('app.workspace_id', ...)`` once every workspace-owned method passes
+        one (ADR-5). ``None`` and ``ALL_WORKSPACES`` stay on the owner role.
 
         Raises:
             DatabaseUnavailableError: If the connection pool is not initialised.

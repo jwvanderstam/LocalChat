@@ -845,6 +845,39 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   Until then the migration is **inert for the application**, which connects as the owner. That
   is deliberate and safe: the capability exists, is tested, and enforces nothing yet.
 
+  **Decided 2026-09-29 — [ADR-5](ADR.md).** The premise above was half right: `get_connection()`
+  does not know the scope, but every scoped method does, and it is already mandatory there. So
+  the scope is *passed*, not bound — `get_connection(scope=)` — and the contextvar route is
+  rejected for dropping silently at context boundaries. `ALL_WORKSPACES` stays on the owner
+  role. Deciding it surfaced the real gap: `scope` reaches only the 18 by-id methods, while 34
+  others, retrieval among them, still take `workspace_id: str | None` with `None` meaning every
+  workspace. Switching RLS on first would have covered everything except the path documents
+  leave by. So the application half is three PRs, in this order:
+
+  - **P2-1b-i** — ADR-5, the `get_connection(scope=)` seam on the 18 by-id methods, an AST
+    check that each hands its own scope to the connection, and migration `0018` granting the
+    application identity `SET` on `localchat_scoped`. No behaviour change.
+  - **P2-1b-ii ✅** (2026-09-29) — the 15 filter methods, and the retrieval chain above them,
+    take a mandatory `Scope`; `SCOPED_METHODS` lists 33 and the AST check holds both the call
+    sites and the connection hand-off. Behaviour-preserving by construction: every former
+    `None` is an explicit `ALL_WORKSPACES`. It finishes P2-1a — "forgot the argument = every
+    workspace" is gone from every read path. Converting also surfaced a fourth, smaller
+    disclosure: `GET /api/status` counted documents for any `X-Workspace-ID`.
+  - **P2-1b-iii** — the role switch in `get_connection()`. Needs the shared CI database to
+    have the role, which today only the Alembic chain creates; and retrieval latency measured
+    before and after, since `perf-canary` sees event-loop stalls, not query time.
+
+  **Sorting the `workspace_id: str | None` methods for P2-1b-ii found three disclosures**
+  (2026-09-29), fixed on their own ahead of the conversion rather than queued behind it:
+  chat's `additional_workspace_ids` were never authorised, `POST /api/documents/test`
+  retrieved with no workspace, and the `list_documents` LLM tool listed every workspace. All
+  three are the driver-1 shape — an omitted or unchecked workspace read as "every workspace" —
+  on paths the P2-2b matrix cannot see, since none addresses an object by path parameter.
+  The same sort corrected the count: 16 of the 34 methods are filters where `None` means
+  every workspace; 5 take the workspace a new row lands in, and 13 take the workspace itself
+  as the object. On inspection `document_exists` belonged with the writes (`None` there means
+  "no workspace", matched with `IS NOT DISTINCT FROM`), so P2-1b-ii converted 15.
+
   **What is still open** is narrower than before: only a *statement*-level pooler would
   break this, and Scaleway's wording implies transaction pooling. That is one fact to
   confirm against the deployed database, not a design question.

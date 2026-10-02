@@ -8,7 +8,7 @@ import numpy as np
 from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger
-from ..utils.scope import Scope, scope_predicate
+from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -27,12 +27,13 @@ class MemoriesMixin(MixinHost):
 
     @staticmethod
     def _allowed_workspace_ids(
-        workspace_id: str | None, additional_workspace_ids: list[str] | None = None
+        scope: Scope, additional_workspace_ids: list[str] | None = None
     ) -> list[str]:
-        """Workspaces a query may read from. Empty means unscoped (no filter)."""
-        if not workspace_id:
+        """Workspaces a query may read from. Empty means ALL_WORKSPACES (no filter)."""
+        if scope is ALL_WORKSPACES:
             return []
-        return [workspace_id, *(additional_workspace_ids or [])]
+        scope_predicate(scope, "workspace_id")  # refuses None and "", as every scoped query does
+        return [str(scope), *(additional_workspace_ids or [])]
 
     # ── Write operations ───────────────────────────────────────────────────────
 
@@ -93,7 +94,7 @@ class MemoriesMixin(MixinHost):
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete memory: Database not connected")
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
@@ -112,7 +113,7 @@ class MemoriesMixin(MixinHost):
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete memories: Database not connected")
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
@@ -143,8 +144,9 @@ class MemoriesMixin(MixinHost):
         embedding: list[float],
         top_k: int = 5,
         min_similarity: float = _MIN_SIMILARITY_DEFAULT,
-        workspace_id: str | None = None,
         additional_workspace_ids: list[str] | None = None,
+        *,
+        scope: Scope,
     ) -> list[dict[str, Any]]:
         """Return top-k memories ordered by cosine similarity, scoped to a workspace."""
         if not self.is_connected:
@@ -152,14 +154,14 @@ class MemoriesMixin(MixinHost):
         emb_str = self._embedding_to_pg_array(np.array(embedding))
         # A memory with no workspace cannot be attributed to one, so it stays
         # invisible rather than surfacing everywhere — same call doc retrieval
-        # makes. Unscoped callers (workspace_id=None) still see everything.
-        allowed = self._allowed_workspace_ids(workspace_id, additional_workspace_ids)
+        # makes. ALL_WORKSPACES callers still see everything.
+        allowed = self._allowed_workspace_ids(scope, additional_workspace_ids)
         ws_clause = "  AND workspace_id = ANY(%s::uuid[])\n" if allowed else ""
         params: list[Any] = [emb_str, emb_str, min_similarity]
         if allowed:
             params.append(allowed)
         params += [emb_str, top_k]
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"""
@@ -190,7 +192,8 @@ class MemoriesMixin(MixinHost):
         self,
         embedding: list[float],
         threshold: float = _DEDUP_THRESHOLD,
-        workspace_id: str | None = None,
+        *,
+        scope: Scope,
     ) -> bool:
         """Return True if a very similar memory already exists in this workspace.
 
@@ -201,11 +204,9 @@ class MemoriesMixin(MixinHost):
         if not self.is_connected:
             return False
         emb_str = self._embedding_to_pg_array(np.array(embedding))
-        ws_clause = "  AND workspace_id = %s::uuid\n" if workspace_id else ""
-        params: list[Any] = [emb_str, threshold]
-        if workspace_id:
-            params.append(workspace_id)
-        with self.get_connection() as conn:
+        ws_clause, scope_params = scope_predicate(scope, "workspace_id")
+        params: list[Any] = [emb_str, threshold, *scope_params]
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"""
@@ -221,17 +222,14 @@ class MemoriesMixin(MixinHost):
                 return cursor.fetchone() is not None
 
     def get_all_memories(
-        self, limit: int = 200, offset: int = 0, workspace_id: str | None = None
+        self, limit: int = 200, offset: int = 0, *, scope: Scope
     ) -> list[dict[str, Any]]:
-        """Return memories for a workspace, ordered by creation date descending."""
+        """Return the memories in *scope*, ordered by creation date descending."""
         if not self.is_connected:
             return []
-        ws_clause = "  AND workspace_id = %s::uuid\n" if workspace_id else ""
-        params: list[Any] = []
-        if workspace_id:
-            params.append(workspace_id)
-        params += [limit, offset]
-        with self.get_connection() as conn:
+        ws_clause, scope_params = scope_predicate(scope, "workspace_id")
+        params: list[Any] = [*scope_params, limit, offset]
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"""
@@ -264,7 +262,7 @@ class MemoriesMixin(MixinHost):
         if not self.is_connected:
             return []
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """

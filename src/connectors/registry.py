@@ -17,6 +17,7 @@ import threading
 from typing import Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES
 from .base import BaseConnector
 from .google_drive_connector import GoogleDriveConnector
 from .local_folder import LocalFolderConnector
@@ -63,7 +64,7 @@ class ConnectorRegistry:
         """Instantiate all enabled connectors from the database on startup."""
         if not db.is_connected:
             return
-        rows = db.list_connectors(enabled_only=True)
+        rows = db.list_connectors(enabled_only=True, scope=ALL_WORKSPACES)
         for row in rows:
             self._load_row(row)
         logger.info(f"[Connectors] Loaded {len(self._instances)} connector(s) from DB")

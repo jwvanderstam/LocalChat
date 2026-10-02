@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from .. import config
 from ..security_fastapi import get_current_user_id
 from ..utils.logging_config import get_logger
-from ..utils.workspace import get_scope, get_workspace_id
+from ..utils.workspace import get_scope
 from ._authz import deny as _deny
 
 logger = get_logger(__name__)
@@ -28,7 +28,7 @@ def list_memories(request: Request, limit: int = 100, offset: int = 0) -> Any:
     offset = max(offset, 0)
     try:
         memories = request.app.state.db.get_all_memories(
-            limit=limit, offset=offset, workspace_id=get_workspace_id(request)
+            limit=limit, offset=offset, scope=get_scope(request)
         )
         return {"success": True, "memories": memories, "count": len(memories)}
     except Exception:

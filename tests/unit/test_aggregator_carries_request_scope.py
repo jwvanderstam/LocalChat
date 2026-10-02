@@ -26,7 +26,7 @@ def _run_local_docs(queries: int = 1):
     seen: list = []
 
     def _retrieve(query, **kwargs):
-        seen.append(kwargs.get("workspace_id"))
+        seen.append(kwargs.get("scope"))
         return []
 
     with patch("src.config.MCP_ENABLED", False), \
@@ -73,7 +73,7 @@ def test_chat_with_the_aggregator_retrieves_in_the_callers_workspace():
     seen: list = []
 
     def _retrieve(query, **kwargs):
-        seen.append(kwargs.get("workspace_id"))
+        seen.append(kwargs.get("scope"))
         return []
 
     with patch("src.routes_fastapi.api_routes.config") as cfg, \

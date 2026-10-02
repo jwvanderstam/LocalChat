@@ -66,14 +66,13 @@ logger = get_logger(__name__)
 def search_documents(query: str) -> str:
     """Execute a RAG retrieval and return formatted context."""
     from ..rag import doc_processor
-    from ..utils.scope import ALL_WORKSPACES, current_request_scope
+    from ..utils.scope import current_request_scope
 
     logger.info(f"[TOOL] search_documents: query={query!r}")
     # Same reason as ToolRouter._local_docs: the model calls this, so the workspace
     # comes from the request rather than the arguments, and its absence raises (C3).
     scope = current_request_scope()
-    workspace_id = None if scope is ALL_WORKSPACES else scope
-    results = doc_processor.retrieve_context(query, top_k=5, workspace_id=workspace_id)
+    results = doc_processor.retrieve_context(query, top_k=5, scope=scope)
     if not results:
         return "No relevant documents found for this query."
     return doc_processor.format_context_for_llm(results, max_length=4000)
@@ -85,7 +84,7 @@ def search_documents(query: str) -> str:
 
 @tool_registry.register(
     name="list_documents",
-    description="List all documents that have been uploaded and ingested into the system.",
+    description="List the documents that have been uploaded and ingested into this workspace.",
     parameters={
         "type": "object",
         "properties": {},
@@ -93,12 +92,16 @@ def search_documents(query: str) -> str:
     },
 )
 def list_documents(**_kwargs) -> str:
-    """Return a human-readable list of all ingested documents."""
+    """Return a human-readable list of the request workspace's ingested documents."""
     from ..db import db
+    from ..utils.scope import current_request_scope
 
     logger.info("[TOOL] list_documents")
+    # As search_documents: the model calls this, so the workspace comes from the request.
+    # It used to call get_all_documents() bare, which lists every workspace's documents.
+    scope = current_request_scope()
     try:
-        documents = db.get_all_documents()
+        documents = db.get_all_documents(scope=scope)
     except Exception as exc:
         logger.exception("[TOOL] list_documents failed")
         return f"Could not retrieve documents: {exc}"
