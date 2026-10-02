@@ -155,12 +155,30 @@ class MemoriesMixin(MixinHost):
         # A memory with no workspace cannot be attributed to one, so it stays
         # invisible rather than surfacing everywhere — same call doc retrieval
         # makes. ALL_WORKSPACES callers still see everything.
+        #
+        # One scoped transaction per workspace, as document retrieval does: under
+        # row-level security a transaction sees only the workspace it is scoped to, so a
+        # single ANY(...) query would silently drop the additional ones.
         allowed = self._allowed_workspace_ids(scope, additional_workspace_ids)
-        ws_clause = "  AND workspace_id = ANY(%s::uuid[])\n" if allowed else ""
-        params: list[Any] = [emb_str, emb_str, min_similarity]
-        if allowed:
-            params.append(allowed)
-        params += [emb_str, top_k]
+        rows: list[Any] = []
+        for ws in dict.fromkeys(allowed) if allowed else (scope,):
+            rows.extend(self._search_memories_in_scope(emb_str, top_k, min_similarity, scope=ws))
+        rows.sort(key=lambda r: r[6], reverse=True)
+        return [
+            {
+                "id": r[0], "content": _decrypt(r[1]), "memory_type": r[2],
+                "confidence": r[3], "created_at": r[4].isoformat() if r[4] else None,
+                "use_count": r[5], "similarity": float(r[6]),
+            }
+            for r in rows[:top_k]
+        ]
+
+    def _search_memories_in_scope(
+        self, emb_str: str, top_k: int, min_similarity: float, *, scope: Scope
+    ) -> list[Any]:
+        """The top-k memories of one scope, as raw rows ending in their similarity."""
+        ws_clause, scope_params = scope_predicate(scope, "workspace_id")
+        params: list[Any] = [emb_str, emb_str, min_similarity, *scope_params, emb_str, top_k]
         with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -178,15 +196,7 @@ class MemoriesMixin(MixinHost):
                     """,
                     tuple(params),
                 )
-                rows = cursor.fetchall()
-        return [
-            {
-                "id": r[0], "content": _decrypt(r[1]), "memory_type": r[2],
-                "confidence": r[3], "created_at": r[4].isoformat() if r[4] else None,
-                "use_count": r[5], "similarity": float(r[6]),
-            }
-            for r in rows
-        ]
+                return list(cursor.fetchall())
 
     def is_duplicate_memory(
         self,

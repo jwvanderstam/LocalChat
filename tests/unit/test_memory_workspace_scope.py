@@ -15,7 +15,7 @@ leak by returning nothing at all:
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -135,20 +135,40 @@ class TestSearchMemoriesIsScoped:
         m, cur = _memories_mixin()
         m.search_memories([0.1] * 8, scope=WS_A)
         sql, params = _sql_and_params(cur)
-        assert "workspace_id = ANY(%s::uuid[])" in sql
-        assert [WS_A] in params
+        assert "workspace_id = %s" in sql
+        assert WS_A in params
 
-    def test_includes_additional_workspaces(self):
-        m, cur = _memories_mixin()
+    def test_each_workspace_is_searched_in_its_own_scoped_transaction(self):
+        """Under row-level security a transaction sees one workspace, so a single query
+        over [A, B] would silently return A's memories only (P2-1b-iii)."""
+        m, _ = _memories_mixin()
         m.search_memories([0.1] * 8, scope=WS_A, additional_workspace_ids=[WS_B])
-        _, params = _sql_and_params(cur)
-        assert [WS_A, WS_B] in params
+        scopes = [c.kwargs["scope"] for c in m.get_connection.call_args_list]
+        assert scopes == [WS_A, WS_B]
 
-    def test_other_workspace_is_not_in_the_filter(self):
+    def test_other_workspace_is_never_queried(self):
         m, cur = _memories_mixin()
         m.search_memories([0.1] * 8, scope=WS_A)
-        _, params = _sql_and_params(cur)
-        assert not any(isinstance(p, list) and WS_B in p for p in params)
+        scopes = [c.kwargs["scope"] for c in m.get_connection.call_args_list]
+        assert scopes == [WS_A]
+        assert all(WS_B not in c.args[1] for c in cur.execute.call_args_list)
+
+    def test_results_from_every_workspace_merge_by_similarity_and_cut_to_top_k(self):
+        m, cur = _memories_mixin()
+
+        def _row(mid, sim):
+            return (mid, "enc", "fact", 1.0, None, 0, sim)
+
+        # First scoped query (A) then the second (B); similarities interleave.
+        cur.fetchall.side_effect = [
+            [_row("a1", 0.9), _row("a2", 0.6)],
+            [_row("b1", 0.8), _row("b2", 0.7)],
+        ]
+        with patch("src.db.memories._decrypt", side_effect=lambda v: v):
+            result = m.search_memories(
+                [0.1] * 8, top_k=3, scope=WS_A, additional_workspace_ids=[WS_B]
+            )
+        assert [r["id"] for r in result] == ["a1", "b1", "b2"]
 
     def test_unscoped_search_has_no_workspace_clause(self):
         m, cur = _memories_mixin()
@@ -258,5 +278,5 @@ def test_orphan_memories_never_leak_into_a_scoped_query(scoped):
     m, cur = _memories_mixin()
     m.search_memories([0.1] * 8, scope=WS_A if scoped else ALL_WORKSPACES)
     sql, _ = _sql_and_params(cur)
-    # ANY(...) never matches NULL, so scoped queries exclude orphans by construction.
-    assert ("workspace_id = ANY(%s::uuid[])" in sql) is scoped
+    # "= %s" never matches NULL, so scoped queries exclude orphans by construction.
+    assert ("workspace_id = %s" in sql) is scoped

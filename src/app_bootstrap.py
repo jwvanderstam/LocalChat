@@ -258,6 +258,8 @@ def _init_database_service(app: Any, db: Any) -> None:
     if db_success:
         logger.info(db_message)
         _run_alembic_migrations()
+        # Again after the chain: a migration can create a table the base schema did not.
+        db.ensure_scoped_role()
         from .utils.scope import ALL_WORKSPACES
         doc_count = db.get_document_count(scope=ALL_WORKSPACES)
         logger.info(f"Documents in database: {doc_count}")

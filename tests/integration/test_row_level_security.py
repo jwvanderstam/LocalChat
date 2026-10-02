@@ -113,6 +113,11 @@ def conn() -> Iterator[Any]:
         assert migrate.returncode == 0, f"migration failed: {migrate.stdout}{migrate.stderr}"
 
         with psycopg.connect(**{**_admin_dsn(), "dbname": dbname}) as connection:  # type: ignore[arg-type]
+            # Autocommit, so each `conn.transaction()` below is a real transaction. Without
+            # it the first bare execute opened an implicit one, every later transaction()
+            # became a savepoint, and the SET LOCAL ROLE inside it outlived the savepoint —
+            # so "the owner can see the row" could run as the restricted role.
+            connection.autocommit = True
             yield connection
     finally:
         with psycopg.connect(**_admin_dsn()) as admin:  # type: ignore[arg-type]
@@ -262,3 +267,148 @@ def test_the_application_identity_may_switch_into_the_scoped_role(conn: Any) -> 
         (ROLE,),
     ).fetchall()
     assert rows == [(True,)]
+
+
+def _scoped_can_read(conn: Any, table: str) -> bool:
+    try:
+        with conn.transaction():
+            conn.execute(f'SET LOCAL ROLE "{ROLE}"')
+            conn.execute(f"SELECT count(*) FROM {table}")
+        return True
+    except psycopg.errors.InsufficientPrivilege:
+        return False
+
+
+def test_a_table_added_later_is_granted_to_the_scoped_role_at_boot(conn: Any) -> None:
+    """A table a later release adds exists with no grant for the role until the next boot.
+
+    Boot re-applies the grants (`_apply_scoped_role`) rather than a migration setting
+    default privileges, because a dump carrying ALTER DEFAULT PRIVILEGES cannot be
+    restored by a non-superuser — restore-proof found that (P2-1b-iii). Both halves are
+    asserted, so this proves the boot step does the granting.
+    """
+    name = f"rls_later_{uuid.uuid4().hex[:8]}"
+    conn.execute(f"CREATE TABLE {name} (id int)")
+    try:
+        assert not _scoped_can_read(conn, name)
+        boot = subprocess.run(
+            [sys.executable, "-c",
+             "from src.db import Database; ok, msg = Database().initialize();"
+             " raise SystemExit(0 if ok else msg)"],
+            cwd=_ROOT, env={**os.environ, "PG_DB": conn.info.dbname},
+            capture_output=True, text=True, timeout=120,
+        )
+        assert boot.returncode == 0, boot.stdout + boot.stderr
+        assert _scoped_can_read(conn, name)
+    finally:
+        conn.execute(f"DROP TABLE {name}")
+
+
+_APP_PROBE = """
+import json, sys
+from src.db import Database
+from src.utils.scope import ALL_WORKSPACES
+a, b = sys.argv[1], sys.argv[2]
+db = Database()
+ok, msg = db.initialize()
+assert ok, msg
+out = {}
+with db.get_connection(scope=a) as c:
+    out["scoped_user"], out["scoped_ws"] = c.execute(
+        "SELECT current_user, current_setting('app.workspace_id')").fetchone()
+    out["own_docs"] = c.execute("SELECT count(*) FROM documents").fetchone()[0]
+with db.get_connection(scope=b) as c:
+    out["foreign_docs"] = c.execute("SELECT count(*) FROM documents").fetchone()[0]
+with db.get_connection(scope=ALL_WORKSPACES) as c:
+    out["all_user"], out["all_docs"] = c.execute(
+        "SELECT current_user, (SELECT count(*) FROM documents)").fetchone()
+db.close()
+print(json.dumps(out))
+"""
+
+
+def test_the_application_connection_enforces_the_scope(conn: Any, seeded: dict[str, str]) -> None:
+    """P2-1b-iii — `get_connection(scope=...)` itself, not a hand-written SET LOCAL.
+
+    The counts are unfiltered `SELECT count(*) FROM documents`: no WHERE clause, so what
+    hides the foreign workspace's rows is the database, not the query.
+    """
+    import json
+
+    result = subprocess.run(
+        [sys.executable, "-c", _APP_PROBE, seeded["a"], seeded["b"]],
+        cwd=_ROOT, env={**os.environ, "PG_DB": conn.info.dbname},
+        capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    out = json.loads(result.stdout.strip().splitlines()[-1])
+    assert out["scoped_user"] == ROLE
+    assert out["scoped_ws"] == seeded["a"]
+    assert out["own_docs"] == 1
+    assert out["foreign_docs"] == 0
+    # ALL_WORKSPACES stays the owner and sees workspace A's document too (ADR-5).
+    assert out["all_user"] != ROLE
+    assert out["all_docs"] >= 1
+
+
+_RECALL_PROBE = """
+import json, sys, uuid
+import numpy as np
+from src.db import Database
+from src.utils.scope import ALL_WORKSPACES
+n_ws, n_docs, n_chunks, top_k = 5, 40, 50, 40
+rng = np.random.default_rng(7)
+centres = rng.standard_normal((40, 768))
+centres /= np.linalg.norm(centres, axis=1, keepdims=True)
+def near(c):
+    v = c + 0.04 * rng.standard_normal(768)
+    return "[" + ",".join(f"{x:.5f}" for x in v / np.linalg.norm(v)) + "]"
+db = Database()
+ok, msg = db.initialize()
+assert ok, msg
+workspaces = [str(uuid.uuid4()) for _ in range(n_ws)]
+with db.get_connection(scope=ALL_WORKSPACES) as c:
+    with c.cursor() as cur:
+        for i, ws in enumerate(workspaces):
+            cur.execute("INSERT INTO workspaces (id, name) VALUES (%s, %s)", (ws, f"recall-{ws[:8]}"))
+            for d in range(n_docs):
+                cur.execute("INSERT INTO documents (filename, content, workspace_id)"
+                            " VALUES (%s, 'x', %s) RETURNING id", (f"recall-{i}-{d}.md", ws))
+                doc = cur.fetchone()[0]
+                centre = centres[rng.integers(len(centres))]
+                cur.executemany(
+                    "INSERT INTO document_chunks (document_id, chunk_text, chunk_index, embedding)"
+                    " VALUES (%s, 'x', %s, %s::vector)",
+                    [(doc, k, near(centre)) for k in range(n_chunks)])
+        cur.execute("ANALYZE documents")
+        cur.execute("ANALYZE document_chunks")
+counts = []
+for _ in range(20):
+    q = centres[rng.integers(len(centres))] + 0.04 * rng.standard_normal(768)
+    q = (q / np.linalg.norm(q)).tolist()
+    hits = db.search_similar_chunks(q, top_k=top_k, min_similarity=-1.0, scope=workspaces[0])
+    counts.append(len(hits))
+db.close()
+print(json.dumps({"counts": counts, "top_k": top_k}))
+"""
+
+
+def test_a_scoped_vector_search_still_returns_top_k(conn: Any) -> None:
+    """Under RLS the planner swaps the exact per-workspace scan for the HNSW index with the
+    policy applied afterwards, which returned 19 of 40 requested rows on average and as few
+    as 0. Iterative scan restores the count (P2-1b-iii); this fails if it stops applying.
+
+    Ten thousand chunks is the smallest corpus that proves it: at four thousand the planner
+    keeps the exact plan and this passes with the fix removed. Without it, 20 queries
+    returned [34, 25, 38, 0, 0, 0, ...].
+    """
+    import json
+
+    result = subprocess.run(
+        [sys.executable, "-c", _RECALL_PROBE],
+        cwd=_ROOT, env={**os.environ, "PG_DB": conn.info.dbname},
+        capture_output=True, text=True, timeout=600,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    out = json.loads(result.stdout.strip().splitlines()[-1])
+    assert min(out["counts"]) == out["top_k"], out["counts"]
