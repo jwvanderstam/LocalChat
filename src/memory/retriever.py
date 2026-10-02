@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope
 
 logger = get_logger(__name__)
 
@@ -29,8 +30,9 @@ class MemoryRetriever:
         db: Any,
         top_k: int = 3,
         min_similarity: float = 0.55,
-        workspace_id: str | None = None,
         additional_workspace_ids: list[str] | None = None,
+        *,
+        scope: Scope,
     ) -> list[dict]:
         """
         Return top-k memories relevant to *query*, scoped to a workspace.
@@ -41,8 +43,8 @@ class MemoryRetriever:
             db: Database instance.
             top_k: Maximum memories to return.
             min_similarity: Minimum cosine similarity threshold.
-            workspace_id: Restrict results to this workspace.
             additional_workspace_ids: Further workspaces the caller may read.
+            scope: The workspace the request was authorised for, or ALL_WORKSPACES.
 
         Returns:
             List of memory dicts (may be empty).
@@ -67,8 +69,8 @@ class MemoryRetriever:
                 embedding,
                 top_k=top_k,
                 min_similarity=min_similarity,
-                workspace_id=workspace_id,
                 additional_workspace_ids=additional_workspace_ids,
+                scope=scope,
             )
         except Exception as exc:  # noqa: BLE001 — vector search over an optional subsystem; the prompt is built without memories
             logger.warning(f"[Memory] Search failed: {exc}")

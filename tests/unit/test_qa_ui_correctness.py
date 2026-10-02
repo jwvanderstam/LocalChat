@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.utils.scope import ALL_WORKSPACES
 from tests.utils.auth import admin_headers, authenticated_state
 
 pytestmark = pytest.mark.unit
@@ -134,7 +135,7 @@ class TestConversationCountQuery:
                 self.cursor = MagicMock()
                 self.cursor.fetchone.return_value = (42,)
 
-            def get_connection(self):
+            def get_connection(self, *, scope=None):
                 cur, conn = self.cursor, MagicMock()
                 conn.cursor.return_value.__enter__.return_value = cur
                 outer = MagicMock()
@@ -145,21 +146,21 @@ class TestConversationCountQuery:
 
     def test_a_workspace_scoped_count_filters_by_workspace(self):
         db = self._db()
-        assert db.count_conversations(workspace_id="ws-1") == 42
+        assert db.count_conversations(scope="ws-1") == 42
         sql, params = db.cursor.execute.call_args[0]
         assert "workspace_id = %s" in sql
-        assert params == ("ws-1",)
+        assert list(params) == ["ws-1"]
 
     def test_an_unscoped_count_does_not_filter_by_workspace(self):
         db = self._db()
-        assert db.count_conversations() == 42
+        assert db.count_conversations(scope=ALL_WORKSPACES) == 42
         assert "workspace_id" not in db.cursor.execute.call_args[0][0]
 
     def test_soft_deleted_conversations_are_not_counted(self):
         """Clark-Wilson: a retired conversation is not a missing one, but it is
         not a listed one either — the count must match what the listing returns."""
         db = self._db()
-        db.count_conversations(workspace_id="ws-1")
+        db.count_conversations(scope="ws-1")
         assert "deleted_at IS NULL" in db.cursor.execute.call_args[0][0]
 
 

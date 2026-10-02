@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger, sanitize_log_value
-from ..utils.scope import Scope, scope_predicate
+from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -92,7 +92,7 @@ class ConversationsMixin(MixinHost):
         logger.debug(f"Created conversation {conversation_id} with first message (id={message_id})")
         return conversation_id, message_id
 
-    def count_conversations(self, workspace_id: str | None = None) -> int:
+    def count_conversations(self, *, scope: Scope) -> int:
         """Total live conversations, so a paged listing can say whether more exist.
 
         Without it a caller cannot tell a full page from the end of the list, and the
@@ -101,18 +101,13 @@ class ConversationsMixin(MixinHost):
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot count conversations: Database is not connected")
 
-        with self.get_connection() as conn:
+        scope_sql, scope_params = scope_predicate(scope, "workspace_id")
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
-                if workspace_id:
-                    cursor.execute(
-                        "SELECT COUNT(*) FROM conversations"
-                        " WHERE workspace_id = %s AND deleted_at IS NULL",
-                        (workspace_id,),
-                    )
-                else:
-                    cursor.execute(
-                        "SELECT COUNT(*) FROM conversations WHERE deleted_at IS NULL"
-                    )
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM conversations WHERE deleted_at IS NULL{scope_sql}",
+                    scope_params,
+                )
                 row = cursor.fetchone()
                 return int(row[0]) if row else 0
 
@@ -120,7 +115,8 @@ class ConversationsMixin(MixinHost):
         self,
         limit: int = 50,
         offset: int = 0,
-        workspace_id: str | None = None,
+        *,
+        scope: Scope,
     ) -> list[dict[str, Any]]:
         """Return conversations ordered by updated_at DESC (id, title, created_at, updated_at, message_count)."""
         if not self.is_connected:
@@ -129,30 +125,19 @@ class ConversationsMixin(MixinHost):
         limit = max(1, min(limit, 200))
         offset = max(0, offset)
 
-        with self.get_connection() as conn:
+        scope_sql, scope_params = scope_predicate(scope, "c.workspace_id")
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
-                if workspace_id:
-                    cursor.execute("""
-                        SELECT c.id, c.title, c.created_at, c.updated_at,
-                               COUNT(cm.id) AS message_count
-                        FROM conversations c
-                        LEFT JOIN conversation_messages cm ON c.id = cm.conversation_id
-                        WHERE c.workspace_id = %s AND c.deleted_at IS NULL
-                        GROUP BY c.id, c.title, c.created_at, c.updated_at
-                        ORDER BY c.updated_at DESC
-                        LIMIT %s OFFSET %s
-                    """, (workspace_id, limit, offset))
-                else:
-                    cursor.execute("""
-                        SELECT c.id, c.title, c.created_at, c.updated_at,
-                               COUNT(cm.id) AS message_count
-                        FROM conversations c
-                        LEFT JOIN conversation_messages cm ON c.id = cm.conversation_id
-                        WHERE c.deleted_at IS NULL
-                        GROUP BY c.id, c.title, c.created_at, c.updated_at
-                        ORDER BY c.updated_at DESC
-                        LIMIT %s OFFSET %s
-                    """, (limit, offset))
+                cursor.execute(f"""
+                    SELECT c.id, c.title, c.created_at, c.updated_at,
+                           COUNT(cm.id) AS message_count
+                    FROM conversations c
+                    LEFT JOIN conversation_messages cm ON c.id = cm.conversation_id
+                    WHERE c.deleted_at IS NULL{scope_sql}
+                    GROUP BY c.id, c.title, c.created_at, c.updated_at
+                    ORDER BY c.updated_at DESC
+                    LIMIT %s OFFSET %s
+                """, (*scope_params, limit, offset))
                 rows = cursor.fetchall()
                 return [
                     {
@@ -178,7 +163,7 @@ class ConversationsMixin(MixinHost):
 
         where, params = scope_predicate(scope, "c.workspace_id")
         bare_where, _ = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT cm.role, cm.content, cm.created_at
@@ -263,7 +248,7 @@ class ConversationsMixin(MixinHost):
             raise DatabaseUnavailableError("Cannot update conversation: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP"
@@ -289,7 +274,7 @@ class ConversationsMixin(MixinHost):
             raise DatabaseUnavailableError("Cannot get document filter: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT document_ids FROM conversations"
@@ -310,7 +295,7 @@ class ConversationsMixin(MixinHost):
 
         import json as _json
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET document_ids = %s::jsonb"
@@ -330,7 +315,7 @@ class ConversationsMixin(MixinHost):
             raise DatabaseUnavailableError("Cannot delete conversation: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s"
@@ -343,24 +328,21 @@ class ConversationsMixin(MixinHost):
             logger.debug(f"Soft-deleted conversation: {conversation_id}")
         return updated
 
-    def delete_all_conversations(self, workspace_id: str | None = None, deleted_by: str | None = None) -> int:
-        """Soft-delete conversations; scoped to workspace when provided."""
+    def delete_all_conversations(self, deleted_by: str | None = None, *, scope: Scope) -> int:
+        """Soft-delete every live conversation in *scope*."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversations: Database is not connected")
 
-        with self.get_connection() as conn:
+        if scope is ALL_WORKSPACES:
+            logger.warning("Soft-deleting ALL conversations across all workspaces")
+        scope_sql, scope_params = scope_predicate(scope, "workspace_id")
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
-                if workspace_id:
-                    cursor.execute(
-                        "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s WHERE workspace_id = %s AND deleted_at IS NULL",
-                        (deleted_by, workspace_id),
-                    )
-                else:
-                    logger.warning("Soft-deleting ALL conversations across all workspaces")
-                    cursor.execute(
-                        "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s WHERE deleted_at IS NULL",
-                        (deleted_by,),
-                    )
+                cursor.execute(
+                    "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s"
+                    f" WHERE deleted_at IS NULL{scope_sql}",
+                    (deleted_by, *scope_params),
+                )
                 count = cursor.rowcount
                 conn.commit()
         logger.info(f"Soft-deleted {count} conversations")
@@ -389,7 +371,7 @@ class ConversationsMixin(MixinHost):
         return deleted
 
     def get_low_confidence_queries(
-        self, workspace_id: str | None = None, threshold: float = 0.5, limit: int = 50
+        self, threshold: float = 0.5, limit: int = 50, *, scope: Scope
     ) -> list[str]:
         """Return user query strings that received poor or no positive feedback.
 
@@ -399,15 +381,13 @@ class ConversationsMixin(MixinHost):
         """
         if not self.is_connected:
             return []
+        # Outside the try, as in get_stale_documents: a missing scope is a defect to
+        # raise, not a failed report to render as an empty list.
+        ws_filter, scope_params = scope_predicate(scope, "c.workspace_id")
         try:
-            ws_filter = "AND c.workspace_id = %s" if workspace_id else ""
             live_filter = "AND c.deleted_at IS NULL"
-            params: list[Any] = []
-            if workspace_id:
-                params.append(workspace_id)
-            params.append(threshold)
-            params.append(limit)
-            with self.get_connection() as conn:
+            params: list[Any] = [*scope_params, threshold, limit]
+            with self.get_connection(scope=scope) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         f"""

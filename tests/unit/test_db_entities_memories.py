@@ -30,6 +30,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
+
 # ---------------------------------------------------------------------------
 # Helpers — build a mixin instance with a mocked get_connection
 # ---------------------------------------------------------------------------
@@ -269,7 +271,7 @@ class TestMarkConversationExtracted:
 class TestSearchMemories:
     def test_returns_empty_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        assert m.search_memories([0.1] * 10) == []
+        assert m.search_memories([0.1] * 10, scope=ALL_WORKSPACES) == []
 
     def test_returns_list_of_dicts(self):
         from datetime import datetime
@@ -277,7 +279,7 @@ class TestSearchMemories:
         m, _, cur = _memories_mixin(
             fetchall_return=[(mem_id, "fact A", "fact", 0.9, datetime(2025, 1, 1), 2, 0.85)]
         )
-        results = m.search_memories([0.1] * 10)
+        results = m.search_memories([0.1] * 10, scope=ALL_WORKSPACES)
         assert len(results) == 1
         assert results[0]["content"] == "fact A"
         assert results[0]["similarity"] == pytest.approx(0.85)
@@ -286,21 +288,21 @@ class TestSearchMemories:
 class TestIsDuplicateMemory:
     def test_returns_false_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        assert m.is_duplicate_memory([0.1] * 10) is False
+        assert m.is_duplicate_memory([0.1] * 10, scope=ALL_WORKSPACES) is False
 
     def test_returns_true_when_similar_found(self):
         m, _, cur = _memories_mixin(fetchone_return=(1,))
-        assert m.is_duplicate_memory([0.1] * 10) is True
+        assert m.is_duplicate_memory([0.1] * 10, scope=ALL_WORKSPACES) is True
 
     def test_returns_false_when_no_similar_found(self):
         m, _, cur = _memories_mixin(fetchone_return=None)
-        assert m.is_duplicate_memory([0.1] * 10) is False
+        assert m.is_duplicate_memory([0.1] * 10, scope=ALL_WORKSPACES) is False
 
 
 class TestGetAllMemories:
     def test_returns_empty_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        assert m.get_all_memories() == []
+        assert m.get_all_memories(scope=ALL_WORKSPACES) == []
 
     def test_returns_list_of_dicts(self):
         from datetime import datetime
@@ -309,7 +311,7 @@ class TestGetAllMemories:
         m, _, cur = _memories_mixin(
             fetchall_return=[(mid, "content", "fact", 1.0, datetime(2025, 1, 1), None, 0, conv_id)]
         )
-        results = m.get_all_memories()
+        results = m.get_all_memories(scope=ALL_WORKSPACES)
         assert len(results) == 1
         assert results[0]["content"] == "content"
 

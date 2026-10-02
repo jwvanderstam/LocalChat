@@ -18,6 +18,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
+
 
 class _Result:
     def __init__(self, title, url, snippet="snip"):
@@ -210,7 +212,7 @@ class TestRetrieveContextsAppendsWebSources:
 
         fields = {"message": "q", "use_rag": True, "enhance": True}
         local_ctx, web_ctx, sources, _ = chat.retrieve_contexts(
-            fields, MagicMock(), MagicMock(), [0]
+            fields, MagicMock(), MagicMock(), [0], scope=ALL_WORKSPACES
         )
 
         assert local_ctx == "local ctx"
@@ -228,7 +230,7 @@ class TestRetrieveContextsAppendsWebSources:
         monkeypatch.setattr(chat, "get_filename_filter", lambda *a, **k: [])
 
         fields = {"message": "q", "use_rag": True, "enhance": False}
-        _, web_ctx, sources, _ = chat.retrieve_contexts(fields, MagicMock(), MagicMock(), [0])
+        _, web_ctx, sources, _ = chat.retrieve_contexts(fields, MagicMock(), MagicMock(), [0], scope=ALL_WORKSPACES)
 
         assert web_ctx == ""
         assert [s["filename"] for s in sources] == ["doc.pdf"]
@@ -249,7 +251,7 @@ class TestRetrieveContextsAppendsWebSources:
         monkeypatch.setattr(chat, "get_web_context", _boom)
 
         fields = {"message": "q", "use_rag": True, "enhance": True}
-        _, web_ctx, sources, _ = chat.retrieve_contexts(fields, MagicMock(), MagicMock(), [0])
+        _, web_ctx, sources, _ = chat.retrieve_contexts(fields, MagicMock(), MagicMock(), [0], scope=ALL_WORKSPACES)
 
         assert web_ctx == ""
         assert [s["filename"] for s in sources] == ["doc.pdf"]

@@ -28,6 +28,17 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   request scope bound on every guarded route rather than only the chat stream, and is written
   up in the ticket rather than half-done here.
 
+- **ADR-5: workspace isolation is enforced in the database** (ROADMAP P2-1b-i). Records the
+  decision for the application half of row-level security — the scope is *passed* to
+  `get_connection(scope=)` by the method that already holds it, not bound in a contextvar —
+  together with what that commits LocalChat to (shared-schema tenancy as the boundary; the
+  operator as installation owner) and what it does not (a single node). The 18 by-id methods
+  now hand their scope to the connection, and `test_object_authorization_matrix.py` fails any
+  that does not. Migration `0018` grants the application identity `SET` on
+  `localchat_scoped`, without which a managed database would refuse the role switch.
+  **No behaviour change yet**: `get_connection` accepts the scope and does not act on it until
+  the 34 methods still taking `workspace_id: str | None` — retrieval among them — are converted.
+
 - **The object-authorization matrix now runs over HTTP against a real Postgres**
   (ROADMAP P2-2b). `tests/unit/test_object_authorization_matrix.py` walks the AST and
   proves no scoped database call omits `scope=`; every workspace test in
@@ -110,6 +121,52 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
 
 ### Security
 
+- **PyJWT 2.15.0 and urllib3 2.8.0**, for CVE-2026-101918 (PyJWT) and CVE-2026-97687, -97688
+  and -97689 (urllib3). Newly published advisories that turned `pip-audit` red on `main` and on
+  every open PR at once. urllib3 is transitive, so it moved by a targeted
+  `pip-compile --upgrade-package`; nothing else in either lock changed. Dependabot's #401 carries
+  the PyJWT bump but not urllib3, which is why this is its own change.
+
+- **`GET /api/status` reported any workspace's document count.** Status requires only a
+  session, and counted documents for whatever `X-Workspace-ID` named — so a caller could read
+  the count of a workspace they are not a member of, or of the whole installation by sending
+  no header. A count, not content; found because converting the call to `get_scope(request)`
+  refused on a route no workspace guard had run on. Status now runs the check without
+  requiring it to pass: an authorised caller gets their scope's count, anyone else gets 0,
+  and the status bar still renders.
+
+- **Chat retrieved from any workspace named in `additional_workspace_ids`.** The workspace
+  guard on `POST /api/chat` authorised the request's own workspace and nothing else; the
+  extra ids from the request body went straight into document retrieval (one pipeline run
+  per id) and into long-term memory search, and what they found reached the prompt, the
+  answer and the streamed `sources`. Any user who knew another workspace's id could read
+  from it through chat — and so could a **workspace API key**, whose scope
+  `WORKSPACE_API_KEYS.md` documents as impossible to widen. Workspace ids are UUIDs, so this
+  needed one; the audit graded the same "reachable by UUID" shape as C2. Reproduced at the
+  route layer before the fix: a plain user's request carried a foreign id into
+  `retrieve_context` and was answered with 200. Each extra id is now authorised like the
+  primary one — membership at viewer or above, admins any, an API key none — and one
+  unauthorised id refuses the whole request with 403 rather than being dropped, so a caller
+  cannot mistake a partial answer for a complete one. No frontend sends the field.
+  P2-2b's over-the-wire matrix did not see it because it addresses objects by **path**
+  parameter; this one arrived in the body.
+
+- **`POST /api/documents/test` returned chunk previews from every workspace.** The
+  retrieval-diagnostics route is open to viewers, and called `retrieve_context` with no
+  workspace — which reads as every workspace — so any viewer could query the whole
+  installation and receive the first 200 characters of each matching chunk, with filename
+  and page. It now searches the workspace the guard authorised, as its neighbours do.
+
+- **The `list_documents` LLM tool listed every workspace's documents.** It called
+  `db.get_all_documents()` with no argument, which reads as installation-wide, so any
+  chat user could ask the model what documents exist and get back other workspaces'
+  filenames, chunk counts and upload dates — metadata, not content, but the C1/C2 class.
+  Tool calling is on by default (`TOOL_CALLING_ENABLED=true`), so this was reachable as
+  shipped. It now reads the request's scope the way its sibling `search_documents` has
+  since P0-2, and refuses when none is bound. Found while sorting the
+  `workspace_id: str | None` methods for P2-1b-ii; not in the September audit, whose
+  static scan covered routes rather than tools.
+
 - **`python-jose` replaced by `PyJWT`** (ROADMAP P2-6). The old library pulled `ecdsa`,
   whose timing side-channel has no upstream fix and had been an accepted risk in
   SECURITY.md §2 with a `pip-audit --ignore-vuln` suppression holding CI green. PyJWT
@@ -121,6 +178,24 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/LESSONS_LEARNED.md).
   cannot be reproduced afterwards.
 
 ### Changed
+
+- **"Every workspace" is now a value you pass, never a default you fall into**
+  (ROADMAP P2-1b-ii). Fifteen database methods took `workspace_id: str | None = None` and
+  read `None` as every workspace — the pattern P0-1 removed from the by-id paths, still
+  present on the listings, the counts, and retrieval itself (`search_similar_chunks`,
+  `search_lexical_chunks`, `search_memories`). Each now takes a mandatory keyword-only
+  `scope: Scope`, builds its SQL through `scope_predicate` (which refuses `None` and `""` at
+  runtime), and hands the scope to `get_connection(scope=)`; the retrieval chain above them
+  (`retrieve_context`, `MemoryRetriever.retrieve`, `suggest_documents`, chat's
+  `retrieve_contexts`) takes a `Scope` too, so the translation happens once, at the route,
+  through `get_scope(request)`. **Behaviour is unchanged** by construction: every place that
+  passed `None` now passes `ALL_WORKSPACES` where a reviewer can see it — SyncWorker's stale
+  sweep, connector loading, the boot-time count, the admin stats, and the two token-authenticated
+  MCP `list_sources` calls. `test_object_authorization_matrix.py` lists all 33 scoped methods,
+  fails any call that omits the scope, and fails any that opens a connection without it.
+  Not converted, deliberately: `document_exists` and the five inserts take the workspace a row
+  is *written to*, where `None` means "no workspace", not "every workspace"; and the thirteen
+  methods in `workspaces.py` and `workspace_keys.py` take the workspace itself as the object.
 
 - **No production `assert`** (ROADMAP P2-4a). All 27 in `src/` were mypy type-narrowing
   invariants — `row is not None` after an `INSERT ... RETURNING`, `_pypdf is not None`

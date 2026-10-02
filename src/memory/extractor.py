@@ -14,6 +14,7 @@ import re
 from typing import Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES
 
 logger = get_logger(__name__)
 
@@ -121,7 +122,9 @@ class MemoryExtractor:
             )
             if not ok or not embedding:
                 return False
-            if db.is_duplicate_memory(embedding, workspace_id=workspace_id):
+            # The workspace the memory will be written to. One with none dedupes across
+            # every workspace, as it did before the scope was a type.
+            if db.is_duplicate_memory(embedding, scope=workspace_id or ALL_WORKSPACES):
                 logger.debug(f"[Memory] Skipping duplicate: {content[:60]}")
                 return False
             db.insert_memory(

@@ -244,3 +244,21 @@ def test_a_foreign_scope_sees_nothing(conn: Any, seeded: dict[str, str], table: 
 def test_the_owning_scope_sees_its_row(conn: Any, seeded: dict[str, str], table: str) -> None:
     """The other side of the boundary — without this the policy could deny everything."""
     assert _count(conn, table, scope=seeded["a"]) > 0
+
+
+def test_the_application_identity_may_switch_into_the_scoped_role(conn: Any) -> None:
+    """Migration 0018 — the identity that ran the migrations holds the role with SET.
+
+    Read from `pg_auth_members` rather than `pg_has_role`, which is true for any superuser
+    and so would pass in CI without the grant. The row exists only because 0018 made it.
+    `session_user`, not `current_user`: the login identity is the one that switches role,
+    and `current_user` is whatever role an earlier test's `SET LOCAL ROLE` left in force.
+    """
+    rows = conn.execute(
+        "SELECT m.set_option FROM pg_auth_members m"
+        " JOIN pg_roles r ON r.oid = m.roleid"
+        " JOIN pg_roles u ON u.oid = m.member"
+        " WHERE r.rolname = %s AND u.rolname = session_user",
+        (ROLE,),
+    ).fetchall()
+    assert rows == [(True,)]

@@ -578,6 +578,41 @@ def check_workspace_access(
     return None
 
 
+def check_additional_workspace_access(
+    request: Request,
+    workspace_ids: list[str],
+    min_role: str,
+) -> tuple[int, str] | None:
+    """Authorise every workspace in *workspace_ids* beyond the one the request is scoped to.
+
+    Chat accepts ``additional_workspace_ids`` for cross-workspace retrieval, and nothing
+    checked them: any caller who knew a workspace's id could retrieve from it, a workspace
+    API key included. Call after ``check_workspace_access`` has passed. Unlike it, this pins
+    nothing — the request's scope stays the primary workspace — and one unauthorised id
+    refuses the whole request rather than being dropped, so the caller cannot mistake a
+    partial answer for a complete one.
+    """
+    if not workspace_ids:
+        return None
+    if _extract_api_key(request):
+        # A key's scope is its one workspace by construction (WORKSPACE_API_KEYS.md).
+        return (status.HTTP_403_FORBIDDEN, "API key is not valid for other workspaces")
+    try:
+        principal = resolve_principal(request, database_required="Database unavailable")
+    except AuthError as exc:
+        return (exc.status_code, exc.message)
+    if principal.is_admin:
+        return None
+    db = getattr(request.app.state, "db", None)
+    if db is None or not db.is_connected:
+        return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+    for ws_id in dict.fromkeys(workspace_ids):
+        role = db.get_workspace_member_role(ws_id, principal.user_id)
+        if role is None or _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
+            return (status.HTTP_403_FORBIDDEN, "Access denied: not a member of every requested workspace")
+    return None
+
+
 def _enforce_workspace_role(
     request: Request,
     workspace_id: str | None,

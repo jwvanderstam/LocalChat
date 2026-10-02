@@ -67,7 +67,7 @@ def search(
     doc_processor, _ = _get_services()
     filename_filter = (filters or {}).get("filenames", [])
     results = doc_processor.retrieve_context(
-        query, filename_filter=filename_filter, workspace_id=workspace_id
+        query, filename_filter=filename_filter, scope=workspace_id
     )
     results = results[:top_k]
     logger.info(f"[local-docs] search '{query[:60]}' → {len(results)} chunks")
@@ -93,7 +93,9 @@ def search(
 def list_sources() -> list[dict]:
     """List all ingested documents."""
     _, db = _get_services()
-    docs = db.get_all_documents()
+    # Token-authenticated and installation-wide, as before; said rather than defaulted.
+    from src.utils.scope import ALL_WORKSPACES
+    docs = db.get_all_documents(scope=ALL_WORKSPACES)
     return [
         {
             "id": d["id"],
