@@ -11,16 +11,20 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from .. import config, exceptions
-from ..security_fastapi import limiter, require_admin_dep, require_auth
+from ..security_fastapi import (
+    check_workspace_access,
+    limiter,
+    require_admin_dep,
+    require_auth,
+)
 from ..services import chat
 from ..utils.logging_config import get_logger
 from ..utils.scope import (
-    ALL_WORKSPACES,
     Scope,
     bind_request_scope,
     reset_request_scope,
 )
-from ..utils.workspace import get_workspace_id
+from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 from ._authz import deny_additional as _deny_additional
 
@@ -224,10 +228,13 @@ def api_status(request: Request) -> Any:
     require_auth(request)
     app_state = request.app.state
     db_available = app_state.startup_status.get("database", False)
-    workspace_id = get_workspace_id(request)
     doc_count = 0
-    if db_available:
-        doc_count, db_available = chat.get_doc_count_cached(app_state.db, workspace_id)
+    # Status needs only a session, so the workspace is checked here rather than
+    # required: it used to count whatever X-Workspace-ID said — any workspace, or the
+    # whole installation when absent. A caller with no workspace sees 0, not a 403,
+    # so the status bar still renders.
+    if db_available and check_workspace_access(request, None, "viewer") is None:
+        doc_count, db_available = chat.get_doc_count_cached(app_state.db, get_scope(request))
 
     ollama_available = chat.check_ollama_live(app_state)
 
@@ -316,10 +323,13 @@ async def api_chat(request: Request) -> Any:
         )
 
         app_state = request.app.state
+        # scope for what the request may read; workspace_id for where its messages
+        # are written. They differ only for an admin who named no workspace.
+        scope = get_scope(request)
         workspace_id = get_workspace_id(request)
         plan, memory_context = await chat.retrieve_plan_and_memory(
             fields, active_model, app_state.ollama_client, app_state.db,
-            workspace_id=workspace_id,
+            scope=scope,
         )
 
         messages = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in fields["chat_history"]]
@@ -332,7 +342,7 @@ async def api_chat(request: Request) -> Any:
         local_ctx, web_ctx, sources, agent_result = await run_in_threadpool(
             chat.retrieve_contexts,
             fields, app_state.doc_processor, app_state.db, chunks_retrieved_ref,
-            plan=plan, workspace_id=workspace_id,
+            plan=plan, scope=scope,
             additional_workspace_ids=fields.get("additional_workspace_ids") or None,
             source_ids=fields.get("active_source_ids") or None,
         )
@@ -357,9 +367,7 @@ async def api_chat(request: Request) -> Any:
             _generate_sse(
                 plan, tool_executor, active_model, app_state, messages, fields,
                 sources, cloud_client, conversation_id, agent_result, routed_rationale,
-                # A chat request with no workspace resolved is a global admin who
-                # named none — the same translation P0-1 made explicit elsewhere.
-                workspace_id or ALL_WORKSPACES,
+                scope,
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

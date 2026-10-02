@@ -11,7 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import config, exceptions
 from ..rag.retrieval import RetrievalResult
 from ..utils.logging_config import get_logger
-from ..utils.scope import ALL_WORKSPACES, Scope
+from ..utils.scope import Scope
 
 if TYPE_CHECKING:
     from ..agent.result import AgentResult
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # TTL caches — module-level to survive across requests
-_status_doc_count_cache: dict[str | None, tuple[int, float]] = {}
+_status_doc_count_cache: dict[Scope, tuple[int, float]] = {}
 _STATUS_CACHE_TTL: float = 5.0
 _status_cache_lock = threading.Lock()
 _ollama_status_cache: list = [False, 0.0]  # [available, last_check_time]
@@ -106,24 +106,26 @@ def get_rag_context(
     doc_processor: Any,
     chunks_retrieved_ref: list[int],
     filename_filter: list | None = None,
-    workspace_id: str | None = None,
     additional_workspace_ids: list[str] | None = None,
     source_ids: list[str] | None = None,
+    *,
+    scope: Scope,
 ) -> tuple[str, list[dict]]:
-    if config.MCP_ENABLED and workspace_id:
+    if config.MCP_ENABLED and isinstance(scope, str):
         # No workspace, no MCP: the server now refuses an unscoped search, and
         # falling through to the direct path keeps the caller's own scoping rules
         # rather than inventing one here.
         mcp_result = try_mcp_rag(
-            message, filename_filter, chunks_retrieved_ref, workspace_id
+            message, filename_filter, chunks_retrieved_ref, scope
         )
         if mcp_result is not None:
             return mcp_result
 
     results = doc_processor.retrieve_context(
-        message, filename_filter=filename_filter or [], workspace_id=workspace_id,
+        message, filename_filter=filename_filter or [],
         additional_workspace_ids=additional_workspace_ids,
         source_ids=source_ids or [],
+        scope=scope,
     )
     logger.info("[RAG] Retrieved %d chunks from database", len(results))
     chunks_retrieved_ref[0] += len(results)
@@ -180,14 +182,14 @@ def get_web_context(message: str) -> tuple[str, list[dict]]:
     return context, [to_source_dict(r.title, r.url) for r in web_results if r.url]
 
 
-def get_doc_count_cached(db: Any, workspace_id: str | None) -> tuple[int, bool]:
+def get_doc_count_cached(db: Any, scope: Scope) -> tuple[int, bool]:
     with _status_cache_lock:
         now = time.monotonic()
-        cached = _status_doc_count_cache.get(workspace_id)
+        cached = _status_doc_count_cache.get(scope)
         if cached is None or now - cached[1] > _STATUS_CACHE_TTL:
             try:
-                count = db.get_document_count(workspace_id=workspace_id)
-                _status_doc_count_cache[workspace_id] = (count, now)
+                count = db.get_document_count(scope=scope)
+                _status_doc_count_cache[scope] = (count, now)
                 return count, True
             except Exception as exc:  # noqa: BLE001 — the count is displayed, not depended on; 0 with has_docs=False is the safe pair
                 logger.warning("Could not get document count: %s", exc)
@@ -305,9 +307,10 @@ def retrieve_contexts(
     db: Any,
     chunks_retrieved_ref: list[int],
     plan: Any = None,
-    workspace_id: str | None = None,
     additional_workspace_ids: list[str] | None = None,
     source_ids: list[str] | None = None,
+    *,
+    scope: Scope,
 ) -> tuple[str, str, list[dict], Any]:
     """Return (local_ctx, web_ctx, sources, agent_result)."""
     if config.AGGREGATOR_AGENT_ENABLED:
@@ -322,21 +325,19 @@ def retrieve_contexts(
 
     if fields["use_rag"]:
         try:
-            # A chat request with no workspace resolved is a global admin who named
-            # none; that is what this path already did, said out loud. P0-2 replaces
-            # it with a refusal once retrieval itself fails closed.
-            filename_filter = get_filename_filter(fields, db, workspace_id or ALL_WORKSPACES)
+            filename_filter = get_filename_filter(fields, db, scope)
             if plan is not None and plan.is_multi_hop:
                 local_context, sources = get_rag_context_multi_hop(
                     plan.sub_questions, doc_processor, filename_filter,
-                    workspace_id=workspace_id, chunks_retrieved_ref=chunks_retrieved_ref,
+                    chunks_retrieved_ref=chunks_retrieved_ref, scope=scope,
                 )
             else:
                 local_context, sources = get_rag_context(
                     fields["message"], doc_processor, chunks_retrieved_ref,
-                    filename_filter=filename_filter, workspace_id=workspace_id,
+                    filename_filter=filename_filter,
                     additional_workspace_ids=additional_workspace_ids,
                     source_ids=source_ids,
+                    scope=scope,
                 )
         except Exception as exc:
             raise exceptions.SearchError(
@@ -357,8 +358,9 @@ def get_rag_context_multi_hop(
     sub_questions: list[str],
     doc_processor: Any,
     filename_filter: list[str],
-    workspace_id: str | None = None,
     chunks_retrieved_ref: list[int] | None = None,
+    *,
+    scope: Scope,
 ) -> tuple[str, list[dict]]:
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -367,7 +369,7 @@ def get_rag_context_multi_hop(
         futures = {
             executor.submit(
                 doc_processor.retrieve_context, q,
-                filename_filter=filename_filter, workspace_id=workspace_id
+                filename_filter=filename_filter, scope=scope
             ): q
             for q in sub_questions
         }
@@ -513,7 +515,8 @@ async def stream_chunks_with_fallback(
 
 async def retrieve_plan_and_memory(
     fields: dict, active_model: str, ollama_client: Any, db: Any,
-    workspace_id: str | None = None,
+    *,
+    scope: Scope,
 ) -> tuple[Any, str]:
     plan = None
     query_words = len(fields["message"].split())
@@ -533,8 +536,8 @@ async def retrieve_plan_and_memory(
             memories = await run_in_threadpool(
                 MemoryRetriever().retrieve,
                 fields["message"], ollama_client, db,
-                workspace_id=workspace_id,
                 additional_workspace_ids=fields.get("additional_workspace_ids") or [],
+                scope=scope,
             )
             memory_context = MemoryRetriever.format_for_prompt(memories)
         except Exception as mem_err:  # noqa: BLE001 — memory retrieval is optional; the prompt is built without it

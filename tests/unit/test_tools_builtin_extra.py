@@ -84,7 +84,7 @@ class TestListDocumentsTool:
         with patch('src.db.db.get_all_documents', return_value=[]) as get_all:
             tool_registry.execute("list_documents", {})
 
-        get_all.assert_called_once_with(workspace_id=self.WS)
+        get_all.assert_called_once_with(scope=self.WS)
 
     def test_all_workspaces_is_an_explicit_scope_not_a_default(self):
         from src.tools.registry import tool_registry
@@ -94,7 +94,7 @@ class TestListDocumentsTool:
              patch('src.db.db.get_all_documents', return_value=[]) as get_all:
             tool_registry.execute("list_documents", {})
 
-        get_all.assert_called_once_with(workspace_id=None)
+        get_all.assert_called_once_with(scope=ALL_WORKSPACES)
 
     def test_no_documents_returns_message(self):
         from src.tools.registry import tool_registry

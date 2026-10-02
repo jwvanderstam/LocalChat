@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
+
 # ---------------------------------------------------------------------------
 # Encryption
 # ---------------------------------------------------------------------------
@@ -130,7 +132,7 @@ class TestActiveLearning:
 
         db = MagicMock()
         db.get_low_confidence_queries.side_effect = RuntimeError("DB down")
-        result = suggest_documents(workspace_id="ws-1", db=db)
+        result = suggest_documents(scope="ws-1", db=db)
         assert result == []
 
     def test_suggest_documents_no_queries_returns_empty(self):
@@ -138,7 +140,7 @@ class TestActiveLearning:
 
         db = MagicMock()
         db.get_low_confidence_queries.return_value = []
-        result = suggest_documents(workspace_id="ws-1", db=db)
+        result = suggest_documents(scope="ws-1", db=db)
         assert result == []
 
     def test_suggest_documents_returns_top_terms(self):
@@ -151,7 +153,7 @@ class TestActiveLearning:
             "revenue breakdown by region",
             "quarterly forecast report",
         ]
-        result = suggest_documents(workspace_id=None, db=db)
+        result = suggest_documents(scope=ALL_WORKSPACES, db=db)
         assert isinstance(result, list)
         assert len(result) > 0
         # "revenue" and "forecast" should appear frequently
@@ -164,7 +166,7 @@ class TestActiveLearning:
         db.get_low_confidence_queries.return_value = [
             f"what about {i} topic" for i in range(50)
         ]
-        result = suggest_documents(workspace_id=None, db=db, top_k=3)
+        result = suggest_documents(scope=ALL_WORKSPACES, db=db, top_k=3)
         assert len(result) <= 3
 
     def test_extract_terms_filters_stop_words(self):

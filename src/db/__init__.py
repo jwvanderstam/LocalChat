@@ -45,7 +45,7 @@ class Database(DocumentsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin,
         >>> success, msg = db.initialize()
         >>> if success:
         ...     doc_id = db.insert_document("file.pdf", "content")
-        ...     results = db.search_similar_chunks(embedding, top_k=5)
+        ...     results = db.search_similar_chunks(embedding, top_k=5, scope=workspace_id)
     """
 
 

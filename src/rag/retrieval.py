@@ -19,6 +19,7 @@ from ..ollama_client import (
     ollama_client,  # noqa: F401 — unused directly, but tests patch this module attribute via mock.patch("src.rag.retrieval.ollama_client")
 )
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope
 from .cache import embedding_cache
 
 logger = get_logger(__name__)
@@ -140,8 +141,9 @@ class RetrievalMixin:
         top_k: int,
         file_type_filter: str | None,
         filename_filter: list[str] | None,
-        workspace_id: str | None,
         source_ids: list[str] | None,
+        *,
+        scope: Scope,
     ) -> list:
         """Run the independent full-text lexical search arm; degrades to [] on any failure."""
         try:
@@ -150,8 +152,8 @@ class RetrievalMixin:
                 top_k=top_k,
                 file_type_filter=file_type_filter,
                 filename_filter=filename_filter or [],
-                workspace_id=workspace_id,
                 source_ids=source_ids or [],
+                scope=scope,
             )
             return list(results) if results else []
         except Exception as lex_exc:  # noqa: BLE001 — the lexical arm is half of hybrid search; the semantic arm still answers
@@ -253,8 +255,9 @@ class RetrievalMixin:
         file_type_filter: str | None,
         use_hybrid_search: bool,
         filename_filter: list[str] | None = None,
-        workspace_id: str | None = None,
         source_ids: list[str] | None = None,
+        *,
+        scope: Scope,
     ) -> dict[str, dict[str, Any]]:
         """Run semantic search, an independent lexical search, merge, and filter.
 
@@ -268,15 +271,15 @@ class RetrievalMixin:
             min_similarity=min_similarity,
             file_type_filter=file_type_filter,
             filename_filter=filename_filter or [],
-            workspace_id=workspace_id,
             source_ids=source_ids or [],
+            scope=scope,
         )
         logger.debug(f"[RAG] Semantic search returned {len(semantic_results)} results")
 
         lexical_results: list = []
         if use_hybrid_search:
             lexical_results = self._run_lexical_search(
-                query_clean, top_k * 2, file_type_filter, filename_filter, workspace_id, source_ids
+                query_clean, top_k * 2, file_type_filter, filename_filter, source_ids, scope=scope
             )
             logger.debug(f"[RAG] Lexical search returned {len(lexical_results)} results")
 
@@ -423,9 +426,10 @@ class RetrievalMixin:
         use_hybrid_search: bool = True,
         expand_context: bool = True,  # NOSONAR — reserved public API parameter
         filename_filter: list[str] | None = None,
-        workspace_id: str | None = None,
         additional_workspace_ids: list[str] | None = None,
         source_ids: list[str] | None = None,
+        *,
+        scope: Scope,
     ) -> list[RetrievalResult]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
@@ -489,16 +493,17 @@ class RetrievalMixin:
         filtered_results = self._run_retrieval_pipeline(
             query_clean, query_embedding, top_k, min_similarity, file_type_filter, use_hybrid_search,
             filename_filter=filename_filter,
-            workspace_id=workspace_id,
             source_ids=source_ids,
+            scope=scope,
         )
 
-        # Cross-workspace: merge results from additional workspaces and re-rank
+        # Cross-workspace: merge results from additional workspaces and re-rank. Each id
+        # was authorised by the route (check_additional_workspace_access) before this.
         for extra_ws_id in (additional_workspace_ids or []):
             extra_results = self._run_retrieval_pipeline(
                 query_clean, query_embedding, top_k, min_similarity, file_type_filter,
-                use_hybrid_search, filename_filter=filename_filter, workspace_id=extra_ws_id,
-                source_ids=source_ids,
+                use_hybrid_search, filename_filter=filename_filter,
+                source_ids=source_ids, scope=extra_ws_id,
             )
             filtered_results.update(extra_results)
 
@@ -663,7 +668,9 @@ class RetrievalMixin:
         """
         return results
 
-    def test_retrieval(self, query: str, top_k: int | None = None) -> tuple[bool, list[dict[str, Any]]]:
+    def test_retrieval(
+        self, query: str, top_k: int | None = None, *, scope: Scope
+    ) -> tuple[bool, list[dict[str, Any]]]:
         """
         Test RAG retrieval system with a query.
 
@@ -677,7 +684,7 @@ class RetrievalMixin:
         try:
             logger.info(f"Testing retrieval with query: {query[:100]}...")
 
-            results = self.retrieve_context(query, top_k=top_k)
+            results = self.retrieve_context(query, top_k=top_k, scope=scope)
 
             if not results:
                 logger.warning("No results retrieved")

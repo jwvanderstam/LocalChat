@@ -258,7 +258,8 @@ def _init_database_service(app: Any, db: Any) -> None:
     if db_success:
         logger.info(db_message)
         _run_alembic_migrations()
-        doc_count = db.get_document_count()
+        from .utils.scope import ALL_WORKSPACES
+        doc_count = db.get_document_count(scope=ALL_WORKSPACES)
         logger.info(f"Documents in database: {doc_count}")
         try:
             purged = db.purge_expired_tokens()

@@ -857,8 +857,12 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   - **P2-1b-i** — ADR-5, the `get_connection(scope=)` seam on the 18 by-id methods, an AST
     check that each hands its own scope to the connection, and migration `0018` granting the
     application identity `SET` on `localchat_scoped`. No behaviour change.
-  - **P2-1b-ii** — convert the 34 `workspace_id: str | None` methods to `Scope`. Worth doing
-    on its own: it finishes P2-1a, removing "forgot the argument = every workspace" everywhere.
+  - **P2-1b-ii ✅** (2026-09-29) — the 15 filter methods, and the retrieval chain above them,
+    take a mandatory `Scope`; `SCOPED_METHODS` lists 33 and the AST check holds both the call
+    sites and the connection hand-off. Behaviour-preserving by construction: every former
+    `None` is an explicit `ALL_WORKSPACES`. It finishes P2-1a — "forgot the argument = every
+    workspace" is gone from every read path. Converting also surfaced a fourth, smaller
+    disclosure: `GET /api/status` counted documents for any `X-Workspace-ID`.
   - **P2-1b-iii** — the role switch in `get_connection()`. Needs the shared CI database to
     have the role, which today only the Alembic chain creates; and retrieval latency measured
     before and after, since `perf-canary` sees event-loop stalls, not query time.
@@ -871,7 +875,8 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   on paths the P2-2b matrix cannot see, since none addresses an object by path parameter.
   The same sort corrected the count: 16 of the 34 methods are filters where `None` means
   every workspace; 5 take the workspace a new row lands in, and 13 take the workspace itself
-  as the object. P2-1b-ii converts the 16.
+  as the object. On inspection `document_exists` belonged with the writes (`None` there means
+  "no workspace", matched with `IS NOT DISTINCT FROM`), so P2-1b-ii converted 15.
 
   **What is still open** is narrower than before: only a *statement*-level pooler would
   break this, and Scaleway's wording implies transaction pooling. That is one fact to

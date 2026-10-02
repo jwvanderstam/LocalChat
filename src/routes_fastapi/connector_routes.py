@@ -97,9 +97,8 @@ def list_connectors(request: Request) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
         return denied
-    workspace_id = get_workspace_id(request)
     try:
-        connectors = request.app.state.db.list_connectors(workspace_id=workspace_id)
+        connectors = request.app.state.db.list_connectors(scope=get_scope(request))
         return {"success": True, "connectors": connectors}
     except Exception:
         logger.exception("[Connectors] list error")

@@ -87,22 +87,18 @@ class ConnectorsMixin(MixinHost):
 
     def list_connectors(
         self,
-        workspace_id: str | None = None,
         enabled_only: bool = False,
+        *,
+        scope: Scope,
     ) -> list[dict[str, Any]]:
-        """Return all connectors, optionally filtered by workspace or enabled state."""
+        """Return the live connectors in *scope*, optionally only the enabled ones."""
         if not self.is_connected:
             return []
-        clauses = []
-        params: list = []
-        if workspace_id:
-            clauses.append("workspace_id = %s")
-            params.append(workspace_id)
+        scope_sql, params = scope_predicate(scope, "workspace_id")
+        where = f"WHERE deleted_at IS NULL{scope_sql}"
         if enabled_only:
-            clauses.append("enabled = true")
-        clauses.append("deleted_at IS NULL")
-        where = "WHERE " + " AND ".join(clauses)
-        with self.get_connection() as conn:
+            where += " AND enabled = true"
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     f"SELECT id, workspace_id, connector_type, display_name, config, "

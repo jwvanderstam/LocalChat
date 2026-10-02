@@ -54,6 +54,22 @@ SCOPED_METHODS = {
     "get_connector",
     "update_connector",
     "delete_connector",
+    # P2-1b-ii: the filters where `workspace_id=None` used to mean every workspace.
+    "search_similar_chunks",
+    "search_lexical_chunks",
+    "get_document_count",
+    "get_chunk_count",
+    "get_all_documents",
+    "get_stale_documents",
+    "count_conversations",
+    "list_conversations",
+    "delete_all_conversations",
+    "get_low_confidence_queries",
+    "list_connectors",
+    "get_workspace_ontology",
+    "search_memories",
+    "is_duplicate_memory",
+    "get_all_memories",
 }
 
 WS = "11111111-1111-1111-1111-111111111111"
