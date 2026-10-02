@@ -15,7 +15,7 @@ def _make_db_with_conversations():
             self._conn = MagicMock()
             self._cursor = MagicMock()
 
-        def get_connection(self):
+        def get_connection(self, *, scope=None):
             ctx = MagicMock()
             ctx.__enter__ = MagicMock(return_value=self._conn)
             ctx.__exit__ = MagicMock(return_value=False)

@@ -845,6 +845,24 @@ Ticket ids keep the plan's numbering. Each row names the driver it answers (§2 
   Until then the migration is **inert for the application**, which connects as the owner. That
   is deliberate and safe: the capability exists, is tested, and enforces nothing yet.
 
+  **Decided 2026-09-29 — [ADR-5](ADR.md).** The premise above was half right: `get_connection()`
+  does not know the scope, but every scoped method does, and it is already mandatory there. So
+  the scope is *passed*, not bound — `get_connection(scope=)` — and the contextvar route is
+  rejected for dropping silently at context boundaries. `ALL_WORKSPACES` stays on the owner
+  role. Deciding it surfaced the real gap: `scope` reaches only the 18 by-id methods, while 34
+  others, retrieval among them, still take `workspace_id: str | None` with `None` meaning every
+  workspace. Switching RLS on first would have covered everything except the path documents
+  leave by. So the application half is three PRs, in this order:
+
+  - **P2-1b-i** — ADR-5, the `get_connection(scope=)` seam on the 18 by-id methods, an AST
+    check that each hands its own scope to the connection, and migration `0018` granting the
+    application identity `SET` on `localchat_scoped`. No behaviour change.
+  - **P2-1b-ii** — convert the 34 `workspace_id: str | None` methods to `Scope`. Worth doing
+    on its own: it finishes P2-1a, removing "forgot the argument = every workspace" everywhere.
+  - **P2-1b-iii** — the role switch in `get_connection()`. Needs the shared CI database to
+    have the role, which today only the Alembic chain creates; and retrieval latency measured
+    before and after, since `perf-canary` sees event-loop stalls, not query time.
+
   **Sorting the `workspace_id: str | None` methods for P2-1b-ii found three disclosures**
   (2026-09-29), fixed on their own ahead of the conversion rather than queued behind it:
   chat's `additional_workspace_ids` were never authorised, `POST /api/documents/test`

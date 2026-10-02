@@ -208,7 +208,7 @@ class DocumentsMixin(MixinHost):
 
         logger.debug("Soft-deleting document ID: %s", doc_id)
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
@@ -520,7 +520,7 @@ class DocumentsMixin(MixinHost):
         )
         # document_chunks has no workspace of its own; it borrows the document's.
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -549,7 +549,7 @@ class DocumentsMixin(MixinHost):
             raise DatabaseUnavailableError("Cannot get chunk: Database is not connected")
 
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT dc.id, dc.document_id, dc.chunk_index, dc.chunk_text, dc.metadata"
@@ -762,7 +762,7 @@ class DocumentsMixin(MixinHost):
 
         logger.debug("Searching chunks for text: %s", str(search_text)[:100].replace('\r', '').replace('\n', ' '))
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT d.filename, dc.chunk_index, dc.chunk_text,
@@ -802,7 +802,7 @@ class DocumentsMixin(MixinHost):
 
         where, params = scope_predicate(scope, "workspace_id")
         logger.warning("Retiring all documents in scope %s", scope)
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"

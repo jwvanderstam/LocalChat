@@ -74,7 +74,7 @@ class ConnectorsMixin(MixinHost):
         if not self.is_connected:
             return None
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT id, workspace_id, connector_type, display_name, config, "
@@ -132,7 +132,7 @@ class ConnectorsMixin(MixinHost):
         params.append(connector_id)
         where, scope_params = scope_predicate(scope, "workspace_id")
         params.extend(scope_params)
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     f"UPDATE connectors SET {', '.join(sets)}"
@@ -150,7 +150,7 @@ class ConnectorsMixin(MixinHost):
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot delete connector: DB not connected")
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection() as conn:
+        with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE connectors SET deleted_at = NOW(), deleted_by = %s "
