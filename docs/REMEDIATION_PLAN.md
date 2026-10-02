@@ -25,9 +25,17 @@
 > | P1-4 | M6, M8 | ✅ | `ab7f66e`, `2966310`, `dcc2559` |
 > | P1-5 | M7 | ✅ | `1eb02ca` |
 > | D7 | README claim | ✅ | "Hardened beta", 2026-09-16 |
-> | P2-1 | driver 1 | ◐ | The `Scope` value object and the static CI check shipped with P0-1. Row-level security: the database half shipped in #400 (migration `0017`); the application does not use it yet |
-> | P2-2..P2-8 | drivers 2–6 | ⏳ | [ROADMAP Initiative 10](ROADMAP.md#initiative-10--security-audit-follow-through-p2), Sprints 15–18 (2026-09-17). P2-6 shipped 2026-09-20 (PyJWT; SECURITY §2 retired), P2-4 2026-09-21, P2-2 2026-09-26 (#396, #399). P2-8 is closed by decision: S3 removed, MCP kept behind a token |
+> | P2-1 | driver 1 | ✅ | The `Scope` value object and the static CI check shipped with P0-1. Row-level security: policies and the `localchat_scoped` role (#400, migration 0017), the `get_connection(scope=)` seam and [ADR-5](ADR.md) (#404), every read path taking a `Scope` (#406), and enforcement — a workspace-scoped transaction runs as the restricted role (#407), 2026-10-02. By design the `ALL_WORKSPACES` paths (admin, webhook receiver, `SyncWorker`) stay on the owner role. Residual: a *statement*-level pooler would break the transaction-local scope; to confirm against the deployed database |
+> | P2-2 | driver 2 | ✅ | `security-smoke` (#396) boots the shipped compose with the nginx overlay and `--profile mcp`; required since 2026-09-26 (#398). The object-authorization matrix runs over the wire against real Postgres (#399) |
+> | P2-3 | driver 3 | ◐ | `scripts/eval_answers.py` and a 105-case baseline on a private corpus, `tests/eval/answer_baseline.json` (#410). Run manually, not nightly: no model on a runner and the corpus is private. Still open: calibrating the LLM judge against a human-scored sample |
+> | P2-4 | driver 6 | ✅ | No production `assert` (#388); every blind `except` argued or narrowed under `BLE001` (#389), 2026-09-25 |
+> | P2-5 | driver 6 | ✅ | CPU-only torch; the image went from 9.50 GB to 2.95 GB (#408). `tests/unit/test_lock_is_cpu_only.py` holds it |
+> | P2-6 | driver 6 | ✅ | PyJWT, 2026-09-24 (#384); SECURITY §2 retired |
+> | P2-7 | driver 4 | ◐ | Doc tests in part: `test_configuration_doc_covers_config`, `test_env_example_is_read` and `test_permissions_doc_matches_routes` hold. Still open: the `src/...` path and `/api/...` endpoint tests, and the split of the journal under `docs/history/` |
+> | P2-8 | driver 5 | ✅ | Closed by decision: S3 removed, MCP kept behind a token |
 > | §4.1 sweep | docs | ✅ | The bundle was never merged; the sweep was redone from the table on 2026-09-17, re-verified row by row against the code (29 dead variables rather than 26; `onnxruntime` at 1.30.0 rather than 1.28.0). `tests/unit/test_env_example_is_read.py` holds it |
+>
+> P2 is scheduled as [ROADMAP Initiative 10](ROADMAP.md#initiative-10--security-audit-follow-through-p2), Sprints 15–18. P2 rows last checked against `main` on 2026-10-02.
 >
 > What this episode taught is [LESSONS_LEARNED Ch. 20](LESSONS_LEARNED.md#20-every-route-had-a-guard-and-a-green-check-said-so).
 
