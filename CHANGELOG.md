@@ -305,6 +305,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   check `DEMO_MODE`, deleted in SEC-1. Also corrected: `DB_POOL_MAX_CONN`, the supported
   extensions, the absence of PDF OCR, the login checklist, Redis persistence and HNSW
   maintenance, and the `--profile mcp` outage, fixed since and now guarded by CI.
+- **DEPLOYMENT and CONFIGURATION verified against the code** (ROADMAP P2-7), completing
+  the seven operator documents. DEPLOYMENT said, twice, that an empty `ADMIN_PASSWORD`
+  disables authorisation — true until SEC-1, and now the opposite. Its pooler section and
+  CONFIGURATION's `ef_search` note both predated #407: workspace-scoped transactions now set
+  `ef_search` with `SET LOCAL`, so only the installation-wide paths depend on the session
+  value. Every default CONFIGURATION documents was compared against `config.py` and matches.
 
 - **P2-1b's pooler precondition is settled, with the probe committed** as
   `tests/integration/test_set_local_scope_mechanism.py`. The ticket had asked whether a

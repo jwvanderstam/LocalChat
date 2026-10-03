@@ -1262,8 +1262,10 @@ that evidence cannot be produced again.
     log line no code writes, a retry bound since doubled. OPERATIONS and TROUBLESHOOTING
     followed: a backup recipe naming a volume that does not exist, Redis advice inverted by
     `REDIS_STRICT`, a deleted `DEMO_MODE`, a pool setting under the wrong name, OCR that
-    nothing performs, and an MCP outage long since fixed. Still to verify: DEPLOYMENT,
-    CONFIGURATION.
+    nothing performs, and an MCP outage long since fixed. DEPLOYMENT and CONFIGURATION
+    completed the set: an `ADMIN_PASSWORD` bypass SEC-1 had removed, and a pooler warning
+    and an `ef_search` formula both predating #407. All seven operator documents now carry
+    the line; what remains of P2-7 is ROADMAP's own history notes.
 
 ### P2-8 — Surface reduction per D4 and D5 ✅ (closed by decision, 2026-09-16)
 
