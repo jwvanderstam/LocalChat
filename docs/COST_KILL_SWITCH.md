@@ -1,5 +1,8 @@
 # The cost kill switch
 
+> Verified against `scripts/scaleway/` at `ff034d1` on 2026-10-03. The test runs and the
+> account snapshot below are dated records of what was observed then, not re-checked.
+
 **Scaleway has no spend cap.** Not on the account, not on a project, not on a resource.
 A budget alert is an estimate, it lags the invoice, and it stops nothing — it emails you.
 This page is the thing that actually stops the burn, and you should read it *before* you
@@ -54,8 +57,8 @@ had never been observed until this run.
 **The private network failed on a race, not a design error.** A delete returns before the
 deleted resource's network attachments are released, so the network was seconds away from
 deletable when it was asked. A second run cleared it. The script now retries that one
-level three times with a short delay — bounded, because an account that is burning cannot
-wait forever, and free to retry, because a Private Network costs nothing.
+level — up to six attempts, five seconds apart — bounded, because an account that is
+burning cannot wait forever, and free to retry, because a Private Network costs nothing.
 
 **The failure was loud, which is the point.** It named the survivor, told the operator to
 finish it by hand, and exited non-zero. A teardown that quietly leaves something behind is
@@ -69,7 +72,8 @@ needed the retry every time: it cleared on attempt three in the first two, and i
 one **three attempts were not enough** — the script named it, exited 1, and a second run
 deleted it. So the race is the normal case rather than the exception, the bounded retry
 usually absorbs it, and re-running remains the first thing to try when it does not
-(`PN_RETRIES` and `PN_RETRY_DELAY` raise the bound). Nothing is billing meanwhile — a
+(`PN_RETRIES` and `PN_RETRY_DELAY` raise the bound). Those runs used three attempts; the
+default became six on 2026-09-14 (#376) so the budget outlasts what had been seen. Nothing is billing meanwhile — a
 Private Network is free. The volume and IP sections came back empty on every run, which is
 now four observations rather than one.
 
@@ -110,9 +114,9 @@ The moment that stops being true, this page needs rewriting — not ignoring.
 
 ---
 
-## What is actually running right now
+## What was running when last checked
 
-*Checked 2026-09-05.* Consumption for the current period was **€2.31 total**, and none of
+*Checked 2026-09-05; re-check with the commands under "By hand" before relying on it.* Consumption for the current period was **€2.31 total**, and none of
 it is LocalChat's:
 
 | Project | What | Cost so far |

@@ -290,6 +290,15 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Documentation
 
+- **Three operator documents re-read against the code** (ROADMAP P2-7), each now carrying a
+  dated "verified against" line. MIGRATIONS: the chain does more than add columns (tables,
+  backfills, the row-level-security role and policies), `ensure_scoped_role()` runs after
+  it, and an unreachable database is an error, or an exit under `REQUIRE_DATABASE=true`.
+  WORKSPACE_API_KEYS: the n8n recipe read a `response` field `/api/chat` does not send — it
+  streams SSE — and the intro promised a `key_prefix=` log line no code writes;
+  `last_used_at` is the real trace. COST_KILL_SWITCH: the Private Network retry is six
+  attempts, not three, and the account snapshot is marked as dated.
+
 - **P2-1b's pooler precondition is settled, with the probe committed** as
   `tests/integration/test_set_local_scope_mechanism.py`. The ticket had asked whether a
   per-transaction workspace scope would be dropped behind a pooler the way
