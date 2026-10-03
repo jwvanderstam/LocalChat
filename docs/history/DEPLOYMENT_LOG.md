@@ -1,7 +1,7 @@
 # Deployment log
 
 A record of every session that touched the Scaleway deployment: what was done, what it
-found, and what it cost. [DEPLOYMENT_SCALEWAY.md](DEPLOYMENT_SCALEWAY.md) is the plan and
+found, and what it cost. [DEPLOYMENT_SCALEWAY.md](../DEPLOYMENT_SCALEWAY.md) is the plan and
 the reference; this is the history of running it.
 
 It exists because the stack is ephemeral. Deploy, test, destroy is the pattern, so nothing
@@ -192,7 +192,7 @@ Pulling `llama3.2:1b` afterwards did not fix it: the active model is chosen only
 so it stayed on the embedding model. `POST /api/models/active` did fix it — the same
 question then streamed tokens and cited the right chunks in 32 s.
 
-Written up in [TROUBLESHOOTING.md](TROUBLESHOOTING.md) and beside Phase 4 in the plan.
+Written up in [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) and beside Phase 4 in the plan.
 **Not fixed in code** — the fix is a two-line change (drop the fallback, or refuse to make an
 embedding model active) plus a decision about what the app should do when it has no model it
 can chat with, and that decision is worth making deliberately rather than at the end of a
@@ -383,6 +383,6 @@ One section per session, newest at the bottom. Record what was done, what was fo
 the plan did not predict, and what it cost. An entry that only says what was done is a
 changelog; the value is in the second part.
 
-Read [§10b](DEPLOYMENT_SCALEWAY.md) before writing one: claims stated confidently and never
+Read [§10b](../DEPLOYMENT_SCALEWAY.md) before writing one: claims stated confidently and never
 run are the specific failure this project has already made repeatedly, and a log entry is
 another place to make it.

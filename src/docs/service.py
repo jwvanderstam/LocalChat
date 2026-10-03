@@ -64,15 +64,15 @@ _CATALOGUE: list[tuple[str, str]] = [
     ("rules-python", ".claude/rules/python.md"),
     ("rules-testing", ".claude/rules/testing.md"),
     ("docs-roadmap", "docs/ROADMAP.md"),
-    ("docs-production-plan", "docs/PRODUCTION_PLAN.md"),
-    ("docs-auth-plan", "docs/AUTH_PLAN.md"),
-    ("docs-remediation-plan", "docs/REMEDIATION_PLAN.md"),
-    ("docs-lessons-learned", "docs/LESSONS_LEARNED.md"),
-    ("docs-test-quality-audit", "docs/TEST_QUALITY_AUDIT.md"),
+    ("docs-production-plan", "docs/history/PRODUCTION_PLAN.md"),
+    ("docs-auth-plan", "docs/history/AUTH_PLAN.md"),
+    ("docs-remediation-plan", "docs/history/REMEDIATION_PLAN.md"),
+    ("docs-lessons-learned", "docs/history/LESSONS_LEARNED.md"),
+    ("docs-test-quality-audit", "docs/history/TEST_QUALITY_AUDIT.md"),
     ("docs-integration-tests", "docs/INTEGRATION_TESTS.md"),
     ("docs-deployment-scaleway", "docs/DEPLOYMENT_SCALEWAY.md"),
     ("docs-cost-kill-switch", "docs/COST_KILL_SWITCH.md"),
-    ("docs-deployment-log", "docs/DEPLOYMENT_LOG.md"),
+    ("docs-deployment-log", "docs/history/DEPLOYMENT_LOG.md"),
 ]
 
 #: Greedy to end-of-line, with the trailing space stripped in Python. The lazy

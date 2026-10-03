@@ -132,7 +132,7 @@ Design decisions worth keeping:
   32-byte random key is not brute-forced, and a slow hash would tax every request.
 - **Revocation is soft-delete**, so the audit trail outlives the credential.
 
-See [WORKSPACE_API_KEYS.md](WORKSPACE_API_KEYS.md).
+See [WORKSPACE_API_KEYS.md](../WORKSPACE_API_KEYS.md).
 
 ## Phase 2 — AUTH-2: user management in Settings ✅ (done)
 

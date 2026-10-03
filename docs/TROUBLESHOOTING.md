@@ -80,7 +80,7 @@ ERROR src.ollama_client | Ollama API error 400: {"error":"\"nomic-embed-text:lat
 *unfiltered* list when the filter left nothing, so the embedding model became the active
 chat model and `/api/status` reported `ready: true` naming it. The fallback is gone; the
 function now returns `None` and logs that chat is unavailable. Observed on the Scaleway
-deployment on 2026-09-08 — see [DEPLOYMENT_LOG.md](DEPLOYMENT_LOG.md).
+deployment on 2026-09-08 — see [DEPLOYMENT_LOG.md](history/DEPLOYMENT_LOG.md).
 
 ### Slow responses / GPU not used
 

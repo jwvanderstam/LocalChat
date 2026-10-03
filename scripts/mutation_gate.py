@@ -8,7 +8,7 @@ Scoped ruthlessly on purpose. A whole-repo run is hours, and the modules here ar
 where the three confirmed authorisation bugs actually lived.
 
 Everything in this file that looks fussy was learned by getting a wrong number
-first — see the environment notes in docs/TEST_QUALITY_AUDIT.md:
+first — see the environment notes in docs/history/TEST_QUALITY_AUDIT.md:
 
 * ``--test-time-base`` because mutmut buckets partly on wall-clock, and a loaded
   runner files kills as "suspicious" (one local run read 4 killed / 108
@@ -54,7 +54,7 @@ MODULES: dict[str, list[str]] = {
     ],
 }
 
-#: Agreed in docs/PRODUCTION_PLAN.md. Deliberately above the measured baseline —
+#: Agreed in docs/history/PRODUCTION_PLAN.md. Deliberately above the measured baseline —
 #: a threshold set to today's score ratifies the status quo instead of gating it.
 DEFAULT_THRESHOLD = 80.0
 

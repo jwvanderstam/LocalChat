@@ -99,17 +99,17 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/WORKSPACE_API_KEYS.md` | How to give a chatbot/n8n bridge scoped access to one workspace — create, use, revoke, and why the scope cannot be overridden |
 | `docs/n8n-discord-setup.md` | Werkende n8n → LocalChat → Discord opzet: Header Auth, SSE-respons als tekst parsen, valkuilen |
 | `docs/bugreport-n8n-localchat.md` | Bevindingen bij het opzetten van die koppeling — 2 opgelost, 1 open (`conversation_id` → 500) |
-| `docs/AUTH_PLAN.md` | Authentication build plan — AUTH-1..4: local login, Users screen, OIDC (Entra/Google), then deleting the bypasses |
-| `docs/REMEDIATION_PLAN.md` | The September 2026 external security audit's findings register (C1–C4, H1–H4, M1–M8), the P0/P1/P2 plan, and the decisions D1–D7 — committed after v3.1.0 shipped every P0 and P1, with a banner mapping each row to where it landed and what is still open (P2, the §4.1 docs sweep) |
-| `docs/PRODUCTION_PLAN.md` | Production-hardening plan from the 2026-08-04 external audit — TQ/SEC tickets and the exit criteria ROADMAP Sprints 8–12 queue behind |
+| `docs/history/AUTH_PLAN.md` | Authentication build plan — AUTH-1..4: local login, Users screen, OIDC (Entra/Google), then deleting the bypasses |
+| `docs/history/REMEDIATION_PLAN.md` | The September 2026 external security audit's findings register (C1–C4, H1–H4, M1–M8), the P0/P1/P2 plan, and the decisions D1–D7 — committed after v3.1.0 shipped every P0 and P1, with a banner mapping each row to where it landed and what is still open (P2, the §4.1 docs sweep) |
+| `docs/history/PRODUCTION_PLAN.md` | Production-hardening plan from the 2026-08-04 external audit — TQ/SEC tickets and the exit criteria ROADMAP Sprints 8–12 queue behind |
 | `docs/DEPLOYMENT_SCALEWAY.md` | Deploying the stack on Scaleway — compose-service mapping, the decisions register (§2) and what would reverse each, the pgvector `SET` caveat, the `X-Forwarded-For` trust problem, cost ceilings, Terraform coverage, and §11's list of every unverified claim with the check that settles it. Phases 0-4 are deployed and verified; only the GPU decision is open |
-| `docs/DEPLOYMENT_LOG.md` | One entry per deployment session — what was done, what it found that the plan did not predict, and what it cost. Exists because the stack is ephemeral, so nothing in the account is evidence afterwards. **No secret value may ever appear in it**; incidents are recorded by what happened, not by what leaked |
+| `docs/history/DEPLOYMENT_LOG.md` | One entry per deployment session — what was done, what it found that the plan did not predict, and what it cost. Exists because the stack is ephemeral, so nothing in the account is evidence afterwards. **No secret value may ever appear in it**; incidents are recorded by what happened, not by what leaked |
 | `docs/COST_KILL_SWITCH.md` | The emergency brake on Scaleway spend — why it deletes rather than stops, what bills and at what rate, what the sweep deliberately leaves alone, and how to verify the burn stopped |
 | `docs/ADR.md` | Architecture Decision Records — ADR-1 (single-node appliance), ADR-2 (sync DB layer), ADR-3 (hardened distroless image), ADR-4 (cloud fallback targets OpenAI-compatible endpoints directly, not a multi-provider adapter), ADR-5 (workspace isolation enforced by row-level security — what that commits to and what it does not), ADR-6 (the generation path is a deterministic pipeline; agentic orchestration is an eval-gated experiment), each with the condition that would reopen it |
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |
 | `docs/SCHEMA.md` | Database schema reference + ER diagram |
 | `docs/TROUBLESHOOTING.md` | Common issues and fixes |
-| `docs/LESSONS_LEARNED.md` | Chronological architecture/decision history, built from `git log` + `docs/ROADMAP.md` |
+| `docs/history/LESSONS_LEARNED.md` | Chronological architecture/decision history, built from `git log` + `docs/ROADMAP.md` |
 | `docs/SETTINGS.md` | Per-RAG-parameter descriptions — source of truth for `templates/settings.html`'s help text via `DocsService` |
 | **Agent** | |
 | `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); <1 ms |
@@ -240,7 +240,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_permissions_doc_matches_routes.py` | The IVP for `docs/PERMISSIONS.md` — every route has a row, no row is stale, and the distribution total matches the table |
 | `tests/unit/test_env_example_is_read.py` | The other direction: every variable `.env.example` names, and every row of CONFIGURATION.md's reference tables, is read by `config.py`, `app.py`, the entrypoint or a compose file — 29 were not on 2026-09-16 — and an uncommented example value matches the code's default unless listed as a deliberate placeholder |
 | `tests/unit/test_configuration_doc_covers_config.py` | The IVP for `docs/CONFIGURATION.md` — every env var `config.py` reads is documented, and nothing outside `config.py` calls `os.getenv` |
-| `tests/unit/test_docs_reference_what_exists.py` | P2-7 — every repository path and `/api/...` endpoint a current-state document names exists; the journal is excluded by name until it moves to `docs/history/`, and each deliberate exception carries a reason |
+| `tests/unit/test_docs_reference_what_exists.py` | P2-7 — every repository path and `/api/...` endpoint a current-state document names exists. The journal is excluded: `docs/history/` by location, CHANGELOG and ROADMAP by name; each deliberate exception carries a reason |
 | `tests/unit/test_app_version_is_consistent.py` | `APP_VERSION` is declared in `config.py`, `docker-compose.yml` and `CONFIGURATION.md` with nothing deriving it from the tag — this fails when they disagree, as they had (1.0.0 / 0.5.0 / 1.0.0 against a v3 tag) |
 | `.github/dependabot.yml` | Weekly pip + Actions updates; auto-assigned, labels `dependencies`/`ci` |
 | `.github/ISSUE_TEMPLATE/improvement.md` | Structured improvement-feedback issue form (OPS-3); replaces the wiki page whose front-matter never rendered |
@@ -257,7 +257,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `.github/workflows/gitleaks.yml` | Secret-scanning on push/PR to main |
 | `.github/workflows/docker-publish.yml` | Builds and publishes the app's Docker image |
 | `docs/INTEGRATION_TESTS.md` | How to run integration tests locally and CI setup instructions |
-| `docs/TEST_QUALITY_AUDIT.md` | Mutation-testing (mutmut) methodology + per-module test-quality findings; environment setup notes (Docker, isolated worktree, mutmut 2.x vs 3.x) |
+| `docs/history/TEST_QUALITY_AUDIT.md` | Mutation-testing (mutmut) methodology + per-module test-quality findings; environment setup notes (Docker, isolated worktree, mutmut 2.x vs 3.x) |
 | `docker-compose.nginx.yml` | Nginx TLS overlay — compose with `docker-compose.yml` to add HTTPS termination. Pins the `frontend` network to a fixed subnet and trusts only that as a proxy; puts `nginx` on it, without which `proxy_pass` could not resolve `app` |
 | `docker-compose.ci.yml` | CI-only overlay for `security-smoke` — resets the NVIDIA device reservations on `app`/`ollama` (Compose enforces them at container *start*, so a GPU-less runner dies with `could not select device driver` while `docker compose config` looks fine) and stubs the 9.7 GB Ollama image. Nothing else; `tests/unit/test_ci_overlay_is_narrow.py` is what keeps it that way |
 | `nginx/nginx.conf` | Nginx config template — replace `YOUR_DOMAIN` and mount certs before use. Sets `X-Forwarded-For` to `$remote_addr` (replacing, not appending) so a caller cannot choose its own rate-limit key |

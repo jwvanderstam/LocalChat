@@ -2,7 +2,7 @@
 
 ## Assertion-strength checklist
 
-Mutation testing (`docs/TEST_QUALITY_AUDIT.md`) found that coverage percentage
+Mutation testing (`docs/history/TEST_QUALITY_AUDIT.md`) found that coverage percentage
 hides weak tests — a line can execute inside a test with zero assertions on
 its actual behavior and still count as "covered." Root cause: test-writing
 sessions framed around a coverage-percentage target reward touching a line,

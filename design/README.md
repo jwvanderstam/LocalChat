@@ -45,5 +45,5 @@ title, and it was removed rather than kept as decoration.
 
 The direction is settled; nothing here is implemented. Adopting it means
 rewriting `static/css/style.css` and the four templates, which is not scheduled
-and belongs behind the [PRODUCTION_PLAN](../docs/PRODUCTION_PLAN.md) exit
+and belongs behind the [PRODUCTION_PLAN](../docs/history/PRODUCTION_PLAN.md) exit
 criteria like every other non-defect change.

@@ -33,7 +33,7 @@ List the problems or limitations observed.
 
 Actionable suggestions. If a recommendation changes a security boundary, say which layer
 it acts on: reachability, authentication, or authorisation. See
-[LESSONS_LEARNED](https://github.com/jwvanderstam/LocalChat/blob/main/docs/LESSONS_LEARNED.md)
+[LESSONS_LEARNED](https://github.com/jwvanderstam/LocalChat/blob/main/docs/history/LESSONS_LEARNED.md)
 chapter 19 for why that distinction is asked for here.
 
 ## References
