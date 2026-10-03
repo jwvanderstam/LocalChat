@@ -155,6 +155,15 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Security
 
+- **The metrics endpoints decide "administrator" the way every other guard does.** With
+  `METRICS_TOKEN` set, `/api/metrics` and `/api/metrics.json` admitted a session whose JWT
+  `role` claim said admin — so a demoted administrator kept reading metrics until the token
+  expired (audit H2's shape), and a revoked token was not refused (H1's). The check now asks
+  `resolve_principal`, which reads the role from the database and refuses revoked tokens.
+  `test_one_authentication_resolver` now fails if any module outside `security_fastapi.py`
+  reads token claims; the old scan covered that one file, which is how this one was missed.
+  Found while verifying the operator documents (P2-7).
+
 - **PyJWT 2.15.0 and urllib3 2.8.0**, for CVE-2026-101918 (PyJWT) and CVE-2026-97687, -97688
   and -97689 (urllib3). Newly published advisories that turned `pip-audit` red on `main` and on
   every open PR at once. urllib3 is transitive, so it moved by a targeted
