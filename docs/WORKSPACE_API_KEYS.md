@@ -1,5 +1,7 @@
 # Workspace API Keys — a workspace as a chatbot endpoint
 
+> Verified against the code at `ff034d1` on 2026-10-03.
+
 A workspace can be addressed programmatically by a key scoped to that workspace: a
 Discord bridge through n8n, a Slack app, a scheduled report, a CLI. The key is the
 principal — **not a user account borrowed by a machine**.
@@ -7,8 +9,9 @@ principal — **not a user account borrowed by a machine**.
 That distinction is the whole point. A bridge logging in as a person has a password
 nobody resets, a session that expires mid-conversation, and an audit trail naming
 someone who was asleep when the request happened. A key has none of those: it is
-created, used, and revoked, and the log says `key_prefix=lcw_4Nto…` because that is
-what actually made the call.
+created, used, and revoked, and its own row records who created it, when it was last
+used, and who revoked it. (The access log does not name the caller — for a key or a
+user — so `last_used_at` is the per-key trace.)
 
 ## Creating a key
 
@@ -33,7 +36,10 @@ curl -X POST http://localhost:5000/api/workspaces/<workspace-id>/keys \
 {
   "success": true,
   "key": "lcw_4NtoQval…",
-  "info": { "id": "…", "name": "discord-bridge", "key_prefix": "lcw_4NtoQval", "role": "viewer" }
+  "info": {
+    "id": "…", "workspace_id": "…", "name": "discord-bridge",
+    "key_prefix": "lcw_4NtoQval", "role": "viewer", "created_at": "…"
+  }
 }
 ```
 
@@ -108,10 +114,13 @@ the practical way to spot a key nothing uses any more.
    exported and shared.
 3. HTTP Request node: `POST http://<host>:5000/api/chat`, header
    `Authorization: Bearer lcw_…`, body `{"message": "<the Discord message>"}`.
-4. Return `response` to Discord.
+   The reply is a server-sent event stream, not JSON, so set the node's response
+   format to text.
+4. Join the `content` of each `data:` event and send that to Discord. The
+   [n8n → Discord guide](n8n-discord-setup.md) has the Code node that does it.
 
 One key per bridge, named for the bridge. Two bridges sharing a key cannot be told
-apart in the log, and revoking one revokes both.
+apart, and revoking one revokes both.
 
 ## Where this fits architecturally
 

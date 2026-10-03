@@ -1,5 +1,7 @@
 # Database Migrations
 
+> Verified against the code at `ff034d1` on 2026-10-03.
+
 LocalChat uses [Alembic](https://alembic.sqlalchemy.org/) for versioned schema migrations.
 
 ## How it works
@@ -11,7 +13,8 @@ migrations are skipped.
 | Layer | Responsibility |
 |-------|---------------|
 | `_ensure_extensions_and_tables()` | Creates all tables (`CREATE TABLE IF NOT EXISTS`) on first boot |
-| Alembic migrations | Adds columns and indexes to existing tables (`ALTER TABLE IF NOT EXISTS`) |
+| Alembic migrations | Everything after the base schema: added columns (`ADD COLUMN IF NOT EXISTS`) and indexes, new tables, data backfills, and the row-level-security role and policies (`0017`, `0018`) |
+| `ensure_scoped_role()` | Runs after the chain and re-applies the `localchat_scoped` grants, since a migration can add a table the role has not been granted yet |
 
 ## Migration files
 
@@ -75,6 +78,8 @@ Alembic's `op.add_column()` helpers.
 
 **Rules:**
 - Always use `IF NOT EXISTS` / `IF EXISTS` in DDL — migrations must be idempotent.
+  Where Postgres has no such form (`CREATE ROLE`, `CREATE POLICY`), guard it the way
+  `0017` does: a `DO` block that checks the catalogue, or `DROP ... IF EXISTS` then `CREATE`.
 - Never use destructive DDL in `upgrade()` (no `DROP COLUMN`, `DROP TABLE`).
   Use a follow-up migration after confirming all instances are on the new schema.
 - Data backfills belong in the same migration as the column that requires them.
@@ -127,4 +132,5 @@ the push.
 2. Restart the app — migrations run automatically on startup.
 
 No manual steps required. If the app cannot connect to the database, migrations
-are skipped and a warning is logged. Fix the DB connection and restart.
+are skipped: the app logs an error and starts in degraded mode, or exits if
+`REQUIRE_DATABASE=true`. Fix the DB connection and restart.
