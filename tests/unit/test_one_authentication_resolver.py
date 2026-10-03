@@ -204,3 +204,25 @@ class TestAppOnlyRoutesThroughOneResolver:
             f"{offenders}. The role is minted at login and outlives a demotion — "
             "read it from the database via resolve_principal (audit H2)."
         )
+
+    def test_no_module_outside_the_resolver_reads_token_claims(self):
+        """The scan above covers one file. The metrics check sat in another and read
+        `(_claims_from_request(req) or {}).get("role")` — a demoted or revoked admin
+        kept reading metrics. Outside security_fastapi.py, nothing touches claims."""
+        import re
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[2]
+        decoders = re.compile(r"\b(_claims_from_request|_decode_token|_get_token_claims|jwt\.decode)\b")
+        offenders = sorted(
+            f"{path.relative_to(root).as_posix()}:{n}"
+            for base in ("src", "mcp_servers")
+            for path in (root / base).rglob("*.py")
+            if path.name != "security_fastapi.py"
+            for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+            if decoders.search(line)
+        )
+        assert offenders == [], (
+            "token claims read outside security_fastapi.py — establish the caller with "
+            f"resolve_principal instead: {offenders}"
+        )

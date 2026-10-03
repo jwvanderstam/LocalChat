@@ -266,14 +266,15 @@ def _check_metrics_auth(req: Any) -> bool:
     if auth.startswith("Bearer ") and auth[7:] == config.METRICS_TOKEN:
         return True
 
-    # An authenticated administrator already sees everything on this page.
+    # An authenticated administrator already sees everything on this page. Asked of
+    # resolve_principal, not the token: the JWT's role claim outlives a demotion and
+    # does not see revocation (audit H1/H2).
     try:
-        from .security_fastapi import _claims_from_request
+        from .security_fastapi import resolve_principal
 
-        return (_claims_from_request(req) or {}).get("role") == "admin"
+        return resolve_principal(req).is_admin
     except Exception as e:  # noqa: BLE001 — fail closed — an unverifiable session is not an authorised one, whatever went wrong
-        # Fail closed: an unverifiable session is not an authorised one.
-        logger.debug("[Metrics] Could not read session claims: %s", e)
+        logger.debug("[Metrics] Could not establish an administrator: %s", e)
         return False
 
 
