@@ -1,5 +1,9 @@
 # Configuration reference
 
+> Verified against `src/config.py` and `docker-compose.yml` at `ff034d1` on 2026-10-03 —
+> every documented default compared to the code. `test_configuration_doc_covers_config` and
+> `test_env_example_is_read` hold the variable lists; the defaults are not yet under test.
+
 **Reference.** Every environment variable LocalChat reads, with its default and effect.
 Settings load once in [`src/config.py`](../src/config.py); nothing outside that file calls
 `os.getenv`, so that file and this page are the whole surface.
@@ -157,7 +161,11 @@ override file — not in `.env`.
 
 LocalChat supports two caching backends:
 
-#### Memory Cache (Default)
+The code defaults to the memory cache (`REDIS_ENABLED=false`); the shipped
+`docker-compose.yml` turns Redis on for the app, and `REDIS_STRICT` (default `true`) then
+makes an unreachable Redis abort the boot rather than fall back.
+
+#### Memory Cache (code default)
 - **Pros**: No external dependencies, fast, simple setup
 - **Cons**: Lost on restart, limited capacity, single-process only
 - **Best for**: Development, testing, light loads
@@ -244,7 +252,8 @@ DB_POOL_MIN_CONN = 2
 DB_POOL_MAX_CONN = 10
 
 # HNSW Index Parameters
-# ef_search is computed dynamically as max(TOP_K_RESULTS * 2, 40)
+# ef_search: 100, set once per pooled connection; 400 (with iterative_scan) via
+# SET LOCAL inside every workspace-scoped transaction
 DB_INDEX_TYPE = 'hnsw'        # Use HNSW for fast ANN search
 ```
 

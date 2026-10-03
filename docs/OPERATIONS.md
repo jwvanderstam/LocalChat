@@ -1,5 +1,7 @@
 # Operations Guide
 
+> Verified against the code and `docker-compose.yml` at `ff034d1` on 2026-10-03.
+
 Backup, restore, and maintenance procedures for a production LocalChat deployment.
 
 ---
@@ -7,7 +9,7 @@ Backup, restore, and maintenance procedures for a production LocalChat deploymen
 ## Plugin Security
 
 LocalChat supports custom tool plugins loaded from the `plugins/` directory at startup
-(`src/tools/plugin_loader.py`). Plugins are plain `.py` files imported with full Python
+(`src/tools/plugin_loader.py`; on by default — `PLUGINS_ENABLED`, `PLUGINS_DIR`). Plugins are plain `.py` files imported with full Python
 interpreter access — they can import any module, open files, make network requests, or
 modify application state.
 
@@ -121,29 +123,19 @@ is right.
 
 ## Redis Persistence
 
-Redis is used for rate-limiting counters and the embedding/query cache.  By default the Docker image runs with no persistence — data is lost on container restart.
+Redis is used for rate-limiting counters (DB 1) and the embedding/query cache (DB 0).
 
-### Recommended: RDB snapshots
+### Shipped default: RDB snapshots
 
-Add to `docker-compose.yml` under the `redis` service:
-
-```yaml
-redis:
-  command: redis-server --save 60 1 --loglevel warning
-  volumes:
-    - redis_data:/data
-```
-
-This saves a snapshot every 60 seconds if at least 1 key changed.
+The `redis` service in `docker-compose.yml` already runs with `--save 60 1` and the
+`redis_data` volume, so a snapshot is written every 60 seconds if at least one key
+changed, and it survives a container restart. Nothing to add.
 
 ### AOF (append-only file) for stricter durability
 
-```yaml
-redis:
-  command: redis-server --appendonly yes --appendfsync everysec
-  volumes:
-    - redis_data:/data
-```
+Add `--appendonly yes --appendfsync everysec` to the existing `redis-server` command in
+`docker-compose.yml`. Add them; do not replace the command, which also carries
+`--maxmemory`, the eviction policy and the password.
 
 AOF with `everysec` loses at most 1 second of writes on crash.
 
@@ -156,11 +148,14 @@ The embedding and query caches are warm-caches only — losing them causes a sho
 ## Docker Volume Backup
 
 LocalChat uses named volumes for persistent data.  Back them up by streaming the volume contents through `tar`.
+The `localchat_` prefix is the Compose project name, which defaults to the directory name —
+`docker volume ls` shows the real ones. A wrong name does not fail: Docker creates an empty
+volume and `tar` archives nothing.
 
 ```bash
 # Back up PostgreSQL data volume
 docker run --rm \
-  -v localchat_pgdata:/source:ro \
+  -v localchat_postgres_data:/source:ro \
   -v $(pwd)/backups:/dest \
   busybox tar czf /dest/pgdata_$(date +%Y%m%d).tar.gz -C /source .
 
@@ -174,9 +169,9 @@ docker run --rm \
 To restore, reverse the process into a fresh volume before starting the stack:
 
 ```bash
-docker volume create localchat_pgdata
+docker volume create localchat_postgres_data
 docker run --rm \
-  -v localchat_pgdata:/dest \
+  -v localchat_postgres_data:/dest \
   -v $(pwd)/backups:/source:ro \
   busybox tar xzf /source/pgdata_20260101.tar.gz -C /dest
 ```
@@ -223,9 +218,12 @@ which follows `APP_ENV`:
 | `production` | INFO | ~3 MB/day | about a week |
 | anything else | DEBUG | ~30 MB/day | **under a day** |
 
-That tenfold gap is third-party DEBUG chatter, not application detail — the `markdown`
-library alone emits ~1275 records per boot. A stack left on `APP_ENV=development`
-therefore has a log window measured in hours, and its operator usually does not know it.
+Those figures were measured on 2026-08-21, and the tenfold gap was third-party DEBUG
+chatter — the `markdown` library alone emitted ~1275 records per boot. Since 2026-08-22
+(#301) the noisiest libraries are held at `LOG_THIRD_PARTY_LEVEL` (default `WARNING`)
+whatever `APP_ENV` says, so the gap is now mostly application DEBUG and smaller than the
+table shows. The container image pins `APP_ENV=production`; the DEBUG row applies to a
+host run or an override.
 
 Measure your own rate rather than trusting the table — the sizes and timestamps give it
 to you directly:
@@ -276,13 +274,14 @@ docker run --rm -v localchat_app_logs:/v -v "$(pwd)":/dest alpine   tar czf /des
 
 ## Ollama Model Management
 
-Ollama model weights are stored inside the `ollama` container (or a named volume if you configured one).  They are large (2–30 GB each) and not backed up by the above procedures.
+Ollama model weights live in the `ollama_models` named volume, so they survive container
+recreation. They are large (2–30 GB each) and not backed up by the above procedures.
 
-Re-pull models after a fresh deploy:
+Re-pull models on a new host or a fresh volume:
 
 ```bash
 docker compose exec ollama ollama pull nomic-embed-text
-docker compose exec ollama ollama pull llama3.2   # or your configured model
+docker compose exec ollama ollama pull llama3.1   # DEFAULT_MODEL, or your configured model
 ```
 
 ---
@@ -356,14 +355,17 @@ single ceiling.
 
 ### Vacuum and analyse PostgreSQL
 
-Run periodically to reclaim space after document deletions:
+Run periodically to reclaim space. Retiring a document only sets `deleted_at`, so it leaves
+nothing to reclaim; dead rows come from a purge and from updates:
 
 ```bash
 docker compose exec db psql -U postgres -d rag_db \
   -c "VACUUM ANALYSE document_chunks;"
 ```
 
-The HNSW index does not support online rebuilds — it is rebuilt automatically when the table is vacuumed after large bulk deletes.
+`VACUUM` also removes dead entries from the HNSW index, and on a large index that is slow.
+pgvector's advice is to rebuild it first, which can be done online:
+`REINDEX INDEX CONCURRENTLY document_chunks_embedding_hnsw_idx;`, then `VACUUM`.
 
 ### Check index health
 
