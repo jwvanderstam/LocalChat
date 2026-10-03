@@ -1,5 +1,8 @@
 # Troubleshooting Guide
 
+> Verified against the code and `docker-compose.yml` at `ff034d1` on 2026-10-03. Entries that
+> record an incident (a date, a run, a build) are dated observations, not re-checked.
+
 Common issues and their solutions when running LocalChat.
 
 ---
@@ -88,7 +91,8 @@ deployment on 2026-09-08 — see [DEPLOYMENT_LOG.md](history/DEPLOYMENT_LOG.md).
 
 **Fix:**
 1. Confirm Ollama sees your GPU: `ollama run llama3.2 "hello"` — watch `nvidia-smi`.
-2. Set `OLLAMA_NUM_GPU=-1` in `.env` to use all layers on GPU.
+2. Check `OLLAMA_NUM_GPU` is not `0`, which forces CPU. The default, `-1`, offloads every
+   layer; the value is sent to Ollama as `num_gpu` on each request.
 3. For AMD: ensure ROCm drivers are installed; Ollama detects via `rocm-smi`.
 
 ---
@@ -130,7 +134,7 @@ Or use the official Docker image: `pgvector/pgvector:pg16`.  The `docker-compose
 **Symptom:** Requests hang; logs show "connection pool timeout".
 
 **Fix:**
-1. Increase `DB_POOL_MAX` in `.env` (default 10).
+1. Increase `DB_POOL_MAX_CONN` in `.env` (default 10).
 2. Check for long-running transactions blocking pool slots: `SELECT * FROM pg_stat_activity WHERE state = 'idle in transaction';`
 3. Restart the app if connections leaked after a crash.
 
@@ -165,22 +169,24 @@ If rows exist in DB but API returns empty, check that `PG_DB` in `.env` matches 
 
 ## Redis
 
-### "Redis connection refused" on startup
+### The app will not start: "Redis cache unavailable and REDIS_STRICT=true"
 
-**Symptom:** Log line `Redis unreachable for rate limiting (...), falling back to memory://`.
+**Cause:** Redis is enabled but unreachable, and `REDIS_STRICT` (default `true`) makes that
+fatal rather than silently falling back to in-process memory. The shipped
+`docker-compose.yml` sets `REDIS_ENABLED=true` for the app, so in the Docker stack this
+means the `redis` service is down or misaddressed.
 
-**This is not an error** — rate limiting falls back to in-process memory automatically.
+**Fix:** start it (`docker compose up -d redis`) and check `REDIS_HOST`/`REDIS_PORT` — in
+Docker those come from the compose file, not `.env`. On a dev box that runs without Redis,
+set `REDIS_ENABLED=false`, or `REDIS_STRICT=false` to allow the memory fallback.
 
-If you want Redis-backed rate limiting in production:
-1. Ensure Redis is running: `docker compose up redis` or `redis-server`.
-2. Set `REDIS_HOST`, `REDIS_PORT` in `.env`.
-3. The app will auto-detect Redis on startup and switch to Redis storage.
+### Cache or rate limits do not survive a restart
 
-### Cache not persisting between restarts
+**Cause:** Redis is not enabled. `REDIS_ENABLED` defaults to `false` outside the compose
+stack — setting `REDIS_HOST` alone does not turn it on — and then both the cache and the
+rate-limit counters live in process memory.
 
-**Symptom:** Embeddings are recomputed on every restart.
-
-**Fix:** Ensure Redis is running and `REDIS_HOST` is set.  Without Redis, the app uses an in-memory LRU cache that is lost on restart.
+**Fix:** `REDIS_ENABLED=true`, with `REDIS_HOST`/`REDIS_PORT` pointing at a running Redis.
 
 ---
 
@@ -191,9 +197,15 @@ If you want Redis-backed rate limiting in production:
 **Symptom:** All admin endpoints return 401.
 
 **Check:**
-1. Is `ADMIN_PASSWORD` set in `.env`?  Without it, all logins are rejected.
-2. Is `JWT_SECRET_KEY` set?  Without it, tokens cannot be signed.
-3. Is `DEMO_MODE=true`?  In demo mode, auth is disabled entirely.
+1. Are you signed in? `POST /api/auth/login` issues the session cookie, and a session
+   lasts `JWT_ACCESS_TOKEN_EXPIRES` (default two hours) with no refresh.
+2. Do you know the admin password? Without `ADMIN_PASSWORD`, outside production, one is
+   generated on the first boot and logged once — search the startup log for
+   `ADMIN_PASSWORD was not set`. Production refuses to boot without it.
+3. Is `JWT_SECRET_KEY` set? Outside production a missing one is generated afresh on every
+   boot, so every restart signs everyone out. Production refuses to boot without it.
+
+`DEMO_MODE` no longer exists (SEC-1); setting it does nothing.
 
 ### JWT secret rotation
 
@@ -210,7 +222,9 @@ To rotate the JWT secret (invalidates all existing tokens):
 **Symptom:** Upload returns 400 even for a valid PDF.
 
 **Check:**
-1. File extension must be one of: `.pdf`, `.docx`, `.txt`, `.md`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`.
+1. File extension must be one of `SUPPORTED_EXTENSIONS` in `src/config.py`: `.pdf`, `.txt`,
+   `.docx`, `.md`, `.pptx`, `.xlsx`, `.py`, `.js`, `.ts`, `.eml`, and the images `.png`,
+   `.jpg`, `.jpeg`, `.gif`, `.webp`.
 2. File content must match its extension (magic-byte check).  A `.pdf` file that is actually HTML will be rejected.
 3. File size must be under `MAX_CONTENT_LENGTH` (default 16 MB).
 
@@ -220,7 +234,9 @@ To rotate the JWT secret (invalidates all existing tokens):
 
 **Cause:** The PDF is image-based (scanned) or password-protected.
 
-**Fix:** For scanned PDFs, enable OCR by installing `pytesseract` and `pdf2image` (not included by default).  For password-protected PDFs, remove the password before uploading.
+**Fix:** LocalChat has no OCR for PDFs — nothing in the ingest path calls `pytesseract`, so
+installing it changes nothing. Run scanned PDFs through OCR before uploading. For
+password-protected PDFs, remove the password first.
 
 ---
 
@@ -316,9 +332,10 @@ the disk. Raise both values in `.env` if you need a longer window, or add the `s
 and keep history off the box; see
 [CONFIGURATION.md](CONFIGURATION.md#logging-sinks-rotation-and-shipping-to-a-siem).
 
-### App won't start: "SECRET_KEY must be at least 32 characters"
+### App won't start: "SECRET_KEY is too short (minimum 32 characters)"
 
-Set `SECRET_KEY` to a random 32+ character string in `.env`:
+Checked only under `APP_ENV=production` (which the container image sets), and the same rule
+applies to `JWT_SECRET_KEY`. Set it to a random 32+ character string in `.env`:
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
@@ -417,7 +434,7 @@ is this failure, not a broken image.
 ### `pytest` fails at import: `No module named 'faker'`
 
 **Symptom:** `pytest` aborts loading `tests/conftest.py`, and `pip install -r requirements.txt`
-then fails with `No matching distribution found for spacy==3.8.15`.
+then fails with `No matching distribution found` for a pin such as `spacy==3.8.16`.
 
 **Cause:** the interpreter is newer than the one the pins were resolved against.
 `requirements.txt` is pinned for **Python 3.12** — the version both `tests.yml` and the
@@ -450,32 +467,14 @@ gates — a gate run on the wrong interpreter proves nothing about CI.
 
 ### The three `mcp-*` containers restart or exit immediately
 
-**Found by the 2026-08-27 documentation audit; not yet fixed — see the note below.**
+**Fixed.** Found by the 2026-08-27 documentation audit: the `mcp-*` services were built from
+the hardened image (no shell, no `curl`) but still used `sh -c` and a `CMD-SHELL` healthcheck,
+so none of them could start. They now use exec form like `app`, and two checks keep it so:
+`tests/unit/test_compose_hardened_services_use_exec_form.py`, and the required
+`security-smoke` job, which boots the stack with `--profile mcp` on every PR.
 
-`docker compose --profile mcp up -d` starts `mcp-local-docs`, `mcp-web-search` and
-`mcp-cloud-connectors`. All three are built from the same `Dockerfile` as `app`, whose
-runtime stage is a Docker Hardened Image with **no shell and no `curl`**. Their compose
-definitions predate that change and still assume both:
-
-```yaml
-command: >
-  sh -c "uvicorn 'mcp_servers.local_docs.server:app' ..."   # no `sh` in the image
-healthcheck:
-  test: ["CMD-SHELL", "curl -sf http://localhost:5001/health || exit 1"]  # no shell, no curl
-```
-
-`sh -c` cannot execute, so the container never starts the server; `CMD-SHELL` cannot run,
-so the healthcheck cannot pass either. The `app` service was converted when the image was
-hardened — it uses exec form (`["CMD", "python", "-c", ...]`) and `docker-entrypoint.py`
-expands its environment variables precisely because there is no shell — and the `mcp-*`
-services were not.
-
-**Why nothing caught it:** `docker-smoke` builds and boots the `app` service only. The
-`mcp` profile is opt-in and is not exercised by any job, so the three services have never
-been started by CI against the hardened image.
-
-**The fix**, when taken, is the same conversion the `app` service already had: exec-form
-`command` (`["python", "-m", "uvicorn", "mcp_servers.local_docs.server:app", "--host", ...]`)
-and a `python -c` healthcheck like the one `app` uses. Until then, treat `--profile mcp` as
-unavailable under the hardened image; `MCP_ENABLED` defaults to `false` and the application
-runs fully without it.
+If one does exit now, the usual cause is a missing variable: the image pins
+`APP_ENV=production`, so each service needs every value `config.py` refuses to start without,
+`JWT_SECRET_KEY` among them — `tests/unit/test_compose_passes_production_required_vars.py`
+checks the compose file hands them over. `MCP_AUTH_TOKEN` is different: without it a server
+starts, then refuses every call.

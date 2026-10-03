@@ -1259,8 +1259,11 @@ that evidence cannot be produced again.
     code first, since the line is only worth something if it is true.
   - **Verified 2026-10-03**: MIGRATIONS, WORKSPACE_API_KEYS, COST_KILL_SWITCH. Each needed
     corrections — an n8n recipe reading a `response` field the SSE stream does not have, a
-    log line no code writes, a retry bound since doubled. Still to verify: OPERATIONS,
-    DEPLOYMENT, CONFIGURATION, TROUBLESHOOTING.
+    log line no code writes, a retry bound since doubled. OPERATIONS and TROUBLESHOOTING
+    followed: a backup recipe naming a volume that does not exist, Redis advice inverted by
+    `REDIS_STRICT`, a deleted `DEMO_MODE`, a pool setting under the wrong name, OCR that
+    nothing performs, and an MCP outage long since fixed. Still to verify: DEPLOYMENT,
+    CONFIGURATION.
 
 ### P2-8 — Surface reduction per D4 and D5 ✅ (closed by decision, 2026-09-16)
 

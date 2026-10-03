@@ -298,6 +298,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   streams SSE — and the intro promised a `key_prefix=` log line no code writes;
   `last_used_at` is the real trace. COST_KILL_SWITCH: the Private Network retry is six
   attempts, not three, and the account snapshot is marked as dated.
+- **OPERATIONS and TROUBLESHOOTING verified against the code** (ROADMAP P2-7). The backup
+  recipes named `localchat_pgdata`; the volume is `postgres_data`, and Docker would have
+  created an empty one and archived nothing. TROUBLESHOOTING told readers a Redis outage
+  falls back quietly — under the shipped `REDIS_STRICT=true` it aborts the boot — and to
+  check `DEMO_MODE`, deleted in SEC-1. Also corrected: `DB_POOL_MAX_CONN`, the supported
+  extensions, the absence of PDF OCR, the login checklist, Redis persistence and HNSW
+  maintenance, and the `--profile mcp` outage, fixed since and now guarded by CI.
 
 - **P2-1b's pooler precondition is settled, with the probe committed** as
   `tests/integration/test_set_local_scope_mechanism.py`. The ticket had asked whether a
