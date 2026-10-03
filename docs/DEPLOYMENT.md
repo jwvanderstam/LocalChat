@@ -1,5 +1,8 @@
 # LocalChat — Deployment (Docker Compose)
 
+> Verified against the code, `docker-compose.yml` and the `Dockerfile` at `ff034d1` on
+> 2026-10-03. The upgrade notes record specific past releases and are kept as written.
+
 > **Single-node by design.** LocalChat runs as one process for a small team
 > (≤ 25 users) — see [ADR-1](ADR.md). `AppState`, metrics, the migration runner,
 > connector polling and the reranker's scheduler are all in-process state with no
@@ -85,7 +88,7 @@ Set these in `.env` before first start.
 |-----|---------|
 | `SECRET_KEY` | Session signing key — 32+ random bytes |
 | `JWT_SECRET_KEY` | JWT signing key — 32+ random bytes |
-| `ADMIN_PASSWORD` | Initial admin password. **Leaving it empty disables authorisation entirely** (`_is_rbac_bypassed`), so set it before exposing the app to anything. |
+| `ADMIN_PASSWORD` | Initial admin password. Production refuses to boot without it. Elsewhere an empty value means one is generated on the first boot and logged once — authorisation stays on (SEC-1 removed the old empty-password bypass). |
 | `PG_PASSWORD` | PostgreSQL password |
 | `ENCRYPTION_KEY` | Fernet key encrypting OAuth tokens, messages and memories at rest. Required in production — startup aborts without it. (`TOKEN_ENCRYPTION_KEY` is accepted as a legacy alias.) |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | Azure AD app, only for the SharePoint/OneDrive connectors |
@@ -206,7 +209,7 @@ docker compose run --rm --entrypoint python app -c "import psycopg; print(psycop
 # Health, as the container's own HEALTHCHECK runs it
 docker compose run --rm --entrypoint python app docker-entrypoint.py --healthcheck
 
-# Logs are the primary instrument, and LOG_FORMAT=json by default
+# Logs are the primary instrument; compose sets LOG_FORMAT=json
 docker compose logs -f app
 ```
 
@@ -221,7 +224,7 @@ Before exposing LocalChat beyond localhost:
 
 | Item | Env var | Requirement |
 |------|---------|-------------|
-| Admin password | `ADMIN_PASSWORD` | **Must be non-empty.** Empty disables all authorisation, including admin routes. |
+| Admin password | `ADMIN_PASSWORD` | **Must be non-empty** — production will not boot without it. |
 | JWT secret | `JWT_SECRET_KEY` | 32+ random bytes. Never the placeholder. |
 | Session secret | `SECRET_KEY` | 32+ random bytes. |
 | Metrics endpoints | `METRICS_TOKEN` | Set it, or `/api/metrics` and `/api/metrics.json` are public. |
@@ -283,7 +286,7 @@ flowchart LR
     subgraph host["One host — everything below binds to 127.0.0.1"]
         N -->|"backend network"| A["app<br/>uid 65532, no shell<br/>UVICORN_WORKERS=1"]
         A --> D[("db<br/>Postgres 16 + pgvector")]
-        A --> R[("redis<br/>optional")]
+        A --> R[("redis<br/>cache, rate limits")]
         A --> O["ollama<br/>holds the GPU"]
     end
 
@@ -323,8 +326,12 @@ The restore procedure those backups rely on is proven on every CI run
 stand.
 ## Connection poolers and vector search
 
-The pool sets `hnsw.ef_search = 100` once per physical connection and every vector
-query relies on it persisting. A **transaction-pooling** proxy — pgbouncer in
+The pool sets `hnsw.ef_search = 100` once per physical connection, and the
+installation-wide queries (`ALL_WORKSPACES`: admin views, the sync worker) rely on it
+persisting. Workspace-scoped retrieval does not: since row-level security (#407) each
+scoped transaction sets `hnsw.ef_search = 400` and `hnsw.iterative_scan` with `SET LOCAL`,
+which a pooler cannot strip. What follows applies to the unscoped paths. A
+**transaction-pooling** proxy — pgbouncer in
 `transaction` mode, or a managed Postgres that fronts you with one — resets or reassigns
 session state between transactions, so the setting is gone by the first real query.
 
