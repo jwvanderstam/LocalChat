@@ -110,6 +110,20 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Fixed
 
+- **Hybrid search's lexical arm fires on questions again — it barely did.** It searched with
+  `plainto_tsquery('simple', question)`, which ANDs every word and, under the `simple`
+  configuration, keeps stop words: a chunk matched only if it held all of "how do i restore
+  the database from a backup". On the P2-3 private corpus it fired on 4 of 105 questions; on
+  the retrieval-eval set, 1 of 20. Hybrid search was semantic-only for anything phrased as
+  a question. It now ORs the question's content words (`src/utils/text.py`), still under
+  `simple` so the stored tsvector matches, and `ts_rank_cd` still rewards matching more of
+  them. Measured on the P2-3 corpus with real models, default settings and the reranker on:
+  the arm fires on 105 of 105, source@5 0.562 -> 0.590, MRR 0.479 -> 0.492, source@1
+  unchanged at 0.410. Found by EV-1's proof run: zeroing the lexical weight changed nothing.
+- **`scripts/eval_answers.py run` failed on its first case since #406**, which made
+  `retrieve_context`'s scope a required argument and left this call without one. It scores
+  the whole eval corpus, as before.
+
 - **With `AGGREGATOR_AGENT_ENABLED=true`, chat retrieved nothing from the workspace's
   documents.** The retrieval tools read the request's workspace from a contextvar (P0-2),
   and two things kept it from them: the chat route bound it only for the SSE stream, after
