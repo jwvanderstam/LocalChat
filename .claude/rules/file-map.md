@@ -235,7 +235,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/eval_review.html` | P2-3 — offline, single-file viewer: review drafted cases one at a time with the proof highlighted in its passage (accept/reject/edit), or grade calibration answers blind (yes/partial/no). Saves back to the JSON file in Edge/Chrome; nothing leaves the machine |
 | `tests/eval/answer_baseline.json` | P2-3 — the committed baseline: aggregate metrics, models, tolerance and judge calibration only; the cases and answers quote a private corpus and stay outside the repository |
 | `tests/unit/test_eval_answers.py` | P2-3 — what turns model output into a score: verbatim proof matching, JSON extraction from a model reply, ranks by document not chunk, metrics combined across cases, the regression tolerance, judge agreement, and the privacy guard |
-| `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |
+| `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |
+| `tests/eval/baseline.json` | EV-1 — the retrieval gate's baseline: recall@1/recall@5/MRR on the 20 pairs with the bag-of-words stub, and the retrieval settings it was taken under. Changed only by `--write-baseline`, in the PR that moves retrieval |
+| `tests/unit/test_eval_retrieval_gate.py` | EV-1 — rank is relevance, not position; the exact comparison fails on a fall, a rise, changed settings or a different case count; and the gate refuses when the reranker it promises did not load |
 | `tests/unit/test_eval_retrieval_corpus.py` | The eval harness reaches a corpus that is not `docs/` — every supported type is ingested, skipped files are named, and a case's source resolves outside the repo |
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
 | `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |

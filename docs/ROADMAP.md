@@ -1293,7 +1293,7 @@ change measurable before it lands.
 
 ---
 
-### EV-1: Retrieval regression gate on every PR ⬜
+### EV-1: Retrieval regression gate on every PR ✅ (built 2026-10-04; not yet required)
 
 **What.** A CI job, `retrieval-gate`, runs `scripts/eval_retrieval.py` over the 20 pairs
 in `tests/eval/retrieval_cases.yaml` against `docs/`, with `tests/utils/fake_ollama.py`
@@ -1329,6 +1329,24 @@ similarity beyond word overlap, and any change of embedding model. That stays P2
 to zero turns the job red (the proof that it measures something, per `testing.md`); the
 script's docstring amended to state both uses. **Not in the ruleset** until it has a
 track record on `main`, under the `perf-canary` precedent.
+
+**Built (2026-10-04).** `retrieval-gate` in `tests.yml` runs
+`eval_retrieval.py --fake-ollama --ingest --check` against `tests/eval/baseline.json`
+(recall@1 0.45, recall@5 0.65, MRR 0.5375). Two fresh-database runs agree exactly. The
+**reranker runs** (it ships enabled), with its model cached, and the script refuses to score
+if it fails to load. The baseline also records the retrieval settings it was taken under,
+so a changed default reads as "settings differ", not as a regression. A rise fails too, so
+the baseline cannot go stale. Building it found two defects, both fixed first:
+
+- **The script ranked by position**, which `retrieve_context` returns alphabetically by
+  file name — P2-3's trap, fixed in `eval_answers.py` but not here. Every recall@1 and MRR
+  this script reported before 2026-10-04, DEL-2's GraphRAG/reranker comparisons included,
+  measured the alphabet and needs re-running before it is relied on.
+- **The lexical arm almost never fired** (#422): `plainto_tsquery` ANDed every word,
+  stop words included. The first proof run stayed green with the weight at zero — with the
+  reranker on and with it off — because the arm contributed to 1 of 20 questions. With the
+  fix, the same mutation turns the gate red on all three metrics (0.45 -> 0.40,
+  0.65 -> 0.50, MRR 0.5375 -> 0.442).
 
 ### GR-1: Treat retrieved content as untrusted input ⬜
 
@@ -1440,7 +1458,7 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) ✅ (#399) + P2-1b (row-level security) ✅ 2026-10-02 (#400, #404, #406, #407) — **sprint complete** | 1 week |
 | 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) ✅ 2026-10-02 (#408) | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) ◐ baseline merged 2026-10-02 (#410); judge calibration open — decides DEL-2 | 1–2 weeks |
-| 19 | EV-1 (retrieval regression gate on every PR) | 2–3 days |
+| 19 | EV-1 (retrieval regression gate on every PR) ✅ 2026-10-04 — not yet required; found and fixed the lexical arm (#422) | 2–3 days |
 | 20 | GR-1a + GR-1b + GR-1c (retrieved content as untrusted input) | 1 week |
 | 21 | OBS-1a (token accounting, cloud cost) + OBS-1b if wanted | 3–4 days |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |

@@ -1,0 +1,20 @@
+{
+  "n": 20,
+  "metrics": {
+    "recall@1": 0.45,
+    "recall@5": 0.65,
+    "mrr": 0.5375
+  },
+  "settings": {
+    "TOP_K_RESULTS": 30,
+    "RERANK_TOP_K": 12,
+    "DIVERSITY_THRESHOLD": 0.7,
+    "SEMANTIC_WEIGHT": 0.7,
+    "RERANKER_ENABLED": true,
+    "RERANKER_WEIGHT": 0.3,
+    "CHUNK_SIZE": 1200,
+    "CHUNK_OVERLAP": 150,
+    "MAX_CONTEXT_LENGTH": 24576
+  },
+  "embedding": "tests/utils/fake_ollama.py (bag of words)"
+}

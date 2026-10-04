@@ -10,6 +10,15 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Added
 
+- **`retrieval-gate`: every PR is scored for whether it moved retrieval** (ROADMAP EV-1).
+  `scripts/eval_retrieval.py --fake-ollama --ingest --check` scores the 20 question/source
+  pairs against `docs/` with the bag-of-words stub and compares recall@1, recall@5 and MRR
+  exactly with `tests/eval/baseline.json`; a PR that is meant to move retrieval commits a new
+  baseline (`--write-baseline`) in the same diff. Not yet a required check. The script also
+  stopped ranking by position: `retrieve_context` returns results alphabetically, so the
+  recall@1 and MRR it reported before — DEL-2's comparisons included — measured the
+  alphabet.
+
 - **Documents are held to the code they describe** (ROADMAP P2-7).
   `tests/unit/test_docs_reference_what_exists.py` fails when a current-state document names a
   repository path that does not exist or an `/api/...` endpoint the application does not serve.
