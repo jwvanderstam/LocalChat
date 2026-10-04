@@ -404,6 +404,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     from src.ollama_client import OllamaClient
     from src.rag.processor import doc_processor
     from src.routes_fastapi.api_routes import _build_context_prompt
+    from src.utils.scope import ALL_WORKSPACES
 
     refuse_inside_repo(args.out)
     settings = pin_retrieval_settings(config)
@@ -424,7 +425,9 @@ def cmd_run(args: argparse.Namespace) -> None:
     results = []
     for n, case in enumerate(cases, 1):
         # What chat.get_rag_context does with MCP off, unrolled to keep each chunk's score.
-        retrieved = doc_processor.retrieve_context(case["question"])
+        # The whole eval corpus, as before #406 made the scope a required argument —
+        # this call was left without one, and `run` failed on its first case.
+        retrieved = doc_processor.retrieve_context(case["question"], scope=ALL_WORKSPACES)
         context = doc_processor.format_context_for_llm(retrieved, max_length=config.MAX_CONTEXT_LENGTH)
         scored = [
             (r.filename, r.metadata["rerank_score"] if r.metadata.get("rerank_score") is not None

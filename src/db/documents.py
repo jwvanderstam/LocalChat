@@ -8,6 +8,7 @@ from psycopg.types.json import Jsonb
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import escape_sql_like
 from ..utils.scope import Scope, scope_predicate
+from ..utils.text import content_terms
 from .connection import DatabaseUnavailableError
 
 if TYPE_CHECKING:
@@ -407,14 +408,20 @@ class DocumentsMixin(MixinHost):
         """
         if not self.is_connected:
             raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
-        if not query or not query.strip():
+        # Any content word, not every word. plainto_tsquery ANDs every token, and the
+        # 'simple' configuration keeps stop words, so a question matched only a chunk that
+        # held all of "how do i restore the database from a backup" — the lexical arm
+        # fired on 1 of the 20 eval questions and hybrid search was semantic-only.
+        # ts_rank_cd still rewards a chunk for matching more of the terms, and closer.
+        terms = content_terms(query or "")
+        if not terms:
             return []
 
         logger.debug(f"Lexical search for top {top_k} chunks")
         with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 where_extra = ""
-                params: list = [query]
+                params: list = [" | ".join(terms)]
                 if file_type_filter:
                     where_extra += "  AND d.filename LIKE %s\n"
                     params.append(f'%{file_type_filter}')
@@ -431,7 +438,7 @@ class DocumentsMixin(MixinHost):
 
                 cursor.execute(
                     f"""
-                    WITH q AS (SELECT plainto_tsquery('simple', %s) AS tsq)
+                    WITH q AS (SELECT to_tsquery('simple', %s) AS tsq)
                     SELECT dc.chunk_text, d.filename, dc.chunk_index,
                            ts_rank_cd(dc.chunk_tsv, q.tsq, 32) AS score,
                            dc.metadata, dc.id

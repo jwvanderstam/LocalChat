@@ -157,6 +157,28 @@ class TestCitationsPointAtTheSource:
 
 
 @pytest.mark.db
+class TestTheLexicalArmAnswersAQuestion:
+    """Hybrid search's second arm must fire on a question written as a person writes it.
+
+    It ANDed every word — stop words too, under the 'simple' configuration — so it
+    matched only a chunk holding all of them, and fired on 1 of the 20 eval questions.
+    "how" and "is" are not in this document; "access", "granted", "password" and
+    "check" are.
+    """
+
+    QUESTION = "How is access granted after the password check?"
+
+    def test_a_natural_question_finds_the_chunk_that_shares_its_content_words(
+        self, ingested, database, workspace
+    ):
+        rows = database.search_lexical_chunks(self.QUESTION, top_k=5, scope=workspace)
+        assert rows and "password" in rows[0][0]
+
+    def test_a_question_of_only_stop_words_matches_nothing(self, ingested, database, workspace):
+        assert database.search_lexical_chunks("how is it the", top_k=5, scope=workspace) == []
+
+
+@pytest.mark.db
 class TestWorkspaceIsolationHoldsOnTheRealPath:
     def test_another_workspace_sees_none_of_it(self, ingested, database):
         """The cross-workspace leak was found in production, not by a test. This is

@@ -15,22 +15,9 @@ from typing import Any
 
 from ..utils.logging_config import get_logger
 from ..utils.scope import Scope
+from ..utils.text import STOP_WORDS as _STOP_WORDS
 
 logger = get_logger(__name__)
-
-# Stop-words to exclude from term extraction
-_STOP_WORDS = frozenset({
-    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-    'should', 'may', 'might', 'shall', 'can', 'need', 'dare', 'ought',
-    'what', 'which', 'who', 'when', 'where', 'why', 'how',
-    'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'she', 'it',
-    'they', 'them', 'their', 'this', 'that', 'these', 'those',
-    'and', 'but', 'or', 'nor', 'for', 'yet', 'so', 'to', 'of', 'in',
-    'on', 'at', 'by', 'with', 'about', 'as', 'into', 'through', 'from',
-    'not', 'no', 'any', 'all', 'please', 'tell', 'explain', 'describe',
-    'give', 'show', 'find', 'get', 'make', 'use', 'want', 'like', 'know',
-})
 
 _TOKEN_RE = re.compile(r'[a-z]{3,}')
 
