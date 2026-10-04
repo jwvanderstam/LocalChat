@@ -18,10 +18,25 @@ Scoring is by SOURCE FILE, not by chunk. Asking which chunk "should" have won
 would encode a judgement nobody made; asking whether the answer came from the
 right document is the question a reader actually has.
 
-Needs a database and an embedding model — the same services the app needs. It
-is not wired into CI: with a stubbed model the numbers measure the stub, and
-the whole point is to measure the real retrieval stack. Run it before and after
-a change to the RAG path, an embedding model, or the reranker, and record both.
+Scoring is by relevance — each file's best chunk score — not by position:
+retrieve_context returns its results in reading order, alphabetical by file
+name, so until 2026-10-04 recall@1 and MRR here measured the alphabet.
+
+It has two uses, and they answer different questions.
+
+  Is retrieval good? Run it against a real embedding model, before and after a
+  change to the RAG path, an embedding model or the reranker, and record both.
+  A stubbed model cannot answer this: the numbers would measure the stub.
+
+  Did this change move the ranking? (EV-1, the `retrieval-gate` CI job)
+
+      python scripts/eval_retrieval.py --fake-ollama --ingest --check
+
+  The stub embeds text as a bag of words, so with the model held fixed any
+  movement in the score was caused by the diff — the hybrid blend, chunking,
+  the lexical arm, filters, expansion. The comparison against
+  tests/eval/baseline.json is exact. Blind to semantics beyond word overlap and
+  to embedding-model changes, which stay with P2-3.
 
 `--compare graph` has a trap worth knowing about. GRAPH_RAG_ENABLED governs two
 different things: entity extraction *at ingest*, and 1-hop expansion *at query
@@ -35,6 +50,8 @@ a rigged verdict that looks like a measurement.
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,8 +59,13 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+# The sibling eval_answers.py owns relevance ranking and the settings pin; scripts/ is not a
+# package, so it is reached by path rather than duplicated.
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 DEFAULT_CASES = REPO_ROOT / "tests" / "eval" / "retrieval_cases.yaml"
+DEFAULT_BASELINE = REPO_ROOT / "tests" / "eval" / "baseline.json"
+GATE_METRICS = ("recall@1", "recall@5", "mrr")
 
 
 @dataclass
@@ -180,6 +202,8 @@ def ingest_corpus(corpus: Path, workspace_id: str | None) -> int:
 
 
 def score(cases: list[Case], top_k: int, workspace_id: str | None) -> dict[str, Any]:
+    from eval_answers import relevance_rank
+
     from src.rag.processor import doc_processor
     from src.utils.scope import ALL_WORKSPACES
 
@@ -194,23 +218,24 @@ def score(cases: list[Case], top_k: int, workspace_id: str | None) -> dict[str, 
         results = doc_processor.retrieve_context(
             case.question, top_k=top_k, scope=workspace_id or ALL_WORKSPACES
         )
-        # Chunks collapse to the file they came from, in rank order, first win.
-        ranked: list[str] = []
-        for r in results:
-            name = Path(r.filename).name
-            if name not in ranked:
-                ranked.append(name)
-
-        want = Path(case.source).name
-        if want in ranked:
-            rank = ranked.index(want) + 1
+        # Ranked by each file's best chunk score, not by position: retrieve_context returns
+        # its results in reading order, alphabetical by file name, so position measured the
+        # alphabet. eval_answers.py found and fixed this for P2-3; this script had it too.
+        scored = [
+            (r.filename, r.metadata["rerank_score"] if r.metadata.get("rerank_score") is not None
+             else r.metadata.get("combined_score", r.similarity))
+            for r in results
+        ]
+        rank = relevance_rank(case.source, scored)
+        if rank is not None:
             reciprocal += 1.0 / rank
             if rank == 1:
                 hits_at_1 += 1
             if rank <= 5:
                 hits_at_5 += 1
         else:
-            misses.append((case.question, ranked[0] if ranked else "(nothing)"))
+            top = max(scored, key=lambda pair: pair[1])[0] if scored else "(nothing)"
+            misses.append((case.question, Path(top).name))
 
     n = len(cases)
     return {
@@ -259,6 +284,72 @@ def report(label: str, result: dict[str, Any], show_misses: bool) -> None:
             print(f"      - {question[:64]:<64} top hit: {got}")
 
 
+def start_fake_ollama() -> Any:
+    """Serve embeddings from TQ-2's bag-of-words stub and point the app at it.
+
+    Must run before anything imports src.config, which reads OLLAMA_BASE_URL once.
+    """
+    from tests.utils.fake_ollama import FakeOllama
+
+    stub = FakeOllama()
+    os.environ["OLLAMA_BASE_URL"] = stub.start()
+    return stub
+
+
+def reranker_problem() -> str | None:
+    """Why the reranker the configuration promises is not running, or None.
+
+    The cross-encoder loads lazily and a load failure only logs a warning, after which
+    retrieval proceeds without it. A gate that quietly lost the reranker would be scoring a
+    pipeline that does not ship, so it refuses instead.
+    """
+    from src import config
+
+    if not config.RERANKER_ENABLED:
+        return None
+    from src.rag.reranker import get_reranker
+
+    if get_reranker().is_available():
+        return None
+    return ("RERANKER_ENABLED is true but the cross-encoder did not load, so this run would "
+            "score retrieval without it. Fix the model download, or set "
+            "RERANKER_ENABLED=false for the whole baseline, deliberately.")
+
+
+def gate_record(result: dict[str, Any], settings: dict[str, Any]) -> dict[str, Any]:
+    """What the baseline holds: the three metrics, and the settings that produced them."""
+    return {
+        "n": result["n"],
+        "metrics": {m: round(result[m], 6) for m in GATE_METRICS},
+        "settings": settings,
+        "embedding": "tests/utils/fake_ollama.py (bag of words)",
+    }
+
+
+def compare_to_baseline(current: dict[str, Any], baseline: dict[str, Any]) -> list[str]:
+    """Every way *current* differs from *baseline*; empty means the gate passes.
+
+    Exact, with no tolerance band: the stub is deterministic, so any movement came from
+    the diff. A rise fails too — an unrecorded improvement leaves the baseline stale, and
+    the next regression could then hide inside the gap.
+    """
+    problems = []
+    if current["settings"] != baseline.get("settings"):
+        problems.append(
+            f"retrieval settings differ from the baseline's: {current['settings']} "
+            f"vs {baseline.get('settings')} — a changed default is a new baseline, not a regression"
+        )
+    if current["n"] != baseline.get("n"):
+        problems.append(f"{current['n']} cases, the baseline has {baseline.get('n')}")
+    for metric in GATE_METRICS:
+        now, then = current["metrics"][metric], baseline.get("metrics", {}).get(metric)
+        if then is None or now == then:
+            continue
+        verb = "fell" if now < then else "rose"
+        problems.append(f"{metric} {verb}: {then} -> {now}")
+    return problems
+
+
 REFUSAL = """
 Query expansion adds no terms to any question, so an on/off comparison would
 score identically and report +0.000 - which reads as "the feature does not
@@ -291,8 +382,28 @@ def main() -> int:
     parser.add_argument("--compare", choices=["graph", "reranker"],
                         help="score twice, with the feature off and on, and print the delta")
     parser.add_argument("--misses", action="store_true", help="list the questions that missed")
+    parser.add_argument("--fake-ollama", action="store_true",
+                        help="embed with the bag-of-words stub instead of a real model (EV-1)")
+    gate = parser.add_mutually_exclusive_group()
+    gate.add_argument("--check", action="store_true",
+                      help="exit 1 if the score differs from --baseline in any way (EV-1)")
+    gate.add_argument("--write-baseline", action="store_true",
+                      help="record the score to --baseline instead of checking it")
+    parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     args = parser.parse_args()
 
+    if (args.check or args.write_baseline) and args.compare:
+        parser.error("--check/--write-baseline score one configuration; drop --compare")
+
+    stub = start_fake_ollama() if args.fake_ollama else None
+    try:
+        return _run(args)
+    finally:
+        if stub is not None:
+            stub.stop()
+
+
+def _run(args: argparse.Namespace) -> int:
     connect_db()
 
     cases = load_cases(args.cases)
@@ -308,6 +419,9 @@ def main() -> int:
     if args.ingest:
         print(f"\ningesting {args.corpus}...")
         print(f"  {ingest_corpus(args.corpus, args.workspace_id)} documents")
+
+    if args.check or args.write_baseline:
+        return _gate(args, cases)
 
     if not args.compare:
         report("current configuration", score(cases, args.top_k, args.workspace_id), args.misses)
@@ -350,6 +464,39 @@ def main() -> int:
         "  it before deciding, and record both numbers in PRODUCTION_PLAN.md."
     )
     return 0
+
+
+def _gate(args: argparse.Namespace, cases: list[Case]) -> int:
+    from eval_answers import pin_retrieval_settings
+
+    from src import config
+
+    settings = pin_retrieval_settings(config)
+    problem = reranker_problem()
+    if problem:
+        print(f"\n{problem}")
+        return 1
+
+    result = score(cases, args.top_k, args.workspace_id)
+    report("gate", result, show_misses=True)
+    current = gate_record(result, settings)
+
+    if args.write_baseline:
+        args.baseline.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
+        print(f"\n  baseline written to {args.baseline}")
+        return 0
+
+    baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
+    problems = compare_to_baseline(current, baseline)
+    if not problems:
+        print("\n  matches the baseline")
+        return 0
+    print("\n  differs from the baseline:")
+    for p in problems:
+        print(f"    - {p}")
+    print("\n  If this PR is meant to move retrieval, re-run with --write-baseline and commit\n"
+          "  tests/eval/baseline.json in this diff. Never edit it to clear a red run.")
+    return 1
 
 
 if __name__ == "__main__":

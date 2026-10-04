@@ -336,6 +336,63 @@ jobs:
       # runs in a subprocess the coverage plugin never sees.
       - name: Measure event-loop responsiveness under load
         run: pytest tests/perf/ -v --tb=short --no-cov -s
+  # EV-1. Did this PR change the ranking? Scores the 20 pairs in
+  # tests/eval/retrieval_cases.yaml against docs/ with the bag-of-words stub, and
+  # fails on ANY difference from tests/eval/baseline.json — no tolerance band, since
+  # the stub is deterministic. A PR that edits docs/ or the RAG path may legitimately
+  # move the score: the new baseline (--write-baseline) is then part of its diff.
+  # Raising or lowering the baseline to clear a red run is forbidden, as for
+  # perf-canary. Blind to semantics beyond word overlap and to embedding-model
+  # changes; that is P2-3's job. Not in the ruleset until it has a track record.
+  #
+  # The reranker runs, because it ships enabled: the gate scores the pipeline as
+  # deployed. Its model is cached, and the script refuses to score if it fails to
+  # load rather than quietly measuring retrieval without it.
+  retrieval-gate:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: rag_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf-cache
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Cache the reranker model
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: .hf-cache
+          key: hf-cross-encoder-ms-marco-MiniLM-L-6-v2
+
+      - name: Score retrieval against the baseline
+        run: python scripts/eval_retrieval.py --fake-ollama --ingest --check
+
 
   # OPS-4 / exit criterion 5. OPERATIONS.md documents a backup and a
   # pgvector-safe restore, and an untested restore procedure is a wish. This runs
