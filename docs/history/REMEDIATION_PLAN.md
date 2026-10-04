@@ -31,7 +31,7 @@
 > | P2-4 | driver 6 | ✅ | No production `assert` (#388); every blind `except` argued or narrowed under `BLE001` (#389), 2026-09-25 |
 > | P2-5 | driver 6 | ✅ | CPU-only torch; the image went from 9.50 GB to 2.95 GB (#408). `tests/unit/test_lock_is_cpu_only.py` holds it |
 > | P2-6 | driver 6 | ✅ | PyJWT, 2026-09-24 (#384); SECURITY §2 retired |
-> | P2-7 | driver 4 | ◐ | Doc tests ✅: configuration, `.env.example`, permissions, and every repository path and `/api/...` endpoint a current-state document names (`test_docs_reference_what_exists`). The journal moved to `docs/history/` on 2026-10-02, this file with it. Still open: ROADMAP's history notes and the "verified against commit" lines |
+> | P2-7 | driver 4 | ✅ | Doc tests: configuration, `.env.example`, permissions, and every repository path and `/api/...` endpoint a current-state document names (#416). The journal moved to `docs/history/` (#417), ROADMAP's log with it (2026-10-04). All seven operator documents re-read against the code and carry a dated "verified against" line (#418, #420) |
 > | P2-8 | driver 5 | ✅ | Closed by decision: S3 removed, MCP kept behind a token |
 > | §4.1 sweep | docs | ✅ | The bundle was never merged; the sweep was redone from the table on 2026-09-17, re-verified row by row against the code (29 dead variables rather than 26; `onnxruntime` at 1.30.0 rather than 1.28.0). `tests/unit/test_env_example_is_read.py` holds it |
 >

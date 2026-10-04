@@ -64,6 +64,7 @@ _CATALOGUE: list[tuple[str, str]] = [
     ("rules-python", ".claude/rules/python.md"),
     ("rules-testing", ".claude/rules/testing.md"),
     ("docs-roadmap", "docs/ROADMAP.md"),
+    ("docs-roadmap-log", "docs/history/ROADMAP_LOG.md"),
     ("docs-production-plan", "docs/history/PRODUCTION_PLAN.md"),
     ("docs-auth-plan", "docs/history/AUTH_PLAN.md"),
     ("docs-remediation-plan", "docs/history/REMEDIATION_PLAN.md"),
