@@ -299,6 +299,10 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Documentation
 
+- **ROADMAP's log moved to `docs/history/ROADMAP_LOG.md`** (ROADMAP P2-7, which this
+  closes). The fifteen dated notes under the Sprint Plan table — sprints completed, work
+  re-ordered, tickets added or re-scoped — moved verbatim, leaving ROADMAP as the plan.
+
 - **Three operator documents re-read against the code** (ROADMAP P2-7), each now carrying a
   dated "verified against" line. MIGRATIONS: the chain does more than add columns (tables,
   backfills, the row-level-security role and policies), `ensure_scoped_role()` runs after

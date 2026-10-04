@@ -109,7 +109,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |
 | `docs/SCHEMA.md` | Database schema reference + ER diagram |
 | `docs/TROUBLESHOOTING.md` | Common issues and fixes |
-| `docs/history/LESSONS_LEARNED.md` | Chronological architecture/decision history, built from `git log` + `docs/ROADMAP.md` |
+| `docs/history/LESSONS_LEARNED.md` | Chronological architecture/decision history, built from `git log` + `docs/ROADMAP.md` |
+| `docs/history/ROADMAP_LOG.md` | Dated notes on how the roadmap changed — sprint completions, re-orderings, tickets added or re-scoped — moved out of ROADMAP verbatim (P2-7) |
 | `docs/SETTINGS.md` | Per-RAG-parameter descriptions — source of truth for `templates/settings.html`'s help text via `DocsService` |
 | **Agent** | |
 | `src/agent/router.py` | `ModelRouter` — rule-based classifier (VISION/CODE/LARGE/FAST/BASE); <1 ms |

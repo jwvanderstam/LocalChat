@@ -1236,7 +1236,7 @@ half needed a fixture rather than an argument: `tests/unit/test_jwt_library_is_p
 carries a token minted by jose before it was uninstalled, because once the library is gone
 that evidence cannot be produced again.
 
-### P2-7 — Current-state docs apart from the journal, and tests that hold them ◐
+### P2-7 — Current-state docs apart from the journal, and tests that hold them ✅ (2026-10-04)
 
 **Driver 4** (documentation architecture). Two halves:
 
@@ -1265,7 +1265,10 @@ that evidence cannot be produced again.
     nothing performs, and an MCP outage long since fixed. DEPLOYMENT and CONFIGURATION
     completed the set: an `ADMIN_PASSWORD` bypass SEC-1 had removed, and a pooler warning
     and an `ef_search` formula both predating #407. All seven operator documents now carry
-    the line; what remains of P2-7 is ROADMAP's own history notes.
+    the line.
+  - **ROADMAP's own log moved 2026-10-04**: the fifteen dated notes under the Sprint Plan
+    table went verbatim to `docs/history/ROADMAP_LOG.md`. Each ticket's outcome notes stay
+    with the ticket — they explain its current state rather than record the plan's history.
 
 ### P2-8 — Surface reduction per D4 and D5 ✅ (closed by decision, 2026-09-16)
 
@@ -1442,21 +1445,7 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 21 | OBS-1a (token accounting, cloud cost) + OBS-1b if wanted | 3–4 days |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
-> **Initiative 11 added 2026-09-26 (Sprints 19 to 21).** Three gaps from comparing LocalChat against an external checklist of production-AI practices: no per-PR retrieval regression gate (EV-1), no handling of instructions embedded in retrieved content (GR-1), and no token or cost accounting per request (OBS-1). Scheduled directly after the audit's P2 tier and ahead of Sprints 8 to 14. EV-1 knowingly reverses the "not wired into CI" line in `scripts/eval_retrieval.py`; the ticket records why that line was right for the question it answered and does not apply to a gate.
-> **Connectors re-scoped 2026-08-24.** DEL-1b was rewritten rather than executed: Confluence is deleted (no forward use, and the only one of the three carrying a pip dependency), while Google Drive and OneDrive are retained on a stated intent to use them, with maintainer-supplied test cases coming. Re-deriving the removal surface from the code — rather than trusting the ticket — turned up BUG-4 and the fact that the connector subsystem has **never had a UI**, so `PERMISSIONS.md` has been advertising 10 routes for a feature that does not exist. Initiative 9 (CONN-1, CONN-2) makes it real; BUG-4 lands ahead of the gate. Same lesson as DEL-1a a fortnight earlier: a plan is not evidence.
-> **Sprint 1 complete:** HK-1..HK-6 merged in `#105` (hygiene, config consolidation, Flask eliminated, docs synced, CI gate). Sprint 1b complete: HK-7 (coupling audit + data-access boundary, #116), HK-8 (Ollama async/httpx), HK-9 (handler boundary). HK-10 (database async) deliberately deferred — see its ticket for the scale trigger.
-> **Sprint 2 complete:** CW-1 (document soft-delete pilot, #119). **Sprint 7 complete:** MM-1 (environment-aware model availability, #120) — `src/gpu/backends.py`, `OllamaClient.estimate_model_footprint` / `load_model_guard`, enriched model list endpoint, frontend grey-out.
-> **Sprint 3 complete:** CW-2a + CW-2b (conversations and users soft-delete, #124). **Sprint 4 complete:** CW-2c + CW-2d + CW-2e + CW-2f (workspaces, memories, annotations, connectors soft-delete, #126).
-> **Also merged post-Sprint-7 (unplanned fixes):** model-management CPU memory budget + loaded-state fix (#146), cross-encoder reranker startup warm-up (#147).
-> **Sprint 5 complete (2026-08-02):** BUG-1 (#208) and BUG-2 (#209). **MM-2 complete (2026-08-03, #210)** — its container-limits half, the part still open when MM-1 shipped.
-> **Sprint 6 (RBAC-1) — backend complete 2026-08-04.** Shipped as #217 (BUG-3), #221 (ticket rewrite), #219 (creator-ownership + backfill `0014`) and #220 (enforcement wired into 33 routes across 6 routers). Two follow-up fixes were needed after the first real `docker compose up`: #222 renumbered the backfill off a duplicate revision id, and #223 stopped Alembic's `fileConfig` disabling every application logger — the second had been discarding the first's error on every boot. See LESSONS_LEARNED Ch. 12. **Still open:** the UI half (viewers see controls that 403; needs an endpoint exposing the caller's workspace role), the `DELETE /api/documents/{id}` admin-vs-editor decision, and RBAC-2's full-surface audit.
-> **Sprint 5b (2026-08-04):** BUG-3, found while confirming RBAC-1's scope — two workspace member routes had no authorisation check at all. Same precedent as Sprint 5: a confirmed defect does not queue behind a design question it has no dependency on. Also the same lesson as MM-2, one layer down — `require_workspace_role_dep` had been written, was correct, and had zero call sites, so the mechanism existed while the routes it was written for kept their own broken checks.
-> **Sprint 6 (RBAC-1) — ungated 2026-08-04 and rewritten.** The three scope questions that had blocked this ticket since it was written are answered: adopt the existing workspace tier rather than adding a global `viewer`; membership is the document boundary; viewers may export (that last one an assumption, flagged in the ticket). Answering them shrank the ticket — the global role, `require_role_dep`, and the JWT-claim change are all gone — and surfaced a blocking prerequisite the original never anticipated: `create_workspace` writes no membership row, so enforcing membership today would lock every non-admin out of every workspace. That must land first.
-> **Re-evaluated 2026-08-01 — bugs first.** BUG-1 and BUG-2 were sitting in Sprint 6 behind RBAC-1, which has been blocked on scope confirmation since it was written. Two confirmed defects were therefore queued behind an unanswered question they have no dependency on: BUG-1 leaked one workspace's memories into another's answers, and BUG-2 served web-grounded content with no attribution. Both were self-contained and neither needed a design decision, so neither had a reason to wait. They became Sprint 5; RBAC-1 moved to Sprint 6 and keeps its gate.
-> **Sprint 6 additions (2026-07-27):** BUG-1 and BUG-2 were originally added here — both found and confirmed during Discord bridge integration testing; see Initiative 8.
-> **Depth sprint declared (Sprints 3–4):** No new connectors or features until CW-2a, CW-2b (soft-delete: conversations + users) and RBAC-1 are end-to-end solid with full test coverage. Sprints 3–4 are now done; RBAC-1 (now Sprint 6) remains the gate before new-feature work resumes. Bug fixes are not new-feature work and do not wait on that gate — which is exactly why BUG-1, BUG-2 and BUG-3 all moved ahead of it.
-> **MM-2 closed 2026-08-03 (#210), having never been in this table.** It had no sprint and never did, so it went unscheduled from the moment MM-1 shipped and was only caught by an audit of this document — it shipped despite the plan, not because of it. Both halves are now done (Ollama lifecycle in `d548f4d`, container `mem_limit`/`cpus` in `#210`); it is recorded against Sprint 7 above so it stops being invisible. The lesson is about this file, not the ticket: an item present in the initiatives but absent from the sprint table has no scheduled moment when anyone looks at it.
-> **Unplanned work merged 2026-07-30/31 (not a sprint):** dependency-pipeline repair — grouped Dependabot updates, `requirements.lock.txt` removed, CI-required status checks on `main`, dependency-drift reporting. See LESSONS_LEARNED Ch. 11.
+> **Dated notes on how this plan changed** — sprint completions, re-orderings, tickets added or re-scoped — are in [history/ROADMAP_LOG.md](history/ROADMAP_LOG.md).
 > The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
 ---

@@ -59,6 +59,7 @@ and are not updated when the code moves on.
 | [Architecture decisions](ADR.md) | What was decided, and what would reopen it |
 | [Lessons learned](history/LESSONS_LEARNED.md) | How the design got here, chronologically |
 | [Roadmap](ROADMAP.md) | What is planned and in what order |
+| [Roadmap log](history/ROADMAP_LOG.md) | How the plan changed: sprints completed, work re-ordered |
 | [Production plan](history/PRODUCTION_PLAN.md) | What "production-ready" would require, and what is left |
 | [Authentication plan](history/AUTH_PLAN.md) | How local login, OIDC and the bypasses fit together |
 | [Remediation plan](history/REMEDIATION_PLAN.md) | What the September 2026 security audit found, what was decided, and where each fix landed |
