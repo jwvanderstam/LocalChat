@@ -185,6 +185,16 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Security
 
+- **Documents carrying instruction-shaped text are flagged at ingest** (ROADMAP GR-1c).
+  Every chunk is scanned for five kinds — override instructions, a chat role marker, chat
+  template tokens, a persona reset, tool-call syntax — and the kinds found are stored with
+  the document, logged, and shown as a badge on the Documents page. It never blocks: it is a
+  heuristic, and a document *about* prompt injection is flagged too. Measured before
+  shipping: one of 24 files in `docs/` (the ROADMAP's own example of the attack), none of
+  273 in a private business corpus. With GR-1a and GR-1b this meets GR-1's acceptance: an
+  integration test ingests eleven adversarial documents (Word table cells, spreadsheet
+  cells, a slide, white-on-white PDF text among them) and asserts all three defences.
+
 - **Retrieved text reaches the model fenced and named** (ROADMAP GR-1a). Each document is
   wrapped in `<document source="...">` and each web result in `<web_result source="...">`;
   a fence tag inside the content is defused, so a document cannot close its own fence and

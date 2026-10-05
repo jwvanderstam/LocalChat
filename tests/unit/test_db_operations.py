@@ -149,8 +149,8 @@ class TestDocumentOperations:
 
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            (1, "doc1.pdf", datetime(2025, 1, 1), 10),
-            (2, "doc2.txt", datetime(2025, 1, 2), 5),
+            (1, "doc1.pdf", datetime(2025, 1, 1), 10, ["role-marker"]),
+            (2, "doc2.txt", datetime(2025, 1, 2), 5, None),
         ]
 
         mock_conn = MagicMock()
@@ -166,6 +166,8 @@ class TestDocumentOperations:
             assert len(docs) == 2
             assert docs[0]['filename'] == "doc1.pdf"
             assert docs[1]['filename'] == "doc2.txt"
+            # GR-1c: a flagged document carries its kinds; one ingested before the scan, none.
+            assert [d['injection_flags'] for d in docs] == [["role-marker"], []]
 
     def test_get_document_count_returns_integer(self):
         """Test document count retrieval."""
