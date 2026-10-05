@@ -41,7 +41,7 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Web Framework — FastAPI (ASGI)
-fastapi==0.141.1
+fastapi==0.142.2
 uvicorn[standard]==0.54.0
 httpx==0.28.1          # async inference + sync admin/embedding client
 
@@ -60,7 +60,7 @@ psycopg-pool==3.3.3
 
 # Database migrations
 alembic==1.20.0
-sqlalchemy==2.1.1  # required by alembic; postgresql+psycopg dialect for psycopg3
+sqlalchemy==2.1.2  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
 pydantic==2.13.5
@@ -89,7 +89,7 @@ h11==0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request 
 spacy==3.8.16      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
-cryptography==50.0.1
+cryptography==50.0.2
 # Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
 sentence-transformers==6.1.0
 
@@ -110,4 +110,4 @@ python-multipart==0.0.32
 markdown==3.11
 
 # Environment configuration
-python-dotenv==1.2.3
+python-dotenv==1.2.4
