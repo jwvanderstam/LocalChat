@@ -114,4 +114,27 @@ def remove_null_bytes(text: str) -> str:
     return text.replace('\x00', '')
 
 
+# GR-1a: retrieved text is written by someone other than the person asking, so each source
+# reaches the model inside a tag naming it, and the system prompt says tagged text is data.
+# A source must not be able to close its own fence and carry on as if it were the prompt,
+# so these tag names are defused wherever they occur inside one.
+FENCE_TAGS = ("document", "web_result")
+_FENCE_TAG_RE = re.compile(r"<\s*(/?)\s*(" + "|".join(FENCE_TAGS) + r")\b", re.IGNORECASE)
+_SOURCE_UNSAFE_RE = re.compile(r'["<>\r\n]')
+
+
+def defuse_fences(text: str) -> str:
+    """*text* with every opening or closing fence tag made inert."""
+    return _FENCE_TAG_RE.sub(r"[\1\2", text)
+
+
+def fence_open(tag: str, source: str) -> str:
+    """The opening fence for third-party content from *source*."""
+    return f'<{tag} source="{_SOURCE_UNSAFE_RE.sub("", source)}">\n'
+
+
+def fence_close(tag: str) -> str:
+    return f"</{tag}>\n"
+
+
 logger.info("Sanitization utilities loaded")

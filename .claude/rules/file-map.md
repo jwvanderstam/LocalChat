@@ -157,7 +157,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/logging_config.py` | `JsonFormatter` + `RequestIdFilter`; `LOG_FORMAT=json`; configurable sinks (`console`/`file`/`syslog`) with bounded rotation, degrading rather than failing when a sink cannot be built; startup buffer that replays records logged before `setup_logging()` |
 | `src/utils/request_id.py` | X-Request-ID middleware + per-request access log |
 | `src/utils/file_validation.py` | Magic-byte + ZIP content validation for uploaded files; prevents content-type spoofing |
-| `src/utils/sanitization.py` | HTML/injection cleaning |
+| `src/utils/sanitization.py` | HTML/injection cleaning; `fence_open`/`fence_close`/`defuse_fences` — the GR-1a fences around retrieved text |
 | `src/utils/encryption.py` | Canonical Fernet `encrypt()`/`decrypt()` for sensitive text columns at rest |
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request. `get_scope()` returns the scope the request was *authorised* for, and refuses when no guard has run |
@@ -170,6 +170,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_mcp_isolation_and_auth.py` | P0-2 — enabling MCP must not widen the workspace scope, and the servers must not be open: token refusals, `search` requiring a workspace on both retrieving servers, and the request-scope the LLM tools read |
 | `src/utils/safe_fetch.py` | `safe_fetch()`/`resolve_and_validate()` — the one way this application retrieves a URL it was handed. Resolves the name and refuses any non-public address it answers with, re-validates every redirect, and caps bytes and time. Used by web search and the webhook connector, which each had their own hostname-string check that let DNS names through (M4) |
 | `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1). Also `request_scope()`/`current_request_scope()`, the per-request workspace the LLM retrieval tools read — they are called by the model, so they have no argument to carry one (P0-2) |
+| `tests/unit/test_retrieved_context_is_fenced.py` | GR-1a — every retrieved document and web result reaches the prompt inside a fence naming its source; content, a section title or a filename cannot close the fence or break its attribute, the length budget never cuts one, and the system prompts say what fenced text is |
 | `src/utils/text.py` | `STOP_WORDS` and `content_terms()` — a question's topic words, any script, operator-free; what the lexical arm searches for, and the stop-word set active learning shares |
 | **Infra / Config** | |
 | `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |

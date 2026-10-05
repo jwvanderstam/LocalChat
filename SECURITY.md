@@ -221,6 +221,24 @@ a gain of one deleted heading.
   per-caller, and the workspace should be derived from an identity the server can verify
   rather than accepted from the request.
 
+### 11. Retrieved text can still carry instructions the model follows
+
+- **What**: documents, connector-synced files and web pages are written by someone other
+  than the person asking, and they reach the model as part of its prompt. Since GR-1a each
+  source is fenced in a `<document>` or `<web_result>` tag naming it, the fence cannot be
+  closed from inside, and the system prompt says fenced text is information, never
+  instruction.
+- **The residual**: that is a request to the model, not an enforcement. Small local models
+  follow it unreliably, so an instruction planted in a document can still shape an answer —
+  and the answer then carries a genuine citation, which is what makes a reader trust it.
+- **Why accepted**: nothing cheaper reduces it further without a second model in the request
+  path, which a CPU-only container cannot afford (ROADMAP GR-1, out of scope). The path on
+  which an injection *persists* — long-term memory — is to be closed structurally (GR-1b),
+  and instruction-shaped documents flagged at ingest (GR-1c).
+- **Re-review trigger**: tools that act rather than read, a cloud model in the default path,
+  or a deployment where the people who write the documents are not trusted by the people
+  who ask about them.
+
 ## Supply chain
 
 - Base images are **digest-pinned** (`dhi.io/python:3.12` and `:3.12-dev`). A bare tag
