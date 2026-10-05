@@ -1341,7 +1341,8 @@ the baseline cannot go stale. Building it found two defects, both fixed first:
 - **The script ranked by position**, which `retrieve_context` returns alphabetically by
   file name — P2-3's trap, fixed in `eval_answers.py` but not here. Every recall@1 and MRR
   this script reported before 2026-10-04, DEL-2's GraphRAG/reranker comparisons included,
-  measured the alphabet and needs re-running before it is relied on.
+  measured the alphabet. DEL-2's were re-run on 2026-10-05: GraphRAG still +0.000, and the
+  reranker lifts neither corpus (PRODUCTION_PLAN, DEL-2).
 - **The lexical arm almost never fired** (#422): `plainto_tsquery` ANDed every word,
   stop words included. The first proof run stayed green with the weight at zero — with the
   reranker on and with it off — because the arm contributed to 1 of 20 questions. With the

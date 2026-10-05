@@ -911,6 +911,33 @@ GraphRAG surface in `src/rag/retrieval.py` — recoverable from git, but a day t
 a scope question, and a scope question left open is not a hardening defect. The three
 defects it surfaced are fixed and are the part that mattered.
 
+#### DEL-2 — re-measured by relevance (2026-10-05)
+
+Every recall@1 and MRR above was read from **position**, and `retrieve_context` returns its
+results alphabetically by file name (found 2026-10-04, EV-1). The lexical arm also almost
+never fired until #422. Both fixed, the comparisons were re-run on `docs/` — 20 questions,
+24 documents ingested with `GRAPH_RAG_ENABLED=true` and `en_core_web_sm`, `nomic-embed-text`,
+repository-default retrieval settings, an isolated Postgres. The 2016 corpus above is not on
+the machine that ran this, so it was not repeated.
+
+| comparison | reranker | off | on | delta (r@1 / r@5 / MRR) |
+|---|---|---|---|---|
+| GraphRAG, reach **3/20** | on  | 65% / 95% / 0.779 | 65% / 95% / 0.779 | +0.000 / +0.000 / +0.000 |
+| GraphRAG, reach **3/20** | off | 70% / 95% / 0.797 | 70% / 95% / 0.797 | +0.000 / +0.000 / +0.000 |
+| reranker | — | 70% / 95% / 0.797 | 65% / 95% / 0.779 | −0.050 / +0.000 / −0.018 |
+
+**GraphRAG: the decision stands.** Measured by relevance, expansion still changes no ranking
+where it fires. The re-review triggers above are unchanged.
+
+**The reranker does not earn its place on either corpus measured.** On `docs/` it costs one
+question at rank 1. On P2-3's private corpus (105 cases, retrieval only, by relevance) it is
+a wash: recall@1 0.40 → 0.41, recall@5 0.61 → 0.59, MRR 0.491 → 0.492. It ships enabled, and
+it costs a model load at boot and a cross-encoder pass on every query. Recorded as a finding,
+not decided here: the same rule DEL-2 applies to GraphRAG would apply to it.
+
+The re-run also found `--compare` reading the settings page's persisted overrides
+(`app_state.json`), which only the gate pinned away; every path now pins them.
+
 ---
 
 ## Phase 4 — Operate like a product (Sprints PG-7..PG-8)
