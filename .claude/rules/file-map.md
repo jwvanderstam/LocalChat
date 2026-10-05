@@ -129,7 +129,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/graph/store.py` | `GraphStore` ABC + `PostgresGraphStore`; `create_graph_store(db)` factory |
 | `src/graph/extractor.py` | spaCy entity extraction from document chunks; accepts `graph_store` injection |
 | `src/graph/expander.py` | `QueryExpander` — 1-hop lexical term expansion via entity co-occurrences, feeding both the embedding and the tsvector lexical arm; accepts `graph_store` injection |
-| `src/memory/extractor.py` | Extracts memorable facts from conversation turns |
+| `src/memory/extractor.py` | Extracts memorable facts from the user's own turns — never the assistant's, which retrieved documents shape (GR-1b) |
 | `src/memory/retriever.py` | `MemoryRetriever` — vector-searches memories, injects top-K into LLM prompt |
 | `src/performance/batch_processor.py` | `BatchEmbeddingProcessor` — parallel batch embedding |
 | **Cache** | |
@@ -171,6 +171,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/safe_fetch.py` | `safe_fetch()`/`resolve_and_validate()` — the one way this application retrieves a URL it was handed. Resolves the name and refuses any non-public address it answers with, re-validates every redirect, and caps bytes and time. Used by web search and the webhook connector, which each had their own hostname-string check that let DNS names through (M4) |
 | `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1). Also `request_scope()`/`current_request_scope()`, the per-request workspace the LLM retrieval tools read — they are called by the model, so they have no argument to carry one (P0-2) |
 | `tests/unit/test_retrieved_context_is_fenced.py` | GR-1a — every retrieved document and web result reaches the prompt inside a fence naming its source; content, a section title or a filename cannot close the fence or break its attribute, the length budget never cuts one, and the system prompts say what fenced text is |
+| `tests/unit/test_memory_reads_user_turns_only.py` | GR-1b — memory extraction sees only `role == "user"` turns: an assistant turn carrying a planted instruction, a system or tool turn, and a turn with no role all stay out of the transcript |
 | `src/utils/text.py` | `STOP_WORDS` and `content_terms()` — a question's topic words, any script, operator-free; what the lexical arm searches for, and the stop-word set active learning shares |
 | **Infra / Config** | |
 | `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |
