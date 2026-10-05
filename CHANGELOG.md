@@ -278,6 +278,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Changed
 
+- **The answer baseline is re-taken after the lexical fix** (ROADMAP P2-3).
+  `tests/eval/answer_baseline.json` now records the 2026-10-05 run — same models, judge
+  prompt and retrieval settings, after #422 made the lexical arm fire: source recall@5
+  0.562 → 0.59, citation correct 0.571 → 0.60, answer correct 0.662 → 0.724 (judge v1,
+  which overstates it), faithfulness 0.933 → 0.91. The next regression is measured from here.
+
 - **The journal moved to `docs/history/`** (ROADMAP P2-7): PRODUCTION_PLAN, LESSONS_LEARNED,
   DEPLOYMENT_LOG, TEST_QUALITY_AUDIT, AUTH_PLAN and REMEDIATION_PLAN. They are records of what
   was planned and found, and they now sit apart from the documents that describe the code as

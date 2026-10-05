@@ -1,6 +1,6 @@
 {
   "label": "private customer RFP and contract corpus (208 documents, 105 cases)",
-  "date": "2026-09-30",
+  "date": "2026-10-05",
   "cases": 105,
   "answer_model": "llama3.2",
   "judge_model": "mistral",
@@ -19,12 +19,12 @@
   "tolerance": 0.05,
   "metrics": {
     "source_recall@1": 0.41,
-    "source_recall@5": 0.562,
-    "source_mrr": 0.479,
-    "proof_recall": 0.467,
-    "citation_correct": 0.571,
-    "answer_correct": 0.662,
-    "faithfulness": 0.933
+    "source_recall@5": 0.59,
+    "source_mrr": 0.492,
+    "proof_recall": 0.486,
+    "citation_correct": 0.6,
+    "answer_correct": 0.724,
+    "faithfulness": 0.91
   },
   "calibration": {
     "first_sheet_old_references": {
@@ -63,7 +63,8 @@
     "Retrieval settings are the repository defaults (recorded under retrieval); ranks are by relevance (best chunk score). The first baseline ranked by position, which retrieval returns alphabetically, and ran with a maintainer's local app_state.json overrides; both are corrected here.",
     "Cases drafted by mistral, reviewed and corrected by an AI assistant (claude), approved by the maintainer; not human-verified case by case.",
     "Calibration grades are an AI assistant's (38 of 40) plus 2 by the maintainer, taken on the previous run's answers with the same judge; they characterise the judge, not these exact answers. Human calibration (ROADMAP P2-3) was deferred by the maintainer.",
-    "Judge v1 overstates answer_correct (bias +0.21 and +0.30 on two sheets); judge v2 is near-unbiased on correct (-0.03) and scores these same answers 0.514: the chat answers correctly about half the time. v1 is kept as the baseline judge for consistency; use its judged metrics to detect regressions, not as absolute quality.",
-    "Retrieval misses concentrate in office formats: the source document was not retrieved for 76% of Excel, 67% PowerPoint and 52% Word questions, against 20% for PDF."
+    "Judge v1 overstates answer_correct (bias +0.21 and +0.30 on two sheets); judge v2 is near-unbiased on correct (-0.03) and scored the 2026-09-30 answers 0.514: the chat answers correctly about half the time. v1 is kept as the baseline judge for consistency; use its judged metrics to detect regressions, not as absolute quality.",
+    "On the 2026-09-30 run, retrieval misses concentrated in office formats: the source document was not retrieved for 76% of Excel, 67% PowerPoint and 52% Word questions, against 20% for PDF.",
+    "Re-baselined 2026-10-05 after #422 made the lexical arm fire (it ANDed every word of the question): against the 2026-09-30 baseline, source_recall@5 +0.028, source_mrr +0.013, proof_recall +0.019, citation_correct +0.029, answer_correct +0.062 (the v1 judge, so read as a direction, not a size), faithfulness -0.023. Same models, judge prompt and retrieval settings."
   ]
 }
