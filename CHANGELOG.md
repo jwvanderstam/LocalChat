@@ -119,6 +119,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Fixed
 
+- **`eval_retrieval.py --compare` scores the product's settings, not a checkout's.** Only the
+  gate pinned away the settings page's persisted overrides (`app_state.json`); a comparison
+  run from a checkout whose settings page had been used measured that checkout's
+  `TOP_K_RESULTS`. Every path now pins them. Re-running DEL-2 with it, by relevance: GraphRAG
+  expansion still changes nothing, and the reranker lifts neither `docs/` nor the private
+  P2-3 corpus (see PRODUCTION_PLAN, DEL-2).
+
 - **Hybrid search's lexical arm fires on questions again — it barely did.** It searched with
   `plainto_tsquery('simple', question)`, which ANDs every word and, under the `simple`
   configuration, keeps stop words: a chunk matched only if it held all of "how do i restore

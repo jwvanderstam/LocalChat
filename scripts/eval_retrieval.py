@@ -420,8 +420,18 @@ def _run(args: argparse.Namespace) -> int:
         print(f"\ningesting {args.corpus}...")
         print(f"  {ingest_corpus(args.corpus, args.workspace_id)} documents")
 
+    from eval_answers import pin_retrieval_settings
+
+    from src import config
+
+    # Every path, not only the gate: retrieval prefers app_state.json's overrides to the
+    # defaults, and a --compare run from a checkout whose settings page was used once
+    # measured that checkout's TOP_K_RESULTS rather than the product's.
+    settings = pin_retrieval_settings(config)
+    print(f"  settings: {settings}")
+
     if args.check or args.write_baseline:
-        return _gate(args, cases)
+        return _gate(args, cases, settings)
 
     if not args.compare:
         report("current configuration", score(cases, args.top_k, args.workspace_id), args.misses)
@@ -429,8 +439,6 @@ def _run(args: argparse.Namespace) -> int:
 
     # Both arms are read from config at call time, so flipping the module
     # attribute is what a deployment flipping the env var would do.
-    from src import config
-
     flag = {"graph": "GRAPH_RAG_ENABLED", "reranker": "RERANKER_ENABLED"}[args.compare]
 
     # Refuse a comparison that cannot say anything. With no entities stored, the
@@ -466,12 +474,7 @@ def _run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _gate(args: argparse.Namespace, cases: list[Case]) -> int:
-    from eval_answers import pin_retrieval_settings
-
-    from src import config
-
-    settings = pin_retrieval_settings(config)
+def _gate(args: argparse.Namespace, cases: list[Case], settings: dict[str, Any]) -> int:
     problem = reranker_problem()
     if problem:
         print(f"\n{problem}")

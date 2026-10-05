@@ -135,3 +135,29 @@ class TestTheGateRefusesToScoreWithoutTheReranker:
         monkeypatch.setattr("src.config.RERANKER_ENABLED", False)
 
         assert ev.reranker_problem() is None
+
+
+class TestEveryRunPinsTheDefaults:
+    def test_a_compare_run_scores_the_defaults_not_a_persisted_override(self, monkeypatch):
+        """--compare used to read app_state.json's settings-page overrides, which the gate pinned away."""
+        from src import config
+
+        monkeypatch.setitem(config.app_state.state, "rag_params", {"TOP_K_RESULTS": 40})
+        seen: list[int] = []
+
+        def _score(*_args, **_kwargs):
+            seen.append(config.app_state.get_rag_param("TOP_K_RESULTS"))
+            return {"n": 1, "recall@1": 0.0, "recall@5": 0.0, "mrr": 0.0, "misses": []}
+
+        args = SimpleNamespace(cases=None, corpus=Path("."), ingest=False, check=False,
+                               write_baseline=False, compare="reranker", top_k=10,
+                               workspace_id=None, misses=False)
+        with (
+            patch.object(ev, "connect_db"),
+            patch.object(ev, "load_cases", return_value=[]),
+            patch.object(ev, "verify_premises", return_value=[]),
+            patch.object(ev, "score", side_effect=_score),
+        ):
+            assert ev._run(args) == 0
+
+        assert seen == [config.TOP_K_RESULTS, config.TOP_K_RESULTS]
