@@ -1349,7 +1349,7 @@ the baseline cannot go stale. Building it found two defects, both fixed first:
   fix, the same mutation turns the gate red on all three metrics (0.45 -> 0.40,
   0.65 -> 0.50, MRR 0.5375 -> 0.442).
 
-### GR-1: Treat retrieved content as untrusted input ⬜
+### GR-1: Treat retrieved content as untrusted input ◐ (1a done 2026-10-05)
 
 **The threat.** Documents, connector-synced files and web results are text chosen by
 someone other than the person asking. Today they are concatenated into the prompt with no
@@ -1372,10 +1372,13 @@ September audit was scoped to authorisation and deployment, so this class was ne
 
 **Build, cheapest and most reliable first:**
 
-- **GR-1a: provenance-delimited context.** Each retrieved chunk is wrapped in a delimiter
+- **GR-1a: provenance-delimited context.** ✅ (2026-10-05) Each retrieved chunk is wrapped in a delimiter
   that carries its source, and the system prompt states that delimited content is data,
   not instruction. This *reduces* the risk; it does not remove it. Small local models
   follow that instruction unreliably, and the ticket must not claim more.
+  Built as `<document source>`/`<web_result source>` fences in the two formatters every
+  path goes through (chat, tools, aggregator, MCP); a fence tag inside content is defused,
+  so a source cannot close its own fence. `test_retrieved_context_is_fenced.py`.
 - **GR-1b: close the memory path structurally.** Memory extraction reads user turns
   only, or excludes spans derived from retrieved context. Because this is where an
   injection persists, it is the one path worth closing by construction rather than by

@@ -23,6 +23,7 @@ import requests
 from .. import config
 from ..utils.logging_config import get_logger
 from ..utils.safe_fetch import UnsafeUrlError, safe_fetch
+from ..utils.sanitization import defuse_fences, fence_close, fence_open
 
 logger = get_logger(__name__)
 
@@ -124,14 +125,19 @@ class WebSearchProvider:
         parts: list[str] = []
         current_length = 0
 
+        closing = fence_close("web_result")
         for idx, r in enumerate(results, 1):
-            body = r.page_text or r.snippet
-            entry = f"[Web Source {idx}] {r.title}\nURL: {r.url}\n{body}\n"
-            if current_length + len(entry) > max_length:
-                remaining = max_length - current_length
-                if remaining > 100:
-                    parts.append(entry[:remaining] + "...")
+            opening = fence_open("web_result", r.url)
+            # Everything between the fences came from the page, title included.
+            text = defuse_fences(f"[Web Source {idx}] {r.title}\nURL: {r.url}\n{r.page_text or r.snippet}\n")
+            room = max_length - current_length - len(opening) - len(closing)
+            if len(text) > room:
+                # Truncate inside the fence, never across it: a cut closing tag leaves the
+                # rest of the prompt reading as part of the page.
+                if room > 100:
+                    parts.append(opening + text[:room - 4] + "...\n" + closing)
                 break
+            entry = opening + text + closing
             parts.append(entry)
             current_length += len(entry)
 

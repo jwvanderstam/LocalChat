@@ -185,6 +185,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Security
 
+- **Retrieved text reaches the model fenced and named** (ROADMAP GR-1a). Each document is
+  wrapped in `<document source="...">` and each web result in `<web_result source="...">`;
+  a fence tag inside the content is defused, so a document cannot close its own fence and
+  continue as prompt, and the length budget never cuts one. The system prompts say fenced
+  text is information written by third parties, never instruction. This reduces prompt
+  injection through documents; it does not remove it (SECURITY.md, risk 11).
+
 - **The metrics endpoints decide "administrator" the way every other guard does.** With
   `METRICS_TOKEN` set, `/api/metrics` and `/api/metrics.json` admitted a session whose JWT
   `role` claim said admin — so a demoted administrator kept reading metrics until the token

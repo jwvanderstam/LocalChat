@@ -19,6 +19,7 @@ from ..ollama_client import (
     ollama_client,  # noqa: F401 — unused directly, but tests patch this module attribute via mock.patch("src.rag.retrieval.ollama_client")
 )
 from ..utils.logging_config import get_logger
+from ..utils.sanitization import defuse_fences, fence_close, fence_open
 from ..utils.scope import Scope
 from .cache import embedding_cache
 
@@ -767,15 +768,20 @@ class RetrievalMixin:
         current_length = 0
         chunks_included = 0
 
+        closing = fence_close("document")
         for doc_num, (filename, chunks) in enumerate(doc_chunks.items(), 1):
-            doc_header = f"\n[Source: {filename}]\n\n"
-            if current_length + len(doc_header) > max_length:
+            opening = "\n" + fence_open("document", filename)
+            if current_length + len(opening) + len(closing) > max_length:
                 break
-            formatted_parts.append(doc_header)
-            current_length += len(doc_header)
-            current_length, added = self._append_chunks_for_doc(
-                doc_num, chunks, formatted_parts, current_length, max_length
+            passages: list[str] = []
+            length_after, added = self._append_chunks_for_doc(
+                doc_num, chunks, passages, current_length + len(opening),
+                max_length - len(closing),
             )
+            if not added:
+                continue
+            formatted_parts += [opening, *passages, closing]
+            current_length = length_after + len(closing)
             chunks_included += added
 
         final_context = "".join(formatted_parts)
@@ -791,7 +797,8 @@ class RetrievalMixin:
             section = metadata['section_title']
             citation_parts.append(section[:47] + "..." if len(section) > 50 else section)
         citation = f" ({', '.join(citation_parts)})" if citation_parts else ""
-        return f"[Passage{citation}]\n" + self._format_chunk_text_rich(chunk_text) + "\n\n"
+        # The section title comes from the document too, so it is defused with the text.
+        return defuse_fences(f"[Passage{citation}]\n" + self._format_chunk_text_rich(chunk_text) + "\n\n")
 
     def _format_chunk_text_rich(self, chunk_text: str) -> str:
         """
