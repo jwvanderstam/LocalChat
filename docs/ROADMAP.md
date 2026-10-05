@@ -1349,7 +1349,7 @@ the baseline cannot go stale. Building it found two defects, both fixed first:
   fix, the same mutation turns the gate red on all three metrics (0.45 -> 0.40,
   0.65 -> 0.50, MRR 0.5375 -> 0.442).
 
-### GR-1: Treat retrieved content as untrusted input ◐ (1a done 2026-10-05)
+### GR-1: Treat retrieved content as untrusted input ◐ (1a, 1b done 2026-10-05)
 
 **The threat.** Documents, connector-synced files and web results are text chosen by
 someone other than the person asking. Today they are concatenated into the prompt with no
@@ -1379,7 +1379,10 @@ September audit was scoped to authorisation and deployment, so this class was ne
   Built as `<document source>`/`<web_result source>` fences in the two formatters every
   path goes through (chat, tools, aggregator, MCP); a fence tag inside content is defused,
   so a source cannot close its own fence. `test_retrieved_context_is_fenced.py`.
-- **GR-1b: close the memory path structurally.** Memory extraction reads user turns
+- **GR-1b: close the memory path structurally.** ✅ (2026-10-05: user turns only, by
+  role; a turn with no role is not assumed to be the user's. A user turn is stored as typed,
+  never with the context the prompt wrapped it in. `test_memory_reads_user_turns_only.py`.)
+  Memory extraction reads user turns
   only, or excludes spans derived from retrieved context. Because this is where an
   injection persists, it is the one path worth closing by construction rather than by
   heuristic.

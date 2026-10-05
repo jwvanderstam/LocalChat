@@ -192,6 +192,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   text is information written by third parties, never instruction. This reduces prompt
   injection through documents; it does not remove it (SECURITY.md, risk 11).
 
+- **Long-term memory is extracted from the user's turns only** (ROADMAP GR-1b). The
+  extractor read assistant turns too, and an assistant turn is shaped by retrieved
+  documents: an instruction planted in one could become a memory and resurface in every
+  later conversation in the workspace, after the document was gone. Closed by role, not by
+  a heuristic. Memories the model would have drawn from its own answers are no longer made.
+
 - **The metrics endpoints decide "administrator" the way every other guard does.** With
   `METRICS_TOKEN` set, `/api/metrics` and `/api/metrics.json` admitted a session whose JWT
   `role` claim said admin — so a demoted administrator kept reading metrics until the token

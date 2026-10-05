@@ -233,8 +233,9 @@ a gain of one deleted heading.
   and the answer then carries a genuine citation, which is what makes a reader trust it.
 - **Why accepted**: nothing cheaper reduces it further without a second model in the request
   path, which a CPU-only container cannot afford (ROADMAP GR-1, out of scope). The path on
-  which an injection *persists* — long-term memory — is to be closed structurally (GR-1b),
-  and instruction-shaped documents flagged at ingest (GR-1c).
+  which an injection *persists* — long-term memory — is closed structurally (GR-1b: memory
+  is extracted from the user's own turns only), and instruction-shaped documents are to be
+  flagged at ingest (GR-1c).
 - **Re-review trigger**: tools that act rather than read, a cloud model in the default path,
   or a deployment where the people who write the documents are not trusted by the people
   who ask about them.

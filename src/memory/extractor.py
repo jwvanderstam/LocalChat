@@ -19,7 +19,7 @@ from ..utils.scope import ALL_WORKSPACES
 logger = get_logger(__name__)
 
 _EXTRACT_SYSTEM = """\
-You are a memory extractor.  Read the conversation below and extract reusable
+You are a memory extractor.  Read the user's messages below and extract reusable
 facts, user preferences, decisions made, and named entities worth remembering.
 
 Output ONLY a JSON array (no prose before or after).  Each element must have:
@@ -70,13 +70,19 @@ class MemoryExtractor:
             db.mark_conversation_extracted(conversation_id)
             return 0
 
-        # Build a transcript for the LLM
+        # The user's own turns only (GR-1b). An assistant turn is shaped by retrieved
+        # documents, so an instruction planted in one could otherwise be extracted into a
+        # memory and resurface in every later conversation in the workspace, long after the
+        # document is gone — the one path on which an injection persists. A user turn is
+        # stored as typed, never with the retrieved context the prompt wrapped it in. A turn
+        # with no role is not assumed to be the user's.
         transcript_parts = []
         for m in messages:
-            role = m.get('role', 'user').capitalize()
+            if m.get('role') != 'user':
+                continue
             content = (m.get('content') or '').strip()
             if content:
-                transcript_parts.append(f"{role}: {content[:500]}")  # cap per turn
+                transcript_parts.append(f"User: {content[:500]}")  # cap per turn
 
         if not transcript_parts:
             db.mark_conversation_extracted(conversation_id)
