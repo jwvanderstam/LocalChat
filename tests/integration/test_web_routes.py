@@ -134,7 +134,7 @@ class TestSettingsRoute:
         response = client.get('/settings')
 
         assert response.status_code == 200
-        assert b'Initial number of chunks fetched from the vector index' in response.content
+        assert b'How many candidates retrieval considers' in response.content
         assert b'{{ setting_docs' not in response.content
 
 
