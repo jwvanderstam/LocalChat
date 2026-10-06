@@ -113,16 +113,16 @@
 
   <header>
     <div class="eyebrow">
-      <span>Proof of concept</span><span>Scaleway fr-par</span><span>September 2026</span>
+      <span>Proof of concept</span><span>Scaleway fr-par</span><span>September–October 2026</span>
     </div>
     <h1>LocalChat on Scaleway</h1>
     <p class="standfirst">A self-hosted RAG application, stood up on a European cloud
-      from nothing, verified end to end, and torn down again — five times, for about two
-      euros.</p>
+      from nothing, verified end to end, and torn down again — six times, for about two
+      and a quarter euros.</p>
     <div class="figures">
-      <div class="figure"><b>&euro;2.01</b><span>total cost</span></div>
+      <div class="figure"><b>&euro;2.25</b><span>total cost</span></div>
       <div class="figure"><b>4</b><span>commands to deploy</span></div>
-      <div class="figure"><b>5</b><span>build-and-destroy cycles</span></div>
+      <div class="figure"><b>6</b><span>build-and-destroy cycles</span></div>
       <div class="figure"><b>2.99 GB</b><span>application image</span></div>
     </div>
   </header>
@@ -145,8 +145,8 @@
       deployed automatically, from nothing, by scripts, and taken down the same way.</p>
     <p>The answer is yes, with conditions. The stack — application container, PostgreSQL
       with pgvector, and a model host on a private network — has been built from an empty
-      project and destroyed again five times, each cycle scripted end to end, for about
-      two euros in total. What it needed to get there:</p>
+      project and destroyed again six times, each cycle scripted end to end, for about
+      two and a quarter euros in total. What it needed to get there:</p>
     <ul>
       <li><strong>Scripts written after the first manual deploy, not before.</strong> Every
         one of the four commands encodes something the documentation did not say — a
@@ -163,8 +163,9 @@
         cause and a guess.</li>
     </ul>
     <h3>The strong points</h3>
-    <p>Idle costs nothing: the database scales to zero and the container is pinned to one
-      instance. Nothing in the product was rewritten to fit the platform. The cheap part
+    <p>Idle costs little: the container is pinned to one instance, and the cheapest database
+      option scales to zero — though the current version of the application needs the
+      managed one, which bills by the hour (see below). Nothing in the product was rewritten to fit the platform. The cheap part
       of the stack — everything but a GPU — is cents per hour, so a mistake costs a
       rebuild, not a bill. And what the scripts encode is now reusable: the same commands,
       with prefixed and defaulted settings, would stand the stack up in another
@@ -188,15 +189,21 @@
       over a vector database and a locally hosted language model. This proof of concept
       answers one question: can it run on managed cloud infrastructure without changing
       what the product is?</p>
-    <p>It can. The stack is a Serverless Container running the application, a Serverless
-      SQL Database with pgvector for retrieval, and a small Instance serving the embedding
-      model over a private network. No component was rewritten to fit the platform.</p>
+    <p>It can. The stack is a Serverless Container running the application, a managed
+      PostgreSQL database with pgvector for retrieval, and a small Instance serving the
+      models over a private network. No component was rewritten to fit the platform.</p>
+    <p>The first five cycles used Scaleway's Serverless SQL Database. The sixth, on
+      6 October, found that the current version cannot run on it any more: the application
+      now enforces workspace isolation inside the database, which needs a database role
+      that the serverless offering does not allow its users to create. Scaleway's managed
+      PostgreSQL allows it — and now supports pgvector, which it did not when the
+      serverless option was chosen.</p>
 
     <table>
       <thead><tr><th>Component</th><th>Service</th><th>Notes</th></tr></thead>
       <tbody>
         <tr><td>Application</td><td>Serverless Container</td><td>3 GB, one instance, no autoscaling</td></tr>
-        <tr><td>Database</td><td>Serverless SQL, PostgreSQL 16</td><td>pgvector 0.8.2, scales to zero when idle</td></tr>
+        <tr><td>Database</td><td>Managed PostgreSQL 16 (<code>DB-DEV-S</code>)</td><td>pgvector 0.8.2, bills hourly. Serverless SQL served cycles one to five</td></tr>
         <tr><td>Embeddings</td><td>CPU Instance running Ollama</td><td>Reachable only over a private network</td></tr>
         <tr><td>Text generation</td><td>CPU Instance, same host as embeddings</td><td>Works, slowly: a 1B model answers in 24–36 s. A GPU is the open decision</td></tr>
       </tbody>
@@ -239,7 +246,7 @@ PROJECT_ID=&lt;project&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.
 
   <section>
     <h2>What the deployment disproved</h2>
-    <p>Three things the plan believed turned out to be wrong, and finding them is most of
+    <p>Four things the plan believed turned out to be wrong, and finding them is most of
       the value of running a proof of concept at all.</p>
 
     <h3>Retrieval does not work without the model host</h3>
@@ -267,17 +274,28 @@ PROJECT_ID=&lt;project&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.
         infrastructure, look for the assumptions an always-present environment was quietly
         covering.</p>
     </div>
+
+    <h3>A security layer that only worked for an administrator</h3>
+    <p>Workspace isolation inside the database switches every request into a restricted
+      role. On a workstation and in the test pipeline the application connects as the
+      database's administrator, who may switch into any role without being granted it — so
+      every test passed. On the managed database the application is an ordinary user, and
+      the grant that should have let it switch did not. Found by deploying, fixed the same
+      day; the same lesson as the health check, one layer further down.</p>
   </section>
 
   <section>
     <h2>What it cost</h2>
-    <p>About two euros for the entire exercise — database, application container, model
-      host, private networking, stood up and torn down five times over ten days. Most of
+    <p>About two and a quarter euros for the entire exercise — database, application
+      container, model host, private networking, stood up and torn down six times. The
+      sixth cycle, on a managed database, cost 24 cents. Most of
       it went to one stack that was left standing for two days between sessions. The
       figure matters less than the shape behind it:</p>
     <ul>
-      <li><strong>Idle costs nothing.</strong> The database scales to zero; the application
-        was pinned to a single instance on purpose, so concurrency cannot multiply the bill.</li>
+      <li><strong>Idle costs little.</strong> The application was pinned to a single instance on
+        purpose, so concurrency cannot multiply the bill. The serverless database scaled to
+        zero; the managed one the current version needs bills by the hour whether or not it
+        is used — the teardown now removes it too.</li>
       <li><strong>A GPU is the only expensive decision.</strong> Text generation needs one,
         at roughly &euro;575 per month if left running. Everything else is cents.</li>
       <li><strong>Nothing stops spend automatically.</strong> A budget alert is an estimate
@@ -295,10 +313,14 @@ PROJECT_ID=&lt;project&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.
     <p>The document path — upload, embed, store, retrieve — works on this infrastructure
       and has been verified on every cycle. Text generation has been run on the CPU host:
       the answer is correct and cites the source, but at half a minute to the first word.
-      The open decision is a GPU instance for the same host, at &euro;0.787 per hour while
-      it runs — the plan is to build it beside the CPU machine for a two-hour session,
-      measure, and tear it down. The alternative, a hosted model API, is cheaper to run
-      and a change to what the product is rather than to how it is deployed.</p>
+      On 6 October the stack was handed over for hands-on testing, and that settled it: on
+      a CPU it is too slow to test the product properly.</p>
+    <p><strong>The next cycle runs on a GPU.</strong> A GPU instance beside the CPU host, at
+      &euro;0.787 per hour while it runs, built for a two-hour session, measured — under five
+      seconds to the first word, with an answer that uses its source — and torn down. Before
+      it, the provisioning script moves from the serverless database to the managed one.
+      The alternative, a hosted model API, is cheaper to run and a change to what the
+      product is rather than to how it is deployed.</p>
     <p>The stack is currently torn down. It rebuilds from the four commands above.</p>
   </section>
 
