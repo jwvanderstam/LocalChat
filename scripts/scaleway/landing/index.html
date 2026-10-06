@@ -214,6 +214,14 @@ bash   scripts/scaleway/deploy_container.sh   # the application
 python scripts/scaleway/verify_deployment.py &lt;endpoint&gt;
 bash   scripts/scaleway/deploy_embeddings.sh  # the embedding model host</code></pre>
 
+    <p>Every step talks to Scaleway through its official command-line tool, the
+      <a href="https://github.com/scaleway/scaleway-cli">Scaleway CLI</a> (<code>scw</code>):
+      no console clicks and no Terraform state to keep. A script that is just CLI calls can be
+      read top to bottom as the procedure it performs, and run against a fake <code>scw</code> in
+      the test suite, which is how its decisions are checked without a live account. The
+      scripts are in the public repository, under
+      <a href="https://github.com/jwvanderstam/LocalChat/tree/main/scripts/scaleway">scripts/scaleway</a>.</p>
+
     <p>The third command is a gate rather than a checklist. It signs in, confirms the
       deployed image is the version you think it is, ingests a document and retrieves it
       with a query that shares no words with the text — so a passing result can only come
@@ -299,7 +307,9 @@ PROJECT_ID=&lt;project&gt; CONFIRM=DESTROY bash scripts/scaleway/panic_teardown.
     <p>This page is the summary. The two behind it are the evidence: every session's log
       entry as kept in the repository, and the scripts exactly as they run — written with
       prefixed, defaulted settings and no account-specific values, so they can be adapted
-      to another account or another project without rewriting them.</p>
+      to another account or another project without rewriting them. All of it — the
+      application, the scripts, their tests and the full deployment guide — is public at
+      <a href="https://github.com/jwvanderstam/LocalChat">github.com/jwvanderstam/LocalChat</a>.</p>
     <div class="more">
       <a href="log.html"><b>Deployment log</b><span>One entry per session: what was done,
         what it found that the plan did not predict, and what it cost. Identifiers and
