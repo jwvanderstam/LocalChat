@@ -387,7 +387,9 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   `OllamaClient` tests carried the `ollama` marker, so the local fast suite skipped them
   while CI ran them; the marker is gone. ADR-6 gains a status note: P2-3's baseline exists
   and GR-1 shipped, so a multi-hop case set is what stands between it and its experiment.
-  LESSONS_LEARNED gains chapters 21–24.
+  LESSONS_LEARNED gains chapters 21–24. `docs/` is also EV-1's corpus, so the rewrite moved
+  the retrieval gate (recall@1 0.45 → 0.50, MRR 0.5375 → 0.567); `tests/eval/baseline.json`
+  is re-recorded in this change, as the gate requires.
 
 - **ROADMAP's log moved to `docs/history/ROADMAP_LOG.md`** (ROADMAP P2-7, which this
   closes). The fifteen dated notes under the Sprint Plan table — sprints completed, work

@@ -1,9 +1,9 @@
 {
   "n": 20,
   "metrics": {
-    "recall@1": 0.45,
+    "recall@1": 0.5,
     "recall@5": 0.65,
-    "mrr": 0.5375
+    "mrr": 0.566667
   },
   "settings": {
     "TOP_K_RESULTS": 30,
