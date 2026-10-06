@@ -41,7 +41,7 @@
 - No `_old`, `_v2`, `_backup` name variants. Rename or delete.
 - No bare `# type: ignore`. Scope every one to its error code — `# type: ignore[attr-defined]`,
   `# type: ignore[import]` — so it silences the one thing it was added for and a second,
-  unrelated error still surfaces. All 15 in `src/` are scoped this way; keep it that way.
+  unrelated error still surfaces. All 16 in `src/` are scoped this way (counted 2026-10-06); keep it that way.
   (This rule used to say "outside `src/types.py`". No such file has ever existed in this
   repository, so the exemption it offered was unreachable and the rule unfollowable as
   written. Corrected 2026-08-27 to the practice the code actually follows.)

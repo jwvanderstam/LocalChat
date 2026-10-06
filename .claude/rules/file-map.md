@@ -98,8 +98,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/OPERATIONS.md` | Backup/restore/maintenance runbook |
 | `docs/ROADMAP.md` | Living initiative/ticket plan (current: v3.0 — hygiene, Clark-Wilson, RBAC, GKB, model management, plugin contract) |
 | `docs/WORKSPACE_API_KEYS.md` | How to give a chatbot/n8n bridge scoped access to one workspace — create, use, revoke, and why the scope cannot be overridden |
-| `docs/n8n-discord-setup.md` | Werkende n8n → LocalChat → Discord opzet: Header Auth, SSE-respons als tekst parsen, valkuilen |
-| `docs/bugreport-n8n-localchat.md` | Bevindingen bij het opzetten van die koppeling — 2 opgelost, 1 open (`conversation_id` → 500) |
+| `docs/n8n-discord-setup.md` | How-to: a Discord bot through n8n to `/api/chat` — Header Auth with a workspace API key, the SSE response parsed as text, the usual pitfalls |
+| `docs/bugreport-n8n-localchat.md` | What broke wiring up that first external client — two configuration errors and a validation 422 that surfaced as 500 (fixed in #256) |
 | `docs/history/AUTH_PLAN.md` | Authentication build plan — AUTH-1..4: local login, Users screen, OIDC (Entra/Google), then deleting the bypasses |
 | `docs/history/REMEDIATION_PLAN.md` | The September 2026 external security audit's findings register (C1–C4, H1–H4, M1–M8), the P0/P1/P2 plan, and the decisions D1–D7 — committed after v3.1.0 shipped every P0 and P1, with a banner mapping each row to where it landed and what is still open (P2, the §4.1 docs sweep) |
 | `docs/history/PRODUCTION_PLAN.md` | Production-hardening plan from the 2026-08-04 external audit — TQ/SEC tickets and the exit criteria ROADMAP Sprints 8–12 queue behind |
@@ -180,8 +180,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Infra / Config** | |
 | `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |
 | `requirements-dev.in` | Test tooling, hand-written; constrained by `requirements.txt`, never installed into the image |
-| `requirements.txt` | **Generated** by pip-compile — full transitive closure with hashes; what Docker and CI install |
-| `requirements-dev.txt` | **Generated** by pip-compile — the test tooling's closure with hashes; CI only |
+| `requirements.txt` | **Generated** by pip-compile — full transitive closure, deliberately without hashes (see `requirements.in`); what Docker and CI install |
+| `requirements-dev.txt` | **Generated** by pip-compile — the test tooling's closure, without hashes; CI only |
 | `pyproject.toml` | Tool config — `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.*]` |
 | `.gitattributes` | Forces LF on `scripts/scaleway/` — those files run on, or are handed to, a Linux host, and a Windows checkout with `core.autocrlf=true` otherwise ships them CRLF (a cloud-init once arrived as `#cloud-config` + CR) |
 | `docker-compose.yml` | Full stack: app + PostgreSQL + Redis + Ollama; `--profile mcp` adds MCP servers |

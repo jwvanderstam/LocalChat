@@ -65,6 +65,7 @@ and are not updated when the code moves on.
 | [Remediation plan](history/REMEDIATION_PLAN.md) | What the September 2026 security audit found, what was decided, and where each fix landed |
 | [Test quality audit](history/TEST_QUALITY_AUDIT.md) | Why coverage percentage hid weak tests |
 | [n8n integration report](bugreport-n8n-localchat.md) | What broke wiring the first external client |
+| [UI design canvases](../design/README.md) | The redesign directions considered, and the one being built out |
 
 ## Contributor standards
 

@@ -3,7 +3,7 @@
 How plugins extend LocalChat without destabilising the core. Read alongside the
 "Plugin Contract" section in `CLAUDE.md` — that states the principle; this is the rule.
 
-> ## ⚠ Status: designed, not built (verified 2026-08-27)
+> ## ⚠ Status: designed, not built (verified 2026-08-27, re-checked 2026-10-06)
 >
 > **Everything below describes PC-1..PC-4, which have not been implemented.** They are
 > ROADMAP Sprints 10–11, queued behind the PRODUCTION_PLAN exit criteria. None of the

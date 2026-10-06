@@ -373,6 +373,24 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Documentation
 
+- **Documentation audit, 2026-10-06** — every current-state document P2-7 had not
+  verified, checked against the code and, for the schema, against a database migrated to
+  head and read back through `pg_catalog`. Notable corrections: the architecture rule and
+  CLAUDE.md said `_ensure_extensions_and_tables()` owns schema changes (Alembic migrations
+  have, for eighteen revisions); the testing rules' example used the deleted
+  `app.state.testing` bypass; README listed five required checks (six), omitted the
+  embedding model from the quick start (ingest then fails on a 3072-dimension vector) and
+  four supported file types; SCHEMA.md lacked soft-delete columns on five tables, ten
+  indexes, two cascades and row-level security; SETTINGS.md described retrieval before
+  hybrid search and the reranker; INTEGRATION_TESTS.md pointed tests at the live `db`
+  service and described Ollama integration tests that do not exist. 38 fully mocked
+  `OllamaClient` tests carried the `ollama` marker, so the local fast suite skipped them
+  while CI ran them; the marker is gone. ADR-6 gains a status note: P2-3's baseline exists
+  and GR-1 shipped, so a multi-hop case set is what stands between it and its experiment.
+  LESSONS_LEARNED gains chapters 21–24. `docs/` is also EV-1's corpus, so the rewrite moved
+  the retrieval gate (recall@1 0.45 → 0.50, MRR 0.5375 → 0.567); `tests/eval/baseline.json`
+  is re-recorded in this change, as the gate requires.
+
 - **ROADMAP's log moved to `docs/history/ROADMAP_LOG.md`** (ROADMAP P2-7, which this
   closes). The fifteen dated notes under the Sprint Plan table — sprints completed, work
   re-ordered, tickets added or re-scoped — moved verbatim, leaving ROADMAP as the plan.

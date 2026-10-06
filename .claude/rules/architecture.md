@@ -14,7 +14,7 @@ No SQL, no LLM calls, no business logic inside route functions. If you find your
 - All SQL lives in `src/db/` mixin classes. One mixin per domain (`DocumentsMixin`, `ConversationsMixin`, `WorkspacesMixin`, etc.).
 - Never write raw SQL in routes, services, or tools.
 - The `Database` class in `src/db/connection.py` composes all mixins — add a new mixin there when you add a new `src/db/*.py` file.
-- Schema and index creation belongs in `_ensure_extensions_and_tables()` in `src/db/connection.py`.
+- A schema change is an Alembic migration in `migrations/versions/` — a new column, index, table, backfill or policy. `_ensure_extensions_and_tables()` in `src/db/connection.py` only creates the base schema a fresh database starts from. See [docs/MIGRATIONS.md](../../docs/MIGRATIONS.md). (This line said the opposite until 2026-10-06, eighteen migrations after it stopped being true.)
 - Migrations are additive: `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Never destructive.
 
 ## Configuration

@@ -435,6 +435,14 @@ a polite way of never deciding: **if P2-3 has not started by 2026-12-31, this AD
 re-read on that date**, because a decision whose only revisit condition can be indefinitely
 postponed is a deferral, which ADR-2 explains is the weaker form.
 
+> **Status, 2026-10-06.** Two of the facts above have moved; the decision has not. P2-3's
+> answer-level baseline exists (`tests/eval/answer_baseline.json`, recorded 2026-10-02 and
+> re-taken 2026-10-05), so the first half of the revisit condition is met — but its 105
+> cases have no multi-hop subset, so the comparison it asks for cannot yet be run. And GR-1
+> (retrieved content as untrusted input) shipped, which was the precondition named for any
+> loop over retrieved content. What remains between this ADR and the experiment is a
+> multi-hop case set with its margin written down first.
+
 ---
 
 ## Recording a new ADR
