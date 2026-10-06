@@ -119,6 +119,15 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Fixed
 
+- **Row-level security works when the application is not a database superuser.** The
+  boot step and migration 0018 granted `localchat_scoped` with `GRANT ... TO CURRENT_USER`.
+  Scaleway's managed PostgreSQL refuses that specifier, and a plain grant of a membership the
+  role's creator already holds leaves it without SET, so every workspace-scoped transaction
+  was refused. Both now grant `WITH SET TRUE` to the user by name. Compose and CI connect
+  as a superuser, which needs no membership, so neither could see it; it was found by
+  deploying. Scaleway's *Serverless* SQL Database cannot run P2-1b at all — its identity
+  may not create roles — so a Scaleway deployment needs its managed PostgreSQL.
+
 - **`eval_retrieval.py --compare` scores the product's settings, not a checkout's.** Only the
   gate pinned away the settings page's persisted overrides (`app_state.json`); a comparison
   run from a checkout whose settings page had been used measured that checkout's

@@ -269,6 +269,51 @@ def test_the_application_identity_may_switch_into_the_scoped_role(conn: Any) -> 
     assert rows == [(True,)]
 
 
+def test_an_identity_that_is_not_a_superuser_can_switch_into_the_role_it_created() -> None:
+    """The boot grant works for the identity a managed database gives the application.
+
+    Everything else in this module runs as `postgres`, a superuser, for whom `SET ROLE`
+    needs no membership at all — so the grant could be wrong and every test still pass, and
+    it was. On Scaleway's managed PostgreSQL the application user is a non-superuser with
+    CREATEROLE; there the old `GRANT ... TO CURRENT_USER` was refused outright, and a plain
+    `GRANT ... TO <user>` left the membership without SET, so the first scoped transaction
+    was refused. Found by deploying, 2026-10-06, and the fix proven against that database.
+
+    **This test does not reproduce that failure.** Vanilla PostgreSQL 16 accepts both old
+    forms, so it passes on the old code too. What it does pin is the property itself — a
+    non-superuser that created the role can switch into it after the boot grant — which no
+    other test here exercised.
+
+    Its own role name, because roles are cluster-wide and `localchat_scoped` already belongs
+    to the superuser here; its own database, owned by that identity, as the managed one is.
+    """
+    from src.db import connection as db_connection
+
+    tag = uuid.uuid4().hex[:8]
+    login, scoped, dbname, password = f"rls_app_{tag}", f"rls_scoped_{tag}", f"rls_app_{tag}", uuid.uuid4().hex
+    with psycopg.connect(**_admin_dsn(), autocommit=True) as admin:  # type: ignore[arg-type]
+        admin.execute(f"CREATE ROLE {login} LOGIN CREATEROLE NOSUPERUSER PASSWORD '{password}'")
+        admin.execute(f'CREATE DATABASE "{dbname}" OWNER {login}')
+    try:
+        dsn = {**_admin_dsn(), "user": login, "password": password, "dbname": dbname}
+        with psycopg.connect(**dsn) as app:  # type: ignore[arg-type]
+            original = db_connection.SCOPED_ROLE
+            db_connection.SCOPED_ROLE = scoped
+            try:
+                with app.cursor() as cur:
+                    db_connection._apply_scoped_role(cur)  # noqa: SLF001 — the boot step under test
+                app.commit()
+            finally:
+                db_connection.SCOPED_ROLE = original
+            app.execute(f"SET LOCAL ROLE {scoped}")
+            assert app.execute("SELECT current_user").fetchone() == (scoped,)
+    finally:
+        with psycopg.connect(**_admin_dsn(), autocommit=True) as admin:  # type: ignore[arg-type]
+            admin.execute(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)')
+            admin.execute(f"DROP ROLE IF EXISTS {scoped}")
+            admin.execute(f"DROP ROLE IF EXISTS {login}")
+
+
 def _scoped_can_read(conn: Any, table: str) -> bool:
     try:
         with conn.transaction():
