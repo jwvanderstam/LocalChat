@@ -138,7 +138,7 @@
   <section class="script" id="provision.sh">
     <h2><code>provision.sh</code></h2>
     <p>Phase 1 — the scoped project, the database, and an identity that can reach that database and nothing else.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/provision.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/provision.sh">raw</a><span>shown as of commit 93096ee</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/provision.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/provision.sh">raw</a><span>shown as of commit 921c1e4</span></div>
     <pre class="source"><code>#!/usr/bin/env bash
 #
 # Stands up the LocalChat test stack&#x27;s Phase 1 on Scaleway: a scoped project, a
@@ -495,7 +495,7 @@ SUMMARY
   <section class="script" id="deploy_container.sh">
     <h2><code>deploy_container.sh</code></h2>
     <p>Phase 2 — the application as a Serverless Container, from a version tag.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_container.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_container.sh">raw</a><span>shown as of commit 93096ee</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_container.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_container.sh">raw</a><span>shown as of commit 921c1e4</span></div>
     <pre class="source"><code>#!/usr/bin/env bash
 #
 # Phase 2 of docs/DEPLOYMENT_SCALEWAY.md: the Serverless Container namespace and
@@ -800,7 +800,7 @@ SUMMARY
   <section class="script" id="verify_deployment.py">
     <h2><code>verify_deployment.py</code></h2>
     <p>Phase 3 — the gate: signs in, checks the image, ingests a document and retrieves it semantically. Exits non-zero on failure.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_deployment.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_deployment.py">raw</a><span>shown as of commit 93096ee</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_deployment.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_deployment.py">raw</a><span>shown as of commit 921c1e4</span></div>
     <pre class="source"><code>#!/usr/bin/env python3
 &quot;&quot;&quot;Phase 3: prove a deployed LocalChat actually works, and gate on the answer.
 
@@ -832,6 +832,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -932,6 +933,20 @@ def multipart(filename: str, content: str) -&gt; tuple[bytes, str]:
     return body, f&quot;multipart/form-data; boundary={boundary}&quot;
 
 
+def repo_app_version() -&gt; str:
+    &quot;&quot;&quot;APP_VERSION as this checkout declares it in src/config.py.
+
+    The default was the literal &quot;3.0.0&quot;, and the release that moved the app to 3.1.0 did not
+    move it — so every deployment from 2026-09-17 failed this check while being correct, and
+    a check that always fails is one nobody reads.
+    &quot;&quot;&quot;
+    text = (pathlib.Path(__file__).resolve().parents[2] / &quot;src&quot; / &quot;config.py&quot;).read_text(encoding=&quot;utf-8&quot;)
+    match = re.search(r&quot;^APP_VERSION:\s*str\s*=\s*os\.environ\.get\(\s*&#x27;APP_VERSION&#x27;\s*,\s*&#x27;([^&#x27;]+)&#x27;&quot;, text, re.MULTILINE)
+    if not match:
+        sys.exit(&quot;src/config.py no longer declares APP_VERSION the way this script reads it&quot;)
+    return match.group(1)
+
+
 def main() -&gt; int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(&quot;endpoint&quot;, help=&quot;https://…functions.fnc.fr-par.scw.cloud&quot;)
@@ -941,7 +956,8 @@ def main() -&gt; int:
         help=&quot;pull this embedding model through the app before testing ingest&quot;,
     )
     parser.add_argument(
-        &quot;--expect-version&quot;, default=&quot;3.0.0&quot;, help=&quot;version the deployed image must report&quot;
+        &quot;--expect-version&quot;, default=repo_app_version(),
+        help=&quot;version the deployed image must report (default: this checkout&#x27;s APP_VERSION)&quot;,
     )
     args = parser.parse_args()
 
@@ -1047,7 +1063,7 @@ if __name__ == &quot;__main__&quot;:
   <section class="script" id="deploy_embeddings.sh">
     <h2><code>deploy_embeddings.sh</code></h2>
     <p>Phase 4 — an Instance serving embeddings over a private network, wired to the container.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_embeddings.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_embeddings.sh">raw</a><span>shown as of commit 93096ee</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_embeddings.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_embeddings.sh">raw</a><span>shown as of commit 921c1e4</span></div>
     <pre class="source"><code>#!/usr/bin/env bash
 #
 # Phase 4 of docs/DEPLOYMENT_SCALEWAY.md: an Ollama Instance that serves
@@ -1295,7 +1311,7 @@ SUMMARY
   <section class="script" id="ollama-cloud-init.yaml">
     <h2><code>ollama-cloud-init.yaml</code></h2>
     <p>The cloud-init that Phase 4 hands to that Instance. Installs Ollama and deliberately pulls no model.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/ollama-cloud-init.yaml">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/ollama-cloud-init.yaml">raw</a><span>shown as of commit 93096ee</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/ollama-cloud-init.yaml">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/ollama-cloud-init.yaml">raw</a><span>shown as of commit 921c1e4</span></div>
     <pre class="source"><code>#cloud-config
 # Phase 4: an Ollama host that serves embeddings for the LocalChat test stack.
 #
@@ -1340,7 +1356,7 @@ runcmd:
   <section class="script" id="verify_database.py">
     <h2><code>verify_database.py</code></h2>
     <p>A standalone check of a managed database: TLS required, pgvector present, a setting that survives a transaction boundary.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_database.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_database.py">raw</a><span>shown as of commit 93096ee</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_database.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_database.py">raw</a><span>shown as of commit 921c1e4</span></div>
     <pre class="source"><code>#!/usr/bin/env python3
 &quot;&quot;&quot;Prove the Scaleway Serverless SQL Database can actually host LocalChat.
 
@@ -1522,7 +1538,7 @@ if __name__ == &quot;__main__&quot;:
   <section class="script" id="panic_teardown.sh">
     <h2><code>panic_teardown.sh</code></h2>
     <p>The cost kill switch — deletes everything billable in one project, most expensive first. Dry run unless CONFIRM=DESTROY.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/panic_teardown.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/panic_teardown.sh">raw</a><span>shown as of commit 93096ee</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/panic_teardown.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/panic_teardown.sh">raw</a><span>shown as of commit 921c1e4</span></div>
     <pre class="source"><code>#!/usr/bin/env bash
 #
 # Scaleway cost kill switch: delete everything billable in ONE project.
@@ -1700,6 +1716,17 @@ while IFS=$&#x27;\t&#x27; read -r id region name; do
     database-id=&quot;$id&quot; region=&quot;$region&quot;
 done &lt; &lt;(rows region -- sdb-sql database list region=all)
 
+# A managed PostgreSQL instance bills per hour whether or not anything connects —
+# unlike Serverless SQL, it never scales to zero. Added 2026-10-06, the day a
+# deployment needed one (Serverless SQL cannot create the row-level-security role)
+# and this sweep reported &quot;nothing billable&quot; with the instance still running.
+echo &quot;Managed PostgreSQL instances (bill hourly, never scale to zero):&quot;
+while IFS=$&#x27;\t&#x27; read -r id region name; do
+  [[ -n &quot;$id&quot; ]] || continue
+  kill_one &quot;managed database $name ($id, $region)&quot; rdb instance delete \
+    instance-id=&quot;$id&quot; region=&quot;$region&quot;
+done &lt; &lt;(rows region -- rdb instance list region=all)
+
 echo &quot;Block volumes left behind (detached volumes bill at full price):&quot;
 while IFS=$&#x27;\t&#x27; read -r id zone name; do
   [[ -n &quot;$id&quot; ]] || continue
@@ -1741,7 +1768,7 @@ fi
   </section>
 
   <footer>
-    Generated from the repository at commit 93096ee on 2026-09-15
+    Generated from the repository at commit 921c1e4 on 2026-10-06
     &middot; <a href="https://github.com/jwvanderstam/LocalChat">github.com/jwvanderstam/LocalChat</a>
   </footer>
 </div>

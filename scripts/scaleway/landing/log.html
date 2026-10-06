@@ -133,6 +133,7 @@
     <li><a href="#2026-09-09-the-findings-turned-into-code-and-nothing-was-deployed">2026-09-09 — the findings turned into code, and nothing was deployed</a></li>
     <li><a href="#2026-09-14-the-three-open-rows-settled-and-a-box-that-never-came-up">2026-09-14 — the three open rows settled, and a box that never came up</a></li>
     <li><a href="#2026-09-14-evening-the-same-day-s-fixes-deployed-from-nothing">2026-09-14, evening — the same day&#x27;s fixes, deployed from nothing</a></li>
+    <li><a href="#2026-10-06-serverless-sql-can-no-longer-run-the-app-and-cpu-generation-is-too-slow-to-test-on">2026-10-06 — Serverless SQL can no longer run the app, and CPU generation is too slow to test on</a></li>
   </ul></section>
 <section><p>A record of every session that touched the Scaleway deployment: what was done, what it
 found, and what it cost. <a href="https://github.com/jwvanderstam/LocalChat/blob/main/docs/DEPLOYMENT_SCALEWAY.md">DEPLOYMENT_SCALEWAY.md</a> is the plan and
@@ -646,9 +647,66 @@ teardown — about €0.12 for this run, before the lag.</p>
 <p><strong>Afterwards.</strong> The §12 decision the afternoon left open was taken: the operator's public
 key is registered in <code>localchat-test</code> as <code>localchat-operator</code>, so the next box that fails
 can be read instead of replaced. Nothing was deployed to try it; §11's row stays open.</p>
+<hr />
+<h2 id="2026-10-06-serverless-sql-can-no-longer-run-the-app-and-cpu-generation-is-too-slow-to-test-on">2026-10-06 — Serverless SQL can no longer run the app, and CPU generation is too slow to test on</h2>
+<p><strong>Done.</strong> Deployed <code>main</code> for a hands-on test: Phase 1 from <code>provision.sh</code>, Phase 2 from
+<code>deploy_container.sh</code> onto <code>sha-19db1c6</code>, Phase 4 from <code>deploy_embeddings.sh</code>. The database
+came up <strong>down</strong>. After two fixes the stack ran on <code>sha-921c1e4</code> against a <em>managed</em>
+PostgreSQL instead, passed the Phase 3 gate (ingest, semantic retrieval at 0.4851) and
+answered a RAG question citing <code>deployment-probe.md</code> — 32 s to first token on
+<code>llama3.2:1b</code> on the <code>DEV1-M</code>. The maintainer judged that too slow to test anything
+properly; the next test is on a GPU. Torn down the same day.</p>
+<p><strong>Found.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Serverless SQL cannot run P2-1b</td>
+<td>Row-level security (#400–#407, after the last deployment on 2026-09-14) switches every scoped transaction into <code>localchat_scoped</code>. Serverless SQL's IAM identity may not create roles at all (<code>permission denied to create role</code>), so the role can never exist and the app reports the database down. <strong>No Serverless SQL deployment can run current <code>main</code>.</strong></td>
+</tr>
+<tr>
+<td>D4's premise is gone</td>
+<td>D4 chose Serverless SQL because Managed PostgreSQL lacked pgvector. A <code>db-dev-s</code> PostgreSQL 16 instance created today installed <strong>pgvector 0.8.2</strong>, and its user has CREATEROLE. That is D4's own reversal condition</td>
+</tr>
+<tr>
+<td>The scoped-role grant only ever worked for a superuser</td>
+<td>On the managed database, <code>GRANT localchat_scoped TO CURRENT_USER</code> is refused (<em>cannot use special role specifier</em>), and a plain grant of the membership the creator already holds leaves it without SET, so <code>SET LOCAL ROLE</code> was denied. Compose and CI connect as <code>postgres</code>, which needs no membership. Fixed in #430: <code>GRANT … WITH SET TRUE</code> to the user by name, at boot and in 0018</td>
+</tr>
+<tr>
+<td>A CVE published mid-session blocked every PR</td>
+<td><code>pip-audit</code> failed on CVE-2026-104874 in <code>multidict 6.7.1</code>; #431 moved it to 6.9.1 before #430 could merge</td>
+</tr>
+<tr>
+<td>A push event never fired</td>
+<td>The #428 merge produced no Tests and no Publish run, so <code>main</code> had no image; merging #429 republished. The same dropped-event shape as #426's PR the day before</td>
+</tr>
+<tr>
+<td>The verify gate always failed the version check</td>
+<td>Its default was a literal <code>3.0.0</code>; the app has been 3.1.0 since 2026-09-17. It now reads <code>APP_VERSION</code> from the checkout</td>
+</tr>
+<tr>
+<td>The kill switch missed the managed database</td>
+<td>It sweeps Serverless SQL but not <code>rdb</code> instances, and would have reported "nothing billable" with one running. Deleted by hand today; the script now covers them</td>
+</tr>
+</tbody>
+</table>
+<p><strong>An incident.</strong> Inspecting the CLI profile with <code>scw config info</code> printed the account's API
+secret key into the working session's transcript. Nothing was published, but by §10c's rule
+a secret that reached a transcript has leaked: the key is to be rotated.</p>
+<p><strong>Not done.</strong> <code>provision.sh</code> still provisions Serverless SQL. The managed database was
+created by hand (<code>db-dev-s</code>, PG 16, backups off, password generated into a 600-mode file),
+and moving the script to it is the first step of the next deployment.</p>
+<p><strong>Torn down.</strong> The managed database by hand, then the kill switch: instance, namespace,
+Serverless SQL database, private network. A dry run afterwards reported nothing billable.</p>
+<p><strong>Cost.</strong> Not yet read — consumption lags by about an hour.</p>
 <hr /></section>
   <footer>
-    Generated from the repository at commit 93096ee on 2026-09-15
+    Generated from the repository at commit 921c1e4 on 2026-10-06
     &middot; <a href="https://github.com/jwvanderstam/LocalChat">github.com/jwvanderstam/LocalChat</a>
   </footer>
 </div>

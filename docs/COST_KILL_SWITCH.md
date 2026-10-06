@@ -164,6 +164,8 @@ scw instance server list  zone=all   project-id=$P -o json   # then: server dele
 scw container namespace list region=all project-id=$P -o json # deleting the namespace
                                                               # removes its containers
 scw sdb-sql database list region=all project-id=$P -o json
+scw rdb instance list     region=all project-id=$P -o json    # managed PostgreSQL; bills
+                                                              # hourly, never scales to zero
 scw block volume list     zone=all   project-id=$P -o json
 scw instance ip list      zone=all   project-id=$P -o json
 scw vpc private-network list region=all project-id=$P -o json

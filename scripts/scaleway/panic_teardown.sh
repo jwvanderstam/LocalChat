@@ -175,6 +175,17 @@ while IFS=$'\t' read -r id region name; do
     database-id="$id" region="$region"
 done < <(rows region -- sdb-sql database list region=all)
 
+# A managed PostgreSQL instance bills per hour whether or not anything connects —
+# unlike Serverless SQL, it never scales to zero. Added 2026-10-06, the day a
+# deployment needed one (Serverless SQL cannot create the row-level-security role)
+# and this sweep reported "nothing billable" with the instance still running.
+echo "Managed PostgreSQL instances (bill hourly, never scale to zero):"
+while IFS=$'\t' read -r id region name; do
+  [[ -n "$id" ]] || continue
+  kill_one "managed database $name ($id, $region)" rdb instance delete \
+    instance-id="$id" region="$region"
+done < <(rows region -- rdb instance list region=all)
+
 echo "Block volumes left behind (detached volumes bill at full price):"
 while IFS=$'\t' read -r id zone name; do
   [[ -n "$id" ]] || continue

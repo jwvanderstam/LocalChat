@@ -119,6 +119,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Fixed
 
+- **The Scaleway kill switch sweeps managed PostgreSQL**, which bills hourly and never
+  scales to zero; it reported "nothing billable" with one running. And the deployment
+  gate's version check reads `APP_VERSION` from the checkout — its literal `3.0.0` had failed
+  every correct deployment since 3.1.0. Both found on the 2026-10-06 deployment, which also
+  found that Scaleway's Serverless SQL can no longer run the app (DEPLOYMENT_LOG).
+
 - **Row-level security works when the application is not a database superuser.** The
   boot step and migration 0018 granted `localchat_scoped` with `GRANT ... TO CURRENT_USER`.
   Scaleway's managed PostgreSQL refuses that specifier, and a plain grant of a membership the
