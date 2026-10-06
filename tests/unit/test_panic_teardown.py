@@ -63,6 +63,7 @@ case "$1 $2 $3" in
   "instance server list")               printf '%s' "$SCW_FAKE_SERVERS" ;;
   "container namespace list")           printf '%s' "$SCW_FAKE_NAMESPACES" ;;
   "sdb-sql database list")              printf '%s' "$SCW_FAKE_DATABASES" ;;
+  "rdb instance list")                  printf '%s' "$SCW_FAKE_RDB" ;;
   "block volume list")                  printf '%s' "$SCW_FAKE_VOLUMES" ;;
   "instance ip list")                   printf '%s' "$SCW_FAKE_IPS" ;;
   "vpc private-network list")           printf '%s' "$SCW_FAKE_PNS" ;;
@@ -92,6 +93,7 @@ def _run(tmp_path, project=PROJECT, **env):
         "SCW_FAKE_SERVERS": "[]",
         "SCW_FAKE_NAMESPACES": "[]",
         "SCW_FAKE_DATABASES": "[]",
+        "SCW_FAKE_RDB": "[]",
         "SCW_FAKE_VOLUMES": "[]",
         "SCW_FAKE_IPS": "[]",
         "SCW_FAKE_PNS": "[]",
@@ -113,6 +115,7 @@ FULL_STACK = {
     "SCW_FAKE_SERVERS": json.dumps([{"id": "srv-1", "zone": "fr-par-2", "name": "ollama"}]),
     "SCW_FAKE_NAMESPACES": json.dumps([{"id": "ns-1", "region": "fr-par", "name": "localchat"}]),
     "SCW_FAKE_DATABASES": json.dumps([{"id": "db-1", "region": "fr-par", "name": "localchat"}]),
+    "SCW_FAKE_RDB": json.dumps([{"id": "rdb-1", "region": "fr-par", "name": "localchat-rdb"}]),
     "SCW_FAKE_VOLUMES": json.dumps([{"id": "vol-1", "zone": "fr-par-2", "name": "orphan"}]),
     "SCW_FAKE_IPS": json.dumps([{"id": "ip-1", "zone": "fr-par-2"}]),
     "SCW_FAKE_PNS": json.dumps([{"id": "pn-1", "region": "fr-par", "name": "backend"}]),
@@ -124,7 +127,7 @@ def test_dry_run_issues_no_deletes(tmp_path):
 
     assert proc.returncode == 0, proc.stderr
     assert deletes == []
-    assert "6 resources would be deleted" in proc.stdout
+    assert "7 resources would be deleted" in proc.stdout
 
 
 def test_instance_delete_takes_its_volumes_and_ip_with_it(tmp_path):
@@ -146,6 +149,7 @@ def test_everything_billable_is_deleted_most_expensive_first(tmp_path):
         ["instance", "server", "delete"],
         ["container", "namespace", "delete"],
         ["sdb-sql", "database", "delete"],
+        ["rdb", "instance", "delete"],
         ["block", "volume", "delete"],
         ["instance", "ip", "delete"],
         ["vpc", "private-network", "delete"],
@@ -158,7 +162,7 @@ def test_a_failed_delete_does_not_stop_the_sweep_and_is_reported(tmp_path):
     )
 
     assert proc.returncode == 1
-    assert len(deletes) == 6, "the sweep must continue past a failure"
+    assert len(deletes) == 7, "the sweep must continue past a failure"
     assert "did NOT go away" in proc.stderr
     assert "ollama" in proc.stderr
 

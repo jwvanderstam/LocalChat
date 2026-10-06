@@ -29,6 +29,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -129,6 +130,20 @@ def multipart(filename: str, content: str) -> tuple[bytes, str]:
     return body, f"multipart/form-data; boundary={boundary}"
 
 
+def repo_app_version() -> str:
+    """APP_VERSION as this checkout declares it in src/config.py.
+
+    The default was the literal "3.0.0", and the release that moved the app to 3.1.0 did not
+    move it — so every deployment from 2026-09-17 failed this check while being correct, and
+    a check that always fails is one nobody reads.
+    """
+    text = (pathlib.Path(__file__).resolve().parents[2] / "src" / "config.py").read_text(encoding="utf-8")
+    match = re.search(r"^APP_VERSION:\s*str\s*=\s*os\.environ\.get\(\s*'APP_VERSION'\s*,\s*'([^']+)'", text, re.MULTILINE)
+    if not match:
+        sys.exit("src/config.py no longer declares APP_VERSION the way this script reads it")
+    return match.group(1)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("endpoint", help="https://…functions.fnc.fr-par.scw.cloud")
@@ -138,7 +153,8 @@ def main() -> int:
         help="pull this embedding model through the app before testing ingest",
     )
     parser.add_argument(
-        "--expect-version", default="3.0.0", help="version the deployed image must report"
+        "--expect-version", default=repo_app_version(),
+        help="version the deployed image must report (default: this checkout's APP_VERSION)",
     )
     args = parser.parse_args()
 

@@ -318,3 +318,19 @@ class TestItRefusesRatherThanGuesses:
 
         assert proc.returncode != 0
         assert "deploy_container.sh" in proc.stderr
+
+
+def test_the_verify_gate_expects_the_version_this_checkout_declares():
+    """Its default was a literal "3.0.0" that the 3.1.0 release did not move, so the gate
+    failed every correct deployment from 2026-09-17 until a live run on 2026-10-06."""
+    import importlib.util
+
+    from src import config
+
+    path = Path(__file__).resolve().parents[2] / "scripts" / "scaleway" / "verify_deployment.py"
+    spec = importlib.util.spec_from_file_location("verify_deployment", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.repo_app_version() == config.APP_VERSION

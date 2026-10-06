@@ -377,6 +377,43 @@ can be read instead of replaced. Nothing was deployed to try it; §11's row stay
 
 ---
 
+## 2026-10-06 — Serverless SQL can no longer run the app, and CPU generation is too slow to test on
+
+**Done.** Deployed `main` for a hands-on test: Phase 1 from `provision.sh`, Phase 2 from
+`deploy_container.sh` onto `sha-19db1c6`, Phase 4 from `deploy_embeddings.sh`. The database
+came up **down**. After two fixes the stack ran on `sha-921c1e4` against a *managed*
+PostgreSQL instead, passed the Phase 3 gate (ingest, semantic retrieval at 0.4851) and
+answered a RAG question citing `deployment-probe.md` — 32 s to first token on
+`llama3.2:1b` on the `DEV1-M`. The maintainer judged that too slow to test anything
+properly; the next test is on a GPU. Torn down the same day.
+
+**Found.**
+
+| | |
+|---|---|
+| Serverless SQL cannot run P2-1b | Row-level security (#400–#407, after the last deployment on 2026-09-14) switches every scoped transaction into `localchat_scoped`. Serverless SQL's IAM identity may not create roles at all (`permission denied to create role`), so the role can never exist and the app reports the database down. **No Serverless SQL deployment can run current `main`.** |
+| D4's premise is gone | D4 chose Serverless SQL because Managed PostgreSQL lacked pgvector. A `db-dev-s` PostgreSQL 16 instance created today installed **pgvector 0.8.2**, and its user has CREATEROLE. That is D4's own reversal condition |
+| The scoped-role grant only ever worked for a superuser | On the managed database, `GRANT localchat_scoped TO CURRENT_USER` is refused (*cannot use special role specifier*), and a plain grant of the membership the creator already holds leaves it without SET, so `SET LOCAL ROLE` was denied. Compose and CI connect as `postgres`, which needs no membership. Fixed in #430: `GRANT … WITH SET TRUE` to the user by name, at boot and in 0018 |
+| A CVE published mid-session blocked every PR | `pip-audit` failed on CVE-2026-104874 in `multidict 6.7.1`; #431 moved it to 6.9.1 before #430 could merge |
+| A push event never fired | The #428 merge produced no Tests and no Publish run, so `main` had no image; merging #429 republished. The same dropped-event shape as #426's PR the day before |
+| The verify gate always failed the version check | Its default was a literal `3.0.0`; the app has been 3.1.0 since 2026-09-17. It now reads `APP_VERSION` from the checkout |
+| The kill switch missed the managed database | It sweeps Serverless SQL but not `rdb` instances, and would have reported "nothing billable" with one running. Deleted by hand today; the script now covers them |
+
+**An incident.** Inspecting the CLI profile with `scw config info` printed the account's API
+secret key into the working session's transcript. Nothing was published, but by §10c's rule
+a secret that reached a transcript has leaked: the key is to be rotated.
+
+**Not done.** `provision.sh` still provisions Serverless SQL. The managed database was
+created by hand (`db-dev-s`, PG 16, backups off, password generated into a 600-mode file),
+and moving the script to it is the first step of the next deployment.
+
+**Torn down.** The managed database by hand, then the kill switch: instance, namespace,
+Serverless SQL database, private network. A dry run afterwards reported nothing billable.
+
+**Cost.** Not yet read — consumption lags by about an hour.
+
+---
+
 ## How to add an entry
 
 One section per session, newest at the bottom. Record what was done, what was found that

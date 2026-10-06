@@ -33,7 +33,13 @@ document treats that as a constraint to respect rather than a limitation to work
 >
 > All of them are idempotent. To tear it down: [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md).
 >
-> **Nothing is standing as of 2026-09-14** — the project lists zero of every billable
+> **⚠ 2026-10-06: Serverless SQL can no longer run current `main`.** Row-level security
+> (P2-1b) needs a role its identity may not create. A Managed PostgreSQL `db-dev-s` works —
+> it now has pgvector, which reverses D4 — but `provision.sh` does not create one yet, and
+> CPU generation proved too slow to test on. The next deployment uses Managed PostgreSQL
+> and a GPU. See [DEPLOYMENT_LOG](history/DEPLOYMENT_LOG.md), 2026-10-06.
+>
+> **Nothing is standing as of 2026-10-06** — the project lists zero of every billable
 > resource type. But the stack is ephemeral by intent, not by mechanism: nothing deletes it
 > on a timer, and one was once found still running two days after it was believed gone. The
 > resource ids quoted in §10 are from that day's build and are gone with it; the shape is
@@ -83,7 +89,7 @@ inherited assumption is visible as a decision.
 | D1 | **Max scale = 1** on the container | Migrations run at boot in-process with no cross-instance lock; two instances race the Alembic chain. Also ADR-1's single-instance rule. | Nothing, short of a distributed lock for migrations and a coordination layer for `AppState`, the connector poller and the reranker scheduler. Treat as a correctness setting, not a cost one. |
 | D2 | **Min scale = 1** for the first deployment | The image is 6.6 GB of files (§6). Scale-to-zero after 15 min idle means a cold pull before the next request. Pinning min scale 1 removes cold start as a variable while you are answering "does this run at all". | Once cold-start time is measured (§11) and judged acceptable, or once a trimmed image exists. Min scale 1 bills continuously — revisit it as soon as the stack works. |
 | D3 | **Deploy the image unmodified** | Three routes to a smaller image exist (§6). Changing the supply chain and the target simultaneously makes a failure ambiguous. | The first successful deployment. Then §6's table becomes actionable with real cold-start numbers behind it. |
-| D4 | **Serverless SQL Database**, not Managed Database for PostgreSQL | pgvector is supported on the former and not the latter — a 2+ year open feature request. | Scaleway shipping pgvector on the managed product, which would trade serverless autoscaling for conventional session semantics and remove the §4 `SET` caveat entirely. |
+| D4 | ~~**Serverless SQL Database**, not Managed Database for PostgreSQL~~ **Reversed 2026-10-06** | pgvector is supported on the former and not the latter — a 2+ year open feature request. | Scaleway shipping pgvector on the managed product, which would trade serverless autoscaling for conventional session semantics and remove the §4 `SET` caveat entirely. **Both happened:** a managed `db-dev-s` (PG 16) installed pgvector 0.8.2, and Serverless SQL cannot create the role row-level security needs, so it can no longer run the app at all. |
 | D5 | **`max_cpu = 1`** on the database | The platform ceiling is 15 vCPU, and the Terraform resource *defaults* to it. An explicit ceiling makes runaway compute cost structurally impossible rather than merely unlikely. | Observed contention under real multi-user load. Raise it deliberately; do not discover the default from an invoice. |
 | D6 | **Skip Redis** | `REDIS_ENABLED` defaults false, and at max scale 1 there is no cross-instance cache coherence argument for it. | Outgrowing in-memory caching, which at 25 users is unlikely. |
 | D7 | **Skip Ollama on the first pass** | It is the only expensive line item (§5) and the only one that needs a persistent GPU VM. Everything else validates without it. | Phase 3 passing. Then §5's four options get decided with real credit-burn numbers instead of blind. |
