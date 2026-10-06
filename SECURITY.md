@@ -234,8 +234,9 @@ a gain of one deleted heading.
 - **Why accepted**: nothing cheaper reduces it further without a second model in the request
   path, which a CPU-only container cannot afford (ROADMAP GR-1, out of scope). The path on
   which an injection *persists* — long-term memory — is closed structurally (GR-1b: memory
-  is extracted from the user's own turns only), and instruction-shaped documents are to be
-  flagged at ingest (GR-1c).
+  is extracted from the user's own turns only), and instruction-shaped documents are flagged
+  at ingest (GR-1c) with a badge on the Documents page — a heuristic that will miss an
+  instruction phrased in a way it does not know.
 - **Re-review trigger**: tools that act rather than read, a cloud model in the default path,
   or a deployment where the people who write the documents are not trusted by the people
   who ask about them.

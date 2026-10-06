@@ -1349,7 +1349,7 @@ the baseline cannot go stale. Building it found two defects, both fixed first:
   fix, the same mutation turns the gate red on all three metrics (0.45 -> 0.40,
   0.65 -> 0.50, MRR 0.5375 -> 0.442).
 
-### GR-1: Treat retrieved content as untrusted input ◐ (1a, 1b done 2026-10-05)
+### GR-1: Treat retrieved content as untrusted input ✅ (done 2026-10-05; the P2-3 judge category is open)
 
 **The threat.** Documents, connector-synced files and web results are text chosen by
 someone other than the person asking. Today they are concatenated into the prompt with no
@@ -1392,6 +1392,13 @@ September audit was scoped to authorisation and deployment, so this class was ne
   will flag documents *about* prompt injection, including this repository's own `docs/`,
   which is EV-1's corpus. The false-positive rate on that corpus is the first thing to
   measure.
+  ✅ (2026-10-05) `src/rag/injection_flags.py`, five pattern kinds, run over every chunk at
+  ingest; the kinds found are stored in `documents.metadata.injection_flags` (no migration),
+  logged, and shown as a badge on the Documents page. **Measured first:** on `docs/` it flags
+  one file of 24 — ROADMAP itself, at this ticket's own example; on P2-3's private business
+  corpus, none of 273. Two candidate patterns were narrowed by that measurement: a role
+  marker must be followed by words (`System: 2` is a field label) and a bare "you are now"
+  is UI copy.
 
 **Out of scope:** classifier-based detection (a second model in the request path, on a
 CPU-only container) and PII redaction (nothing leaves the machine unless the cloud
@@ -1405,6 +1412,15 @@ flagged at ingest. It does **not** assert that the model obeys: against `fake_ol
 would be tautological, and against a real model it is nondeterministic. Model resistance
 belongs in P2-3's nightly judge as an added case category. The residual is recorded in
 [SECURITY.md](../SECURITY.md).
+
+**Met 2026-10-05** by `tests/integration/test_injection_fixtures.py`: eleven adversarial
+documents (plain text, Markdown, a Word paragraph and table cell, two spreadsheet cells, a
+slide, white-on-white PDF text, and one per pattern kind) are each flagged with their kind,
+a control is not, the instruction stays inside its fence in the assembled prompt, and an
+assistant turn echoing it never reaches memory extraction. **One deviation:** the PPTX
+loader does not read speaker notes, so text hidden there never reaches the model and there
+is nothing to flag; the test asserts that instead, and fails the day the loader starts
+reading notes. **Still open:** the P2-3 judge case category for model resistance.
 
 ### OBS-1: Token accounting per request, and cost where there is one ⬜
 
@@ -1466,7 +1482,7 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) ✅ 2026-10-02 (#408) | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) ◐ baseline merged 2026-10-02 (#410); judge calibration open — decides DEL-2 | 1–2 weeks |
 | 19 | EV-1 (retrieval regression gate on every PR) ✅ 2026-10-04 — not yet required; found and fixed the lexical arm (#422) | 2–3 days |
-| 20 | GR-1a + GR-1b + GR-1c (retrieved content as untrusted input) | 1 week |
+| 20 | GR-1a + GR-1b + GR-1c (retrieved content as untrusted input) ✅ 2026-10-05 | 1 week |
 | 21 | OBS-1a (token accounting, cloud cost) + OBS-1b if wanted | 3–4 days |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 

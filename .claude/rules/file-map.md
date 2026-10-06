@@ -42,6 +42,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/rag/retrieval.py` | Hybrid search — independent semantic (pgvector) + lexical (Postgres tsvector/GIN) arms, weighted blend; `retrieve_context(filename_filter=)` |
 | `src/rag/chunking.py` | Overlapping chunking, preserves table structure |
 | `src/rag/loaders.py` | Multi-format document loading |
+| `src/rag/injection_flags.py` | GR-1c — `scan()`: five kinds of instruction-shaped text, run over every chunk at ingest; the kinds found are stored in `documents.metadata.injection_flags` and shown on the Documents page. A heuristic; never blocks |
 | `src/rag/active_learning.py` | `suggest_documents()` — knowledge-gap topic suggestions from low-confidence queries |
 | `src/rag/planner.py` | `QueryPlanner` — decomposes query into `QueryPlan` |
 | `src/rag/doc_type.py` | `DocType` enum, `DocTypeClassifier`, `ChunkerRegistry` |
@@ -172,6 +173,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1). Also `request_scope()`/`current_request_scope()`, the per-request workspace the LLM retrieval tools read — they are called by the model, so they have no argument to carry one (P0-2) |
 | `tests/unit/test_retrieved_context_is_fenced.py` | GR-1a — every retrieved document and web result reaches the prompt inside a fence naming its source; content, a section title or a filename cannot close the fence or break its attribute, the length budget never cuts one, and the system prompts say what fenced text is |
 | `tests/unit/test_memory_reads_user_turns_only.py` | GR-1b — memory extraction sees only `role == "user"` turns: an assistant turn carrying a planted instruction, a system or tool turn, and a turn with no role all stay out of the transcript |
+| `tests/unit/test_injection_flags.py` | GR-1c — each kind is found by the text it names and stays quiet on the near-misses business documents carry (`System: 2`, "you are now logged in") |
+| `tests/unit/test_frontend_injection_flag_badge.py` | GR-1c — the Documents page badges a flagged document, names the kinds, and leaves an unflagged or pre-scan one alone |
+| `tests/integration/test_injection_fixtures.py` | GR-1's acceptance — eleven adversarial documents (text, Markdown, Word paragraph and table cell, spreadsheet cells, slide, white-on-white PDF) ingested for real: each flagged with its kind, a control not, the instruction kept inside its fence, nothing reaching memory extraction; PPTX speaker notes asserted not ingested |
 | `src/utils/text.py` | `STOP_WORDS` and `content_terms()` — a question's topic words, any script, operator-free; what the lexical arm searches for, and the stop-word set active learning shares |
 | **Infra / Config** | |
 | `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |

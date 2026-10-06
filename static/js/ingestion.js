@@ -430,7 +430,15 @@ async function loadDocuments() {
             data.documents.forEach(doc => {
                 const date = new Date(doc.created_at).toLocaleDateString();
                 const chunkCount = doc.chunk_count || 0;
-                
+                // GR-1c: flagged at ingest for instruction-shaped text. A warning, not a
+                // verdict — a document about prompt injection is flagged too.
+                const flags = Array.isArray(doc.injection_flags) ? doc.injection_flags : [];
+                const flagBadge = flags.length ? `
+                                <span class="badge bg-warning text-dark ms-1" data-injection-flags
+                                      title="Contains text addressed to the model: ${escapeHtml(flags.join(', '))}. Answers citing it deserve a second look.">
+                                    <i class="bi bi-exclamation-triangle"></i> instructions
+                                </span>` : '';
+
                 html += `
                     <div class="list-group-item">
                         <div class="d-flex w-100 justify-content-between align-items-start">
@@ -447,7 +455,7 @@ async function loadDocuments() {
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
                             <p class="mb-0 text-muted small">
-                                <span class="badge bg-secondary">${chunkCount} chunks</span>
+                                <span class="badge bg-secondary">${chunkCount} chunks</span>${flagBadge}
                             </p>
                             <small class="text-muted">${date}</small>
                         </div>

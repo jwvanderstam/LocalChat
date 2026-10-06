@@ -621,7 +621,7 @@ class DocumentsMixin(MixinHost):
                 return count
 
     def get_all_documents(self, *, scope: Scope) -> list[dict[str, Any]]:
-        """List live documents in *scope* (id, filename, created_at, chunk_count)."""
+        """List live documents in *scope* (id, filename, created_at, chunk_count, injection_flags)."""
         if not self.is_connected:
             raise DatabaseUnavailableError("Cannot get documents: Database is not connected")
 
@@ -630,7 +630,8 @@ class DocumentsMixin(MixinHost):
         with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(f"""
-                    SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count
+                    SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count,
+                           d.metadata -> 'injection_flags'
                     FROM documents d
                     LEFT JOIN document_chunks dc ON d.id = dc.document_id
                     WHERE d.deleted_at IS NULL{scope_sql}
@@ -644,6 +645,8 @@ class DocumentsMixin(MixinHost):
                         'filename': row[1],
                         'created_at': row[2].isoformat() if row[2] else None,
                         'chunk_count': row[3],
+                        # GR-1c; absent on a document ingested before the scan existed.
+                        'injection_flags': row[4] or [],
                     }
                     for row in rows
                 ]

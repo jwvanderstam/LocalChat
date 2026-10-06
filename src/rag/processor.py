@@ -24,6 +24,7 @@ from ..ollama_client import ollama_client  # noqa: F401
 from ..utils.logging_config import get_logger
 from .chunking import TextChunkerMixin
 from .doc_type import ChunkerRegistry, DocTypeClassifier
+from .injection_flags import scan as scan_for_injection
 from .loaders import DocumentLoaderMixin
 
 _NO_EMBEDDING_MODEL = (
@@ -412,7 +413,16 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             # id, so citations stay valid — or insert new) + insert the fresh
             # chunk batch, as one short transaction. Runs only after all slow
             # I/O (chunking, embedding) has already completed.
-            metadata = {'total_chunks': len(chunks_data), 'file_path': file_path}
+            metadata: dict[str, Any] = {'total_chunks': len(chunks_data), 'file_path': file_path}
+            # GR-1c: the chunks are exactly what retrieval can put in front of the model.
+            # Flagged, never refused — the scan is a heuristic, and a document about
+            # prompt injection matches it as surely as one carrying an attack.
+            injection_flags = scan_for_injection([c['text'] for c in chunks_with_metadata])
+            if injection_flags:
+                metadata['injection_flags'] = injection_flags
+                logger.warning(
+                    f"[GR-1c] {filename} carries instruction-shaped text: {', '.join(injection_flags)}"
+                )
             with self._db.get_connection() as conn:
                 if replace_doc_id is not None:
                     self._db.soft_delete_chunks_for_document(replace_doc_id, conn=conn)
