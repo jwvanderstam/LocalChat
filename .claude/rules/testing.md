@@ -43,14 +43,18 @@ Pick the tightest marker that fits — it controls what runs in the fast suite.
 ```python
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
+
+from tests.utils.auth import auth_headers, authenticated_state
 
 app = FastAPI()
 app.include_router(router, prefix="/api")
-app.state = MagicMock()
-app.state.testing = True
+app.state = authenticated_state()          # a database that answers the authorisation path
 client = TestClient(app, raise_server_exceptions=True)
+client.headers.update(auth_headers())      # a real, signed token — there is no bypass
 ```
+
+(This example set `app.state.testing = True` until 2026-10-06, a bypass TQ-1b deleted; the
+section below is why.)
 
 Never import from `src/app.py` — it doesn't export an app.
 
@@ -87,12 +91,13 @@ is weaker than what it replaced, and looks identical in CI.
 
 Branch logic in `static/js/` is unreachable from the Python suites — two workspace
 defects shipped past a green run for exactly that reason. Test it by executing the
-real file under node with stubbed browser globals; see
-`tests/unit/test_frontend_workspace_selection.py` for the harness (stub `localStorage`,
-a proxy DOM, a canned `fetch`; assert the resulting state).
+real file under node with stubbed browser globals: `run_js()` in
+`tests/utils/js_harness.py` stubs `localStorage`, a proxy DOM and a canned `fetch`, and
+returns what the module did (`html`, `values`, `checked`, `calls`, `storage`). Assert the
+resulting state; `tests/unit/test_frontend_workspace_selection.py` is a worked example.
 
-- Skip with `pytest.mark.skipif(shutil.which("node") is None, ...)` — node ships on
-  GitHub-hosted runners, but a local environment may not have it.
+- Skip with `pytest.mark.skipif(NODE_MISSING, ...)`, imported from the harness — node ships
+  on GitHub-hosted runners, but a local environment may not have it.
 - **Don't assert on the source text.** A regex over the file you just wrote restates
   the code instead of checking it; that is the tautological case the table above names.
 - **Assert on what the module changed, not on what the test supplied.** Reading back

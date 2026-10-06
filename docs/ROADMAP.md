@@ -1479,7 +1479,7 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
 | 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ + P2-4b (`BLE001`) ✅ 2026-09-21 — **sprint complete**. P2-6 retired two open Dependabot alerts. P2-4b was the one item that was not mechanical: 120 handlers read individually, 4 narrowed, 11 that were failing silently given a log | 3–4 days |
 | 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) ✅ (#399) + P2-1b (row-level security) ✅ 2026-10-02 (#400, #404, #406, #407) — **sprint complete** | 1 week |
-| 17 | P2-7 (docs split + path/endpoint tests) + P2-5 (CPU-only torch) ✅ 2026-10-02 (#408) | 1 week |
+| 17 | P2-7 (docs split + path/endpoint tests) ✅ 2026-10-04 (#416, #417, #420, #421) + P2-5 (CPU-only torch) ✅ 2026-10-02 (#408) — **sprint complete** | 1 week |
 | 18 | P2-3 (answer-level retrieval evaluation) ◐ baseline merged 2026-10-02 (#410); judge calibration open — decides DEL-2 | 1–2 weeks |
 | 19 | EV-1 (retrieval regression gate on every PR) ✅ 2026-10-04 — not yet required; found and fixed the lexical arm (#422) | 2–3 days |
 | 20 | GR-1a + GR-1b + GR-1c (retrieved content as untrusted input) ✅ 2026-10-05 | 1 week |

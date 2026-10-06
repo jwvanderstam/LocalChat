@@ -2,9 +2,16 @@
 
 PostgreSQL 16+ with the [pgvector](https://github.com/pgvector/pgvector) extension.
 
+> Verified against a database migrated to head (`0018`) at `d0a43d4` on 2026-10-06: every
+> table, column, index, `ON DELETE` action and row-level-security policy below was read back
+> from `information_schema`/`pg_catalog`, not from the code.
+
 ---
 
 ## Entity-Relationship Diagram
+
+The diagram shows relationships and each table's key columns. [Tables](#tables) below is the
+complete column reference.
 
 ```mermaid
 erDiagram
@@ -227,6 +234,9 @@ Stores the original documents ingested into the system.
 | `chunker_version` | `VARCHAR(50)` | Chunker version used at ingest time |
 | `local_only` | `BOOLEAN` | `true` = not synced from a connector |
 | `workspace_id` | `UUID` | FK → `workspaces.id` (SET NULL on delete) |
+| `language` | `VARCHAR(10)` | ISO 639-1 code detected at ingest (`langdetect`); `NULL` when undetected |
+| `last_ingested_at` | `TIMESTAMPTZ` | Last (re-)ingest; the connector worker's staleness check reads it |
+| `source_id` | `VARCHAR` | The connector a document came from; `NULL` for an upload. Indexed |
 | `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson CW-1); `NULL` = live |
 | `deleted_by` | `UUID` | FK → `users.id`; who triggered the retirement |
 | `created_at` | `TIMESTAMP` | Ingestion timestamp (UTC) |
@@ -307,6 +317,8 @@ One row per chat session.
 | `created_at` | `TIMESTAMP` | Session start (UTC) |
 | `updated_at` | `TIMESTAMP` | Last message timestamp (UTC) |
 | `memory_extracted_at` | `TIMESTAMP` | When long-term memory was last extracted for this session |
+| `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson, migration `0006`); `NULL` = live |
+| `deleted_by` | `UUID` | FK → `users.id`; who retired it |
 
 ### `conversation_messages`
 
@@ -337,6 +349,8 @@ Long-term facts extracted from conversations for persistent context.
 | `created_at` | `TIMESTAMP` | Extraction timestamp |
 | `last_used` | `TIMESTAMP` | Last time this memory was surfaced |
 | `use_count` | `INTEGER` | Number of times surfaced |
+| `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson, migration `0009`); `NULL` = live |
+| `deleted_by` | `UUID` | FK → `users.id`; who retired it |
 
 ### `workspaces`
 
@@ -350,6 +364,8 @@ Logical containers scoping documents, conversations, and memories.
 | `system_prompt` | `TEXT` | Workspace-level system prompt override |
 | `model_class` | `TEXT` | Default model class for this workspace |
 | `created_at` | `TIMESTAMPTZ` | Creation timestamp |
+| `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson, migration `0008`); `NULL` = live |
+| `deleted_by` | `UUID` | FK → `users.id`; who retired it |
 
 A `Default` workspace is auto-created on first startup.
 
@@ -366,6 +382,8 @@ Application user accounts.
 | `is_active` | `BOOLEAN` | `false` = account disabled |
 | `role` | `TEXT` | Global role: `"admin"` or `"user"` |
 | `created_at` | `TIMESTAMPTZ` | Account creation timestamp |
+| `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson, migration `0007`); `NULL` = live |
+| `deleted_by` | `UUID` | FK → `users.id`; who retired it |
 
 The initial admin user is seeded from `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars on first startup.
 
@@ -413,6 +431,9 @@ Configured live-sync connectors (local folder, S3, SharePoint, OneDrive, webhook
 | `last_sync_at` | `TIMESTAMPTZ` | Timestamp of last successful sync |
 | `last_error` | `TEXT` | Last error message, if any |
 | `created_at` | `TIMESTAMPTZ` | Connector creation timestamp |
+| `created_by` | `UUID` | FK → `users.id`; the only identity whose OAuth token the connector may spend (BUG-4, migration `0016`) |
+| `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson, migration `0011`); `NULL` = live |
+| `deleted_by` | `UUID` | FK → `users.id`; who retired it |
 
 ### `connector_sync_log`
 
@@ -538,6 +559,13 @@ rows, not of live state.
 | `idx_workspace_members_user` | `workspace_members` | `user_id` | B-tree | Workspaces per user |
 | `answer_feedback_created_idx` | `answer_feedback` | `created_at` | B-tree | Feedback time-range queries |
 | `answer_feedback_message_idx` | `answer_feedback` | `message_id` | B-tree | Feedback by message |
+| `idx_<table>_deleted_at` | `documents`, `conversations`, `memories`, `users`, `workspaces`, `connectors`, `annotations` | `deleted_at` | B-tree, partial (`WHERE deleted_at IS NULL`) | The live-rows filter every CDI read carries (Clark-Wilson) |
+| `idx_documents_source_id` | `documents` | `source_id` | B-tree | Documents by connector |
+| `idx_annotations_chunk` | `annotations` | `chunk_id` | B-tree | Annotations on a chunk |
+| `idx_workspace_api_keys_prefix` | `workspace_api_keys` | `key_prefix` | B-tree, partial (`WHERE revoked_at IS NULL`) | Key lookup on every API-key request |
+| `users_username_key`, `users_email_key` | `users` | `username`; `email` | Unique | One account per name and per address |
+| `entities_name_type_key` | `entities` | `(name, type)` | Unique | One entity per name and type |
+| `oauth_tokens_user_id_provider_key` | `oauth_tokens` | `(user_id, provider)` | Unique | One token per user per provider |
 
 ### HNSW parameters
 
@@ -548,7 +576,12 @@ WITH (m = 16, ef_construction = 64);
 
 - **`m = 16`** — bi-directional links per node; higher → better recall, larger index.
 - **`ef_construction = 64`** — build-time candidate list; higher → slower build, better recall.
-- **`ef_search = 100`** — set per-session (`SET hnsw.ef_search = 100`) to balance speed vs. recall.
+- **`ef_search = 100`** — set once per pooled connection (`SET hnsw.ef_search = 100`), and read
+  back with a warning if it did not stick (a transaction-pooling proxy drops it). A
+  workspace-scoped transaction (`get_connection(scope=<workspace>)`) overrides it with
+  `SET LOCAL hnsw.ef_search = 400` and `hnsw.iterative_scan = strict_order`: under row-level
+  security the index's global candidates are filtered *after* the scan, and without the
+  iterative scan a scoped search returned as few as 0 of 40 requested rows (ADR-5).
 - **Distance:** cosine similarity (`vector_cosine_ops`); matches nomic-embed-text normalised output.
 
 ---
@@ -564,6 +597,30 @@ WITH (m = 16, ef_construction = 64);
 | `workspaces` row | Cascades to `workspace_members`, `connectors`, `connector_sync_log`; sets FK columns on `documents`, `conversations`, `memories`, `answer_feedback` to NULL |
 | `users` row | Cascades to `workspace_members`, `oauth_tokens` |
 | `connectors` row | Cascades to `connector_sync_log` |
+| `document_chunks` row (again) | Cascades to `annotations` |
+| `workspaces` row (again) | Cascades to `workspace_api_keys` |
+| `conversations` / `users` row (again) | Sets `annotations.conversation_id` / `annotations.user_id` to NULL |
+
+These describe the database's `ON DELETE` actions, which only a **purge** exercises. The
+normal "delete" on every CDI is a soft delete (`deleted_at`), which cascades nothing — see
+the Clark-Wilson section of `CLAUDE.md`.
+
+---
+
+## Row-level security
+
+Migrations `0017`/`0018` (P2-1b, ADR-5) enable row-level security on the ten tables that hold
+or inherit a workspace: `documents`, `conversations`, `memories`, `answer_feedback`,
+`connectors`, `workspace_api_keys`, `workspace_members` directly on `workspace_id`, and
+`document_chunks`, `conversation_messages`, `annotations` through their parent row. Each has
+one policy, `localchat_workspace_isolation`, comparing the workspace to the transaction-local
+`app.workspace_id`.
+
+RLS binds only the `localchat_scoped` role (NOLOGIN), not the table owner or a superuser —
+`FORCE ROW LEVEL SECURITY` is deliberately off. `get_connection(scope=<workspace>)` switches
+the transaction into that role with `SET LOCAL ROLE` and sets `app.workspace_id`;
+`ALL_WORKSPACES` and the owner's own connections are unaffected. The role and its grants are
+re-created at every boot (`_apply_scoped_role()`), because `pg_dump` never carries a role.
 
 ---
 

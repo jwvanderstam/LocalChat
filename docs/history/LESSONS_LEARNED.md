@@ -1,7 +1,7 @@
 # Lessons Learned
 
 A chronological account of LocalChat's architecture and process decisions,
-built from `git log` (935 commits, 2025-12-28 → present) and
+built from `git log` (1167 commits, 2025-12-28 → present) and
 [`docs/ROADMAP.md`](../ROADMAP.md). Each chapter cites the commits it's built
 from so the rationale stays traceable back to source, the same way this
 project's own root-cause investigations are expected to work
@@ -1008,6 +1008,172 @@ the widest grant has to be written down to be granted.
 
 ---
 
+## 21. Isolation that every test passed while it did nothing
+
+The September audit's fix made a scope a value: a workspace id or the explicit
+`ALL_WORKSPACES`, never `None` (Ch. 20). P2-1b was to add the layer underneath it —
+row-level security, so the database itself refuses a foreign workspace's rows when a
+query forgets its `WHERE` clause. It took five PRs (#400, #404, #405, #406, #407), and
+almost every one of them found a way for isolation to look enforced while it was not.
+
+**A policy that binds nobody.** Postgres does not apply row-level security to a superuser
+or to a table's owner. Compose connects as `postgres`, which is both. Migration 0017's
+policies were therefore inert for the application from the moment they existed, and every
+test of them would have passed, because the tests connected the same way. The fix is a
+NOLOGIN role, `localchat_scoped`, that a workspace-scoped transaction switches into with
+`SET LOCAL ROLE` — and 0018, because a managed database's application identity does not get
+membership in a role merely by creating it. Compose would have worked by accident without
+it, and a managed deployment would have failed on the first scoped query.
+
+**A test that would have skipped as a pass.** CI's shared database gets its schema from
+`_ensure_extensions_and_tables()` and never runs the Alembic chain, so 0017 never existed
+there. `test_row_level_security.py` would have skipped in CI, which reads identically to a
+pass. It creates and migrates a database of its own instead, and was proven non-vacuous by
+disabling RLS on `documents` and watching three tests go red.
+
+**Three more doors, found by sorting.** Converting the fifteen `workspace_id: str | None =
+None` methods to a mandatory `Scope` (#406) meant reading every caller, and three of them
+were reading absence as "everything" (#405): `additional_workspace_ids` in a chat request
+reached retrieval unauthorised, `POST /api/documents/test` searched every workspace for any
+viewer, and the `list_documents` LLM tool listed every workspace's documents. None was in
+the audit. All three were found by the act of making the argument mandatory — Ch. 20's
+rule, that absence must be a type error, doing what it was for.
+
+**And a feature that failed closed so quietly nobody noticed.** With the aggregator agent
+on, every `local_docs` job raised `ScopeUnavailableError` and came back empty (#409): the
+route bound the request scope only inside the SSE generator, after retrieval had run, and
+`ThreadPoolExecutor` does not carry context variables into its workers. Failing closed was
+correct — no other workspace was reachable — but an empty retrieval and a failed one look
+the same from the chat window.
+
+**The cost of the database refusing on its own.** Under RLS the HNSW index is filtered
+*after* the scan, and a scoped vector search returned 19 of 40 requested rows on average,
+as few as 0. `hnsw.iterative_scan = strict_order` with `ef_search = 400` restored 40 of 40,
+at a 3.8 ms median against 9.1 ms for the exact scan it replaced. The policy was right and
+the search it produced was quietly worse; only a recall measurement over 10k chunks said so.
+
+**And the role itself only ever worked for a superuser.** The first deployment after all
+this (2026-10-06, DEPLOYMENT_LOG) found that Scaleway's Serverless SQL identity may not
+create roles at all, so no Serverless deployment can run the application any more; and that
+on its managed PostgreSQL, whose user can, the grant still failed — `GRANT … TO
+CURRENT_USER` is refused there, and a plain grant of the membership a role's creator
+already holds leaves it without SET. Every test, the RLS suite included, connected as
+`postgres`, which needs no membership to `SET ROLE`. The chapter's own lesson, one level
+further down: the identity the tests used was not the one production has (#430).
+
+**Rule taken from this:** test a security control as the identity production uses, or the
+test proves the control exists rather than that it binds. And a skipped test is not a
+passing one — when a suite depends on a precondition, make its absence fail.
+
+---
+
+## 22. Every ranking metric measured the alphabet
+
+`retrieve_context` returns its results in reading order: sorted by file name, then chunk
+index, so the model reads a document's passages in sequence. Every evaluation script read
+position in that list as rank. So for as long as they existed, recall@1 and MRR measured
+which relevant file name came first alphabetically.
+
+P2-3's answer evaluation found it first (#410) — its first baseline was re-taken by
+relevance, each file's best chunk score. `eval_retrieval.py` had the same bug and kept it
+until EV-1 (#423), which means DEL-2's GraphRAG and reranker comparisons, the numbers a
+deferral decision rested on, had measured the alphabet too. Re-run by relevance (#425):
+GraphRAG still changed no ranking, so that decision stood. The reranker, which ships
+enabled, lifted neither corpus — it cost one question at rank 1 on `docs/` and was a wash
+on the private 105-case corpus. That is recorded as a finding, not acted on: two corpora
+and one embedder is thin evidence for switching off a default.
+
+**The harness had a second leak, found twice.** The settings page persists its overrides
+to `app_state.json`, and retrieval prefers them to the code's defaults. The first P2-3
+baseline was measured through one maintainer's local file (`TOP_K_RESULTS` 40,
+`RERANK_TOP_K` 10), so it described a configuration nobody else ran; `eval_answers.py`
+learned to pin them away. The EV-1 gate pinned them too. `--compare` did not, and was
+found doing the same thing during the DEL-2 re-run (#425). One fix, applied to the path
+that hurt, left the sibling path open.
+
+**Rule taken from this:** an evaluation harness is code under test, and it is the one
+whose bugs are least visible, because its output is a plausible number. Before trusting a
+metric, check it on a case whose answer is known — a position-ranked metric scored against
+a deliberately reversed result list would have shown nothing changed. And when a harness
+bug is fixed in one script, look for its siblings the same day.
+
+---
+
+## 23. A gate that could not go red
+
+EV-1 was to score retrieval on every PR against a committed baseline, with the
+bag-of-words stub so that any movement came from the diff. Before relying on it, the gate
+was proven the way the testing rules ask: break the thing it guards, and watch it fail.
+The mutation chosen was to zero the lexical arm's weight in the hybrid blend.
+
+It stayed green. With the reranker on and with it off. A gate that cannot detect the
+removal of half of hybrid search is not a gate, so the proof run became an investigation,
+and the investigation found that the lexical arm had almost never been running at all.
+
+`search_lexical_chunks` used `plainto_tsquery('simple', question)`, which ANDs every token,
+and under the `simple` configuration stop words are tokens. A chunk matched only if it held
+every word of *"how do I restore the database from a backup"*, `how` and `do` and `I`
+included. The arm fired on 1 of the 20 eval questions and on 4 of P2-3's 105. For anything
+phrased as a question, hybrid search had been semantic search with extra latency.
+
+The fix ORs the question's content words (#422): stop words dropped, any script, letters
+and digits only so no tsquery operator can reach the expression. It fires on 105 of 105;
+source recall@5 rose from 0.562 to 0.590, MRR from 0.479 to 0.492. With it in place the
+same mutation turns the gate red on all three metrics, which is what made EV-1 shippable.
+
+**This is the second time this arm has been found not to do what it was for.** Ch. 10's
+hybrid-search regression was a filter undoing the blend three lines after it ran; this was
+the arm's own query matching nothing. Both survived tests that asserted the arm's
+mechanics rather than its effect on a question a person would type — the integration
+fixture's queries were keyword strings, which `plainto_tsquery` handles fine.
+
+**Rule taken from this:** prove a gate by breaking what it guards before relying on it, and
+when the proof fails, suspect the product before the gate. A detector that cannot see a
+mutation is evidence that the mutated thing was not doing anything — which is a finding
+worth more than the gate.
+
+---
+
+## 24. The documentation audit after the documentation tests
+
+P2-7 (#416–#421) gave the documents a test: every repository path and `/api/...` endpoint a
+current-state document names must exist. It passed. Three days later a full audit against
+the code — and, for the schema, against a database migrated to head and read back through
+`pg_catalog` — found what that test cannot see, because none of it is a broken reference:
+
+- `.claude/rules/architecture.md` and CLAUDE.md said `_ensure_extensions_and_tables()` owns
+  the DDL. Every schema change for eighteen migrations had been an Alembic revision, and
+  MIGRATIONS.md, verified in P2-7, said so. Two files read by every contributor — human or
+  agent — were instructing them to put schema changes in the wrong place.
+- `.claude/rules/testing.md`'s app-creation example set `app.state.testing = True`, a bypass
+  TQ-1b deleted; the section directly below it explained why there is no bypass.
+- README said **five** required checks. There are six. It had said three until 2026-08-27,
+  when the same sentence was last corrected.
+- The README quick start pulled a chat model and no embedding model. With none installed,
+  the selector falls back to embedding with whatever model is present, whose vectors do not
+  fit the 768-dimension column, so the first ingest fails.
+- SCHEMA.md lacked the soft-delete columns on five tables, ten indexes, two cascades and the
+  whole of row-level security.
+- `test_ollama_comprehensive.py` — 38 fully mocked tests — was marked `ollama`, so the
+  documented fast suite and its coverage baseline excluded them, while CI, which runs
+  `tests/unit` unfiltered, ran them. The local and CI coverage numbers were measuring
+  different suites. INTEGRATION_TESTS.md described a "with Ollama" integration run that
+  contains no tests.
+
+**A reference test checks that a name exists, not that a sentence is true.** P2-7's test is
+worth having and it stays, but it moved the drift rather than stopping it: it covers what
+is mechanically checkable, which makes the rest feel covered too. The two facts that
+travel furthest — the rules files, which instruct whoever writes the next change, and the
+quick start, which is the first thing anyone runs — were the two it could not see.
+
+**Rule taken from this:** verify a document against the system, not against the code's
+own comments or another document — `config.py`'s comment about `ef_search` was itself
+stale. Stamp what was verified and when, so the next reader knows what the claim is worth.
+And give the instruction files the same audit as the reference docs: they are the
+documents most likely to be acted on without being questioned.
+
+---
+
 ## Patterns that recurred
 
 - **Prove it small, then repeat mechanically.** Clark-Wilson (documents
@@ -1075,6 +1241,20 @@ the widest grant has to be written down to be granted.
   Neither surfaced as a failure — one produced an inert rule, the other a
   comment nobody read. Config is only verified by reading back the stored
   state, or by watching it actually do its job.
+- **A control is only tested as the identity that runs it.** Chapter 21's
+  row-level security was inert for the owner role every test connected as;
+  a test of it would have passed with the policy doing nothing. The same
+  shape as Chapter 12's bypassed auth checks, one layer down.
+- **The measuring instrument is code under test.** Chapter 22's metrics read
+  alphabetical order as rank for weeks, and a decision rested on them. A
+  harness's bugs are the least visible kind, because its output is a
+  plausible number.
+- **A detector that cannot see a mutation is a finding about the product.**
+  Chapter 23's gate stayed green with half of hybrid search removed, because
+  that half had never been running. Proving the gate found the defect.
+- **A mechanical check of documents moves the drift to what it cannot see.**
+  Chapter 24: references were all valid while the rules files, the quick
+  start and the schema described a system that no longer existed.
 
 ### What each pattern produced
 
@@ -1115,3 +1295,7 @@ guard are marked as such honestly.
 | A benchmark can measure a different subsystem entirely (Ch. 18) | 190 of 200 requests returned 429 — the concurrency run was measuring slowapi, and PERF-2's published numbers sat exactly at the 10/min ceiling | `tests/perf/conftest.py` raises `RATELIMIT_CHAT`; `PRODUCTION_PLAN.md` warns that re-running the benchmark at higher load requires it |
 | A sample of one is not a measurement (Ch. 18) | With generation stubbed the load finished inside a second and the canary collected one probe; the gate would have passed on it | `MIN_PROBES` fails the perf test when the run was too short, and `canary_verdict()` treats an empty sample as a failure rather than a pass |
 | A pinned base does not pin what it downloads (Ch. 18) | Every image build failed on unchanged source, a docs-only PR included: DHI published hardened rebuilds (`+dhi1/2/3/7`) of libraries whose Debian counterparts `build-essential` and `libpq-dev` depend on by exact equality | The `apt-get` layer is deleted rather than pinned around — it was never needed (`psycopg[binary]` vendors libpq; the one sdist, `langdetect`, is pure Python and builds in a base carrying no gcc). A digest-pinned base with a live `apt-get` is the Ch. 11 shape one layer down: something that looks pinned and is not |
+| A control is only tested as the identity that runs it (Ch. 21) | `localchat_scoped` role switched into per scoped transaction (0017/0018, #407); `test_row_level_security.py` migrates its own database and was proven by disabling RLS on `documents` | The integration test asserts the application's own `get_connection(scope=)` hides a foreign workspace from a query with no `WHERE`. Skips that look like passes are designed out of that module; the general rule — make a missing precondition fail — has no automated guard |
+| The measuring instrument is code under test (Ch. 22) | Both eval scripts rank by relevance (`eval_answers.relevance_rank`); every path pins `app_state.json` away (#425) | `test_eval_retrieval_gate.py` asserts position is not rank and that `--compare` scores the defaults; the answer baseline records the settings and models it was taken under, and `check` refuses a run measured differently |
+| A detector that cannot see a mutation (Ch. 23) | The lexical arm ORs content words (#422); EV-1 shipped only after zeroing the lexical weight turned it red | `retrieval-gate` scores every PR exactly against `tests/eval/baseline.json` (not yet required); `test_lexical_query_terms.py` and a natural-question integration test pin the arm |
+| A mechanical check moves the drift (Ch. 24) | A full audit against the code and a migrated database; every audited document carries a "verified against" stamp | No automated guard for a false sentence, and probably none possible. The stamp makes a claim's age visible; `test_docs_reference_what_exists.py` still holds the part that is checkable |

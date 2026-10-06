@@ -7,7 +7,8 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 
 Chat with your own documents, using a language model that runs on your own hardware.
-Upload PDF, DOCX, PPTX, XLSX, TXT, Markdown or images; LocalChat chunks and embeds them into PostgreSQL with
+Upload PDF, DOCX, PPTX, XLSX, TXT, Markdown, email (`.eml`), source code (`.py`, `.js`, `.ts`) or
+images; LocalChat chunks and embeds them into PostgreSQL with
 pgvector, and answers questions from what it retrieves. Nothing leaves the machine unless
 you enable web search or a cloud fallback.
 
@@ -75,12 +76,17 @@ first boot seeds the account from it. (Only the host-run path, `python app.py`, 
 it empty — the app then generates one and logs it once. Under Docker, compose requires
 the value.)
 
-Then pull a model and select it under **Models** — without an active model, chat returns
-`400 No active model set`:
+Then pull a chat model and an embedding model, and select the chat model under **Models** —
+without an active model, chat returns `400 No active model set`:
 
 ```bash
 docker compose exec ollama ollama pull llama3.2:latest
+docker compose exec ollama ollama pull nomic-embed-text
 ```
+
+The embedding model is not optional. With none installed, LocalChat falls back to embedding
+with whatever model it finds, and a chat model's vectors do not fit the 768-dimension
+column — ingest then fails.
 
 Upload a document under **Documents**, and ask about it under **Chat**.
 
@@ -116,7 +122,8 @@ OLLAMA_BIND_PORT=21434 docker compose up -d ollama
 
 **Retrieval.** Hybrid search combines an independent semantic arm (pgvector) and a lexical
 arm (PostgreSQL tsvector), blended by weight, then reranked by a cross-encoder. GraphRAG
-expands queries one hop through entity co-occurrences. Chunking preserves table structure,
+can expand queries one hop through entity co-occurrences; it is off by default, and
+measured, it has not yet changed a ranking (DEL-2). Chunking preserves table structure,
 and PDF tables are extracted rather than flattened.
 
 **Answers.** Streaming responses over SSE, with tool calling, optional live web search, and
@@ -220,17 +227,18 @@ pytest -m "not (slow or ollama or db)"       # fast suite, no external services
 ```
 
 All four must be clean before a commit; CI enforces the same set. Merging to `main`
-requires **five** checks to pass — `unit-tests`, `integration-tests`, `repo-hygiene`,
-`docker-smoke` and `perf-canary` — and is a human decision; auto-merge is off
-deliberately. (`docker-smoke` joined the required set on 2026-08-19 and `perf-canary` on
-2026-08-24; this sentence still said three until 2026-08-27. Read the set back with
+requires **six** checks to pass — `unit-tests`, `integration-tests`, `repo-hygiene`,
+`docker-smoke`, `perf-canary` and `security-smoke` — and is a human decision; auto-merge is
+off deliberately. (`security-smoke` joined on 2026-09-26; this sentence still said five
+until 2026-10-06, the second time it has lagged the ruleset. Read the set back with
 `gh api repos/jwvanderstam/LocalChat/rulesets/14700924`, not from the settings UI.)
 
-**Current state:** 3,327 tests collected; the fast suite runs 3,221 of them (3,199 passed,
-22 skipped) at 80.9% coverage — about 12 minutes on CI, twice that on a laptop. Integration
-tests need PostgreSQL; some also need Ollama, and `tests/e2e/` drives a real browser. Every
-number here was measured on 2026-09-17 rather than remembered — see exit criterion 7 in
-[PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md).
+**Current state:** 3,574 tests collected. CI's `unit-tests` job runs `tests/unit` — 3,224
+passed at 80.1% coverage in 12 minutes, on `247f3b9` — about twice that on a laptop.
+Integration tests need PostgreSQL and `tests/e2e/` drives a real browser; none needs a live
+Ollama, since every model call in the suite goes to `tests/utils/fake_ollama.py`. Every
+number here was read from a run on 2026-10-06 rather than remembered — see exit criterion 7
+in [PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md).
 
 Notable changes per release are in [CHANGELOG.md](CHANGELOG.md).
 

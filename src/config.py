@@ -363,8 +363,8 @@ BATCH_MAX_WORKERS: int = 8                   # Batch processor workers
 EMBEDDING_CONCURRENT_BATCHES: int = int(os.environ.get('EMBEDDING_CONCURRENT_BATCHES', '2'))
 
 # Database Performance
-# ef_search is computed dynamically in documents.py as max(top_k * 2, 40)
-# to balance recall and query latency based on the configured TOP_K_RESULTS.
+# hnsw.ef_search is set to 100 on every pooled connection, and to 400 with an iterative scan
+# inside a workspace-scoped transaction — both in src/db/connection.py, neither tunable here.
 DB_INDEX_TYPE: str = 'hnsw'                  # Use HNSW index
 
 # L3 Database Cache Configuration

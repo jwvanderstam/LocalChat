@@ -73,7 +73,7 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 | `src/tools/` | Function-calling loop, tool registry, built-ins, plugin loader |
 | `src/graph/` | GraphRAG: entity extraction, 1-hop query expansion |
 | `src/memory/` | Long-term memory extraction + vector retrieval |
-| `src/connectors/` | Document sources: local, S3, SharePoint, OneDrive, webhook |
+| `src/connectors/` | Document sources: local folder, SharePoint, OneDrive, Google Drive, webhook |
 | `src/cache/` | Multi-backend caching with TTLs |
 | `src/mcp_client.py` | MCP HTTP client + circuit breaker |
 | `mcp_servers/` | Domain MCP servers (docs :5001, web :5002, connectors :5003) |
@@ -155,7 +155,7 @@ LocalChat supports plugins (LLM tools, connectors, background work) that extend 
 
 The enforcing procedure is to be a CI job that verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core.
 
-> **It does not exist yet** (checked 2026-08-27). It is PC-4, ROADMAP Sprint 11, behind the PRODUCTION_PLAN exit criteria. Until then the one rule is enforced by review. The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
+> **It does not exist yet** (checked 2026-08-27, again 2026-10-06). It is PC-4, ROADMAP Sprint 11; the PRODUCTION_PLAN exit criteria it once queued behind were met on 2026-08-31, so nothing but priority holds it now. Until then the one rule is enforced by review. The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
 
 Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
 
@@ -371,7 +371,7 @@ upstream).
 - **Register `/clear` before `/{id: int}` routes** — FastAPI matches path patterns in order; a literal `/clear` after `/{id}` is shadowed and returns 422.
 - **Don't mock `OllamaClient` at the wrong layer** — mock at the service boundary, not inside RAG internals.
 - **Don't call `os.getenv` in business logic** — every value that skips `config.py` is invisible to config review.
-- **Don't write destructive migrations** — schema changes use `ALTER TABLE IF NOT EXISTS`; `_ensure_extensions_and_tables()` owns the DDL.
+- **Don't write destructive migrations** — a schema change is an additive Alembic migration (`ADD COLUMN IF NOT EXISTS`); `_ensure_extensions_and_tables()` owns only the base schema. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
 ---
 

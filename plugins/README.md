@@ -1,5 +1,9 @@
 # LocalChat Plugin System
 
+> Verified against `src/tools/` and `src/app_bootstrap.py` at `d0a43d4` on 2026-10-06. This
+> is the plugin mechanism that ships; the contract in `.claude/rules/plugins.md` is the
+> designed, unbuilt target.
+
 Drop a `.py` file here — LocalChat loads it automatically at startup.
 
 ---
@@ -8,7 +12,7 @@ Drop a `.py` file here — LocalChat loads it automatically at startup.
 
 1. On startup, `PluginLoader.load_all()` scans this directory for `*.py` files (skips `_`-prefixed files).
 2. Each file is dynamically imported. Any `@tool_registry.register` decorated functions in the file are registered as LLM-callable tools.
-3. The LLM can call your tools during chat just like the built-in ones (`search_documents`, `calculate`, etc.).
+3. The LLM can call your tools during chat just like the built-in ones (`search_documents`, `list_documents`, `calculate`, `get_current_datetime`). The tool loop runs only when retrieval found no document or web context for the question, and only with `TOOL_CALLING_ENABLED=true` (the default).
 
 No source-code changes needed — just drop a file and restart (or call `POST /api/plugins/reload`).
 
@@ -50,8 +54,8 @@ def my_tool(input: str) -> str:
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/plugins` | `GET` | List all loaded plugins and their tools |
-| `/api/plugins/reload` | `POST` | Hot-reload all plugins from disk (no restart needed) |
+| `/api/plugins` | `GET` | List all loaded plugins and their tools — admin only |
+| `/api/plugins/reload` | `POST` | Hot-reload all plugins from disk (no restart needed) — admin only |
 
 ---
 
@@ -66,7 +70,7 @@ def my_tool(input: str) -> str:
 
 ## Rules
 
-- Tool names must be **unique** across all plugins and builtins. A plugin that reuses an existing name will overwrite it (a warning is logged).
+- Tool names must be **unique** across all plugins and builtins. A plugin that reuses an existing name **replaces** it, with only a warning logged — including a built-in such as `search_documents`, whose workspace scoping the replacement would then have to re-implement. Treat a plugin as code with the application's full authority (SECURITY.md, risk 4).
 - Plugin files starting with `_` (e.g. `__init__.py`) are **skipped**.
 - Plugins run in the same process — they have full access to the Python environment.
 - Keep tool handlers **fast and side-effect-free** where possible; the LLM waits for the result.

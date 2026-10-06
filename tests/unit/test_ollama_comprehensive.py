@@ -15,7 +15,9 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
-pytestmark = [pytest.mark.unit, pytest.mark.ollama]
+# Not `ollama`: every HTTP call is mocked. The marker excluded these 38 tests from the fast
+# suite and its coverage baseline while CI, which runs tests/unit unfiltered, ran them.
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture(scope="session", autouse=True)
