@@ -6,10 +6,14 @@ would work only by accident — compose connects as `postgres`, a superuser — 
 database, whose application identity is neither, would refuse the switch on its first
 scoped transaction.
 
-`CURRENT_USER` here is whoever runs the migration, which is the application: bootstrap runs
-`alembic upgrade head` on its own connection. On PostgreSQL 16 a plain `GRANT role TO user`
-carries `SET TRUE`, which is the option `SET ROLE` needs; the membership a role's creator
-receives automatically does not. See ADR-5.
+The grantee is whoever runs the migration, which is the application: bootstrap runs
+`alembic upgrade head` on its own connection. The membership a role's creator receives
+automatically on PostgreSQL 16 carries ADMIN but not SET, and a GRANT of a membership that
+already exists leaves its options unchanged — so the grant says `WITH SET TRUE` explicitly.
+It names the user through `format()` because Scaleway's managed PostgreSQL refuses the
+`CURRENT_USER` specifier in GRANT. (Until 2026-10-06 this was a plain `GRANT ... TO
+CURRENT_USER`, which worked only for a superuser.) Boot re-applies the same grant, so a
+database that ran the old form is repaired on its next start. See ADR-5.
 """
 from alembic import op
 
@@ -22,8 +26,8 @@ ROLE = "localchat_scoped"
 
 
 def upgrade() -> None:
-    op.execute(f"GRANT {ROLE} TO CURRENT_USER")
+    op.execute(f"DO $$ BEGIN EXECUTE format('GRANT %I TO %I WITH SET TRUE', '{ROLE}', current_user); END $$;")
 
 
 def downgrade() -> None:
-    op.execute(f"REVOKE {ROLE} FROM CURRENT_USER")
+    op.execute(f"DO $$ BEGIN EXECUTE format('REVOKE %I FROM %I', '{ROLE}', current_user); END $$;")

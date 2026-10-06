@@ -66,7 +66,15 @@ def _apply_scoped_role(cursor: Any) -> None:
         END $$;
         """
     )
-    cursor.execute(f"GRANT {SCOPED_ROLE} TO CURRENT_USER")
+    # WITH SET TRUE, to the user by name. On PostgreSQL 16 a role's creator holds it with
+    # ADMIN but not SET, and a GRANT of a membership that already exists leaves its options
+    # as they were — so a plain GRANT changed nothing and SET LOCAL ROLE was refused for any
+    # identity that is not a superuser. Scaleway's managed PostgreSQL also refuses the
+    # CURRENT_USER specifier in GRANT outright. Compose and CI connect as a superuser, which
+    # is why neither ever saw it.
+    cursor.execute(
+        f"DO $$ BEGIN EXECUTE format('GRANT %I TO %I WITH SET TRUE', '{SCOPED_ROLE}', current_user); END $$;"
+    )
     cursor.execute(f"GRANT USAGE ON SCHEMA public TO {SCOPED_ROLE}")
     cursor.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {SCOPED_ROLE}")
     cursor.execute(f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {SCOPED_ROLE}")
