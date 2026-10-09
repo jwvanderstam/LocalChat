@@ -49,14 +49,14 @@ class MetricsCollector:
     def __init__(self):
         """Initialize metrics collector."""
         self._lock = threading.Lock()
-        self._counters: dict[str, int] = defaultdict(int)
+        self._counters: dict[str, float] = defaultdict(int)
         self._histograms: dict[str, list] = defaultdict(list)
         self._gauges: dict[str, float] = {}
         self._start_time = datetime.now()
 
         logger.info("MetricsCollector initialized")
 
-    def increment(self, name: str, value: int = 1, labels: dict | None = None) -> None:
+    def increment(self, name: str, value: float = 1, labels: dict | None = None) -> None:
         """
         Increment a counter.
 
@@ -223,6 +223,25 @@ def counted(metric_name: str, labels: dict | None = None) -> Callable:
     return decorator
 
 
+def record_llm_usage(
+    model: str,
+    path: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    cost_usd: float | None = None,
+) -> None:
+    """Count one model call's tokens, and its cost when the backend bills per token."""
+    # Labelled by model and path only, never by user or workspace: those are
+    # unbounded label values, and /api/metrics is readable by any METRICS_TOKEN holder.
+    labels = {"model": model, "path": path}
+    metrics = get_metrics()
+    metrics.increment("llm_calls_total", labels=labels)
+    metrics.increment("llm_prompt_tokens_total", prompt_tokens, labels=labels)
+    metrics.increment("llm_completion_tokens_total", completion_tokens, labels=labels)
+    if cost_usd is not None:
+        metrics.increment("llm_cost_usd_total", cost_usd, labels=labels)
+
+
 class MetricsMiddleware(BaseHTTPMiddleware):
     """ASGI middleware that records HTTP request duration and count for every request."""
 
@@ -380,7 +399,7 @@ def export_prometheus_metrics() -> str:
     lines = []
 
     # Counters — one TYPE declaration per base name, all label variants beneath it
-    counter_groups: dict[str, dict[str, int]] = {}
+    counter_groups: dict[str, dict[str, float]] = {}
     for key, count_value in metrics['counters'].items():
         counter_groups.setdefault(_base_metric_name(key), {})[key] = count_value
     for base_name, counter_entries in counter_groups.items():

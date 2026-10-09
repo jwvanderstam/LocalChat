@@ -10,7 +10,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/config.py` | All configuration constants, loads `.env` |
 | `src/models.py` | Pydantic request/response models |
 | `src/security_fastapi.py` | JWT (`PyJWT`), rate limiting (`slowapi`), CORS (Starlette middleware), `setup_security_headers()` (CSP + nosniff + referrer + framing + HSTS); `resolve_principal()` — the one place a caller is identified: decode, fail-closed revocation, and the role read from the database |
-| `src/monitoring.py` | `MetricsCollector`, `export_prometheus_metrics`, `get_metrics`; `MetricsMiddleware` (ASGI) for request timing; `compute_health_status` — live-probes the database through the pool (5 s TTL) rather than echoing a boot-time flag |
+| `src/monitoring.py` | `MetricsCollector`, `export_prometheus_metrics`, `get_metrics`; `record_llm_usage` — per-call token and cloud-cost counters labelled by model and path only (OBS-1a); `MetricsMiddleware` (ASGI) for request timing; `compute_health_status` — live-probes the database through the pool (5 s TTL) rather than echoing a boot-time flag |
 | `src/ollama_client.py` | `OllamaClient` singleton — chat (stream + non-stream), embedding, model CRUD, vision, GPU info; `estimate_model_footprint()`, `load_model_guard()`; TTL-cached model list (60 s) and running models (5 s) |
 | `src/llm_client.py` | `LiteLLMClient` cloud-fallback adapter; `ModelClient` Protocol |
 | `src/gpu/__init__.py` | GPU package — re-exports `GpuBackend`, `detect`, and backend classes |
@@ -188,7 +188,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `Dockerfile` | Multi-stage build on Docker Hardened Images — `dhi.io/python:3.12-dev` builds the venv, `dhi.io/python:3.12` runs it as uid 65532 with no shell or package manager |
 | `docker-entrypoint.py` | Container entrypoint — expands `SERVER_PORT`/`UVICORN_WORKERS`/`UVICORN_TIMEOUT` (the hardened base has no shell to do it) and `exec`s uvicorn so it stays PID 1 |
 | `docs/DEPLOYMENT.md` | Docker Compose deployment: secrets, resource limits, upgrade/rollback, TLS, security checklist |
-| `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 16 panels) |
+| `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 20 panels; the Model Usage row is OBS-1a) |
 | `tests/conftest.py` | Shared pytest fixtures |
 | `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
 | `tests/unit/test_oauth_routes_identity.py` | BUG-4 — the OAuth callbacks store a token against a real user or refuse; no `"admin"` string fallback |
@@ -209,11 +209,12 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_local_folder_least_privilege.py` | P0-3 — the `local_folder` connector reaches only inside `CONNECTOR_LOCAL_ROOTS`, and only a global admin may create or repoint one. Covers `/etc`, `..`, a symlink out of an allowed root, and a sibling sharing a path prefix (`commonpath`, not `startswith`) |
 | `tests/unit/test_object_authorization_matrix.py` | P0-1 — every route addressing an object by id is scoped to a workspace. Walks the AST of `src/` and fails on any call to a workspace-scoped database method that omits `scope=`, so a *new* route cannot repeat C1/C2 |
 | `tests/unit/test_purge_preconditions.py` | The Clark-Wilson purge TPs — a cited conversation or a user with memberships is refused before any DELETE |
+| `tests/unit/test_token_accounting.py` | OBS-1a — a streamed chat against `fake_ollama` adds exactly the tokens its `done` object reported, the cloud path adds a canned LiteLLM response's tokens and price, an unpriced model still counts tokens, and no counter carries more than the model and path labels |
 | `tests/unit/test_degradation_paths.py` | P2-4b — the exception paths that change behaviour: the four narrowed handlers absorb a malformed timestamp and let anything else escape, and the settings page still renders when its stats do not (the bug P2-4b itself introduced) |
 | `tests/unit/test_processor_entity_extraction.py` | `_extract_entities` — GraphRAG is best-effort; a failure there never fails an ingest |
 | `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; runs ES modules that import their siblings (`chat.js`) as well as standalone scripts; how frontend branch logic is tested |
 | `tests/utils/auth.py` | `auth_headers()`, `authorise_db()`, `authenticated_state()` — how a test authenticates for real; replaced the `app.state.testing` bypass (TQ-1b) |
-| `tests/utils/fake_ollama.py` | TQ-2 stub for Ollama — bag-of-words embeddings (deterministic, and meaningful so ranking assertions are real) plus a canned chat stream |
+| `tests/utils/fake_ollama.py` | TQ-2 stub for Ollama — bag-of-words embeddings (deterministic, and meaningful so ranking assertions are real) plus a canned chat stream whose final object reports one token per word |
 | `tests/e2e/conftest.py` | Starts a real LocalChat (uvicorn subprocess + CI's Postgres + TQ-2's fake Ollama) and points Playwright's `base_url` at it; `server_env` lets a suite override the server's environment |
 | `tests/perf/conftest.py` | Reuses `live_server`, raising `RATELIMIT_CHAT` — at its 10/min default a concurrency run measures slowapi, not the event loop |
 | `tests/perf/test_concurrency_canary.py` | PERF-2 — `/api/health` stays answerable while concurrent SSE streams run; prints the canary spread every run |

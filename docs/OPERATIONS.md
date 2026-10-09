@@ -351,6 +351,53 @@ single ceiling.
 
 ---
 
+## Model Usage and Spend
+
+Every model call adds to four counters on `/api/metrics`, labelled by `model` and by
+`path` — `local` for Ollama, `cloud` for the LiteLLM fallback:
+
+| Counter | What it adds |
+|---|---|
+| `llm_calls_total` | One per call — chat, planner, memory extraction, tool calls |
+| `llm_prompt_tokens_total` | Prompt tokens the backend evaluated |
+| `llm_completion_tokens_total` | Tokens the backend generated |
+| `llm_cost_usd_total` | `cloud` only: LiteLLM's price for those tokens |
+
+There are no user or workspace labels, on purpose: anyone holding `METRICS_TOKEN` can
+read this endpoint, and per-user labels would grow without bound.
+
+**On the local path tokens are a capacity signal, not a bill** — Ollama runs on hardware
+paid for by the hour. Prompt tokens per call (`llm_prompt_tokens_total / llm_calls_total`)
+is the number to watch: a context-length change that quadruples every prompt shows up
+there before it shows up as latency.
+
+**On the cloud path they are the bill**, and nothing else stops it growing — the cloud
+provider sets no hard spend cap (see [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md) for
+Scaleway). A model LiteLLM cannot price still has its tokens counted; it logs
+`Cannot price <model>` and adds no cost.
+
+The "Model Usage" row of `docs/grafana-dashboard.json` plots all three. An example
+Prometheus alert on cloud spend, with a threshold to set to your own budget:
+
+```yaml
+groups:
+  - name: localchat-spend
+    rules:
+      - alert: LocalChatCloudSpendHigh
+        expr: sum(increase(llm_cost_usd_total[1h])) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cloud fallback spent over $1 in the last hour"
+```
+
+The counters are in-process and restart from zero with the container; `increase()`
+handles the reset, but a total you want to keep across restarts needs Prometheus
+retention, not this endpoint.
+
+---
+
 ## Routine Maintenance
 
 ### Vacuum and analyse PostgreSQL

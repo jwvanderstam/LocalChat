@@ -17,6 +17,7 @@ from collections.abc import Generator
 from typing import Any, Protocol, runtime_checkable
 
 from . import config
+from .monitoring import record_llm_usage
 from .utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -88,13 +89,33 @@ class LiteLLMClient:
 
         logger.info(f"[CloudFallback] LiteLLMClient ready — provider={provider}, model={model}")
 
-    @staticmethod
-    def _iter_stream_chunks(response: Any) -> Generator[str, None, None]:
+    def _iter_stream_chunks(self, response: Any, model: str) -> Generator[str, None, None]:
         """Yield non-empty content strings from a litellm streaming response."""
+        usage = None
         for chunk in response:
+            # With include_usage the final chunk carries usage and no choices.
+            usage = getattr(chunk, "usage", None) or usage
             content = chunk.choices[0].delta.content if chunk.choices else ""
             if content:
                 yield content
+        self._record_usage(model, usage)
+
+    def _record_usage(self, model: str, usage: Any) -> None:
+        """Count a cloud call's tokens and, where litellm can price the model, its cost."""
+        prompt = getattr(usage, "prompt_tokens", None)
+        completion = getattr(usage, "completion_tokens", None)
+        if not isinstance(prompt, int) or not isinstance(completion, int):
+            logger.warning("[CloudFallback] No token usage in the response from %s", model)
+            return
+        cost: float | None = None
+        try:
+            prompt_cost, completion_cost = self._litellm.cost_per_token(
+                model=model, prompt_tokens=prompt, completion_tokens=completion
+            )
+            cost = float(prompt_cost + completion_cost)
+        except Exception as exc:  # noqa: BLE001 — litellm raises its own types for a model it cannot price; the tokens are still counted, the cost is left out
+            logger.warning("[CloudFallback] Cannot price %s: %s", model, exc)
+        record_llm_usage(model, "cloud", prompt, completion, cost)
 
     def generate_chat_response(
         self,
@@ -116,11 +137,17 @@ class LiteLLMClient:
         if self._api_key:
             kwargs["api_key"] = self._api_key
 
+        if stream:
+            # Without this a stream reports no usage at all, and per-token billing
+            # would go uncounted on exactly the path that has a bill.
+            kwargs["stream_options"] = {"include_usage": True}
+
         try:
             response = self._litellm.completion(**kwargs)
             if stream:
-                yield from self._iter_stream_chunks(response)
+                yield from self._iter_stream_chunks(response, model)
             else:
+                self._record_usage(model, getattr(response, "usage", None))
                 yield (response.choices[0].message.content or "") if response.choices else ""
         except Exception:
             logger.exception("[CloudFallback] litellm error")
@@ -139,4 +166,5 @@ class LiteLLMClient:
         if self._api_key:
             kwargs["api_key"] = self._api_key
         response = self._litellm.completion(**kwargs)
+        self._record_usage(model, getattr(response, "usage", None))
         return response.model_dump()
