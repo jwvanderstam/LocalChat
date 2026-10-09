@@ -47,10 +47,23 @@ import httpx
 
 from . import config
 from .gpu_monitor import GpuMonitor
+from .monitoring import record_llm_usage
 from .utils.logging_config import get_logger
 
 # Setup logger
 logger = get_logger(__name__)
+
+
+def _record_usage(model: str, data: dict[str, Any]) -> None:
+    """Count the tokens Ollama reports on a call's final object."""
+    # No cost: Ollama runs on hardware billed by the hour, so tokens are a capacity
+    # signal here, not a spend one. prompt_eval_count is absent when the whole prompt
+    # was served from Ollama's cache, which is zero new tokens evaluated.
+    record_llm_usage(
+        model, "local",
+        int(data.get("prompt_eval_count", 0)),
+        int(data.get("eval_count", 0)),
+    )
 
 
 class OllamaClient:
@@ -377,7 +390,9 @@ class OllamaClient:
             logger.exception("Error describing image")
             return False, str(e)
 
-    async def _iter_stream_chunks(self, response: httpx.Response) -> AsyncGenerator[str, None]:
+    async def _iter_stream_chunks(
+        self, response: httpx.Response, model: str
+    ) -> AsyncGenerator[str, None]:
         """Yield content chunks from a streaming Ollama /api/chat response."""
         async for line in response.aiter_lines():
             if line:
@@ -387,6 +402,7 @@ class OllamaClient:
                     if content:
                         yield content
                 if data.get('done', False):
+                    _record_usage(model, data)
                     break
 
     def _raise_for_ollama_error(self, response: Any, model: str) -> NoReturn:
@@ -465,7 +481,7 @@ class OllamaClient:
                     timeout=120,
                 ) as response:
                     if response.status_code == 200:
-                        async for chunk in self._iter_stream_chunks(response):
+                        async for chunk in self._iter_stream_chunks(response, model):
                             yield chunk
                         logger.debug("Chat response generated successfully")
                     else:
@@ -478,7 +494,9 @@ class OllamaClient:
                     timeout=120,
                 )
                 if response.status_code == 200:
-                    yield response.json().get('message', {}).get('content', '')
+                    data = response.json()
+                    _record_usage(model, data)
+                    yield data.get('message', {}).get('content', '')
                     logger.debug("Chat response generated successfully")
                 else:
                     self._raise_for_ollama_error(response, model)
@@ -549,6 +567,7 @@ class OllamaClient:
 
         if response.status_code == 200:
             data = response.json()
+            _record_usage(model, data)
             tool_calls = data.get("message", {}).get("tool_calls")
             if tool_calls:
                 logger.info(f"Model returned {len(tool_calls)} tool call(s)")
