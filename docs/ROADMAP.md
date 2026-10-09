@@ -1529,7 +1529,7 @@ Findings from the 2026-07 external code-quality audit that are real but delibera
 |---|---|
 | Multi-tenancy / SaaS isolation | Out of scope — LocalChat is self-hosted |
 | OAuth / SSO for viewer-only access | Defer to v4.0 |
-| Row-level security in PostgreSQL | Defer — application-level RBAC sufficient for self-hosted deployment |
+| Row-level security in PostgreSQL | ~~Defer~~ — **reversed**: built as defence in depth under P2-1b (enforced 2026-09-29); see [ADR-5](ADR.md) |
 | Purge scheduler (auto-purge after N days) | Defer — manual purge is sufficient; scheduled purge is a separate feature |
 | Automatic signal extraction pipeline | Defer — human-curated retrospectives are the contribution model; ML extraction is v4.0 |
 | GKB staleness / decay scoring | Defer — `archived_at` column reserved; active staleness weighting is a future retrieval improvement |
