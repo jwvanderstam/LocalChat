@@ -239,6 +239,12 @@ Stores the original documents ingested into the system.
 | `source_id` | `VARCHAR` | The connector a document came from; `NULL` for an upload. Indexed |
 | `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson CW-1); `NULL` = live |
 | `deleted_by` | `UUID` | FK → `users.id`; who triggered the retirement |
+| `contributed_at` | `TIMESTAMPTZ` | GKB-1: when the document was contributed to the global tier; `NULL` for every workspace document |
+| `contributed_by` | `UUID` | FK → `users.id`; who contributed it |
+| `archived_at` | `TIMESTAMPTZ` | GKB-1: a contribution retired from the global tier; `NULL` = live |
+| `source_project_id` | `UUID` | FK → `workspaces.id` (SET NULL on delete); the workspace it was contributed from |
+| `outcome` | `VARCHAR(32)` | Contribution envelope: the project's outcome |
+| `sector` | `VARCHAR(128)` | Contribution envelope: the project's sector |
 | `created_at` | `TIMESTAMP` | Ingestion timestamp (UTC) |
 
 One live row per `(filename, workspace_id)` is enforced by
@@ -247,6 +253,15 @@ One live row per `(filename, workspace_id)` is enforced by
 — re-ingesting a changed file updates the existing row in place rather than
 inserting a new one, so the document `id` (and anything that cites it)
 never changes across a content update.
+
+**The global tier (GKB-1, migration 0019).** A document is global knowledge when
+`workspace_id IS NULL AND contributed_at IS NOT NULL AND archived_at IS NULL`. A NULL
+workspace alone is not the marker: `workspace_id` is `ON DELETE SET NULL`, so a purged
+workspace's retired documents have one too. The CHECK `documents_contributed_is_global`
+forbids a contributed document that still has a workspace, and `documents_global_idx` is a
+partial index on the marker. Row-level security lets any scoped transaction *read* the
+tier (`localchat_global_read`, `FOR SELECT`, on `documents` and `document_chunks`); writes
+still need 0017's `workspace_id = scope`, so no workspace can change it.
 
 ### `document_chunks`
 

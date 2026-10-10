@@ -457,3 +457,210 @@ def test_a_scoped_vector_search_still_returns_top_k(conn: Any) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     out = json.loads(result.stdout.strip().splitlines()[-1])
     assert min(out["counts"]) == out["top_k"], out["counts"]
+
+
+# ── GKB-1: the global tier (migration 0019) ───────────────────────────────────
+
+GLOBAL_POLICY = "localchat_global_read"
+QUESTION = "lessons learned from the database migration"
+
+
+@pytest.fixture(scope="module")
+def global_tier(conn: Any, seeded: dict[str, str]) -> Iterator[dict[str, Any]]:
+    """A contributed document, plus the three that must never pass for one.
+
+    The orphan has no workspace and no contribution — what a purge leaves behind. The
+    archived one was contributed and retired. Workspace A gets a document on the same
+    subject, so a hybrid search has something to find in each tier. Every text shares the
+    question's words, so only the tier rules can keep one out.
+
+    Removed afterwards: a global document is visible to every scope, so left in place it
+    would change what the earlier per-scope counts in this module see.
+    """
+    from tests.utils.fake_ollama import embed
+
+    suffix = uuid.uuid4().hex[:8]
+    docs = {
+        "global": (None, "now()", None,
+                   "contributed retrospective: lessons learned from a database migration"
+                   " at another client, plan the cutover window"),
+        "orphan": (None, "NULL", None,
+                   "orphaned notes: lessons learned from the database migration, nobody owns this"),
+        "archived": (None, "now()", "now()",
+                     "archived retrospective: lessons learned from the database migration,"
+                     " superseded since"),
+        "local": (seeded["a"], "NULL", None,
+                  "workspace notes: lessons learned from the database migration,"
+                  " rollback took two hours"),
+    }
+    out: dict[str, Any] = {"suffix": suffix}
+    with conn.transaction():
+        for name, (workspace, contributed, archived, text) in docs.items():
+            filename = f"gkb-{name}-{suffix}.md"
+            doc_id = conn.execute(
+                "INSERT INTO documents (filename, content, workspace_id, contributed_at,"
+                f" archived_at) VALUES (%s, %s, %s, {contributed}, {archived or 'NULL'})"
+                " RETURNING id",
+                (filename, text, workspace),
+            ).fetchone()[0]
+            conn.execute(
+                "INSERT INTO document_chunks (document_id, chunk_text, chunk_index, embedding)"
+                " VALUES (%s, %s, 0, %s::vector)",
+                (doc_id, text, "[" + ",".join(f"{v:.6f}" for v in embed(text)) + "]"),
+            )
+            out[name] = {"id": doc_id, "filename": filename}
+    yield out
+    ids = [out[name]["id"] for name in docs]
+    with conn.transaction():
+        conn.execute("DELETE FROM document_chunks WHERE document_id = ANY(%s)", (ids,))
+        conn.execute("DELETE FROM documents WHERE id = ANY(%s)", (ids,))
+
+
+def _scoped(conn: Any, scope: str | None, sql: str, params: tuple = ()) -> list[Any]:
+    with conn.transaction():
+        conn.execute(f'SET LOCAL ROLE "{ROLE}"')
+        if scope is not None:
+            conn.execute("SELECT set_config('app.workspace_id', %s, true)", (scope,))
+        return conn.execute(sql, params).fetchall()
+
+
+def test_the_global_read_policy_is_select_only_on_documents_and_chunks(conn: Any) -> None:
+    rows = conn.execute(
+        "SELECT tablename, cmd FROM pg_policies WHERE schemaname = 'public' AND policyname = %s",
+        (GLOBAL_POLICY,),
+    ).fetchall()
+    assert sorted(rows) == [("document_chunks", "SELECT"), ("documents", "SELECT")]
+
+
+def test_a_scoped_transaction_sees_only_the_contributed_document(
+    conn: Any, seeded: dict[str, str], global_tier: dict[str, Any]
+) -> None:
+    """Of the three documents with no workspace, only the live contribution is global.
+
+    Scoped to B, so workspace A's own document is out of reach too.
+    """
+    rows = _scoped(
+        conn, seeded["b"],
+        "SELECT filename FROM documents WHERE filename LIKE %s",
+        (f"gkb-%-{global_tier['suffix']}.md",),
+    )
+    assert [r[0] for r in rows] == [global_tier["global"]["filename"]]
+
+
+def test_a_scoped_transaction_sees_the_contributed_documents_chunks(
+    conn: Any, seeded: dict[str, str], global_tier: dict[str, Any]
+) -> None:
+    ids = [global_tier[n]["id"] for n in ("global", "orphan", "archived")]
+    rows = _scoped(
+        conn, seeded["b"],
+        "SELECT document_id FROM document_chunks WHERE document_id = ANY(%s)", (ids,),
+    )
+    assert [r[0] for r in rows] == [global_tier["global"]["id"]]
+
+
+def test_no_scope_still_means_no_rows_with_a_global_tier_present(
+    conn: Any, global_tier: dict[str, Any]
+) -> None:
+    """0017's guarantee survives 0019: the global policies also require a scope."""
+    assert _count(conn, "documents", scope=None) == 0
+    assert _count(conn, "document_chunks", scope=None) == 0
+
+
+@pytest.mark.parametrize("statement", [
+    "UPDATE documents SET archived_at = now() WHERE id = %s",
+    "DELETE FROM documents WHERE id = %s",
+    "UPDATE document_chunks SET chunk_text = 'rewritten' WHERE document_id = %s",
+    "DELETE FROM document_chunks WHERE document_id = %s",
+])
+def test_a_workspace_cannot_change_global_knowledge(
+    conn: Any, seeded: dict[str, str], global_tier: dict[str, Any], statement: str
+) -> None:
+    """Readable is not writable: the write still needs 0017's `workspace_id = scope`."""
+    with conn.transaction():
+        conn.execute(f'SET LOCAL ROLE "{ROLE}"')
+        conn.execute("SELECT set_config('app.workspace_id', %s, true)", (seeded["a"],))
+        affected = conn.execute(statement, (global_tier["global"]["id"],)).rowcount
+    assert affected == 0
+    with conn.transaction():
+        still = conn.execute(
+            "SELECT archived_at IS NULL FROM documents WHERE id = %s",
+            (global_tier["global"]["id"],),
+        ).fetchone()
+    assert still == (True,)
+
+
+def test_a_workspace_cannot_contribute_by_inserting_a_global_row(
+    conn: Any, seeded: dict[str, str]
+) -> None:
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        with conn.transaction():
+            conn.execute(f'SET LOCAL ROLE "{ROLE}"')
+            conn.execute("SELECT set_config('app.workspace_id', %s, true)", (seeded["a"],))
+            conn.execute(
+                "INSERT INTO documents (filename, content, workspace_id, contributed_at)"
+                " VALUES (%s, 'x', NULL, now())",
+                (f"gkb-forged-{uuid.uuid4().hex[:8]}.md",),
+            )
+
+
+def test_a_contributed_document_cannot_keep_a_workspace(conn: Any, seeded: dict[str, str]) -> None:
+    """The CHECK keeps the marker's two halves from disagreeing."""
+    with pytest.raises(psycopg.errors.CheckViolation):
+        with conn.transaction():
+            conn.execute(
+                "INSERT INTO documents (filename, content, workspace_id, contributed_at)"
+                " VALUES (%s, 'x', %s, now())",
+                (f"gkb-both-{uuid.uuid4().hex[:8]}.md", seeded["a"]),
+            )
+
+
+_KNOWLEDGE_PROBE = """
+import json, sys
+from src.db import Database
+from src.rag.processor import DocumentProcessor
+from tests.utils.fake_ollama import embed
+
+class Embedder:
+    def get_embedding_model(self):
+        return "fake-embed"
+    def generate_embedding(self, model, text):
+        return True, embed(text)
+
+workspace, question = sys.argv[1], sys.argv[2]
+db = Database()
+ok, msg = db.initialize()
+assert ok, msg
+processor = DocumentProcessor(db=db, ollama_client=Embedder())
+out = {}
+for mode in ("local", "global", "hybrid"):
+    results = processor.retrieve_context(question, scope=workspace, knowledge_scope=mode)
+    out[mode] = sorted(r.filename for r in results if r.filename.startswith("gkb-"))
+db.close()
+print(json.dumps(out))
+"""
+
+
+def test_retrieval_reads_each_tier_through_the_application(
+    conn: Any, seeded: dict[str, str], global_tier: dict[str, Any]
+) -> None:
+    """GKB-1's acceptance: a hybrid query returns both tiers, from seeded generic documents.
+
+    Run as the application runs it — `get_connection(scope=)`, so as `localchat_scoped`
+    under both 0017 and 0019 — with no WHERE clause written by the test.
+    """
+    import json
+
+    result = subprocess.run(
+        [sys.executable, "-c", _KNOWLEDGE_PROBE, seeded["a"], QUESTION],
+        cwd=_ROOT,
+        env={**os.environ, "PG_DB": conn.info.dbname, "RERANKER_ENABLED": "false"},
+        capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    out = json.loads(result.stdout.strip().splitlines()[-1])
+    local, contributed = global_tier["local"]["filename"], global_tier["global"]["filename"]
+    assert out == {
+        "local": [local],
+        "global": [contributed],
+        "hybrid": sorted([local, contributed]),
+    }

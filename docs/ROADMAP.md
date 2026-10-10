@@ -374,7 +374,23 @@ Workspaces are project containers — isolated knowledge silos scoped to a team 
 
 ---
 
-### GKB-1 — Schema and two-tier retrieval
+### GKB-1 — Schema and two-tier retrieval ✅ (built 2026-10-09)
+
+> **Built differently from the text below, which predates row-level security (P2-1b).**
+> Decided with the maintainer on 2026-10-09; the ticket text is kept as written.
+> - **The columns are on `documents`**, not `document_chunks`: a chunk has no
+>   `workspace_id` (0017 gives it its document's), and contributions are chosen per document.
+> - **Global = `workspace_id IS NULL AND contributed_at IS NOT NULL AND archived_at IS NULL`.**
+>   NULL alone would admit a purged workspace's retired documents (`ON DELETE SET NULL`). A
+>   CHECK forbids a contributed document that keeps a workspace.
+> - **Read-only under RLS** (migration 0019): a `FOR SELECT` policy on `documents` and
+>   `document_chunks` opens the tier to any *scoped* transaction; writes still need 0017's
+>   `workspace_id = scope`. "No scope, no rows" still holds.
+> - **The parameter is `knowledge_scope`**, since `scope` already names the workspace
+>   `Scope`. A filename or source filter keeps `hybrid` to the workspace: it names the
+>   documents to answer from.
+> - Not yet reachable from any route — that is GKB-2.
+
 
 **Schema changes (Alembic migration):**
 - `document_chunks.workspace_id` is already nullable in practice — confirm the column allows NULL; add index on `workspace_id IS NULL` for global-tier queries.
@@ -407,6 +423,14 @@ A workspace owner (or admin) marks a project as contributing to the GKB. They se
 - Review screen showing what will be contributed before confirmation.
 
 **Guardrails:**
+- **A workspace API key never reaches the global tier** (decided 2026-10-09): its scope
+  "cannot be overridden" ([WORKSPACE_API_KEYS.md](WORKSPACE_API_KEYS.md)). Whatever route
+  first exposes `knowledge_scope` refuses `global`/`hybrid` to a key.
+- **Contributing is an unscoped TP** — RLS refuses a scoped insert of a global row (0019),
+  which is the point. It must set `contributed_at`, `contributed_by`, `source_project_id`.
+- **Filenames collide across contributions.** `documents_filename_workspace_uidx` allows
+  one live document per filename among *all* NULL-workspace rows, so two projects cannot
+  both contribute `retro.md`. Decide the naming (or the index) before the endpoint ships.
 - Contribution requires workspace `owner` role (not `editor` or `viewer`).
 - Admin can revoke a contribution (archive) without deleting the workspace.
 - Contributed documents are tagged in the workspace document list as "shared globally."
@@ -1470,7 +1494,7 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 7 | MM-1 (environment-aware model availability) ✅ done & merged (#120) + MM-2 (runtime resource isolation) ✅ done & merged (#210) | — |
 | 7b | BUG-4 (bind a connector to its creator; six `or "admin"` fallbacks in the OAuth routes) ✅ done & merged (#308) | — |
 | PG-0..PG-8 | **Production-grade hardening** ✅ — see [PRODUCTION_PLAN.md](history/PRODUCTION_PLAN.md). Gated everything below; **gate lifted 2026-08-31**. | done |
-| 8 | GKB-1 (schema + two-tier retrieval) | 1 week |
+| 8 | GKB-1 (schema + two-tier retrieval) ✅ 2026-10-09 — read-only global tier under RLS (0019) | 1 week |
 | 9 | GKB-2 (contribution workflow) | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
 | 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |

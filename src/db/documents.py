@@ -22,6 +22,23 @@ logger = get_logger(__name__)
 
 _ERR_NOT_CONNECTED = "Cannot search chunks: Database is not connected"
 
+# Migration 0019's marker. A NULL workspace alone is not enough: a purged workspace's
+# retired documents have one too.
+_GLOBAL_TIER_SQL = (
+    " AND d.workspace_id IS NULL AND d.contributed_at IS NOT NULL AND d.archived_at IS NULL"
+)
+
+
+def _tier_predicate(scope: Scope, global_tier: bool) -> tuple[str, list[str]]:
+    """The rows a search reads: *scope*'s own, or the global tier.
+
+    The global tier still opens its connection with *scope*, so row-level security
+    applies and the tier is read-only to it (0019).
+    """
+    if global_tier:
+        return _GLOBAL_TIER_SQL, []
+    return scope_predicate(scope, "d.workspace_id")
+
 
 class DocumentsMixin(MixinHost):
     """Mixin that adds document and chunk operations to the Database class."""
@@ -334,6 +351,7 @@ class DocumentsMixin(MixinHost):
         source_ids: list[str] | None = None,
         *,
         scope: Scope,
+        global_tier: bool = False,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """Search via pgvector HNSW; min_similarity applied at DB level to avoid transferring chunks that fail the threshold."""
         if not self.is_connected:
@@ -355,7 +373,7 @@ class DocumentsMixin(MixinHost):
                     where_extra += "  AND d.filename = ANY(%s)\n"
                     params.append(filename_filter)
                     logger.debug(f"Searching with filename filter: {len(filename_filter)} file(s)")
-                scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+                scope_sql, scope_params = _tier_predicate(scope, global_tier)
                 where_extra += f"{scope_sql}\n"
                 params.extend(scope_params)
                 if source_ids:
@@ -395,6 +413,7 @@ class DocumentsMixin(MixinHost):
         source_ids: list[str] | None = None,
         *,
         scope: Scope,
+        global_tier: bool = False,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """Full-corpus lexical search via tsvector/GIN — an independent retrieval
         arm, not a rerank of vector-search candidates. A chunk can surface here
@@ -428,7 +447,7 @@ class DocumentsMixin(MixinHost):
                 if filename_filter:
                     where_extra += "  AND d.filename = ANY(%s)\n"
                     params.append(filename_filter)
-                scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+                scope_sql, scope_params = _tier_predicate(scope, global_tier)
                 where_extra += f"{scope_sql}\n"
                 params.extend(scope_params)
                 if source_ids:

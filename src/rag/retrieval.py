@@ -10,7 +10,7 @@ context formatting for LLM prompts.
 import re
 import time
 from collections import defaultdict
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from .. import config
 from ..db import db
@@ -24,6 +24,9 @@ from ..utils.scope import Scope
 from .cache import embedding_cache
 
 logger = get_logger(__name__)
+
+#: Which tiers a retrieval reads (GKB-1): the workspace's own, the global tier, or both.
+KnowledgeScope = Literal["local", "global", "hybrid"]
 
 
 class RetrievalResult(NamedTuple):
@@ -145,6 +148,7 @@ class RetrievalMixin:
         source_ids: list[str] | None,
         *,
         scope: Scope,
+        global_tier: bool = False,
     ) -> list:
         """Run the independent full-text lexical search arm; degrades to [] on any failure."""
         try:
@@ -155,6 +159,7 @@ class RetrievalMixin:
                 filename_filter=filename_filter or [],
                 source_ids=source_ids or [],
                 scope=scope,
+                global_tier=global_tier,
             )
             return list(results) if results else []
         except Exception as lex_exc:  # noqa: BLE001 — the lexical arm is half of hybrid search; the semantic arm still answers
@@ -210,10 +215,11 @@ class RetrievalMixin:
 
     def _deduplicate_results(self, sorted_results: list) -> list:
         """Remove exact duplicates and adjacent chunks (within 2 positions)."""
-        seen: dict[str, set] = {}  # filename -> set of seen chunk indices
+        # Keyed by tier too: a global document may share its filename with one in the workspace.
+        seen: dict[tuple[str, str], set] = {}  # (tier, filename) -> set of seen chunk indices
         deduped: list = []
         for r in sorted_results:
-            fname, cidx = r['filename'], r['chunk_index']
+            fname, cidx = (r.get('tier', 'workspace'), r['filename']), r['chunk_index']
             indices = seen.setdefault(fname, set())
             # O(1): intersect with a fixed-size 5-element window set
             if not (indices & {cidx - 2, cidx - 1, cidx, cidx + 1, cidx + 2}):
@@ -259,6 +265,7 @@ class RetrievalMixin:
         source_ids: list[str] | None = None,
         *,
         scope: Scope,
+        global_tier: bool = False,
     ) -> dict[str, dict[str, Any]]:
         """Run semantic search, an independent lexical search, merge, and filter.
 
@@ -274,13 +281,15 @@ class RetrievalMixin:
             filename_filter=filename_filter or [],
             source_ids=source_ids or [],
             scope=scope,
+            global_tier=global_tier,
         )
         logger.debug(f"[RAG] Semantic search returned {len(semantic_results)} results")
 
         lexical_results: list = []
         if use_hybrid_search:
             lexical_results = self._run_lexical_search(
-                query_clean, top_k * 2, file_type_filter, filename_filter, source_ids, scope=scope
+                query_clean, top_k * 2, file_type_filter, filename_filter, source_ids,
+                scope=scope, global_tier=global_tier,
             )
             logger.debug(f"[RAG] Lexical search returned {len(lexical_results)} results")
 
@@ -410,6 +419,7 @@ class RetrievalMixin:
                     'combined_score': r.get('combined_score', r['semantic_score']),
                     'rerank_score': r.get('rerank_score'),
                     'low_relevance': r.get('low_relevance', False),
+                    **({'knowledge_tier': 'global'} if r.get('tier') == 'global' else {}),
                 },
                 chunk_id=r.get('chunk_id', 0),
             )
@@ -431,6 +441,7 @@ class RetrievalMixin:
         source_ids: list[str] | None = None,
         *,
         scope: Scope,
+        knowledge_scope: KnowledgeScope = "local",
     ) -> list[RetrievalResult]:
         """
         Retrieve relevant context for a query with OPTIMIZED hybrid search.
@@ -443,6 +454,9 @@ class RetrievalMixin:
             use_hybrid_search: Enable the independent full-text lexical search
                 arm, merged with semantic search (see _merge_semantic_and_lexical)
             expand_context: Enable context window expansion
+            knowledge_scope: ``local`` reads *scope*'s documents, ``global`` the global
+                tier, ``hybrid`` both, ranked together. The global tier is skipped when a
+                filename or source filter names the documents to answer from.
 
         Returns:
             List of (chunk_text, filename, chunk_index, similarity, metadata, chunk_id) tuples, sorted by relevance
@@ -491,22 +505,35 @@ class RetrievalMixin:
 
         logger.debug(f"[RAG] Embedding generated in {time.time() - start_time:.3f}s")
 
-        filtered_results = self._run_retrieval_pipeline(
-            query_clean, query_embedding, top_k, min_similarity, file_type_filter, use_hybrid_search,
-            filename_filter=filename_filter,
-            source_ids=source_ids,
-            scope=scope,
-        )
-
-        # Cross-workspace: merge results from additional workspaces and re-rank. Each id
-        # was authorised by the route (check_additional_workspace_access) before this.
-        for extra_ws_id in (additional_workspace_ids or []):
-            extra_results = self._run_retrieval_pipeline(
-                query_clean, query_embedding, top_k, min_similarity, file_type_filter,
-                use_hybrid_search, filename_filter=filename_filter,
-                source_ids=source_ids, scope=extra_ws_id,
+        filtered_results: dict[str, dict[str, Any]] = {}
+        if knowledge_scope != "global":
+            filtered_results = self._run_retrieval_pipeline(
+                query_clean, query_embedding, top_k, min_similarity, file_type_filter, use_hybrid_search,
+                filename_filter=filename_filter,
+                source_ids=source_ids,
+                scope=scope,
             )
-            filtered_results.update(extra_results)
+
+            # Cross-workspace: merge results from additional workspaces and re-rank. Each id
+            # was authorised by the route (check_additional_workspace_access) before this.
+            for extra_ws_id in (additional_workspace_ids or []):
+                extra_results = self._run_retrieval_pipeline(
+                    query_clean, query_embedding, top_k, min_similarity, file_type_filter,
+                    use_hybrid_search, filename_filter=filename_filter,
+                    source_ids=source_ids, scope=extra_ws_id,
+                )
+                filtered_results.update(extra_results)
+
+        if knowledge_scope != "local" and not (filename_filter or source_ids):
+            global_results = self._run_retrieval_pipeline(
+                query_clean, query_embedding, top_k, min_similarity, file_type_filter,
+                use_hybrid_search, scope=scope, global_tier=True,
+            )
+            # Keyed apart from the workspace's results, which are keyed filename:index —
+            # a global document may share its filename with one in the workspace.
+            filtered_results.update(
+                {f"global:{k}": {**v, 'tier': 'global'} for k, v in global_results.items()}
+            )
 
         if not filtered_results:
             return []
