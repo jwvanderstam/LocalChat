@@ -1422,7 +1422,7 @@ loader does not read speaker notes, so text hidden there never reaches the model
 is nothing to flag; the test asserts that instead, and fails the day the loader starts
 reading notes. **Still open:** the P2-3 judge case category for model resistance.
 
-### OBS-1: Token accounting per request, and cost where there is one ⬜
+### OBS-1: Token accounting per request, and cost where there is one ◐ (OBS-1a built 2026-10-09; OBS-1b optional)
 
 **The gap.** `/api/metrics` and the Grafana dashboard (`docs/grafana-dashboard.json`, 16
 panels) cover traffic, retrieval latency, cache and connector sync. Nothing records how
@@ -1483,7 +1483,7 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 18 | P2-3 (answer-level retrieval evaluation) ◐ baseline merged 2026-10-02 (#410); judge calibration open — decides DEL-2 | 1–2 weeks |
 | 19 | EV-1 (retrieval regression gate on every PR) ✅ 2026-10-04 — not yet required; found and fixed the lexical arm (#422) | 2–3 days |
 | 20 | GR-1a + GR-1b + GR-1c (retrieved content as untrusted input) ✅ 2026-10-05 | 1 week |
-| 21 | OBS-1a (token accounting, cloud cost) + OBS-1b if wanted | 3–4 days |
+| 21 | OBS-1a (token accounting, cloud cost) ✅ 2026-10-09 + OBS-1b if wanted | 3–4 days |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
 > **Dated notes on how this plan changed** — sprint completions, re-orderings, tickets added or re-scoped — are in [history/ROADMAP_LOG.md](history/ROADMAP_LOG.md).

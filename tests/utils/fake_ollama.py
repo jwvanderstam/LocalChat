@@ -84,24 +84,32 @@ def create_app() -> FastAPI:
         body = await request.json()
         model = body.get("model", "llama3.2:latest")
         reply = CANNED_REPLY + _first_user_message(body)
+        tokens = reply.split(" ")
+        # Ollama reports usage on the final object. One "token" per word here, so a
+        # test can work out the exact count it expects from the messages it sent.
+        usage = {"prompt_eval_count": _prompt_words(body), "eval_count": len(tokens)}
 
         if not body.get("stream", True):
-            return {"message": {"role": "assistant", "content": reply}, "done": True}
+            return {"message": {"role": "assistant", "content": reply}, "done": True, **usage}
 
         def _stream():
             # Ollama streams newline-delimited JSON, one object per chunk.
-            for token in reply.split(" "):
+            for token in tokens:
                 yield json.dumps({
                     "model": model,
                     "message": {"role": "assistant", "content": token + " "},
                     "done": False,
                 }) + "\n"
             yield json.dumps({"model": model, "message": {"role": "assistant", "content": ""},
-                              "done": True, "done_reason": "stop"}) + "\n"
+                              "done": True, "done_reason": "stop", **usage}) + "\n"
 
         return StreamingResponse(_stream(), media_type="application/x-ndjson")
 
     return app
+
+
+def _prompt_words(body: dict[str, Any]) -> int:
+    return sum(len(str(m.get("content", "")).split()) for m in body.get("messages") or [])
 
 
 def _first_user_message(body: dict[str, Any]) -> str:
