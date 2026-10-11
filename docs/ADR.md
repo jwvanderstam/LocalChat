@@ -318,8 +318,11 @@ must create `localchat_scoped` once — the same requirement 0017 already had.
 **Revisit when:** tenant administrators must be separated from platform operators, or a
 deployment requires that operators cannot read workspace content. Then the `ALL_WORKSPACES`
 paths move off the owner role — to the second-pool design above, through the same seam.
-Also revisit for GKB-1: the policies exclude rows whose `workspace_id` is NULL, which is
-exactly how the global knowledge base is specified.
+GKB-1 (2026-10-09, migration 0019) answered the question this ADR left open about rows
+with a NULL `workspace_id`: a second, `FOR SELECT` policy makes the global tier readable
+from every scope and writable from none, and it too requires a scope, so "no scope, no
+rows" still holds. The marker is a NULL workspace *and* `contributed_at`, never the NULL
+alone.
 
 ---
 
