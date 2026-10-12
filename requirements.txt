@@ -85,7 +85,7 @@ email-validator==2.3.0
     # via -r requirements.in
 et-xmlfile==2.0.0
     # via openpyxl
-fastapi==0.142.2
+fastapi==0.143.0
     # via -r requirements.in
 fastuuid==0.14.0
     # via litellm
@@ -201,7 +201,7 @@ numpy==2.5.3
     #   spacy
     #   thinc
     #   transformers
-onnxruntime==1.30.0
+onnxruntime==1.31.0
     # via
     #   -r requirements.in
     #   pymupdf-layout
@@ -255,7 +255,7 @@ psycopg-pool==3.3.3
     # via -r requirements.in
 pycparser==3.0
     # via cffi
-pydantic==2.13.5
+pydantic==2.14.0
     # via
     #   -r requirements.in
     #   fastapi
@@ -265,7 +265,7 @@ pydantic==2.13.5
     #   spacy
     #   thinc
     #   weasel
-pydantic-core==2.46.5
+pydantic-core==2.50.0
     # via pydantic
 pydantic-settings==2.15.0
     # via litellm
@@ -281,7 +281,7 @@ pymupdf-layout==1.28.2
     # via pymupdf4llm
 pymupdf4llm==1.28.2
     # via -r requirements.in
-pypdf==6.19.0
+pypdf==6.20.0
     # via -r requirements.in
 pypdfium2==5.13.0
     # via pdfplumber
@@ -352,7 +352,7 @@ spacy-legacy==3.0.12
     # via spacy
 spacy-loggers==1.0.5
     # via spacy
-sqlalchemy==2.1.2
+sqlalchemy==2.1.4
     # via
     #   -r requirements.in
     #   alembic

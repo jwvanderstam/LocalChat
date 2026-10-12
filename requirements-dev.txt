@@ -18,7 +18,7 @@ coverage[toml]==7.16.2
     # via
     #   -r requirements-dev.in
     #   pytest-cov
-faker==40.40.0
+faker==40.42.0
     # via -r requirements-dev.in
 freezegun==1.5.5
     # via -r requirements-dev.in
@@ -50,19 +50,16 @@ pytest==9.1.1
     # via
     #   -r requirements-dev.in
     #   pytest-asyncio
-    #   pytest-base-url
     #   pytest-cov
     #   pytest-mock
     #   pytest-playwright
 pytest-asyncio==1.4.0
     # via -r requirements-dev.in
-pytest-base-url==2.1.0
-    # via pytest-playwright
 pytest-cov==7.1.0
     # via -r requirements-dev.in
 pytest-mock==3.16.0
     # via -r requirements-dev.in
-pytest-playwright==0.9.0
+pytest-playwright==0.10.0
     # via -r requirements-dev.in
 python-dateutil==2.9.0.post0
     # via freezegun
@@ -75,7 +72,6 @@ pyyaml==6.0.3
 requests==2.34.2
     # via
     #   -c requirements.txt
-    #   pytest-base-url
     #   responses
 responses==0.26.3
     # via -r requirements-dev.in
