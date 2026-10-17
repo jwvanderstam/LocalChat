@@ -67,7 +67,7 @@ class TestTheCheck:
         denial = check_additional_workspace_access(
             _request(state, {"Authorization": f"Bearer {key}"}), [SHARED], "viewer"
         )
-        assert denial is not None and denial[0] == 403
+        assert denial == (403, "API key is not valid for other workspaces")
 
 
 def _chat_client(state: MagicMock) -> tuple[FastAPI, TestClient]:

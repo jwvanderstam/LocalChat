@@ -18,11 +18,13 @@ role from the database. The token supplies identity and nothing else.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
 
+from src import config
 from src.security_fastapi import (
     AuthError,
     check_workspace_access,
@@ -140,11 +142,27 @@ class TestTheEnvVarAdminIsABootstrapCredential:
         db.count_live_admins.side_effect = RuntimeError("boom")
         assert env_admin_is_available(db) is True
 
+    def test_an_object_that_cannot_report_its_state_counts_as_unknown(self):
+        """Mutant 41: defaulting the missing attribute to "connected" asks it to count,
+        and a stale answer would withdraw the recovery path."""
+        assert env_admin_is_available(SimpleNamespace(count_live_admins=lambda: 1)) is True
+
+    @pytest.mark.skipif(not config.ADMIN_PASSWORD, reason="needs ADMIN_PASSWORD set")
     def test_login_no_longer_falls_back_when_an_administrator_exists(self):
-        """The heart of M1: it used to keep working beside a changed database password."""
+        """The heart of M1: it used to keep working beside a changed database password.
+
+        Uses the real env password: with any other the refusal came from the password
+        check, so this passed with the bootstrap guard inverted (mutant 56)."""
         db = _db(live_admins=1)
         db.verify_user_password.return_value = None
-        assert verify_credentials_db("admin", "the-env-password", db) is None
+        assert verify_credentials_db("admin", config.ADMIN_PASSWORD, db) is None
+
+    @pytest.mark.skipif(not config.ADMIN_PASSWORD, reason="needs ADMIN_PASSWORD set")
+    def test_the_env_admin_signs_in_while_no_administrator_exists(self):
+        """Mutants 56 and 57: the bootstrap path itself, which nothing asserted works."""
+        db = _db(live_admins=0)
+        db.verify_user_password.return_value = None
+        assert verify_credentials_db("admin", config.ADMIN_PASSWORD, db) == ("admin", "admin")
 
     def test_a_database_user_still_signs_in_normally(self):
         db = _db(live_admins=1)

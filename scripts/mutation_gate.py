@@ -47,6 +47,11 @@ MODULES: dict[str, list[str]] = {
         "tests/unit/test_workspace_scope_pinning.py",
         "tests/unit/test_rbac2_route_permissions.py",
         "tests/unit/test_auth_login.py",
+        # P0-4's resolver and the chat guard for additional workspaces: both call
+        # the real module, and were missing here, so the env-admin and
+        # check_additional_workspace_access survivors had no test to fail.
+        "tests/unit/test_one_authentication_resolver.py",
+        "tests/unit/test_chat_additional_workspaces_authorised.py",
     ],
     "src/utils/workspace.py": [
         "tests/unit/test_workspace_scope_pinning.py",

@@ -18,6 +18,7 @@ import pytest
 from fastapi import Request
 
 from src.security_fastapi import check_workspace_access, create_access_token
+from src.utils.scope import ALL_WORKSPACES
 from src.utils.workspace import get_scope, get_workspace_id
 
 OWN_WS = "11111111-1111-1111-1111-111111111111"
@@ -130,3 +131,27 @@ class TestGetScopeRefusesWithoutAGuard:
         assert check_workspace_access(req, None, "viewer") is not None
         with pytest.raises(RuntimeError):
             get_scope(req)
+
+
+@pytest.mark.unit
+class TestTheScopeEachPrincipalIsGiven:
+    """TQ-3. Survivors 188, 196 and 197 in ``security_fastapi.py``: the scope a key
+    and an administrator are given was set, but never read back by a test."""
+
+    def test_an_api_key_is_scoped_to_its_own_workspace(self):
+        req = _request({"X-API-Key": "lcw_" + "k" * 40}, member_of=[], default_ws=OTHER_WS)
+        req.scope["app"].state.db.resolve_workspace_api_key.return_value = (OWN_WS, "viewer")
+        assert check_workspace_access(req, None, "viewer") is None
+        assert get_scope(req) == OWN_WS
+
+    def test_an_admin_naming_a_workspace_is_scoped_to_it(self):
+        req = _request({**_auth(), "X-Workspace-ID": OWN_WS}, member_of=[], default_ws=OTHER_WS)
+        req.scope["app"].state.db.get_user_role.return_value = "admin"
+        assert check_workspace_access(req, None, "viewer") is None
+        assert get_scope(req) == OWN_WS
+
+    def test_an_admin_naming_none_is_scoped_to_every_workspace_explicitly(self):
+        req = _request(_auth(), member_of=[], default_ws=OTHER_WS)
+        req.scope["app"].state.db.get_user_role.return_value = "admin"
+        assert check_workspace_access(req, None, "viewer") is None
+        assert get_scope(req) is ALL_WORKSPACES
