@@ -151,6 +151,14 @@ class TestErrorEnvelope:
             require_auth(request, credentials=None)
         assert exc_info.value.detail["message"] == "Invalid or expired token"
 
+    def test_a_token_naming_nobody_says_the_same(self):
+        """Mutant 139. A signed token with an empty subject takes the second branch,
+        and must not be distinguishable from a malformed one."""
+        request = _request(create_access_token(""))
+        with pytest.raises(HTTPException) as exc_info:
+            require_auth(request, credentials=None)
+        assert exc_info.value.detail == {"message": "Invalid or expired token"}
+
     def test_a_non_admin_is_told_admin_access_is_required(self):
         token = create_access_token(_USER, {"role": "admin"})
         db = _healthy_db(role="user")

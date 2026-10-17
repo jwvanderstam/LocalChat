@@ -52,6 +52,9 @@ MODULES: dict[str, list[str]] = {
         # check_additional_workspace_access survivors had no test to fail.
         "tests/unit/test_one_authentication_resolver.py",
         "tests/unit/test_chat_additional_workspaces_authorised.py",
+        # P1-4: asserts every CSP directive this module builds, through the real
+        # middleware; without it, every mutant of the header strings survived.
+        "tests/unit/test_security_headers.py",
     ],
     "src/utils/workspace.py": [
         "tests/unit/test_workspace_scope_pinning.py",
