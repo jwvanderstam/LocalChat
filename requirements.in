@@ -41,7 +41,7 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Web Framework — FastAPI (ASGI)
-fastapi==0.142.2
+fastapi==0.143.0
 uvicorn[standard]==0.54.0
 httpx==0.28.1          # async inference + sync admin/embedding client
 
@@ -60,14 +60,14 @@ psycopg-pool==3.3.3
 
 # Database migrations
 alembic==1.20.0
-sqlalchemy==2.1.2  # required by alembic; postgresql+psycopg dialect for psycopg3
+sqlalchemy==2.1.4  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
-pydantic==2.13.5
+pydantic==2.14.1
 email-validator==2.3.0
 
 # Document Processing
-pypdf==6.19.0
+pypdf==6.20.1
 pdfplumber==0.11.10  # Enhanced PDF extraction with table support
 pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
 pymupdf4llm==1.28.2    # Layout-aware PDF extraction for column-heavy documents (optional)
@@ -75,7 +75,7 @@ pymupdf4llm==1.28.2    # Layout-aware PDF extraction for column-heavy documents 
 # under the hardened runtime base (exit 139, no traceback). 1.28.0 ran clean;
 # 1.30.0 boots (docker-smoke green on #371, 2026-09-14). Keep 1.29.x out. The
 # docker-smoke job is what catches a regression here — pip install will not.
-onnxruntime==1.30.0
+onnxruntime==1.31.0
 langdetect==1.0.9      # Language detection for multilingual document support
 python-docx==1.2.0
 python-pptx==1.0.2
@@ -101,13 +101,13 @@ ddgs==9.16.0
 psutil==7.2.2
 
 # Numerical processing for vector operations
-numpy==2.5.3
+numpy==2.5.4
 
 # Multipart form handling
 python-multipart==0.0.32
 
 # Markdown rendering
-markdown==3.11
+markdown==3.11.1
 
 # Environment configuration
 python-dotenv==1.2.4
