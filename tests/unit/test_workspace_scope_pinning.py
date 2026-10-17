@@ -18,7 +18,7 @@ import pytest
 from fastapi import Request
 
 from src.security_fastapi import check_workspace_access, create_access_token
-from src.utils.workspace import get_workspace_id
+from src.utils.workspace import get_scope, get_workspace_id
 
 OWN_WS = "11111111-1111-1111-1111-111111111111"
 OTHER_WS = "22222222-2222-2222-2222-222222222222"
@@ -102,3 +102,31 @@ class TestTheQueryParameterFallback:
         assert check_workspace_access(req, None, "viewer") == (
             403, "Access denied: not a workspace member"
         )
+
+
+@pytest.mark.unit
+class TestGetScopeRefusesWithoutAGuard:
+    """TQ-3. ``get_scope()`` had no test, so every mutant of it survived: reading the
+    wrong attribute, forcing ``None``, inverting the check. Each of those is a route
+    that either scopes by nothing or refuses every authorised caller."""
+
+    def test_returns_the_workspace_the_guard_authorised(self):
+        req = _request(_auth(), member_of=[OWN_WS], default_ws=OTHER_WS)
+        assert check_workspace_access(req, None, "viewer") is None
+        assert get_scope(req) == OWN_WS
+
+    def test_refuses_when_no_guard_ran(self):
+        """A route that forgot its guard must fail loudly, not run unscoped (C1/C2)."""
+        req = _request(_auth(), member_of=[OWN_WS], default_ws=OTHER_WS)
+        with pytest.raises(RuntimeError) as exc:
+            get_scope(req)
+        assert str(exc.value) == (
+            "no authorised workspace scope on this request — call the workspace "
+            "guard before reading the scope"
+        )
+
+    def test_refuses_after_the_guard_denied_the_caller(self):
+        req = _request(_auth(), member_of=[], default_ws=OTHER_WS)
+        assert check_workspace_access(req, None, "viewer") is not None
+        with pytest.raises(RuntimeError):
+            get_scope(req)
