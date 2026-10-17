@@ -19,14 +19,16 @@ Three groups, and the reason each is worth pinning:
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
 
+from src import config
 from src.security_fastapi import (
-    _ERR_AUTH_REQUIRED,
+    Principal,
     _remember_not_revoked,
     _revocation_cache,
     create_access_token,
@@ -141,13 +143,21 @@ class TestErrorEnvelope:
         request = _request()
         with pytest.raises(HTTPException) as exc_info:
             require_auth(request, credentials=None)
-        assert exc_info.value.detail["message"] == _ERR_AUTH_REQUIRED
+        assert exc_info.value.detail["message"] == "Authentication required"
 
     def test_a_malformed_token_says_so(self):
         request = _request("not-a-jwt")
         with pytest.raises(HTTPException) as exc_info:
             require_auth(request, credentials=None)
         assert exc_info.value.detail["message"] == "Invalid or expired token"
+
+    def test_a_token_naming_nobody_says_the_same(self):
+        """Mutant 139. A signed token with an empty subject takes the second branch,
+        and must not be distinguishable from a malformed one."""
+        request = _request(create_access_token(""))
+        with pytest.raises(HTTPException) as exc_info:
+            require_auth(request, credentials=None)
+        assert exc_info.value.detail == {"message": "Invalid or expired token"}
 
     def test_a_non_admin_is_told_admin_access_is_required(self):
         token = create_access_token(_USER, {"role": "admin"})
@@ -404,3 +414,31 @@ class TestEvictionBoundary:
         sec._remember_not_revoked("trigger")
 
         assert "just-stale" not in _revocation_cache
+
+
+class TestWhatTheP0RemediationLeftUnpinned:
+    """Survivors from the nightly gate after P0-4 (2026-10): behaviour that changed
+    under mutation while every existing test stayed green."""
+
+    @pytest.mark.skipif(not config.ADMIN_PASSWORD, reason="needs ADMIN_PASSWORD set")
+    def test_the_env_admin_password_matches_the_hash_built_at_import(self):
+        """Mutants 8 and 9. Every other test of this path patches the hash in, so a
+        module that built it wrongly at import — or not at all — still passed."""
+        from src.security_fastapi import verify_credentials
+
+        assert verify_credentials("admin", config.ADMIN_PASSWORD) == ("admin", "admin")
+
+    def test_an_unverifiable_revocation_says_so(self):
+        """Mutant 100. With no database and no recent verification the token is
+        refused (SEC-2); the message is what tells an operator why."""
+        request = _request(create_access_token(_USER), db=None)
+        with pytest.raises(HTTPException) as exc_info:
+            require_auth(request, credentials=None)
+        assert exc_info.value.detail == {"message": "Could not verify token status"}
+
+    def test_a_principal_cannot_be_promoted_after_it_is_resolved(self):
+        """Mutant 125. The role is read from the database once; a mutable principal
+        lets any code on the request path rewrite it to admin."""
+        principal = Principal(user_id=_USER, global_role="user")
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            principal.global_role = "admin"  # type: ignore[misc]

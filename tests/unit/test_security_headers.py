@@ -93,6 +93,25 @@ class TestTheContentSecurityPolicyIsMeaningful:
     def _script_src(self, client) -> str:
         return next(d for d in self._csp(client).split("; ") if d.startswith("script-src"))
 
+    def test_the_policy_is_exactly_these_directives(self, client):
+        """Directive by directive, not by substring: `XXframe-ancestors 'none'XX`
+        contains `frame-ancestors 'none'`, and a browser ignores the directive it
+        cannot parse. script-src is pinned by the tests below, its hash by the last.
+        """
+        directives = dict(d.split(" ", 1) for d in self._csp(client).split("; "))
+        directives.pop("script-src")
+        assert directives == {
+            "default-src": "'self'",
+            "style-src": "'self' 'unsafe-inline'",
+            "img-src": "'self' data:",
+            "font-src": "'self' data:",
+            "connect-src": "'self'",
+            "frame-ancestors": "'none'",
+            "base-uri": "'self'",
+            "form-action": "'self'",
+            "object-src": "'none'",
+        }
+
     def test_objects_are_banned_outright(self, client):
         assert "object-src 'none'" in self._csp(client)
 

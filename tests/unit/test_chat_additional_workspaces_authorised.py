@@ -55,7 +55,25 @@ class TestTheCheck:
         denial = check_additional_workspace_access(
             _request(state, auth_headers()), [SHARED, FOREIGN], "viewer"
         )
-        assert denial is not None and denial[0] == 403
+        assert denial == (403, "Access denied: not a member of every requested workspace")
+
+    def test_a_role_this_version_does_not_know_is_refused(self):
+        """An unrecognised role ranks below viewer; ranking it above (mutant 235)
+        would let a role added by a later migration through every check."""
+        state = _state()
+        state.db.get_workspace_member_role.side_effect = lambda ws, _user: "guest"
+        denial = check_additional_workspace_access(
+            _request(state, auth_headers()), [SHARED], "viewer"
+        )
+        assert denial == (403, "Access denied: not a member of every requested workspace")
+
+    def test_an_unreachable_database_is_named_as_the_reason(self):
+        state = _state()
+        state.db.is_connected = False
+        denial = check_additional_workspace_access(
+            _request(state, auth_headers()), [SHARED], "viewer"
+        )
+        assert denial == (503, "Database unavailable")
 
     def test_an_admin_may_name_any_workspace(self):
         state = _state(role="admin")
@@ -67,7 +85,7 @@ class TestTheCheck:
         denial = check_additional_workspace_access(
             _request(state, {"Authorization": f"Bearer {key}"}), [SHARED], "viewer"
         )
-        assert denial is not None and denial[0] == 403
+        assert denial == (403, "API key is not valid for other workspaces")
 
 
 def _chat_client(state: MagicMock) -> tuple[FastAPI, TestClient]:
