@@ -1,4 +1,17 @@
 version: 2
+
+# dhi.io answers an anonymous image pull, which is all CI and the Dockerfile
+# build need, but refuses Dependabot's tag listing without a login: every docker
+# run failed with private_source_authentication_failure and proposed nothing.
+# Docker Hardened Images authenticate with Docker Hub credentials; both values
+# are Dependabot secrets, not Actions secrets, since only Dependabot reads them.
+registries:
+  dhi:
+    type: docker-registry
+    url: dhi.io
+    username: ${{secrets.DHI_USERNAME}}
+    password: ${{secrets.DHI_TOKEN}}
+
 updates:
   # Python dependencies
   - package-ecosystem: "pip"
@@ -61,6 +74,8 @@ updates:
   # interpreter they are installed into.
   - package-ecosystem: "docker"
     directory: "/"
+    registries:
+      - dhi
     schedule:
       interval: "weekly"
       day: "monday"
