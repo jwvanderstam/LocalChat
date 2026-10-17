@@ -159,7 +159,7 @@ lxml==6.1.2
     #   ddgs
     #   python-docx
     #   python-pptx
-mako==1.4.1
+mako==1.4.2
     # via alembic
 markdown==3.11.1
     # via -r requirements.in
