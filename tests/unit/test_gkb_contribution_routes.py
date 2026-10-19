@@ -118,6 +118,20 @@ class TestArchive:
         client.app.state.db.archive_contributions.assert_not_called()
 
 
+@pytest.mark.parametrize(("method", "path", "db_call"), [
+    ("post", f"/api/workspaces/{WS}/contribute", "contribute_documents"),
+    ("delete", f"/api/workspaces/{WS}/contributions", "archive_contributions"),
+    ("get", "/api/gkb/documents", "list_contributions"),
+], ids=["contribute", "archive", "list"])
+def test_a_database_failure_is_a_500_that_names_nothing(method, path, db_call):
+    client = _admin()
+    getattr(client.app.state.db, db_call).side_effect = RuntimeError("relation documents: secret")
+    kwargs = {"json": {"document_ids": [7]}} if method == "post" else {}
+    resp = getattr(client, method)(path, **kwargs)
+    assert (resp.status_code, resp.json()) == (
+        500, {"success": False, "message": "Internal server error"})
+
+
 class TestList:
     def test_an_admin_sees_every_contribution(self):
         resp = _admin().get("/api/gkb/documents")

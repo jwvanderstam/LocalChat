@@ -103,8 +103,11 @@ class ContributionsMixin(MixinHost):
                         "updated": not inserted,
                     })
             conn.commit()
+        # The workspace id comes from the URL path, so it stays out of the log (S5145);
+        # contributed_by and source_project_id on the rows are the audit record.
         logger.info(
-            "[GKB] workspace %s contributed %d document(s)", workspace_id, len(contributed)
+            "[GKB] contributed %d document(s) as global ids %s",
+            len(contributed), [c["global_document_id"] for c in contributed],
         )
         return contributed
 
@@ -122,7 +125,7 @@ class ContributionsMixin(MixinHost):
                 )
                 archived = cursor.rowcount
             conn.commit()
-        logger.info("[GKB] archived %d contribution(s) from workspace %s", archived, workspace_id)
+        logger.info("[GKB] archived %d contribution(s)", archived)
         return archived
 
     def list_contributions(self) -> list[dict[str, Any]]:
