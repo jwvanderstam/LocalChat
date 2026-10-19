@@ -85,7 +85,7 @@ email-validator==2.3.0
     # via -r requirements.in
 et-xmlfile==2.0.0
     # via openpyxl
-fastapi==0.143.0
+fastapi==0.143.2
     # via -r requirements.in
 fastuuid==0.14.0
     # via litellm
