@@ -352,3 +352,11 @@ class LoginRequest(BaseModel):
         if not v.strip():
             raise ValueError("Username cannot be empty")
         return v.strip().lower()
+
+
+class ContributionRequest(BaseModel):
+    """Documents a workspace contributes to the global knowledge tier (GKB-2)."""
+
+    # A contribution is a curated choice, not a bulk export; the cap says so and bounds
+    # the one transaction the copy runs in.
+    document_ids: list[int] = Field(..., min_length=1, max_length=100)

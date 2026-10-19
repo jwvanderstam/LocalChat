@@ -60,6 +60,11 @@ route; drift between this file and the code is the failure mode it exists to pre
 > decision D3). The path must also resolve inside `CONNECTOR_LOCAL_ROOTS`, which is empty by
 > default and therefore disables the type. Enforced in `connector_routes.py` by
 > `_ADMIN_ONLY_TYPES`; covered by `tests/unit/test_local_folder_least_privilege.py`.
+>
+> **Contributing to the global knowledge tier is `admin` for the same reason** (GKB-2,
+> decided 2026-10-19). The ticket said workspace owner, but the tier is read by every
+> workspace, so an owner-only guard would let any user publish to everyone. Withdrawing a
+> contribution (`DELETE .../contributions`) only narrows the tier and stays `ws:owner`.
 | **`admin`** | Global `users.role = 'admin'`. Node-wide operations. | `require_admin_dep` |
 
 **Two kinds of principal reach the `ws:*` levels.** A *user*, whose role comes from
@@ -74,13 +79,13 @@ Global `admin` short-circuits every workspace check, so an admin passes all `ws:
 
 | Level | Routes |
 |---|---|
-| **admin** | 32 |
+| **admin** | 34 |
 | public | 20 |
 | ws:viewer | 19 |
-| ws:owner | 19 |
+| ws:owner | 20 |
 | ws:editor | 11 |
 | authenticated | 11 |
-| **Total** | **112** |
+| **Total** | **115** |
 
 Before RBAC-2, **49 of these 102 had no check at all** — including `POST /api/models/pull`,
 `DELETE /api/models/delete` and `POST /api/plugins/reload`, none of which did an internal
@@ -152,6 +157,9 @@ These 20 are unauthenticated **by decision**, each for a stated reason:
 | `document` | DELETE | `/{doc_id}` | ws:editor |
 | `feedback` | POST | `/feedback` | ws:viewer |
 | `feedback` | GET | `/feedback/stats` | **admin** |
+| `gkb` | POST | `/workspaces/{workspace_id}/contribute` | **admin** |
+| `gkb` | DELETE | `/workspaces/{workspace_id}/contributions` | ws:owner |
+| `gkb` | GET | `/gkb/documents` | **admin** |
 | `longterm_memory` | GET | `/` | ws:viewer |
 | `longterm_memory` | POST | `/extract` | ws:editor |
 | `longterm_memory` | DELETE | `/{memory_id}` | ws:editor |
