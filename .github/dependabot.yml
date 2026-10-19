@@ -91,6 +91,16 @@ updates:
       hardened-base:
         patterns:
           - "dhi.io/python"
+    # Digest rebuilds of 3.12 only. Both locks are compiled for 3.12 and CI tests
+    # on 3.12, so a new interpreter is one PR that recompiles the locks, moves CI
+    # and the docs with it -- not a FROM-line bump. #447 (3.12 -> 3.14) passed
+    # every check and would still have shipped an image on a Python nothing tests.
+    # 3.12 -> 3.14 counts as a minor bump in tag terms, hence both types.
+    ignore:
+      - dependency-name: "dhi.io/python"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
     commit-message:
       prefix: "deps"
       include: "scope"
