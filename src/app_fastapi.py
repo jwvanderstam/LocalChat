@@ -199,6 +199,7 @@ def _register_routers(app: FastAPI) -> None:
         docs_routes,
         document_routes,
         feedback_routes,
+        gkb_routes,
         longterm_memory_routes,
         memory_routes,
         model_routes,
@@ -216,6 +217,7 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(longterm_memory_routes.router, prefix="/api/memory")
     app.include_router(feedback_routes.router, prefix="/api")
     app.include_router(workspace_routes.router, prefix="/api")
+    app.include_router(gkb_routes.router, prefix="/api")
     app.include_router(connector_routes.router, prefix="/api")
     app.include_router(settings_routes.router, prefix="/api")
     app.include_router(auth_routes.router, prefix="/api")

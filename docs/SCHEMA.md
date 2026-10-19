@@ -242,6 +242,7 @@ Stores the original documents ingested into the system.
 | `contributed_at` | `TIMESTAMPTZ` | GKB-1: when the document was contributed to the global tier; `NULL` for every workspace document |
 | `contributed_by` | `UUID` | FK → `users.id`; who contributed it |
 | `archived_at` | `TIMESTAMPTZ` | GKB-1: a contribution retired from the global tier; `NULL` = live |
+| `archived_by` | `UUID` | FK → `users.id`; who archived it (GKB-2, migration 0020) |
 | `source_project_id` | `UUID` | FK → `workspaces.id` (SET NULL on delete); the workspace it was contributed from |
 | `outcome` | `VARCHAR(32)` | Contribution envelope: the project's outcome |
 | `sector` | `VARCHAR(128)` | Contribution envelope: the project's sector |
@@ -249,7 +250,7 @@ Stores the original documents ingested into the system.
 
 One live row per `(filename, workspace_id)` is enforced by
 `documents_filename_workspace_uidx`, a partial unique index on
-`(filename, COALESCE(workspace_id, <sentinel-uuid>))  WHERE deleted_at IS NULL`
+`(filename, COALESCE(workspace_id, <sentinel-uuid>))  WHERE deleted_at IS NULL AND contributed_at IS NULL`
 — re-ingesting a changed file updates the existing row in place rather than
 inserting a new one, so the document `id` (and anything that cites it)
 never changes across a content update.
@@ -262,6 +263,13 @@ forbids a contributed document that still has a workspace, and `documents_global
 partial index on the marker. Row-level security lets any scoped transaction *read* the
 tier (`localchat_global_read`, `FOR SELECT`, on `documents` and `document_chunks`); writes
 still need 0017's `workspace_id = scope`, so no workspace can change it.
+
+**Contributions (GKB-2, migration 0020).** A live contribution is unique per
+`(filename, source_project_id)` — `documents_contribution_filename_uidx` — so two projects
+can each contribute `retro.md`, and re-contributing from the same project updates the
+global row in place. The key is the project's id, not its name, so a renamed workspace
+still updates its own contribution. Contributing copies the document and its live chunks,
+embeddings included, on an unscoped connection: RLS refuses a scoped write of a global row.
 
 ### `document_chunks`
 
@@ -562,7 +570,8 @@ rows, not of live state.
 | `document_chunks_document_id_idx` | `document_chunks` | `document_id` | B-tree | Chunk lookup by document |
 | `document_chunks_chunk_index_idx` | `document_chunks` | `(document_id, chunk_index)` | B-tree | Ordered chunk retrieval |
 | `document_chunks_tsv_gin_idx` | `document_chunks` | `chunk_tsv` | GIN | Independent lexical retrieval arm (full-text search) |
-| `documents_filename_workspace_uidx` | `documents` | `(filename, COALESCE(workspace_id, sentinel))` | Unique, partial (`WHERE deleted_at IS NULL`) | One live document per filename per workspace |
+| `documents_filename_workspace_uidx` | `documents` | `(filename, COALESCE(workspace_id, sentinel))` | Unique, partial (`WHERE deleted_at IS NULL AND contributed_at IS NULL`) | One live document per filename per workspace |
+| `documents_contribution_filename_uidx` | `documents` | `(filename, source_project_id)` | Unique, partial (live contributions only) | One live contribution per filename per source project (GKB-2) |
 | `conversation_messages_conv_id_idx` | `conversation_messages` | `(conversation_id, created_at)` | B-tree | Ordered message history |
 | `memories_embedding_hnsw_idx` | `memories` | `embedding vector_cosine_ops` | HNSW | Memory similarity retrieval |
 | `entity_relations_source_idx` | `entity_relations` | `source_id` | B-tree | Outgoing relation lookup |
