@@ -230,3 +230,22 @@ def test_the_listing_names_the_source_project_and_keeps_archived_ones(
     assert row["source_project_name"] == database.get_workspace(workspaces["a"])["name"]
     assert row["chunk_count"] == 2
     assert row["archived_at"] is not None
+
+
+def test_the_workspace_list_tags_what_it_shares_until_it_is_withdrawn(
+    database: Any, workspaces: dict[str, str], admin: str
+) -> None:
+    """Read through the workspace's own scope, as the Documents page does: only 0019's
+    read policy lets that transaction see the global row the tag is computed from."""
+    shared = _document(database, workspaces["a"], "retro.md")
+    _document(database, workspaces["a"], "draft.md")
+    _document(database, workspaces["b"], "retro.md")
+    database.contribute_documents(workspaces["a"], [shared], admin)
+
+    def tags(ws: str) -> dict[str, bool]:
+        return {d["filename"]: d["shared_globally"] for d in database.get_all_documents(scope=ws)}
+
+    assert tags(workspaces["a"]) == {"retro.md": True, "draft.md": False}
+    assert tags(workspaces["b"]) == {"retro.md": False}
+    database.archive_contributions(workspaces["a"], admin)
+    assert tags(workspaces["a"]) == {"retro.md": False, "draft.md": False}

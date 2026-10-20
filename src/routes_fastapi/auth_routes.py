@@ -186,6 +186,10 @@ def get_own_identity(request: Request) -> Any:
         "workspace_id": workspace_id,
         "workspace_role": workspace_role,
         "can_write": check_workspace_access(request, None, "editor") is None,
+        # GKB-2's two guards, answered here for the same reason as can_write:
+        # contributing is require_admin_dep, withdrawing is ws:owner.
+        "can_contribute": global_role == "admin",
+        "can_withdraw": check_workspace_access(request, None, "owner") is None,
     }
 
 

@@ -60,12 +60,22 @@ function init() {
 // 403 the user can see, not silent data loss.
 let canWrite = true;
 
+// GKB-2. These start false, unlike canWrite: they reveal actions on the tier every
+// workspace reads, so they appear only once the server has said yes.
+let canContribute = false;
+let canWithdraw = false;
+
 async function applyWritePermission() {
     try {
         const response = await fetch('/api/users/me', { headers: _wsHeaders() });
         if (!response.ok) return;
         const data = await response.json();
         canWrite = data.can_write !== false;
+        // The contribute and withdraw routes name the workspace in their path, so
+        // without an active id there is nothing to address.
+        const hasWorkspace = Boolean(localStorage.getItem('localchat_active_workspace_id'));
+        canContribute = hasWorkspace && data.can_contribute === true;
+        canWithdraw = hasWorkspace && data.can_withdraw === true;
     } catch (e) {
         return;  // leave controls as they are; the server remains the authority
     }
@@ -83,6 +93,10 @@ async function applyWritePermission() {
 
     const banner = document.getElementById('readonly-banner');
     if (banner) banner.style.display = canWrite ? 'none' : '';
+
+    document.getElementById('gkb-block').style.display = canContribute || canWithdraw ? '' : 'none';
+    document.getElementById('contribute-btn').style.display = canContribute ? '' : 'none';
+    document.getElementById('withdraw-btn').style.display = canWithdraw ? '' : 'none';
 
     loadDocuments();  // re-render so per-document delete buttons follow suit
 }
@@ -416,6 +430,10 @@ async function testRetrieval() {
     }
 }
 
+// What the list last rendered, by id — the contribute review reads names and chunk
+// counts from here rather than back out of the markup.
+let loadedDocuments = new Map();
+
 // Load documents list
 async function loadDocuments() {
     documentsList.innerHTML = '<div class="text-center text-muted"><div class="spinner-border spinner-border-sm me-2"></div> Loading...</div>';
@@ -424,9 +442,10 @@ async function loadDocuments() {
         const response = await fetch('/api/documents/list', { headers: _wsHeaders() });
         const data = await response.json();
         
+        loadedDocuments = new Map((data.documents || []).map((doc) => [doc.id, doc]));
         if (data.success && data.documents && data.documents.length > 0) {
             let html = '<div class="list-group">';
-            
+
             data.documents.forEach(doc => {
                 const date = new Date(doc.created_at).toLocaleDateString();
                 const chunkCount = doc.chunk_count || 0;
@@ -438,12 +457,21 @@ async function loadDocuments() {
                                       title="Contains text addressed to the model: ${escapeHtml(flags.join(', '))}. Answers citing it deserve a second look.">
                                     <i class="bi bi-exclamation-triangle"></i> instructions
                                 </span>` : '';
+                const sharedBadge = doc.shared_globally ? `
+                                <span class="badge bg-info text-dark ms-1" data-shared-globally
+                                      title="A copy is in the global knowledge tier, which every workspace reads.">
+                                    <i class="bi bi-globe"></i> shared globally
+                                </span>` : '';
+                const selector = canContribute ? `
+                                <input type="checkbox" class="form-check-input me-2"
+                                       data-contribute-document="${doc.id}"
+                                       aria-label="Select ${escapeHtml(doc.filename)} to contribute">` : '';
 
                 html += `
                     <div class="list-group-item">
                         <div class="d-flex w-100 justify-content-between align-items-start">
                             <h6 class="mb-1">
-                                <i class="bi bi-file-text me-2"></i>${escapeHtml(doc.filename)}
+                                ${selector}<i class="bi bi-file-text me-2"></i>${escapeHtml(doc.filename)}
                             </h6>
                             ${canWrite ? `
                             <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0"
@@ -455,7 +483,7 @@ async function loadDocuments() {
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
                             <p class="mb-0 text-muted small">
-                                <span class="badge bg-secondary">${chunkCount} chunks</span>${flagBadge}
+                                <span class="badge bg-secondary">${chunkCount} chunks</span>${flagBadge}${sharedBadge}
                             </p>
                             <small class="text-muted">${date}</small>
                         </div>
@@ -559,6 +587,90 @@ async function clearDatabase() {
     }
 }
 
+// GKB-2: the review step lists exactly what will cross the workspace boundary, and
+// which of it replaces a copy already shared, before anything is sent.
+const CONTRIBUTE_CAP = 100;  // ContributionRequest's max_length
+
+function contributionReview(docs) {
+    const lines = docs.map((doc) => `• ${doc.filename} (${doc.chunk_count || 0} chunks)`
+        + (doc.shared_globally ? ' — replaces the shared copy' : ''));
+    const noun = docs.length === 1 ? 'document' : 'documents';
+    return `${docs.length} ${noun} will be copied into the global knowledge tier, `
+        + 'which every workspace reads:\n\n' + lines.join('\n');
+}
+
+async function contributeSelected() {
+    const gkbResults = document.getElementById('gkb-results');
+    const ids = Array.from(documentsList.querySelectorAll('[data-contribute-document]:checked'))
+        .map((box) => Number(box.dataset.contributeDocument));
+    const docs = ids.map((id) => loadedDocuments.get(id)).filter(Boolean);
+    if (docs.length === 0) {
+        gkbResults.innerHTML = '<div class="alert alert-warning">Select the documents to contribute first.</div>';
+        return;
+    }
+    if (docs.length > CONTRIBUTE_CAP) {
+        gkbResults.innerHTML = `<div class="alert alert-warning">At most ${CONTRIBUTE_CAP} documents at a time.</div>`;
+        return;
+    }
+
+    const ok = await window.localchatConfirm({
+        title: 'Contribute to global knowledge',
+        body: contributionReview(docs),
+        confirmText: 'Contribute',
+        danger: false,
+    });
+    if (!ok) return;
+
+    const workspaceId = localStorage.getItem('localchat_active_workspace_id');
+    try {
+        const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/contribute`, {
+            method: 'POST',
+            headers: _wsHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ document_ids: docs.map((doc) => doc.id) }),
+        });
+        const data = await response.json();
+        if (data.success) {
+            const updated = data.contributed.filter((c) => c.updated).length;
+            const added = data.contributed.length - updated;
+            gkbResults.innerHTML = `<div class="alert alert-success">${added} added and ${updated} updated in global knowledge.</div>`;
+            loadDocuments();
+        } else {
+            gkbResults.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.message || 'Contribution failed.')}</div>`;
+        }
+    } catch (error) {
+        gkbResults.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+async function withdrawContributions() {
+    const gkbResults = document.getElementById('gkb-results');
+    const ok = await window.localchatConfirm({
+        title: 'Withdraw from global knowledge',
+        body: 'Every copy this workspace contributed will be archived, and no other workspace '
+            + 'will read it again. The documents in this workspace are not touched.',
+        confirmText: 'Withdraw all',
+    });
+    if (!ok) return;
+
+    const workspaceId = localStorage.getItem('localchat_active_workspace_id');
+    try {
+        const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/contributions`, {
+            method: 'DELETE',
+            headers: _wsHeaders(),
+        });
+        const data = await response.json();
+        if (data.success) {
+            const n = data.archived ?? 0;
+            gkbResults.innerHTML = `<div class="alert alert-success">${n} contribution${n === 1 ? '' : 's'} withdrawn.</div>`;
+            loadDocuments();
+        } else {
+            gkbResults.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.message || 'Withdrawal failed.')}</div>`;
+        }
+    } catch (error) {
+        gkbResults.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
 // Initialize on page load
 init();
 
@@ -581,6 +693,8 @@ function escapeHtml(str) {
 // exist when this runs, so the listener sits on a container that does.
 document.getElementById('refresh-btn')?.addEventListener('click', () => loadDocuments());
 document.getElementById('clear-db-btn')?.addEventListener('click', () => clearDatabase());
+document.getElementById('contribute-btn')?.addEventListener('click', () => contributeSelected());
+document.getElementById('withdraw-btn')?.addEventListener('click', () => withdrawContributions());
 
 document.addEventListener('click', (event) => {
     const deleteBtn = event.target.closest('[data-delete-document]');
