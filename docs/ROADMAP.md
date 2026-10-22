@@ -432,7 +432,8 @@ Workspaces are project containers — isolated knowledge silos scoped to a team 
 >   tagged "shared globally". `/api/users/me` answers `can_contribute`/`can_withdraw`, so
 >   the page compares no role names. `GET /api/gkb/documents` has no screen yet.
 > - **Still open:** chat cannot read the tier yet — exposing `knowledge_scope` (with the API-key refusal
->   below) is its own ticket, so contributions can be checked before anyone reads them.
+>   below) is its own ticket, [GKB-3](#gkb-3--chat-reads-the-global-tier--added-2026-10-22-sprint-24),
+  so contributions can be checked before anyone reads them.
 
 A workspace owner (or admin) marks a project as contributing to the GKB. They select which documents cross the project boundary and approve a contribution narrative before ingestion.
 
