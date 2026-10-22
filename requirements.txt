@@ -209,7 +209,7 @@ openai==2.54.0
     # via litellm
 openpyxl==3.1.5
     # via -r requirements.in
-opentelemetry-api==1.45.0
+opentelemetry-api==1.45.1
     # via fastapi
 packaging==26.3
     # via
