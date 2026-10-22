@@ -1585,6 +1585,18 @@ That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
 
 #### QP-2 — Database role split and resource caps -> v3.3.0 ⬜ (Sprint 23, ~3 days)
 
+- **Decide first: amend ADR-5.** The plan does not mention it, but S2 removes two things
+  [ADR-5](ADR.md) relies on.
+  - **Cross-workspace reads.** The `ALL_WORKSPACES` paths (`SyncWorker`, the webhook
+    receiver, an admin naming no workspace) read across workspaces by running as the owner,
+    which bypasses RLS. Under `FORCE ROW LEVEL SECURITY` and a non-owner `localchat_app`
+    they see nothing. ADR-5 left three ways out: give `localchat_app` `BYPASSRLS`, which
+    undoes FORCE for every path; an explicit all-workspaces policy; or the second pool that
+    ADR-5 rejected. This is the maintainer's call, and it is recorded in ADR-5 before code.
+  - **Boot-time DDL.** `_ensure_extensions_and_tables()` and `_apply_scoped_role()` create
+    tables, re-create `localchat_scoped` and grant it, at every boot. That needs
+    `CREATEROLE`, which a DML-only identity lacks. Both move to the owner step in
+    `docker-entrypoint.py`, next to Alembic, and `DEPLOYMENT.md` and `OPERATIONS.md` say so.
 - **S2 database roles.** `localchat_owner` owns the tables and runs Alembic (NOLOGIN for the
   app); `localchat_app` is LOGIN, non-superuser, DML only; `localchat_scoped` stays as it is.
   The app connects as `localchat_app`, and migrations run as owner in the entrypoint.
@@ -1630,7 +1642,7 @@ recorded as **ADR-7** in QP-3, is:
 - A unit test that counts `app.state.db` in `src/routes_fastapi/`, starting at today's count
   (81 on `664d19c`), and fails if the count rises. Each QP-4 PR lowers it.
 - Cycle detection; the cycles behind the function-level imports become tasks.
-- ADR-7 written.
+- ADR-7 written in `docs/ADR.md`, with its row in `.claude/rules/file-map.md` updated.
 - **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
 
 #### QP-4 — Migrate one aggregate per PR ⬜ (Sprints 25-27, ~12 days)
@@ -1666,6 +1678,9 @@ architecture near 7.5.
   `IngestPipeline`. That ends the second mixin stack.
 - Empty the ratchet allow-lists, so the contracts become plain failures.
 - radon: no function above grade C.
+- ADR-2's reasoning still holds, but its text says DB access "flows through `src/db/`
+  mixins". It is reworded to name the repositories. An ADR whose evidence names deleted
+  code reads as stale even when the decision is not.
 
 **Gate:** all six architecture exit criteria hold on `main`.
 
