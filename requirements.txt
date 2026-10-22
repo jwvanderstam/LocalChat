@@ -38,7 +38,7 @@ catalogue==2.0.10
     #   spacy
     #   srsly
     #   thinc
-certifi==2026.7.22
+certifi==2026.10.19
     # via
     #   httpcore
     #   httpx
@@ -226,7 +226,7 @@ pdfminer-six==20260107
     #   pdfplumber
 pdfplumber==0.11.10
     # via -r requirements.in
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   pdfplumber
     #   python-pptx
@@ -281,7 +281,7 @@ pymupdf-layout==1.28.2
     # via pymupdf4llm
 pymupdf4llm==1.28.2
     # via -r requirements.in
-pypdf==6.20.1
+pypdf==6.21.1
     # via -r requirements.in
 pypdfium2==5.13.0
     # via pdfplumber
