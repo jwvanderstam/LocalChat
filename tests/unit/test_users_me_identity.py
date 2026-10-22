@@ -100,3 +100,19 @@ class TestRouteOrdering:
         resp = _client(None).get("/api/users/me")
         assert resp.json()["can_write"] is False
 
+@pytest.mark.unit
+class TestGlobalKnowledgeGuards:
+    """GKB-2: contributing is require_admin_dep, withdrawing is ws:owner."""
+
+    def test_an_owner_may_withdraw_but_not_contribute(self):
+        body = _client("owner").get("/api/users/me", headers=_auth()).json()
+        assert (body["can_contribute"], body["can_withdraw"]) == (False, True)
+
+    def test_an_editor_may_do_neither(self):
+        body = _client("editor").get("/api/users/me", headers=_auth()).json()
+        assert (body["can_contribute"], body["can_withdraw"]) == (False, False)
+
+    def test_a_global_admin_may_do_both_without_membership(self):
+        body = _client(None, global_role="admin").get(
+            "/api/users/me", headers=_auth(role="admin")).json()
+        assert (body["can_contribute"], body["can_withdraw"]) == (True, True)

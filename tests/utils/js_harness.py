@@ -14,6 +14,7 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -118,6 +119,9 @@ setTimeout(() => console.log('__RESULT__' + JSON.stringify({
     // can only read back the storage it seeded itself — an assertion that holds
     // whether or not the module did anything at all.
     checked: Object.fromEntries(Object.entries(nodes).map(([k, v]) => [k, v.checked])),
+    // Whether a module showed or hid an element: '' shown, 'none' hidden, null untouched.
+    display: Object.fromEntries(Object.entries(nodes).map(
+        ([k, v]) => [k, 'display' in v.style ? v.style.display : null])),
 })), DELAY);
 """
 
@@ -181,8 +185,12 @@ def run_js(
         target = json.dumps("./" + script)
         out = _run_beside_sources(f"{preamble}await import({target});\n{click_js}{_REPORT}")
     else:
-        program = f"{preamble}{source}\n{click_js}{_REPORT}"
-        out = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=30)
+        # A file, not `node -e`: Windows caps a command line at 32,767 characters, and
+        # ingestion.js plus this preamble passed that, failing as WinError 206.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "harness.cjs"
+            path.write_text(f"{preamble}{source}\n{click_js}{_REPORT}", encoding="utf-8")
+            out = subprocess.run(["node", str(path)], capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, f"node failed: {out.stderr}"
     line = next(ln for ln in out.stdout.splitlines() if ln.startswith("__RESULT__"))
     return json.loads(line[len("__RESULT__") :])

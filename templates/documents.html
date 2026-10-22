@@ -95,6 +95,19 @@
             <div id="test-results" class="mt-2"></div>
         </div>
 
+        <!-- GKB-2. Hidden until /api/users/me says the caller may contribute or withdraw;
+             each button is shown separately, since the two need different roles. -->
+        <div class="docs-rail-block" id="gkb-block" style="display: none;">
+            <div class="docs-rail-label">Global knowledge</div>
+            <p class="docs-rail-note">
+                Contributing copies the selected documents into the tier every workspace can
+                read. Withdrawing archives those copies; this workspace's documents stay as they are.
+            </p>
+            <button class="btn btn-sm btn-outline-primary" id="contribute-btn" style="display: none;">Contribute selected</button>
+            <button class="btn btn-sm btn-outline-secondary" id="withdraw-btn" style="display: none;">Withdraw all</button>
+            <div id="gkb-results" class="mt-2"></div>
+        </div>
+
         <div class="docs-rail-block">
             <div class="docs-rail-label">Retire everything</div>
             <p class="docs-rail-note">

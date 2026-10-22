@@ -408,7 +408,7 @@ Workspaces are project containers — isolated knowledge silos scoped to a team 
 
 ---
 
-### GKB-2 — Contribution workflow ◐ (backend 2026-10-19; UI open)
+### GKB-2 — Contribution workflow ✓ (backend 2026-10-19; UI 2026-10-20)
 
 > **Backend built differently from the text below.** Decided with the maintainer on
 > 2026-10-10 and 2026-10-19; the ticket text is kept as written.
@@ -424,8 +424,12 @@ Workspaces are project containers — isolated knowledge silos scoped to a team 
 > - **The listing is per document** (`GET /api/gkb/documents`), since contributions are
 >   chosen per document (GKB-1). **No narrative field:** an owner who wants one writes it as
 >   a document and contributes that.
-> - **Still open:** the UI, and the "shared globally" tag on the workspace document list.
->   Chat cannot read the tier yet — exposing `knowledge_scope` (with the API-key refusal
+> - **The UI is on the Documents page**, not a workspace settings page (there is none): a
+>   global admin ticks documents and confirms a review listing each one and whether it
+>   replaces a shared copy; an owner withdraws all. A document with a live contribution is
+>   tagged "shared globally". `/api/users/me` answers `can_contribute`/`can_withdraw`, so
+>   the page compares no role names. `GET /api/gkb/documents` has no screen yet.
+> - **Still open:** chat cannot read the tier yet — exposing `knowledge_scope` (with the API-key refusal
 >   below) is its own ticket, so contributions can be checked before anyone reads them.
 
 A workspace owner (or admin) marks a project as contributing to the GKB. They select which documents cross the project boundary and approve a contribution narrative before ingestion.
@@ -1513,7 +1517,7 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 7b | BUG-4 (bind a connector to its creator; six `or "admin"` fallbacks in the OAuth routes) ✅ done & merged (#308) | — |
 | PG-0..PG-8 | **Production-grade hardening** ✅ — see [PRODUCTION_PLAN.md](history/PRODUCTION_PLAN.md). Gated everything below; **gate lifted 2026-08-31**. | done |
 | 8 | GKB-1 (schema + two-tier retrieval) ✅ 2026-10-09 — read-only global tier under RLS (0019) | 1 week |
-| 9 | GKB-2 (contribution workflow) ◐ backend 2026-10-19 (admin-only contribute, migration 0020); UI open | 1 week |
+| 9 | GKB-2 (contribution workflow) ✓ backend 2026-10-19 (admin-only contribute, migration 0020), UI 2026-10-20 | 1 week |
 | 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
 | 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
