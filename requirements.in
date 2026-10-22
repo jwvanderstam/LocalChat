@@ -67,7 +67,7 @@ pydantic==2.14.1
 email-validator==2.3.0
 
 # Document Processing
-pypdf==6.20.1
+pypdf==6.21.1
 pdfplumber==0.11.10  # Enhanced PDF extraction with table support
 pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
 pymupdf4llm==1.28.2    # Layout-aware PDF extraction for column-heavy documents (optional)
