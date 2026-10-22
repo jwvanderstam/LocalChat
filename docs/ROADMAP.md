@@ -9,6 +9,8 @@ The guiding constraint across all of them: **the core stays stable and clean.** 
 
 **Hardening plan:** [`PRODUCTION_PLAN.md`](history/PRODUCTION_PLAN.md) holds the production-grade hardening track (ADR-1/ADR-2 and sprints PG-0..PG-8) from the 2026-08-04 external audit. It was a *gate on this roadmap*, not a parallel one: Sprints 8-14 below could not start until its Exit Criteria were green. **All eight criteria are green and the gate was lifted on 2026-08-31** — Sprints 8-14 are un-queued and the freeze rule is over. Confirmed bugs were always exempt from that gate, per the Sprint 5 precedent.
 
+**Quality plan (added 2026-10-22):** [Initiative 12](#initiative-12--quality-plan-architecture-8-and-maturity-8) takes the 2026-10-22 audit's findings and its architecture and maturity scores (7.0 each) to 8 over roughly twelve part-time weeks. It runs **next**, ahead of Sprints 10-14: its Phase 2 builds the service layer the plugin contract's service catalogue wraps, so PC-1..PC-3 wait for it rather than being built twice. The execution order is under the [Sprint Plan](#sprint-plan).
+
 ---
 
 ## Initiative 1 — Repository Hygiene and Web-Stack Coherence
@@ -459,6 +461,30 @@ A workspace owner (or admin) marks a project as contributing to the GKB. They se
 
 ---
 
+### GKB-3 — Chat reads the global tier ⬜ (added 2026-10-22; Sprint 24)
+
+GKB-1 built the tier and GKB-2 fills it, but no chat request can reach it yet: retrieval
+takes `knowledge_scope` and nothing exposes it. Until this lands, a contribution is stored
+and never used in an answer. That gap was deliberate, so contributions could be checked
+before anyone read them. It should not outlive Initiative 12's Phase 1.
+
+- `knowledge_scope` (`local` | `global` | `hybrid`, default `local`) on the chat request
+  model, passed through to `retrieve_context`.
+- **A workspace API key is refused `global` and `hybrid`** (the 2026-10-09 decision under
+  GKB-2's guardrails): a 403, not a silent downgrade to `local`.
+- Citations name the tier, so an answer drawn from a contribution says so.
+
+**Why Sprint 24, before the refactor moves chat:** it is about three days, and doing it
+before QP-4 reaches the conversations and chat aggregate means the refactor moves it with
+its tests already in place. Doing it after would let feature work collide with the
+refactor, which is the plan's highest-likelihood risk.
+
+**Acceptance:** a key asking for `global` gets 403 with nothing retrieved; a session user
+asking for `hybrid` gets a citation from a contribution and one from their workspace; the
+default stays `local`, proven by a global chunk that would otherwise rank first.
+
+---
+
 ## Initiative 5 — Model Management: Environment-Aware Availability
 
 A small but real constraint: the deployment hardware has a finite memory budget for models, and the main LLM, the embedding model, and the cross-encoder reranker all compete for it. Model management must treat "fits in the environment" as a hard limit, not a runtime surprise. Because LocalChat is self-hosted across heterogeneous hardware (NVIDIA, AMD, Apple, CPU-only), this must be vendor-neutral.
@@ -542,6 +568,13 @@ The mechanism that lets plugins extend LocalChat without the core ever depending
 
 > **Sequencing:** PC tickets build the contract against a trivial reference plugin. The contract is proven generic before any domain plugin consumes it. This inverts the earlier plan where pricing was the reference implementation — the reference is now core-owned and domain-free.
 
+> **Re-sequenced 2026-10-22: PC-1..PC-3 run after Initiative 12's Phase 2; PC-4 runs in it.**
+> PC-1's `retrieval`, `storage` and `identity` handles wrap the core's services. Today those
+> are a `Database` mixin stack and authorisation spread across handlers, and QP-4 replaces
+> both. Built now, the catalogue would wrap code that is about to be deleted. `identity`, for
+> instance, names `require_workspace_role_dep`, which QP-1 deletes as dead. PC-4 depends on
+> none of that, and it is a ratchet like QP-3's, so it moves into QP-3.
+
 ---
 
 ### PC-1 — Service catalogue and manifest loader
@@ -598,6 +631,10 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 ---
 
 ### PC-4 — Plugin-absent CI gate (the architectural IVP)
+
+> **Pulled forward into QP-3 (Sprint 24), 2026-10-22.** It needs no echo plugin to be
+> useful: emptying `plugins/` today removes `example_plugin.py`, and the core must still pass
+> without it. Once PC-3 ships, the echo exception below applies.
 
 **What it builds:** the enforcement that makes the whole initiative durable.
 
@@ -1500,6 +1537,203 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 
 ---
 
+## Initiative 12 — Quality plan: architecture 8 and maturity 8
+
+> **Added 2026-10-22** from the quality plan written after that day's audit. The audit report
+> is not in the repository; QP-1 records its findings register in `SECURITY.md`, as
+> REMEDIATION_PLAN did for the September audit. Effort is the auditor's estimate for one
+> developer with Claude Code, about 30 working days (low confidence). Dates are a proposal
+> for part-time work: 2026-10-26 to 2027-01-17.
+
+The plan closes every Medium-or-higher finding and takes architecture and maturity from
+7.0 to 8. Each 8 is defined by checks a CI job or a reviewer can verify:
+
+| Dimension | Exit criteria (all must hold) |
+|---|---|
+| Findings S1-S7, defects 1-3 | Each fix has a regression test that fails on the old code; `SECURITY.md` updated; shipped in a tagged release |
+| Architecture | (1) zero `app.state.db` in route modules, enforced by a CI test; (2) import-linter layers contract: routes -> services -> repositories -> connection, no reverse or skip imports; (3) every workspace-scoped read and write goes through a service method taking a `Principal` and a `Scope`; (4) the `Database` mixin class replaced by per-aggregate repositories; (5) zero import cycles; (6) ADR-7 records the layering |
+| Maturity | (1) unit + integration coverage sent to SonarCloud with no `src/db/` exclusions and an enforced floor; (2) e2e and `retrieval-gate` required, e2e covering 8 golden paths; (3) a written policy: patch release within 7 days of a security fix; (4) signed images with SBOM and provenance; (5) mypy `--strict` on services and repositories; (6) one external review completed and triaged |
+
+**Out of scope:** horizontal scaling, multi-tenant SaaS, replacing ADR-1. An 8 here is a
+well-built single-node appliance, not a different product. **Cannot fix:** the bus factor
+stays at one human; QP-9 reduces unreviewed security changes but does not replace a second
+maintainer.
+
+**Release numbers follow semver, not the plan's draft.** The plan names v3.1.1, v3.2.0 and
+v3.3.0. But the 66 commits since v3.1.0 include 11 `feat:` commits (GKB-1 and GKB-2 among
+them), so the first release is a minor. QP-8's own policy requires semantic versioning.
+That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
+
+### Phase 1 — close the high-impact findings (weeks 1-3)
+
+#### QP-1 — Quick fixes and the dependency backlog -> v3.2.0 ⬜ (Sprint 22, ~2 days)
+
+- **S1 placeholder secrets.** Reject every `.env.example` placeholder for `SECRET_KEY`,
+  `JWT_SECRET_KEY` and `ADMIN_PASSWORD` in every `APP_ENV`, not only production. Set a
+  minimum length of 16 for `ADMIN_PASSWORD`. Set `APP_ENV=production` in `.env.example`, and
+  have the nginx overlay force it. Test: a boot with each placeholder exits non-zero.
+- **S3 login timing.** Verify against a precomputed dummy hash when the user is absent or
+  inactive. Test: both paths call `check_password_hash` exactly once.
+- **S4 SSRF range.** `safe_fetch` checks `ip.is_global` instead of address categories.
+  Test: `100.64.0.1` is refused.
+- **Defect 1:** an incremental UTF-8 decoder in `_validate_text`. Test: 511 ASCII bytes
+  followed by a 2-, 3- or 4-byte character all pass.
+- **Defect 2:** stop stripping passwords on create, change and reset; the same everywhere.
+- **Defect 3:** delete the dead `require_workspace_role_dep` and `_enforce_workspace_role`.
+- **Release:** tag v3.2.0, which ships everything since v3.1.0, including the aiohttp,
+  Pillow, certifi and pypdf advisories (#453, #456).
+
+#### QP-2 — Database role split and resource caps -> v3.3.0 ⬜ (Sprint 23, ~3 days)
+
+- **S2 database roles.** `localchat_owner` owns the tables and runs Alembic (NOLOGIN for the
+  app); `localchat_app` is LOGIN, non-superuser, DML only; `localchat_scoped` stays as it is.
+  The app connects as `localchat_app`, and migrations run as owner in the entrypoint.
+  `FORCE ROW LEVEL SECURITY` goes on the workspace tables. Compose stops defaulting to
+  `postgres`. Test: a CI job asserts that the runtime connection has `rolsuper = false` and
+  cannot `COPY ... PROGRAM`.
+- **The upgrade path is part of the ticket.** It needs a migration plus an `OPERATIONS.md`
+  section for installs that run as `postgres`. `restore-proof` moves to the new roles.
+- **It must work on the Scaleway managed database too.** That is not only a compose
+  problem: 0018 exists because a managed identity does not get role membership by creating
+  the role. Prove it on `db-dev-s` with `verify_database.py` before tagging, as P2-1b did.
+- **S5 resource caps.** A request-body size middleware equal to `MAX_CONTENT_LENGTH`. Before
+  an OOXML file is opened: `ZipInfo.file_size` summed against a 200 MB ceiling, plus a
+  compression-ratio cap.
+- **S7 password policy.** A minimum length of 12 for created users. An optional
+  breached-password check behind a setting, off by default so the appliance stays offline.
+- **Bandit B608.** Drop the global skip in `pyproject.toml`. Add a per-line
+  `# nosec B608 — <reason>` at each of the 42 sites, so a new one fails CI.
+- **S6 CSP.** Vendor chart.js and mermaid into `static/` and drop `cdn.jsdelivr.net` from
+  `script-src`.
+
+**Gate to Phase 2:** v3.3.0 tagged, and S1-S7 marked fixed in `SECURITY.md`.
+
+### Phase 2 — architecture to 8 (weeks 3-10)
+
+Boundary-first: first install the CI checks that define the target, then move one aggregate
+per PR until they pass with no exceptions. `main` stays releasable every week. The layering,
+recorded as **ADR-7** in QP-3, is:
+
+1. **Routes** parse HTTP, call one service method, and map the result or a typed error to a
+   response. No `db`, no SQL, no authorisation logic.
+2. **Services** own authorisation and use cases. Every workspace-scoped method takes
+   `principal: Principal` and `scope: Scope` and runs the access check itself, so a handler
+   cannot forget it.
+3. **Repositories**, one per aggregate: plain SQL with no business rules. They stay
+   synchronous (ADR-2).
+4. **Connection**: the pool, the scoped role switch and transactions. Unchanged.
+
+#### QP-3 — Install the ratchets ⬜ (Sprint 24, ~1 day + PC-4)
+
+- `import-linter` with a layers contract and a forbidden contract (`src.routes_fastapi` may
+  not import `src.db`). Today's violations go into an allow-list file.
+- A unit test that counts `app.state.db` in `src/routes_fastapi/`, starting at today's count
+  (81 on `664d19c`), and fails if the count rises. Each QP-4 PR lowers it.
+- Cycle detection; the cycles behind the function-level imports become tasks.
+- ADR-7 written.
+- **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
+
+#### QP-4 — Migrate one aggregate per PR ⬜ (Sprints 25-27, ~12 days)
+
+The order is by security weight, so authorisation moves first:
+
+1. Users and auth (`auth_routes`, `users.py`, `tokens.py`)
+2. Workspaces, members and API keys (`workspace_routes`)
+3. Documents and chunks, including upload and ingest
+4. Conversations and chat, which carries GKB-3's `knowledge_scope` across
+5. Memories (both route modules)
+6. Connectors and OAuth tokens. **CONN-1 is decided first**: the connector service is where
+   its authorisation model will live, so the decision (2-3 days, no code) comes before this PR.
+7. Feedback, annotations, entities, contributions, settings
+
+Each PR does five things:
+- adds a repository class, with the SQL moved verbatim;
+- adds or extends a service, with the authorisation check;
+- switches the routes over and deletes the old mixin;
+- lowers the ratchet numbers;
+- puts mypy `--strict` on the new modules.
+
+Integration tests pass unchanged, and a PR that had to edit one says so.
+
+**If only part of Phase 2 is affordable:** do QP-3 and the first two aggregates. That
+captures most of the security value for about a third of the effort, and leaves
+architecture near 7.5.
+
+#### QP-5 — Finish ⬜ (Sprint 28, ~2 days)
+
+- Delete `Database` and `MixinHost`; `app.state` holds services, not a database.
+- Split `DocumentProcessor` into `Loader`, `Chunker` and `Retriever`, composed by an
+  `IngestPipeline`. That ends the second mixin stack.
+- Empty the ratchet allow-lists, so the contracts become plain failures.
+- radon: no function above grade C.
+
+**Gate:** all six architecture exit criteria hold on `main`.
+
+### Phase 3 — maturity to 8 (weeks 3-12, alongside Phase 2)
+
+This runs in parallel because most of it protects the refactor. Honest coverage and a
+required e2e suite are what make moving 81 database calls safe, so QP-6 and QP-7's e2e work
+start **before** QP-4's first PR.
+
+#### QP-6 — Honest coverage ⬜ (Sprint 24, ~2 days)
+
+- Run unit and integration with `--cov=src`, `coverage combine`, and upload the combined XML
+  to SonarCloud.
+- Delete the `src/db/` entries and `app.py` from `sonar.coverage.exclusions`.
+- Record the honest baseline. Set `--cov-fail-under` 2 points below it and a SonarCloud
+  new-code condition of 80%. Raise the floor as QP-4 lands.
+
+#### QP-7 — Gates ⬜ (Sprints 24-26, ~4 days)
+
+- e2e grows from 2 golden paths to 8:
+    1. login and logout
+    2. upload with progress
+    3. chat with cited sources
+    4. workspace switch
+    5. a viewer cannot upload
+    6. an admin creates a user with membership
+    7. an API key reaches only its workspace
+    8. a revoked session is refused
+- **e2e and `retrieval-gate` become required** once each has 20 consecutive green runs; the
+  date goes in the workflow comment. This closes EV-1's "not yet required".
+- Mutation testing (TQ-3) extends from 2 modules to the new services layer, with an 80% kill
+  floor, nightly.
+- A weekly answer-level eval on a small CPU-sized model against `answer_baseline.json`,
+  reported but not blocking. **It needs P2-3's human calibration first**: an uncalibrated
+  judge gives the trend line no meaning. That calibration is the maintainer's to do, so it is
+  scheduled here rather than left open.
+
+#### QP-8 — Release engineering ⬜ (Sprint 25-26, ~2 days)
+
+- `CONTRIBUTING.md` holds the release policy: semver, and a patch release within 7 days of
+  any fix for a security advisory or a dependency CVE. Dependabot security PRs trigger it.
+- Tagging and the changelog are automated from Conventional Commits (release-please or
+  similar).
+- Images are signed with cosign keyless, with an SBOM (syft) and SLSA provenance attached
+  through `actions/attest-build-provenance`. Verification is documented in `DEPLOYMENT.md`.
+- GitHub private vulnerability reporting is on, and a `security.txt` points at it.
+
+#### QP-9 — Independent review ⬜ (Sprint 28, ~2 days of maintainer time)
+
+- One external review of the security core and the new service layer, by someone other
+  than the maintainer or an agent working for them. Every finding is triaged in `SECURITY.md`.
+- `CODEOWNERS`, with a required review on `security_fastapi.py`, `services/`, migrations and
+  the `Dockerfile`. The reviewer may be a second Claude session with a fixed checklist;
+  `CONTRIBUTING.md` says so plainly.
+
+**Gate:** all six maturity exit criteria hold. Tag v3.4.0 and re-run the audit.
+
+| Risk | Likelihood | Effect | Mitigation |
+|---|---|---|---|
+| Refactor regressions in authorisation | Medium | High | SQL moved verbatim; integration tests pass unchanged; mutation gate on services before routes switch |
+| Role split breaks existing installs | Medium | High | Upgrade migration, documented manual path, `restore-proof` on the new roles, called out in the v3.3.0 notes |
+| Role split works in compose but not on Scaleway | Medium | High | Proved on `db-dev-s` before v3.3.0 is tagged (QP-2) |
+| Feature work collides with the refactor | High | Medium | GKB-3 lands before QP-4 reaches chat, and PC-1..3 wait for QP-5; once an aggregate has moved, feature PRs use the new layering and the ratchet enforces it |
+| The honest coverage baseline is low | Medium | Medium | The floor is set from the measured value, not a target |
+| Effort overrun | Medium | Medium | Phases are independently releasable, so stopping early still leaves `main` better |
+
+---
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -1530,10 +1764,29 @@ LiteLLM response; the dashboard JSON is updated and still imports.
 | 19 | EV-1 (retrieval regression gate on every PR) ✅ 2026-10-04 — not yet required; found and fixed the lexical arm (#422) | 2–3 days |
 | 20 | GR-1a + GR-1b + GR-1c (retrieved content as untrusted input) ✅ 2026-10-05 | 1 week |
 | 21 | OBS-1a (token accounting, cloud cost) ✅ 2026-10-09 + OBS-1b if wanted | 3–4 days |
+| 22 | QP-1 (S1, S3, S4, defects 1-3) -> **v3.2.0** | ~2 days (week 1) |
+| 23 | QP-2 (S2 role split incl. Scaleway, S5, S7, B608, S6) -> **v3.3.0** | ~3 days (weeks 2-3) |
+| 24 | GKB-3 (chat reads the global tier) + QP-3 (ratchets, ADR-7, PC-4) + QP-6 (honest coverage) + QP-7 e2e paths begun | ~1 week (weeks 3-4) |
+| 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
+| 28 | QP-5 (delete `Database`, split `DocumentProcessor`) + QP-9 (external review) -> **v3.4.0**, re-audit | ~1 week (weeks 10-12) |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
+**Execution order from 2026-10-22.** Finish Sprint 9 (#452). Then Sprints 22 to 28, in
+order; inside them, Phase 3 runs alongside Phase 2. Then Sprints 10 and 11 on top of the new
+service layer (PC-4 has already shipped in Sprint 24), then 12 to 14. Three reasons fix this order:
+1. Security fixes ship before any refactor: Phase 1 is alone for its first two weeks.
+2. Anything a refactor would otherwise move twice goes either before the refactor (GKB-3) or
+   after it (PC-1..PC-3).
+3. Anything that makes the refactor safe goes in before its first PR (ratchets, coverage,
+   e2e).
+
+Three open items are absorbed rather than scheduled separately:
+- EV-1's "not yet required" closes in QP-7.
+- P2-3's calibration becomes QP-7's prerequisite.
+- CONN-1 becomes QP-4's prerequisite for the connectors aggregate.
+
 > **Dated notes on how this plan changed** — sprint completions, re-orderings, tickets added or re-scoped — are in [history/ROADMAP_LOG.md](history/ROADMAP_LOG.md).
-> The core is fully shippable at the end of Sprint 11. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
+> The core is fully shippable at the end of Sprint 11, which now runs after Sprint 28. PR-1 lives in the private repo and cannot affect core stability — the worst case for a pricing failure is that one private directory does not ship.
 
 ---
 
