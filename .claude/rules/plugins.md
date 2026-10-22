@@ -6,7 +6,8 @@ How plugins extend LocalChat without destabilising the core. Read alongside the
 > ## ⚠ Status: designed, not built (verified 2026-08-27, re-checked 2026-10-06)
 >
 > **Everything below describes PC-1..PC-4, which have not been implemented.** They are
-> ROADMAP Sprints 10–11, queued behind the PRODUCTION_PLAN exit criteria. None of the
+> ROADMAP Sprints 10–11, which now run after the quality plan (Initiative 12) has built the
+> service layer they wrap; PC-4 alone moved into its Sprint 24 (2026-10-22). None of the
 > following exists in the repository today:
 >
 > | Described here | Reality |

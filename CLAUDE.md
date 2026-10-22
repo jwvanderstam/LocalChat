@@ -155,7 +155,7 @@ LocalChat supports plugins (LLM tools, connectors, background work) that extend 
 
 The enforcing procedure is to be a CI job that verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core.
 
-> **It does not exist yet** (checked 2026-08-27, again 2026-10-06). It is PC-4, ROADMAP Sprint 11; the PRODUCTION_PLAN exit criteria it once queued behind were met on 2026-08-31, so nothing but priority holds it now. Until then the one rule is enforced by review. The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
+> **It does not exist yet** (checked 2026-08-27, again 2026-10-06). It is PC-4, pulled forward on 2026-10-22 into QP-3 (ROADMAP Sprint 24), the first step of the quality plan's refactor. Until then the one rule is enforced by review. The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
 
 Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
 

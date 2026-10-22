@@ -315,6 +315,13 @@ now creates the role if missing and re-grants it the tables, which also covers t
 later release adds. The application identity therefore needs `CREATEROLE`, or the provider
 must create `localchat_scoped` once — the same requirement 0017 already had.
 
+> **Under amendment: ROADMAP QP-2 (Sprint 23, added 2026-10-22).** The quality plan's S2
+> moves the application off the owner role, onto a DML-only `localchat_app`, with `FORCE ROW
+> LEVEL SECURITY`. That removes two things this record assumes: the `ALL_WORKSPACES` paths
+> bypassing the policies as owner, and the boot re-creating `localchat_scoped` (which needs
+> `CREATEROLE`). How the installation-wide paths read across workspaces afterwards is decided
+> and written here before QP-2's code. Until then, this record describes `main`.
+
 **Revisit when:** tenant administrators must be separated from platform operators, or a
 deployment requires that operators cannot read workspace content. Then the `ALL_WORKSPACES`
 paths move off the owner role — to the second-pool design above, through the same seam.
