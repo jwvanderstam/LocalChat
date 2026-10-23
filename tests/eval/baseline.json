@@ -3,7 +3,7 @@
   "metrics": {
     "recall@1": 0.45,
     "recall@5": 0.6,
-    "mrr": 0.516667
+    "mrr": 0.5125
   },
   "settings": {
     "TOP_K_RESULTS": 30,
