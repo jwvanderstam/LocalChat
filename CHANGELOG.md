@@ -8,6 +8,23 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+### Security
+
+- **Requests no longer run as the database superuser** (audit S2, ADR-5 amended). With
+  `PG_APP_PASSWORD` set, `PG_USER` builds the schema at boot and every request then runs as
+  `localchat_app`. That role owns nothing and is not a superuser, so a SQL injection cannot
+  reach `COPY ... TO PROGRAM`, run DDL or alter roles. The boot refuses a `localchat_app`
+  that holds superuser, `BYPASSRLS`, `CREATEROLE` or `CREATEDB`. Migration `0021` keeps
+  unscoped paths working as before through a transition policy; scoped transactions stay
+  isolated. QP-4 and QP-5 replace the transition policy with an explicit scope on every path.
+
+### Changed
+
+- **`docker-compose.yml` requires `PG_APP_PASSWORD`.** **Upgrading:** add it to `.env`
+  before `docker compose up -d`, or compose refuses to start. Host-run installs without it
+  keep the single identity and log a warning. See `docs/OPERATIONS.md`, *Database
+  Identities*. The MCP servers still connect as `PG_USER`.
+
 ## [3.2.0] — 2026-10-23
 
 The release between two audits. It ships what was built since v3.1.0 on the September
