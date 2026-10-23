@@ -293,6 +293,9 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: unit-tests
+    # A healthy run takes 3-4 minutes, 13 at the slowest seen. Without a limit a hung
+    # browser held a PR for the runner's 6-hour default (#467, 2026-10-23).
+    timeout-minutes: 40
 
     services:
       postgres:
