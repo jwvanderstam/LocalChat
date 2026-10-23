@@ -1589,7 +1589,7 @@ That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
 - **Release:** tag v3.2.0, which ships everything since v3.1.0, including the aiohttp,
   Pillow, certifi and pypdf advisories (#453, #456).
 
-#### QP-2 — Database role split and resource caps -> v3.3.0 ◐ (Sprint 23; S5, S6, S7 and B608 built 2026-10-23; S2 waits on ADR-5)
+#### QP-2 — Database role split and resource caps -> v3.3.0 ✅ (Sprint 23; S5, S6, S7 and B608 in v3.2.0; S2 built 2026-10-23 as option B2)
 
 > **Built, with three deviations from the text below.**
 > - **S5:** the body cap exempts the upload route. That route accepts several files,
@@ -1604,6 +1604,17 @@ That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
 >   third-party code. Each is the newest of its major at least two weeks old.
 >
 > B608 was as written: 42 sites annotated, the global skip removed.
+>
+> **S2 was built as option B2** (the maintainer's decision, recorded in ADR-5's amendment):
+> - The app logs in as `localchat_app` when `PG_APP_PASSWORD` is set, which compose
+>   requires. `PG_USER` owns the schema and is used at boot only.
+> - The plan's separate NOLOGIN `localchat_owner` is not created: `PG_USER` keeps ownership,
+>   and what S2 needs is that requests do not run as it.
+> - 49 database methods reach the RLS tables without a scope. Migration `0021`'s transition
+>   policy keeps them working as before. QP-4 moves each onto an explicit scope or flag,
+>   and QP-5 drops the policy and adds the plan's `FORCE ROW LEVEL SECURITY`. Adding `FORCE`
+>   now would bind the owner's migrations while the destination is not yet built.
+> - The MCP servers still connect as `PG_USER`.
 
 - **Decide first: amend ADR-5.** The plan does not mention it, but S2 removes two things
   [ADR-5](ADR.md) relies on.
@@ -1696,6 +1707,8 @@ architecture near 7.5.
 #### QP-5 — Finish ⬜ (Sprint 28, ~2 days)
 
 - Delete `Database` and `MixinHost`; `app.state` holds services, not a database.
+- Drop migration `0021`'s transition policy (by a new migration) and add `FORCE ROW LEVEL
+  SECURITY` on the ten tables: every path names its scope by then (ADR-5's amendment, B).
 - Split `DocumentProcessor` into `Loader`, `Chunker` and `Retriever`, composed by an
   `IngestPipeline`. That ends the second mixin stack.
 - Empty the ratchet allow-lists, so the contracts become plain failures.

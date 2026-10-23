@@ -20,7 +20,7 @@ import pytest
 from src import config
 
 _ROOT = Path(__file__).resolve().parents[2]
-_SECRETS = ("SECRET_KEY", "JWT_SECRET_KEY", "ADMIN_PASSWORD")
+_SECRETS = ("SECRET_KEY", "JWT_SECRET_KEY", "ADMIN_PASSWORD", "PG_APP_PASSWORD")
 
 
 def _example_value(name: str) -> str:

@@ -79,12 +79,12 @@ each fails only after the previous one is solved:
 | `CREATE EXTENSION vector` | `permission denied to create extension` | pre-create it as superuser, or via the provider's console |
 | `COMMENT ON EXTENSION vector` | `must be owner of extension vector` | `--no-comments` |
 | `ALTER TABLE ... OWNER TO postgres` | `must be able to SET ROLE "postgres"` | `--no-owner` |
-| `GRANT ... TO localchat_scoped` | `role "localchat_scoped" does not exist` (a new cluster) | `--no-privileges` |
+| `GRANT ... TO localchat_scoped` / `localchat_app` | `role "localchat_scoped" does not exist` (a new cluster) | `--no-privileges` |
 
 The last row is the row-level-security role (ADR-5). A role belongs to the cluster, not the
 database, so `pg_dump` never carries it and a new cluster does not have it. `--no-privileges`
-skips the grants that name it; **the application re-creates the role and its grants when it
-starts**, so the restored database is fully usable once LocalChat boots against it. That needs
+skips the grants that name it, and those naming `localchat_app` (S2); **the application re-creates
+both roles and their grants when it starts**, so the restored database is fully usable once LocalChat boots against it. That needs
 the application identity to hold `CREATEROLE`, or the provider to create `localchat_scoped`
 (`NOLOGIN`) once.
 
@@ -397,6 +397,46 @@ handles the reset, but a total you want to keep across restarts needs Prometheus
 retention, not this endpoint.
 
 ---
+
+## Database Identities
+
+Since v3.3.0 (audit S2, [ADR-5](ADR.md)), LocalChat can use two database identities:
+
+| Identity | Set by | Used for |
+|---|---|---|
+| `PG_USER` | `PG_USER` / `PG_PASSWORD` | Boot only: base schema, migrations, creating `localchat_scoped` and `localchat_app` |
+| `localchat_app` | `PG_APP_PASSWORD` | Every request. Not a superuser and owns nothing, so it cannot use `COPY ... PROGRAM`, run DDL or alter roles |
+
+With `PG_APP_PASSWORD` empty, the boot logs a warning and every request runs as `PG_USER`,
+as in earlier releases. `docker-compose.yml` requires it.
+
+### Switching an existing install
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(24))"   # a new password
+# add it to .env as PG_APP_PASSWORD=..., then
+docker compose up -d                                            # recreates app
+docker compose logs app | grep "Requests run as"                # [DB] Requests run as localchat_app
+```
+
+At boot, `PG_USER` applies migration `0021`, creates `localchat_app` (or updates its password
+to match `.env`), grants it the tables, and hands over. To confirm from the database side:
+
+```bash
+docker compose exec db psql -U postgres -d rag_db   -c "SELECT DISTINCT usename FROM pg_stat_activity WHERE datname = current_database();"
+```
+
+**Changing the password** is the same three steps: the boot sets it on every start.
+**Going back** is removing `PG_APP_PASSWORD` (host-run) and restarting. The role and the
+transition policy stay, and are harmless to an owner connection, which bypasses them.
+
+**On a managed database** the owner identity needs `CREATEROLE` to create `localchat_app` and
+set its password, as it already does for `localchat_scoped`. The boot refuses a
+`localchat_app` that exists with superuser, `BYPASSRLS`, `CREATEROLE` or `CREATEDB`, instead
+of serving requests as it.
+
+**Not covered yet:** the MCP servers (`--profile mcp`, off by default) still connect as
+`PG_USER`.
 
 ## Routine Maintenance
 

@@ -705,6 +705,7 @@ jobs:
             -e ENCRYPTION_KEY="$SMOKE_ENCRYPTION_KEY" \
             -e PG_HOST=localhost -e PG_PORT=5432 \
             -e PG_USER="$PG_USER" -e PG_PASSWORD="$PG_PASSWORD" -e PG_DB="$PG_DB" \
+            -e PG_APP_PASSWORD=ci-smoke-app-database-password \
             -e REDIS_ENABLED=false \
             -e OLLAMA_BASE_URL=http://127.0.0.1:11434 \
             localchat:smoke
@@ -778,6 +779,9 @@ jobs:
       # and production requires 32.
       APP_ENV: production
       JWT_SECRET_KEY: ci-smoke-jwt-secret-key-32chars-minimum
+      # docker-compose.yml requires it: the shipped stack serves requests as
+      # localchat_app, not the postgres superuser (QP-2 S2).
+      PG_APP_PASSWORD: ci-smoke-app-database-password
       # nginx/nginx.conf ships `server_name YOUR_DOMAIN` in both server blocks, by
       # design — it is a template. The probes send that name rather than substituting
       # it, so the file is tested exactly as an operator receives it.

@@ -638,8 +638,11 @@ or inherit a workspace: `documents`, `conversations`, `memories`, `answer_feedba
 the policy `localchat_workspace_isolation`, comparing the workspace to the transaction-local
 `app.workspace_id`. `documents` and `document_chunks` also carry `localchat_global_read`
 (migration `0019`, GKB-1), a `FOR SELECT` policy that lets a scoped transaction read live
-contributions in the global tier and write none of them. That makes twelve policies on ten
-tables.
+contributions in the global tier and write none of them. All ten also carry
+`localchat_app_transition` (migration `0021`, QP-2 S2): `current_user = 'localchat_app'`, so
+the application's own login reads and writes every row on an unscoped path, as the owner
+did, until QP-4 gives each path an explicit scope and QP-5 drops it (ADR-5's amendment).
+That makes twenty-two policies on ten tables.
 
 RLS binds only the `localchat_scoped` role (NOLOGIN), not the table owner or a superuser —
 `FORCE ROW LEVEL SECURITY` is deliberately off. `get_connection(scope=<workspace>)` switches

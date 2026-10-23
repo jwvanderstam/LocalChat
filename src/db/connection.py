@@ -36,6 +36,12 @@ EF_SEARCH_EXPECTED = "100"
 #: by switching into it inside a transaction, never by connecting.
 SCOPED_ROLE = "localchat_scoped"
 
+#: The application's login when PG_APP_PASSWORD is set (audit S2, ADR-5). Created and
+#: granted at every boot by the owner identity, for the same reason as SCOPED_ROLE: a
+#: role is a cluster object that pg_dump does not carry. Not configurable, because
+#: migration 0021's transition policy names it.
+APP_ROLE = "localchat_app"
+
 #: Row-level security turns vector search from an exact per-workspace scan into the HNSW
 #: index filtered afterwards, and a plain filtered HNSW scan returns what survives of
 #: ef_search global candidates: 19 of 40 requested on average, as few as 0 (P2-1b-iii
@@ -78,6 +84,63 @@ def _apply_scoped_role(cursor: Any) -> None:
     cursor.execute(f"GRANT USAGE ON SCHEMA public TO {SCOPED_ROLE}")
     cursor.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {SCOPED_ROLE}")
     cursor.execute(f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {SCOPED_ROLE}")
+
+
+def _apply_app_role(cursor: Any, password: str) -> None:
+    """Make ``localchat_app`` exist, log in with *password*, and use every table without owning one."""
+    cursor.execute(
+        f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{APP_ROLE}') THEN
+                CREATE ROLE {APP_ROLE} NOLOGIN;
+            END IF;
+        END $$;
+        """  # nosec B608  # a module constant role name, no input
+    )
+    # A literal, not a bind parameter: ALTER ROLE is a utility statement and takes none.
+    # Only LOGIN and PASSWORD are set. Naming NOSUPERUSER here would need superuser rights
+    # a managed database's owner does not have; the attributes are checked below instead.
+    cursor.execute(
+        sql.SQL("ALTER ROLE {} WITH LOGIN PASSWORD {}").format(
+            sql.Identifier(APP_ROLE), sql.Literal(password)
+        )
+    )
+    cursor.execute(
+        "SELECT rolsuper, rolbypassrls, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname = %s",
+        (APP_ROLE,),
+    )
+    row = cursor.fetchone()
+    if row is None or any(row):
+        raise RuntimeError(
+            f"{APP_ROLE} exists with superuser, BYPASSRLS, CREATEROLE or CREATEDB; "
+            "remove those attributes, or every guarantee it exists for is void"
+        )
+    cursor.execute(
+        sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
+            sql.Identifier(config.PG_DB), sql.Identifier(APP_ROLE)
+        )
+    )
+    cursor.execute(f"GRANT USAGE ON SCHEMA public TO {APP_ROLE}")
+    cursor.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {APP_ROLE}")
+    cursor.execute(f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {APP_ROLE}")
+    # WITH SET TRUE, as for the owner in _apply_scoped_role: without it SET LOCAL ROLE is
+    # refused and every scoped query fails.
+    cursor.execute(f"GRANT {SCOPED_ROLE} TO {APP_ROLE} WITH SET TRUE")
+
+
+def _configure_connection(conn: Any) -> None:
+    register_vector_types(conn)
+    if conn.info.transaction_status != _PG_TRANSACTION_IDLE:
+        conn.rollback()
+    # Set session GUCs once per connection — avoids a round-trip on every query.
+    # ef_search=100 covers max(top_k*2, 100) for all callers; going above
+    # ef_construction (64) is capped by the index but never hurts correctness.
+    conn.autocommit = True
+    with conn.cursor() as _cur:
+        _cur.execute("SET hnsw.ef_search = 100")
+    conn.autocommit = False
+    _warn_if_ef_search_did_not_stick(conn)
 
 
 def _enter_scope(conn: Any, workspace_id: str) -> None:
@@ -142,6 +205,25 @@ def _warn_if_ef_search_did_not_stick(conn: Any) -> None:
         f"proxy does to session state — see docs/DEPLOYMENT.md."
     )
 
+
+
+def _open_pool(conn_kwargs: dict) -> ConnectionPool:
+    return ConnectionPool(
+        kwargs=conn_kwargs,
+        min_size=config.DB_POOL_MIN_CONN,
+        max_size=config.DB_POOL_MAX_CONN,
+        timeout=5,
+        configure=_configure_connection,
+        # Without this the pool hands out connections the server has
+        # already dropped, and every request that gets one fails until
+        # the pool happens to recycle it. A managed database that scales
+        # to zero makes that a daily event rather than a rare one, but
+        # `docker compose restart db` reproduces it just as well.
+        # check_connection sends an empty statement — one round-trip with
+        # no query to parse — and a connection that fails it is discarded
+        # and replaced before the caller ever sees it.
+        check=ConnectionPool.check_connection,
+    )
 
 
 class MixinHost:
@@ -241,6 +323,7 @@ class DatabaseConnection:
     def __init__(self) -> None:
         self.connection_pool: ConnectionPool | None = None
         self.is_connected: bool = False
+        self._conn_kwargs: dict[str, Any] = {}
         logger.info("Database manager initialized")
 
     @staticmethod
@@ -333,38 +416,12 @@ class DatabaseConnection:
                 "sslmode": config.PG_SSLMODE,
             }
 
-            def configure_connection(conn: Any) -> None:
-                register_vector_types(conn)
-                if conn.info.transaction_status != _PG_TRANSACTION_IDLE:
-                    conn.rollback()
-                # Set session GUCs once per connection — avoids a round-trip on every query.
-                # ef_search=100 covers max(top_k*2, 100) for all callers; going above
-                # ef_construction (64) is capped by the index but never hurts correctness.
-                conn.autocommit = True
-                with conn.cursor() as _cur:
-                    _cur.execute("SET hnsw.ef_search = 100")
-                conn.autocommit = False
-                _warn_if_ef_search_did_not_stick(conn)
+            self._conn_kwargs = _conn_kwargs
 
             try:
                 logger.debug("Creating connection pool")
                 self._ensure_vector_extension(_conn_kwargs)
-                self.connection_pool = ConnectionPool(
-                    kwargs=_conn_kwargs,
-                    min_size=config.DB_POOL_MIN_CONN,
-                    max_size=config.DB_POOL_MAX_CONN,
-                    timeout=5,
-                    configure=configure_connection,
-                    # Without this the pool hands out connections the server has
-                    # already dropped, and every request that gets one fails until
-                    # the pool happens to recycle it. A managed database that scales
-                    # to zero makes that a daily event rather than a rare one, but
-                    # `docker compose restart db` reproduces it just as well.
-                    # check_connection sends an empty statement — one round-trip with
-                    # no query to parse — and a connection that fails it is discarded
-                    # and replaced before the caller ever sees it.
-                    check=ConnectionPool.check_connection,
-                )
+                self.connection_pool = _open_pool(_conn_kwargs)
                 self.is_connected = True
                 self._ensure_extensions_and_tables()
                 logger.info("Database connection established successfully with pgvector type support")
@@ -376,14 +433,7 @@ class DatabaseConnection:
                     logger.warning(f"Database {config.PG_DB} doesn't exist, creating...")
                     self._create_database()
                     self._ensure_vector_extension(_conn_kwargs)
-                    self.connection_pool = ConnectionPool(
-                        kwargs=_conn_kwargs,
-                        min_size=config.DB_POOL_MIN_CONN,
-                        max_size=config.DB_POOL_MAX_CONN,
-                        timeout=5,
-                        configure=configure_connection,
-                        check=ConnectionPool.check_connection,
-                    )
+                    self.connection_pool = _open_pool(_conn_kwargs)
                     self.is_connected = True
                     self._ensure_extensions_and_tables()
                     logger.info("Database created and initialized successfully with pgvector type support")
@@ -793,6 +843,31 @@ class DatabaseConnection:
                 conn.commit()
                 logger.info("All database extensions and tables verified")
 
+    def ensure_app_role(self) -> None:
+        """Create or update ``localchat_app`` from PG_APP_PASSWORD; call as the owner, after migrations."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                _apply_app_role(cursor, config.PG_APP_PASSWORD)
+
+    def use_app_identity(self) -> None:
+        """Replace the owner's pool with one that logs in as ``localchat_app``.
+
+        The owner identity is needed only to build the schema at boot. Every request after
+        this runs as a role that cannot run DDL or reach the server's filesystem, so a SQL
+        injection is bounded by DML on these tables (audit S2).
+        """
+        app_kwargs = {**self._conn_kwargs, "user": APP_ROLE, "password": config.PG_APP_PASSWORD}
+        if self.connection_pool is not None:
+            self.connection_pool.close(timeout=5)
+        self.connection_pool = _open_pool(app_kwargs)
+        with self.get_connection() as conn:
+            row = conn.execute(
+                "SELECT current_user, rolsuper FROM pg_roles WHERE rolname = current_user"
+            ).fetchone()
+        if row is None or row[0] != APP_ROLE or row[1]:
+            raise RuntimeError(f"the pool did not come up as a non-superuser {APP_ROLE}: {row!r}")
+        logger.info("[DB] Requests run as %s from here on", APP_ROLE)
+
     def ensure_scoped_role(self) -> None:
         """Re-apply the scoped role's grants; call after migrations, which may add tables."""
         with self.get_connection() as conn:
@@ -814,7 +889,9 @@ class DatabaseConnection:
         so the row-level security policies from migration 0017 refuse every other
         workspace's rows even if the query forgot to. Both settings are transaction-local:
         they end at commit or rollback, so a pooled connection cannot carry one request's
-        scope into the next. ``None`` and ``ALL_WORKSPACES`` stay on the owner role.
+        scope into the next. ``None`` and ``ALL_WORKSPACES`` stay on the pool's own identity:
+        the owner, or ``localchat_app`` once S2 has switched to it, which migration 0021's
+        transition policy leaves unrestricted until QP-4 gives each path a scope (ADR-5).
 
         Raises:
             DatabaseUnavailableError: If the connection pool is not initialised.
