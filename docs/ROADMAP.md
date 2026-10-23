@@ -1757,6 +1757,52 @@ start **before** QP-4's first PR.
 
 ---
 
+## Initiative 13 — Retrieval flexibility: fit retrieval to the corpus and the question ⬜ (future work, unscheduled)
+
+> **Added 2026-10-23, deliberately unscheduled.** The maintainer's call: the root cause is in
+> the *use*, not the application. It does what it was built for, and the corpus and the
+> questions asked of it do not fit that. What the application can offer is flexibility to
+> cope with the use. This sits behind Initiative 12 and is picked up when it is wanted.
+
+**What was observed.** A Dutch service catalogue (977 chunks) was asked to "describe the
+optional services", meaning one chapter of it. A read-only run against the live stack showed:
+
+- Of 144 candidate chunks, the semantic scores all fell between 0.698 and 0.740. In a band
+  that narrow, which nine reach the prompt is close to chance. `nomic-embed-text` is trained
+  mostly on English and barely separates Dutch passages.
+- Two of the nine chunks returned were about optional services; 66 in the document mention
+  them. The chapter heading (chunk 413) was not returned; the table of contents was.
+- The question asks for a summary of a whole chapter, dozens of chunks long. Top-k retrieval
+  returns about ten snippets that resemble the question, so it cannot answer it even with a
+  perfect embedding model.
+- The cross-encoder was not the cause: with it on or off, the same nine chunks came back,
+  and with it on, the two relevant ones moved to the top. It is still English-only.
+
+**What flexibility would cover it.** Each item is a capability with a setting, not a
+change of default behaviour. Each is measured with `scripts/eval_answers.py` against the
+2026-10-05 baseline (recall@1 0.41) before it is offered.
+
+- **RF-1: the embedding model is a real choice.** `OLLAMA_EMBEDDING_MODEL` is configurable,
+  but `document_chunks.embedding` and `memories.embedding` are fixed at `vector(768)`, so
+  only 768-dimension models fit. The task: the dimension follows the model (an additive
+  migration), re-embedding is an explicit admin action with progress, and the eval picks the
+  default for a non-English corpus.
+- **RF-2: section-aware retrieval.** Store the heading path of each chunk at ingest
+  (the chunker already sees the `#` headings). A question about a chapter can then be
+  answered from the chapter, either in full or through a summary, instead of from ten
+  similar snippets. Offered as a retrieval mode, not a replacement.
+- **RF-3: a configurable reranker.** The base cross-encoder is fixed to
+  `cross-encoder/ms-marco-MiniLM-L-6-v2`. A setting for the base model would allow a
+  multilingual one. Small, and worth measuring only after RF-1.
+- **RF-4: the lexical arm's language.** `chunk_tsv` uses the `simple` text-search
+  configuration (no stemming), so `dienst` and `diensten` do not match. A per-installation
+  language would let the lexical arm carry more weight where the embedding model is weak.
+
+**Not in scope:** a second model in the request path to rewrite or route questions (ADR-6:
+the generation path is a deterministic pipeline unless an answer-level eval says otherwise).
+
+---
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -1792,6 +1838,7 @@ start **before** QP-4's first PR.
 | 24 | GKB-3 (chat reads the global tier) + QP-3 (ratchets, ADR-7, PC-4) + QP-6 (honest coverage) + QP-7 e2e paths begun | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (delete `Database`, split `DocumentProcessor`) + QP-9 (external review) -> **v3.4.0**, re-audit | ~1 week (weeks 10-12) |
+| — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
 **Execution order from 2026-10-22.** Finish Sprint 9 (#452). Then Sprints 22 to 28, in
