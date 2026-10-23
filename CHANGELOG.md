@@ -10,6 +10,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Added
 
+- **The layering is checked in CI** (ROADMAP QP-3, ADR-7). `lint-imports` runs two contracts
+  from `pyproject.toml`: routes may not import the database layer directly, and routes,
+  services and the database layer form layers. Today's four exceptions are recorded and may
+  only shrink. `tests/unit/test_layering_ratchets.py` pins `app.state.db` in routes (81) and
+  the import cycles (2) the same way.
+- **`core-without-plugins`** (PC-4): a CI job that deletes every plugin and runs lint and the
+  fast suite, so a core that depends on a plugin goes red. Not a required check yet.
+
 - **Chat can answer from the global knowledge tier** (ROADMAP GKB-3). A selector beside the
   RAG and Web toggles chooses *Workspace*, *Workspace + shared* or *Shared only*; the
   request carries it as `knowledge_scope` (`local` by default). A citation drawn from

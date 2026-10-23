@@ -5,10 +5,10 @@ How plugins extend LocalChat without destabilising the core. Read alongside the
 
 > ## ⚠ Status: designed, not built (verified 2026-08-27, re-checked 2026-10-06)
 >
-> **Everything below describes PC-1..PC-4, which have not been implemented.** They are
+> **Everything below describes PC-1..PC-3, which have not been implemented.** They are
 > ROADMAP Sprints 10–11, which now run after the quality plan (Initiative 12) has built the
-> service layer they wrap; PC-4 alone moved into its Sprint 24 (2026-10-22). None of the
-> following exists in the repository today:
+> service layer they wrap. PC-4, the `core-without-plugins` job, was built on 2026-10-23
+> (QP-3). Apart from it, none of the following exists in the repository today:
 >
 > | Described here | Reality |
 > |---|---|
@@ -16,7 +16,7 @@ How plugins extend LocalChat without destabilising the core. Read alongside the
 > | The hooks catalogue (`on_document_ingested`, `on_scheduler_tick`, …) | No hook bus |
 > | The manifest (`PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_HOOKS`, `PLUGIN_CONFIG`) | `plugin_loader.py` reads none of these; it reads an optional `PLUGIN_META` dict for display only |
 > | `plugins/_echo/` reference plugin | Absent. `plugins/` holds `example_plugin.py` |
-> | The `core-without-plugins` CI job | Absent from `.github/workflows/`, and not in the required-checks ruleset |
+> | The `core-without-plugins` CI job | **Built** (2026-10-23) in `.github/workflows/tests.yml`; not yet in the required-checks ruleset |
 >
 > **What actually ships** is a much smaller thing, and it is documented accurately in
 > [`plugins/README.md`](../../plugins/README.md): drop a `.py` file in `plugins/`, decorate
@@ -112,11 +112,11 @@ always the *second* consumer of any capability — never the first, never the au
 
 ## Enforcement
 
-`.github/workflows/tests.yml` **is to gain** a `core-without-plugins` job (PC-4, not yet
-written): it runs the fast suite with `plugins/` emptied (echo excepted, since it lives
-in-core as a fixture) and all private plugin paths absent. Red = a plugin dependency
-leaked into the core. That job is the architectural IVP and is to be required on every PR
-to `main`. **Until it exists, the one rule is enforced by review only.**
+`.github/workflows/tests.yml` has a `core-without-plugins` job (PC-4, built 2026-10-23):
+it deletes everything in `plugins/` except its README, then runs `ruff` and the fast suite.
+Once PC-3 ships, the echo fixture is kept too, since it lives in-core. Red = a plugin
+dependency leaked into the core. That job is the architectural IVP. It is to be required on
+every PR to `main` once it has reported there; until then a red run is read before merging.
 
 ## Checklist for a new plugin
 

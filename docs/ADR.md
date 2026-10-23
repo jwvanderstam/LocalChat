@@ -476,6 +476,54 @@ postponed is a deferral, which ADR-2 explains is the weaker form.
 
 ---
 
+## ADR-7 — Routes, services, repositories, connection: four layers, enforced by contract
+
+**Accepted 2026-10-23** (ROADMAP QP-3, Initiative 12). Builds on ADR-2 and ADR-5.
+
+**Decision.** Application code is four layers, and an import may only point down:
+
+1. **Routes** (`src/routes_fastapi/`) parse HTTP, call one service method, and map its
+   result or its typed error to a response. No database access, no SQL, no authorisation
+   logic.
+2. **Services** (`src/services/`) own authorisation and use cases. Every workspace-scoped
+   method takes the caller's `Principal` and `Scope` and checks access itself, so a handler
+   cannot forget to.
+3. **Repositories**, one per aggregate (users, workspaces and members, API keys, documents
+   and chunks, conversations, memories, entities, feedback, connectors, OAuth tokens,
+   annotations, contributions, revoked tokens): plain SQL, no business rules. They stay
+   synchronous (ADR-2).
+4. **Connection** (`src/db/connection.py`): the pool, the scoped role switch (ADR-5) and
+   transactions.
+
+**Why.** The September 2026 audit's worst findings (H1, H2, BUG-3) were authorisation
+logic spread across handlers, each correct or not on its own. With the check in the
+service, there is one place for it, and a handler that skips the service cannot reach the
+database at all. The `Database` class composing thirteen mixins makes every query reachable
+from every route through `app.state.db`, which is what a layer boundary has to remove.
+
+**How it is held, before the code obeys it.**
+- Contracts in `pyproject.toml` (`[tool.importlinter]`) run as `lint-imports` in CI: routes
+  may not import `src.db`, and routes, services and the database layer form layers. Today's
+  four direct route-to-database imports are recorded as exceptions.
+- `tests/unit/test_layering_ratchets.py` pins three numbers that may only go down:
+  `app.state.db` in route modules (81), the contract's exceptions (4), and import cycles (2).
+- Each QP-4 PR moves one aggregate and lowers them; QP-5 removes `Database` and the
+  `MixinHost` stand-in, empties the exceptions, and the contracts become plain failures.
+
+**What this rules out:** a route that queries the database, a service that renders HTTP,
+and a repository that decides who may see a row (ADR-5's policies still back that up in
+the database).
+
+**What it does not decide:** how a service is constructed or injected. Today they are
+module functions taking the database as an argument (`src/services/account.py`); a
+container is not needed for a single-node appliance (ADR-1).
+
+**Revisit when:** a second front end (a CLI, a worker that is not the web app) needs the
+same use cases. The service layer is then its entry point too, and the question becomes
+whether it moves out of the web process.
+
+---
+
 ## Recording a new ADR
 
 Add it here when a choice would otherwise be re-argued. State the decision in one sentence,
