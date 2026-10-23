@@ -81,6 +81,7 @@ def chat_service():
             "chat_history": [], "conversation_id": None, "images": None,
             "temperature": 0.7, "model_override": None,
             "additional_workspace_ids": None, "active_source_ids": None,
+            "knowledge_scope": "local",
         }
         svc.retrieve_plan_and_memory = _fake_plan_and_memory
         svc.retrieve_contexts = _blocking_retrieve

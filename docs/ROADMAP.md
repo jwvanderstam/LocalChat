@@ -462,7 +462,23 @@ A workspace owner (or admin) marks a project as contributing to the GKB. They se
 
 ---
 
-### GKB-3 — Chat reads the global tier ⬜ (added 2026-10-22; Sprint 24)
+### GKB-3 — Chat reads the global tier ✅ (added 2026-10-22; built 2026-10-23, Sprint 24)
+
+> **Built as written, plus three things the text did not name.**
+> - **A selector in the chat:** Workspace / Workspace + shared / Shared only, remembered like
+>   the RAG and Web toggles. Without it only API clients could reach the tier.
+> - **The aggregator and MCP are skipped for a non-local question.** Their document tools
+>   search one workspace, so a global question would have been answered from the workspace
+>   alone, with no sign of it.
+> - **The sources panel keys citations by tier as well as name**, so a contribution never
+>   merges into a workspace document that shares its filename.
+>
+> The acceptance's integration half is GKB-1's
+> `test_retrieval_reads_each_tier_through_the_application`: against Postgres, one question
+> returns the workspace's document for `local`, the contribution for `global` and both for
+> `hybrid`. It does not rank the two, so "a global chunk that would otherwise rank first"
+> is proven only as "the contribution matches the question and `local` still leaves it
+> out". GKB-3 adds the request plumbing on top, unit-tested through the route.
 
 GKB-1 built the tier and GKB-2 fills it, but no chat request can reach it yet: retrieval
 takes `knowledge_scope` and nothing exposes it. Until this lands, a contribution is stored

@@ -132,6 +132,8 @@ class TestRagFlow:
             additional_workspace_ids=None,
             source_ids=[],
             scope=ALL_WORKSPACES,
+            # A request that names no tier retrieves from the workspace alone (GKB-3).
+            knowledge_scope="local",
         )
 
     def test_context_text_forwarded_to_llm(self, app, client):

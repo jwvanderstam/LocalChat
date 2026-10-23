@@ -73,6 +73,7 @@ globalThis.document = {
     readyState: 'complete',
     getElementById: (id) => el(id),
     querySelectorAll: () => [],
+    querySelector: () => null,
     addEventListener: (name, fn) => { if (name === 'DOMContentLoaded') fn(); },
     createElement: () => el(),
 };
@@ -198,3 +199,22 @@ def run_js(
     assert out.returncode == 0, f"node failed: {out.stderr}"
     line = next(ln for ln in out.stdout.splitlines() if ln.startswith("__RESULT__"))
     return json.loads(line[len("__RESULT__") :])
+
+
+def run_js_snippet(body: str) -> Any:
+    """Run *body* as a module beside ``static/js`` and return what it sets ``globalThis.result`` to.
+
+    For a pure function a module exports, which ``run_js`` cannot reach: it runs a whole
+    file for its effects. *body* may ``import { f } from './ui.js'``; the same stubbed
+    browser globals are installed first, so importing a module that touches them works.
+    """
+    preamble = (
+        "const PRELOAD = {};\nconst ROUTES = [];\nconst DELAY = 0;\n"
+        f"{_HARNESS}\n"
+    )
+    out = _run_beside_sources(
+        f"{preamble}{body}\nconsole.log('__SNIPPET__' + JSON.stringify(globalThis.result));\n"
+    )
+    assert out.returncode == 0, f"node failed: {out.stderr}"
+    line = next(ln for ln in out.stdout.splitlines() if ln.startswith("__SNIPPET__"))
+    return json.loads(line[len("__SNIPPET__") :])

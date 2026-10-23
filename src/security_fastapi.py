@@ -578,6 +578,19 @@ def check_workspace_access(
     return None
 
 
+def check_knowledge_scope_access(request: Request, knowledge_scope: str) -> tuple[int, str] | None:
+    """Refuse the global tier to a workspace API key (decided 2026-10-09, GKB-3).
+
+    A key's scope "cannot be overridden" (WORKSPACE_API_KEYS.md): it reaches exactly one
+    workspace, and the global tier is every project's contributions. A 403 rather than a
+    silent downgrade to ``local``, so the caller cannot mistake a workspace-only answer
+    for one drawn from the tier it asked for.
+    """
+    if knowledge_scope != "local" and _extract_api_key(request):
+        return (status.HTTP_403_FORBIDDEN, "API key is not valid for the global knowledge tier")
+    return None
+
+
 def check_additional_workspace_access(
     request: Request,
     workspace_ids: list[str],

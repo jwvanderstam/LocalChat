@@ -23,6 +23,7 @@ export async function sendMessage() {
     const enhanceToggle   = document.getElementById('enhance-toggle');
     const tempSlider      = document.getElementById('temperature-slider');
     const modelOverride   = document.getElementById('model-override-input');
+    const scopeSelect     = document.getElementById('knowledge-scope');
 
     const message = chatInput ? chatInput.value.trim() : '';
     if (!message || isStreaming) return;
@@ -43,6 +44,7 @@ export async function sendMessage() {
             enhance:     enhanceToggle ? enhanceToggle.checked          : false,
             temperature: tempSlider    ? parseFloat(tempSlider.value)   : 0.7,
             history:     historySnapshot,
+            knowledge_scope: scopeSelect && scopeSelect.value ? scopeSelect.value : 'local',
         };
         const overrideVal = modelOverride ? modelOverride.value.trim() : '';
         if (overrideVal)                body.model_override    = overrideVal;

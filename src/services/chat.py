@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from starlette.concurrency import run_in_threadpool
 
 from .. import config, exceptions
-from ..rag.retrieval import RetrievalResult
+from ..rag.retrieval import KnowledgeScope, RetrievalResult
 from ..utils.logging_config import get_logger
 from ..utils.scope import Scope
 
@@ -66,6 +66,7 @@ def parse_chat_request(data: dict) -> dict:
         "model_override": req.model_override or None,
         "additional_workspace_ids": req.additional_workspace_ids or [],
         "active_source_ids": req.active_source_ids or [],
+        "knowledge_scope": req.knowledge_scope,
     }
 
 
@@ -110,8 +111,9 @@ def get_rag_context(
     source_ids: list[str] | None = None,
     *,
     scope: Scope,
+    knowledge_scope: KnowledgeScope = "local",
 ) -> tuple[str, list[dict]]:
-    if config.MCP_ENABLED and isinstance(scope, str):
+    if config.MCP_ENABLED and isinstance(scope, str) and knowledge_scope == "local":
         # No workspace, no MCP: the server now refuses an unscoped search, and
         # falling through to the direct path keeps the caller's own scoping rules
         # rather than inventing one here.
@@ -126,6 +128,7 @@ def get_rag_context(
         additional_workspace_ids=additional_workspace_ids,
         source_ids=source_ids or [],
         scope=scope,
+        knowledge_scope=knowledge_scope,
     )
     logger.info("[RAG] Retrieved %d chunks from database", len(results))
     chunks_retrieved_ref[0] += len(results)
@@ -144,6 +147,9 @@ def get_rag_context(
             # presenting them as if they were not. This is what a citation to an
             # unrelated document looked like from the outside: indistinguishable.
             "low_relevance": bool(r.metadata.get("low_relevance")),
+            # "global" when the chunk came from a contribution, so a citation says which
+            # tier it is (GKB-3); a workspace document is "local".
+            "knowledge_tier": r.metadata.get("knowledge_tier", "local"),
         }
         for r in results
     ]
@@ -315,7 +321,11 @@ def retrieve_contexts(
     scope: Scope,
 ) -> tuple[str, str, list[dict], Any]:
     """Return (local_ctx, web_ctx, sources, agent_result)."""
-    if config.AGGREGATOR_AGENT_ENABLED:
+    knowledge_scope = fields.get("knowledge_scope", "local")
+    # The tiers exist only on the direct path (retrieve_context). The aggregator's and
+    # MCP's document tools search one workspace, so a question about the global tier
+    # taking either would be answered from the workspace alone, with no sign of it.
+    if config.AGGREGATOR_AGENT_ENABLED and knowledge_scope == "local":
         agg = retrieve_via_aggregator(fields, plan, chunks_retrieved_ref)
         if agg is not None:
             (local_ctx, web_ctx, sources), agent_result = agg
@@ -332,6 +342,7 @@ def retrieve_contexts(
                 local_context, sources = get_rag_context_multi_hop(
                     plan.sub_questions, doc_processor, filename_filter,
                     chunks_retrieved_ref=chunks_retrieved_ref, scope=scope,
+                    knowledge_scope=knowledge_scope,
                 )
             else:
                 local_context, sources = get_rag_context(
@@ -340,6 +351,7 @@ def retrieve_contexts(
                     additional_workspace_ids=additional_workspace_ids,
                     source_ids=source_ids,
                     scope=scope,
+                    knowledge_scope=knowledge_scope,
                 )
         except Exception as exc:
             raise exceptions.SearchError(
@@ -363,6 +375,7 @@ def get_rag_context_multi_hop(
     chunks_retrieved_ref: list[int] | None = None,
     *,
     scope: Scope,
+    knowledge_scope: KnowledgeScope = "local",
 ) -> tuple[str, list[dict]]:
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -371,7 +384,8 @@ def get_rag_context_multi_hop(
         futures = {
             executor.submit(
                 doc_processor.retrieve_context, q,
-                filename_filter=filename_filter, scope=scope
+                filename_filter=filename_filter, scope=scope,
+                knowledge_scope=knowledge_scope,
             ): q
             for q in sub_questions
         }

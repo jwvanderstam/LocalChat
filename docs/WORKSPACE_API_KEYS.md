@@ -80,6 +80,7 @@ value wins over anything the client sends — see below.
 | Reach **any other** workspace | ❌ 403, whether asked via header, query or path |
 | Exceed its role | ❌ 403 |
 | Reach admin routes | ❌ 401 — a key is never a global admin |
+| Read the global knowledge tier | ❌ 403 — chat's `knowledge_scope` must stay `local` (GKB-3) |
 | Survive revocation | ❌ 401 immediately |
 
 ### Why the workspace cannot be overridden

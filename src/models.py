@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -61,6 +61,14 @@ class ChatRequest(BaseModel):
     active_source_ids: list[str] | None = Field(
         default=None,
         description="Connector or source IDs to restrict retrieval to; omit for all sources"
+    )
+    knowledge_scope: Literal["local", "global", "hybrid"] = Field(
+        default="local",
+        description=(
+            "Which documents to retrieve from: this workspace's (local), the global "
+            "knowledge tier contributed by every project (global), or both (hybrid). "
+            "A workspace API key may use local only."
+        ),
     )
 
     @field_validator('conversation_id')

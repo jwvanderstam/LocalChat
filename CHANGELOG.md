@@ -8,6 +8,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+### Added
+
+- **Chat can answer from the global knowledge tier** (ROADMAP GKB-3). A selector beside the
+  RAG and Web toggles chooses *Workspace*, *Workspace + shared* or *Shared only*; the
+  request carries it as `knowledge_scope` (`local` by default). A citation drawn from
+  another project's contribution is tagged "shared globally". A workspace API key asking
+  for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
+
 ## [3.3.0] — 2026-10-23
 
 The release that closes Phase 1 of the October 2026 audit plan. Requests no longer run as

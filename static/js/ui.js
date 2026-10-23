@@ -117,12 +117,24 @@ export function updateModeBadge() {
     }
 }
 
-export function buildSourcesPanel(sources) {
+// One entry per cited document, in first-cited order. Keyed by tier as well as name: with
+// "Workspace + shared" a contribution can share its filename with a workspace document,
+// and the two are different documents (GKB-3).
+export function groupSources(sources) {
     const byFile = new Map();
     sources.forEach(src => {
-        if (!byFile.has(src.filename)) byFile.set(src.filename, { chunk_id: src.chunk_id, url: src.url, pages: new Set() });
-        if (src.page_number) byFile.get(src.filename).pages.add(src.page_number);
+        const shared = src.knowledge_tier === 'global';
+        const key = (shared ? 'global:' : '') + src.filename;
+        if (!byFile.has(key)) {
+            byFile.set(key, { filename: src.filename, shared, chunk_id: src.chunk_id, url: src.url, pages: new Set() });
+        }
+        if (src.page_number) byFile.get(key).pages.add(src.page_number);
     });
+    return byFile;
+}
+
+export function buildSourcesPanel(sources) {
+    const byFile = groupSources(sources);
 
     // Every document source was judged weakly relevant. Saying so is the difference
     // between a citation and a coincidence: an arithmetic question used to come back
@@ -158,7 +170,7 @@ export function buildSourcesPanel(sources) {
     list.className = 'list-unstyled mb-0 mt-1';
 
     let ordinal = 0;
-    byFile.forEach(({ chunk_id, url, pages }, filename) => {
+    byFile.forEach(({ filename, shared, chunk_id, url, pages }) => {
         ordinal += 1;
         const li = document.createElement('li');
         li.className = 'sources-panel-item';
@@ -172,6 +184,12 @@ export function buildSourcesPanel(sources) {
         if (pages.size > 0) {
             const sorted = [...pages].sort((a, b) => a - b);
             label += ` <span class="opacity-75">p.${sorted.join(', ')}</span>`;
+        }
+        // The same tag the Documents page uses: this citation is another project's
+        // contribution, not a document in this workspace.
+        if (shared) {
+            label += ' <span class="badge bg-info text-dark ms-1" data-shared-globally>'
+                + '<i class="bi bi-globe"></i> shared globally</span>';
         }
         const text = document.createElement('span');
         text.innerHTML = label;
