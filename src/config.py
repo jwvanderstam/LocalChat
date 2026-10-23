@@ -182,8 +182,8 @@ def validate_secrets() -> None:
     well-formed ENCRYPTION_KEY.
     Raises SystemExit(1) so uvicorn startup aborts cleanly.
     """
-    # One literal message per secret, not a loop over (name, value) pairs: a message
-    # built from a tuple holding the password reads to CodeQL as logging it.
+    # Literal messages throughout: a message built from anything CodeQL considers a
+    # password, even a loop variable beside one, reads to it as logging the password.
     errors: list[str] = []
     if SECRET_KEY.lower() in _WEAK_PLACEHOLDERS:
         errors.append("SECRET_KEY is a known placeholder — set a random value")
@@ -192,9 +192,9 @@ def validate_secrets() -> None:
     if ADMIN_PASSWORD.lower() in _WEAK_PLACEHOLDERS:
         errors.append("ADMIN_PASSWORD is a known placeholder — set a random value")
     if ADMIN_PASSWORD and len(ADMIN_PASSWORD) < ADMIN_PASSWORD_MIN_LENGTH:
-        errors.append(
-            f"ADMIN_PASSWORD is too short (minimum {ADMIN_PASSWORD_MIN_LENGTH} characters)"
-        )
+        # A literal, not interpolated: CodeQL treats any name containing PASSWORD as
+        # sensitive, the constant included. The test pins the two together.
+        errors.append("ADMIN_PASSWORD is too short (minimum 16 characters)")
     if APP_ENV == 'production':
         _production_errors(errors)
     if errors:
