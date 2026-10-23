@@ -2,9 +2,10 @@
 
 ## Assertion-strength checklist
 
-Mutation testing (`docs/history/TEST_QUALITY_AUDIT.md`) found that coverage percentage
-hides weak tests — a line can execute inside a test with zero assertions on
-its actual behavior and still count as "covered." Root cause: test-writing
+Mutation testing found that coverage percentage hides weak tests: a line can execute
+inside a test with zero assertions on its actual behavior and still count as "covered."
+(The original audit is [`docs/history/TEST_QUALITY_AUDIT.md`](../../docs/history/TEST_QUALITY_AUDIT.md);
+the gate that now runs every night is described [below](#mutation-testing).) Root cause: test-writing
 sessions framed around a coverage-percentage target reward touching a line,
 not verifying it. Every new test should satisfy one of these four rules,
 matched to the failure mode it counters:
@@ -117,9 +118,65 @@ add to it only when a regression escapes both it and the node harness.
 
 ## Coverage
 
-- The fast suite is the coverage baseline: `pytest -m "not (slow or ollama or db)"`.
-- Coverage must not drop on any PR.
+- `pyproject.toml` runs every pytest invocation with `--cov=.`, so the fast suite,
+  `pytest -m "not (slow or ollama or db)"`, reports coverage locally. CI's `unit-tests`
+  job runs `tests/unit` and reports it in the job log; SonarCloud reads that `coverage.xml`.
+- Coverage must not drop on any PR. This is enforced by review today: there is no
+  `--cov-fail-under` in CI yet, and the unit job is the only coverage SonarCloud sees.
+  Both change with ROADMAP QP-6.
 - Don't add `# pragma: no cover` to avoid covering real logic — cover it.
+
+## Mutation testing
+
+Coverage says a line ran. A mutation gate says a test *noticed* when the line changed:
+mutmut edits the source one small change at a time ("mutants"), runs the tests, and counts
+how many changes some test failed on ("killed").
+
+**What runs.** `.github/workflows/mutation.yml` runs `scripts/mutation_gate.py` every night
+at 03:00 UTC, and on demand (`workflow_dispatch`, which takes a threshold). It fails when a
+module's kill rate falls under **80%**. It is not in the required-checks ruleset: a scoped
+run takes tens of minutes, and the score is a trend to watch rather than a merge decision.
+The job summary lists the survivors.
+
+**What it covers.** Two modules, the ones where the confirmed authorisation bugs lived:
+
+| Module | Last nightly (2026-10-23) |
+|---|---|
+| `src/security_fastapi.py` | 265 killed, 32 survived: 89.2% |
+| `src/utils/workspace.py` | 10 killed, 0 survived: 100% |
+
+Each module runs against its own list of test files (`MODULES` in the script), not the
+whole suite. A file belongs there only if it drives the real module: a test that patches
+the module out cannot kill anything in it.
+
+**Running it locally.**
+
+```bash
+pip install "mutmut<3"
+# The same variables CI exports: with ADMIN_PASSWORD unset, code behind it is unreachable
+# and its mutants survive without any test reaching them.
+export SECRET_KEY=ci-test-secret-key-32chars-minimum JWT_SECRET_KEY=ci-test-jwt-secret-key \
+       ADMIN_PASSWORD=ci-test-admin-password APP_ENV=development
+python scripts/mutation_gate.py --module src/utils/workspace.py   # one module: minutes
+mutmut show <id>                                                 # what a survivor changed
+```
+
+It mutates the checkout in place and reverts after each mutant. Run it on a clean tree;
+`git status` afterwards must show nothing under `src/`.
+
+**Gotchas, each learned from a wrong number** (details in the script's docstring):
+
+- `mutmut<3` is required: 3.x refuses module names starting with `src.`, which all of
+  this repo's imports do.
+- A busy machine files kills as "suspicious" (a timing artefact). The gate then refuses
+  to score the run and exits 2, which means "the measurement is void", not 1, "the score
+  is too low". It does the same when every mutant survives, which means the runner never
+  reached the module. Run it on an idle machine.
+
+**When a mutant survives**, write a test that fails on it, named for what the mutant broke,
+and add the file to that module's `MODULES` list if it is new.
+`tests/unit/test_security_contract.py` and `tests/unit/test_workspace_access_contract.py`
+are examples: they were written against named survivors.
 
 ## Async tests
 

@@ -234,12 +234,18 @@ off deliberately. (`security-smoke` joined on 2026-09-26; this sentence still sa
 until 2026-10-06, the second time it has lagged the ruleset. Read the set back with
 `gh api repos/jwvanderstam/LocalChat/rulesets/14700924`, not from the settings UI.)
 
-**Current state:** 3,574 tests collected. CI's `unit-tests` job runs `tests/unit` — 3,224
-passed at 80.1% coverage in 12 minutes, on `247f3b9` — about twice that on a laptop.
-Integration tests need PostgreSQL and `tests/e2e/` drives a real browser; none needs a live
-Ollama, since every model call in the suite goes to `tests/utils/fake_ollama.py`. Every
-number here was read from a run on 2026-10-06 rather than remembered — see exit criterion 7
-in [PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md).
+**Current state:** 3,735 tests collected. CI's `unit-tests` job runs `tests/unit`: 3,352
+passed at 79.9% coverage in 12 minutes, on `2bb9d77`. A laptop takes about twice that.
+`integration-tests` ran 379 passed and 1 skipped against PostgreSQL in the same run, and
+`tests/e2e/` drives a real browser. None of them needs a live Ollama, since every model call
+in the suite goes to `tests/utils/fake_ollama.py`. Every number here was read from a run on
+2026-10-23 rather than remembered. See exit criterion 7 in
+[PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md).
+
+**Mutation testing** runs every night, not per PR. It covers `src/security_fastapi.py` and
+`src/utils/workspace.py`, the modules where the authorisation bugs lived, and fails under an
+80% kill rate. On 2026-10-23 they scored 89.2% and 100%. How to run it and read it:
+[testing rules](.claude/rules/testing.md#mutation-testing).
 
 Notable changes per release are in [CHANGELOG.md](CHANGELOG.md).
 

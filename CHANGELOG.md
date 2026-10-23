@@ -402,6 +402,17 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Documentation
 
+- **Stale current-state docs re-checked against the code and a live run** (2026-10-23).
+  The testing rules gain a *Mutation testing* section describing the nightly gate that
+  actually runs: its modules and scores, how to run it locally and how to read a void run.
+  Before, they cited only the original audit in `docs/history/`. The README's test figures
+  were three weeks old and are re-measured. `docs/SCHEMA.md` was re-verified against a fresh
+  database at migration `0020`: its cascade table had been missing five `ON DELETE` actions,
+  including that purging a user is refused while an audit column names them, and its RLS
+  section did not count the global-read policy. `SECURITY.md`'s known risks were re-read
+  entry by entry; the `onnxruntime` version and the env-var admin's strength check were
+  out of date.
+
 - **Documentation audit, 2026-10-06** — every current-state document P2-7 had not
   verified, checked against the code and, for the schema, against a database migrated to
   head and read back through `pg_catalog`. Notable corrections: the architecture rule and

@@ -10,7 +10,7 @@ If you discover a security vulnerability in LocalChat, please report it privatel
 
 ## Known & Accepted Risks
 
-The items below are known, deliberately **not remediated via the usual route** (credential rotation / git history rewrite), and are documented here so a reviewer can establish their status from the repo alone. Reviewed as of 2026-09-16 — re-check every entry against the source when editing this file, and move this date. An entry that is merely old reads exactly like one that is still true.
+The items below are known, deliberately **not remediated via the usual route** (credential rotation / git history rewrite), and are documented here so a reviewer can establish their status from the repo alone. Reviewed as of 2026-10-23 — re-check every entry against the source when editing this file, and move this date. An entry that is merely old reads exactly like one that is still true.
 
 ### 1. Historical leaked local-dev database credential
 
@@ -85,8 +85,9 @@ a gain of one deleted heading.
 
 ### 5. `onnxruntime` is pinned past a release that segfaults on the hardened base
 
-- **What**: `requirements.txt` pins `onnxruntime==1.30.0`; it was held at 1.28.0 until
-  Dependabot #371 (2026-09-14) moved it and `docker-smoke` proved the image still boots.
+- **What**: `requirements.in` pins `onnxruntime==1.31.0` (Dependabot #442, 2026-10-17). It
+  was held at 1.28.0 until #371 (2026-09-14) moved it to 1.30.0; each step was accepted only
+  after `docker-smoke` proved the image still boots.
   1.29.0 imports cleanly on `python:3.12-slim`, but **segfaults** (SIGSEGV, exit 139, no
   traceback) on `dhi.io/python:3.12`. The dependency arrives transitively via
   `pymupdf-layout`; nothing in this codebase imports it directly.
@@ -141,11 +142,13 @@ a gain of one deleted heading.
   workspace-scoped route answers 503 regardless, so there is very little to reach.
 - **Before this**: the account could not be demoted or disabled by anyone, had no strength
   check — the `.env.example` placeholder passed production validation — and kept working
-  beside a *changed* database admin password (audit M1).
+  beside a *changed* database admin password (audit M1). Since QP-1 (audit S1, 2026-10-23)
+  the boot also refuses a placeholder `ADMIN_PASSWORD` in every `APP_ENV`, and one shorter
+  than 16 characters.
 - **Re-review trigger**: any deployment where the database is not the operator's own, or the
   first time this account is wanted as a true break-glass path — at which point the question
-  is option D6-B (keep it, with a strength check and every use logged), not this middle
-  ground.
+  is option D6-B (keep it, and log every use; the strength check D6-B also asked for now
+  exists), not this middle ground.
 
 ### 8. Connectors read data the application is trusted to reach
 

@@ -2,9 +2,9 @@
 
 PostgreSQL 16+ with the [pgvector](https://github.com/pgvector/pgvector) extension.
 
-> Verified against a database migrated to head (`0018`) at `d0a43d4` on 2026-10-06: every
-> table, column, index, `ON DELETE` action and row-level-security policy below was read back
-> from `information_schema`/`pg_catalog`, not from the code.
+> Verified against a fresh database migrated to head (`0020`) at `83f1c00` on 2026-10-23:
+> every table, column, index, `ON DELETE` action and row-level-security policy below was read
+> back from `information_schema`/`pg_catalog`, not from the code.
 
 ---
 
@@ -614,16 +614,14 @@ WITH (m = 16, ef_construction = 64);
 
 | Delete | Effect |
 |--------|--------|
-| `documents` row | Cascades to `document_chunks`, `entity_relations` (via doc_id and chunk_id) |
-| `document_chunks` row | Cascades to `chunk_stats`, `entity_relations` (via chunk_id) |
+| `documents` row | Cascades to `document_chunks` and `entity_relations` (via `doc_id`) |
+| `document_chunks` row | Cascades to `chunk_stats`, `annotations` and `entity_relations` (via `chunk_id`) |
 | `entities` row | Cascades to `entity_relations` |
-| `conversations` row | Cascades to `conversation_messages`; sets `memories.source_conv` to NULL |
-| `workspaces` row | Cascades to `workspace_members`, `connectors`, `connector_sync_log`; sets FK columns on `documents`, `conversations`, `memories`, `answer_feedback` to NULL |
-| `users` row | Cascades to `workspace_members`, `oauth_tokens` |
+| `conversations` row | Cascades to `conversation_messages`; sets `memories.source_conv`, `answer_feedback.conversation_id` and `annotations.conversation_id` to NULL |
+| `conversation_messages` row | Sets `answer_feedback.message_id` to NULL |
+| `workspaces` row | Cascades to `workspace_members`, `workspace_api_keys` and `connectors` (and from there `connector_sync_log`); sets `documents.workspace_id`, `documents.source_project_id`, `conversations.workspace_id`, `memories.workspace_id` and `answer_feedback.workspace_id` to NULL |
+| `users` row | Cascades to `workspace_members` and `oauth_tokens`; sets `annotations.user_id` to NULL. **Refused** (`NO ACTION`) while any audit column names the user: `deleted_by` on seven tables, `created_by` on `connectors` and `workspace_api_keys`, `revoked_by`, and `documents.contributed_by` / `archived_by` |
 | `connectors` row | Cascades to `connector_sync_log` |
-| `document_chunks` row (again) | Cascades to `annotations` |
-| `workspaces` row (again) | Cascades to `workspace_api_keys` |
-| `conversations` / `users` row (again) | Sets `annotations.conversation_id` / `annotations.user_id` to NULL |
 
 These describe the database's `ON DELETE` actions, which only a **purge** exercises. The
 normal "delete" on every CDI is a soft delete (`deleted_at`), which cascades nothing — see
@@ -637,8 +635,11 @@ Migrations `0017`/`0018` (P2-1b, ADR-5) enable row-level security on the ten tab
 or inherit a workspace: `documents`, `conversations`, `memories`, `answer_feedback`,
 `connectors`, `workspace_api_keys`, `workspace_members` directly on `workspace_id`, and
 `document_chunks`, `conversation_messages`, `annotations` through their parent row. Each has
-one policy, `localchat_workspace_isolation`, comparing the workspace to the transaction-local
-`app.workspace_id`.
+the policy `localchat_workspace_isolation`, comparing the workspace to the transaction-local
+`app.workspace_id`. `documents` and `document_chunks` also carry `localchat_global_read`
+(migration `0019`, GKB-1), a `FOR SELECT` policy that lets a scoped transaction read live
+contributions in the global tier and write none of them. That makes twelve policies on ten
+tables.
 
 RLS binds only the `localchat_scoped` role (NOLOGIN), not the table owner or a superuser —
 `FORCE ROW LEVEL SECURITY` is deliberately off. `get_connection(scope=<workspace>)` switches
