@@ -257,7 +257,7 @@ carries a regression test that fails on the code before it.
 | S4 | `safe_fetch` allowed carrier-grade NAT (100.64.0.0/10) | **Fixed** (QP-1): `is_global` required as well as the category checks — `tests/unit/test_safe_fetch.py` |
 | S5 | Resource caps: request-body size, and decompressed size and ratio before an OOXML file is opened | Open — QP-2 |
 | S6 | `script-src` allows `cdn.jsdelivr.net` | Open — QP-2 |
-| S7 | No minimum password length for created users | Open — QP-2 |
+| S7 | No minimum password length for created users | Open — QP-2. Self-service change already requires 12 (`USER_PASSWORD_MIN_LENGTH`) |
 | Defect 1 | A text upload whose 512-byte header cut a multi-byte character was refused as binary | **Fixed** (QP-1) — `tests/unit/test_file_validation.py` |
 | Defect 2 | Creating a user stripped the password; login and change did not | **Fixed** (QP-1) — `tests/unit/test_auth_routes_unit.py` |
 | Defect 3 | Dead `require_workspace_role_dep` / `_enforce_workspace_role` | **Fixed** (QP-1): deleted |

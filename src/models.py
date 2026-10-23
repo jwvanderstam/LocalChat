@@ -338,6 +338,15 @@ class ErrorResponse(BaseModel):
 logger.info("Validation models loaded")
 
 
+class ChangePasswordRequest(BaseModel):
+    """Body of POST /api/users/me/password."""
+
+    # Neither field is stripped or capped: a password is compared as typed, and a
+    # length cap would leak the storage constraint (see LoginRequest).
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=config.USER_PASSWORD_MIN_LENGTH)
+
+
 class LoginRequest(BaseModel):
     """Credentials for POST /api/auth/login."""
 

@@ -21,6 +21,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Routes** | |
 | `src/routes_fastapi/api_routes.py` | Chat (SSE), status — HTTP plumbing only; delegates business logic to `src/services/chat.py` |
 | `src/services/chat.py` | Chat business logic: context retrieval, RAG, planning, memory, model routing, message persistence |
+| `src/services/account.py` | Self-service account changes: `change_own_password()` — verifies the current password, stores the new one, and refuses the env-var bootstrap admin, which has no row. Raises `PasswordChangeError` carrying the status to send |
 | `src/services/logs.py` | Reads the tail of the log file back for the admin log viewer; parses both JSON and text lines |
 | `src/routes_fastapi/document_routes.py` | Document upload, delete, list; SSE progress stream |
 | `src/routes_fastapi/model_routes.py` | Ollama model list, pull, delete, active-model management |
@@ -173,6 +174,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request. `get_scope()` returns the scope the request was *authorised* for, and refuses when no guard has run |
 | `tests/unit/test_safe_fetch.py` | P1-2 (M4) — a name resolving to a private address is refused, one private answer among several refuses the whole name, redirects are re-validated at each hop, bodies are capped, and a webhook connector without a secret is invalid; S4 — carrier-grade NAT is refused, and so is NAT64 loopback, which `is_global` alone would accept |
+| `tests/unit/test_change_own_password.py` | `POST /api/users/me/password` — the service's decisions, then the route: a wrong current password is 400 (a 401 signed the user out), the new password needs 12 characters, a revoked token is refused, the caller changes only their own account, and guessing is rate-limited like login |
+| `tests/unit/test_frontend_change_password.py` | The Account tab under node — the exact request it sends, nothing sent for a mismatch, an empty field or 11 characters, the form cleared on success and kept on a refusal |
+| `tests/integration/test_change_own_password.py` | The same change against Postgres — afterwards only the new password signs in, and a refused change leaves the account as it was |
 | `tests/unit/test_placeholder_secrets_refused.py` | S1 — every `.env.example` placeholder for `SECRET_KEY`, `JWT_SECRET_KEY` and `ADMIN_PASSWORD` stops the boot in every `APP_ENV`, read from the example itself; `ADMIN_PASSWORD` needs 16 characters; a placeholder key is no longer swapped for a generated one, while an unset key still is |
 | `tests/unit/test_oauth_state_and_pkce.py` | P1-3 — the OAuth `state` carries the user who began the flow (the callback cannot read the session: the provider's redirect is cross-site and the cookie is SameSite=strict), expires, is single-use, is not interchangeable between providers, and its PKCE challenge is the S256 of a per-flow verifier |
 | `tests/unit/test_security_headers.py` | P1-4 — every response carries a CSP, nosniff, a referrer policy and framing denial; HSTS only over TLS; and CORS never falls back to a wildcard or a scheme-less origin. Asserts the remaining `'unsafe-inline'` too, so removing it is a visible change |
@@ -224,7 +228,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_token_accounting.py` | OBS-1a — a streamed chat against `fake_ollama` adds exactly the tokens its `done` object reported, the cloud path adds a canned LiteLLM response's tokens and price, an unpriced model still counts tokens, and no counter carries more than the model and path labels |
 | `tests/unit/test_degradation_paths.py` | P2-4b — the exception paths that change behaviour: the four narrowed handlers absorb a malformed timestamp and let anything else escape, and the settings page still renders when its stats do not (the bug P2-4b itself introduced) |
 | `tests/unit/test_processor_entity_extraction.py` | `_extract_entities` — GraphRAG is best-effort; a failure there never fails an ingest |
-| `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; runs ES modules that import their siblings (`chat.js`) as well as standalone scripts; how frontend branch logic is tested |
+| `tests/utils/js_harness.py` | `run_js()` — executes a real `static/js` file under node with stubbed browser globals; runs ES modules that import their siblings (`chat.js`) as well as standalone scripts; `fields=` sets input values before the module runs, as a user typing would; how frontend branch logic is tested |
 | `tests/utils/auth.py` | `auth_headers()`, `authorise_db()`, `authenticated_state()` — how a test authenticates for real; replaced the `app.state.testing` bypass (TQ-1b) |
 | `tests/utils/fake_ollama.py` | TQ-2 stub for Ollama — bag-of-words embeddings (deterministic, and meaningful so ranking assertions are real) plus a canned chat stream whose final object reports one token per word |
 | `tests/e2e/conftest.py` | Starts a real LocalChat (uvicorn subprocess + CI's Postgres + TQ-2's fake Ollama) and points Playwright's `base_url` at it; `server_env` lets a suite override the server's environment |
@@ -300,6 +304,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `static/js/ingestion.js` | Document upload progress (SSE) on `templates/documents.html`; GKB-2's contribute (select, review, confirm) and withdraw controls and the "shared globally" tag |
 | `static/js/settings.js` | Theme picker + appearance settings on `templates/settings.html` |
 | `static/js/workspace.js` | Workspace switcher dropdown + create-workspace modal, wired into `templates/base.html` |
+| `static/js/account.js` | Account tab in Settings — every signed-in user; change your own password. Catches an empty field, a short or mismatched new password before sending, and shows the server's reason when it refuses |
 | `static/js/logs.js` | Logs tab in Settings — admin-only; level/search filter over `/api/logs`, escapes every field before it reaches the DOM |
 | `static/js/users.js` | Users tab in Settings — admin-only; user cards with workspace access, create/grant modals, role change, retire, purge; Integrations section for workspace API keys (create, list, revoke) |
 | `static/js/confirm.js` | `window.localchatConfirm()` — the in-app confirmation modal every destructive action uses; native `confirm()` is banned in `repo-hygiene` |

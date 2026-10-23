@@ -74,7 +74,8 @@ that do matter here are the secrets and tuning: `ADMIN_PASSWORD`, `SECRET_KEY`,
 **Getting the first password.** Sign in as `admin` with the `ADMIN_PASSWORD` you set;
 first boot seeds the account from it. (Only the host-run path, `python app.py`, can leave
 it empty — the app then generates one and logs it once. Under Docker, compose requires
-the value.)
+the value.) Any signed-in user changes their own password under **Settings → Account**;
+changing `ADMIN_PASSWORD` later does not change the seeded account's.
 
 Then pull a chat model and an embedding model, and select the chat model under **Models** —
 without an active model, chat returns `400 No active model set`:
