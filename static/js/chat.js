@@ -62,6 +62,18 @@ function init() {
     if (enhanceToggle && enhanceToggle.checked && ragToggle) ragToggle.checked = true;
     updateModeBadge();
 
+    // Which documents to answer from (GKB-3) persists like the toggles. A stored value
+    // this build does not offer falls back to the workspace alone, the server's default.
+    const scopeSelect = document.getElementById('knowledge-scope');
+    const SCOPES = ['local', 'hybrid', 'global'];
+    if (scopeSelect) {
+        const saved = localStorage.getItem('lc-knowledge-scope');
+        scopeSelect.value = SCOPES.includes(saved) ? saved : 'local';
+        scopeSelect.addEventListener('change', () => {
+            localStorage.setItem('lc-knowledge-scope', scopeSelect.value);
+        });
+    }
+
     if (ragToggle) {
         ragToggle.addEventListener('change', () => {
             localStorage.setItem('lc-rag-enabled', String(ragToggle.checked));

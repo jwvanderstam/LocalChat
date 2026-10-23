@@ -26,6 +26,13 @@
             <label class="form-check-label" for="enhance-toggle"
                    title="Also search the web and cite what it finds">Web</label>
         </div>
+        <select class="form-select form-select-sm" id="knowledge-scope" style="width:auto"
+                aria-label="Documents to answer from"
+                title="This workspace's documents, also what other projects shared globally, or only that">
+            <option value="local">Workspace</option>
+            <option value="hybrid">Workspace + shared</option>
+            <option value="global">Shared only</option>
+        </select>
 
         <span class="chat-toolbar-sep" aria-hidden="true"></span>
 

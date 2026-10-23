@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .. import config, exceptions
 from ..security_fastapi import (
+    check_knowledge_scope_access,
     check_workspace_access,
     limiter,
     require_admin_dep,
@@ -328,6 +329,10 @@ async def api_chat(request: Request) -> Any:
         denied = _deny_additional(request, fields["additional_workspace_ids"], "viewer")
         if denied:
             return denied
+        tier_denial = check_knowledge_scope_access(request, fields["knowledge_scope"])
+        if tier_denial:
+            code, message = tier_denial
+            return JSONResponse({"success": False, "message": message}, status_code=code)
 
         active_model = config.app_state.get_active_model()
         if not active_model:

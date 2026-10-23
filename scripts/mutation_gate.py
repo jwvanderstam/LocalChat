@@ -55,6 +55,8 @@ MODULES: dict[str, list[str]] = {
         # P1-4: asserts every CSP directive this module builds, through the real
         # middleware; without it, every mutant of the header strings survived.
         "tests/unit/test_security_headers.py",
+        # GKB-3: check_knowledge_scope_access refuses the global tier to an API key.
+        "tests/unit/test_chat_knowledge_scope.py",
     ],
     "src/utils/workspace.py": [
         "tests/unit/test_workspace_scope_pinning.py",
