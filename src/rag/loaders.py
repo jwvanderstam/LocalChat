@@ -15,6 +15,7 @@ from typing import Any
 from .. import config
 from ..monitoring import counted, timed
 from ..ollama_client import ollama_client
+from ..utils.file_validation import check_ooxml_bounds
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -400,6 +401,10 @@ class DocumentLoaderMixin:
                 logger.error(err)
                 return False, err
 
+            ok, bounds_err = check_ooxml_bounds(file_path)
+            if not ok:
+                logger.error(bounds_err)
+                return False, bounds_err
             try:
                 doc = Document(file_path)
             except Exception as doc_error:
@@ -500,6 +505,10 @@ class DocumentLoaderMixin:
             raise AssertionError("caller must check PPTX_AVAILABLE before calling")
         try:
             logger.info(f"Loading PPTX file: {file_path}")
+            ok, bounds_err = check_ooxml_bounds(file_path)
+            if not ok:
+                logger.error(bounds_err)
+                return False, bounds_err
             prs = Presentation(file_path)
             slides = []
             for slide_num, slide in enumerate(prs.slides, 1):
@@ -585,6 +594,10 @@ class DocumentLoaderMixin:
             raise AssertionError("caller must check XLSX_AVAILABLE before calling")
         try:
             logger.info(f"Loading Excel file: {file_path}")
+            ok, bounds_err = check_ooxml_bounds(file_path)
+            if not ok:
+                logger.error(bounds_err)
+                return False, bounds_err
             wb = _openpyxl.load_workbook(file_path, read_only=True, data_only=True)
             sheet_parts: list[str] = []
 
