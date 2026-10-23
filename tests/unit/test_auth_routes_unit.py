@@ -31,7 +31,7 @@ class TestAuthRoutesErrors:
         app.state.db.create_user = MagicMock(side_effect=Exception("db gone"))
         resp = client.post(
             '/api/users',
-            json={'username': 'u', 'email': 'u@example.com', 'password': 'pw'},
+            json={'username': 'u', 'email': 'u@example.com', 'password': 'a-long-enough-pw'},
         )
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
@@ -40,7 +40,7 @@ class TestAuthRoutesErrors:
         app.state.db.create_user = MagicMock(side_effect=Exception("unique constraint violated"))
         resp = client.post(
             '/api/users',
-            json={'username': 'u', 'email': 'u@example.com', 'password': 'pw'},
+            json={'username': 'u', 'email': 'u@example.com', 'password': 'a-long-enough-pw'},
         )
         assert resp.status_code == 409
 

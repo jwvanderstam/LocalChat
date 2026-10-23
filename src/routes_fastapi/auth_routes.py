@@ -39,6 +39,12 @@ _PASSWORD_RULES = (
     f"Give your current password and a new one of at least "
     f"{config.USER_PASSWORD_MIN_LENGTH} characters"
 )
+_PASSWORD_TOO_SHORT = f"password must be at least {config.USER_PASSWORD_MIN_LENGTH} characters"
+
+
+def _is_acceptable_password(value: Any) -> bool:
+    """The one rule every way of setting a password applies (audit S7)."""
+    return isinstance(value, str) and len(value) >= config.USER_PASSWORD_MIN_LENGTH
 #: Matches the wording the workspaces router returns for the same refusal.
 _LAST_OWNER = "Cannot remove the last owner of a workspace"
 #: One message for "no such user" and "wrong password" alike — distinguishing them
@@ -122,6 +128,8 @@ async def create_user(request: Request, _admin: Annotated[str, Depends(require_a
         return JSONResponse({"success": False, "message": "username is required"}, status_code=400)
     if not password:
         return JSONResponse({"success": False, "message": "password is required"}, status_code=400)
+    if not _is_acceptable_password(password):
+        return JSONResponse({"success": False, "message": _PASSWORD_TOO_SHORT}, status_code=400)
     if role not in ("admin", "user"):
         return JSONResponse({"success": False, "message": "role must be 'admin' or 'user'"}, status_code=400)
 
@@ -284,6 +292,8 @@ async def update_user(user_id: str, request: Request, _admin: Annotated[str, Dep
     allowed = {"email", "role", "is_active"}
     fields = {k: v for k, v in data.items() if k in allowed}
     if "password" in data:
+        if not _is_acceptable_password(data["password"]):
+            return JSONResponse({"success": False, "message": _PASSWORD_TOO_SHORT}, status_code=400)
         fields["hashed_password"] = hash_user_password(data["password"])
     if not fields:
         return JSONResponse({"success": False, "message": "No valid fields provided"}, status_code=400)
