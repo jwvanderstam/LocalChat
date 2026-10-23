@@ -73,7 +73,8 @@ pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this versi
 pymupdf4llm==1.28.2    # Layout-aware PDF extraction for column-heavy documents (optional)
 # Transitive via pymupdf-layout, pinned deliberately: 1.29.0 segfaults on import
 # under the hardened runtime base (exit 139, no traceback). 1.28.0 ran clean;
-# 1.30.0 boots (docker-smoke green on #371, 2026-09-14). Keep 1.29.x out. The
+# 1.30.0 boots (docker-smoke green on #371, 2026-09-14), and so does 1.31.0 (#442,
+# 2026-10-17). Keep 1.29.x out. The
 # docker-smoke job is what catches a regression here — pip install will not.
 onnxruntime==1.31.0
 langdetect==1.0.9      # Language detection for multilingual document support
