@@ -296,7 +296,7 @@ class UsersMixin(MixinHost):
         usable = bool(user and user.get('is_active') and stored_hash)
         # Always pay for one hash: answering an unknown or inactive user without one
         # made the response time say which usernames exist (audit S3).
-        matches = check_password_hash(stored_hash if usable else _dummy_hash(), password)
+        matches = check_password_hash(stored_hash if usable and stored_hash else _dummy_hash(), password)
         return user if usable and matches else None
 
 
