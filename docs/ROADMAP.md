@@ -1651,7 +1651,7 @@ That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
 - **S6 CSP.** Vendor chart.js and mermaid into `static/` and drop `cdn.jsdelivr.net` from
   `script-src`.
 
-**Gate to Phase 2:** v3.3.0 tagged, and S1-S7 marked fixed in `SECURITY.md`.
+**Gate to Phase 2:** v3.3.0 tagged, and S1-S7 marked fixed in `SECURITY.md`. ✅ Met 2026-10-23.
 
 ### Phase 2 — architecture to 8 (weeks 3-10)
 
