@@ -8,6 +8,33 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+## [3.2.0] — 2026-10-23
+
+The release between two audits. It ships what was built since v3.1.0 on the September
+audit's P2 tier and beyond: row-level security as defence in depth for workspace
+isolation ([ADR-5](docs/ADR.md)), a retrieval regression gate on every PR, retrieved
+content treated as untrusted input, token accounting, and a global knowledge tier that
+workspace documents can be contributed to. It also carries the first fixes from the
+October 2026 audit (ROADMAP Initiative 12):
+- secrets left at their `.env.example` value refused in every environment (S1);
+- uniform login timing (S3);
+- carrier-grade NAT refused for outbound fetches (S4);
+- request-body and Office-file caps (S5);
+- no CDN in the script policy (S6);
+- a 12-character password minimum (S7);
+- changing your own password from Settings.
+
+S2, moving the application off the database superuser, follows in v3.3.0.
+
+**Upgrading from 3.1.0.**
+- `ADMIN_PASSWORD` must be at least 16 characters and not a `.env.example` placeholder,
+  or the application will not start, whatever `APP_ENV` says. Changing it does not
+  change the password of an administrator who already exists.
+- Migrations `0017` to `0020` apply at boot. `0017` creates the `localchat_scoped` role
+  that row-level security switches into, so the database identity needs `CREATEROLE`, or
+  the role created once by hand (see ADR-5). Compose's `postgres` user has it.
+- `.env.example` now starts with `APP_ENV=production`, and the nginx overlay forces it.
+
 ### Added
 
 - **Change your own password under Settings → Account.** Every signed-in user can do it:
@@ -990,7 +1017,8 @@ eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0-beta.1...v3.0.0
 [3.0.0-beta.1]: https://github.com/jwvanderstam/LocalChat/releases/tag/v3.0.0-beta.1
