@@ -1567,7 +1567,7 @@ That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
 
 ### Phase 1 — close the high-impact findings (weeks 1-3)
 
-#### QP-1 — Quick fixes and the dependency backlog -> v3.2.0 ◐ (Sprint 22; fixes built 2026-10-23, tag pending)
+#### QP-1 — Quick fixes and the dependency backlog -> v3.2.0 ✅ (Sprint 22; released as v3.2.0 on 2026-10-23, with QP-2's S5, S6, S7 and B608)
 
 > **Built as written, with one deviation:** S4's `is_global` is required *in addition to*
 > the category checks, not instead of them. On its own it accepts `64:ff9b::7f00:1`, the
