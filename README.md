@@ -44,12 +44,13 @@ document isolation, and RAG parameters tunable at runtime.
 ```bash
 git clone https://github.com/jwvanderstam/LocalChat
 cd LocalChat
-cp .env.example .env          # then set the five values below — compose refuses to start without them
+cp .env.example .env          # then set the six values below — compose refuses to start without them
 docker compose up -d          # PostgreSQL, Redis, Ollama and the app
 ```
 
-`docker-compose.yml` requires `PG_PASSWORD`, `SECRET_KEY`, `JWT_SECRET_KEY`,
-`ADMIN_PASSWORD` and `ENCRYPTION_KEY` to be non-empty, and `.env.example` ships
+`docker-compose.yml` requires `PG_PASSWORD`, `PG_APP_PASSWORD`, `SECRET_KEY`, `JWT_SECRET_KEY`,
+`ADMIN_PASSWORD` and `ENCRYPTION_KEY` to be non-empty (`PG_APP_PASSWORD` is the login every
+request runs as; `PG_PASSWORD` only builds the schema at boot), and `.env.example` ships
 `ENCRYPTION_KEY` empty on purpose — it is a key, not a placeholder. Generate it:
 
 ```bash

@@ -255,7 +255,7 @@ carries a regression test that fails on the code before it.
 | Id | Finding | Status |
 |---|---|---|
 | S1 | `.env.example` placeholders accepted outside `APP_ENV=production`; no minimum length on `ADMIN_PASSWORD` | **Fixed** (QP-1): refused in every `APP_ENV`, 16-character minimum, the example starts as production, the nginx overlay pins it — `tests/unit/test_placeholder_secrets_refused.py` |
-| S2 | The application's database identity defaults to the `postgres` superuser | Open — QP-2, waiting on the ADR-5 amendment it starts with |
+| S2 | The application's database identity defaults to the `postgres` superuser | **Fixed** (QP-2, ADR-5 amended): with `PG_APP_PASSWORD` set, which compose requires, requests run as `localchat_app`, a non-owner that cannot use `COPY ... PROGRAM` or run DDL — `tests/integration/test_app_role_is_not_owner.py`. The MCP servers still connect as `PG_USER` |
 | S3 | Login answered an unknown or inactive user without hashing, so timing named valid usernames | **Fixed** (QP-1): every path costs one hash — `TestVerifyUserPasswordTiming` |
 | S4 | `safe_fetch` allowed carrier-grade NAT (100.64.0.0/10) | **Fixed** (QP-1): `is_global` required as well as the category checks — `tests/unit/test_safe_fetch.py` |
 | S5 | Resource caps: request-body size, and decompressed size and ratio before an OOXML file is opened | **Fixed** (QP-2): 413 past `MAX_CONTENT_LENGTH` on every route but upload, which caps each file instead; an Office file over 200 MB unpacked, or with a part over 1 MB compressed more than 200x, is refused at upload and in every loader — `tests/unit/test_request_and_ooxml_limits.py` |

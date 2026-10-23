@@ -89,7 +89,8 @@ Set these in `.env` before first start.
 | `SECRET_KEY` | Session signing key — 32+ random bytes |
 | `JWT_SECRET_KEY` | JWT signing key — 32+ random bytes |
 | `ADMIN_PASSWORD` | Initial admin password, at least 16 characters in every `APP_ENV`. Production refuses to boot without it. Elsewhere an empty value means one is generated on the first boot and logged once — authorisation stays on (SEC-1 removed the old empty-password bypass). |
-| `PG_PASSWORD` | PostgreSQL password |
+| `PG_PASSWORD` | PostgreSQL password for `PG_USER`, which owns the schema and is used at boot only |
+| `PG_APP_PASSWORD` | Password for `localchat_app`, the role every request runs as: not a superuser and owning nothing (S2). Required by compose; see [OPERATIONS.md](OPERATIONS.md#database-identities) |
 | `ENCRYPTION_KEY` | Fernet key encrypting OAuth tokens, messages and memories at rest. Required in production — startup aborts without it. (`TOKEN_ENCRYPTION_KEY` is accepted as a legacy alias.) |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | Azure AD app, only for the SharePoint/OneDrive connectors |
 | `METRICS_TOKEN` | Bearer token for the metrics endpoints. **Empty means they are public.** |

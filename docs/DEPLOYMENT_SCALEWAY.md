@@ -547,6 +547,7 @@ Required — the app raises at startup under `APP_ENV=production` if these are u
 | `PG_HOST`, `PG_PORT`, `PG_DB` | From the Serverless SQL Database connection details |
 | `PG_USER` | **The IAM application ID** — not a Postgres username (§4) |
 | `PG_PASSWORD` | **The IAM API secret key** — **secret** (§4) |
+| `PG_APP_PASSWORD` | **Not set by `deploy_container.sh` yet** (added in v3.3.0, audit S2). Without it requests run as the identity above, with a warning in the log. Setting it needs that identity to hold `CREATEROLE`, which this database has not been checked for; see [OPERATIONS.md](OPERATIONS.md#database-identities) |
 | `METRICS_TOKEN` | Generate one. **There is no `METRICS_ENABLED` setting**; leaving this unset is what makes `/api/metrics` public. |
 | `TRUSTED_PROXY_IPS` | `""` — see §7 and D8 |
 | `REDIS_ENABLED` | `false` |

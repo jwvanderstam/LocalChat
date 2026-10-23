@@ -315,12 +315,33 @@ now creates the role if missing and re-grants it the tables, which also covers t
 later release adds. The application identity therefore needs `CREATEROLE`, or the provider
 must create `localchat_scoped` once — the same requirement 0017 already had.
 
-> **Under amendment: ROADMAP QP-2 (Sprint 23, added 2026-10-22).** The quality plan's S2
-> moves the application off the owner role, onto a DML-only `localchat_app`, with `FORCE ROW
-> LEVEL SECURITY`. That removes two things this record assumes: the `ALL_WORKSPACES` paths
-> bypassing the policies as owner, and the boot re-creating `localchat_scoped` (which needs
-> `CREATEROLE`). How the installation-wide paths read across workspaces afterwards is decided
-> and written here before QP-2's code. Until then, this record describes `main`.
+**Amended 2026-10-23 (QP-2 S2, the maintainer's decision): the application stops being the
+owner, and installation-wide access becomes an explicit flag, reached in two steps.**
+
+- **Two identities.** `PG_USER` owns the schema and is used at boot only: base schema,
+  migrations, both roles. With `PG_APP_PASSWORD` set, the boot then creates or updates
+  `localchat_app` (LOGIN, no superuser, no `BYPASSRLS`, no `CREATEROLE`, DML on every table,
+  allowed to `SET ROLE localchat_scoped`) and every request runs as it. This answers the
+  `CREATEROLE` point above: only the owner needs it, once per boot. Empty keeps the single
+  identity, with a warning; the shipped compose requires it.
+- **Where this ends (option B).** Every path that touches a workspace table names its scope,
+  either a workspace or an explicit all-workspaces flag that a policy checks, and nothing
+  else passes. `FORCE ROW LEVEL SECURITY` then binds the owner too.
+- **How it gets there (B2).** 49 database methods touch those tables without a scope today:
+  every insert, the API-key lookup, and the membership check that authorises a request.
+  Moving them is ROADMAP QP-4's work, one aggregate per PR. Until then migration `0021`
+  gives `localchat_app` a transition policy, `current_user = 'localchat_app'`, that keeps
+  today's behaviour: unscoped paths read and write every row, as the owner did. Scoped
+  transactions run as `localchat_scoped`, which the policy does not match, so isolation is
+  unchanged. Each QP-4 PR moves its methods onto a named scope; QP-5 drops `0021`'s policy
+  and adds `FORCE`.
+- **Rejected: `BYPASSRLS`** for `localchat_app`. It is the transition policy made permanent,
+  with no path to B.
+- **Rejected again: a second pool** for the installation-wide paths. The reasoning above
+  still holds; an explicit flag gives the same guarantee without the second credential.
+- **What S2 buys now, before B is reached:** a SQL injection runs as a role that cannot use
+  `COPY ... PROGRAM`, run DDL, or alter roles.
+- **Not yet covered:** the MCP servers (off by default) still connect as `PG_USER`.
 
 **Revisit when:** tenant administrators must be separated from platform operators, or a
 deployment requires that operators cannot read workspace content. Then the `ALL_WORKSPACES`

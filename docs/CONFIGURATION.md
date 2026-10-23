@@ -21,9 +21,14 @@ Create a `.env` file in the root directory (copy from `.env.example`):
 # Database Configuration
 export PG_HOST=localhost
 export PG_PORT=5432
-export PG_USER=postgres
+export PG_USER=postgres             # owns the schema; used at boot only once PG_APP_PASSWORD is set
 export PG_PASSWORD=your_password
 export PG_DB=rag_db
+# The application's own login (audit S2). With it set, the boot creates or updates the
+# role localchat_app with this password and every request runs as it: no superuser, no
+# DDL, no COPY ... PROGRAM. Empty keeps the single identity of earlier releases and logs
+# a warning. docker-compose.yml requires it. See docs/OPERATIONS.md to switch an install.
+export PG_APP_PASSWORD=a_different_password
 # TLS to the database. Default 'prefer' negotiates TLS and silently accepts an
 # unencrypted connection if it fails — fine for a container on the same host.
 # A managed database reached over the internet must set 'require' or stronger.
