@@ -227,7 +227,7 @@ class TestValidateSecrets:
         return {
             'SECRET_KEY': 'a' * 32,
             'JWT_SECRET_KEY': 'b' * 32,
-            'ADMIN_PASSWORD': 'a-real-password',
+            'ADMIN_PASSWORD': 'a-real-admin-password',
             'CORS_ENABLED': False,
             'CORS_ORIGINS': ['example.com'],
             'ENCRYPTION_KEY': Fernet.generate_key().decode(),

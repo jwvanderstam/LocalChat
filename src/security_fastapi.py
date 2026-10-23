@@ -613,34 +613,6 @@ def check_additional_workspace_access(
     return None
 
 
-def _enforce_workspace_role(
-    request: Request,
-    workspace_id: str | None,
-    credentials: HTTPAuthorizationCredentials | None,
-    min_role: str,
-) -> str:
-    """Enforce workspace membership; returns user_id or raises 4xx."""
-    denial = check_workspace_access(request, workspace_id, min_role)
-    if denial is not None:
-        code, message = denial
-        raise HTTPException(code, detail={"message": message})
-    claims = _get_token_claims(credentials) or _claims_from_request(request)
-    return claims.get("sub") or "admin"
-
-
-def require_workspace_role_dep(min_role: str):
-    """Return a FastAPI dependency that enforces workspace membership."""
-
-    def _dep(
-        request: Request,
-        workspace_id: str | None = None,
-        credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),  # noqa: B008
-    ) -> str:
-        return _enforce_workspace_role(request, workspace_id, credentials, min_role)
-
-    return _dep
-
-
 # ── Rate limiting ──────────────────────────────────────────────────────────────
 
 from slowapi import Limiter

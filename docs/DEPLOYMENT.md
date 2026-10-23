@@ -88,7 +88,7 @@ Set these in `.env` before first start.
 |-----|---------|
 | `SECRET_KEY` | Session signing key — 32+ random bytes |
 | `JWT_SECRET_KEY` | JWT signing key — 32+ random bytes |
-| `ADMIN_PASSWORD` | Initial admin password. Production refuses to boot without it. Elsewhere an empty value means one is generated on the first boot and logged once — authorisation stays on (SEC-1 removed the old empty-password bypass). |
+| `ADMIN_PASSWORD` | Initial admin password, at least 16 characters in every `APP_ENV`. Production refuses to boot without it. Elsewhere an empty value means one is generated on the first boot and logged once — authorisation stays on (SEC-1 removed the old empty-password bypass). |
 | `PG_PASSWORD` | PostgreSQL password |
 | `ENCRYPTION_KEY` | Fernet key encrypting OAuth tokens, messages and memories at rest. Required in production — startup aborts without it. (`TOKEN_ENCRYPTION_KEY` is accepted as a legacy alias.) |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` | Azure AD app, only for the SharePoint/OneDrive connectors |
@@ -224,7 +224,7 @@ Before exposing LocalChat beyond localhost:
 
 | Item | Env var | Requirement |
 |------|---------|-------------|
-| Admin password | `ADMIN_PASSWORD` | **Must be non-empty** — production will not boot without it. |
+| Admin password | `ADMIN_PASSWORD` | **Non-empty and at least 16 characters**, and never the placeholder — the boot refuses either. |
 | JWT secret | `JWT_SECRET_KEY` | 32+ random bytes. Never the placeholder. |
 | Session secret | `SECRET_KEY` | 32+ random bytes. |
 | Metrics endpoints | `METRICS_TOKEN` | Set it, or `/api/metrics` and `/api/metrics.json` are public. |

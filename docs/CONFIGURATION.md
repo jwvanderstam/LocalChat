@@ -47,7 +47,7 @@ export REDIS_PASSWORD=                # Leave empty if no password
 # Application Configuration
 export SECRET_KEY=your_secret_key_here
 export JWT_SECRET_KEY=your_jwt_secret_here
-export ADMIN_PASSWORD=your_admin_password_here  # Required for /api/auth/login
+export ADMIN_PASSWORD=your_admin_password_here  # 16+ characters; required for /api/auth/login
 export APP_ENV=production
 
 # Security Configuration
@@ -393,7 +393,7 @@ to empty, in which case the router falls back to the active model.
 |---|---|---|
 | `ADMIN_USERNAME` | `admin` | Username of the seeded administrator |
 | `JWT_ACCESS_TOKEN_EXPIRES` | `7200` | Access-token lifetime in seconds (2 h) |
-| `ADMIN_PASSWORD` | *(empty)* | Seeds the administrator's password on first boot, and is the bootstrap credential until one exists. Production refuses to start without it |
+| `ADMIN_PASSWORD` | *(empty)* | Seeds the administrator's password on first boot, and is the bootstrap credential until one exists. Production refuses to start without it. When set, at least 16 characters, in every `APP_ENV` |
 
 > **`ADMIN_PASSWORD` is a bootstrap credential, not a permanent second password.** It does
 > two things. On every boot it *seeds* a database administrator (idempotently — a restart
@@ -405,6 +405,12 @@ to empty, in which case the router falls back to the active model.
 > Until an external audit in September 2026 it had no such limit: it was a parallel
 > credential nobody could see, demote or disable, it kept working beside a *changed*
 > database password, and the `.env.example` placeholder passed production validation.
+>
+> **Placeholders are refused in every `APP_ENV`** (audit S1, October 2026). A `SECRET_KEY`,
+> `JWT_SECRET_KEY` or `ADMIN_PASSWORD` left at its `.env.example` value stops the boot
+> whatever `APP_ENV` says, because those values are published. On a laptop, leave the two
+> keys unset instead: they are then generated. `.env.example` now starts as
+> `APP_ENV=production`, and the nginx overlay pins it.
 >
 > The one case where it is still accepted is a database that cannot be read, since whether
 > a real administrator exists is then unknowable and this has always been the way back in.

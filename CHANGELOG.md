@@ -119,6 +119,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Fixed
 
+- **A text upload is no longer refused when its first 512 bytes end inside a character**
+  (audit defect 1). The check decoded a fixed-size header as if it were the whole file.
+- **Creating a user keeps the password as typed** (audit defect 2). It stripped
+  surrounding spaces, which login and password change do not, so such a password never
+  worked.
+
 - **The Scaleway kill switch sweeps managed PostgreSQL**, which bills hourly and never
   scales to zero; it reported "nothing billable" with one running. And the deployment
   gate's version check reads `APP_VERSION` from the checkout — its literal `3.0.0` had failed
@@ -199,6 +205,19 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   than in a container that will not start.
 
 ### Security
+
+- **A secret left at its `.env.example` value stops the boot in every `APP_ENV`** (audit
+  S1, ROADMAP QP-1). Before, only `APP_ENV=production` checked, and outside it a placeholder
+  `SECRET_KEY` was quietly swapped for a generated one. `ADMIN_PASSWORD` must now be at least
+  16 characters when set. `.env.example` starts as `APP_ENV=production`, and the nginx
+  overlay pins it. **Upgrading:** an install whose `ADMIN_PASSWORD` is shorter than 16
+  characters, or is still a placeholder, will not start until `.env` is changed.
+- **Login costs one password hash whoever asks** (audit S3). An unknown or inactive
+  username used to be answered without hashing, so response time named the accounts that
+  exist.
+- **Outbound fetches refuse carrier-grade NAT** (audit S4). `safe_fetch` now also requires
+  `is_global`, so `100.64.0.0/10` joins the refused ranges; the category checks stay, since
+  `is_global` alone accepts the NAT64 form of loopback.
 
 - **Documents carrying instruction-shaped text are flagged at ingest** (ROADMAP GR-1c).
   Every chunk is scanned for five kinds — override instructions, a chat role marker, chat
@@ -315,6 +334,9 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   cannot be reproduced afterwards.
 
 ### Changed
+
+- **Removed the unused `require_workspace_role_dep` and `_enforce_workspace_role`** (audit
+  defect 3). Every route authorises through `check_workspace_access`.
 
 - **The answer baseline is re-taken after the lexical fix** (ROADMAP P2-3).
   `tests/eval/answer_baseline.json` now records the 2026-10-05 run — same models, judge

@@ -7,6 +7,8 @@ Passwords are hashed with Werkzeug's PBKDF2-SHA256 (stored hash includes salt).
 """
 from __future__ import annotations
 
+import functools
+import secrets
 from typing import TYPE_CHECKING, Any
 
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -290,12 +292,12 @@ class UsersMixin(MixinHost):
     def verify_user_password(self, username: str, password: str) -> dict[str, Any] | None:
         """Return user dict if credentials are valid, else None."""
         user = self.get_user_by_username(username)
-        if not user or not user.get('is_active'):
-            return None
-        stored_hash = user.pop('hashed_password', None)
-        if stored_hash and check_password_hash(stored_hash, password):
-            return user
-        return None
+        stored_hash = user.pop('hashed_password', None) if user else None
+        usable = bool(user and user.get('is_active') and stored_hash)
+        # Always pay for one hash: answering an unknown or inactive user without one
+        # made the response time say which usernames exist (audit S3).
+        matches = check_password_hash(stored_hash if usable else _dummy_hash(), password)
+        return user if usable and matches else None
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +307,11 @@ class UsersMixin(MixinHost):
 def hash_user_password(password: str) -> str:
     """Return a Werkzeug PBKDF2-SHA256 hash string for ``password``."""
     return generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
+
+
+@functools.cache
+def _dummy_hash() -> str:
+    return hash_user_password(secrets.token_urlsafe(32))
 
 
 def _row_to_user(row: tuple) -> dict[str, Any]:

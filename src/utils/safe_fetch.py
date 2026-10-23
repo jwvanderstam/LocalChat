@@ -70,12 +70,17 @@ def _address_is_reachable_externally(addr: str) -> bool:
     Deliberately a whole-category refusal rather than a block-list of ranges: a
     list needs extending every time a new one matters, and the AWS metadata
     endpoint at 169.254.169.254 is only the famous member of link-local.
+
+    ``is_global`` is what the categories missed: carrier-grade NAT (100.64.0.0/10)
+    is none of them, and reached a provider's internal network (audit S4). It is
+    required *in addition*, not instead: on its own it accepts the NAT64 form of
+    loopback (64:ff9b::7f00:1), which ``is_reserved`` refuses.
     """
     try:
         parsed = ipaddress.ip_address(addr)
     except ValueError:
         return False
-    return not (
+    return parsed.is_global and not (
         parsed.is_private
         or parsed.is_loopback
         or parsed.is_link_local

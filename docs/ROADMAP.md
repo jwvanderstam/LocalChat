@@ -1567,7 +1567,12 @@ That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
 
 ### Phase 1 — close the high-impact findings (weeks 1-3)
 
-#### QP-1 — Quick fixes and the dependency backlog -> v3.2.0 ⬜ (Sprint 22, ~2 days)
+#### QP-1 — Quick fixes and the dependency backlog -> v3.2.0 ◐ (Sprint 22; fixes built 2026-10-23, tag pending)
+
+> **Built as written, with one deviation:** S4's `is_global` is required *in addition to*
+> the category checks, not instead of them. On its own it accepts `64:ff9b::7f00:1`, the
+> NAT64 form of loopback, which the old checks refused; a test pins that. Status per
+> finding is in `SECURITY.md`'s October 2026 register.
 
 - **S1 placeholder secrets.** Reject every `.env.example` placeholder for `SECRET_KEY`,
   `JWT_SECRET_KEY` and `ADMIN_PASSWORD` in every `APP_ENV`, not only production. Set a

@@ -10,6 +10,7 @@ Only the minimum required bytes are read — no full file load.
 
 from __future__ import annotations
 
+import codecs
 import zipfile
 from pathlib import Path
 
@@ -90,8 +91,12 @@ def _validate_zip_office(header: bytes, file_path: str, ext: str) -> tuple[bool,
 
 
 def _validate_text(header: bytes, ext: str) -> tuple[bool, str]:
+    # A full header is a cut, not the end of the file, and the cut can fall inside a
+    # multi-byte character: that rejected valid UTF-8 text (defect 1). final=False
+    # accepts an incomplete sequence at the end and still refuses an invalid one.
+    final = len(header) < _READ_SIZE[ext]
     try:
-        header.decode("utf-8")
+        codecs.getincrementaldecoder("utf-8")().decode(header, final=final)
         return True, ""
     except UnicodeDecodeError:
         return False, f"{ext.upper().lstrip('.')} file contains invalid UTF-8 / binary content"

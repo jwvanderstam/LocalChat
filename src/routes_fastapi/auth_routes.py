@@ -105,7 +105,9 @@ async def create_user(request: Request, _admin: Annotated[str, Depends(require_a
 
     data = await request.json() if await request.body() else {}
     username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
+    # Never stripped: login, password change and reset take the password as typed,
+    # so a stripped one here is a password its owner cannot sign in with (defect 2).
+    password = data.get("password") or ""
     email = (data.get("email") or "").strip() or None
     role = data.get("role", "user")
 

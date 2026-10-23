@@ -10,6 +10,8 @@ Tests cover:
 import io
 import zipfile
 
+import pytest
+
 from src.utils.file_validation import validate_file_content
 
 # ---------------------------------------------------------------------------
@@ -132,6 +134,26 @@ class TestText:
         path = _write(tmp_path, "readme.md", b"# Heading\n\nSome content.")
         ok, err = validate_file_content(path, ".md")
         assert ok is True
+
+    @pytest.mark.parametrize("char", ["é", "€", "😀"], ids=["2-byte", "3-byte", "4-byte"])
+    def test_a_character_split_by_the_header_cut_is_valid(self, tmp_path, char):
+        """Defect 1: 511 ASCII bytes put a multi-byte character across byte 512."""
+        path = _write(tmp_path, "split.txt", b"a" * 511 + (char * 4).encode("utf-8"))
+        assert validate_file_content(path, ".txt") == (True, "")
+
+    def test_an_invalid_byte_before_the_cut_is_still_refused(self, tmp_path):
+        path = _write(tmp_path, "bad.txt", b"a" * 300 + bytes([0xFF]) + b"a" * 300)
+        assert validate_file_content(path, ".txt") == (
+            False, "TXT file contains invalid UTF-8 / binary content"
+        )
+
+    def test_a_short_file_ending_mid_character_is_refused(self, tmp_path):
+        """Below the header size the read is the whole file, so a truncated
+        character really is the end of it."""
+        path = _write(tmp_path, "short.txt", b"abc" + "€".encode()[:2])
+        assert validate_file_content(path, ".txt") == (
+            False, "TXT file contains invalid UTF-8 / binary content"
+        )
 
     def test_binary_as_txt(self, tmp_path):
         path = _write(tmp_path, "binary.txt", bytes(range(256)))

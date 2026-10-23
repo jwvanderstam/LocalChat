@@ -25,7 +25,7 @@ _READERS = [_ROOT / "src" / "config.py", _ROOT / "app.py", _ROOT / "docker-entry
 #: Example values that are deliberately not the code's default: secrets a deployment
 #: must replace, and choices the example makes that the code leaves open.
 _PLACEHOLDERS = {
-    "APP_ENV",  # code: "" (local); the example starts a deployment as development
+    "APP_ENV",  # code: "" (local); the example starts a deployment as production (S1)
     "SECRET_KEY",
     "JWT_SECRET_KEY",
     "ADMIN_PASSWORD",

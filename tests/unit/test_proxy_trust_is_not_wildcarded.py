@@ -143,6 +143,10 @@ class TestTheShippedOverlayMatchesWhatIsTestedHere:
             Loader=_ComposeLoader,
         )
 
+    def test_the_overlay_forces_production_whatever_env_says(self):
+        """S1: the public path never runs with the development relaxations."""
+        assert self._overlay()["services"]["app"]["environment"]["APP_ENV"] == "production"
+
     def test_the_overlay_does_not_wildcard_proxy_trust(self):
         trusted = self._overlay()["services"]["app"]["environment"]["TRUSTED_PROXY_IPS"]
         assert trusted != "*"
