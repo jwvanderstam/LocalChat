@@ -181,7 +181,8 @@ a gain of one deleted heading.
 
 - **What**: `src/utils/safe_fetch.py` is the one path by which this application retrieves a
   URL it was handed — a web-search result, or a webhook's `fetch_url`. It resolves the
-  hostname, refuses the fetch if **any** address the name answers with is private, loopback,
+  hostname, refuses the fetch if **any** address the name answers with is not global unicast
+  (`is_global`, which also catches carrier-grade NAT, audit S4) or is private, loopback,
   link-local, reserved, multicast or unspecified, re-validates every redirect hop, and caps
   the body and the time.
 - **The residual**: the connection is then made by name. A DNS entry that answers
@@ -240,6 +241,26 @@ a gain of one deleted heading.
 - **Re-review trigger**: tools that act rather than read, a cloud model in the default path,
   or a deployment where the people who write the documents are not trusted by the people
   who ask about them.
+
+## October 2026 audit: findings register
+
+The 2026-10-22 audit's Medium-or-higher findings, closed through
+[ROADMAP Initiative 12](docs/ROADMAP.md#initiative-12--quality-plan-architecture-8-and-maturity-8).
+The audit report itself is not in the repository; this table is its register. Each fix
+carries a regression test that fails on the code before it.
+
+| Id | Finding | Status |
+|---|---|---|
+| S1 | `.env.example` placeholders accepted outside `APP_ENV=production`; no minimum length on `ADMIN_PASSWORD` | **Fixed** (QP-1): refused in every `APP_ENV`, 16-character minimum, the example starts as production, the nginx overlay pins it — `tests/unit/test_placeholder_secrets_refused.py` |
+| S2 | The application's database identity defaults to the `postgres` superuser | Open — QP-2, which first amends ADR-5 |
+| S3 | Login answered an unknown or inactive user without hashing, so timing named valid usernames | **Fixed** (QP-1): every path costs one hash — `TestVerifyUserPasswordTiming` |
+| S4 | `safe_fetch` allowed carrier-grade NAT (100.64.0.0/10) | **Fixed** (QP-1): `is_global` required as well as the category checks — `tests/unit/test_safe_fetch.py` |
+| S5 | Resource caps: request-body size, and decompressed size and ratio before an OOXML file is opened | Open — QP-2 |
+| S6 | `script-src` allows `cdn.jsdelivr.net` | Open — QP-2 |
+| S7 | No minimum password length for created users | Open — QP-2 |
+| Defect 1 | A text upload whose 512-byte header cut a multi-byte character was refused as binary | **Fixed** (QP-1) — `tests/unit/test_file_validation.py` |
+| Defect 2 | Creating a user stripped the password; login and change did not | **Fixed** (QP-1) — `tests/unit/test_auth_routes_unit.py` |
+| Defect 3 | Dead `require_workspace_role_dep` / `_enforce_workspace_role` | **Fixed** (QP-1): deleted |
 
 ## Supply chain
 

@@ -49,7 +49,7 @@ APP_ENV: str = os.environ.get('APP_ENV', '')
 
 # Secret keys - MUST be set in production!
 _SECRET_KEY_RAW: str | None = os.environ.get('SECRET_KEY')
-if not _SECRET_KEY_RAW or _SECRET_KEY_RAW == 'change-this-to-a-random-secret-key-in-production':
+if not _SECRET_KEY_RAW:
     if APP_ENV == 'production':
         raise ValueError("SECRET_KEY must be set in production!")
     SECRET_KEY: str = secrets.token_hex(32)
@@ -58,7 +58,7 @@ else:
     SECRET_KEY = _SECRET_KEY_RAW
 
 _JWT_SECRET_KEY_RAW: str | None = os.environ.get('JWT_SECRET_KEY')
-if not _JWT_SECRET_KEY_RAW or _JWT_SECRET_KEY_RAW == 'change-this-to-a-random-jwt-secret-in-production':
+if not _JWT_SECRET_KEY_RAW:
     if APP_ENV == 'production':
         raise ValueError("JWT_SECRET_KEY must be set in production!")
     JWT_SECRET_KEY: str = secrets.token_hex(32)
@@ -132,7 +132,12 @@ _WEAK_PLACEHOLDERS: frozenset[str] = frozenset({
     'secret', 'changeme', 'change-me', 'dev', 'test', 'password', 'admin',
     'change-this-to-a-random-secret-key-in-production',
     'change-this-to-a-random-jwt-secret-in-production',
+    'change-this-to-a-strong-password',
 })
+
+# Long enough that the bootstrap admin password is not guessable in the rate limit's
+# budget; the database admin it seeds inherits it.
+ADMIN_PASSWORD_MIN_LENGTH: int = 16
 
 
 def validate_single_worker() -> None:
@@ -161,26 +166,47 @@ def validate_single_worker() -> None:
 
 
 def validate_secrets() -> None:
-    """Abort startup if production secrets or CORS config are weak or missing.
+    """Abort startup if secrets are placeholders, or production config is weak or missing.
 
-    Enforces: minimum 32-char length for SECRET_KEY / JWT_SECRET_KEY,
-    rejection of known placeholder values, a non-empty ADMIN_PASSWORD,
+    In every APP_ENV: no known placeholder for SECRET_KEY, JWT_SECRET_KEY or
+    ADMIN_PASSWORD, and a set ADMIN_PASSWORD of at least ADMIN_PASSWORD_MIN_LENGTH.
+    A placeholder copied from .env.example is a published value, and a host that
+    forgot APP_ENV is no less reachable for it (audit S1). An unset secret stays
+    allowed outside production: it is generated, never guessable.
+
+    In production also: minimum 32-char length for SECRET_KEY / JWT_SECRET_KEY,
+    a non-empty ADMIN_PASSWORD,
     no wildcard CORS origin (setup_cors() always sets allow_credentials=True,
     and a wildcard origin combined with credentialed requests lets any site
     make authenticated cross-origin calls against this API), and a present,
     well-formed ENCRYPTION_KEY.
     Raises SystemExit(1) so uvicorn startup aborts cleanly.
     """
-    if APP_ENV != 'production':
-        return
+    # Literal messages throughout: a message built from anything CodeQL considers a
+    # password, even a loop variable beside one, reads to it as logging the password.
     errors: list[str] = []
     if SECRET_KEY.lower() in _WEAK_PLACEHOLDERS:
         errors.append("SECRET_KEY is a known placeholder — set a random value")
-    elif len(SECRET_KEY) < 32:
-        errors.append("SECRET_KEY is too short (minimum 32 characters)")
     if JWT_SECRET_KEY.lower() in _WEAK_PLACEHOLDERS:
         errors.append("JWT_SECRET_KEY is a known placeholder — set a random value")
-    elif len(JWT_SECRET_KEY) < 32:
+    if ADMIN_PASSWORD.lower() in _WEAK_PLACEHOLDERS:
+        errors.append("ADMIN_PASSWORD is a known placeholder — set a random value")
+    if ADMIN_PASSWORD and len(ADMIN_PASSWORD) < ADMIN_PASSWORD_MIN_LENGTH:
+        # A literal, not interpolated: CodeQL treats any name containing PASSWORD as
+        # sensitive, the constant included. The test pins the two together.
+        errors.append("ADMIN_PASSWORD is too short (minimum 16 characters)")
+    if APP_ENV == 'production':
+        _production_errors(errors)
+    if errors:
+        for msg in errors:
+            logger.critical("[Security] %s", msg)
+        raise SystemExit(1)
+
+
+def _production_errors(errors: list[str]) -> None:
+    if len(SECRET_KEY) < 32:
+        errors.append("SECRET_KEY is too short (minimum 32 characters)")
+    if len(JWT_SECRET_KEY) < 32:
         errors.append("JWT_SECRET_KEY is too short (minimum 32 characters)")
     if not ADMIN_PASSWORD:
         errors.append("ADMIN_PASSWORD must be set in production")
@@ -214,10 +240,6 @@ def validate_secrets() -> None:
                 "ENCRYPTION_KEY is not a valid Fernet key — a malformed key "
                 "silently degrades to plain-text storage"
             )
-    if errors:
-        for msg in errors:
-            logger.critical("[Security] %s", msg)
-        raise SystemExit(1)
 
 
 # ============================================================================

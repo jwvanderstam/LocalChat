@@ -11,7 +11,8 @@ Covers:
   - update_user: no allowed fields is a no-op, DB unavailable raises, updates and returns bool
   - delete_user (soft-delete): DB unavailable raises, sets deleted_at/deleted_by, filters live rows
   - purge_user: blocked when workspace memberships exist, hard-deletes otherwise
-  - verify_user_password: unknown user, inactive user, wrong password, correct password
+  - verify_user_password: unknown user, inactive user, wrong password, correct password;
+    every path hashes exactly once (S3)
   - hash_user_password: produces a verifiable Werkzeug hash
 """
 
@@ -395,6 +396,51 @@ class TestVerifyUserPassword:
         assert result is not None
         assert result["username"] == "alice"
         assert "hashed_password" not in result
+
+
+class TestVerifyUserPasswordTiming:
+    """S3 — every path costs one hash, so response time does not say whether a
+    username exists or is active. Counting calls is the point here: the cost of a
+    login *is* the number of PBKDF2 runs."""
+
+    @staticmethod
+    def _hash_calls(fetchone_return, password: str) -> tuple[object, int]:
+        from unittest.mock import patch
+
+        import src.db.users as users_module
+        m, _, _ = _users_mixin(fetchone_return=fetchone_return)
+        with patch.object(
+            users_module, "check_password_hash", wraps=users_module.check_password_hash
+        ) as spy:
+            result = m.verify_user_password("alice", password)
+        return result, spy.call_count
+
+    @staticmethod
+    def _row(active: bool, hashed: str | None):
+        from datetime import datetime
+        return (uuid.uuid4(), "alice", None, hashed, active, "user", datetime(2025, 1, 1))
+
+    def test_an_unknown_user_costs_one_hash(self):
+        assert self._hash_calls(None, "pw") == (None, 1)
+
+    def test_an_inactive_user_with_the_right_password_costs_one_hash_and_fails(self):
+        from src.db.users import hash_user_password
+        row = self._row(False, hash_user_password("correct-password"))
+        assert self._hash_calls(row, "correct-password") == (None, 1)
+
+    def test_a_user_with_no_stored_hash_costs_one_hash(self):
+        assert self._hash_calls(self._row(True, None), "pw") == (None, 1)
+
+    def test_a_wrong_password_costs_one_hash(self):
+        from src.db.users import hash_user_password
+        row = self._row(True, hash_user_password("correct-password"))
+        assert self._hash_calls(row, "wrong-password") == (None, 1)
+
+    def test_the_right_password_costs_one_hash_and_succeeds(self):
+        from src.db.users import hash_user_password
+        row = self._row(True, hash_user_password("correct-password"))
+        result, calls = self._hash_calls(row, "correct-password")
+        assert (result["username"], calls) == ("alice", 1)
 
 
 class TestHashUserPassword:

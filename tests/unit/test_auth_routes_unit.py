@@ -2,6 +2,24 @@
 
 from unittest.mock import MagicMock
 
+from werkzeug.security import check_password_hash
+
+
+class TestPasswordsAreTakenAsTyped:
+    """Defect 2: creating a user stripped the password, while login, change and
+    reset did not, so " correct horse " was stored as "correct horse" and the
+    password its owner typed never worked."""
+
+    def test_create_user_hashes_the_password_including_its_spaces(self, client, app, monkeypatch):
+        create = MagicMock(return_value="u-1")
+        monkeypatch.setattr(app.state.db, "create_user", create)
+        monkeypatch.setattr(app.state.db, "get_user_by_id", MagicMock(return_value={"id": "u-1"}))
+        resp = client.post("/api/users", json={"username": "u", "password": " correct horse "})
+        assert resp.status_code == 201
+        stored = create.call_args.kwargs["hashed_password"]
+        assert (check_password_hash(stored, " correct horse "),
+                check_password_hash(stored, "correct horse")) == (True, False)
+
 
 class TestAuthRoutesErrors:
     """Trigger the except-block paths that return 500 with _ERR_INTERNAL.

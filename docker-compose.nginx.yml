@@ -31,6 +31,10 @@ services:
       # was the wrong threat: the header is forged by the external client, and
       # nginx passed it straight through.
       TRUSTED_PROXY_IPS: "172.31.240.0/24"
+      # A literal, not ${APP_ENV:-production}: this overlay is the public path, and
+      # APP_ENV=development in .env would otherwise relax every production check
+      # behind a TLS endpoint (audit S1).
+      APP_ENV: production
 
   nginx:
     image: nginx:alpine

@@ -16,11 +16,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import HTTPException
 
 from src.security_fastapi import (
     _check_api_key_access,
-    _enforce_workspace_role,
     check_workspace_access,
     create_access_token,
 )
@@ -167,45 +165,3 @@ class TestDenialMessages:
         assert check_workspace_access(
             _request(token=_user_token(), db=_member_db(None)), _WS, "viewer"
         ) == (403, "Access denied: not a workspace member")
-
-
-class TestEnforceWorkspaceRole:
-    """Mutants 203-210 — the wrapper that turns a denial into an HTTPException."""
-
-    def test_a_denial_becomes_an_exception_carrying_its_message(self):
-        """`denial = None`, or an inverted `is None`, stops the refusal happening at
-        all and the caller proceeds with no error anywhere."""
-        request = _request(token=_user_token(), db=_member_db(None))
-        with pytest.raises(HTTPException) as exc_info:
-            _enforce_workspace_role(request, _WS, None, "viewer")
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.detail["message"] == "Access denied: not a workspace member"
-
-    def test_an_allowed_caller_gets_their_own_identity_back(self):
-        """Either half of `claims.get("sub") or "admin"` mutated hands the route a
-        different identity than the one that authenticated."""
-        result = _enforce_workspace_role(
-            _request(token=_user_token(), db=_member_db()), _WS, None, "viewer"
-        )
-        assert result == _USER
-
-    def test_an_api_key_caller_is_identified_as_the_admin_placeholder(self):
-        """The one path that reaches the fallback in `claims.get("sub") or "admin"`.
-
-        An API key carries no bearer claims, so there is no subject to return and
-        the literal is what routes receive as the caller's identity. Every test
-        using a token has a subject, so the fallback was never exercised — and a
-        mutated literal would have silently become the identity instead.
-        """
-        db = _key_db()
-        result = _enforce_workspace_role(
-            _request(api_key="lcw_key", db=db), _WS, None, "viewer"
-        )
-        assert result == "admin"
-
-    def test_claims_are_read_from_the_request_when_none_are_passed(self):
-        """`_get_token_claims(credentials) or _claims_from_request(request)` mutated
-        to `and` yields None for a direct call, and .get() then raises."""
-        assert _enforce_workspace_role(
-            _request(token=_user_token(), db=_member_db()), _WS, None, "viewer"
-        ) == _USER

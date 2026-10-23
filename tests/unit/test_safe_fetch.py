@@ -43,6 +43,17 @@ class TestANameIsJudgedByWhatItResolvesTo:
         with _resolves_to("169.254.169.254"), pytest.raises(UnsafeUrlError):
             resolve_and_validate("https://metadata.example.com/latest/meta-data/")
 
+    def test_a_name_resolving_to_carrier_grade_nat_is_refused(self):
+        """S4: 100.64.0.0/10 is not private, loopback, link-local or reserved, so the
+        category checks let it through; on a cloud host it is the provider's network."""
+        with _resolves_to("100.64.0.1"), pytest.raises(UnsafeUrlError):
+            resolve_and_validate("https://cgnat.example.com/doc")
+
+    def test_a_name_resolving_to_loopback_through_nat64_is_refused(self):
+        """Guards the S4 fix against over-simplifying: is_global alone accepts this."""
+        with _resolves_to("64:ff9b::7f00:1"), pytest.raises(UnsafeUrlError):
+            resolve_and_validate("https://nat64.example.com/doc")
+
     def test_a_public_name_is_allowed(self):
         """The negative space: refusing everything would satisfy all of the above."""
         with _resolves_to("93.184.216.34"):
@@ -73,6 +84,10 @@ class TestLiteralsAndSchemes:
         """What the old check did catch; it must keep catching it."""
         with pytest.raises(UnsafeUrlError):
             resolve_and_validate("https://10.0.0.5/doc")
+
+    def test_a_carrier_grade_nat_literal_is_refused(self):
+        with pytest.raises(UnsafeUrlError):
+            resolve_and_validate("https://100.64.0.1/doc")
 
     def test_localhost_is_refused_by_name(self):
         with pytest.raises(UnsafeUrlError):

@@ -119,7 +119,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/PERMISSIONS.md` | Route permission matrix (RBAC-2) — every route's minimum role, read from source, plus the public allowlist with reasons |
 | `docs/SCHEMA.md` | Database schema reference + ER diagram |
 | `docs/TROUBLESHOOTING.md` | Common issues and fixes |
-| `docs/history/LESSONS_LEARNED.md` | Chronological architecture/decision history, built from `git log` + `docs/ROADMAP.md` |
+| `docs/history/LESSONS_LEARNED.md` | Chronological architecture/decision history, built from `git log` + `docs/ROADMAP.md` |
+
 | `docs/history/ROADMAP_LOG.md` | Dated notes on how the roadmap changed — sprint completions, re-orderings, tickets added or re-scoped — moved out of ROADMAP verbatim (P2-7) |
 | `docs/SETTINGS.md` | Per-RAG-parameter descriptions — source of truth for `templates/settings.html`'s help text via `DocsService` |
 | **Agent** | |
@@ -171,7 +172,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/utils/encryption.py` | Canonical Fernet `encrypt()`/`decrypt()` for sensitive text columns at rest |
 | `src/utils/export.py` | Conversation export: DOCX (python-docx) and PDF (reportlab, optional) |
 | `src/utils/workspace.py` | `get_workspace_id()` — reads `X-Workspace-ID` header (or `workspace_id` query param); single source of truth for workspace scoping per-request. `get_scope()` returns the scope the request was *authorised* for, and refuses when no guard has run |
-| `tests/unit/test_safe_fetch.py` | P1-2 (M4) — a name resolving to a private address is refused, one private answer among several refuses the whole name, redirects are re-validated at each hop, bodies are capped, and a webhook connector without a secret is invalid |
+| `tests/unit/test_safe_fetch.py` | P1-2 (M4) — a name resolving to a private address is refused, one private answer among several refuses the whole name, redirects are re-validated at each hop, bodies are capped, and a webhook connector without a secret is invalid; S4 — carrier-grade NAT is refused, and so is NAT64 loopback, which `is_global` alone would accept |
+| `tests/unit/test_placeholder_secrets_refused.py` | S1 — every `.env.example` placeholder for `SECRET_KEY`, `JWT_SECRET_KEY` and `ADMIN_PASSWORD` stops the boot in every `APP_ENV`, read from the example itself; `ADMIN_PASSWORD` needs 16 characters; a placeholder key is no longer swapped for a generated one, while an unset key still is |
 | `tests/unit/test_oauth_state_and_pkce.py` | P1-3 — the OAuth `state` carries the user who began the flow (the callback cannot read the session: the provider's redirect is cross-site and the cookie is SameSite=strict), expires, is single-use, is not interchangeable between providers, and its PKCE challenge is the S256 of a per-flow verifier |
 | `tests/unit/test_security_headers.py` | P1-4 — every response carries a CSP, nosniff, a referrer policy and framing denial; HSTS only over TLS; and CORS never falls back to a wildcard or a scheme-less origin. Asserts the remaining `'unsafe-inline'` too, so removing it is a visible change |
 | `tests/unit/test_upload_isolation_and_size.py` | P1-1/P1-5 — each upload stages into its own directory so two of the same filename cannot collide or delete each other (H4), `MAX_CONTENT_LENGTH` is enforced while the body streams (M2), and more than one uvicorn worker aborts the boot (M7) |
@@ -179,7 +181,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_chat_additional_workspaces_authorised.py` | Chat's `additional_workspace_ids` are authorised like the primary workspace — a member may name their own, an admin any, a workspace API key none — and one foreign id refuses the request before any retrieval; the guard used to authorise the primary workspace only |
 | `tests/unit/test_mcp_isolation_and_auth.py` | P0-2 — enabling MCP must not widen the workspace scope, and the servers must not be open: token refusals, `search` requiring a workspace on both retrieving servers, and the request-scope the LLM tools read |
 | `src/utils/safe_fetch.py` | `safe_fetch()`/`resolve_and_validate()` — the one way this application retrieves a URL it was handed. Resolves the name and refuses any non-public address it answers with, re-validates every redirect, and caps bytes and time. Used by web search and the webhook connector, which each had their own hostname-string check that let DNS names through (M4) |
-| `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1). Also `request_scope()`/`current_request_scope()`, the per-request workspace the LLM retrieval tools read — they are called by the model, so they have no argument to carry one (P0-2) |
+| `src/utils/scope.py` | `Scope`, `ALL_WORKSPACES`, `scope_predicate()` — the workspace a query is restricted to. Removes `None` as a value, so "every workspace" must be said rather than reached by omitting an argument (P0-1). Also `request_scope()`/`current_request_scope()`, the per-request workspace the LLM retrieval tools read — they are called by the model, so they have no argument to carry one (P0-2) |
+
 | `tests/unit/test_retrieved_context_is_fenced.py` | GR-1a — every retrieved document and web result reaches the prompt inside a fence naming its source; content, a section title or a filename cannot close the fence or break its attribute, the length budget never cuts one, and the system prompts say what fenced text is |
 | `tests/unit/test_memory_reads_user_turns_only.py` | GR-1b — memory extraction sees only `role == "user"` turns: an assistant turn carrying a planted instruction, a system or tool turn, and a turn with no role all stay out of the transcript |
 | `tests/unit/test_injection_flags.py` | GR-1c — each kind is found by the text it names and stays quiet on the near-misses business documents carry (`System: 2`, "you are now logged in") |
@@ -251,13 +254,16 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `scripts/eval_review.html` | P2-3 — offline, single-file viewer: review drafted cases one at a time with the proof highlighted in its passage (accept/reject/edit), or grade calibration answers blind (yes/partial/no). Saves back to the JSON file in Edge/Chrome; nothing leaves the machine |
 | `tests/eval/answer_baseline.json` | P2-3 — the committed baseline: aggregate metrics, models, tolerance and judge calibration only; the cases and answers quote a private corpus and stay outside the repository |
 | `tests/unit/test_eval_answers.py` | P2-3 — what turns model output into a score: verbatim proof matching, JSON extraction from a model reply, ranks by document not chunk, metrics combined across cases, the regression tolerance, judge agreement, and the privacy guard |
-| `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |
-| `tests/eval/baseline.json` | EV-1 — the retrieval gate's baseline: recall@1/recall@5/MRR on the 20 pairs with the bag-of-words stub, and the retrieval settings it was taken under. Changed only by `--write-baseline`, in the PR that moves retrieval |
+| `tests/eval/retrieval_cases.yaml` | The 20 pairs, each with a `proof` string checked against the corpus before scoring |
+
+| `tests/eval/baseline.json` | EV-1 — the retrieval gate's baseline: recall@1/recall@5/MRR on the 20 pairs with the bag-of-words stub, and the retrieval settings it was taken under. Changed only by `--write-baseline`, in the PR that moves retrieval |
+
 | `tests/unit/test_eval_retrieval_gate.py` | EV-1 — rank is relevance, not position; the exact comparison fails on a fall, a rise, changed settings or a different case count; and the gate refuses when the reranker it promises did not load |
 | `tests/unit/test_eval_retrieval_corpus.py` | The eval harness reaches a corpus that is not `docs/` — every supported type is ingested, skipped files are named, and a case's source resolves outside the repo |
 | `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
 | `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
-| `tests/unit/test_permissions_doc_matches_routes.py` | The IVP for `docs/PERMISSIONS.md` — every route has a row, no row is stale, and the distribution total matches the table |
+| `tests/unit/test_permissions_doc_matches_routes.py` | The IVP for `docs/PERMISSIONS.md` — every route has a row, no row is stale, and the distribution total matches the table |
+
 | `tests/unit/test_lexical_query_terms.py` | The lexical arm ORs a question's content words into `to_tsquery` — it ANDed every word, stop words included, and fired on 1 of 20 eval questions; also that no tsquery operator survives into the expression |
 | `tests/unit/test_env_example_is_read.py` | The other direction: every variable `.env.example` names, and every row of CONFIGURATION.md's reference tables, is read by `config.py`, `app.py`, the entrypoint or a compose file — 29 were not on 2026-09-16 — and an uncommented example value matches the code's default unless listed as a deliberate placeholder |
 | `tests/unit/test_configuration_doc_covers_config.py` | The IVP for `docs/CONFIGURATION.md` — every env var `config.py` reads is documented, and nothing outside `config.py` calls `os.getenv` |
