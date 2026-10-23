@@ -1619,6 +1619,8 @@ That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
   compression-ratio cap.
 - **S7 password policy.** A minimum length of 12 for created users. An optional
   breached-password check behind a setting, off by default so the appliance stays offline.
+  Self-service change already enforces 12 (`config.USER_PASSWORD_MIN_LENGTH`, added with
+  the Account tab on 2026-10-23); S7 extends the same constant to create and reset.
 - **Bandit B608.** Drop the global skip in `pyproject.toml`. Add a per-line
   `# nosec B608 — <reason>` at each of the 42 sites, so a new one fails CI.
 - **S6 CSP.** Vendor chart.js and mermaid into `static/` and drop `cdn.jsdelivr.net` from

@@ -12,9 +12,10 @@ from pydantic import ValidationError
 from .. import config
 from ..db.users import LastAdminError
 from ..db.workspaces import LastOwnerError
-from ..models import LoginRequest
+from ..models import ChangePasswordRequest, LoginRequest
 from ..security_fastapi import (
     SESSION_COOKIE,
+    AuthError,
     check_workspace_access,
     create_access_token,
     decode_token_for_revocation,
@@ -22,8 +23,10 @@ from ..security_fastapi import (
     get_current_user_id,
     limiter,
     require_admin_dep,
+    resolve_principal,
     verify_credentials_db,
 )
+from ..services import account
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
 
@@ -32,6 +35,10 @@ router = APIRouter()
 
 _NOT_FOUND = "User not found"
 _ERR_INTERNAL = "Internal server error"
+_PASSWORD_RULES = (
+    f"Give your current password and a new one of at least "
+    f"{config.USER_PASSWORD_MIN_LENGTH} characters"
+)
 #: Matches the wording the workspaces router returns for the same refusal.
 _LAST_OWNER = "Cannot remove the last owner of a workspace"
 #: One message for "no such user" and "wrong password" alike — distinguishing them
@@ -330,28 +337,30 @@ def delete_user(user_id: str, request: Request, admin_user_id: Annotated[str, De
 
 
 @router.post("/users/me/password")
+@limiter.limit(config.RATELIMIT_LOGIN)
 async def change_own_password(request: Request) -> Any:
-    from ..db.users import hash_user_password
+    """Change the caller's own password, given the current one.
 
-    user_id = get_current_user_id(request)
-    if not user_id or user_id == "anonymous":
-        return JSONResponse({"success": False, "message": "Authentication required"}, status_code=401)
+    Rate-limited like login: knowing the current password is the whole proof, so this
+    is a second place to guess it.
+    """
+    try:
+        principal = resolve_principal(request, database_required="Database unavailable")
+    except AuthError as exc:
+        return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
 
     data = await request.json() if await request.body() else {}
-    current_password = data.get("current_password", "")
-    new_password = data.get("new_password", "")
-    if not current_password or not new_password:
-        return JSONResponse({"success": False, "message": "current_password and new_password required"}, status_code=400)
+    try:
+        body = ChangePasswordRequest(**data)
+    except (ValidationError, TypeError):
+        return JSONResponse({"success": False, "message": _PASSWORD_RULES}, status_code=400)
 
-    db = request.app.state.db
-    user = db.get_user_by_id(user_id)
-    if not user:
-        return JSONResponse({"success": False, "message": "User not found"}, status_code=404)
-
-    if not db.verify_user_password(user["username"], current_password):
-        return JSONResponse({"success": False, "message": "Current password is incorrect"}, status_code=401)
-
-    db.update_user(user_id, hashed_password=hash_user_password(new_password))
+    try:
+        account.change_own_password(
+            request.app.state.db, principal.user_id, body.current_password, body.new_password
+        )
+    except account.PasswordChangeError as exc:
+        return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
     return {"success": True}
 
 

@@ -10,6 +10,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Added
 
+- **Change your own password under Settings → Account.** Every signed-in user can do it:
+  current password, new password of at least 12 characters, repeated. The route
+  `POST /api/users/me/password` existed with no screen. It now identifies the caller
+  through `resolve_principal`, so a logged-out token is refused. A wrong current password
+  is answered with 400 instead of 401, which the frontend had read as an expired session,
+  signing the user out. The route is rate-limited like login.
+
 - **`retrieval-gate`: every PR is scored for whether it moved retrieval** (ROADMAP EV-1).
   `scripts/eval_retrieval.py --fake-ollama --ingest --check` scores the 20 question/source
   pairs against `docs/` with the bag-of-words stub and compares recall@1, recall@5 and MRR

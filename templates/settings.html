@@ -29,6 +29,12 @@
             <i class="bi bi-brain me-1"></i>Memory
         </a>
     </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link" id="account-tab" data-bs-toggle="tab" href="#account" role="tab"
+           aria-controls="account" aria-selected="false">
+            <i class="bi bi-person-lock me-1"></i>Account
+        </a>
+    </li>
     <li class="nav-item d-none admin-only" role="presentation">
         <a class="nav-link" id="rag-tab" data-bs-toggle="tab" href="#rag-params" role="tab"
            aria-controls="rag-params" aria-selected="false">
@@ -418,6 +424,45 @@
         </div>
 
     </div><!-- /appearance tab-pane -->
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         ACCOUNT TAB — every signed-in user, for their own account
+         ══════════════════════════════════════════════════════════════════════ -->
+    <div class="tab-pane fade" id="account" role="tabpanel" aria-labelledby="account-tab">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-key me-2"></i>Change password
+                    </div>
+                    <div class="card-body">
+                        <form id="change-password-form" novalidate>
+                            <div class="mb-3">
+                                <label class="form-label" for="current-password">Current password</label>
+                                <input type="password" class="form-control" id="current-password"
+                                       autocomplete="current-password" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="new-password">New password</label>
+                                <input type="password" class="form-control" id="new-password"
+                                       autocomplete="new-password" minlength="12" required>
+                                <div class="form-text">At least 12 characters.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="confirm-password">Repeat new password</label>
+                                <input type="password" class="form-control" id="confirm-password"
+                                       autocomplete="new-password" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="change-password-btn">
+                                Change password
+                            </button>
+                            <span class="small ms-2" id="password-status" role="status"></span>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div><!-- /account tab-pane -->
 
     <!-- ══════════════════════════════════════════════════════════════════════
          MEMORY TAB
@@ -895,6 +940,7 @@ X-API-Key: &lt;key&gt;</code></pre>
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="/static/js/users.js"></script>
+<script src="/static/js/account.js"></script>
 <script src="/static/js/logs.js"></script>
 {% endblock %}
 

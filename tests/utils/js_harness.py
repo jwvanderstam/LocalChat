@@ -153,13 +153,16 @@ def run_js(
     preload: dict[str, str] | None = None,
     routes: list[tuple[str, Any]] | None = None,
     click: str | None = None,
+    fields: dict[str, str] | None = None,
     delay: int = 60,
 ) -> dict[str, Any]:
     """Execute ``static/js/<script>`` and return what it did.
 
     ``routes`` maps a URL substring to the JSON that ``fetch`` should answer with;
     the first match wins. ``click`` names an element id whose click handler is fired
-    after load. The result carries ``storage``, ``calls``, ``html`` and ``values``.
+    after load. ``fields`` sets an element's ``value`` before the module runs, as a
+    user typing into a form would. The result carries ``storage``, ``calls``,
+    ``html`` and ``values``.
     """
     source = (JS_DIR / script).read_text(encoding="utf-8")
     click_js = (
@@ -173,6 +176,7 @@ def run_js(
         f"const ROUTES = {json.dumps(routes or [])};\n"
         f"const DELAY = {delay};\n"
         f"{_HARNESS}\n"
+        f"for (const [id, v] of Object.entries({json.dumps(fields or {})})) el(id).value = v;\n"
     )
 
     # A module that imports its siblings cannot be inlined into `node -e`: there is no

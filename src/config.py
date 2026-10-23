@@ -139,6 +139,9 @@ _WEAK_PLACEHOLDERS: frozenset[str] = frozenset({
 # budget; the database admin it seeds inherits it.
 ADMIN_PASSWORD_MIN_LENGTH: int = 16
 
+# The floor for a password a user chooses for themselves (audit S7's figure).
+USER_PASSWORD_MIN_LENGTH: int = 12
+
 
 def validate_single_worker() -> None:
     """Abort when configured for more than one worker process.
