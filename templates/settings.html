@@ -854,8 +854,8 @@ X-API-Key: &lt;key&gt;</code></pre>
                         <div class="mb-3">
                             <label class="form-label" for="nu-password">Initial password</label>
                             <input type="password" class="form-control" id="nu-password"
-                                   autocomplete="new-password" required>
-                            <div class="form-text">They can change it themselves after signing in.</div>
+                                   autocomplete="new-password" minlength="12" required>
+                            <div class="form-text">At least 12 characters. They can change it themselves after signing in.</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="nu-role">Account type</label>
@@ -938,7 +938,7 @@ X-API-Key: &lt;key&gt;</code></pre>
 .nav-tabs .nav-link.active { font-weight: 600; }
 .setting-doc p { margin: 0; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="/static/vendor/chart-4.5.1.umd.min.js"></script>
 <script src="/static/js/users.js"></script>
 <script src="/static/js/account.js"></script>
 <script src="/static/js/logs.js"></script>

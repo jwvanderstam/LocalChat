@@ -78,9 +78,7 @@ class AnnotationsMixin(MixinHost):
                     LEFT JOIN users u ON u.id = a.user_id
                     WHERE a.chunk_id = %s AND a.deleted_at IS NULL
                       AND d.deleted_at IS NULL
-                    """ + where + """
-                    ORDER BY a.created_at
-                    """,
+                    """ + where + " ORDER BY a.created_at",  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (chunk_id, *params),
                 )
                 rows = cur.fetchall()
@@ -119,21 +117,19 @@ class AnnotationsMixin(MixinHost):
                 SELECT 1 FROM document_chunks dc
                 JOIN documents d ON d.id = dc.document_id
                 WHERE dc.id = annotations.chunk_id AND d.deleted_at IS NULL
-        """ + where + """
-            )
-        """
+        """ + where + " )"  # nosec B608  # scope_predicate fragment: literal column, value is %s
         with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 if user_id:
                     cur.execute(
                         "UPDATE annotations SET deleted_at = NOW(), deleted_by = %s "
-                        "WHERE id = %s AND user_id = %s AND deleted_at IS NULL" + in_scope,
+                        "WHERE id = %s AND user_id = %s AND deleted_at IS NULL" + in_scope,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                         (deleted_by, annotation_id, user_id, *params),
                     )
                 else:
                     cur.execute(
                         "UPDATE annotations SET deleted_at = NOW(), deleted_by = %s "
-                        "WHERE id = %s AND deleted_at IS NULL" + in_scope,
+                        "WHERE id = %s AND deleted_at IS NULL" + in_scope,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                         (deleted_by, annotation_id, *params),
                     )
                 deleted = cur.rowcount > 0

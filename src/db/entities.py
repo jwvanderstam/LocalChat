@@ -198,7 +198,7 @@ class EntitiesMixin(MixinHost):
                     GROUP BY e.type
                     ORDER BY entity_count DESC
                     LIMIT %s
-                    """,
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (*params_ws, top_n),
                 )
                 entity_types = [
@@ -216,7 +216,7 @@ class EntitiesMixin(MixinHost):
                     GROUP BY er.relation
                     ORDER BY freq DESC
                     LIMIT %s
-                    """,
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (*params_ws, top_n),
                 )
                 relation_patterns = [

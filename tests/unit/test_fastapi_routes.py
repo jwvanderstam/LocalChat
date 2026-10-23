@@ -67,13 +67,13 @@ class TestAuthRoutes:
 
     def test_create_user_missing_username(self):
         client = self._client()
-        resp = client.post("/api/users", json={"password": "secret"})
+        resp = client.post("/api/users", json={"password": "a-long-enough-pw"})
         assert resp.status_code == 400
 
     def test_create_user_success(self):
         client = self._client()
         with patch("src.db.users.hash_user_password", return_value="hashed"):
-            resp = client.post("/api/users", json={"username": "alice", "password": "secret"})
+            resp = client.post("/api/users", json={"username": "alice", "password": "a-long-enough-pw"})
         assert resp.status_code == 201
 
     def test_delete_user_not_found(self):

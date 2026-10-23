@@ -79,7 +79,7 @@ class ConnectorsMixin(MixinHost):
                 cur.execute(
                     "SELECT id, workspace_id, connector_type, display_name, config, "
                     "enabled, sync_interval, last_sync_at, last_error, created_at, created_by "
-                    "FROM connectors WHERE id = %s AND deleted_at IS NULL" + where,
+                    "FROM connectors WHERE id = %s AND deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (connector_id, *params),
                 )
                 row = cur.fetchone()
@@ -103,7 +103,7 @@ class ConnectorsMixin(MixinHost):
                 cur.execute(
                     f"SELECT id, workspace_id, connector_type, display_name, config, "
                     f"enabled, sync_interval, last_sync_at, last_error, created_at, created_by "
-                    f"FROM connectors {where} ORDER BY created_at",
+                    f"FROM connectors {where} ORDER BY created_at",  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     params,
                 )
                 return [_row_to_connector(r) for r in cur.fetchall()]
@@ -132,7 +132,7 @@ class ConnectorsMixin(MixinHost):
             with conn.cursor() as cur:
                 cur.execute(
                     f"UPDATE connectors SET {', '.join(sets)}"
-                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    " WHERE id = %s AND deleted_at IS NULL" + where,  # nosec B608  # SET list from a fixed column whitelist; values are %s
                     params,
                 )
                 updated = cur.rowcount > 0
@@ -150,7 +150,7 @@ class ConnectorsMixin(MixinHost):
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE connectors SET deleted_at = NOW(), deleted_by = %s "
-                    "WHERE id = %s AND deleted_at IS NULL" + where,
+                    "WHERE id = %s AND deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (deleted_by, connector_id, *params),
                 )
                 deleted = cur.rowcount > 0

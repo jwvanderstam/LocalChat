@@ -581,6 +581,12 @@ UPLOAD_FOLDER: str = 'uploads'
 UPLOAD_STAGING_PREFIX: str = 'upload-'
 MAX_CONTENT_LENGTH: int = int(os.environ.get('MAX_CONTENT_LENGTH', str(16 * 1024 * 1024)))  # Default: 16MB
 
+# An Office file is a zip, and MAX_CONTENT_LENGTH bounds only the compressed bytes.
+# These bound what it unpacks to before a loader opens it (audit S5). Ordinary Office
+# XML compresses about 10-30x; a zip bomb reaches 1000x and more.
+OOXML_MAX_UNCOMPRESSED_BYTES: int = 200 * 1024 * 1024
+OOXML_MAX_COMPRESSION_RATIO: int = 200
+
 # Directories the local_folder connector may be pointed at. Empty — the default —
 # disables that connector type outright, which is the safe default: without an
 # allowlist any workspace owner could create a connector on any path the server

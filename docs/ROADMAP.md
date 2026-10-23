@@ -1589,7 +1589,21 @@ That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
 - **Release:** tag v3.2.0, which ships everything since v3.1.0, including the aiohttp,
   Pillow, certifi and pypdf advisories (#453, #456).
 
-#### QP-2 — Database role split and resource caps -> v3.3.0 ⬜ (Sprint 23, ~3 days)
+#### QP-2 — Database role split and resource caps -> v3.3.0 ◐ (Sprint 23; S5, S6, S7 and B608 built 2026-10-23; S2 waits on ADR-5)
+
+> **Built, with three deviations from the text below.**
+> - **S5:** the body cap exempts the upload route. That route accepts several files,
+>   each already held to `MAX_CONTENT_LENGTH` as it streams, so one total cap equal to a
+>   file's limit would refuse a legitimate multi-file upload. The OOXML ratio applies only
+>   to parts over 1 MB: small, repetitive XML can honestly compress past any ratio, and
+>   the 200 MB total bounds those.
+> - **S7:** the optional breached-password check is not built. It needs an outbound call
+>   the offline appliance should not make, and nobody has asked for it.
+> - **S6:** chart.js 4.5.1 and mermaid 11.17.2 are vendored under `static/vendor/`, not
+>   `static/`: outside `static/js/`, so the frontend hygiene checks do not scan
+>   third-party code. Each is the newest of its major at least two weeks old.
+>
+> B608 was as written: 42 sites annotated, the global skip removed.
 
 - **Decide first: amend ADR-5.** The plan does not mention it, but S2 removes two things
   [ADR-5](ADR.md) relies on.

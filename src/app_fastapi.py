@@ -100,8 +100,16 @@ def create_app(config_override: dict[str, Any] | None = None) -> FastAPI:
 
 def _init_middlewares(app: FastAPI) -> None:
     from .monitoring import MetricsMiddleware
+    from .utils.body_limit import BodySizeLimitMiddleware
     from .utils.request_id import RequestIdMiddleware
 
+    # Added before the two below, so they wrap it: a 413 still carries a request id
+    # and is counted.
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        max_bytes=config.MAX_CONTENT_LENGTH,
+        exempt_paths=frozenset({"/api/documents/upload"}),
+    )
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(MetricsMiddleware)
     logger.info("Observability middlewares registered")

@@ -125,15 +125,26 @@ class TestTheContentSecurityPolicyIsMeaningful:
     def test_connections_are_limited_to_this_origin(self, client):
         assert "connect-src 'self'" in self._csp(client)
 
-    def test_scripts_are_limited_to_this_origin_and_the_one_cdn(self, client):
-        # Compare whole source expressions, not substrings: "https://cdn.jsdelivr.net"
-        # is also a substring of "https://cdn.jsdelivr.net.evil.example".
+    def test_scripts_come_from_this_origin_and_the_one_hashed_inline_script(self, client):
+        """S6: no CDN. Compared as a whole set, so a host added back fails here."""
+        from src.security_fastapi import _THEME_SCRIPT_HASH
+
         sources = set(self._script_src(client).split()[1:])
-        assert "'self'" in sources
-        assert "https://cdn.jsdelivr.net" in sources
-        # Nothing wildcarded: a policy that allows any host is not a policy.
-        assert not any(source.startswith("*") or source == "*" for source in sources)
-        assert "data:" not in sources
+        assert sources == {"'self'", f"'{_THEME_SCRIPT_HASH}'"}
+
+    def test_no_template_loads_a_script_from_another_origin(self):
+        """The CSP would block it, and the page would break without an error anyone sees."""
+        import re
+        from pathlib import Path
+
+        templates = Path(__file__).resolve().parents[2] / "templates"
+        external = sorted(
+            f"{page.name}: {src}"
+            for page in templates.glob("*.html")
+            for src in re.findall(r'<script[^>]*\bsrc="([^"]+)"', page.read_text(encoding="utf-8"))
+            if not src.startswith("/")
+        )
+        assert external == []
 
     def test_inline_scripts_are_not_allowed(self, client):
         """The gap this row existed to close: an XSS payload cannot execute inline."""

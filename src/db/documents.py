@@ -230,7 +230,7 @@ class DocumentsMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
-                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    " WHERE id = %s AND deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (deleted_by, doc_id, *params),
                 )
                 matched = cursor.rowcount
@@ -396,7 +396,7 @@ class DocumentsMixin(MixinHost):
                     {where_extra}  AND (dc.embedding <=> q.emb) <= %s
                     ORDER BY dc.embedding <=> q.emb
                     LIMIT %s
-                    """,
+                    """,  # nosec B608  # literal clauses with %s and the scope fragment
                     params,
                 )
 
@@ -470,7 +470,7 @@ class DocumentsMixin(MixinHost):
                     {where_extra}
                     ORDER BY score DESC
                     LIMIT %s
-                    """,
+                    """,  # nosec B608  # literal clauses with %s and the scope fragment
                     params,
                 )
 
@@ -558,9 +558,7 @@ class DocumentsMixin(MixinHost):
                     WHERE dc.document_id = %s
                       AND dc.chunk_index BETWEEN %s AND %s
                       AND d.deleted_at IS NULL
-                    """ + where + """
-                    ORDER BY dc.chunk_index
-                    """,
+                    """ + where + " ORDER BY dc.chunk_index",  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (document_id, chunk_index - window_size, chunk_index + window_size, *params),
                 )
                 results = cursor.fetchall()
@@ -583,7 +581,7 @@ class DocumentsMixin(MixinHost):
                     "SELECT dc.id, dc.document_id, dc.chunk_index, dc.chunk_text, dc.metadata"
                     " FROM document_chunks dc"
                     " JOIN documents d ON d.id = dc.document_id"
-                    " WHERE dc.id = %s AND d.deleted_at IS NULL" + where,
+                    " WHERE dc.id = %s AND d.deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (chunk_id, *params),
                 )
                 row = cursor.fetchone()
@@ -606,7 +604,7 @@ class DocumentsMixin(MixinHost):
         with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    f"SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL{scope_sql}",
+                    f"SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL{scope_sql}",  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     scope_params,
                 )
                 row = cursor.fetchone()
@@ -629,7 +627,7 @@ class DocumentsMixin(MixinHost):
                     SELECT COUNT(*) FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
                     WHERE d.deleted_at IS NULL{scope_sql}
-                    """,
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     scope_params,
                 )
                 row = cursor.fetchone()
@@ -666,7 +664,7 @@ class DocumentsMixin(MixinHost):
                     WHERE d.deleted_at IS NULL{scope_sql}
                     GROUP BY d.id, d.filename, d.created_at
                     ORDER BY d.created_at DESC
-                """, scope_params)
+                """, scope_params)  # nosec B608  # scope_predicate fragment: literal column, value is %s
                 rows = cursor.fetchall()
                 documents = [
                     {
@@ -794,10 +792,8 @@ class DocumentsMixin(MixinHost):
                     JOIN documents d ON dc.document_id = d.id
                     WHERE dc.chunk_text ILIKE %s ESCAPE '\\'
                       AND d.deleted_at IS NULL
-                """ + where + """
-                    ORDER BY dc.chunk_index
-                    LIMIT %s
-                """, (f'%{escape_sql_like(search_text)}%', *params, limit))
+                """ + where + " ORDER BY dc.chunk_index LIMIT %s",  # nosec B608  # scope_predicate fragment: literal column, value is %s
+                (f'%{escape_sql_like(search_text)}%', *params, limit))
                 results = [
                     {
                         'filename': r[0],
@@ -829,7 +825,7 @@ class DocumentsMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
-                    " WHERE deleted_at IS NULL" + where,
+                    " WHERE deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (deleted_by, *params),
                 )
                 retired = cursor.rowcount
@@ -896,7 +892,7 @@ class DocumentsMixin(MixinHost):
                         WHERE COALESCE(last_ingested_at, created_at)
                               < NOW() - (INTERVAL '1 hour' * %s)
                           AND deleted_at IS NULL{scope_sql}
-                    """
+                    """  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     params: list[Any] = [max_age_hours, *scope_params]
                     cursor.execute(sql, params)
                     return [

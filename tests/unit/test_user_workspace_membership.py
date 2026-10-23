@@ -43,7 +43,7 @@ class TestCreateGrantsMembership:
     def test_membership_is_granted_in_the_same_request(self):
         client = _client()
         client.post("/api/users", json={
-            "username": "jo", "password": "pw",
+            "username": "jo", "password": "a-long-enough-pw",
             "workspace_id": WS, "workspace_role": "editor",
         })
         client.app.state.db.add_workspace_member.assert_called_once_with(WS, USER, "editor")
@@ -51,21 +51,21 @@ class TestCreateGrantsMembership:
     def test_the_requested_workspace_role_is_used(self):
         client = _client()
         client.post("/api/users", json={
-            "username": "jo", "password": "pw", "workspace_id": WS, "workspace_role": "viewer",
+            "username": "jo", "password": "a-long-enough-pw", "workspace_id": WS, "workspace_role": "viewer",
         })
         assert client.app.state.db.add_workspace_member.call_args[0][2] == "viewer"
 
     def test_creating_without_a_workspace_still_works(self):
         """Not every caller has one to give — the API stays usable, the UI insists."""
         client = _client()
-        resp = client.post("/api/users", json={"username": "jo", "password": "pw"})
+        resp = client.post("/api/users", json={"username": "jo", "password": "a-long-enough-pw"})
         assert resp.status_code == 201
         client.app.state.db.add_workspace_member.assert_not_called()
 
     def test_an_invalid_workspace_role_is_refused(self):
         client = _client()
         resp = client.post("/api/users", json={
-            "username": "jo", "password": "pw", "workspace_id": WS, "workspace_role": "root",
+            "username": "jo", "password": "a-long-enough-pw", "workspace_id": WS, "workspace_role": "root",
         })
         assert resp.status_code == 400
 
@@ -73,7 +73,7 @@ class TestCreateGrantsMembership:
         """Validation must precede the write, or a rejected request still leaves a row."""
         client = _client()
         client.post("/api/users", json={
-            "username": "jo", "password": "pw", "workspace_id": WS, "workspace_role": "root",
+            "username": "jo", "password": "a-long-enough-pw", "workspace_id": WS, "workspace_role": "root",
         })
         client.app.state.db.create_user.assert_not_called()
 

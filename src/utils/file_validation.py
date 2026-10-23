@@ -14,6 +14,7 @@ import codecs
 import zipfile
 from pathlib import Path
 
+from .. import config
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -75,10 +76,45 @@ def validate_file_content(file_path: str, extension: str) -> tuple[bool, str]:
     return True, ""
 
 
+_RATIO_CHECK_FROM_BYTES = 1024 * 1024
+
+
+def check_ooxml_bounds(file_path: str) -> tuple[bool, str]:
+    """Refuse an Office file whose zip would unpack to too much, before anything unpacks it.
+
+    Reads only the central directory: ``infolist()`` decompresses nothing.
+    """
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            entries = zf.infolist()
+    except zipfile.BadZipFile:
+        return False, "File is not a valid ZIP archive"
+    total = sum(e.file_size for e in entries)
+    if total > config.OOXML_MAX_UNCOMPRESSED_BYTES:
+        return False, (
+            f"File would unpack to {total:,} bytes, over the "
+            f"{config.OOXML_MAX_UNCOMPRESSED_BYTES:,}-byte limit"
+        )
+    # Only parts large enough to matter: a few kilobytes of repetitive XML can compress
+    # past any ratio honestly, and the total above already bounds the small ones.
+    for entry in entries:
+        if entry.file_size < _RATIO_CHECK_FROM_BYTES:
+            continue
+        if entry.file_size > config.OOXML_MAX_COMPRESSION_RATIO * max(entry.compress_size, 1):
+            return False, (
+                f"File has a part compressed more than {config.OOXML_MAX_COMPRESSION_RATIO}x, "
+                "which ordinary documents never are"
+            )
+    return True, ""
+
+
 def _validate_zip_office(header: bytes, file_path: str, ext: str) -> tuple[bool, str]:
     fmt = ext.upper().lstrip(".")
     if not header.startswith(b"PK\x03\x04"):
         return False, f"{fmt} file does not have a valid ZIP/{fmt} signature"
+    ok, err = check_ooxml_bounds(file_path)
+    if not ok:
+        return False, err
     checker_map = {
         _EXT_DOCX: ("word/", _docx_contains_word_dir),
         _EXT_PPTX: ("ppt/",  _pptx_contains_ppt_dir),

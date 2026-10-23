@@ -213,6 +213,22 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Security
 
+- **Request bodies and Office files are capped** (audit S5). A body past
+  `MAX_CONTENT_LENGTH` is refused with 413 on every route except upload, which caps each
+  file as it streams. An Office file that would unpack past 200 MB, or holds a part over
+  1 MB compressed more than 200x, is refused at upload and by every loader, since
+  connectors ingest without the upload check.
+- **No script comes from a CDN** (audit S6). chart.js 4.5.1 and mermaid 11.17.2 are
+  served from `static/vendor/` at exact versions, and `script-src` is `'self'` plus one
+  hash. The templates had loaded `chart.js@4` and `mermaid@11` from jsdelivr, so the
+  version that ran depended on the day.
+- **Every way of setting a password needs 12 characters** (audit S7): creating a user
+  and an admin reset now apply the rule self-service change already had, and a reset
+  with a non-string password is refused instead of hashed.
+- **A new SQL string built with interpolation fails CI until someone reads it**
+  (QP-2, Bandit B608). The global skip is gone; each of the 42 existing sites carries
+  the reason it is safe.
+
 - **A secret left at its `.env.example` value stops the boot in every `APP_ENV`** (audit
   S1, ROADMAP QP-1). Before, only `APP_ENV=production` checked, and outside it a placeholder
   `SECRET_KEY` was quietly swapped for a generated one. `ADMIN_PASSWORD` must now be at least
