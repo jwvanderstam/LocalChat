@@ -177,7 +177,12 @@ class TestDocumentLoading:
         mock_prs.slides = [Mock()]
         mock_presentation_cls.return_value = mock_prs
 
-        with patch.object(doc_processor, '_process_pptx_slide', return_value=(["Slide text"], "Title")):
+        # temp_file is not a zip; the bounds check (S5) is tested on real archives in
+        # test_request_and_ooxml_limits.py, and this test is about slide extraction.
+        with (
+            patch.object(doc_processor, '_process_pptx_slide', return_value=(["Slide text"], "Title")),
+            patch('src.rag.loaders.check_ooxml_bounds', return_value=(True, '')),
+        ):
             success, slides = doc_processor.load_pptx_file(temp_file)
 
         assert success is True
@@ -209,9 +214,13 @@ class TestDocumentLoading:
         mock_docx.return_value = mock_doc
 
         # Mock os.path.exists and getsize
-        with patch('os.path.exists', return_value=True):
-            with patch('os.path.getsize', return_value=1000):
-                success, content = doc_processor.load_docx_file(temp_file)
+        # Not a zip either: bounds are tested on real archives elsewhere (S5).
+        with (
+            patch('os.path.exists', return_value=True),
+            patch('os.path.getsize', return_value=1000),
+            patch('src.rag.loaders.check_ooxml_bounds', return_value=(True, '')),
+        ):
+            success, content = doc_processor.load_docx_file(temp_file)
 
         assert success is True
         assert "Paragraph 1" in content
