@@ -632,11 +632,6 @@ limiter = Limiter(
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
-#: Where the pages legitimately load scripts and styles from. Two CDN-hosted
-#: libraries (chart.js, mermaid) are referenced by templates/models.html and
-#: templates/settings.html; everything else is served from this origin.
-_CDN = "https://cdn.jsdelivr.net"
-
 #: The one inline script left in the templates: the theme applier in the <head> of
 #: base.html and login.html, identical in both. It stays inline because it must run
 #: before first paint — served from a file it would flash the wrong theme on every
@@ -647,7 +642,9 @@ _THEME_SCRIPT_HASH = "sha256-mURDYDohEuNmzxIzLK1oZAP9ifehdqnPbZJGkv077ZA="
 
 _CSP = "; ".join([
     "default-src 'self'",
-    f"script-src 'self' '{_THEME_SCRIPT_HASH}' {_CDN}",
+    # No CDN (audit S6): chart.js and mermaid are vendored under static/vendor/, so a
+    # compromised or hijacked CDN cannot run code in this origin.
+    f"script-src 'self' '{_THEME_SCRIPT_HASH}'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' data:",
