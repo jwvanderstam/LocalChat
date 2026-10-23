@@ -8,6 +8,17 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+## [3.3.0] — 2026-10-23
+
+The release that closes Phase 1 of the October 2026 audit plan. Requests no longer run as
+the database superuser (S2): the application logs in as `localchat_app`, which owns nothing
+and cannot use `COPY ... TO PROGRAM`, run DDL or alter roles. With 3.2.0 this closes every
+high-impact finding of that audit (S1 to S7, defects 1 to 3).
+
+**Upgrading from 3.2.0.** Add `PG_APP_PASSWORD` to `.env` before `docker compose up -d`, or
+compose refuses to start. Migration `0021` applies at boot. Details below and in
+`docs/OPERATIONS.md`, *Database Identities*.
+
 ### Security
 
 - **Requests no longer run as the database superuser** (audit S2, ADR-5 amended). With
@@ -1034,7 +1045,8 @@ eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.2.0...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.3.0...HEAD
+[3.3.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0-beta.1...v3.0.0
