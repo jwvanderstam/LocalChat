@@ -15,6 +15,33 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor != 'dependabot[bot]'
 
+    # The integration suite needs both: Postgres for src/db/, Redis for the rate-limit
+    # tests. The same images as tests.yml's integration-tests job.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: rag_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -32,9 +59,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Run tests with coverage
-        run: pytest tests/unit/ -v --tb=short -x --cov=src --cov-report=xml --cov-report=term-missing
+      # QP-6: unit and integration together, so src/db/ is measured by the suite that
+      # exercises it rather than excluded. Each run writes its own data file; combine
+      # merges them into the one coverage.xml SonarCloud reads.
+      - name: Unit tests with coverage
+        run: pytest tests/unit/ -q --tb=short -x --cov=src --cov-report=
         env:
+          COVERAGE_FILE: .coverage.unit
           PG_HOST: localhost
           PG_PORT: 5432
           PG_USER: postgres
@@ -45,6 +76,28 @@ jobs:
           ADMIN_PASSWORD: ci-test-admin-password
           OLLAMA_BASE_URL: http://localhost:11434
           APP_ENV: development
+
+      - name: Integration tests with coverage
+        run: pytest tests/integration/ -m "not ollama" -q --tb=short --cov=src --cov-report=
+        env:
+          COVERAGE_FILE: .coverage.integration
+          PG_HOST: localhost
+          PG_PORT: 5432
+          PG_USER: postgres
+          PG_PASSWORD: ci_test_password
+          PG_DB: rag_db
+          SECRET_KEY: ci-test-secret-key-32chars-minimum
+          JWT_SECRET_KEY: ci-test-jwt-secret-key
+          ADMIN_PASSWORD: ci-test-admin-password
+          OLLAMA_BASE_URL: http://localhost:11434
+          APP_ENV: development
+
+      - name: Combine coverage
+        run: |
+          coverage combine .coverage.unit .coverage.integration
+          coverage xml -o coverage.xml
+          # src/ only: the number SonarCloud shows, since sonar.sources=src.
+          coverage report --include="src/*" --format=total | xargs -I{} echo "Combined coverage of src/: {}%" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8  # v5
