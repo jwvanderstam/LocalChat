@@ -33,6 +33,11 @@ def database() -> Any:
     ok, message = db.initialize()
     if not ok or not db.is_connected:
         pytest.skip(f"PostgreSQL is not available: {message}")
+    # CI's database gets only the base schema; users.deleted_at is migration 0007.
+    # Alphabetically this module runs before any other that would migrate it.
+    from src.app_bootstrap import _run_alembic_migrations
+
+    _run_alembic_migrations()
     return db
 
 
