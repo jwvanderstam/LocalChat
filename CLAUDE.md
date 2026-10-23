@@ -151,11 +151,11 @@ LocalChat supports plugins (LLM tools, connectors, background work) that extend 
 - No core table holds a foreign key into a plugin table. No core module imports a plugin module. No core test depends on a plugin being present.
 - When a plugin needs something the core does not expose, add a **general** capability to the catalogue — named for what it does, not for who asked. Test: *would this capability be reasonable if the requesting plugin vanished?* If not, it is a leak.
 
-**The IVP: the plugin-absent CI gate** — *planned, not built*
+**The IVP: the plugin-absent CI gate** — *built 2026-10-23 (PC-4), not yet required*
 
-The enforcing procedure is to be a CI job that verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core.
+The enforcing procedure is a CI job, `core-without-plugins`, that verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core.
 
-> **It does not exist yet** (checked 2026-08-27, again 2026-10-06). It is PC-4, pulled forward on 2026-10-22 into QP-3 (ROADMAP Sprint 24), the first step of the quality plan's refactor. Until then the one rule is enforced by review. The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
+> **It exists since 2026-10-23** (PC-4, built with QP-3): it deletes everything in `plugins/` but its README, then runs `ruff` and the fast suite. It joins the required set only after it has reported on `main` (see Pull Requests); until then a red run is read, not merged past. The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
 
 Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
 
@@ -169,6 +169,7 @@ Run all before every commit. All must be clean — CI enforces the same set (`.g
 ruff check .                                 # install once: pip install ruff — CI lints the whole tree
 mypy src --ignore-missing-imports            # install once: pip install mypy
 bandit -r src/ -ll -q -c pyproject.toml      # install once: pip install bandit
+lint-imports                                 # layer contracts (ADR-7); in requirements-dev
 pytest -m "not (slow or ollama or db)"       # fast suite, no external services
 ```
 

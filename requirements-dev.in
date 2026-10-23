@@ -18,3 +18,4 @@ faker==40.43.0
 responses==0.26.3
 freezegun==1.5.5
 coverage==7.16.2
+import-linter==2.15        # QP-3: the layering contracts in pyproject.toml ([tool.importlinter]); run as lint-imports

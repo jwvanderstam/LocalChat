@@ -100,3 +100,32 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+# QP-3 (ROADMAP Initiative 12, ADR-7): the layering, as contracts `lint-imports` checks.
+# Higher layers may import lower ones, never the reverse. The ignore_imports lists are
+# today's violations, recorded so the contracts can run in CI before the code obeys
+# them: each QP-4 PR removes its own lines, and none may be added. QP-5 empties them.
+[tool.importlinter]
+root_package = "src"
+
+[[tool.importlinter.contracts]]
+name = "Routes never reach the database layer directly"
+type = "forbidden"
+source_modules = ["src.routes_fastapi"]
+forbidden_modules = ["src.db"]
+# Direct imports only: a route reaching the database through a service is the layering
+# working, not a breach of it.
+allow_indirect_imports = true
+# Today's direct imports (exception classes and hashing). QP-4 removes each with its
+# aggregate: users and auth first, then workspaces, then documents.
+ignore_imports = [
+    "src.routes_fastapi.auth_routes -> src.db.users",
+    "src.routes_fastapi.auth_routes -> src.db.workspaces",
+    "src.routes_fastapi.document_routes -> src.db.connection",
+    "src.routes_fastapi.workspace_routes -> src.db.workspaces",
+]
+
+[[tool.importlinter.contracts]]
+name = "Routes above services above the database layer"
+type = "layers"
+layers = ["src.routes_fastapi", "src.services", "src.db"]

@@ -225,10 +225,11 @@ browsable inside the application under **Docs**.
 ruff check .                                 # lint — the whole tree, as CI does
 mypy src --ignore-missing-imports            # types
 bandit -r src/ -ll -q -c pyproject.toml      # security
+lint-imports                                 # layer contracts (ADR-7)
 pytest -m "not (slow or ollama or db)"       # fast suite, no external services
 ```
 
-All four must be clean before a commit; CI enforces the same set. Merging to `main`
+All five must be clean before a commit; CI enforces the same set. Merging to `main`
 requires **six** checks to pass — `unit-tests`, `integration-tests`, `repo-hygiene`,
 `docker-smoke`, `perf-canary` and `security-smoke` — and is a human decision; auto-merge is
 off deliberately. (`security-smoke` joined on 2026-09-26; this sentence still said five
