@@ -30,6 +30,7 @@ _PLACEHOLDERS = {
     "JWT_SECRET_KEY",
     "ADMIN_PASSWORD",
     "PG_PASSWORD",
+    "PG_APP_PASSWORD",  # code: "" (single identity); the example asks for one (S2)
     "OLLAMA_EMBEDDING_MODEL",  # code: "" (first embedder found); the example pins one
 }
 

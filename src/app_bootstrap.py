@@ -64,6 +64,19 @@ def _run_alembic_migrations() -> None:
         logger.exception("Alembic migration failed")
 
 
+def _drop_to_app_identity(db: Any) -> None:
+    """After the owner has built the schema, serve every request as ``localchat_app`` (S2)."""
+    if not config.PG_APP_PASSWORD:
+        logger.warning(
+            "[DB] PG_APP_PASSWORD is not set, so every request runs as PG_USER, which owns "
+            "the schema and in the shipped compose is a superuser. Set it to run requests "
+            "as the non-owner role localchat_app (audit S2; docs/OPERATIONS.md)."
+        )
+        return
+    db.ensure_app_role()
+    db.use_app_identity()
+
+
 def _clear_upload_staging() -> None:
     """Remove anything left in the upload staging directory.
 
@@ -260,6 +273,7 @@ def _init_database_service(app: Any, db: Any) -> None:
         _run_alembic_migrations()
         # Again after the chain: a migration can create a table the base schema did not.
         db.ensure_scoped_role()
+        _drop_to_app_identity(db)
         from .utils.scope import ALL_WORKSPACES
         doc_count = db.get_document_count(scope=ALL_WORKSPACES)
         logger.info(f"Documents in database: {doc_count}")

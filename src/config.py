@@ -133,6 +133,7 @@ _WEAK_PLACEHOLDERS: frozenset[str] = frozenset({
     'change-this-to-a-random-secret-key-in-production',
     'change-this-to-a-random-jwt-secret-in-production',
     'change-this-to-a-strong-password',
+    'change-this-to-an-app-database-password',
 })
 
 # Long enough that the bootstrap admin password is not guessable in the rate limit's
@@ -194,6 +195,8 @@ def validate_secrets() -> None:
         errors.append("JWT_SECRET_KEY is a known placeholder — set a random value")
     if ADMIN_PASSWORD.lower() in _WEAK_PLACEHOLDERS:
         errors.append("ADMIN_PASSWORD is a known placeholder — set a random value")
+    if PG_APP_PASSWORD.lower() in _WEAK_PLACEHOLDERS:
+        errors.append("PG_APP_PASSWORD is a known placeholder — set a random value")
     if ADMIN_PASSWORD and len(ADMIN_PASSWORD) < ADMIN_PASSWORD_MIN_LENGTH:
         # A literal, not interpolated: CodeQL treats any name containing PASSWORD as
         # sensitive, the constant included. The test pins the two together.
@@ -261,6 +264,13 @@ _PG_PASSWORD_RAW: str | None = os.environ.get('PG_PASSWORD')
 if not _PG_PASSWORD_RAW:
     raise ValueError("PG_PASSWORD must be set in .env file!")
 PG_PASSWORD: str = _PG_PASSWORD_RAW
+
+# The application's own login, separate from PG_USER (audit S2, ADR-5). PG_USER owns the
+# schema: it creates tables, runs migrations and manages roles, at boot only. With this
+# set, the boot then creates or updates the role `localchat_app` with this password and
+# every request runs as it: not a superuser, no DDL, no COPY ... PROGRAM. Empty keeps the
+# single identity of earlier releases and logs a warning; the shipped compose requires it.
+PG_APP_PASSWORD: str = os.environ.get('PG_APP_PASSWORD', '')
 
 PG_DB: str = str(os.environ.get('PG_DB', 'rag_db'))
 # libpq's own default is 'prefer', which silently accepts an unencrypted
