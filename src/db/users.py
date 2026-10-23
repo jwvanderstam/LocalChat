@@ -242,7 +242,7 @@ class UsersMixin(MixinHost):
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"UPDATE users SET {', '.join(sets)} WHERE id = %s",
+                    f"UPDATE users SET {', '.join(sets)} WHERE id = %s",  # nosec B608  # SET list from a fixed column whitelist; values are %s
                     params,
                 )
                 return cur.rowcount > 0

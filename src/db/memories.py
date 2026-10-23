@@ -98,7 +98,7 @@ class MemoriesMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
-                    "WHERE id = %s::uuid AND deleted_at IS NULL" + where,
+                    "WHERE id = %s::uuid AND deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (deleted_by, memory_id, *params),
                 )
                 conn.commit()
@@ -117,7 +117,7 @@ class MemoriesMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
-                    "WHERE deleted_at IS NULL" + where,
+                    "WHERE deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (deleted_by, *params),
                 )
                 count = cursor.rowcount
@@ -193,7 +193,7 @@ class MemoriesMixin(MixinHost):
                     {ws_clause}
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s
-                    """,
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     tuple(params),
                 )
                 return list(cursor.fetchall())
@@ -226,7 +226,7 @@ class MemoriesMixin(MixinHost):
                       AND 1 - (embedding <=> %s::vector) >= %s
                     {ws_clause}
                     LIMIT 1
-                    """,
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     tuple(params),
                 )
                 return cursor.fetchone() is not None
@@ -250,7 +250,7 @@ class MemoriesMixin(MixinHost):
                     {ws_clause}
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
-                    """,
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     tuple(params),
                 )
                 rows = cursor.fetchall()
@@ -280,10 +280,7 @@ class MemoriesMixin(MixinHost):
                     FROM conversations
                     WHERE deleted_at IS NULL
                       AND (memory_extracted_at IS NULL OR memory_extracted_at < updated_at)
-                    """ + where + """
-                    ORDER BY updated_at DESC
-                    LIMIT %s
-                    """,
+                    """ + where + " ORDER BY updated_at DESC LIMIT %s",  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (*params, limit),
                 )
                 rows = cursor.fetchall()

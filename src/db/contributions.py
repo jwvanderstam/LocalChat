@@ -76,7 +76,7 @@ class ContributionsMixin(MixinHost):
                             contributed_at = EXCLUDED.contributed_at,
                             contributed_by = EXCLUDED.contributed_by
                         RETURNING id, filename, (xmax = 0) AS inserted
-                        """,
+                        """,  # nosec B608  # a module constant predicate, no input
                         (contributed_by, document_id),
                     )
                     row = cursor.fetchone()
@@ -120,7 +120,7 @@ class ContributionsMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET archived_at = NOW(), archived_by = %s"
-                    f" WHERE source_project_id = %s AND {_LIVE_CONTRIBUTION}",
+                    f" WHERE source_project_id = %s AND {_LIVE_CONTRIBUTION}",  # nosec B608  # a module constant predicate, no input
                     (archived_by, workspace_id),
                 )
                 archived = cursor.rowcount

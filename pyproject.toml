@@ -89,9 +89,11 @@ exclude_lines = [
 ]
 
 [tool.bandit]
-# B608: psycopg3 uses %s placeholders for parameterized queries — not string interpolation
 # B104: web_search and Uvicorn intentionally bind to 0.0.0.0
-skips = ["B608", "B104"]
+# B608 is not skipped (audit QP-2): each SQL string built with interpolation carries
+# `# nosec B608  # <why it is safe>` on its last line (the second `#` keeps bandit
+# from reading the reason as test ids), so a new one fails CI until read.
+skips = ["B104"]
 
 [tool.coverage.html]
 directory = "htmlcov"

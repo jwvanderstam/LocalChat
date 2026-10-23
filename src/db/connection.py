@@ -64,7 +64,7 @@ def _apply_scoped_role(cursor: Any) -> None:
                 CREATE ROLE {SCOPED_ROLE} NOLOGIN;
             END IF;
         END $$;
-        """
+        """  # nosec B608  # a module constant role name, no input
     )
     # WITH SET TRUE, to the user by name. On PostgreSQL 16 a role's creator holds it with
     # ADMIN but not SET, and a GRANT of a membership that already exists leaves its options

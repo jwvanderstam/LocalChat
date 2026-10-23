@@ -105,7 +105,7 @@ class ConversationsMixin(MixinHost):
         with self.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    f"SELECT COUNT(*) FROM conversations WHERE deleted_at IS NULL{scope_sql}",
+                    f"SELECT COUNT(*) FROM conversations WHERE deleted_at IS NULL{scope_sql}",  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     scope_params,
                 )
                 row = cursor.fetchone()
@@ -137,7 +137,7 @@ class ConversationsMixin(MixinHost):
                     GROUP BY c.id, c.title, c.created_at, c.updated_at
                     ORDER BY c.updated_at DESC
                     LIMIT %s OFFSET %s
-                """, (*scope_params, limit, offset))
+                """, (*scope_params, limit, offset))  # nosec B608  # scope_predicate fragment: literal column, value is %s
                 rows = cursor.fetchall()
                 return [
                     {
@@ -170,14 +170,13 @@ class ConversationsMixin(MixinHost):
                     FROM conversations c
                     JOIN conversation_messages cm ON cm.conversation_id = c.id
                     WHERE c.id = %s AND c.deleted_at IS NULL
-                """ + where + """
-                    ORDER BY cm.created_at ASC, cm.id ASC
-                """, (conversation_id, *params))
+                """ + where + " ORDER BY cm.created_at ASC, cm.id ASC",  # nosec B608  # scope_predicate fragment: literal column, value is %s
+                (conversation_id, *params))
                 rows = cursor.fetchall()
                 if not rows:
                     cursor.execute(
                         "SELECT 1 FROM conversations"
-                        " WHERE id = %s AND deleted_at IS NULL" + bare_where,
+                        " WHERE id = %s AND deleted_at IS NULL" + bare_where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                         (conversation_id, *params),
                     )
                     if not cursor.fetchone():
@@ -252,7 +251,7 @@ class ConversationsMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP"
-                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    " WHERE id = %s AND deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (title[:255], conversation_id, *params),
                 )
                 updated = cursor.rowcount > 0
@@ -278,7 +277,7 @@ class ConversationsMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT document_ids FROM conversations"
-                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    " WHERE id = %s AND deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (conversation_id, *params),
                 )
                 row = cursor.fetchone()
@@ -299,7 +298,7 @@ class ConversationsMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET document_ids = %s::jsonb"
-                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    " WHERE id = %s AND deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (_json.dumps(filenames), conversation_id, *params),
                 )
                 updated = cursor.rowcount > 0
@@ -319,7 +318,7 @@ class ConversationsMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s"
-                    " WHERE id = %s AND deleted_at IS NULL" + where,
+                    " WHERE id = %s AND deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (deleted_by, conversation_id, *params),
                 )
                 updated = cursor.rowcount > 0
@@ -340,7 +339,7 @@ class ConversationsMixin(MixinHost):
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s"
-                    f" WHERE deleted_at IS NULL{scope_sql}",
+                    f" WHERE deleted_at IS NULL{scope_sql}",  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     (deleted_by, *scope_params),
                 )
                 count = cursor.rowcount
@@ -411,7 +410,7 @@ class ConversationsMixin(MixinHost):
                           )
                         ORDER BY um.created_at DESC
                         LIMIT %s
-                        """,
+                        """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
                         params,
                     )
                     return [row[0] for row in cursor.fetchall()]
