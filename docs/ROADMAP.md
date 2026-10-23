@@ -649,9 +649,11 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 
 ### PC-4 — Plugin-absent CI gate (the architectural IVP)
 
-> **Pulled forward into QP-3 (Sprint 24), 2026-10-22.** It needs no echo plugin to be
-> useful: emptying `plugins/` today removes `example_plugin.py`, and the core must still pass
-> without it. Once PC-3 ships, the echo exception below applies.
+> **Built 2026-10-23 with QP-3** as the `core-without-plugins` job. It deletes everything in
+> `plugins/` but the README, then runs `ruff` and the fast suite; locally, the docs and
+> plugin tests pass without `example_plugin.py`, so nothing had leaked. It joins the
+> required set once it has reported on `main`. Once PC-3 ships, the echo exception below
+> applies.
 
 **What it builds:** the enforcement that makes the whole initiative durable.
 
@@ -1684,7 +1686,13 @@ recorded as **ADR-7** in QP-3, is:
    synchronous (ADR-2).
 4. **Connection**: the pool, the scoped role switch and transactions. Unchanged.
 
-#### QP-3 — Install the ratchets ⬜ (Sprint 24, ~1 day + PC-4)
+#### QP-3 — Install the ratchets ✅ (Sprint 24; built 2026-10-23)
+
+> **Built as written.** The allow-list is the forbidden contract's `ignore_imports` in
+> `pyproject.toml` (4 lines) rather than a separate file. The cycle detection found two
+> module cycles, not the dozens the 159 function-level imports suggested: most of those are
+> deferred imports for start-up cost or optional dependencies, not cycles. The two are
+> QP-4 tasks below. `app.state.db` was 81 on `3623840` too.
 
 - `import-linter` with a layers contract and a forbidden contract (`src.routes_fastapi` may
   not import `src.db`). Today's violations go into an allow-list file.
@@ -1695,6 +1703,11 @@ recorded as **ADR-7** in QP-3, is:
 - **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
 
 #### QP-4 — Migrate one aggregate per PR ⬜ (Sprints 25-27, ~12 days)
+
+**Cycles to break** (found by QP-3; `KNOWN_CYCLES` in `tests/unit/test_layering_ratchets.py`):
+- [ ] `src.config` ↔ `src.utils.encryption`: `validate_secrets()` imports `_get_fernet`,
+      and encryption reads its key from config.
+- [ ] `src.utils.logging_config` ↔ `src.utils.request_id`.
 
 The order is by security weight, so authorisation moves first:
 
@@ -1878,7 +1891,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 21 | OBS-1a (token accounting, cloud cost) ✅ 2026-10-09 + OBS-1b if wanted | 3–4 days |
 | 22 | QP-1 (S1, S3, S4, defects 1-3) -> **v3.2.0** | ~2 days (week 1) |
 | 23 | QP-2 (S2 role split incl. Scaleway, S5, S7, B608, S6) -> **v3.3.0** | ~3 days (weeks 2-3) |
-| 24 | GKB-3 (chat reads the global tier) + QP-3 (ratchets, ADR-7, PC-4) + QP-6 (honest coverage) + QP-7 e2e paths begun | ~1 week (weeks 3-4) |
+| 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ + QP-6 (honest coverage) + QP-7 e2e paths begun | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (delete `Database`, split `DocumentProcessor`) + QP-9 (external review) -> **v3.4.0**, re-audit | ~1 week (weeks 10-12) |
 | — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |
