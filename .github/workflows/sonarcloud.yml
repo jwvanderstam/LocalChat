@@ -99,6 +99,12 @@ jobs:
           # src/ only: the number SonarCloud shows, since sonar.sources=src.
           coverage report --include="src/*" --format=total | xargs -I{} echo "Combined coverage of src/: {}%" | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # The floor: 2 points under the first honest measurement (85.68% on 2026-10-23),
+      # so ordinary variation passes and a real drop does not. Raise it as QP-4 lands;
+      # never lower it to clear a red run.
+      - name: Coverage floor
+        run: coverage report --include="src/*" --fail-under=83.6 > /dev/null
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8  # v5
         env:

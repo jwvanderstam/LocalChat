@@ -1754,7 +1754,14 @@ This runs in parallel because most of it protects the refactor. Honest coverage 
 required e2e suite are what make moving 81 database calls safe, so QP-6 and QP-7's e2e work
 start **before** QP-4's first PR.
 
-#### QP-6 — Honest coverage ⬜ (Sprint 24, ~2 days)
+#### QP-6 — Honest coverage ✅ (Sprint 24; built 2026-10-23)
+
+> **Measured: 85.68%** of `src/`, unit and integration combined, `src/db/` included. That is
+> higher than the unit-only 79.9%: the integration suite had been covering code the number
+> never counted. The floor is 83.6%, in the SonarCloud workflow. Two deviations: that
+> workflow is not a required check, so the floor turns a run red but cannot block a merge
+> by itself, and the SonarCloud new-code condition (80%) is a setting in SonarCloud the
+> maintainer applies, not something this repository can carry.
 
 - Run unit and integration with `--cov=src`, `coverage combine`, and upload the combined XML
   to SonarCloud.
@@ -1891,7 +1898,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 21 | OBS-1a (token accounting, cloud cost) ✅ 2026-10-09 + OBS-1b if wanted | 3–4 days |
 | 22 | QP-1 (S1, S3, S4, defects 1-3) -> **v3.2.0** | ~2 days (week 1) |
 | 23 | QP-2 (S2 role split incl. Scaleway, S5, S7, B608, S6) -> **v3.3.0** | ~3 days (weeks 2-3) |
-| 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ + QP-6 (honest coverage) + QP-7 e2e paths begun | ~1 week (weeks 3-4) |
+| 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ + QP-7 e2e paths begun | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (delete `Database`, split `DocumentProcessor`) + QP-9 (external review) -> **v3.4.0**, re-audit | ~1 week (weeks 10-12) |
 | — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |

@@ -119,11 +119,15 @@ add to it only when a regression escapes both it and the node harness.
 ## Coverage
 
 - `pyproject.toml` runs every pytest invocation with `--cov=.`, so the fast suite,
-  `pytest -m "not (slow or ollama or db)"`, reports coverage locally. CI's `unit-tests`
-  job runs `tests/unit` and reports it in the job log; SonarCloud reads that `coverage.xml`.
-- Coverage must not drop on any PR. This is enforced by review today: there is no
-  `--cov-fail-under` in CI yet, and the unit job is the only coverage SonarCloud sees.
-  Both change with ROADMAP QP-6.
+  `pytest -m "not (slow or ollama or db)"`, reports coverage locally.
+- **The number that counts is the combined one** (QP-6). The SonarCloud workflow runs the
+  unit and integration suites against Postgres and Redis, combines them, and reports
+  coverage of `src/` with nothing excluded: **85.68%** on 2026-10-23. That is what
+  SonarCloud shows. The `unit-tests` job's figure (unit only, the whole tree) is lower and
+  is not the measure.
+- **Coverage must not drop.** The same workflow fails under **83.6%**, 2 points below that
+  first measurement. Raise the floor as QP-4 lands; never lower it to clear a red run. The
+  SonarCloud job is not a required check, so a red one is read before merging.
 - Don't add `# pragma: no cover` to avoid covering real logic — cover it.
 
 ## Mutation testing

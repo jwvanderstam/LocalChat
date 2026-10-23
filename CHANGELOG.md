@@ -10,6 +10,11 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Added
 
+- **Coverage is measured honestly, with a floor** (ROADMAP QP-6). SonarCloud now gets unit
+  and integration coverage combined, with `src/db/` included: 11 of its files were excluded
+  before, because the unit suite has no database. The first measurement is 85.68% of
+  `src/`, and the workflow fails under 83.6%.
+
 - **The layering is checked in CI** (ROADMAP QP-3, ADR-7). `lint-imports` runs two contracts
   from `pyproject.toml`: routes may not import the database layer directly, and routes,
   services and the database layer form layers. Today's four exceptions are recorded and may

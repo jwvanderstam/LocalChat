@@ -236,8 +236,9 @@ off deliberately. (`security-smoke` joined on 2026-09-26; this sentence still sa
 until 2026-10-06, the second time it has lagged the ruleset. Read the set back with
 `gh api repos/jwvanderstam/LocalChat/rulesets/14700924`, not from the settings UI.)
 
-**Current state:** 3,735 tests collected. CI's `unit-tests` job runs `tests/unit`: 3,352
-passed at 79.9% coverage in 12 minutes, on `2bb9d77`. A laptop takes about twice that.
+**Current state:** 3,735 tests collected on `2bb9d77`. CI's `unit-tests` job runs
+`tests/unit`: 3,352 passed in 12 minutes. Coverage of `src/`, unit and integration combined
+with nothing excluded, is **85.68%** (2026-10-23), and CI fails under 83.6%. A laptop takes about twice that.
 `integration-tests` ran 379 passed and 1 skipped against PostgreSQL in the same run, and
 `tests/e2e/` drives a real browser. None of them needs a live Ollama, since every model call
 in the suite goes to `tests/utils/fake_ollama.py`. Every number here was read from a run on
