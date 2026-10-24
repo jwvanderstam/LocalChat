@@ -44,7 +44,7 @@ class TestOAuthCallbackIdentity:
         is cross-site and the cookie is SameSite=strict — so the state is what
         carries the identity, and an absent one refuses just as firmly.
         """
-        app.state.db.upsert_oauth_token = MagicMock()
+        app.state.db.oauth_tokens.upsert = MagicMock()
 
         with _token_exchange_succeeds():
             resp = unauthenticated_client.get(
@@ -52,7 +52,7 @@ class TestOAuthCallbackIdentity:
             )
 
         assert resp.status_code == 400
-        app.state.db.upsert_oauth_token.assert_not_called()
+        app.state.db.oauth_tokens.upsert.assert_not_called()
 
     def test_callback_stores_the_token_against_the_user_who_authorised(
         self, unauthenticated_client, app, provider
@@ -62,7 +62,7 @@ class TestOAuthCallbackIdentity:
         The client here is deliberately unauthenticated: a real browser arrives at
         this endpoint with no cookie, and the flow must still complete.
         """
-        app.state.db.upsert_oauth_token = MagicMock()
+        app.state.db.oauth_tokens.upsert = MagicMock()
         state, _ = oauth_routes._remember_authorization(provider, USER)
 
         with _token_exchange_succeeds():
@@ -71,7 +71,7 @@ class TestOAuthCallbackIdentity:
             )
 
         assert resp.status_code == 200
-        stored = app.state.db.upsert_oauth_token.call_args.kwargs["user_id"]
+        stored = app.state.db.oauth_tokens.upsert.call_args.kwargs["user_id"]
         assert stored == USER
         assert stored != "admin"
 
@@ -82,31 +82,31 @@ class TestOAuthStatusAndDisconnectIdentity:
     """The other four sites that used to invent an identity, and had no test at all."""
 
     def test_status_reads_the_callers_own_token(self, client, app, provider):
-        app.state.db.get_oauth_token = MagicMock(return_value=None)
+        app.state.db.oauth_tokens.get = MagicMock(return_value=None)
 
         resp = client.get(f"/api/oauth/{provider}/status")
 
         assert resp.status_code == 200
         assert resp.json() == {"connected": False}
-        looked_up, asked_provider = app.state.db.get_oauth_token.call_args[0]
+        looked_up, asked_provider = app.state.db.oauth_tokens.get.call_args[0]
         assert asked_provider == provider
         assert looked_up and looked_up != "admin"
 
     def test_disconnect_removes_the_callers_own_token(self, client, app, provider):
-        app.state.db.delete_oauth_token = MagicMock(return_value=True)
+        app.state.db.oauth_tokens.delete = MagicMock(return_value=True)
 
         resp = client.delete(f"/api/oauth/{provider}/disconnect")
 
         assert resp.status_code == 200
         assert resp.json() == {"success": True, "removed": True}
-        deleted_for, asked_provider = app.state.db.delete_oauth_token.call_args[0]
+        deleted_for, asked_provider = app.state.db.oauth_tokens.delete.call_args[0]
         assert asked_provider == provider
         assert deleted_for and deleted_for != "admin"
 
     def test_status_refuses_an_unauthenticated_caller(self, unauthenticated_client, app, provider):
-        app.state.db.get_oauth_token = MagicMock()
+        app.state.db.oauth_tokens.get = MagicMock()
 
         resp = unauthenticated_client.get(f"/api/oauth/{provider}/status")
 
         assert resp.status_code == 401
-        app.state.db.get_oauth_token.assert_not_called()
+        app.state.db.oauth_tokens.get.assert_not_called()

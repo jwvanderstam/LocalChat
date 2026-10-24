@@ -8,19 +8,24 @@ import secrets
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 from urllib.parse import urlencode
 
 import requests as _requests
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from .. import config
 from ..security_fastapi import require_auth
+from ..services.connectors import OAuthAccountsService
 from ..utils.logging_config import get_logger
 from ._authz import require_caller
+from ._services import oauth_accounts_service
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+Accounts = Annotated[OAuthAccountsService, Depends(oauth_accounts_service)]
 
 _MS_SCOPES = "Files.Read.All Sites.Read.All offline_access"
 _MS_AUTH_URL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"
@@ -145,7 +150,7 @@ def microsoft_authorize(request: Request) -> Response:
 
 
 @router.get("/oauth/microsoft/callback")
-def microsoft_callback(request: Request) -> JSONResponse:
+def microsoft_callback(request: Request, accounts: Accounts) -> JSONResponse:
     error = request.query_params.get("error")
     if error:
         desc = request.query_params.get("error_description", error)
@@ -191,35 +196,26 @@ def microsoft_callback(request: Request) -> JSONResponse:
     # and the SameSite=strict session cookie is not sent on it (audit M3).
     user_id = pending.user_id
 
-    request.app.state.db.upsert_oauth_token(
-        user_id=user_id,
-        provider="microsoft",
-        access_token=access_token,
-        refresh_token=data.get("refresh_token"),
-        expires_at=expires_at,
-        scopes=data.get("scope", "").split(),
+    accounts.store(
+        user_id, "microsoft", access_token, data.get("refresh_token"), expires_at,
+        data.get("scope", "").split(),
     )
     logger.info("[OAuth] Microsoft token stored for user %s", user_id)
     return JSONResponse({"success": True, "message": "Microsoft account connected", "expires_at": expires_at.isoformat()})
 
 
 @router.get("/oauth/microsoft/status")
-def microsoft_status(request: Request) -> JSONResponse:
+def microsoft_status(request: Request, accounts: Accounts) -> JSONResponse:
     require_auth(request)
     user_id = require_caller(request)
-    db = request.app.state.db
-    token = db.get_oauth_token(user_id, "microsoft")
-    if not token:
-        return JSONResponse({"connected": False})
-    expired = db.is_token_expired(user_id, "microsoft")
-    return JSONResponse({"connected": True, "expires_at": token.get("expires_at"), "expired": expired, "scopes": token.get("scopes", [])})
+    return JSONResponse(accounts.status(user_id, "microsoft"))
 
 
 @router.delete("/oauth/microsoft/disconnect")
-def microsoft_disconnect(request: Request) -> JSONResponse:
+def microsoft_disconnect(request: Request, accounts: Accounts) -> JSONResponse:
     require_auth(request)
     user_id = require_caller(request)
-    deleted = request.app.state.db.delete_oauth_token(user_id, "microsoft")
+    deleted = accounts.disconnect(user_id, "microsoft")
     return JSONResponse({"success": True, "removed": deleted})
 
 
@@ -250,7 +246,7 @@ def google_authorize(request: Request) -> Response:
 
 
 @router.get("/oauth/google/callback")
-def google_callback(request: Request) -> JSONResponse:
+def google_callback(request: Request, accounts: Accounts) -> JSONResponse:
     error = request.query_params.get("error")
     if error:
         desc = request.query_params.get("error_description", error)
@@ -295,33 +291,24 @@ def google_callback(request: Request) -> JSONResponse:
     # and the SameSite=strict session cookie is not sent on it (audit M3).
     user_id = pending.user_id
 
-    request.app.state.db.upsert_oauth_token(
-        user_id=user_id,
-        provider="google",
-        access_token=access_token,
-        refresh_token=data.get("refresh_token"),
-        expires_at=expires_at,
-        scopes=data.get("scope", "").split(),
+    accounts.store(
+        user_id, "google", access_token, data.get("refresh_token"), expires_at,
+        data.get("scope", "").split(),
     )
     logger.info("[OAuth] Google token stored for user %s", user_id)
     return JSONResponse({"success": True, "message": "Google account connected", "expires_at": expires_at.isoformat()})
 
 
 @router.get("/oauth/google/status")
-def google_status(request: Request) -> JSONResponse:
+def google_status(request: Request, accounts: Accounts) -> JSONResponse:
     require_auth(request)
     user_id = require_caller(request)
-    db = request.app.state.db
-    token = db.get_oauth_token(user_id, "google")
-    if not token:
-        return JSONResponse({"connected": False})
-    expired = db.is_token_expired(user_id, "google")
-    return JSONResponse({"connected": True, "expires_at": token.get("expires_at"), "expired": expired, "scopes": token.get("scopes", [])})
+    return JSONResponse(accounts.status(user_id, "google"))
 
 
 @router.delete("/oauth/google/disconnect")
-def google_disconnect(request: Request) -> JSONResponse:
+def google_disconnect(request: Request, accounts: Accounts) -> JSONResponse:
     require_auth(request)
     user_id = require_caller(request)
-    deleted = request.app.state.db.delete_oauth_token(user_id, "google")
+    deleted = accounts.disconnect(user_id, "google")
     return JSONResponse({"success": True, "removed": deleted})

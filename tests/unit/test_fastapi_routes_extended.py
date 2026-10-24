@@ -186,7 +186,7 @@ class TestConnectorRoutesExtended:
         from src.routes_fastapi.connector_routes import router
 
         state = _base_state()
-        state.db.list_connectors.return_value = []
+        state.db.connectors.list_all.return_value = []
         return _make_client(router, "/api", state)
 
     def test_list_available_connectors_no_user(self):

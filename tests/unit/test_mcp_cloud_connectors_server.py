@@ -87,7 +87,7 @@ def test_search_returns_error_dict_when_retrieve_context_raises(monkeypatch: pyt
 def test_list_sources_returns_connectors_when_db_connected(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_db = Mock()
     mock_db.is_connected = True
-    mock_db.list_connectors = Mock(return_value=[{"id": 1, "name": "sharepoint-prod"}])
+    mock_db.connectors.list_all = Mock(return_value=[{"id": 1, "name": "sharepoint-prod"}])
     monkeypatch.setattr(db_module, "db", mock_db)
 
     result = server.list_sources()
@@ -99,20 +99,20 @@ def test_list_sources_returns_connectors_when_db_connected(monkeypatch: pytest.M
 def test_list_sources_returns_empty_list_when_db_not_connected(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_db = Mock()
     mock_db.is_connected = False
-    mock_db.list_connectors = Mock(return_value=[{"id": 1, "name": "should-not-be-called"}])
+    mock_db.connectors.list_all = Mock(return_value=[{"id": 1, "name": "should-not-be-called"}])
     monkeypatch.setattr(db_module, "db", mock_db)
 
     result = server.list_sources()
 
     assert result == []
-    mock_db.list_connectors.assert_not_called()
+    mock_db.connectors.list_all.assert_not_called()
 
 
 @pytest.mark.unit
 def test_list_sources_returns_empty_list_when_db_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_db = Mock()
     mock_db.is_connected = True
-    mock_db.list_connectors = Mock(side_effect=RuntimeError("db down"))
+    mock_db.connectors.list_all = Mock(side_effect=RuntimeError("db down"))
     monkeypatch.setattr(db_module, "db", mock_db)
 
     result = server.list_sources()

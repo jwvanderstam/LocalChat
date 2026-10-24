@@ -362,7 +362,7 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
             chunk_id=objects["chunk_id"], text="Workspace B private annotation"
         )
 
-    objects["connector_id"] = db.create_connector(
+    objects["connector_id"] = db.connectors.create(
         connector_type="webhook",
         display_name="Workspace B private connector",
         config={"secret": "p22b-not-a-real-secret"},

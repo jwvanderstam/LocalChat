@@ -150,12 +150,12 @@ class TestCreatingOneIsAGlobalDecision:
             headers=_auth(),
         )
         assert resp.status_code == 403
-        assert not client.app.state.db.create_connector.called
+        assert not client.app.state.db.connectors.create.called
 
     def test_an_admin_may_create_one_inside_an_allowed_root(self, allowed_root):
         client = _client(member_role="owner", global_role="admin")
-        client.app.state.db.create_connector.return_value = "c-1"
-        client.app.state.db.get_connector.return_value = {
+        client.app.state.db.connectors.create.return_value = "c-1"
+        client.app.state.db.connectors.get.return_value = {
             "id": "c-1",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
@@ -171,7 +171,7 @@ class TestCreatingOneIsAGlobalDecision:
                 headers=_auth("admin"),
             )
         assert resp.status_code == 201
-        assert client.app.state.db.create_connector.called
+        assert client.app.state.db.connectors.create.called
 
     def test_an_admin_may_not_create_one_outside_the_roots(self, allowed_root):
         """Admin is not a bypass for the allowlist — the two checks are independent."""
@@ -183,7 +183,7 @@ class TestCreatingOneIsAGlobalDecision:
                 headers=_auth("admin"),
             )
         assert resp.status_code == 400
-        assert not client.app.state.db.create_connector.called
+        assert not client.app.state.db.connectors.create.called
 
 
 @pytest.mark.unit
@@ -192,7 +192,7 @@ class TestReconfiguringIsTheSameDecision:
 
     def test_an_owner_may_not_repoint_a_local_folder_connector(self, allowed_root):
         client = _client(member_role="owner", global_role="user")
-        client.app.state.db.get_connector.return_value = {
+        client.app.state.db.connectors.get.return_value = {
             "id": "c-1",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
@@ -202,11 +202,11 @@ class TestReconfiguringIsTheSameDecision:
             "/api/connectors/c-1", json={"config": {"path": "/etc"}}, headers=_auth()
         )
         assert resp.status_code == 403
-        assert not client.app.state.db.update_connector.called
+        assert not client.app.state.db.connectors.update.called
 
     def test_an_admin_repointing_outside_the_roots_is_refused(self, allowed_root):
         client = _client(member_role="owner", global_role="admin")
-        client.app.state.db.get_connector.return_value = {
+        client.app.state.db.connectors.get.return_value = {
             "id": "c-1",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
@@ -217,17 +217,17 @@ class TestReconfiguringIsTheSameDecision:
                 "/api/connectors/c-1", json={"config": {"path": "/etc"}}, headers=_auth("admin")
             )
         assert resp.status_code == 400
-        assert not client.app.state.db.update_connector.called
+        assert not client.app.state.db.connectors.update.called
 
     def test_an_admin_may_repoint_within_the_roots(self, allowed_root):
         client = _client(member_role="owner", global_role="admin")
-        client.app.state.db.get_connector.return_value = {
+        client.app.state.db.connectors.get.return_value = {
             "id": "c-1",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
             "workspace_id": WS,
         }
-        client.app.state.db.update_connector.return_value = True
+        client.app.state.db.connectors.update.return_value = True
         with patch("src.routes_fastapi.connector_routes.require_admin_dep", return_value=USER):
             resp = client.put(
                 "/api/connectors/c-1",
@@ -235,13 +235,13 @@ class TestReconfiguringIsTheSameDecision:
                 headers=_auth("admin"),
             )
         assert resp.status_code == 200
-        assert client.app.state.db.update_connector.called
+        assert client.app.state.db.connectors.update.called
 
     def test_a_rename_does_not_require_admin(self, allowed_root):
         """Only a config change is the privileged decision; display_name is not."""
         client = _client(member_role="owner", global_role="user")
-        client.app.state.db.update_connector.return_value = True
-        client.app.state.db.get_connector.return_value = {
+        client.app.state.db.connectors.update.return_value = True
+        client.app.state.db.connectors.get.return_value = {
             "id": "c-1",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},

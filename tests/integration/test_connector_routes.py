@@ -67,19 +67,19 @@ class TestListConnectorTypes:
 class TestListConnectors:
 
     def test_returns_empty_list(self, client, app):
-        app.state.db.list_connectors = MagicMock(return_value=[])
+        app.state.db.connectors.list_all = MagicMock(return_value=[])
         resp = client.get("/api/connectors")
         assert resp.status_code == 200
         assert resp.json()["connectors"] == []
 
     def test_returns_connectors(self, client, app):
-        app.state.db.list_connectors = MagicMock(return_value=[_connector()])
+        app.state.db.connectors.list_all = MagicMock(return_value=[_connector()])
         resp = client.get("/api/connectors")
         data = resp.json()
         assert len(data["connectors"]) == 1
 
     def test_db_error_returns_500(self, client, app):
-        app.state.db.list_connectors = MagicMock(side_effect=Exception("db error"))
+        app.state.db.connectors.list_all = MagicMock(side_effect=Exception("db error"))
         resp = client.get("/api/connectors")
         assert resp.status_code == 500
 
@@ -94,8 +94,8 @@ class TestCreateConnector:
         # A local_folder connector is refused unless its path is inside a configured
         # root; the default empty allowlist disables the type (audit C4).
         monkeypatch.setattr("src.config.CONNECTOR_LOCAL_ROOTS", [str(tmp_path)])
-        app.state.db.create_connector = MagicMock(return_value="conn-new")
-        app.state.db.get_connector = MagicMock(return_value=_connector(id="conn-new"))
+        app.state.db.connectors.create = MagicMock(return_value="conn-new")
+        app.state.db.connectors.get = MagicMock(return_value=_connector(id="conn-new"))
         resp = client.post("/api/connectors", json={
             "connector_type": "local_folder",
             "config": {"path": str(tmp_path)},
@@ -147,13 +147,13 @@ class TestCreateConnector:
 class TestGetConnector:
 
     def test_returns_connector(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=_connector())
+        app.state.db.connectors.get = MagicMock(return_value=_connector())
         resp = client.get("/api/connectors/conn-1")
         assert resp.status_code == 200
         assert resp.json()["connector"]["id"] == "conn-1"
 
     def test_not_found_returns_404(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=None)
+        app.state.db.connectors.get = MagicMock(return_value=None)
         resp = client.get("/api/connectors/missing")
         assert resp.status_code == 404
 
@@ -165,8 +165,8 @@ class TestGetConnector:
 class TestUpdateConnector:
 
     def test_updates_display_name(self, client, app):
-        app.state.db.update_connector = MagicMock(return_value=True)
-        app.state.db.get_connector = MagicMock(
+        app.state.db.connectors.update = MagicMock(return_value=True)
+        app.state.db.connectors.get = MagicMock(
             return_value=_connector(id="conn-1")
         )
         resp = client.put("/api/connectors/conn-1", json={"display_name": "Renamed"})
@@ -177,13 +177,13 @@ class TestUpdateConnector:
         assert resp.status_code == 400
 
     def test_not_found_returns_404(self, client, app):
-        app.state.db.update_connector = MagicMock(return_value=False)
+        app.state.db.connectors.update = MagicMock(return_value=False)
         resp = client.put("/api/connectors/missing", json={"display_name": "X"})
         assert resp.status_code == 404
 
     def test_disabling_removes_from_registry(self, client, app):
-        app.state.db.update_connector = MagicMock(return_value=True)
-        app.state.db.get_connector = MagicMock(
+        app.state.db.connectors.update = MagicMock(return_value=True)
+        app.state.db.connectors.get = MagicMock(
             return_value=_connector(id="conn-1", enabled=False)
         )
         mock_registry = MagicMock()
@@ -200,7 +200,7 @@ class TestUpdateConnector:
 class TestDeleteConnector:
 
     def test_deletes_connector(self, client, app):
-        app.state.db.delete_connector = MagicMock(return_value=True)
+        app.state.db.connectors.retire = MagicMock(return_value=True)
         mock_registry = MagicMock()
         app.state.connector_registry = mock_registry
         resp = client.delete("/api/connectors/conn-1")
@@ -208,7 +208,7 @@ class TestDeleteConnector:
         mock_registry.remove.assert_called_once_with("conn-1")
 
     def test_not_found_returns_404(self, client, app):
-        app.state.db.delete_connector = MagicMock(return_value=False)
+        app.state.db.connectors.retire = MagicMock(return_value=False)
         resp = client.delete("/api/connectors/missing")
         assert resp.status_code == 404
 
@@ -255,7 +255,7 @@ class TestSyncHistory:
              "finished_at": "2026-01-01T00:00:01+00:00",
              "files_added": 3, "files_updated": 0, "files_deleted": 0, "error": None}
         ]
-        app.state.db.get_connector_sync_history = MagicMock(return_value=history)
+        app.state.db.connectors.sync_history = MagicMock(return_value=history)
         resp = client.get("/api/connectors/conn-1/history")
         assert resp.status_code == 200
         data = resp.json()
@@ -263,10 +263,10 @@ class TestSyncHistory:
         assert data["history"][0]["files_added"] == 3
 
     def test_limit_capped_at_100(self, client, app):
-        app.state.db.get_connector_sync_history = MagicMock(return_value=[])
+        app.state.db.connectors.sync_history = MagicMock(return_value=[])
         resp = client.get("/api/connectors/conn-1/history?limit=999")
         assert resp.status_code == 200
-        app.state.db.get_connector_sync_history.assert_called_once_with("conn-1", limit=100)
+        app.state.db.connectors.sync_history.assert_called_once_with("conn-1", limit=100)
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +276,7 @@ class TestSyncHistory:
 class TestWebhookReceiver:
 
     def test_accepts_valid_added_event(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=_webhook_connector())
+        app.state.db.connectors.get = MagicMock(return_value=_webhook_connector())
         mock_instance = MagicMock()
         mock_instance.push_event.return_value = []
         app.state.connector_registry = MagicMock()
@@ -294,7 +294,7 @@ class TestWebhookReceiver:
         rather than checked-when-present (audit M4)."""
         connector = _connector(connector_type="webhook")
         connector["config"] = {}
-        app.state.db.get_connector = MagicMock(return_value=connector)
+        app.state.db.connectors.get = MagicMock(return_value=connector)
         app.state.connector_registry = MagicMock()
 
         resp = client.post("/api/connectors/conn-1/webhook", json={
@@ -306,17 +306,17 @@ class TestWebhookReceiver:
         assert not app.state.connector_registry.get.called
 
     def test_wrong_connector_type_returns_400(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=_connector(connector_type="local_folder"))
+        app.state.db.connectors.get = MagicMock(return_value=_connector(connector_type="local_folder"))
         resp = client.post("/api/connectors/conn-1/webhook", json={})
         assert resp.status_code == 400
 
     def test_connector_not_found_returns_404(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=None)
+        app.state.db.connectors.get = MagicMock(return_value=None)
         resp = client.post("/api/connectors/missing/webhook", json={})
         assert resp.status_code == 404
 
     def test_invalid_payload_returns_400(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=_webhook_connector())
+        app.state.db.connectors.get = MagicMock(return_value=_webhook_connector())
         mock_instance = MagicMock()
         mock_instance.push_event.return_value = ["'source_id' is required"]
         app.state.connector_registry = MagicMock()
@@ -330,7 +330,7 @@ class TestWebhookReceiver:
     def test_bad_secret_returns_403(self, client, app):
         connector = _connector(connector_type="webhook")
         connector["config"] = {"secret": "correct-secret"}
-        app.state.db.get_connector = MagicMock(return_value=connector)
+        app.state.db.connectors.get = MagicMock(return_value=connector)
         resp = client.post(
             "/api/connectors/conn-1/webhook",
             json={"event_type": "added", "source_id": "x", "fetch_url": "http://x"},
@@ -341,7 +341,7 @@ class TestWebhookReceiver:
     def test_correct_secret_accepted(self, client, app):
         connector = _connector(connector_type="webhook")
         connector["config"] = {"secret": "correct-secret"}
-        app.state.db.get_connector = MagicMock(return_value=connector)
+        app.state.db.connectors.get = MagicMock(return_value=connector)
         mock_instance = MagicMock()
         mock_instance.push_event.return_value = []
         app.state.connector_registry = MagicMock()
@@ -354,7 +354,7 @@ class TestWebhookReceiver:
         assert resp.status_code == 200
 
     def test_instance_not_active_returns_503(self, client, app):
-        app.state.db.get_connector = MagicMock(return_value=_webhook_connector())
+        app.state.db.connectors.get = MagicMock(return_value=_webhook_connector())
         app.state.connector_registry = MagicMock()
         app.state.connector_registry.get.return_value = None
         resp = client.post(
