@@ -217,8 +217,27 @@ main > .d-flex.border-bottom {
 #chat-messages {
     background-color: var(--lc-app);
     border: 0 !important;
-    min-height: 400px;
+    /* 0, not a fixed floor: a floor taller than the space left by the toolbar
+     * pushes the composer below the fold on short viewports. */
+    min-height: 0;
     padding: 1.5rem 0 !important;
+}
+
+/* The transcript scrolls on its own; the composer stays in view.
+ * Every flex item between the fixed-height .chat-layout row and #chat-messages
+ * defaults to min-height:auto, which lets it grow to fit the whole transcript,
+ * so #chat-messages never overflows and the page pushes the input down instead.
+ * min-height:0 down the chain lets the flex-grow-1 transcript take the leftover
+ * height and scroll. The columns get h-100 in the template because .row wraps,
+ * and a wrapping row sizes its line to its tallest item's content. */
+.chat-layout > [class*="col-"],
+.chat-layout .card,
+.chat-layout .card-body {
+    min-height: 0;
+}
+
+#chat-form {
+    flex-shrink: 0;
 }
 
 .message {
