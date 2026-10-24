@@ -664,3 +664,73 @@ def test_retrieval_reads_each_tier_through_the_application(
         "global": [contributed],
         "hybrid": sorted([local, contributed]),
     }
+
+
+# ── QP-5 step 1: migration 0022, the explicit all-workspaces flag ─────────────
+
+ALL_WORKSPACES_POLICY = "localchat_all_workspaces"
+
+
+@pytest.fixture(scope="module")
+def probe_role(conn: Any) -> Iterator[str]:
+    """A role bound by row-level security that neither 0017 nor 0021 admits.
+
+    It stands for what `localchat_app` becomes once QP-5 drops 0021, so the flag can be
+    proven now, while 0021 still admits `localchat_app` itself and would hide the result.
+    Roles are cluster-wide, so it is dropped again rather than left behind.
+    """
+    name = f"rls_probe_{uuid.uuid4().hex[:8]}"
+    conn.execute(f'CREATE ROLE "{name}" NOLOGIN')
+    conn.execute(f'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{name}"')
+    try:
+        yield name
+    finally:
+        conn.execute(f'DROP OWNED BY "{name}"')
+        conn.execute(f'DROP ROLE "{name}"')
+
+
+def _count_as(conn: Any, role: str, table: str, *, all_workspaces: bool) -> int:
+    with conn.transaction():
+        conn.execute(f'SET LOCAL ROLE "{role}"')
+        if all_workspaces:
+            conn.execute("SELECT set_config('app.all_workspaces', 'on', true)")
+        return int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
+
+
+def test_every_protected_table_has_the_all_workspaces_policy(conn: Any) -> None:
+    rows = conn.execute(
+        "SELECT tablename FROM pg_policies WHERE schemaname = 'public' AND policyname = %s",
+        (ALL_WORKSPACES_POLICY,),
+    ).fetchall()
+    assert sorted(r[0] for r in rows) == sorted(PROTECTED)
+
+
+@pytest.mark.parametrize("table", PROTECTED)
+def test_without_the_flag_an_unscoped_role_sees_nothing(
+    conn: Any, seeded: dict[str, str], probe_role: str, table: str
+) -> None:
+    assert _count_as(conn, probe_role, table, all_workspaces=False) == 0
+
+
+@pytest.mark.parametrize("table", PROTECTED)
+def test_with_the_flag_an_unscoped_role_sees_every_workspace(
+    conn: Any, seeded: dict[str, str], probe_role: str, table: str
+) -> None:
+    assert _count_as(conn, probe_role, table, all_workspaces=True) > 0
+
+
+@pytest.mark.parametrize("table", PROTECTED)
+def test_the_flag_cannot_widen_a_scoped_transaction(
+    conn: Any, seeded: dict[str, str], table: str
+) -> None:
+    """`localchat_scoped` with the flag on and no workspace still sees nothing."""
+    assert _count_as(conn, ROLE, table, all_workspaces=True) == 0
+
+
+def test_the_flag_ends_with_its_transaction(
+    conn: Any, seeded: dict[str, str], probe_role: str
+) -> None:
+    """Pooled connections are reused, so the flag must not reach the next transaction."""
+    with conn.transaction():
+        conn.execute("SELECT set_config('app.all_workspaces', 'on', true)")
+    assert _count_as(conn, probe_role, "documents", all_workspaces=False) == 0

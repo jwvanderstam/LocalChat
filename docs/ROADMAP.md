@@ -1776,8 +1776,9 @@ architecture near 7.5.
 > on `0021`'s transition policy. Isolation is no weaker than before QP-4 (scoped transactions
 > are unchanged), but option B is not reached. So QP-5 starts with that work:
 >
-> 1. The all-workspaces flag: `get_connection(scope=ALL_WORKSPACES)` sets a transaction-local
->    setting that a new policy checks. Today that scope changes nothing on the connection.
+> 1. ✅ The all-workspaces flag (2026-10-25, migration `0022`): `get_connection(scope=ALL_WORKSPACES)`
+>    sets a transaction-local `app.all_workspaces`, which a new policy admits for any role but
+>    `localchat_scoped`. Proven against Postgres with a role neither 0017 nor 0021 admits.
 > 2. Each of the 47 methods opens its connection with the workspace it reads or writes, or
 >    with the flag — the API-key lookup, membership checks, admin totals, purges, the global
 >    tier and the connector worker are the flagged ones. A ratchet counts what is left.

@@ -60,6 +60,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Added
 
+- **An explicit all-workspaces flag for the database** (ROADMAP QP-5 step 1, ADR-5).
+  `get_connection(scope=ALL_WORKSPACES)` now sets `app.all_workspaces` for its transaction,
+  and migration `0022` adds a policy on the ten row-level-security tables that admits
+  such a transaction, for any role but the workspace-scoped one. Nothing changes yet:
+  migration `0021` still admits the application unconditionally. It is what the
+  installation-wide paths stand on once `0021` is dropped.
+
 - **The browser suite covers eight paths, up from two** (ROADMAP QP-7).
   `tests/e2e/test_access_paths.py` adds sign-out, a session cookie replayed after sign-out,
   the workspace switch, an admin creating a user with membership, a viewer who cannot
