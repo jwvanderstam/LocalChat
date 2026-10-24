@@ -46,8 +46,8 @@ SCOPED_METHODS = {
     "memories.retire",
     "memories.retire_all",
     "memories.unextracted_conversations",
-    "get_annotations_for_chunk",
-    "delete_annotation",
+    "annotations.for_chunk",
+    "annotations.retire",
     "conversations.messages",
     "conversations.document_filter",
     "conversations.set_document_filter",
@@ -68,7 +68,7 @@ SCOPED_METHODS = {
     "conversations.retire_all",
     "conversations.low_confidence_queries",
     "connectors.list_all",
-    "get_workspace_ontology",
+    "entities.workspace_ontology",
     "memories.search",
     "memories.is_duplicate",
     "memories.list_page",
@@ -374,9 +374,9 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
         from src.routes_fastapi.annotation_routes import router
 
         client = _client(router, "/api", "editor")
-        client.app.state.db.delete_annotation.return_value = True
+        client.app.state.db.annotations.retire.return_value = True
         client.delete("/api/annotations/abc-123", headers=_auth())
-        assert client.app.state.db.delete_annotation.call_args.kwargs["scope"] == WS
+        assert client.app.state.db.annotations.retire.call_args.kwargs["scope"] == WS
 
     def test_connector_read_is_scoped(self):
         from src.routes_fastapi.connector_routes import router

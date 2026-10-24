@@ -295,14 +295,15 @@ async def workspace_presence(workspace_id: str, request: Request) -> StreamingRe
 
 
 @router.get("/workspaces/{workspace_id}/suggestions")
-def workspace_suggestions(workspace_id: str, request: Request, top_k: int = 10) -> Any:
+def workspace_suggestions(
+    workspace_id: str, request: Request, workspaces_svc: Workspaces, top_k: int = 10
+) -> Any:
     denied = _deny(request, workspace_id, "viewer")
     if denied:
         return denied
     top_k = min(top_k, 50)
     try:
-        from ..rag.active_learning import suggest_documents
-        suggestions = suggest_documents(get_scope(request), request.app.state.db, top_k=top_k)
+        suggestions = workspaces_svc.suggestions(get_scope(request), top_k)
         return {"success": True, "workspace_id": workspace_id, "suggestions": suggestions}
     except Exception:
         logger.exception("[Workspaces] suggestions error")
@@ -310,13 +311,15 @@ def workspace_suggestions(workspace_id: str, request: Request, top_k: int = 10) 
 
 
 @router.get("/workspaces/{workspace_id}/ontology")
-def workspace_ontology(workspace_id: str, request: Request, top_n: int = 20) -> Any:
+def workspace_ontology(
+    workspace_id: str, request: Request, workspaces_svc: Workspaces, top_n: int = 20
+) -> Any:
     denied = _deny(request, workspace_id, "viewer")
     if denied:
         return denied
     top_n = min(top_n, 100)
     try:
-        ontology = request.app.state.db.get_workspace_ontology(top_n=top_n, scope=get_scope(request))
+        ontology = workspaces_svc.ontology(top_n, get_scope(request))
         return {"success": True, "workspace_id": workspace_id, **ontology}
     except Exception:
         logger.exception("[Workspaces] ontology error")

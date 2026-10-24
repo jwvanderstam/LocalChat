@@ -21,12 +21,21 @@ pytestmark = pytest.mark.unit
 
 _ROOT = Path(__file__).resolve().parents[2]
 
-#: `app.state.db` in route modules: a handler reaching the database itself instead of a
-#: service. 81 on 2026-10-23 (`3623840`); 72 after QP-4 users and auth;
-#: 58 after workspaces; 51 after documents; 41 after conversations; 36 after memories;
-#: 23 after connectors.
+#: A route module reaching the database itself instead of through a service. 81 on
+#: 2026-10-23 (`3623840`); 72 after QP-4 users and auth; 58 after workspaces; 51 after
+#: documents; 41 after conversations; 36 after memories; 23 after connectors.
+#:
+#: 4 after the last aggregate, counted differently from then on: `_services.py` is left
+#: out, since building services from the database is its job, and the other spellings
+#: (`app_state.db`, `getattr(app_state, "db")`) are counted, which the first pattern
+#: missed. The four: `api_routes` hands the database to chat's functions three times,
+#: which QP-5 turns into a service class, and the settings page reads its totals once.
 #: Lower it in the PR that removes some.
-APP_STATE_DB_IN_ROUTES = 23
+APP_STATE_DB_IN_ROUTES = 4
+
+#: The one route module that may read the database: it builds the services from it.
+_PROVIDERS = "_services.py"
+_DB_ACCESS = re.compile(r'app\.state\.db\b|app_state\.db\b|getattr\(app_state, "db"')
 
 #: Direct imports from a route into src.db that the forbidden contract tolerates today.
 IGNORED_ROUTE_TO_DB_IMPORTS = 0
@@ -41,11 +50,12 @@ KNOWN_CYCLES = {
 
 def test_route_modules_reach_the_database_no_more_often_than_recorded():
     found = sum(
-        len(re.findall(r"app\.state\.db\b", path.read_text(encoding="utf-8")))
+        len(_DB_ACCESS.findall(path.read_text(encoding="utf-8")))
         for path in (_ROOT / "src" / "routes_fastapi").glob("*.py")
+        if path.name != _PROVIDERS
     )
     assert found == APP_STATE_DB_IN_ROUTES, (
-        f"{found} uses of app.state.db in src/routes_fastapi, ratchet says "
+        f"{found} uses of the database in src/routes_fastapi, ratchet says "
         f"{APP_STATE_DB_IN_ROUTES}. Above it: move the new access into a service. Below it: "
         "lower APP_STATE_DB_IN_ROUTES in this PR."
     )

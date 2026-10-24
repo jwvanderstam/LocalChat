@@ -10,20 +10,26 @@ from pydantic import ValidationError
 
 from ..models import ContributionRequest
 from ..security_fastapi import require_admin_dep
+from ..services.contributions import ContributionsService
+from ..services.errors import ServiceError
 from ..utils.logging_config import get_logger
 from ._authz import deny as _deny
 from ._authz import require_caller
+from ._services import contributions_service
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 _ERR_INTERNAL = "Internal server error"
 
+Contributions = Annotated[ContributionsService, Depends(contributions_service)]
+
 
 @router.post("/workspaces/{workspace_id}/contribute")
 async def contribute(
     workspace_id: str,
     request: Request,
+    contributions: Contributions,
     admin_id: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     # Admin, not ws:owner: any user can create a workspace and own it, so an owner-only
@@ -37,31 +43,25 @@ async def contribute(
             {"success": False, "message": "document_ids must be a list of 1 to 100 document ids"},
             status_code=400,
         )
-    db = request.app.state.db
     try:
-        if db.workspaces.get(workspace_id) is None:
-            return JSONResponse({"success": False, "message": "Workspace not found"}, status_code=404)
-        contributed = db.contribute_documents(workspace_id, payload.document_ids, admin_id)
-        if contributed is None:
-            return JSONResponse(
-                {"success": False, "message": "Every document must be a live document of this workspace"},
-                status_code=404,
-            )
+        contributed = contributions.contribute(workspace_id, payload.document_ids, admin_id)
         return {"success": True, "contributed": contributed}
+    except ServiceError as exc:
+        return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
     except Exception:
         logger.exception("[GKB] contribute error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.delete("/workspaces/{workspace_id}/contributions")
-def archive_contributions(workspace_id: str, request: Request) -> Any:
+def archive_contributions(workspace_id: str, request: Request, contributions: Contributions) -> Any:
     # Withdrawing only narrows what every workspace reads, so the owner may do it alone.
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
     caller = require_caller(request)
     try:
-        archived = request.app.state.db.archive_contributions(workspace_id, caller)
+        archived = contributions.archive(workspace_id, caller)
         return {"success": True, "archived": archived}
     except Exception:
         logger.exception("[GKB] archive error")
@@ -70,11 +70,11 @@ def archive_contributions(workspace_id: str, request: Request) -> Any:
 
 @router.get("/gkb/documents")
 def list_contributions(
-    request: Request,
+    contributions: Contributions,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     try:
-        return {"success": True, "documents": request.app.state.db.list_contributions()}
+        return {"success": True, "documents": contributions.list_all()}
     except Exception:
         logger.exception("[GKB] list error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

@@ -68,7 +68,7 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 | Package | What it does |
 |---------|-------------|
 | `src/rag/` | Ingest pipeline, hybrid retrieval, reranker, query planning |
-| `src/db/` | All SQL — mixin classes per domain |
+| `src/db/` | All SQL — one repository class per aggregate, held on `Database` (`db.documents`, `db.users`, …) |
 | `src/agent/` | Model routing, parallel tool dispatch, result tracing |
 | `src/tools/` | Function-calling loop, tool registry, built-ins, plugin loader |
 | `src/graph/` | GraphRAG: entity extraction, 1-hop query expansion |
@@ -92,7 +92,7 @@ Full rules across 4 files in `.claude/rules/` — short version here.
 
 **Architecture** → [`.claude/rules/architecture.md`](.claude/rules/architecture.md)
 - Routes are thin: parse → service → respond. No SQL, no LLM calls in blueprints.
-- All SQL in `src/db/` mixins. Never elsewhere.
+- All SQL in `src/db/` repositories. Never elsewhere. Routes reach them through a service (ADR-7).
 - All config in `src/config.py`. No `os.getenv` outside it.
 - All input through a Pydantic model. Validate once at the boundary; trust internally.
 

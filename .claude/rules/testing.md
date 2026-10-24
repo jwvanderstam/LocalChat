@@ -23,7 +23,7 @@ matched to the failure mode it counters:
 - New API endpoints → at least one integration test covering the happy path.
 - Bug fix → regression test that would have caught the bug before the fix.
 - New Pydantic models → validation tests for required fields, type coercion, and rejection of bad input.
-- New DB mixin methods → unit test with a mocked connection or a `db`-marked test.
+- New repository methods → unit test with a mocked connection or a `db`-marked test.
 
 ## Test markers
 

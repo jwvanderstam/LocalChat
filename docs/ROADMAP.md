@@ -1702,7 +1702,7 @@ recorded as **ADR-7** in QP-3, is:
 - ADR-7 written in `docs/ADR.md`, with its row in `.claude/rules/file-map.md` updated.
 - **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
 
-#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 6 of 7 done)
+#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27; all 7 aggregates done 2026-10-24, the two cycles open)
 
 **Cycles to break** (found by QP-3; `KNOWN_CYCLES` in `tests/unit/test_layering_ratchets.py`):
 - [ ] `src.config` ↔ `src.utils.encryption`: `validate_secrets()` imports `_get_fernet`,
@@ -1741,7 +1741,14 @@ The order is by security weight, so authorisation moves first:
    to call it. Found, not fixed here: a global admin who names no workspace creates a
    connector with none, then gets a 500 from the read-back. Two integration tests were
    edited, for the renamed methods only.
-7. Feedback, annotations, entities, contributions, settings
+7. ✅ Feedback, annotations, entities, contributions, settings, 2026-10-24: four repositories,
+   `FeedbackService`, `AnnotationsService`, `ContributionsService`, and the workspace ontology
+   and suggestions in `WorkspacesService`. `Database` composes no mixins any more. The ratchet
+   now leaves out `_services.py`, whose job is to read the database, and counts the
+   `app_state.db` spelling the first pattern missed: 4, which are `api_routes` handing the
+   database to chat's functions three times (QP-5 makes chat a class) and the settings
+   page's totals.
+   Three integration tests were edited, for the renamed methods only.
 
 Each PR does five things:
 - adds a repository class, with the SQL moved verbatim;

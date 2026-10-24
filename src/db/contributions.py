@@ -9,15 +9,10 @@ therefore names its workspace in the WHERE clause itself — nothing else will.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..utils.logging_config import get_logger
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
@@ -28,10 +23,13 @@ _LIVE_CONTRIBUTION = (
 )
 
 
-class ContributionsMixin(MixinHost):
-    """Mixin that adds the global knowledge tier's write side to the Database class."""
+class ContributionsRepository:
+    """GKB-2's transformations on the global tier: contribute, archive, list."""
 
-    def contribute_documents(
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
+
+    def contribute(
         self, workspace_id: str, document_ids: list[int], contributed_by: str
     ) -> list[dict[str, Any]] | None:
         """Copy live documents of *workspace_id* into the global tier, chunks and embeddings included.
@@ -41,11 +39,11 @@ class ContributionsMixin(MixinHost):
         are retired rather than deleted. All or nothing: returns ``None``, having written
         nothing, when any id is not a live document of *workspace_id*.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot contribute documents: Database is not connected")
 
         wanted = sorted(set(document_ids))
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT id FROM documents"
@@ -111,12 +109,12 @@ class ContributionsMixin(MixinHost):
         )
         return contributed
 
-    def archive_contributions(self, workspace_id: str, archived_by: str) -> int:
+    def archive(self, workspace_id: str, archived_by: str) -> int:
         """Withdraw every live contribution from *workspace_id*; returns how many."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot archive contributions: Database is not connected")
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET archived_at = NOW(), archived_by = %s"
@@ -126,14 +124,14 @@ class ContributionsMixin(MixinHost):
                 archived = cursor.rowcount
             conn.commit()
         logger.info("[GKB] archived %d contribution(s)", archived)
-        return archived
+        return int(archived)
 
-    def list_contributions(self) -> list[dict[str, Any]]:
+    def list_all(self) -> list[dict[str, Any]]:
         """Every contribution, archived ones included, with its provenance."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot list contributions: Database is not connected")
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT d.id, d.filename, d.source_project_id, w.name,

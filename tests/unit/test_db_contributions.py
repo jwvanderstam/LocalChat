@@ -1,4 +1,4 @@
-"""GKB-2 — ContributionsMixin in the fast suite, against a scripted cursor.
+"""GKB-2 — ContributionsRepository in the fast suite, against a scripted cursor.
 
 `tests/integration/test_gkb_contribution.py` proves the SQL against Postgres. These pin
 what the Python around it decides: a refused contribution writes and commits nothing, a
@@ -16,7 +16,19 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.db.connection import DatabaseUnavailableError
-from src.db.contributions import ContributionsMixin
+from src.db.contributions import ContributionsRepository
+
+
+class _Host:
+    """The connection a repository runs over, holding it as ``Database`` does."""
+
+
+def _host(repository, attr):
+    """A host with *repository* attached as *attr*, as ``Database.__init__`` does."""
+    host = _Host()
+    setattr(host, attr, repository(host))
+    return host
+
 
 pytestmark = pytest.mark.unit
 
@@ -59,7 +71,7 @@ def _mixin(steps: list[tuple[Any, Any, int]], connected: bool = True):
     conn.cursor.return_value = cursor
     conn.__enter__ = MagicMock(return_value=conn)
     conn.__exit__ = MagicMock(return_value=False)
-    mixin = ContributionsMixin()
+    mixin = _host(ContributionsRepository, "contributions")
     mixin.is_connected = connected
     mixin.get_connection = MagicMock(return_value=conn)
     return mixin, conn, cursor
@@ -69,7 +81,7 @@ class TestContributeDocuments:
     def test_a_document_outside_the_workspace_writes_and_commits_nothing(self):
         mixin, conn, cursor = _mixin([(None, [(7,)], 1)])
 
-        assert mixin.contribute_documents(WS, [7, 8], ADMIN) is None
+        assert mixin.contributions.contribute(WS, [7, 8], ADMIN) is None
         assert [params for _, params in cursor.executed] == [([7, 8], WS)]
         conn.commit.assert_not_called()
 
@@ -80,7 +92,7 @@ class TestContributeDocuments:
             ((90, "plan.md", False), [], 1), (None, [], 4), (None, [], 5),
         ])
 
-        result = mixin.contribute_documents(WS, [9, 7, 7], ADMIN)
+        result = mixin.contributions.contribute(WS, [9, 7, 7], ADMIN)
 
         assert result == [
             {"document_id": 7, "global_document_id": 70, "filename": "retro.md",
@@ -95,7 +107,7 @@ class TestContributeDocuments:
             (None, [(7,)], 1),
             ((70, "retro.md", True), [], 1), (None, [], 0), (None, [], 2),
         ])
-        mixin.contribute_documents(WS, [7], ADMIN)
+        mixin.contributions.contribute(WS, [7], ADMIN)
 
         (check_sql, check), (upsert_sql, upsert), (_, retire), (_, copy) = cursor.executed
         assert "workspace_id = %s" in check_sql and check == ([7], WS)
@@ -107,14 +119,14 @@ class TestContributeDocuments:
     def test_refuses_when_the_database_is_not_connected(self):
         mixin, _, _ = _mixin([], connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            mixin.contribute_documents(WS, [7], ADMIN)
+            mixin.contributions.contribute(WS, [7], ADMIN)
 
 
 class TestArchiveContributions:
     def test_archives_only_the_named_workspaces_contributions_and_counts_them(self):
         mixin, conn, cursor = _mixin([(None, [], 4)])
 
-        assert mixin.archive_contributions(WS, ADMIN) == 4
+        assert mixin.contributions.archive(WS, ADMIN) == 4
         [(sql, params)] = cursor.executed
         assert "WHERE source_project_id = %s" in sql
         assert params == (ADMIN, WS)
@@ -123,7 +135,7 @@ class TestArchiveContributions:
     def test_refuses_when_the_database_is_not_connected(self):
         mixin, _, _ = _mixin([], connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            mixin.archive_contributions(WS, ADMIN)
+            mixin.contributions.archive(WS, ADMIN)
 
 
 class TestListContributions:
@@ -134,7 +146,7 @@ class TestListContributions:
             (71, "old.md", None, None, at, None, at, 0),
         ], 2)])
 
-        assert mixin.list_contributions() == [
+        assert mixin.contributions.list_all() == [
             {"id": 70, "filename": "retro.md", "source_project_id": WS,
              "source_project_name": "Project A", "contributed_at": at.isoformat(),
              "contributed_by": "admin", "archived_at": None, "chunk_count": 3},
@@ -146,4 +158,4 @@ class TestListContributions:
     def test_refuses_when_the_database_is_not_connected(self):
         mixin, _, _ = _mixin([], connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            mixin.list_contributions()
+            mixin.contributions.list_all()

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ..security_fastapi import get_current_user_id
+from ..services.annotations import AnnotationsService
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_scope
 from ._authz import deny as _deny
+from ._services import annotations_service
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -18,9 +20,11 @@ router = APIRouter()
 _ERR_INTERNAL = "Internal server error"
 _NOT_FOUND = "Chunk not found"
 
+Annotations = Annotated[AnnotationsService, Depends(annotations_service)]
+
 
 @router.post("/annotations", status_code=201)
-async def create_annotation(request: Request) -> Any:
+async def create_annotation(request: Request, annotations: Annotations) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
@@ -36,9 +40,7 @@ async def create_annotation(request: Request) -> Any:
 
     user_id = get_current_user_id(request)
     try:
-        annotation_id = request.app.state.db.add_annotation(
-            chunk_id=chunk_id, text=text, user_id=user_id, conversation_id=conversation_id,
-        )
+        annotation_id = annotations.add(chunk_id, text, user_id, conversation_id)
         return JSONResponse({"success": True, "id": annotation_id}, status_code=201)
     except ValueError as ve:
         logger.warning("[Annotations] validation error: %s", ve)
@@ -49,39 +51,29 @@ async def create_annotation(request: Request) -> Any:
 
 
 @router.get("/chunks/{chunk_id}/annotations")
-def list_chunk_annotations(chunk_id: int, request: Request) -> Any:
+def list_chunk_annotations(chunk_id: int, request: Request, annotations: Annotations) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
     try:
-        scope = get_scope(request)
-        # The chunk is resolved first so a chunk outside this scope reads as not found,
-        # rather than as a chunk with no annotations. get_annotations_for_chunk joins on
-        # the document's workspace and so never leaked anything — but answering 200 for
-        # someone else's chunk still told the caller it exists, and left the route unable
-        # to say "no such chunk" at all.
-        if request.app.state.db.documents.chunk_by_id(chunk_id, scope=scope) is None:
+        found = annotations.for_chunk(chunk_id, get_scope(request))
+        if found is None:
             return JSONResponse(
                 {"success": False, "message": _NOT_FOUND}, status_code=404
             )
-        annotations = request.app.state.db.get_annotations_for_chunk(chunk_id, scope=scope)
-        return {"success": True, "annotations": annotations}
+        return {"success": True, "annotations": found}
     except Exception:
         logger.exception("[Annotations] list error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.delete("/annotations/{annotation_id}")
-def delete_annotation(annotation_id: str, request: Request) -> Any:
+def delete_annotation(annotation_id: str, request: Request, annotations: Annotations) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
-    user_id = get_current_user_id(request)
-    deleted_by = user_id if user_id and user_id != "anonymous" else None
     try:
-        deleted = request.app.state.db.delete_annotation(
-            annotation_id, user_id=user_id, deleted_by=deleted_by, scope=get_scope(request)
-        )
+        deleted = annotations.retire(annotation_id, get_current_user_id(request), get_scope(request))
         if not deleted:
             return JSONResponse({"success": False, "message": "Annotation not found"}, status_code=404)
         return {"success": True}

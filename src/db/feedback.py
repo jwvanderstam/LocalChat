@@ -1,25 +1,23 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..utils.logging_config import get_logger
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
 
-class FeedbackMixin(MixinHost):
-    """Mixin that adds answer-feedback and chunk-stats operations to the Database class."""
+class FeedbackRepository:
+    """Answer feedback, per-chunk retrieval statistics, and reranker versions."""
+
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
 
     # ── Feedback write operations ──────────────────────────────────────────────
 
-    def insert_feedback(
+    def insert(
         self,
         rating: int,
         *,
@@ -29,14 +27,14 @@ class FeedbackMixin(MixinHost):
         correct_doc_ids: list[str] | None = None,
     ) -> str:
         """Record a thumbs-up (rating=1) or thumbs-down (rating=-1) for one answer."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot insert feedback: Database not connected")
 
         if rating not in (1, -1):
             raise ValueError(f"rating must be 1 or -1, got {rating!r}")
 
         feedback_id = str(uuid.uuid4())
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -59,11 +57,11 @@ class FeedbackMixin(MixinHost):
 
     # ── Chunk stats write operations ───────────────────────────────────────────
 
-    def increment_chunk_retrieved(self, chunk_ids: list[int]) -> None:
+    def count_retrieved(self, chunk_ids: list[int]) -> None:
         """Increment retrieved_count for each chunk in *chunk_ids* (upsert)."""
-        if not self.is_connected or not chunk_ids:
+        if not self._db.is_connected or not chunk_ids:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.executemany(
                     """
@@ -77,11 +75,11 @@ class FeedbackMixin(MixinHost):
                 )
             conn.commit()
 
-    def increment_chunk_positive(self, chunk_ids: list[int]) -> None:
+    def count_positive(self, chunk_ids: list[int]) -> None:
         """Increment positive_feedback_count for each chunk (upsert)."""
-        if not self.is_connected or not chunk_ids:
+        if not self._db.is_connected or not chunk_ids:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.executemany(
                     """
@@ -95,11 +93,11 @@ class FeedbackMixin(MixinHost):
                 )
             conn.commit()
 
-    def increment_chunk_negative(self, chunk_ids: list[int]) -> None:
+    def count_negative(self, chunk_ids: list[int]) -> None:
         """Increment negative_feedback_count for each chunk (upsert)."""
-        if not self.is_connected or not chunk_ids:
+        if not self._db.is_connected or not chunk_ids:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.executemany(
                     """
@@ -115,12 +113,12 @@ class FeedbackMixin(MixinHost):
 
     # ── Feedback read operations ───────────────────────────────────────────────
 
-    def get_feedback_stats(self, days: int = 7) -> dict[str, Any]:
+    def stats(self, days: int = 7) -> dict[str, Any]:
         """Return aggregate feedback for the past *days* days: total, positive, negative, thumbs_up_rate, by_type."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return {"total": 0, "positive": 0, "negative": 0, "thumbs_up_rate": None, "by_type": {}}
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -159,7 +157,7 @@ class FeedbackMixin(MixinHost):
             "by_type": by_type,
         }
 
-    def get_stale_chunks(
+    def stale_chunks(
         self,
         min_retrieved: int = 10,
         max_positive_ratio: float = 0.10,
@@ -169,10 +167,10 @@ class FeedbackMixin(MixinHost):
         Return chunks with high retrieval frequency but very low positive feedback —
         candidates for review, update, or re-ingestion.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -202,12 +200,12 @@ class FeedbackMixin(MixinHost):
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
-    def get_feedback_trend(self, days: int = 30) -> list[dict[str, Any]]:
+    def trend(self, days: int = 30) -> list[dict[str, Any]]:
         """Return daily thumbs-up/down counts for the past *days* days for charting."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -227,12 +225,12 @@ class FeedbackMixin(MixinHost):
                     for r in cur.fetchall()
                 ]
 
-    def export_feedback_pairs(self, days: int = 7) -> list[dict[str, Any]]:
+    def export_pairs(self, days: int = 7) -> list[dict[str, Any]]:
         """Export (query, chunk_text, label) triples for reranker fine-tuning; label=1 positive, 0 negative."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -267,12 +265,12 @@ class FeedbackMixin(MixinHost):
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
-    def get_reranker_versions(self) -> list[dict[str, Any]]:
+    def reranker_versions(self) -> list[dict[str, Any]]:
         """Return all reranker version rows ordered by trained_at DESC."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
         try:
-            with self.get_connection() as conn:
+            with self._db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT id, trained_at, base_model, ndcg_before, ndcg_after, "
@@ -298,10 +296,10 @@ class FeedbackMixin(MixinHost):
 
     def insert_reranker_version(self, result: dict[str, Any]) -> str | None:
         """Insert a reranker_versions row (inactive) and return its UUID, or None on error."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
         try:
-            with self.get_connection() as conn:
+            with self._db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
@@ -326,10 +324,10 @@ class FeedbackMixin(MixinHost):
 
     def activate_reranker_version(self, version_id: str) -> str | None:
         """Demote all reranker versions, activate version_id. Returns its model_path, or None."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
         try:
-            with self.get_connection() as conn:
+            with self._db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT model_path FROM reranker_versions WHERE id = %s", (version_id,)
@@ -337,7 +335,7 @@ class FeedbackMixin(MixinHost):
                     row = cur.fetchone()
                     if not row:
                         return None
-                    model_path = row[0]
+                    model_path = str(row[0]) if row[0] is not None else None
                     cur.execute("UPDATE reranker_versions SET active = FALSE")
                     cur.execute(
                         "UPDATE reranker_versions SET active = TRUE WHERE id = %s", (version_id,)

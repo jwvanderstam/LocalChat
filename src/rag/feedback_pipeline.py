@@ -24,7 +24,7 @@ def export_training_pairs(db: Any, days: int = 7) -> list[dict]:
     label=1 means the chunk was in a positively-rated answer.
     label=0 means the chunk was in a negatively-rated answer.
     """
-    pairs = db.export_feedback_pairs(days=days)
+    pairs = db.feedback.export_pairs(days=days)
     logger.info(f"[Pipeline] Exported {len(pairs)} training pairs (last {days} days)")
     return pairs
 
@@ -81,19 +81,19 @@ def _write_latest_pointer(versioned_dir: Path) -> None:
 def persist_reranker_version(db: Any, result: dict) -> str | None:
     """Insert a reranker_versions row and return its UUID, or None on error.
 
-    Delegates to the db-layer FeedbackMixin (HK-7: no direct DB access outside src/db/).
+    Delegates to the db-layer FeedbackRepository (HK-7: no direct DB access outside src/db/).
     """
-    return db.insert_reranker_version(result)
+    return db.feedback.insert_reranker_version(result)
 
 
 def promote_model(db: Any, version_id: str) -> bool:
     """Set *version_id* as active and update the latest.txt pointer. Returns success.
 
-    DB writes are delegated to the db-layer FeedbackMixin (HK-7); file-pointer update
+    DB writes are delegated to the db-layer FeedbackRepository (HK-7); file-pointer update
     and reranker reload remain here as non-DB concerns.
     """
     try:
-        model_path = db.activate_reranker_version(version_id)
+        model_path = db.feedback.activate_reranker_version(version_id)
         if model_path is None:
             return False
         logger.info("[Pipeline] Promoted reranker version")

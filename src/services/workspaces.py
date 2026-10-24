@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..db.workspaces import LastOwnerError
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope
 from .errors import ServiceError
 
 if TYPE_CHECKING:
@@ -86,6 +87,15 @@ class WorkspacesService:
 
     def purge(self, workspace_id: str) -> bool:
         return self._db.workspaces.purge(workspace_id)
+
+    def ontology(self, top_n: int, scope: Scope) -> dict[str, Any]:
+        return self._db.entities.workspace_ontology(top_n=top_n, scope=scope)
+
+    def suggestions(self, scope: Scope, top_k: int) -> list[str]:
+        """Topics the workspace's low-confidence questions point at, but no document covers."""
+        from ..rag.active_learning import suggest_documents
+
+        return suggest_documents(scope, self._db, top_k=top_k)
 
     # ── members ───────────────────────────────────────────────────────────────
 

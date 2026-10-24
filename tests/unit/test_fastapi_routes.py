@@ -97,10 +97,10 @@ class TestFeedbackRoutes:
         from src.routes_fastapi.feedback_routes import router
 
         state = _base_state()
-        state.db.insert_feedback.return_value = feedback_id
-        state.db.get_feedback_stats.return_value = {}
-        state.db.get_feedback_trend.return_value = []
-        state.db.get_stale_chunks.return_value = []
+        state.db.feedback.insert.return_value = feedback_id
+        state.db.feedback.stats.return_value = {}
+        state.db.feedback.trend.return_value = []
+        state.db.feedback.stale_chunks.return_value = []
         return _make_client(router, "/api", state)
 
     def test_submit_feedback_bad_rating(self):
@@ -131,9 +131,9 @@ class TestAnnotationRoutes:
         from src.routes_fastapi.annotation_routes import router
 
         state = _base_state()
-        state.db.add_annotation.return_value = annotation_id
-        state.db.get_annotations_for_chunk.return_value = []
-        state.db.delete_annotation.return_value = True
+        state.db.annotations.add.return_value = annotation_id
+        state.db.annotations.for_chunk.return_value = []
+        state.db.annotations.retire.return_value = True
         return _make_client(router, "/api", state)
 
     def test_create_annotation_missing_chunk_id(self):
@@ -166,7 +166,7 @@ class TestAnnotationRoutes:
         from src.routes_fastapi.annotation_routes import router
 
         state = _base_state()
-        state.db.delete_annotation.return_value = False
+        state.db.annotations.retire.return_value = False
         client = _make_client(router, "/api", state)
         resp = client.delete("/api/annotations/99")
         assert resp.status_code == 404
