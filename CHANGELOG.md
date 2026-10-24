@@ -38,6 +38,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   retiring; the SQL moved verbatim into `MemoriesRepository` (`db.memories`), which the
   extractor and the retriever use too. `app.state.db` in routes is down to 36. No behaviour
   changes.
+- **Connectors and OAuth accounts go through services** (QP-4, sixth aggregate).
+  `connector_routes` asks a `ConnectorsService`, which now holds CONN-1's rules: a
+  connector spends only its creator's token, `local_folder` needs a global admin at
+  creation and at every config change, and a config is validated by its own class before
+  it is stored. `oauth_routes` asks an `OAuthAccountsService`. The SQL moved verbatim into
+  `ConnectorsRepository` and `OAuthTokensRepository` (`db.connectors`, `db.oauth_tokens`).
+  `app.state.db` in routes is down to 23. No behaviour changes.
 
 ### Added
 

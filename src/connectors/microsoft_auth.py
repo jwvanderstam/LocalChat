@@ -28,7 +28,7 @@ def get_valid_access_token(user_id: str, db: Any) -> str:
     Raises:
         RuntimeError: If no token is stored or refresh fails.
     """
-    token = db.get_oauth_token(user_id, 'microsoft')
+    token = db.oauth_tokens.get(user_id, 'microsoft')
     if not token:
         raise RuntimeError(f"No Microsoft OAuth token for user {user_id}. Connect via /api/oauth/microsoft/authorize")
 
@@ -76,7 +76,7 @@ def _refresh_token(user_id: str, refresh_token: str, db: Any) -> str:
     expires_in = int(data.get('expires_in', 3600))
     expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
 
-    db.upsert_oauth_token(
+    db.oauth_tokens.upsert(
         user_id=user_id,
         provider='microsoft',
         access_token=access_token,

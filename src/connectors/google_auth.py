@@ -26,7 +26,7 @@ def get_valid_google_access_token(user_id: str, db: Any) -> str:
     Raises:
         RuntimeError: If no token is stored or refresh fails.
     """
-    token = db.get_oauth_token(user_id, 'google')
+    token = db.oauth_tokens.get(user_id, 'google')
     if not token:
         raise RuntimeError(
             f"No Google OAuth token for user {user_id}. "
@@ -72,7 +72,7 @@ def _refresh_google_token(user_id: str, refresh_token: str, db: Any) -> str:
     expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
 
     # Google does not rotate refresh tokens on every refresh
-    db.upsert_oauth_token(
+    db.oauth_tokens.upsert(
         user_id=user_id,
         provider='google',
         access_token=access_token,

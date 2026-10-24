@@ -303,7 +303,7 @@ class TestConnectorRegistry:
         reg = ConnectorRegistry()
         mock_db = MagicMock()
         mock_db.is_connected = True
-        mock_db.list_connectors.return_value = [
+        mock_db.connectors.list_all.return_value = [
             {"id": "x", "connector_type": "ftp", "config": {}, "workspace_id": None},
         ]
         reg.load_from_db(mock_db)
@@ -313,7 +313,7 @@ class TestConnectorRegistry:
         reg = ConnectorRegistry()
         mock_db = MagicMock()
         mock_db.is_connected = True
-        mock_db.list_connectors.return_value = [
+        mock_db.connectors.list_all.return_value = [
             {
                 "id": "folder-1",
                 "connector_type": "local_folder",
@@ -358,24 +358,24 @@ class TestSyncWorker:
         w = self._make_worker()
         connector = MagicMock()
         connector.connector_id = "c1"
-        w._db.get_connector_interval.return_value = 900
+        w._db.connectors.interval.return_value = 900
         assert w._is_due(connector) is True
 
     def test_is_due_false_after_recent_run(self):
         w = self._make_worker()
         connector = MagicMock()
         connector.connector_id = "c1"
-        w._db.get_connector_interval.return_value = 900
+        w._db.connectors.interval.return_value = 900
         w._next_run["c1"] = time.monotonic() + 900
         assert w._is_due(connector) is False
 
     def test_handle_delete_calls_db(self):
         mock_db = MagicMock()
-        mock_db.delete_document_by_filename.return_value = True
+        mock_db.connectors.retire_document_by_filename.return_value = True
         w = self._make_worker(db=mock_db)
         source = DocumentSource(source_id="/path/file.txt", filename="file.txt")
         w._handle_delete(source)
-        mock_db.delete_document_by_filename.assert_called_once_with("file.txt")
+        mock_db.connectors.retire_document_by_filename.assert_called_once_with("file.txt")
 
     def test_handle_event_added_calls_ingest(self, tmp_path):
         mock_processor = MagicMock()

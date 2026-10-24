@@ -94,20 +94,20 @@ class TestDeleteAnnotation:
 
 class TestDeleteConnector:
     def test_soft_delete_returns_200(self, client, app):
-        app.state.db.delete_connector = MagicMock(return_value=True)
+        app.state.db.connectors.retire = MagicMock(return_value=True)
         app.state.connector_registry = MagicMock()
         resp = client.delete("/api/connectors/some-conn-id")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_missing_connector_returns_404(self, client, app):
-        app.state.db.delete_connector = MagicMock(return_value=False)
+        app.state.db.connectors.retire = MagicMock(return_value=False)
         app.state.connector_registry = MagicMock()
         resp = client.delete("/api/connectors/ghost-id")
         assert resp.status_code == 404
 
     def test_registry_remove_called_on_success(self, client, app):
-        app.state.db.delete_connector = MagicMock(return_value=True)
+        app.state.db.connectors.retire = MagicMock(return_value=True)
         registry = MagicMock()
         app.state.connector_registry = registry
         client.delete("/api/connectors/some-conn-id")
@@ -116,13 +116,13 @@ class TestDeleteConnector:
 
 class TestPurgeConnector:
     def test_purge_succeeds_when_no_documents(self, client, app):
-        app.state.db.purge_connector = MagicMock(return_value=True)
+        app.state.db.connectors.purge = MagicMock(return_value=True)
         resp = client.delete("/api/connectors/some-conn-id/purge")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_purge_blocked_by_documents_returns_409(self, client, app):
-        app.state.db.purge_connector = MagicMock(return_value=False)
+        app.state.db.connectors.purge = MagicMock(return_value=False)
         resp = client.delete("/api/connectors/some-conn-id/purge")
         assert resp.status_code == 409
         assert "purged" in resp.json()["message"].lower()

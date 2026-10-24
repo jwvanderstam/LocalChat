@@ -53,9 +53,9 @@ SCOPED_METHODS = {
     "conversations.set_document_filter",
     "conversations.set_title",
     "conversations.retire",
-    "get_connector",
-    "update_connector",
-    "delete_connector",
+    "connectors.get",
+    "connectors.update",
+    "connectors.retire",
     # P2-1b-ii: the filters where `workspace_id=None` used to mean every workspace.
     "documents.search_similar",
     "documents.search_lexical",
@@ -67,7 +67,7 @@ SCOPED_METHODS = {
     "conversations.list_page",
     "conversations.retire_all",
     "conversations.low_confidence_queries",
-    "list_connectors",
+    "connectors.list_all",
     "get_workspace_ontology",
     "memories.search",
     "memories.is_duplicate",
@@ -382,9 +382,9 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
         from src.routes_fastapi.connector_routes import router
 
         client = _client(router, "/api", "owner")
-        client.app.state.db.get_connector.return_value = None
+        client.app.state.db.connectors.get.return_value = None
         client.get("/api/connectors/abc-123", headers=_auth())
-        assert client.app.state.db.get_connector.call_args.kwargs["scope"] == WS
+        assert client.app.state.db.connectors.get.call_args.kwargs["scope"] == WS
 
 
 @pytest.mark.unit

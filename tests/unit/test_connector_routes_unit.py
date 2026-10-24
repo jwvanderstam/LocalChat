@@ -7,19 +7,19 @@ class TestConnectorRoutesErrors:
     """Trigger the except-block paths that return 500 with _ERR_INTERNAL."""
 
     def test_list_connectors_db_error_returns_500(self, client, app):
-        app.state.db.list_connectors = MagicMock(side_effect=Exception("db gone"))
+        app.state.db.connectors.list_all = MagicMock(side_effect=Exception("db gone"))
         resp = client.get('/api/connectors')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
     def test_get_connector_db_error_returns_500(self, client, app):
-        app.state.db.get_connector = MagicMock(side_effect=Exception("db gone"))
+        app.state.db.connectors.get = MagicMock(side_effect=Exception("db gone"))
         resp = client.get('/api/connectors/some-id')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
     def test_update_connector_db_error_returns_500(self, client, app):
-        app.state.db.update_connector = MagicMock(side_effect=Exception("db gone"))
+        app.state.db.connectors.update = MagicMock(side_effect=Exception("db gone"))
         resp = client.put(
             '/api/connectors/some-id',
             json={'display_name': 'new name'},
@@ -28,20 +28,20 @@ class TestConnectorRoutesErrors:
         assert resp.json()['message'] == 'Internal server error'
 
     def test_delete_connector_db_error_returns_500(self, client, app):
-        app.state.db.delete_connector = MagicMock(side_effect=Exception("db gone"))
+        app.state.db.connectors.retire = MagicMock(side_effect=Exception("db gone"))
         resp = client.delete('/api/connectors/some-id')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
     def test_sync_history_db_error_returns_500(self, client, app):
-        app.state.db.get_connector_sync_history = MagicMock(side_effect=Exception("db gone"))
+        app.state.db.connectors.sync_history = MagicMock(side_effect=Exception("db gone"))
         resp = client.get('/api/connectors/some-id/history')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
     def test_create_connector_db_error_returns_500(self, client, app):
         """DB error after config validation should return 500."""
-        app.state.db.create_connector = MagicMock(side_effect=Exception("db gone"))
+        app.state.db.connectors.create = MagicMock(side_effect=Exception("db gone"))
 
         mock_cls = MagicMock()
         mock_instance = MagicMock()
@@ -94,7 +94,7 @@ class TestConnectorOwnerBinding:
 
     def test_create_rejects_a_client_supplied_owner(self, client, app):
         self._registry(app)
-        app.state.db.create_connector = MagicMock(return_value='new-id')
+        app.state.db.connectors.create = MagicMock(return_value='new-id')
 
         resp = client.post(
             '/api/connectors',
@@ -103,12 +103,12 @@ class TestConnectorOwnerBinding:
 
         assert resp.status_code == 400
         assert 'user_id' in resp.json()['message']
-        app.state.db.create_connector.assert_not_called()
+        app.state.db.connectors.create.assert_not_called()
 
     def test_create_binds_the_caller_as_owner(self, client, app):
         registry = self._registry(app)
-        app.state.db.create_connector = MagicMock(return_value='new-id')
-        app.state.db.get_connector = MagicMock(return_value={'id': 'new-id'})
+        app.state.db.connectors.create = MagicMock(return_value='new-id')
+        app.state.db.connectors.get = MagicMock(return_value={'id': 'new-id'})
 
         resp = client.post(
             '/api/connectors',
@@ -116,12 +116,12 @@ class TestConnectorOwnerBinding:
         )
 
         assert resp.status_code == 201
-        created_by = app.state.db.create_connector.call_args.kwargs['created_by']
+        created_by = app.state.db.connectors.create.call_args.kwargs['created_by']
         assert created_by
         assert registry.add.call_args.kwargs['owner_user_id'] == created_by
 
     def test_update_rejects_a_client_supplied_owner(self, client, app):
-        app.state.db.update_connector = MagicMock(return_value=True)
+        app.state.db.connectors.update = MagicMock(return_value=True)
 
         resp = client.put(
             '/api/connectors/some-id',
@@ -130,12 +130,12 @@ class TestConnectorOwnerBinding:
 
         assert resp.status_code == 400
         assert 'user_id' in resp.json()['message']
-        app.state.db.update_connector.assert_not_called()
+        app.state.db.connectors.update.assert_not_called()
 
     def test_reregistration_after_update_carries_the_stored_owner(self, client, app):
         registry = self._registry(app)
-        app.state.db.update_connector = MagicMock(return_value=True)
-        app.state.db.get_connector = MagicMock(return_value={
+        app.state.db.connectors.update = MagicMock(return_value=True)
+        app.state.db.connectors.get = MagicMock(return_value={
             'id': 'some-id', 'connector_type': 'google_drive', 'config': {},
             'enabled': True, 'workspace_id': 'ws-1', 'created_by': 'creator',
         })
