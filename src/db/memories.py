@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 
@@ -9,12 +9,7 @@ from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger
 from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
@@ -22,8 +17,11 @@ _MIN_SIMILARITY_DEFAULT = 0.50
 _DEDUP_THRESHOLD = 0.92
 
 
-class MemoriesMixin(MixinHost):
-    """Mixin that adds long-term memory operations to the Database class."""
+class MemoriesRepository:
+    """Long-term memories: insert, search by similarity, retire, and track extraction."""
+
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
 
     @staticmethod
     def _allowed_workspace_ids(
@@ -37,7 +35,7 @@ class MemoriesMixin(MixinHost):
 
     # ── Write operations ───────────────────────────────────────────────────────
 
-    def insert_memory(
+    def insert(
         self,
         content: str,
         embedding: list[float],
@@ -47,12 +45,12 @@ class MemoriesMixin(MixinHost):
         workspace_id: str | None = None,
     ) -> str:
         """Insert a memory and return its UUID string."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot insert memory: Database not connected")
 
         memory_id = str(uuid.uuid4())
-        emb_str = self._embedding_to_pg_array(np.array(embedding))
-        with self.get_connection() as conn:
+        emb_str = self._db._embedding_to_pg_array(np.array(embedding))
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -67,11 +65,11 @@ class MemoriesMixin(MixinHost):
         logger.debug(f"Inserted memory {memory_id} type={memory_type}")
         return memory_id
 
-    def update_memory_usage(self, memory_ids: list[str]) -> None:
+    def record_use(self, memory_ids: list[str]) -> None:
         """Bump use_count and last_used for the given memory IDs."""
-        if not memory_ids or not self.is_connected:
+        if not memory_ids or not self._db.is_connected:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -83,7 +81,7 @@ class MemoriesMixin(MixinHost):
                 )
                 conn.commit()
 
-    def delete_memory(
+    def retire(
         self, memory_id: str, deleted_by: str | None = None, *, scope: Scope
     ) -> bool:
         """Soft-delete a single memory by UUID. Returns True if a live row was retired.
@@ -91,10 +89,10 @@ class MemoriesMixin(MixinHost):
         False also covers "exists, but in another workspace" — the caller reports 404
         either way, so the id space stays opaque.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete memory: Database not connected")
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
@@ -102,18 +100,18 @@ class MemoriesMixin(MixinHost):
                     (deleted_by, memory_id, *params),
                 )
                 conn.commit()
-                return cursor.rowcount > 0
+                return bool(cursor.rowcount > 0)
 
-    def delete_all_memories(self, deleted_by: str | None = None, *, scope: Scope) -> int:
+    def retire_all(self, deleted_by: str | None = None, *, scope: Scope) -> int:
         """Soft-delete every live memory in *scope*. Returns count retired.
 
         Unscoped, this retired every user's memories in every workspace for any
         editor of any one of them (C2).
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete memories: Database not connected")
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE memories SET deleted_at = NOW(), deleted_by = %s "
@@ -123,13 +121,13 @@ class MemoriesMixin(MixinHost):
                 count = cursor.rowcount
                 conn.commit()
         logger.info(f"Soft-deleted {count} memories in scope {scope}")
-        return count
+        return int(count)
 
-    def mark_conversation_extracted(self, conversation_id: str) -> None:
+    def mark_extracted(self, conversation_id: str) -> None:
         """Record that memories have been extracted for this conversation."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET memory_extracted_at = CURRENT_TIMESTAMP WHERE id = %s",
@@ -139,7 +137,7 @@ class MemoriesMixin(MixinHost):
 
     # ── Read operations ────────────────────────────────────────────────────────
 
-    def search_memories(
+    def search(
         self,
         embedding: list[float],
         top_k: int = 5,
@@ -149,9 +147,9 @@ class MemoriesMixin(MixinHost):
         scope: Scope,
     ) -> list[dict[str, Any]]:
         """Return top-k memories ordered by cosine similarity, scoped to a workspace."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
-        emb_str = self._embedding_to_pg_array(np.array(embedding))
+        emb_str = self._db._embedding_to_pg_array(np.array(embedding))
         # A memory with no workspace cannot be attributed to one, so it stays
         # invisible rather than surfacing everywhere — same call doc retrieval
         # makes. ALL_WORKSPACES callers still see everything.
@@ -162,7 +160,7 @@ class MemoriesMixin(MixinHost):
         allowed = self._allowed_workspace_ids(scope, additional_workspace_ids)
         rows: list[Any] = []
         for ws in dict.fromkeys(allowed) if allowed else (scope,):
-            rows.extend(self._search_memories_in_scope(emb_str, top_k, min_similarity, scope=ws))
+            rows.extend(self._search_in_scope(emb_str, top_k, min_similarity, scope=ws))
         rows.sort(key=lambda r: r[6], reverse=True)
         return [
             {
@@ -173,13 +171,13 @@ class MemoriesMixin(MixinHost):
             for r in rows[:top_k]
         ]
 
-    def _search_memories_in_scope(
+    def _search_in_scope(
         self, emb_str: str, top_k: int, min_similarity: float, *, scope: Scope
     ) -> list[Any]:
         """The top-k memories of one scope, as raw rows ending in their similarity."""
         ws_clause, scope_params = scope_predicate(scope, "workspace_id")
         params: list[Any] = [emb_str, emb_str, min_similarity, *scope_params, emb_str, top_k]
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"""
@@ -198,7 +196,7 @@ class MemoriesMixin(MixinHost):
                 )
                 return list(cursor.fetchall())
 
-    def is_duplicate_memory(
+    def is_duplicate(
         self,
         embedding: list[float],
         threshold: float = _DEDUP_THRESHOLD,
@@ -211,12 +209,12 @@ class MemoriesMixin(MixinHost):
         suppress the creation of the same memory in another, which is the write
         side of the same isolation failure.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             return False
-        emb_str = self._embedding_to_pg_array(np.array(embedding))
+        emb_str = self._db._embedding_to_pg_array(np.array(embedding))
         ws_clause, scope_params = scope_predicate(scope, "workspace_id")
         params: list[Any] = [emb_str, threshold, *scope_params]
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"""
@@ -231,15 +229,15 @@ class MemoriesMixin(MixinHost):
                 )
                 return cursor.fetchone() is not None
 
-    def get_all_memories(
+    def list_page(
         self, limit: int = 200, offset: int = 0, *, scope: Scope
     ) -> list[dict[str, Any]]:
         """Return the memories in *scope*, ordered by creation date descending."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
         ws_clause, scope_params = scope_predicate(scope, "workspace_id")
         params: list[Any] = [*scope_params, limit, offset]
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"""
@@ -265,14 +263,14 @@ class MemoriesMixin(MixinHost):
             for r in rows
         ]
 
-    def get_unextracted_conversations(
+    def unextracted_conversations(
         self, limit: int = 10, *, scope: Scope
     ) -> list[dict[str, Any]]:
         """Return conversations whose memory_extracted_at is behind updated_at."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """

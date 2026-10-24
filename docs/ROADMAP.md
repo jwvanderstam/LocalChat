@@ -1702,7 +1702,7 @@ recorded as **ADR-7** in QP-3, is:
 - ADR-7 written in `docs/ADR.md`, with its row in `.claude/rules/file-map.md` updated.
 - **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
 
-#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 4 of 7 done)
+#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 5 of 7 done)
 
 **Cycles to break** (found by QP-3; `KNOWN_CYCLES` in `tests/unit/test_layering_ratchets.py`):
 - [ ] `src.config` ↔ `src.utils.encryption`: `validate_secrets()` imports `_get_fernet`,
@@ -1730,7 +1730,10 @@ The order is by security weight, so authorisation moves first:
    changes only by writing through `db.conversations`. It is still a module of functions
    over `app.state` rather than a class; QP-5 is where `app.state` stops holding a database.
    One integration test was edited, for the renamed methods only.
-5. Memories (both route modules)
+5. ✅ Memories, 2026-10-24: `MemoriesRepository`, `MemoriesService`; `app.state.db` in routes
+   41 → 36. `memory_routes` (the conversation endpoints) moved with aggregate 4, so this
+   is `longterm_memory_routes`; the batch extraction loop moved into the service. One
+   integration test was edited, for the renamed methods only.
 6. Connectors and OAuth tokens. **CONN-1 is decided first**: the connector service is where
    its authorisation model will live, so the decision (2-3 days, no code) comes before this PR.
 7. Feedback, annotations, entities, contributions, settings

@@ -43,9 +43,9 @@ SCOPED_METHODS = {
     "documents.adjacent_chunks",
     "documents.search_text",
     "documents.retire_all",
-    "delete_memory",
-    "delete_all_memories",
-    "get_unextracted_conversations",
+    "memories.retire",
+    "memories.retire_all",
+    "memories.unextracted_conversations",
     "get_annotations_for_chunk",
     "delete_annotation",
     "conversations.messages",
@@ -69,11 +69,11 @@ SCOPED_METHODS = {
     "conversations.low_confidence_queries",
     "list_connectors",
     "get_workspace_ontology",
-    "search_memories",
-    "is_duplicate_memory",
-    "get_all_memories",
+    "memories.search",
+    "memories.is_duplicate",
+    "memories.list_page",
     # P2-1b-iii: one scoped transaction per workspace, since RLS sees only one.
-    "_search_memories_in_scope",
+    "memories._search_in_scope",
 }
 
 WS = "11111111-1111-1111-1111-111111111111"
@@ -366,9 +366,9 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
         from src.routes_fastapi.longterm_memory_routes import router
 
         client = _client(router, "/api/memory", "editor")
-        client.app.state.db.delete_memory.return_value = True
+        client.app.state.db.memories.retire.return_value = True
         client.delete("/api/memory/abc-123", headers=_auth())
-        assert client.app.state.db.delete_memory.call_args.kwargs["scope"] == WS
+        assert client.app.state.db.memories.retire.call_args.kwargs["scope"] == WS
 
     def test_annotation_delete_is_scoped(self):
         from src.routes_fastapi.annotation_routes import router

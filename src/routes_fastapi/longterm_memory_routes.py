@@ -2,34 +2,38 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from .. import config
 from ..security_fastapi import get_current_user_id
+from ..services.memories import MemoriesService
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_scope
 from ._authz import deny as _deny
+from ._services import memories_service
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 _ERR_INTERNAL = "Internal server error"
 
+Memories = Annotated[MemoriesService, Depends(memories_service)]
+
 
 @router.get("/")
-def list_memories(request: Request, limit: int = 100, offset: int = 0) -> Any:
+def list_memories(
+    request: Request, memories_svc: Memories, limit: int = 100, offset: int = 0
+) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
     limit = min(limit, 500)
     offset = max(offset, 0)
     try:
-        memories = request.app.state.db.get_all_memories(
-            limit=limit, offset=offset, scope=get_scope(request)
-        )
+        memories = memories_svc.list_page(limit, offset, get_scope(request))
         return {"success": True, "memories": memories, "count": len(memories)}
     except Exception:
         logger.exception("[Memory] list_memories error")
@@ -37,7 +41,7 @@ def list_memories(request: Request, limit: int = 100, offset: int = 0) -> Any:
 
 
 @router.post("/extract")
-async def extract_memories(request: Request) -> Any:
+async def extract_memories(request: Request, memories_svc: Memories) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
@@ -53,50 +57,22 @@ async def extract_memories(request: Request) -> Any:
         return JSONResponse({"success": False, "message": "No active model"}, status_code=400)
 
     try:
-        from ..memory.extractor import MemoryExtractor
-        extractor = MemoryExtractor()
-        scope = get_scope(request)
-        conversations = app.state.db.get_unextracted_conversations(limit=limit, scope=scope)
-        total_new = processed = 0
-
-        for conv in conversations:
-            try:
-                messages = app.state.db.conversations.messages(conv["id"], scope=scope)
-                msg_list = []
-                for m in messages:
-                    if isinstance(m, dict):
-                        msg_list.append({"role": m.get("role", ""), "content": m.get("content", "")})
-                    elif isinstance(m, (list, tuple)) and len(m) >= 2:
-                        msg_list.append({"role": m[0], "content": m[1]})
-                total_new += await extractor.extract(
-                    conversation_id=conv["id"],
-                    messages=msg_list,
-                    model=active_model,
-                    ollama_client=app.state.ollama_client,
-                    db=app.state.db,
-                    workspace_id=conv.get("workspace_id"),
-                )
-                processed += 1
-            except Exception:  # noqa: BLE001 — per-conversation extraction in a batch; one failure must not abandon the rest
-                logger.warning("[Memory] Extraction failed for conv %s", conv["id"], exc_info=True)
-
-        return {"success": True, "conversations_processed": processed, "new_memories": total_new}
+        counts = await memories_svc.extract(
+            limit, get_scope(request), active_model, app.state.ollama_client
+        )
+        return {"success": True, **counts}
     except Exception:
         logger.exception("[Memory] extract_memories error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.delete("/{memory_id}")
-def delete_memory(memory_id: str, request: Request) -> Any:
+def delete_memory(memory_id: str, request: Request, memories_svc: Memories) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
-    actor = get_current_user_id(request)
-    deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        deleted = request.app.state.db.delete_memory(
-            memory_id, deleted_by=deleted_by, scope=get_scope(request)
-        )
+        deleted = memories_svc.retire(memory_id, get_current_user_id(request), get_scope(request))
         if not deleted:
             return JSONResponse({"success": False, "message": "Memory not found"}, status_code=404)
         return {"success": True}
@@ -106,7 +82,7 @@ def delete_memory(memory_id: str, request: Request) -> Any:
 
 
 @router.delete("/")
-def delete_all_memories(request: Request) -> Any:
+def delete_all_memories(request: Request, memories_svc: Memories) -> Any:
     """Retire every memory in the caller's own workspace. Reversible.
 
     ``owner``, not ``editor``: clearing a whole workspace's memory is a different
@@ -116,12 +92,8 @@ def delete_all_memories(request: Request) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
         return denied
-    actor = get_current_user_id(request)
-    deleted_by = actor if actor and actor != "anonymous" else None
     try:
-        count = request.app.state.db.delete_all_memories(
-            deleted_by=deleted_by, scope=get_scope(request)
-        )
+        count = memories_svc.retire_all(get_current_user_id(request), get_scope(request))
         return {"success": True, "deleted": count}
     except Exception:
         logger.exception("[Memory] delete_all_memories error")

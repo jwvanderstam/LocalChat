@@ -24,7 +24,7 @@ from .conversations import ConversationsRepository
 from .documents import DocumentsRepository
 from .entities import EntitiesMixin
 from .feedback import FeedbackMixin
-from .memories import MemoriesMixin
+from .memories import MemoriesRepository
 from .oauth_tokens import OAuthTokensMixin
 from .tokens import RevokedTokensRepository
 from .users import UsersRepository
@@ -34,7 +34,7 @@ from .workspaces import WorkspaceMembersRepository, WorkspacesRepository
 logger = get_logger(__name__)
 
 
-class Database(ContributionsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, DatabaseConnection):
+class Database(ContributionsMixin, EntitiesMixin, FeedbackMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 
@@ -48,10 +48,10 @@ class Database(ContributionsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, 
         ...     doc_id = db.documents.insert("file.pdf", "content")
         ...     results = db.documents.search_similar(embedding, top_k=5, scope=workspace_id)
 
-    The users, revoked-tokens, workspaces, memberships, API-key, documents and
-    conversations aggregates are repositories held as attributes, not mixins (QP-4);
-    the remaining mixins move the same way, one aggregate per PR, and QP-5 removes
-    this class.
+    The users, revoked-tokens, workspaces, memberships, API-key, documents,
+    conversations and memories aggregates are repositories held as attributes, not
+    mixins (QP-4); the remaining mixins move the same way, one aggregate per PR, and
+    QP-5 removes this class.
     """
 
     def __init__(self) -> None:
@@ -63,6 +63,7 @@ class Database(ContributionsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, 
         self.api_keys = WorkspaceKeysRepository(self)
         self.documents = DocumentsRepository(self)
         self.conversations = ConversationsRepository(self)
+        self.memories = MemoriesRepository(self)
 
 
 # Global singleton – imported throughout the application

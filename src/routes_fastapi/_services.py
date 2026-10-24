@@ -11,6 +11,7 @@ from fastapi import Request
 
 from ..services.conversations import ConversationsService
 from ..services.documents import DocumentsService
+from ..services.memories import MemoriesService
 from ..services.users import UsersService
 from ..services.workspaces import WorkspacesService
 
@@ -21,6 +22,10 @@ def conversations_service(request: Request) -> ConversationsService:
 
 def documents_service(request: Request) -> DocumentsService:
     return DocumentsService(request.app.state.db)
+
+
+def memories_service(request: Request) -> MemoriesService:
+    return MemoriesService(request.app.state.db)
 
 
 def users_service(request: Request) -> UsersService:

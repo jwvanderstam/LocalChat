@@ -65,7 +65,7 @@ class MemoryRetriever:
             return []
 
         try:
-            memories = db.search_memories(
+            memories = db.memories.search(
                 embedding,
                 top_k=top_k,
                 min_similarity=min_similarity,
@@ -78,7 +78,7 @@ class MemoryRetriever:
 
         if memories:
             try:
-                db.update_memory_usage([m["id"] for m in memories])
+                db.memories.record_use([m["id"] for m in memories])
             except Exception:  # noqa: BLE001 — usage bookkeeping; the memories have already been retrieved and returned
                 logger.debug("[Memory] Could not record memory usage", exc_info=True)
             logger.info(f"[Memory] Retrieved {len(memories)} memories for prompt injection")

@@ -33,6 +33,11 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   retiring and purging; the SQL moved verbatim into `ConversationsRepository`
   (`db.conversations`), which the chat service writes through too. `app.state.db` in routes
   is down to 41. No behaviour changes.
+- **Long-term memories go through a service** (QP-4, fifth aggregate).
+  `longterm_memory_routes` asks a `MemoriesService` for listing, batch extraction and
+  retiring; the SQL moved verbatim into `MemoriesRepository` (`db.memories`), which the
+  extractor and the retriever use too. `app.state.db` in routes is down to 36. No behaviour
+  changes.
 
 ### Added
 
