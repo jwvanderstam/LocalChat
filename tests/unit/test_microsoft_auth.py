@@ -27,14 +27,14 @@ def _past_iso(seconds: int = 3600) -> str:
 class TestGetValidAccessToken:
     def test_raises_when_no_token_stored(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value=None)
+        db.oauth_tokens.get = Mock(return_value=None)
 
         with pytest.raises(RuntimeError, match="No Microsoft OAuth token"):
             get_valid_access_token("user-1", db)
 
     def test_returns_existing_token_when_not_expired(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'valid-token',
             'refresh_token': 'refresh-1',
             'expires_at': _future_iso(3600),
@@ -43,11 +43,11 @@ class TestGetValidAccessToken:
         result = get_valid_access_token("user-1", db)
 
         assert result == 'valid-token'
-        db.upsert_oauth_token.assert_not_called()
+        db.oauth_tokens.upsert.assert_not_called()
 
     def test_treats_token_within_60s_buffer_as_expired(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'about-to-expire',
             'refresh_token': 'refresh-1',
             'expires_at': _future_iso(30),
@@ -70,7 +70,7 @@ class TestGetValidAccessToken:
     def test_treats_naive_expires_at_as_utc(self):
         db = Mock()
         naive_future = (datetime.now(UTC) + timedelta(hours=1)).replace(tzinfo=None).isoformat()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'valid-token',
             'refresh_token': 'refresh-1',
             'expires_at': naive_future,
@@ -82,7 +82,7 @@ class TestGetValidAccessToken:
 
     def test_treats_unparseable_expires_at_as_needing_refresh(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'stale-token',
             'refresh_token': 'refresh-1',
             'expires_at': 'not-a-date',
@@ -99,7 +99,7 @@ class TestGetValidAccessToken:
 
     def test_refreshes_when_expires_at_missing(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'old-token',
             'refresh_token': 'refresh-1',
             'expires_at': None,
@@ -116,7 +116,7 @@ class TestGetValidAccessToken:
 
     def test_raises_when_expired_and_no_refresh_token(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'expired-token',
             'refresh_token': None,
             'expires_at': _past_iso(60),
@@ -127,7 +127,7 @@ class TestGetValidAccessToken:
 
     def test_raises_when_refresh_request_fails(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'expired-token',
             'refresh_token': 'refresh-1',
             'expires_at': _past_iso(60),
@@ -143,7 +143,7 @@ class TestGetValidAccessToken:
     def test_persists_refreshed_token_and_rotates_refresh_token(self):
         """Microsoft may rotate the refresh token — the new one must be persisted."""
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'expired-token',
             'refresh_token': 'original-refresh',
             'expires_at': _past_iso(60),
@@ -162,8 +162,8 @@ class TestGetValidAccessToken:
             result = get_valid_access_token("user-1", db)
 
         assert result == 'new-access-token'
-        db.upsert_oauth_token.assert_called_once()
-        _, kwargs = db.upsert_oauth_token.call_args
+        db.oauth_tokens.upsert.assert_called_once()
+        _, kwargs = db.oauth_tokens.upsert.call_args
         assert kwargs['user_id'] == 'user-1'
         assert kwargs['provider'] == 'microsoft'
         assert kwargs['access_token'] == 'new-access-token'
@@ -172,7 +172,7 @@ class TestGetValidAccessToken:
 
     def test_keeps_original_refresh_token_when_response_omits_it(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'expired-token',
             'refresh_token': 'original-refresh',
             'expires_at': _past_iso(60),
@@ -185,12 +185,12 @@ class TestGetValidAccessToken:
 
             get_valid_access_token("user-1", db)
 
-        _, kwargs = db.upsert_oauth_token.call_args
+        _, kwargs = db.oauth_tokens.upsert.call_args
         assert kwargs['refresh_token'] == 'original-refresh'
 
     def test_refresh_request_uses_configured_tenant_and_credentials(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'expired-token',
             'refresh_token': 'refresh-1',
             'expires_at': _past_iso(60),
@@ -215,7 +215,7 @@ class TestGetValidAccessToken:
 
     def test_defaults_tenant_to_common_when_not_configured(self):
         db = Mock()
-        db.get_oauth_token = Mock(return_value={
+        db.oauth_tokens.get = Mock(return_value={
             'access_token': 'expired-token',
             'refresh_token': 'refresh-1',
             'expires_at': _past_iso(60),

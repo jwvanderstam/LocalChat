@@ -805,13 +805,13 @@ Google Drive and OneDrive were retained from DEL-1b on a stated intent to use th
 
 ---
 
-### CONN-1 — The connector authorisation model (decision before code) ⬜
+### CONN-1 — The connector authorisation model (decision before code) ✅ (decided 2026-10-24)
 
 RBAC-1 settled document access *within* a workspace: membership is the boundary, no per-document ACL. Connecting a personal cloud store asks a question RBAC-1 did not: **is a connected store a personal resource or a workspace resource?**
 
 It matters because a connector is not an import. `SyncWorker` polls it continuously, so it is a standing pipe from a personal account into a shared space — and every workspace member, plus every global admin (who short-circuits workspace checks), can retrieve what comes through it.
 
-**Proposed answer — connecting is an act of publication, and must be explicit:**
+**Decided 2026-10-24, by the maintainer, as proposed — connecting is an act of publication, and must be explicit:**
 
 | Decision | Rule |
 |---|---|
@@ -821,7 +821,7 @@ It matters because a connector is not an import. `SyncWorker` polls it continuou
 | Disclosure | The connect dialog states who will be able to read the result: every member of this workspace, plus global admins. Informed consent, not discovery. |
 | Membership loss / user retirement | Sync stops. Documents already ingested remain — they are CDIs under Clark-Wilson — and their source is marked retired. |
 
-**Open question to settle before building:** creation is currently `ws:owner`, so an editor cannot connect their own drive at all. Decide whether that is the intent, or whether contributing your own store is an editor-level act while managing someone else's is not.
+**The open question, settled 2026-10-24:** creation stays `ws:owner`. A connector is a standing pipe into a shared space, so publishing into it is an owner's call, and an editor does not connect their own drive. (The question was whether contributing your own store should be an editor-level act while managing someone else's is not; the answer is no.) The rules live in `ConnectorsService` since QP-4's sixth aggregate.
 
 **Acceptance:** the table above is confirmed or amended and recorded here as *decided* rather than proposed. No code in this ticket.
 
@@ -1702,7 +1702,7 @@ recorded as **ADR-7** in QP-3, is:
 - ADR-7 written in `docs/ADR.md`, with its row in `.claude/rules/file-map.md` updated.
 - **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
 
-#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 5 of 7 done)
+#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 6 of 7 done)
 
 **Cycles to break** (found by QP-3; `KNOWN_CYCLES` in `tests/unit/test_layering_ratchets.py`):
 - [ ] `src.config` ↔ `src.utils.encryption`: `validate_secrets()` imports `_get_fernet`,
@@ -1734,8 +1734,13 @@ The order is by security weight, so authorisation moves first:
    41 → 36. `memory_routes` (the conversation endpoints) moved with aggregate 4, so this
    is `longterm_memory_routes`; the batch extraction loop moved into the service. One
    integration test was edited, for the renamed methods only.
-6. Connectors and OAuth tokens. **CONN-1 is decided first**: the connector service is where
-   its authorisation model will live, so the decision (2-3 days, no code) comes before this PR.
+6. ✅ Connectors and OAuth tokens, 2026-10-24, after CONN-1 was decided the same day:
+   `ConnectorsRepository`, `OAuthTokensRepository`, `ConnectorsService` (which holds CONN-1's
+   rules), `OAuthAccountsService`; `app.state.db` in routes 36 → 23. The admin check needs the
+   request, so the route hands it to the service as a callback, called where the route used
+   to call it. Found, not fixed here: a global admin who names no workspace creates a
+   connector with none, then gets a 500 from the read-back. Two integration tests were
+   edited, for the renamed methods only.
 7. Feedback, annotations, entities, contributions, settings
 
 Each PR does five things:

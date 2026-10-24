@@ -72,20 +72,20 @@ class TestTimestampParsingIsNarrowedNotBlind:
 
 class TestExpiredTokenFailsSafe:
     def test_an_unparseable_expiry_counts_as_expired(self):
-        from src.db.oauth_tokens import OAuthTokensMixin
+        from src.db.oauth_tokens import OAuthTokensRepository
 
-        mixin = OAuthTokensMixin.__new__(OAuthTokensMixin)
-        mixin.get_oauth_token = Mock(return_value={"expires_at": "whenever"})
+        tokens = OAuthTokensRepository(Mock())
+        tokens.get = Mock(return_value={"expires_at": "whenever"})
 
-        assert mixin.is_token_expired("user-1", "microsoft") is True
+        assert tokens.is_expired("user-1", "microsoft") is True
 
     def test_a_future_expiry_is_not_expired(self):
-        from src.db.oauth_tokens import OAuthTokensMixin
+        from src.db.oauth_tokens import OAuthTokensRepository
 
-        mixin = OAuthTokensMixin.__new__(OAuthTokensMixin)
-        mixin.get_oauth_token = Mock(return_value={"expires_at": "2099-01-01T00:00:00+00:00"})
+        tokens = OAuthTokensRepository(Mock())
+        tokens.get = Mock(return_value={"expires_at": "2099-01-01T00:00:00+00:00"})
 
-        assert mixin.is_token_expired("user-1", "microsoft") is False
+        assert tokens.is_expired("user-1", "microsoft") is False
 
 
 class TestAPageStillRendersWhenItsStatsDoNot:

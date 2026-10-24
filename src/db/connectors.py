@@ -1,6 +1,6 @@
 """
-Connectors DB Mixin
-====================
+Connectors Repository
+=====================
 
 CRUD operations for the ``connectors`` and ``connector_sync_log`` tables,
 plus the helpers called by ``SyncWorker`` during each sync cycle.
@@ -10,32 +10,30 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..utils.logging_config import get_logger
 from ..utils.scope import Scope, scope_predicate
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
 
-class ConnectorsMixin(MixinHost):
-    """Mixin providing connector persistence operations."""
+class ConnectorsRepository:
+    """Connectors, their sync log, and the documents a sync removes."""
+
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
 
     # ------------------------------------------------------------------
     # CRUD
     # ------------------------------------------------------------------
 
-    def create_connector(
+    def create(
         self,
         connector_type: str,
         display_name: str,
-        config: dict,
+        config: dict[str, Any],
         workspace_id: str | None = None,
         sync_interval: int = 900,
         created_by: str | None = None,
@@ -45,11 +43,11 @@ class ConnectorsMixin(MixinHost):
         *created_by* is the only source of the identity whose OAuth token the
         connector may spend (BUG-4); it is never taken from client config.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot create connector: DB not connected")
         from psycopg.types.json import Jsonb
         connector_id = str(uuid.uuid4())
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -65,16 +63,16 @@ class ConnectorsMixin(MixinHost):
         logger.info(f"[Connectors] Created {connector_type} connector id={connector_id}")
         return connector_id
 
-    def get_connector(self, connector_id: str, *, scope: Scope) -> dict[str, Any] | None:
+    def get(self, connector_id: str, *, scope: Scope) -> dict[str, Any] | None:
         """Return connector row dict, or None when there is none in scope.
 
         A connector's config holds the credentials and paths it syncs, so reading one
         from another workspace is a disclosure, not just a listing (C2).
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT id, workspace_id, connector_type, display_name, config, "
@@ -85,20 +83,20 @@ class ConnectorsMixin(MixinHost):
                 row = cur.fetchone()
         return _row_to_connector(row) if row else None
 
-    def list_connectors(
+    def list_all(
         self,
         enabled_only: bool = False,
         *,
         scope: Scope,
     ) -> list[dict[str, Any]]:
         """Return the live connectors in *scope*, optionally only the enabled ones."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
         scope_sql, params = scope_predicate(scope, "workspace_id")
         where = f"WHERE deleted_at IS NULL{scope_sql}"
         if enabled_only:
             where += " AND enabled = true"
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     f"SELECT id, workspace_id, connector_type, display_name, config, "
@@ -108,13 +106,13 @@ class ConnectorsMixin(MixinHost):
                 )
                 return [_row_to_connector(r) for r in cur.fetchall()]
 
-    def update_connector(self, connector_id: str, *, scope: Scope, **fields) -> bool:
+    def update(self, connector_id: str, *, scope: Scope, **fields: Any) -> bool:
         """Update editable connector fields. Returns True if a row was changed."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot update connector: DB not connected")
         allowed = {"display_name", "config", "enabled", "sync_interval", "workspace_id"}
         sets: list[str] = []
-        params: list = []
+        params: list[Any] = []
         for key, value in fields.items():
             if key not in allowed:
                 continue
@@ -128,7 +126,7 @@ class ConnectorsMixin(MixinHost):
         params.append(connector_id)
         where, scope_params = scope_predicate(scope, "workspace_id")
         params.extend(scope_params)
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     f"UPDATE connectors SET {', '.join(sets)}"
@@ -137,16 +135,16 @@ class ConnectorsMixin(MixinHost):
                 )
                 updated = cur.rowcount > 0
                 conn.commit()
-        return updated
+        return bool(updated)
 
-    def delete_connector(
+    def retire(
         self, connector_id: str, deleted_by: str | None = None, *, scope: Scope
     ) -> bool:
         """Soft-delete a connector. Returns True if a live row was retired."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete connector: DB not connected")
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE connectors SET deleted_at = NOW(), deleted_by = %s "
@@ -155,16 +153,16 @@ class ConnectorsMixin(MixinHost):
                 )
                 deleted = cur.rowcount > 0
                 conn.commit()
-        return deleted
+        return bool(deleted)
 
-    def purge_connector(self, connector_id: str) -> bool:
+    def purge(self, connector_id: str) -> bool:
         """Hard-delete a soft-deleted connector if it has no live synced documents.
 
         Returns False when blocked; True on success.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge connector: DB not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT 1 FROM documents WHERE source_id = %s AND deleted_at IS NULL LIMIT 1",
@@ -175,17 +173,17 @@ class ConnectorsMixin(MixinHost):
                 cur.execute("DELETE FROM connectors WHERE id = %s", (connector_id,))
                 deleted = cur.rowcount > 0
                 conn.commit()
-        return deleted
+        return bool(deleted)
 
     # ------------------------------------------------------------------
     # SyncWorker helpers
     # ------------------------------------------------------------------
 
-    def get_connector_interval(self, connector_id: str) -> int | None:
+    def interval(self, connector_id: str) -> int | None:
         """Return the sync_interval for a connector (seconds)."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT sync_interval FROM connectors WHERE id = %s",
@@ -194,15 +192,15 @@ class ConnectorsMixin(MixinHost):
                 row = cur.fetchone()
         return int(row[0]) if row else None
 
-    def update_connector_sync_status(
+    def set_sync_status(
         self,
         connector_id: str,
         error: str | None = None,
     ) -> None:
         """Update last_sync_at and last_error after a sync cycle."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE connectors SET last_sync_at = %s, last_error = %s WHERE id = %s",
@@ -212,9 +210,9 @@ class ConnectorsMixin(MixinHost):
 
     def start_sync_log(self, connector_id: str) -> int | None:
         """Insert a started sync log row and return its id."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO connector_sync_log (connector_id) VALUES (%s) RETURNING id",
@@ -231,9 +229,9 @@ class ConnectorsMixin(MixinHost):
         error: str | None = None,
     ) -> None:
         """Mark a sync log row as finished."""
-        if not self.is_connected or log_id is None:
+        if not self._db.is_connected or log_id is None:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -256,13 +254,13 @@ class ConnectorsMixin(MixinHost):
                 )
                 conn.commit()
 
-    def get_connector_sync_history(
+    def sync_history(
         self, connector_id: str, limit: int = 20
     ) -> list[dict[str, Any]]:
         """Return recent sync log entries for a connector."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -289,11 +287,11 @@ class ConnectorsMixin(MixinHost):
             for r in rows
         ]
 
-    def delete_document_by_filename(self, filename: str) -> bool:
+    def retire_document_by_filename(self, filename: str) -> bool:
         """Soft-delete a document by filename (used by SyncWorker). Returns True if found."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return False
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = NULL "
@@ -302,14 +300,14 @@ class ConnectorsMixin(MixinHost):
                 )
                 deleted = cur.rowcount > 0
                 conn.commit()
-        return deleted
+        return bool(deleted)
 
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _row_to_connector(row: tuple) -> dict[str, Any]:
+def _row_to_connector(row: tuple[Any, ...]) -> dict[str, Any]:
     return {
         "id": str(row[0]),
         "workspace_id": str(row[1]) if row[1] else None,

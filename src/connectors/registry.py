@@ -6,7 +6,7 @@ Singleton that maps connector types to implementation classes, and manages
 the in-process lifecycle (create, enable, disable) of connector instances.
 
 The persistent state (connector configs, sync timestamps) lives in the
-``connectors`` DB table via ``ConnectorsMixin``.  This registry holds the
+``connectors`` DB table via ``ConnectorsRepository``.  This registry holds the
 live Python instances in memory and is the single source of truth for
 which connectors are currently active.
 """
@@ -64,7 +64,7 @@ class ConnectorRegistry:
         """Instantiate all enabled connectors from the database on startup."""
         if not db.is_connected:
             return
-        rows = db.list_connectors(enabled_only=True, scope=ALL_WORKSPACES)
+        rows = db.connectors.list_all(enabled_only=True, scope=ALL_WORKSPACES)
         for row in rows:
             self._load_row(row)
         logger.info(f"[Connectors] Loaded {len(self._instances)} connector(s) from DB")

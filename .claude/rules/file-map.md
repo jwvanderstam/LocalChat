@@ -22,6 +22,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/api_routes.py` | Chat (SSE), status — HTTP plumbing only; delegates business logic to `src/services/chat.py` |
 | `src/services/chat.py` | Chat business logic: context retrieval, RAG, planning, memory, model routing, message persistence |
 | `src/services/users.py` | `UsersService` — QP-4's first aggregate: sign-in, sign-out, `/users/me`'s identity, the admin's user and membership management, and changing your own password. Holds the rules a guard cannot express: the last administrator, the last owner of a workspace, and proving the current password |
+| `src/services/connectors.py` | `ConnectorsService` — QP-4's sixth aggregate and CONN-1's rules: a connector spends only its creator's token (`user_id` refused in config), `local_folder` needs a global admin at creation and every config change, a config is validated by its own class, and the registry follows the database. `OAuthAccountsService` — store, inspect and remove a user's provider tokens |
 | `src/services/conversations.py` | `ConversationsService` — QP-4's fourth aggregate: paging (with `total`/`has_more`), reading, renaming, the document filter, retiring and purging conversations, each with the scope the route's guard authorised. Sending a message is `chat.py`'s |
 | `src/services/documents.py` | `DocumentsService` — QP-4's third aggregate: listing, statistics, chunk context, retiring and purging documents, each with the scope the route's guard authorised; a database that cannot answer becomes a 503 `ServiceError`. Upload and ingest stay in `DocumentProcessor` |
 | `src/services/workspaces.py` | `WorkspacesService` — QP-4's second aggregate: workspaces, members and API keys. Decides what depends on the caller once the route's `deny()` has admitted them: which workspaces they are shown, who owns one they create, whose name a retirement or revocation records, and the last-owner refusal |
@@ -44,7 +45,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
 | `src/routes_fastapi/_request_state.py` | Per-request state helpers (request ID, workspace ID) |
-| `src/routes_fastapi/_services.py` | FastAPI providers for the services (`conversations_service`, `documents_service`, `memories_service`, `users_service`, `workspaces_service`) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
+| `src/routes_fastapi/_services.py` | FastAPI providers for the services (`connectors_service`, `conversations_service`, `documents_service`, `memories_service`, `oauth_accounts_service`, `users_service`, `workspaces_service`) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
 | `src/routes_fastapi/_authz.py` | `deny()` — wraps `check_workspace_access` in the route layer's JSON envelope; shared by every workspace-scoped router |
 | **RAG** | |
 | `src/rag/processor.py` | Ingest orchestration: load → chunk → embed → store |
@@ -69,9 +70,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/db/workspace_keys.py` | `WorkspaceKeysRepository` — workspace API keys: create/resolve/list/revoke; sha256-hashed, prefix-indexed; held as `Database.api_keys` |
 | `src/db/workspaces.py` | `WorkspacesRepository` (workspace CRUD with doc/conversation counts) and `WorkspaceMembersRepository` (memberships; refuses the last owner inside its own transaction); held as `Database.workspaces` and `Database.members` |
 | `src/db/contributions.py` | `ContributionsMixin` — GKB-2's TPs on an unscoped connection: copy a workspace's documents and chunks into the global tier (upsert per filename + source project), archive them, list them with provenance |
-| `src/db/connectors.py` | `ConnectorsMixin` — connector CRUD, sync log, `delete_document_by_filename` |
+| `src/db/connectors.py` | `ConnectorsRepository` — connector CRUD, sync log, `retire_document_by_filename`; held as `Database.connectors` |
 | `src/db/users.py` | `UsersRepository` — the `users` table's SQL: create, read, update, retire, purge. No rules; held as `Database.users` until QP-5 |
-| `src/db/oauth_tokens.py` | `OAuthTokensMixin` — Fernet-encrypted OAuth token storage |
+| `src/db/oauth_tokens.py` | `OAuthTokensRepository` — Fernet-encrypted OAuth token storage; held as `Database.oauth_tokens` |
 | `src/db/tokens.py` | `RevokedTokensRepository` — the JWT revocation deny-list (`revoked_tokens` table); held as `Database.tokens` |
 | `src/db/annotations.py` | `AnnotationsMixin` — annotation CRUD |
 | **Migrations** | |
@@ -101,6 +102,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `migrations/versions/0020_gkb2_contribution_identity.py` | GKB-2: a live contribution is unique per `(filename, source_project_id)` — two projects may share a filename, re-contributing updates in place; 0013's index narrowed to non-contributions; adds `documents.archived_by` |
 | `migrations/versions/0018_p21b_grant_scoped_role.py` | P2-1b: `GRANT localchat_scoped TO CURRENT_USER` — `SET ROLE` needs membership with `SET`, which a managed database's application identity does not get by creating the role. Compose connects as `postgres`, a superuser, so without this the stack would have worked by accident |
 | `tests/unit/test_layering_ratchets.py` | QP-3 — three numbers that may only go down: `app.state.db` in route modules (81), the forbidden contract's exceptions (4), and module import cycles found with grimp (2). Fails if one rises, and asks for the constant to be lowered when one falls |
+| `tests/unit/test_connectors_service.py` | QP-4 / CONN-1 — the order the connector rules apply in (`user_id` in config before the admin check, the admin check only for an admin-only type, an invalid config writing nothing), the creator bound as owner, the registry following the database, and an OAuth account's status |
 | `tests/unit/test_conversations_service.py` | QP-4 — `ConversationsService` computes `has_more` from the page it got, lists and counts in the same scope, passes the scope to every call, and records who retired what |
 | `tests/unit/test_documents_service.py` | QP-4 — `DocumentsService` hands the authorised scope to every repository call unchanged (a chunk's neighbours too), records who retired what, and turns an unavailable database into a 503 |
 | `tests/unit/test_memories_service.py` | QP-4 — `MemoriesService` passes the scope to every call, records who retired what, counts an extraction batch across conversations, and skips a failed or vanished conversation without abandoning the rest |

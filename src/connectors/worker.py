@@ -13,7 +13,7 @@ Per-connector sync cycle:
     2. For ADDED / MODIFIED: fetch bytes → write to tmp file → call
        doc_processor.ingest_document() (re-uses the same pipeline as
        manual uploads including chunking, embedding, and de-duplication).
-    3. For DELETED: call db.delete_document_by_filename().
+    3. For DELETED: call db.connectors.retire_document_by_filename().
     4. Update connectors.last_sync_at and last_error via db.
     5. Append a row to connector_sync_log.
 
@@ -106,14 +106,14 @@ class SyncWorker:
 
     def _sync_one(self, connector) -> None:
         connector_id = connector.connector_id
-        interval = float(self._db.get_connector_interval(connector_id) or 900)
+        interval = float(self._db.connectors.interval(connector_id) or 900)
         self._next_run[connector_id] = time.monotonic() + interval
 
         started = time.time()
         counts = {"added": 0, "updated": 0, "deleted": 0}
         error_msg: str | None = None
 
-        log_id = self._db.start_sync_log(connector_id)
+        log_id = self._db.connectors.start_sync_log(connector_id)
         try:
             events = connector.poll()
             for event in events:
@@ -122,8 +122,8 @@ class SyncWorker:
             error_msg = str(exc)
             logger.exception("[SyncWorker] Connector %s error", connector_id)
         finally:
-            self._db.finish_sync_log(log_id, counts, error_msg)
-            self._db.update_connector_sync_status(connector_id, error=error_msg)
+            self._db.connectors.finish_sync_log(log_id, counts, error_msg)
+            self._db.connectors.set_sync_status(connector_id, error=error_msg)
             elapsed = time.time() - started
             logger.info(
                 f"[SyncWorker] {connector.display_name}: "
@@ -214,7 +214,7 @@ class SyncWorker:
 
     def _handle_delete(self, source) -> None:
         try:
-            deleted = self._db.delete_document_by_filename(source.filename)
+            deleted = self._db.connectors.retire_document_by_filename(source.filename)
             if deleted:
                 logger.info(f"[SyncWorker] Deleted document: {source.filename}")
         except Exception as exc:  # noqa: BLE001 — same — a delete that fails is retried on the next poll
