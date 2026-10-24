@@ -85,6 +85,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   another project's contribution is tagged "shared globally". A workspace API key asking
   for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
 
+### Fixed
+
+- **A connector can no longer be created without a workspace.** A global admin passes the
+  workspace guard without naming one, so `POST /api/connectors` with no `X-Workspace-ID`
+  inserted and registered a connector with no workspace, then answered 500 when reading it
+  back. It is now refused with a 400 before anything is written. Found while moving
+  connectors to a service (QP-4).
+
 ### Security
 
 - **filelock 4.2.1 and pypdf 6.21.2**: three CVEs in each (filelock CVE-2026-112907,

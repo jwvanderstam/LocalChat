@@ -105,6 +105,11 @@ class ConnectorsService:
             require_admin()
         created_by = creator()
         instance = self._validate(connector_type, config)
+        if workspace_id is None:
+            # A global admin passes the guard without naming a workspace. Refused here,
+            # before the insert: a connector with no workspace was written and registered,
+            # then its read-back refused the missing scope and the caller got a 500.
+            raise ServiceError(400, "Select a workspace for the connector")
         if not display_name:
             display_name = instance.display_name
         connector_id = self._db.connectors.create(
@@ -117,10 +122,7 @@ class ConnectorsService:
         )
         self._registry.add(connector_id, connector_type, config,
                            workspace_id=workspace_id, owner_user_id=created_by)
-        # A global admin who names no workspace arrives with None here: the insert
-        # succeeds and this read-back refuses the missing scope. Carried over unchanged
-        # by QP-4; fixing it is a separate change with its own regression test.
-        return self._db.connectors.get(connector_id, scope=workspace_id)  # type: ignore[arg-type]
+        return self._db.connectors.get(connector_id, scope=workspace_id)
 
     def update(
         self,
