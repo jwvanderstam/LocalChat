@@ -48,9 +48,9 @@ def _make_chat_app(active_model="llama3.2", db_ok=True, ollama_ok=True, chunks=N
     test_app.state.startup_status = {"database": db_ok, "ollama": ollama_ok, "ready": db_ok and ollama_ok}
     test_app.state.db = authorise_db(MagicMock())
     test_app.state.db.documents.count.return_value = 5
-    test_app.state.db.save_message.return_value = 42
-    test_app.state.db.create_conversation_with_message.return_value = ("conv-1", 1)
-    test_app.state.db.get_conversation_document_filter.return_value = []
+    test_app.state.db.conversations.save_message.return_value = 42
+    test_app.state.db.conversations.create_with_message.return_value = ("conv-1", 1)
+    test_app.state.db.conversations.document_filter.return_value = []
     test_app.state.doc_processor = MagicMock()
     test_app.state.doc_processor.retrieve_context.return_value = []
     test_app.state.ollama_client = MagicMock()
@@ -259,9 +259,9 @@ class TestPersistMessages:
         app = MagicMock()
         app.startup_status = {"database": db_ok}
         app.db = MagicMock()
-        app.db.create_conversation.return_value = "conv-new"
-        app.db.create_conversation_with_message.return_value = ("conv-new", 99)
-        app.db.save_message.return_value = 99
+        app.db.conversations.create.return_value = "conv-new"
+        app.db.conversations.create_with_message.return_value = ("conv-new", 99)
+        app.db.conversations.save_message.return_value = 99
         return app
 
     def test_persist_user_returns_conversation_id_and_message_id(self):
@@ -277,7 +277,7 @@ class TestPersistMessages:
         conv_id, msg_id = persist_user_message(app, None, "first message")
         assert conv_id == "conv-new"
         assert msg_id == 99
-        app.db.create_conversation_with_message.assert_called_once()
+        app.db.conversations.create_with_message.assert_called_once()
 
     def test_persist_user_returns_none_message_id_when_db_unavailable(self):
         from src.services.chat import persist_user_message
@@ -288,7 +288,7 @@ class TestPersistMessages:
     def test_persist_user_handles_db_exception(self):
         from src.services.chat import persist_user_message
         app = self._make_app()
-        app.db.save_message.side_effect = Exception("DB error")
+        app.db.conversations.save_message.side_effect = Exception("DB error")
         conv_id, msg_id = persist_user_message(app, "conv", "msg")
         assert msg_id is None
 
@@ -307,7 +307,7 @@ class TestPersistMessages:
     def test_persist_assistant_handles_exception(self):
         from src.services.chat import persist_assistant_message
         app = self._make_app()
-        app.db.save_message.side_effect = Exception("DB error")
+        app.db.conversations.save_message.side_effect = Exception("DB error")
         msg_id = persist_assistant_message(app, "conv", "text")
         assert msg_id is None
 

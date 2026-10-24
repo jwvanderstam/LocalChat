@@ -347,7 +347,7 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
     if chunk_ids:
         objects["chunk_id"] = chunk_ids[0]
 
-    objects["conversation_id"] = db.create_conversation(
+    objects["conversation_id"] = db.conversations.create(
         title="Workspace B private conversation", workspace_id=workspace_b
     )
 

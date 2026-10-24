@@ -131,7 +131,7 @@ class TestActiveLearning:
         from src.rag.active_learning import suggest_documents
 
         db = MagicMock()
-        db.get_low_confidence_queries.side_effect = RuntimeError("DB down")
+        db.conversations.low_confidence_queries.side_effect = RuntimeError("DB down")
         result = suggest_documents(scope="ws-1", db=db)
         assert result == []
 
@@ -139,7 +139,7 @@ class TestActiveLearning:
         from src.rag.active_learning import suggest_documents
 
         db = MagicMock()
-        db.get_low_confidence_queries.return_value = []
+        db.conversations.low_confidence_queries.return_value = []
         result = suggest_documents(scope="ws-1", db=db)
         assert result == []
 
@@ -147,7 +147,7 @@ class TestActiveLearning:
         from src.rag.active_learning import suggest_documents
 
         db = MagicMock()
-        db.get_low_confidence_queries.return_value = [
+        db.conversations.low_confidence_queries.return_value = [
             "what is the revenue forecast",
             "explain the revenue growth",
             "revenue breakdown by region",
@@ -163,7 +163,7 @@ class TestActiveLearning:
         from src.rag.active_learning import suggest_documents
 
         db = MagicMock()
-        db.get_low_confidence_queries.return_value = [
+        db.conversations.low_confidence_queries.return_value = [
             f"what about {i} topic" for i in range(50)
         ]
         result = suggest_documents(scope=ALL_WORKSPACES, db=db, top_k=3)

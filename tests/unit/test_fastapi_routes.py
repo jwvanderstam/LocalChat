@@ -182,15 +182,15 @@ class TestMemoryRoutes:
         from src.routes_fastapi.memory_routes import router
 
         state = _base_state()
-        state.db.list_conversations.return_value = []
-        state.db.count_conversations.return_value = 0
-        state.db.create_conversation.return_value = "conv-1"
-        state.db.get_conversation_messages.return_value = []
-        state.db.delete_conversation.return_value = True
-        state.db.delete_all_conversations.return_value = 2
-        state.db.get_conversation_document_filter.return_value = []
-        state.db.set_conversation_document_filter.return_value = True
-        state.db.update_conversation_title.return_value = True
+        state.db.conversations.list_page.return_value = []
+        state.db.conversations.count.return_value = 0
+        state.db.conversations.create.return_value = "conv-1"
+        state.db.conversations.messages.return_value = []
+        state.db.conversations.retire.return_value = True
+        state.db.conversations.retire_all.return_value = 2
+        state.db.conversations.document_filter.return_value = []
+        state.db.conversations.set_document_filter.return_value = True
+        state.db.conversations.set_title.return_value = True
         return _make_client(router, "/api", state)
 
     def test_list_conversations(self):
@@ -209,7 +209,7 @@ class TestMemoryRoutes:
         from src.routes_fastapi.memory_routes import router
 
         state = _base_state()
-        state.db.get_conversation_messages.return_value = None
+        state.db.conversations.messages.return_value = None
         client = _make_client(router, "/api", state)
         resp = client.get("/api/conversations/missing")
         assert resp.status_code == 404
