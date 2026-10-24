@@ -337,64 +337,6 @@ class TestSetupLoggingJsonFormat:
         assert json_console
 
 
-class TestLogFunctionCall:
-    """Tests for the log_function_call decorator (lines 227-241)."""
-
-    def test_returns_result_unchanged(self):
-        """Decorated function still returns its value."""
-        from src.utils.logging_config import log_function_call
-
-        @log_function_call
-        def add(a, b):
-            return a + b
-
-        assert add(2, 3) == 5
-
-    def test_preserves_function_metadata(self):
-        """@wraps preserves __name__ and __doc__."""
-        from src.utils.logging_config import log_function_call
-
-        @log_function_call
-        def my_func():
-            """My docstring."""
-
-        assert my_func.__name__ == "my_func"
-        assert my_func.__doc__ == "My docstring."
-
-    def test_reraises_exceptions(self):
-        """Exceptions from the wrapped function propagate normally."""
-        import pytest
-
-        from src.utils.logging_config import log_function_call
-
-        @log_function_call
-        def fail():
-            raise RuntimeError("oops")
-
-        with pytest.raises(RuntimeError, match="oops"):
-            fail()
-
-    def test_logs_call_and_result(self):
-        """Debug messages are emitted for the call and its return value."""
-        from unittest.mock import patch
-
-        from src.utils.logging_config import log_function_call
-
-        @log_function_call
-        def greet(name):
-            return f"hello {name}"
-
-        with patch("src.utils.logging_config.get_logger") as mock_get:
-            mock_logger = mock_get.return_value
-            # Re-decorate so it picks up the patched logger
-            @log_function_call
-            def greet2(name):
-                return f"hi {name}"
-            greet2("world")
-
-        mock_logger.debug.assert_called()
-
-
 class TestSanitizeLogValue:
     """`sanitize_log_value` guards every log line that embeds user input —
     filenames, queries, model names, request paths. Stripping CR/LF alone left

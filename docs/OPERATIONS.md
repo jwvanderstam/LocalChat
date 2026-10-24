@@ -319,9 +319,10 @@ mid-generation instead. That is the intended trade â€” it protects PostgreSQL â€
 but set the limit generously so only genuine runaway reaches it.
 
 **`OLLAMA_MEM_LIMIT` does not cap VRAM.** It caps host RAM. VRAM residency is
-governed by `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_KEEP_ALIVE`, and the
-per-model fit check lives in the application (`load_model_guard`). The three
-protect against different failures; none substitutes for another.
+governed by `OLLAMA_MAX_LOADED_MODELS` and `OLLAMA_KEEP_ALIVE`. The application
+reports whether each model fits (`estimate_model_footprint`, shown in `/api/models`)
+but refuses no activation on it. These protect against different failures; none
+substitutes for another.
 
 ### Redis evicts rather than dying
 

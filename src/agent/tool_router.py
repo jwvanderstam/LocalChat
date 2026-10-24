@@ -23,12 +23,6 @@ TOOL_LOCAL_DOCS = "local_docs"
 TOOL_WEB_SEARCH = "web_search"
 TOOL_CLOUD_CONNECTORS = "cloud_connectors"
 
-ALL_TOOLS: frozenset[str] = frozenset({
-    TOOL_LOCAL_DOCS,
-    TOOL_WEB_SEARCH,
-    TOOL_CLOUD_CONNECTORS,
-})
-
 
 class ToolRouter:
     """

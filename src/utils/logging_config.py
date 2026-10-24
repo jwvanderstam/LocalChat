@@ -12,17 +12,15 @@ Example:
 """
 
 import atexit
-import functools
 import json
 import logging
 import logging.handlers
 import re
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 #: Everything that can start a new line in a log consumer, or drive a terminal.
 #: C0 controls (CR, LF, VT, FF, ESC, the file/group/record separators), DEL, the C1
@@ -445,38 +443,5 @@ def get_logger(name: str) -> logging.Logger:
         >>> logger.info("Module initialized")
     """
     return logging.getLogger(name)
-
-
-def log_function_call(func: Callable) -> Callable:
-    """
-    Decorator to log function calls with arguments and results.
-
-    Args:
-        func: Function to decorate
-
-    Returns:
-        Wrapped function
-
-    Example:
-        >>> @log_function_call
-        ... def my_function(x, y):
-        ...     return x + y
-    """
-    logger = get_logger(func.__module__)
-
-    @functools.wraps(func)
-
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        logger.debug(f"Calling {func.__name__} with args={args}, kwargs={kwargs}")
-        try:
-            result = func(*args, **kwargs)
-            logger.debug(f"{func.__name__} returned {result}")
-            return result
-        except Exception as e:
-            logger.exception("%s raised %s", func.__name__, type(e).__name__)
-            raise
-
-    return wrapper
-
 
 

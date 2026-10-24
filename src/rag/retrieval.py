@@ -95,50 +95,6 @@ class RetrievalMixin:
         logger.debug(f"Preprocessed query: '{query}' -> '{query_lower}'")
         return query_lower
 
-    def _expand_query(self, query: str) -> list[str]:
-        """
-        Expand query with related terms for better coverage.
-
-        Args:
-            query: Preprocessed query
-
-        Returns:
-            List of query variations (original + expansions)
-        """
-        if not config.QUERY_EXPANSION_ENABLED:
-            return [query]
-
-        queries = [query]
-
-        # English business-domain synonyms only. Does nothing for other domains.
-        # Disable entirely via QUERY_EXPANSION_ENABLED=false in .env (default off).
-        expansions = {
-            'revenue': ['income', 'earnings', 'sales'],
-            'profit': ['earnings', 'net income', 'margin'],
-            'cost': ['expense', 'expenditure', 'spending'],
-            'customer': ['client', 'buyer', 'user'],
-            'product': ['item', 'offering', 'solution'],
-            'price': ['cost', 'rate', 'fee'],
-            'increase': ['grow', 'rise', 'expand'],
-            'decrease': ['decline', 'reduce', 'drop'],
-            'total': ['sum', 'aggregate', 'combined'],
-            'average': ['mean', 'typical', 'standard'],
-        }
-
-        query_words = query.lower().split()
-        added_expansions = 0
-
-        for word in query_words:
-            if word in expansions and added_expansions < config.MAX_QUERY_EXPANSIONS:
-                for synonym in expansions[word][:1]:  # Add first synonym only
-                    expanded = query.replace(word, synonym)
-                    if expanded != query and expanded not in queries:
-                        queries.append(expanded)
-                        added_expansions += 1
-                        logger.debug(f"Expanded query with synonym: {expanded}")
-
-        return queries
-
     def _run_lexical_search(
         self,
         query_clean: str,
@@ -676,72 +632,6 @@ class RetrievalMixin:
             data['combined_score'] = score
 
         return results
-
-    def _expand_context_windows(
-        self,
-        results: dict[str, dict[str, Any]]
-    ) -> dict[str, dict[str, Any]]:
-        """
-        Expand context by including adjacent chunks.
-
-        NOTE: Not yet implemented — returns results unchanged.
-        Intended future behaviour: fetch window_size chunks before/after
-        each result using db.documents.adjacent_chunks() and merge the text.
-
-        Args:
-            results: Dictionary of chunk_id -> result data
-
-        Returns:
-            Results unchanged (pending implementation)
-        """
-        return results
-
-    def test_retrieval(
-        self, query: str, top_k: int | None = None, *, scope: Scope
-    ) -> tuple[bool, list[dict[str, Any]]]:
-        """
-        Test RAG retrieval system with a query.
-
-        Args:
-            query: Test query string
-            top_k: Number of results to retrieve (default from config)
-
-        Returns:
-            Tuple of (success: bool, results: List[Dict])
-        """
-        try:
-            logger.info(f"Testing retrieval with query: {query[:100]}...")
-
-            results = self.retrieve_context(query, top_k=top_k, scope=scope)
-
-            if not results:
-                logger.warning("No results retrieved")
-                return True, []
-
-            formatted_results = []
-            for chunk_text, filename, chunk_index, similarity, metadata, *_ in results:
-                result_dict = {
-                    'filename': filename,
-                    'chunk_index': chunk_index,
-                    'similarity': round(similarity, 4),
-                    'preview': chunk_text[:200] + '...' if len(chunk_text) > 200 else chunk_text,
-                    'length': len(chunk_text)
-                }
-
-                if metadata.get('page_number'):
-                    result_dict['page_number'] = metadata['page_number']
-                if metadata.get('section_title'):
-                    result_dict['section_title'] = metadata['section_title']
-
-                formatted_results.append(result_dict)
-
-            logger.info(f"Retrieved {len(formatted_results)} results")
-            return True, formatted_results
-
-        except Exception as e:
-            error_msg = f"Error testing retrieval: {str(e)}"
-            logger.exception(error_msg)
-            return False, []
 
     def _append_chunks_for_doc(
         self,

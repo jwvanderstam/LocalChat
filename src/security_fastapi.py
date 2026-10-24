@@ -269,15 +269,6 @@ def require_auth(
         raise HTTPException(exc.status_code, detail={"message": exc.message}) from None
 
 
-def _get_token_claims(credentials: HTTPAuthorizationCredentials | None) -> dict[str, Any]:
-    if not credentials:
-        return {}
-    try:
-        return _decode_token(credentials.credentials)
-    except Exception:  # noqa: BLE001 — unreadable claims are no claims
-        return {}
-
-
 def _current_global_role(request: Request, claims: dict[str, Any]) -> str | None:
     """Return the caller's role *as the database has it now*, not as the token claims it.
 
@@ -413,17 +404,6 @@ def resolve_principal(
             raise AuthError(exc.status_code, str(message)) from None
 
     return Principal(user_id=str(sub), global_role=_current_global_role(request, claims))
-
-
-def _claims_from_request(request: Request) -> dict[str, Any]:
-    """Return JWT claims from the request's Authorization header, or ``{}``."""
-    token = _extract_bearer_token(request)
-    if not token:
-        return {}
-    try:
-        return _decode_token(token)
-    except Exception:  # noqa: BLE001 — same — no claims rather than a partial answer
-        return {}
 
 
 def _extract_api_key(request: Request) -> str | None:

@@ -252,23 +252,6 @@ class WorkspaceMembersRepository:
                 )
                 return bool(cur.rowcount > 0)
 
-    def owner(self, workspace_id: str) -> str | None:
-        """Return the user_id of the first owner of a workspace, or None."""
-        if not self._db.is_connected:
-            return None
-        with self._db.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT user_id FROM workspace_members
-                    WHERE workspace_id = %s AND role = 'owner'
-                    ORDER BY created_at LIMIT 1
-                    """,
-                    (workspace_id,),
-                )
-                row = cur.fetchone()
-        return str(row[0]) if row else None
-
     def role(self, workspace_id: str, user_id: str) -> str | None:
         """Return the role string for this user in this workspace, or None if not a member."""
         if not self._db.is_connected:

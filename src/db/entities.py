@@ -76,17 +76,6 @@ class EntitiesRepository:
                 )
                 conn.commit()
 
-    def delete_for_document(self, doc_id: int) -> None:
-        """Remove all entity relations for a document (for cleanup on deletion)."""
-        if not self._db.is_connected:
-            return
-        with self._db.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "DELETE FROM entity_relations WHERE doc_id = %s", (doc_id,)
-                )
-                conn.commit()
-
     # ── Read operations ────────────────────────────────────────────────────────
 
     def related_names(
@@ -119,62 +108,6 @@ class EntitiesRepository:
                     (entity_names, entity_names, max_results),
                 )
                 return [r[0] for r in cursor.fetchall()]
-
-    def by_name(self, name: str) -> dict[str, Any] | None:
-        """Return entity dict for an exact name match or None."""
-        if not self._db.is_connected:
-            return None
-        with self._db.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id::text, name, type, doc_count FROM entities WHERE name = %s LIMIT 1",
-                    (name,),
-                )
-                row = cursor.fetchone()
-        if row is None:
-            return None
-        return {"id": row[0], "name": row[1], "type": row[2], "doc_count": row[3]}
-
-    def list_all(
-        self, limit: int = 200, offset: int = 0
-    ) -> list[dict[str, Any]]:
-        """Return entities ordered by doc_count descending."""
-        if not self._db.is_connected:
-            return []
-        with self._db.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    SELECT id::text, name, type, doc_count
-                    FROM entities
-                    ORDER BY doc_count DESC, name
-                    LIMIT %s OFFSET %s
-                    """,
-                    (limit, offset),
-                )
-                rows = cursor.fetchall()
-        return [
-            {"id": r[0], "name": r[1], "type": r[2], "doc_count": r[3]}
-            for r in rows
-        ]
-
-    def stats(self) -> dict[str, int]:
-        """Return {entity_count, relation_count} summary."""
-        if not self._db.is_connected:
-            return {"entity_count": 0, "relation_count": 0}
-        with self._db.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM entities")
-                entity_row = cursor.fetchone()
-                if entity_row is None:
-                    raise AssertionError("SELECT COUNT(*) always returns a row")
-                entity_count = entity_row[0]
-                cursor.execute("SELECT COUNT(*) FROM entity_relations")
-                relation_row = cursor.fetchone()
-                if relation_row is None:
-                    raise AssertionError("SELECT COUNT(*) always returns a row")
-                relation_count = relation_row[0]
-        return {"entity_count": entity_count, "relation_count": relation_count}
 
     def workspace_ontology(self, top_n: int = 20, *, scope: Scope) -> dict[str, Any]:
         """Return the ontology of *scope*: top entity types and relation patterns."""

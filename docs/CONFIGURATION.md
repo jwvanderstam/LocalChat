@@ -258,8 +258,7 @@ DB_POOL_MAX_CONN = 10
 
 # HNSW Index Parameters
 # ef_search: 100, set once per pooled connection; 400 (with iterative_scan) via
-# SET LOCAL inside every workspace-scoped transaction
-DB_INDEX_TYPE = 'hnsw'        # Use HNSW for fast ANN search
+# SET LOCAL inside every workspace-scoped transaction. Not tunable.
 ```
 
 #### Processing Configuration
@@ -270,7 +269,6 @@ BATCH_SIZE = 512             # Embeddings batch size (512 chunks per call)
 
 # Table Extraction
 KEEP_TABLES_INTACT = True     # Don't split tables across chunks
-MIN_TABLE_ROWS = 3           # Minimum rows to detect as table
 ```
 
 ---

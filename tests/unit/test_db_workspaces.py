@@ -332,21 +332,6 @@ class TestRemoveWorkspaceMember:
         assert m.members.remove("wid", "uid") is False
 
 
-class TestGetWorkspaceOwner:
-    def test_returns_none_when_db_unavailable(self):
-        m, _, _ = _workspaces_mixin(connected=False)
-        assert m.members.owner("wid") is None
-
-    def test_returns_none_when_no_owner(self):
-        m, _, _ = _workspaces_mixin(fetchone_return=None)
-        assert m.members.owner("wid") is None
-
-    def test_returns_owner_user_id(self):
-        uid = uuid.uuid4()
-        m, _, cur = _workspaces_mixin(fetchone_return=(uid,))
-        assert m.members.owner("wid") == str(uid)
-
-
 class TestGetWorkspaceMemberRole:
     def test_returns_none_when_db_unavailable(self):
         m, _, _ = _workspaces_mixin(connected=False)

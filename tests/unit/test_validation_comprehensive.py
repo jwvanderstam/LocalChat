@@ -101,53 +101,6 @@ class TestChatRequestValidation:
 # DOCUMENTUPLOADREQUEST VALIDATION TESTS (4 tests)
 # ============================================================================
 
-class TestDocumentUploadRequestValidation:
-    """Test DocumentUploadRequest validation model."""
-
-    def test_document_upload_valid(self):
-        """Should create valid DocumentUploadRequest."""
-        from src.models import DocumentUploadRequest
-
-        request = DocumentUploadRequest(
-            filename="document.pdf",
-            file_size=1024000
-        )
-
-        assert request.filename == "document.pdf"
-        assert request.file_size == 1024000
-
-    def test_document_upload_invalid_extension(self):
-        """Should reject invalid file extension."""
-        from src.models import DocumentUploadRequest
-
-        with pytest.raises(PydanticValidationError) as exc_info:
-            DocumentUploadRequest(
-                filename="document.exe",  # Invalid extension
-                file_size=1024
-            )
-
-        assert "not supported" in str(exc_info.value).lower()
-
-    def test_document_upload_file_too_large(self):
-        """Should reject file that's too large."""
-        from src.models import DocumentUploadRequest
-
-        with pytest.raises(PydanticValidationError):
-            DocumentUploadRequest(
-                filename="document.pdf",
-                file_size=20 * 1024 * 1024  # 20MB (over 16MB limit)
-            )
-
-    def test_document_upload_file_size_zero(self):
-        """Should reject zero file size."""
-        from src.models import DocumentUploadRequest
-
-        with pytest.raises(PydanticValidationError):
-            DocumentUploadRequest(
-                filename="document.pdf",
-                file_size=0
-            )
-
 
 # ============================================================================
 # MODELREQUEST VALIDATION TESTS (3 tests)
@@ -191,69 +144,6 @@ class TestModelRequestValidation:
 # ============================================================================
 # RETRIEVALREQUEST VALIDATION TESTS (5 tests)
 # ============================================================================
-
-class TestRetrievalRequestValidation:
-    """Test RetrievalRequest validation model."""
-
-    def test_retrieval_request_valid(self):
-        """Should create valid RetrievalRequest."""
-        from src.models import RetrievalRequest
-
-        request = RetrievalRequest(
-            query="What is this about?",
-            top_k=10,
-            min_similarity=0.25
-        )
-
-        assert request.query == "What is this about?"
-        assert request.top_k == 10
-        assert request.min_similarity == 0.25
-
-    def test_retrieval_request_default_values(self):
-        """Should use default values when not specified."""
-        from src.models import RetrievalRequest
-
-        request = RetrievalRequest(query="test query")
-
-        assert request.top_k == 10  # Default
-        assert request.min_similarity == 0.25  # Default
-        assert request.file_type_filter is None  # Default
-
-    def test_retrieval_request_invalid_top_k(self):
-        """Should reject invalid top_k values."""
-        from src.models import RetrievalRequest
-
-        # top_k too small
-        with pytest.raises(PydanticValidationError):
-            RetrievalRequest(query="test", top_k=0)
-
-        # top_k too large
-        with pytest.raises(PydanticValidationError):
-            RetrievalRequest(query="test", top_k=100)
-
-    def test_retrieval_request_invalid_similarity(self):
-        """Should reject invalid similarity threshold."""
-        from src.models import RetrievalRequest
-
-        # Similarity too low
-        with pytest.raises(PydanticValidationError):
-            RetrievalRequest(query="test", min_similarity=-0.1)
-
-        # Similarity too high
-        with pytest.raises(PydanticValidationError):
-            RetrievalRequest(query="test", min_similarity=1.5)
-
-    def test_retrieval_request_invalid_file_type(self):
-        """Should reject invalid file type filter."""
-        from src.models import RetrievalRequest
-
-        # Missing dot
-        with pytest.raises(PydanticValidationError):
-            RetrievalRequest(query="test", file_type_filter="pdf")
-
-        # Unsupported extension
-        with pytest.raises(PydanticValidationError):
-            RetrievalRequest(query="test", file_type_filter=".exe")
 
 
 # ============================================================================
@@ -324,38 +214,6 @@ class TestChunkingParametersValidation:
 # ERRORRESPONSE VALIDATION TESTS (2 tests)
 # ============================================================================
 
-class TestErrorResponseValidation:
-    """Test ErrorResponse validation model."""
-
-    def test_error_response_basic(self):
-        """Should create basic ErrorResponse."""
-        from src.models import ErrorResponse
-
-        error = ErrorResponse(
-            error="ValidationError",
-            message="Invalid input"
-        )
-
-        assert error.success is False
-        assert error.error == "ValidationError"
-        assert error.message == "Invalid input"
-        assert error.details == {}
-        assert error.timestamp is not None
-
-    def test_error_response_with_details(self):
-        """Should create ErrorResponse with details."""
-        from src.models import ErrorResponse
-
-        details = {"field": "message", "constraint": "min_length"}
-        error = ErrorResponse(
-            error="ValidationError",
-            message="Invalid input",
-            details=details
-        )
-
-        assert error.details == details
-        assert error.details["field"] == "message"
-
 
 # ============================================================================
 # EDGE CASE TESTS (3 tests)
@@ -377,19 +235,6 @@ class TestValidationEdgeCases:
         with pytest.raises(PydanticValidationError):
             too_long = "a" * 5001
             ChatRequest(message=too_long)
-
-    def test_valid_file_extensions(self):
-        """Should accept all valid file extensions."""
-        from src.models import DocumentUploadRequest
-
-        valid_extensions = [".pdf", ".txt", ".docx", ".md"]
-
-        for ext in valid_extensions:
-            request = DocumentUploadRequest(
-                filename=f"document{ext}",
-                file_size=1024
-            )
-            assert request.filename.endswith(ext)
 
     def test_history_max_length(self):
         """Should reject history exceeding max length."""

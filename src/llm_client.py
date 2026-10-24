@@ -83,7 +83,6 @@ class LiteLLMClient:
                 "run: pip install 'litellm>=1.67.0'"
             ) from exc
 
-        self._provider = provider
         self._model = model
         self._api_key = api_key  # passed directly to each completion() call
 

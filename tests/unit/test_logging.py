@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from src.utils.logging_config import get_logger, log_function_call, setup_logging
+from src.utils.logging_config import get_logger, setup_logging
 
 # ============================================================================
 # SETUP_LOGGING TESTS
@@ -119,67 +119,6 @@ class TestGetLogger:
 # ============================================================================
 # LOG_FUNCTION_CALL DECORATOR TESTS
 # ============================================================================
-
-@pytest.mark.unit
-class TestLogFunctionCallDecorator:
-    """Tests for log_function_call decorator."""
-
-    def test_decorator_logs_function_call(self, caplog):
-        """Should log function call."""
-        @log_function_call
-        def test_function(x, y):
-            return x + y
-
-        with caplog.at_level(logging.DEBUG):
-            result = test_function(2, 3)
-
-        assert result == 5
-        # Check if function call was logged
-        assert any("test_function" in record.message for record in caplog.records)
-
-    def test_decorator_preserves_function_name(self):
-        """Should preserve original function name."""
-        @log_function_call
-        def my_function():
-            pass
-
-        assert my_function.__name__ == "my_function"
-
-    def test_decorator_preserves_docstring(self):
-        """Should preserve function docstring."""
-        @log_function_call
-        def my_function():
-            """This is a docstring."""
-            pass
-
-        assert my_function.__doc__ == "This is a docstring."
-
-    def test_decorator_works_with_return_value(self):
-        """Should work with functions that return values."""
-        @log_function_call
-        def get_value():
-            return 42
-
-        result = get_value()
-        assert result == 42
-
-    def test_decorator_works_with_exceptions(self):
-        """Should work even if function raises exception."""
-        @log_function_call
-        def raising_function():
-            raise ValueError("Test error")
-
-        with pytest.raises(ValueError):
-            raising_function()
-
-    def test_decorator_works_with_args_and_kwargs(self):
-        """Should work with both args and kwargs."""
-        @log_function_call
-        def complex_function(a, b, c=None, d=None):
-            return (a, b, c, d)
-
-        result = complex_function(1, 2, c=3, d=4)
-        assert result == (1, 2, 3, 4)
 
 
 # ============================================================================
@@ -388,8 +327,6 @@ class TestLoggingIntegration:
             assert "Database connected" in content
             assert "API request received" in content
             assert "Document processed" in content
-
-
 
 
 # ============================================================================

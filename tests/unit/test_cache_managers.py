@@ -109,36 +109,6 @@ class TestEmbeddingCache:
 
         assert result == embedding
 
-    def test_get_or_generate_returns_cached(self):
-        """Test get_or_generate returns cached value."""
-        from src.cache.managers import EmbeddingCache
-
-        cache = EmbeddingCache()
-        embedding = [0.1, 0.2, 0.3]
-        cache.set("test", "model", embedding)
-
-        generate_fn = Mock(return_value=[0.9, 0.9, 0.9])
-
-        result, was_cached = cache.get_or_generate("test", "model", generate_fn)
-
-        assert result == embedding
-        assert was_cached is True
-        generate_fn.assert_not_called()
-
-    def test_get_or_generate_generates_on_miss(self):
-        """Test get_or_generate calls generator on cache miss."""
-        from src.cache.managers import EmbeddingCache
-
-        cache = EmbeddingCache()
-        new_embedding = [0.5, 0.6, 0.7]
-        generate_fn = Mock(return_value=new_embedding)
-
-        result, was_cached = cache.get_or_generate("new text", "model", generate_fn)
-
-        assert result == new_embedding
-        assert was_cached is False
-        generate_fn.assert_called_once()
-
 
 class TestQueryCache:
     """Test query cache manager."""

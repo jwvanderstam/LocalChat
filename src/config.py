@@ -14,7 +14,7 @@ Constants:
     Ollama configuration (OLLAMA_BASE_URL, OLLAMA_NUM_GPU)
     RAG configuration (CHUNK_SIZE, TOP_K_RESULTS, SEMANTIC_WEIGHT, etc.)
     Application settings (SECRET_KEY, UPLOAD_FOLDER, APP_VERSION, etc.)
-    Observability (METRICS_TOKEN, ENABLE_PERF_METRICS, SLOW_QUERY_THRESHOLD)
+    Observability (METRICS_TOKEN)
 
 Example:
     >>> from config import app_state, CHUNK_SIZE, OLLAMA_NUM_GPU
@@ -346,7 +346,6 @@ CHUNK_SEPARATORS: list[str] = [
 # Table-specific settings - Keep tables intact
 TABLE_CHUNK_SIZE: int = 3000       # Even larger to keep more tables intact
 KEEP_TABLES_INTACT: bool = True    # Always try to keep tables together
-MIN_TABLE_ROWS: int = 3            # Min rows to consider as table
 
 # Retrieval Configuration - OPTIMIZED FOR SYNTHESIS
 TOP_K_RESULTS: int = int(os.environ.get("TOP_K_RESULTS", "30"))  # Wider candidate pool for reranker
@@ -377,29 +376,11 @@ SEMANTIC_WEIGHT: float = float(os.environ.get("SEMANTIC_WEIGHT", "0.70"))  # Sem
 # Query Enhancement
 QUERY_EXPANSION_ENABLED: bool = False        # Expand queries with synonyms (opt-in; English business-domain only)
 MAX_QUERY_EXPANSIONS: int = 2                # Add up to 2 related terms
-QUERY_MIN_LENGTH: int = 10                   # Minimum chars for meaningful query
-
-# Advanced RAG features - MAXIMUM QUALITY
-USE_CONTEXTUAL_CHUNKS: bool = True           # Include adjacent chunks
-CONTEXT_WINDOW_SIZE: int = 2                 # 2 chunks before/after (increased from 1)
-USE_RECIPROCAL_RANK_FUSION: bool = True      # Combine multiple ranking signals
-
-# Re-ranking weights - BALANCED FOR QUALITY
-POSITION_WEIGHT: float = 0.05                # Early chunks bonus
-LENGTH_WEIGHT: float = 0.05                  # Chunk length preference
 
 # Diversity filtering
 ENABLE_DIVERSITY_FILTER: bool = True         # Remove near-duplicate chunks
 DIVERSITY_THRESHOLD: float = 0.70            # Jaccard similarity threshold — 0.70 avoids pruning
                                              # domain docs that share terminology across chapters (was 0.50 — too aggressive)
-
-# Context quality enhancement
-EMPHASIZE_HIGH_SIMILARITY: bool = True       # Mark highest similarity chunks
-INCLUDE_CONFIDENCE_SCORES: bool = True       # Show confidence in context
-
-# Embedding Cache Configuration
-EMBEDDING_CACHE_SIZE: int = 500              # Max cached embeddings
-EMBEDDING_CACHE_ENABLED: bool = True         # Enable query embedding caching
 
 # Processing Configuration
 MAX_WORKERS: int = 8                         # Parallel processing threads
@@ -410,19 +391,8 @@ BATCH_MAX_WORKERS: int = 8                   # Batch processor workers
 # concurrent chat requests on memory-constrained machines.
 EMBEDDING_CONCURRENT_BATCHES: int = int(os.environ.get('EMBEDDING_CONCURRENT_BATCHES', '2'))
 
-# Database Performance
 # hnsw.ef_search is set to 100 on every pooled connection, and to 400 with an iterative scan
 # inside a workspace-scoped transaction — both in src/db/connection.py, neither tunable here.
-DB_INDEX_TYPE: str = 'hnsw'                  # Use HNSW index
-
-# L3 Database Cache Configuration
-L3_CACHE_ENABLED: bool = True                # Enable DB cache
-L3_CACHE_TTL: int = 86400                   # 24 hours default
-L3_CACHE_TABLE: str = "query_cache"          # Cache table name
-
-# Performance Monitoring
-ENABLE_PERF_METRICS: bool = True             # Enable metrics collection
-SLOW_QUERY_THRESHOLD: float = 1.0            # Log queries > 1s
 
 # ============================================================================
 # WEB SEARCH CONFIGURATION (RAG Enhanced Mode)
@@ -706,7 +676,6 @@ GOOGLE_REDIRECT_URI: str = os.environ.get(
 ENCRYPTION_KEY: str = (
     os.environ.get('ENCRYPTION_KEY', '') or os.environ.get('TOKEN_ENCRYPTION_KEY', '')
 )
-TOKEN_ENCRYPTION_KEY: str = ENCRYPTION_KEY
 
 # ============================================================================
 # METRICS / OBSERVABILITY

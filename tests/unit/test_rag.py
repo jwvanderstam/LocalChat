@@ -421,37 +421,6 @@ class TestRAGIntegration:
         results = processor.retrieve_context("test query", scope=ALL_WORKSPACES)
         assert isinstance(results, list)
 
-    @patch('src.rag.processor.db')
-    @patch('src.rag.processor.ollama_client')
-    def test_multiple_documents_workflow(self, mock_ollama, mock_db):
-        """Should handle multiple documents."""
-        from src.rag import DocumentProcessor
-        processor = DocumentProcessor()
-
-        # Setup mocks
-        mock_db.documents.exists.return_value = (False, None)
-        mock_db.documents.insert.side_effect = [1, 2, 3]
-        mock_db.documents.insert_chunks.return_value = None
-        mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
-        mock_ollama.generate_embeddings_batch.side_effect = lambda model, texts: [generate_mock_embedding() for _ in texts]
-
-        # Create test files
-        file_paths = []
-        for i in range(3):
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-                f.write(f"Test content {i}")
-                file_paths.append(f.name)
-
-        try:
-            results = processor.ingest_multiple_documents(file_paths)
-
-            assert len(results) == 3
-            assert all(isinstance(r, tuple) for r in results)
-        finally:
-            for path in file_paths:
-                if os.path.exists(path):
-                    os.unlink(path)
-
 
 # ============================================================================
 # EDGE CASES

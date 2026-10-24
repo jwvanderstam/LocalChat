@@ -171,7 +171,7 @@ class TestMonthModeErrorHandlers:
     """Test Month 1 vs Month 2 error handlers."""
 
     def test_month2_error_response_structure(self, client):
-        """Test Month 2 error response uses ErrorResponse model."""
+        """An unknown path still answers in the error envelope."""
         response = client.get('/nonexistent')
 
         data = response.json()

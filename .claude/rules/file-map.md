@@ -11,7 +11,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/models.py` | Pydantic request/response models |
 | `src/security_fastapi.py` | JWT (`PyJWT`), rate limiting (`slowapi`), CORS (Starlette middleware), `setup_security_headers()` (CSP + nosniff + referrer + framing + HSTS); `resolve_principal()` — the one place a caller is identified: decode, fail-closed revocation, and the role read from the database |
 | `src/monitoring.py` | `MetricsCollector`, `export_prometheus_metrics`, `get_metrics`; `record_llm_usage` — per-call token and cloud-cost counters labelled by model and path only (OBS-1a); `MetricsMiddleware` (ASGI) for request timing; `compute_health_status` — live-probes the database through the pool (5 s TTL) rather than echoing a boot-time flag |
-| `src/ollama_client.py` | `OllamaClient` singleton — chat (stream + non-stream), embedding, model CRUD, vision, GPU info; `estimate_model_footprint()`, `load_model_guard()`; TTL-cached model list (60 s) and running models (5 s) |
+| `src/ollama_client.py` | `OllamaClient` singleton — chat (stream + non-stream), embedding, model CRUD, vision, GPU info; `estimate_model_footprint()`; TTL-cached model list (60 s) and running models (5 s) |
 | `src/llm_client.py` | `LiteLLMClient` cloud-fallback adapter; `ModelClient` Protocol |
 | `src/gpu/__init__.py` | GPU package — re-exports `GpuBackend`, `detect`, and backend classes |
 | `src/gpu/backends.py` | `GpuBackend` Protocol + `NvidiaBackend`, `AmdBackend` (stub), `AppleBackend`, `CpuBackend`; `detect(force)` factory (MM-1) |
@@ -47,7 +47,6 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/annotation_routes.py` | Annotation CRUD (`POST /api/annotations`, `GET /api/chunks/{id}/annotations`, `DELETE /api/annotations/{id}`) |
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
-| `src/routes_fastapi/_request_state.py` | Per-request state helpers (request ID, workspace ID) |
 | `src/routes_fastapi/_services.py` | FastAPI providers for the services (one per service, from `annotations_service` to `workspaces_service`) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
 | `src/routes_fastapi/_authz.py` | `deny()` — wraps `check_workspace_access` in the route layer's JSON envelope; shared by every workspace-scoped router |
 | **RAG** | |
@@ -161,7 +160,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `plugins/example_plugin.py` | Reference plugin demo (`word_count`, `reverse_text` tools) |
 | `plugins/README.md` | Plugin authoring guide |
 | **Graph / Memory / Performance** | |
-| `src/graph/store.py` | `GraphStore` ABC + `PostgresGraphStore`; `create_graph_store(db)` factory |
+| `src/graph/store.py` | `GraphStore` ABC + `PostgresGraphStore`, which reaches the entities through `db.entities` |
 | `src/graph/extractor.py` | spaCy entity extraction from document chunks; accepts `graph_store` injection |
 | `src/graph/expander.py` | `QueryExpander` — 1-hop lexical term expansion via entity co-occurrences, feeding both the embedding and the tsvector lexical arm; accepts `graph_store` injection |
 | `src/memory/extractor.py` | Extracts memorable facts from the user's own turns — never the assistant's, which retrieved documents shape (GR-1b) |
@@ -232,7 +231,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `docs/DEPLOYMENT.md` | Docker Compose deployment: secrets, resource limits, upgrade/rollback, TLS, security checklist |
 | `docs/grafana-dashboard.json` | Importable Grafana dashboard (uid `localchat-rag-v1`, 20 panels; the Model Usage row is OBS-1a) |
 | `tests/conftest.py` | Shared pytest fixtures |
-| `tests/utils/` | Shared test helpers (`helpers.py`, `mocks.py`) used across unit/integration suites |
+| `tests/utils/` | Shared test helpers (`helpers.py`, `auth.py`, `fake_ollama.py`, `js_harness.py`) used across the suites |
 | `tests/unit/test_oauth_routes_identity.py` | BUG-4 — the OAuth callbacks store a token against a real user or refuse; no `"admin"` string fallback |
 | `tests/unit/test_graphrag_startup_check.py` | GRAPH_RAG_ENABLED cannot look enabled while inert — warns at startup when no spaCy model is installed |
 | `tests/unit/test_templates_use_relative_asset_urls.py` | Templates reference their own assets root-relative — Starlette's `url_for` returns an absolute URL carrying the scheme the app thinks it serves, which is `http` behind a TLS-terminating proxy, and the browser then blocks every stylesheet and script as mixed content |

@@ -85,6 +85,21 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   another project's contribution is tagged "shared globally". A workspace API key asking
   for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
 
+### Removed
+
+- **Dead code, found with vulture and checked name by name** against `src/`, the tests,
+  the compose files, templates and JavaScript. About 670 lines of `src/` that nothing
+  called: `_request_state.py` (Flask's `g`, left from the FastAPI port), 15 settings in
+  `config.py` that nothing read (two of them documented in CONFIGURATION.md as if they did
+  something), the unused `TOKEN_ENCRYPTION_KEY` constant (the environment alias is still
+  read), `MixinHost`, two old token-claims helpers that `resolve_principal` replaced, cache
+  helpers, retrieval and ingest methods, entity queries, sanitisation helpers, a logging
+  decorator, `load_model_guard` and three Pydantic models. Their tests went with them, as
+  did three test files that tested nothing in `src/`: the never-collected
+  `tests/unit/__init__.py` workspace tests, `test_db.py` and the `MockDatabase` it tested.
+  `MetricsCollector.set_gauge` stays although nothing calls it: removing it means removing
+  the `gauges` key from `/api/metrics.json`, which is a change to a public response.
+
 ### Fixed
 
 - **A connector can no longer be created without a workspace.** A global admin passes the

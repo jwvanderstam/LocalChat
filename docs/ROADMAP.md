@@ -1769,7 +1769,7 @@ architecture near 7.5.
 
 #### QP-5 — Finish ⬜ (Sprint 28, ~2 days)
 
-- Delete `Database` and `MixinHost`; `app.state` holds services, not a database.
+- Delete `Database` (`MixinHost` went with the stale-code sweep on 2026-10-24); `app.state` holds services, not a database.
 - Drop migration `0021`'s transition policy (by a new migration) and add `FORCE ROW LEVEL
   SECURITY` on the ten tables: every path names its scope by then (ADR-5's amendment, B).
 - Split `DocumentProcessor` into `Loader`, `Chunker` and `Retriever`, composed by an

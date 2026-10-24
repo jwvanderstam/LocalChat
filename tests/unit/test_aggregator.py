@@ -420,14 +420,13 @@ class TestToolRouterDispatch:
 
     def test_all_tool_names_route_without_error(self):
         """Each canonical tool name should be dispatched without ValueError."""
-        from src.agent.tool_router import ALL_TOOLS, ToolRouter
+        from src.agent.tool_router import ToolRouter
         router = ToolRouter()
-        for tool in ALL_TOOLS:
-            method_name = {
-                "local_docs": "_local_docs",
-                "web_search": "_web_search",
-                "cloud_connectors": "_cloud_connectors",
-            }[tool]
+        for tool, method_name in {
+            "local_docs": "_local_docs",
+            "web_search": "_web_search",
+            "cloud_connectors": "_cloud_connectors",
+        }.items():
             with patch.object(router, method_name, return_value={"context": "", "sources": []}):
                 result = router.dispatch(tool, "q")
                 assert "context" in result

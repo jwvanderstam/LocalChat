@@ -1,8 +1,7 @@
 # Python 3.14 compatibility: Use string annotations to avoid __annotate__ issues
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -122,42 +121,6 @@ class ChatRequest(BaseModel):
     }
 
 
-class DocumentUploadRequest(BaseModel):
-
-    filename: str = Field(
-        ...,
-        min_length=1,
-        max_length=255,
-        description="Document filename"
-    )
-    file_size: int = Field(
-        ...,
-        gt=0,
-        lt=16 * 1024 * 1024,  # 16MB
-        description="File size in bytes"
-    )
-
-    @field_validator('filename')
-    @classmethod
-    def valid_extension(cls, v: str) -> str:
-        if not any(v.lower().endswith(ext) for ext in config.SUPPORTED_EXTENSIONS):
-            raise ValueError(
-                f'File type not supported. Allowed: {", ".join(config.SUPPORTED_EXTENSIONS)}'
-            )
-        return v
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "filename": "document.pdf",
-                    "file_size": 1024000
-                }
-            ]
-        }
-    }
-
-
 class ModelRequest(BaseModel):
 
     model: str = Field(
@@ -182,64 +145,6 @@ class ModelRequest(BaseModel):
             "examples": [
                 {"model": "llama3.2:latest"},
                 {"model": "nomic-embed-text"}
-            ]
-        }
-    }
-
-
-class RetrievalRequest(BaseModel):
-
-    query: str = Field(
-        ...,
-        min_length=1,
-        max_length=1000,
-        description="Search query"
-    )
-    top_k: int | None = Field(
-        default=10,
-        ge=1,
-        le=50,
-        description="Number of results to retrieve"
-    )
-    min_similarity: float | None = Field(
-        default=0.25,
-        ge=0.0,
-        le=1.0,
-        description="Minimum similarity threshold"
-    )
-    file_type_filter: str | None = Field(
-        default=None,
-        description="File type filter (e.g., '.pdf')"
-    )
-
-    @field_validator('query')
-    @classmethod
-    def query_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError('Query cannot be empty')
-        return v.strip()
-
-    @field_validator('file_type_filter')
-    @classmethod
-    def valid_file_type(cls, v: str | None) -> str | None:
-        if v is not None:
-            if not v.startswith('.'):
-                raise ValueError('File type filter must start with a dot (e.g., ".pdf")')
-            if v not in config.SUPPORTED_EXTENSIONS:
-                raise ValueError(
-                    f'Unsupported file type. Allowed: {", ".join(config.SUPPORTED_EXTENSIONS)}'
-                )
-        return v
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "query": "What is this document about?",
-                    "top_k": 10,
-                    "min_similarity": 0.25,
-                    "file_type_filter": None
-                }
             ]
         }
     }
@@ -311,36 +216,6 @@ class ChunkingParameters(BaseModel):
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError('Chunk overlap must be less than chunk size')
         return self
-
-
-class ErrorResponse(BaseModel):
-    """Standard error response shape for all API error returns."""
-
-    success: bool = Field(default=False, description="Success status")
-    error: str = Field(..., description="Error type")
-    message: str = Field(..., description="Error message")
-    details: dict[str, Any] | None = Field(
-        default_factory=dict,
-        description="Additional error details"
-    )
-    timestamp: str = Field(
-        default_factory=lambda: datetime.now().isoformat(),
-        description="Error timestamp in ISO format"
-    )
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "success": False,
-                    "error": "ValidationError",
-                    "message": "Message cannot be empty",
-                    "details": {"field": "message"},
-                    "timestamp": "2024-12-27T10:30:00.000Z"
-                }
-            ]
-        }
-    }
 
 
 logger.info("Validation models loaded")

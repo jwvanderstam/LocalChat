@@ -9,7 +9,7 @@ and database/schema initialisation.
 import socket
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import psycopg
@@ -206,7 +206,6 @@ def _warn_if_ef_search_did_not_stick(conn: Any) -> None:
     )
 
 
-
 def _open_pool(conn_kwargs: dict) -> ConnectionPool:
     return ConnectionPool(
         kwargs=conn_kwargs,
@@ -224,29 +223,6 @@ def _open_pool(conn_kwargs: dict) -> ConnectionPool:
         # and replaced before the caller ever sees it.
         check=ConnectionPool.check_connection,
     )
-
-
-class MixinHost:
-    """Type-checking-only stand-in for the attributes ``DatabaseConnection`` provides to
-    the ``*Mixin`` classes it's composed with on ``Database`` (see ``src/db/__init__.py``).
-
-    Each mixin is type-checked in isolation, so mypy can't otherwise see these
-    attributes; mixins inherit this only under ``TYPE_CHECKING`` (rebound to ``object``
-    otherwise), so it has no effect on the runtime MRO or behaviour — the bodies below
-    are never executed.
-    """
-
-    is_connected: bool = False
-
-    @contextmanager
-    def get_connection(
-        self, *, scope: Scope | None = None
-    ) -> Generator[psycopg.Connection, None, None]:
-        yield cast(psycopg.Connection, None)
-
-    @staticmethod
-    def _embedding_to_pg_array(embedding: list[float] | np.ndarray) -> str:
-        raise NotImplementedError
 
 
 # ============================================================================

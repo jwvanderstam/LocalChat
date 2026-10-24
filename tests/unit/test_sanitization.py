@@ -11,14 +11,10 @@ import pytest
 
 from src.utils.sanitization import (
     escape_sql_like,
-    remove_null_bytes,
-    sanitize_file_extension,
     sanitize_filename,
     sanitize_json_keys,
     sanitize_model_name,
     sanitize_query,
-    sanitize_text,
-    truncate_text,
     validate_path,
 )
 
@@ -148,31 +144,6 @@ class TestSanitizeModelName:
 # SANITIZE_TEXT TESTS
 # ============================================================================
 
-@pytest.mark.unit
-@pytest.mark.sanitization
-class TestSanitizeText:
-    """Tests for sanitize_text function."""
-
-    def test_removes_html_tags(self):
-        """Should remove HTML tags."""
-        result = sanitize_text("<p>Hello <b>World</b></p>")
-        assert "<p>" not in result
-        assert "<b>" not in result
-        assert "Hello" in result
-        assert "World" in result
-
-    def test_removes_script_tags(self):
-        """Should remove script tags and content."""
-        result = sanitize_text("<script>alert('xss')</script>Safe text")
-        assert "script" not in result.lower()
-        assert "Safe text" in result
-
-    def test_preserves_normal_text(self):
-        """Should preserve normal text."""
-        text = "This is normal text with punctuation!"
-        result = sanitize_text(text)
-        assert "normal text" in result
-
 
 # ============================================================================
 # VALIDATE_PATH TESTS
@@ -205,27 +176,6 @@ class TestValidatePath:
 # ============================================================================
 # SANITIZE_FILE_EXTENSION TESTS
 # ============================================================================
-
-@pytest.mark.unit
-@pytest.mark.sanitization
-class TestSanitizeFileExtension:
-    """Tests for sanitize_file_extension function."""
-
-    def test_accepts_valid_extensions(self):
-        """Should accept valid file extensions."""
-        allowed = ['.pdf', '.txt', '.docx']
-        assert sanitize_file_extension("document.pdf", allowed)
-        assert sanitize_file_extension("file.txt", allowed)
-
-    def test_rejects_invalid_extensions(self):
-        """Should reject invalid extensions."""
-        allowed = ['.pdf', '.txt']
-        assert not sanitize_file_extension("file.exe", allowed)
-
-    def test_case_insensitive(self):
-        """Should be case insensitive."""
-        allowed = ['.pdf']
-        assert sanitize_file_extension("file.PDF", allowed)
 
 
 # ============================================================================
@@ -290,57 +240,10 @@ class TestEscapeSqlLike:
 # TRUNCATE_TEXT TESTS
 # ============================================================================
 
-@pytest.mark.unit
-@pytest.mark.sanitization
-class TestTruncateText:
-    """Tests for truncate_text function."""
-
-    def test_truncates_long_text(self):
-        """Should truncate text longer than max_length."""
-        long_text = "a" * 1000
-        result = truncate_text(long_text, max_length=100)
-        assert len(result) <= 100
-
-    def test_preserves_short_text(self):
-        """Should preserve text shorter than max_length."""
-        short_text = "Short text"
-        result = truncate_text(short_text, max_length=100)
-        assert result == short_text
-
-    def test_adds_ellipsis(self):
-        """Should add ellipsis to truncated text."""
-        long_text = "a" * 1000
-        result = truncate_text(long_text, max_length=100)
-        assert result.endswith("...")
-
 
 # ============================================================================
 # REMOVE_NULL_BYTES TESTS
 # ============================================================================
-
-@pytest.mark.unit
-@pytest.mark.sanitization
-class TestRemoveNullBytes:
-    """Tests for remove_null_bytes function."""
-
-    def test_removes_null_bytes(self):
-        """Should remove null bytes."""
-        result = remove_null_bytes("text\x00with\x00nulls")
-        assert "\x00" not in result
-        assert "text" in result
-        assert "with" in result
-        assert "nulls" in result
-
-    def test_preserves_clean_text(self):
-        """Should preserve text without null bytes."""
-        clean_text = "Clean text without nulls"
-        result = remove_null_bytes(clean_text)
-        assert result == clean_text
-
-    def test_handles_empty_string(self):
-        """Should handle empty strings."""
-        result = remove_null_bytes("")
-        assert result == ""
 
 
 # ============================================================================
@@ -360,10 +263,3 @@ class TestSanitizationIntegration:
         assert "<script>" not in result
         assert result.endswith(".pdf")
 
-    def test_query_and_text_sanitization_together(self):
-        """Should sanitize query and text properly."""
-        dangerous_query = "<script>alert('xss')</script>What is this?"
-        sanitized_query = sanitize_query(dangerous_query)
-        sanitized_text = sanitize_text(dangerous_query)
-
-        assert "What is this" in sanitized_query or "What is this" in sanitized_text
