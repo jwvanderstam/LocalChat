@@ -1741,9 +1741,10 @@ The order is by security weight, so authorisation moves first:
    `ConnectorsRepository`, `OAuthTokensRepository`, `ConnectorsService` (which holds CONN-1's
    rules), `OAuthAccountsService`; `app.state.db` in routes 36 → 23. The admin check needs the
    request, so the route hands it to the service as a callback, called where the route used
-   to call it. Found, not fixed here: a global admin who names no workspace creates a
-   connector with none, then gets a 500 from the read-back. Two integration tests were
-   edited, for the renamed methods only.
+   to call it. Found while doing it, and fixed in its own PR: a global admin who named no
+   workspace created a connector with none, then got a 500 from the read-back; it is now
+   a 400 before anything is written. Two integration tests were edited, for the renamed
+   methods only.
 7. ✅ Feedback, annotations, entities, contributions, settings, 2026-10-24: four repositories,
    `FeedbackService`, `AnnotationsService`, `ContributionsService`, and the workspace ontology
    and suggestions in `WorkspacesService`. `Database` composes no mixins any more. The ratchet

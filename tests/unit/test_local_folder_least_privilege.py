@@ -168,7 +168,7 @@ class TestCreatingOneIsAGlobalDecision:
                     "connector_type": "local_folder",
                     "config": {"path": str(allowed_root)},
                 },
-                headers=_auth("admin"),
+                headers={**_auth("admin"), "X-Workspace-ID": WS},
             )
         assert resp.status_code == 201
         assert client.app.state.db.connectors.create.called

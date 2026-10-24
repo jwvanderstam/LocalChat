@@ -99,7 +99,7 @@ class TestCreateConnector:
         resp = client.post("/api/connectors", json={
             "connector_type": "local_folder",
             "config": {"path": str(tmp_path)},
-        })
+        }, headers={"X-Workspace-ID": "ws-1"})
         assert resp.status_code == 201
         assert resp.json()["success"] is True
 

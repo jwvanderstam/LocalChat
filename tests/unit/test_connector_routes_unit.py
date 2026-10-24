@@ -56,6 +56,7 @@ class TestConnectorRoutesErrors:
         resp = client.post(
             '/api/connectors',
             json={'connector_type': 'webhook', 'config': {}},
+            headers={'X-Workspace-ID': 'ws-1'},
         )
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
@@ -105,6 +106,24 @@ class TestConnectorOwnerBinding:
         assert 'user_id' in resp.json()['message']
         app.state.db.connectors.create.assert_not_called()
 
+    def test_an_admin_naming_no_workspace_is_refused_and_nothing_is_created(self, client, app):
+        """A global admin passes the guard without naming a workspace, so the connector
+        had none: it was inserted and registered, then the read-back refused the missing
+        scope and the caller got a 500 for a connector that now existed."""
+        registry = self._registry(app)
+        app.state.db.connectors.create = MagicMock(return_value='new-id')
+
+        resp = client.post(
+            '/api/connectors',
+            json={'connector_type': 'google_drive', 'config': {'folder_id': 'f1'}},
+        )
+
+        assert (resp.status_code, resp.json()['message']) == (
+            400, 'Select a workspace for the connector'
+        )
+        app.state.db.connectors.create.assert_not_called()
+        registry.add.assert_not_called()
+
     def test_create_binds_the_caller_as_owner(self, client, app):
         registry = self._registry(app)
         app.state.db.connectors.create = MagicMock(return_value='new-id')
@@ -113,6 +132,7 @@ class TestConnectorOwnerBinding:
         resp = client.post(
             '/api/connectors',
             json={'connector_type': 'google_drive', 'config': {'folder_id': 'f1'}},
+            headers={'X-Workspace-ID': 'ws-1'},
         )
 
         assert resp.status_code == 201
