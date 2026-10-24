@@ -53,6 +53,10 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   module, route modules reach the database four times, all named in the ratchet: three
   times handing it to chat's functions, and once for the settings page's totals. No
   behaviour changes.
+- **No module import cycles** (QP-4). `config` checks the encryption key itself instead of
+  importing the encryption module, which reads its key from `config`; the request-ID
+  context variable moved into `logging_config`, which the request-ID middleware already
+  imported. grimp finds no cycle in `src/`, and the ratchet now requires none.
 
 ### Added
 

@@ -9,21 +9,16 @@ end-to-end tracing works without changes to client code.
 import logging
 import time
 import uuid
-from contextvars import ContextVar
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from .logging_config import request_id_var
 from .logging_config import sanitize_log_value as _slv
 
 _HEADER = "X-Request-ID"
 _access_logger = logging.getLogger("access")
-
-#: ContextVar holding the request ID for the current async context.
-#: Read by RequestIdFilter in logging_config.py to inject into every log record.
-request_id_var: ContextVar[str] = ContextVar("request_id", default="")
-
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
     """Assigns a unique request ID to every incoming HTTP request.

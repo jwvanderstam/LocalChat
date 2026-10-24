@@ -297,7 +297,7 @@ class TestValidateSecrets:
 
     def test_raises_on_malformed_encryption_key_in_production(self, monkeypatch):
         """A key that is set but unusable degrades to plain text exactly like an
-        absent one — _get_fernet() returns None on the exception."""
+        absent one — the key does not build a Fernet."""
         config = self._set(
             monkeypatch, APP_ENV='production',
             **{**self._strong_defaults(), 'ENCRYPTION_KEY': 'not-a-valid-fernet-key'},

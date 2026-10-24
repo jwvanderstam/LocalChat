@@ -169,6 +169,21 @@ def validate_single_worker() -> None:
     raise SystemExit(1)
 
 
+def _is_fernet_key(key: str) -> bool:
+    """True when *key* builds a Fernet, the same test ``utils.encryption`` applies.
+
+    Checked here rather than by importing the encryption module, which reads its key
+    from this one: that import was half of a module cycle (QP-3).
+    """
+    try:
+        from cryptography.fernet import Fernet
+
+        Fernet(key.encode())
+    except Exception:  # noqa: BLE001 — any unusable key is the one answer the caller needs
+        return False
+    return True
+
+
 def validate_secrets() -> None:
     """Abort startup if secrets are placeholders, or production config is weak or missing.
 
@@ -239,13 +254,11 @@ def _production_errors(errors: list[str]) -> None:
             "ENCRYPTION_KEY must be set in production — without it OAuth tokens, "
             "messages and memories are stored unencrypted"
         )
-    else:
-        from .utils.encryption import _get_fernet
-        if _get_fernet() is None:
-            errors.append(
-                "ENCRYPTION_KEY is not a valid Fernet key — a malformed key "
-                "silently degrades to plain-text storage"
-            )
+    elif not _is_fernet_key(ENCRYPTION_KEY):
+        errors.append(
+            "ENCRYPTION_KEY is not a valid Fernet key — a malformed key "
+            "silently degrades to plain-text storage"
+        )
 
 
 # ============================================================================
