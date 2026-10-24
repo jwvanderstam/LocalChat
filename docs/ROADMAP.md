@@ -1774,8 +1774,9 @@ start **before** QP-4's first PR.
 > **The eight e2e paths are built.** Paths 2 and 3 were already the golden path; the other
 > six are `tests/e2e/test_access_paths.py`. Two were checked against deliberate breakage: a
 > logout that skips `revoke_token`, and an upload guard lowered to viewer. Both turned the
-> suite red. Writing them found that `GET /api/users/me` answers a revoked or absent token
-> with 200, so the replay test probes `/api/workspaces` instead. The 20-green-runs count for
+> suite red. Writing them found that `GET /api/users/me` answered a revoked token with its
+> user id and roles; fixed the same day, and the replay test probes `/api/workspaces`, which
+> refuses with 401 where `/users/me` answers anyone with 200. The 20-green-runs count for
 > making `e2e` required starts with this suite, not the old two tests.
 
 - e2e grows from 2 golden paths to 8:
