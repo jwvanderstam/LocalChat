@@ -90,7 +90,7 @@ def _post(client: TestClient, body: dict, headers: dict[str, str]):
 class TestTheChatRoute:
     def test_a_key_asking_for_the_global_tier_is_refused_before_any_retrieval(self):
         state = authenticated_state()
-        state.db.resolve_workspace_api_key.return_value = (WS, "editor")
+        state.db.api_keys.resolve.return_value = (WS, "editor")
         client = _client(state)
         key, _, _ = generate_api_key()
         resp = _post(client, {"message": "what did other projects learn?", "knowledge_scope": "global"},

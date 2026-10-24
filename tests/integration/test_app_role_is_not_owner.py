@@ -73,8 +73,8 @@ out["copy_program_refused"] = refused("COPY (SELECT 1) TO PROGRAM 'true'")
 out["create_table_refused"] = refused("CREATE TABLE s2_probe (id int)")
 out["drop_table_refused"] = refused("DROP TABLE documents")
 
-a = db.create_workspace("s2-a", owner_id=None)
-b = db.create_workspace("s2-b", owner_id=None)
+a = db.workspaces.create("s2-a", owner_id=None)
+b = db.workspaces.create("s2-b", owner_id=None)
 db.insert_document("s2.md", "only in a", workspace_id=a)
 out["unscoped_sees_it"] = db.get_document_count(scope=ALL_WORKSPACES) >= 1
 with db.get_connection(scope=a) as conn:

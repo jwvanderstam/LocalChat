@@ -15,16 +15,11 @@ import hashlib
 import hmac
 import secrets
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import UUID
 
 from ..utils.logging_config import get_logger, sanitize_log_value
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
@@ -70,10 +65,13 @@ def _jsonable(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-class WorkspaceKeysMixin(MixinHost):
+class WorkspaceKeysRepository:
     """CRUD for workspace API keys."""
 
-    def create_workspace_api_key(
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
+
+    def create(
         self,
         workspace_id: str,
         name: str,
@@ -85,10 +83,10 @@ class WorkspaceKeysMixin(MixinHost):
         The caller must surface *full_key* once and never store it; only the hash
         and prefix are persisted.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot create API key: DB not connected")
         full_key, prefix, key_hash = generate_api_key()
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -106,17 +104,17 @@ class WorkspaceKeysMixin(MixinHost):
         logger.info("[WorkspaceKeys] Key '%s' created for workspace %s", prefix, sanitize_log_value(workspace_id))
         return full_key, _jsonable(dict(zip(cols, row, strict=True)))
 
-    def resolve_workspace_api_key(self, presented: str) -> tuple[str, str] | None:
+    def resolve(self, presented: str) -> tuple[str, str] | None:
         """Return ``(workspace_id, role)`` for a live key, else ``None``.
 
         Looks up by prefix and then compares the hash in constant time, so the
         query plan does not depend on the secret and a timing signal does not leak
         how much of a guess was correct.
         """
-        if not presented or not presented.startswith(KEY_PREFIX) or not self.is_connected:
+        if not presented or not presented.startswith(KEY_PREFIX) or not self._db.is_connected:
             return None
         prefix = presented[:_PREFIX_LEN]
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -130,14 +128,14 @@ class WorkspaceKeysMixin(MixinHost):
         expected = _hash_key(presented)
         for key_id, workspace_id, role, key_hash in rows:
             if hmac.compare_digest(key_hash, expected):
-                self._touch_workspace_api_key(str(key_id))
-                return str(workspace_id), role
+                self._touch(str(key_id))
+                return str(workspace_id), str(role)
         return None
 
-    def _touch_workspace_api_key(self, key_id: str) -> None:
+    def _touch(self, key_id: str) -> None:
         """Record last use. Best-effort: a failure here must not deny a valid request."""
         try:
-            with self.get_connection() as conn:
+            with self._db.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "UPDATE workspace_api_keys SET last_used_at = NOW() WHERE id = %s",
@@ -146,11 +144,11 @@ class WorkspaceKeysMixin(MixinHost):
         except Exception:  # noqa: BLE001 — last_used_at is telemetry; failing to record it must not fail the authentication it follows
             logger.debug("[WorkspaceKeys] Could not record last_used_at for %s", key_id)
 
-    def list_workspace_api_keys(self, workspace_id: str) -> list[dict[str, Any]]:
+    def list_for_workspace(self, workspace_id: str) -> list[dict[str, Any]]:
         """List live keys for a workspace. Never returns the key or its hash."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -164,7 +162,7 @@ class WorkspaceKeysMixin(MixinHost):
                 cols = [d[0] for d in cur.description or []]
                 return [_jsonable(dict(zip(cols, r, strict=True))) for r in cur.fetchall()]
 
-    def revoke_workspace_api_key(
+    def revoke(
         self,
         key_id: str,
         workspace_id: str,
@@ -175,9 +173,9 @@ class WorkspaceKeysMixin(MixinHost):
         *workspace_id* is part of the WHERE clause, not just a lookup: without it an
         owner of one workspace could revoke another workspace's key by id.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot revoke API key: DB not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -187,4 +185,4 @@ class WorkspaceKeysMixin(MixinHost):
                     """,
                     (revoked_by, key_id, workspace_id),
                 )
-                return cur.rowcount > 0
+                return bool(cur.rowcount > 0)

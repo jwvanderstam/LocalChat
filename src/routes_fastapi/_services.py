@@ -10,7 +10,12 @@ from __future__ import annotations
 from fastapi import Request
 
 from ..services.users import UsersService
+from ..services.workspaces import WorkspacesService
 
 
 def users_service(request: Request) -> UsersService:
     return UsersService(request.app.state.db)
+
+
+def workspaces_service(request: Request) -> WorkspacesService:
+    return WorkspacesService(request.app.state.db)

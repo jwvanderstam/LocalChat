@@ -148,7 +148,7 @@ def ingested(database, ollama, tmp_path_factory) -> Iterator[tuple[object, str, 
     workspace and each document's flags as the Documents page would list them."""
     from src.rag.processor import DocumentProcessor
 
-    workspace = database.create_workspace(f"gr1-{uuid.uuid4().hex[:8]}", owner_id=None)
+    workspace = database.workspaces.create(f"gr1-{uuid.uuid4().hex[:8]}", owner_id=None)
     folder = tmp_path_factory.mktemp("gr1")
     for name, (build, _line, _kind) in ADVERSARIAL.items():
         build(folder / name)
@@ -164,7 +164,7 @@ def ingested(database, ollama, tmp_path_factory) -> Iterator[tuple[object, str, 
     try:
         yield processor, workspace, listed
     finally:
-        database.delete_workspace(workspace)
+        database.workspaces.retire(workspace)
 
 
 @pytest.mark.parametrize("name", sorted(ADVERSARIAL))

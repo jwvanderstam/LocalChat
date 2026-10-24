@@ -71,9 +71,9 @@ the database is the real singleton (the shared `app` fixture), or its bound meth
 cannot be replaced reversibly.
 
 Three answers are not obvious, and each fails looking like the route is broken:
-`is_token_revoked` (fail-closed, so a bare mock reads every token as revoked),
-`get_user_workspaces` (a truthy mock silently becomes the workspace under test), and
-`get_workspace_member_role` (`None` means non-member, which is a 403).
+`tokens.is_revoked` (fail-closed, so a bare mock reads every token as revoked),
+`members.for_user` (a truthy mock silently becomes the workspace under test), and
+`members.role` (`None` means non-member, which is a 403).
 
 `conftest.py` provides `client` (signed in as admin) and `unauthenticated_client` (for
 asserting a route refuses).

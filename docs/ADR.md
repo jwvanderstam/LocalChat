@@ -526,6 +526,15 @@ database. Chosen over building repositories on `app.state` separately because it
 one aggregate per PR without rewiring `app.state` and every test's stand-in for it at
 once; QP-5, which deletes `Database`, is where that wiring changes.
 
+**Amended 2026-10-24 (QP-4, workspaces), where the access check lives.** The yes-or-no
+stays in the route: `deny()`, which wraps `check_workspace_access`, runs before the service
+is called. The service takes the caller only for what depends on them beyond that answer,
+such as which workspaces they are shown and whose name a change records. Chosen over moving
+the check into each service because every workspace-scoped router shares that one guard,
+including the workspace-API-key branch. Moving it for one aggregate would leave two
+authorisation paths until the last aggregate moved, and the guard is what the nightly
+mutation gate covers. If it moves, it moves once for every aggregate, after QP-4.
+
 **Revisit when:** a second front end (a CLI, a worker that is not the web app) needs the
 same use cases. The service layer is then its entry point too, and the question becomes
 whether it moves out of the web process.

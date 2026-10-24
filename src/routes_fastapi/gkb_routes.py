@@ -39,7 +39,7 @@ async def contribute(
         )
     db = request.app.state.db
     try:
-        if db.get_workspace(workspace_id) is None:
+        if db.workspaces.get(workspace_id) is None:
             return JSONResponse({"success": False, "message": "Workspace not found"}, status_code=404)
         contributed = db.contribute_documents(workspace_id, payload.document_ids, admin_id)
         if contributed is None:

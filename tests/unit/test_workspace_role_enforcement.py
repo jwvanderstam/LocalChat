@@ -36,13 +36,13 @@ def _client(router, prefix: str, member_role: str | None, global_role: str = "us
     # grants the admin short-circuit.
     state.db.tokens.is_revoked.return_value = False
     state.db.users.get_role.return_value = global_role
-    state.db.resolve_workspace_api_key.return_value = None
-    state.db.get_workspace_member_role.return_value = member_role
-    state.db.get_default_workspace_id.return_value = DEFAULT_WS
+    state.db.api_keys.resolve.return_value = None
+    state.db.members.role.return_value = member_role
+    state.db.workspaces.default_id.return_value = DEFAULT_WS
     # Explicit: this caller belongs to no workspace of their own, so scope resolution
     # falls through to the global default. A MagicMock would return a truthy stand-in
     # here and quietly become the answer.
-    state.db.get_user_workspaces.return_value = []
+    state.db.members.for_user.return_value = []
     # Also explicit, for the same reason: the listing route measures the page it
     # returns against the total, and a MagicMock is neither a list nor a number.
     state.db.list_conversations.return_value = []
@@ -148,7 +148,7 @@ class TestWorkspaceScopeResolution:
     def test_header_workspace_is_the_one_checked(self):
         client = _documents("viewer")
         client.get("/api/documents/list", headers={**_auth(), "X-Workspace-ID": WS})
-        assert client.app.state.db.get_workspace_member_role.call_args[0][0] == WS
+        assert client.app.state.db.members.role.call_args[0][0] == WS
 
     def test_missing_header_falls_back_to_the_default_workspace(self):
         """The frontend sends no header until localStorage holds one — that must still work.
@@ -159,19 +159,19 @@ class TestWorkspaceScopeResolution:
         """
         client = _documents("viewer")
         client.get("/api/documents/list", headers=_auth())
-        assert client.app.state.db.get_workspace_member_role.call_args[0][0] == DEFAULT_WS
+        assert client.app.state.db.members.role.call_args[0][0] == DEFAULT_WS
 
     def test_the_callers_own_workspace_beats_the_default(self):
         """Added 2026-08-07: falling straight to the default refused everything to a
         user who was a member of some other workspace."""
         client = _documents("viewer")
-        client.app.state.db.get_user_workspaces.return_value = [{"id": WS}]
+        client.app.state.db.members.for_user.return_value = [{"id": WS}]
         client.get("/api/documents/list", headers=_auth())
-        assert client.app.state.db.get_workspace_member_role.call_args[0][0] == WS
+        assert client.app.state.db.members.role.call_args[0][0] == WS
 
     def test_no_workspaces_at_all_is_a_clear_error(self):
         client = _documents("viewer")
-        client.app.state.db.get_default_workspace_id.return_value = None
+        client.app.state.db.workspaces.default_id.return_value = None
         resp = client.get("/api/documents/list", headers=_auth())
         assert resp.status_code == 400
 

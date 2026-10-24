@@ -13,20 +13,16 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from ..db.workspaces import LastOwnerError
 from ..security_fastapi import verify_credentials_db
 from ..utils.logging_config import get_logger
 from .errors import ServiceError
 from .passwords import hash_user_password, verify_user_password
+from .workspaces import WorkspacesService
 
 if TYPE_CHECKING:
     from ..db import Database
 
 logger = get_logger(__name__)
-
-#: Matches the wording the workspaces router returns for the same refusal.
-_LAST_OWNER = "Cannot remove the last owner of a workspace"
-
 
 class LastAdminError(ServiceError):
     """The change would leave the installation with no live admin.
@@ -64,8 +60,8 @@ class UsersService:
         """The caller's global role and their role in the workspace (or the default one)."""
         if not user_id or user_id == "anonymous" or not self.available:
             return None, None
-        ws_id = workspace_id or self._db.get_default_workspace_id()
-        workspace_role = self._db.get_workspace_member_role(ws_id, user_id) if ws_id else None
+        ws_id = workspace_id or self._db.workspaces.default_id()
+        workspace_role = self._db.members.role(ws_id, user_id) if ws_id else None
         user = self._db.users.get_by_id(user_id)
         return (user.get("role") if user else None), workspace_role
 
@@ -112,7 +108,7 @@ class UsersService:
                 raise ServiceError(409, "Username or email already exists") from exc
             raise
         if workspace_id:
-            self._db.add_workspace_member(workspace_id, user_id, workspace_role)
+            self._db.members.add(workspace_id, user_id, workspace_role)
         return _public(self._db.users.get_by_id(user_id) or {})
 
     def list_users(self, include_retired: bool) -> list[dict[str, Any]]:
@@ -146,20 +142,14 @@ class UsersService:
         return self._db.users.purge(user_id)
 
     def user_workspaces(self, user_id: str) -> list[dict[str, Any]]:
-        workspaces: list[dict[str, Any]] = self._db.get_user_workspaces(user_id)
+        workspaces: list[dict[str, Any]] = self._db.members.for_user(user_id)
         return workspaces
 
     def grant_workspace(self, user_id: str, workspace_id: str, role: str) -> None:
-        self._db.add_workspace_member(workspace_id, user_id, role)
+        self._db.members.add(workspace_id, user_id, role)
 
     def revoke_workspace(self, user_id: str, workspace_id: str) -> bool:
-        try:
-            return bool(self._db.remove_workspace_member(workspace_id, user_id))
-        except LastOwnerError as exc:
-            # The message is a constant, not str(exc): nothing raised below this line
-            # can reach the caller, whatever it says (CodeQL #91).
-            logger.warning("[Users] revoke workspace constraint: %s", exc)
-            raise ServiceError(409, _LAST_OWNER) from exc
+        return WorkspacesService(self._db).remove_member(workspace_id, user_id)
 
     def _would_remove_last_admin(self, user_id: str) -> bool:
         """True when this user is the only remaining live admin.

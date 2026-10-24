@@ -15,6 +15,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   the last-administrator and last-owner rules and the password checks. The SQL moved
   verbatim into `UsersRepository` and `RevokedTokensRepository`, held on `Database` until
   QP-5 removes it. The new modules are type-checked strictly. No behaviour changes.
+- **Workspaces, members and API keys go through a service** (QP-4, second aggregate).
+  `workspace_routes` asks a `WorkspacesService` for everything except ontology and
+  suggestions, which move with their own aggregates. The SQL moved verbatim into
+  `WorkspacesRepository`, `WorkspaceMembersRepository` and `WorkspaceKeysRepository`
+  (`db.workspaces`, `db.members`, `db.api_keys`). `app.state.db` in routes is down from 72 to 58,
+  and the last-owner refusal now has one implementation instead of two. No behaviour changes.
 
 ### Added
 

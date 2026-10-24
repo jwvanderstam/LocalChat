@@ -356,7 +356,7 @@ class TestApiStatus:
     def _status_for_header(self, workspace_header: str) -> tuple[MagicMock, dict]:
         """A plain user who is a member of OWN only, asking about *workspace_header*."""
         app, client = _make_chat_app()
-        app.state.db.get_workspace_member_role.side_effect = (
+        app.state.db.members.role.side_effect = (
             lambda ws, _user: "viewer" if ws == self.OWN else None
         )
         counter = MagicMock(return_value=(7, True))

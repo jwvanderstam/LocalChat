@@ -44,10 +44,10 @@ def _db(*, revoked: bool = False, role: str = "user", live_admins: int = 1) -> M
     db.is_connected = True
     db.tokens.is_revoked.return_value = revoked
     db.users.get_role.return_value = role
-    db.get_workspace_member_role.return_value = "owner"
-    db.get_user_workspaces.return_value = [{"id": WS}]
-    db.get_default_workspace_id.return_value = WS
-    db.resolve_workspace_api_key.return_value = None
+    db.members.role.return_value = "owner"
+    db.members.for_user.return_value = [{"id": WS}]
+    db.workspaces.default_id.return_value = WS
+    db.api_keys.resolve.return_value = None
     db.users.count_live_admins.return_value = live_admins
     return db
 

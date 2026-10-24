@@ -31,7 +31,7 @@ def _client(*, role: str, member_role: str | None, headers: dict[str, str]) -> T
     from src.routes_fastapi.gkb_routes import router
 
     state = authenticated_state(role=role, member_role=member_role)
-    state.db.get_workspace.return_value = {"id": WS, "name": "Project A"}
+    state.db.workspaces.get.return_value = {"id": WS, "name": "Project A"}
     state.db.contribute_documents.return_value = CONTRIBUTED
     state.db.archive_contributions.return_value = 2
     state.db.list_contributions.return_value = [{"id": 70, "filename": "retro.md"}]
@@ -67,7 +67,7 @@ class TestContribute:
 
     def test_a_workspace_api_key_is_refused(self):
         client = _client(role="user", member_role=None, headers={"X-API-Key": "lcw_bridge"})
-        client.app.state.db.resolve_workspace_api_key.return_value = (WS, "editor")
+        client.app.state.db.api_keys.resolve.return_value = (WS, "editor")
         resp = client.post(f"/api/workspaces/{WS}/contribute", json={"document_ids": [7]})
         assert resp.status_code == 401
         client.app.state.db.contribute_documents.assert_not_called()
@@ -98,7 +98,7 @@ class TestContribute:
 
     def test_an_unknown_workspace_is_not_found_and_nothing_is_copied(self):
         client = _admin()
-        client.app.state.db.get_workspace.return_value = None
+        client.app.state.db.workspaces.get.return_value = None
         resp = client.post(f"/api/workspaces/{WS}/contribute", json={"document_ids": [7]})
         assert resp.status_code == 404
         client.app.state.db.contribute_documents.assert_not_called()

@@ -28,8 +28,8 @@ def _client():
     state = authenticated_state(role="admin")
     state.db.users.create.return_value = USER
     state.db.users.get_by_id.return_value = {"id": USER, "username": "jo", "role": "user"}
-    state.db.get_user_workspaces.return_value = [{"id": WS, "name": "Default", "role": "editor"}]
-    state.db.remove_workspace_member.return_value = True
+    state.db.members.for_user.return_value = [{"id": WS, "name": "Default", "role": "editor"}]
+    state.db.members.remove.return_value = True
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.state = state
@@ -46,21 +46,21 @@ class TestCreateGrantsMembership:
             "username": "jo", "password": "a-long-enough-pw",
             "workspace_id": WS, "workspace_role": "editor",
         })
-        client.app.state.db.add_workspace_member.assert_called_once_with(WS, USER, "editor")
+        client.app.state.db.members.add.assert_called_once_with(WS, USER, "editor")
 
     def test_the_requested_workspace_role_is_used(self):
         client = _client()
         client.post("/api/users", json={
             "username": "jo", "password": "a-long-enough-pw", "workspace_id": WS, "workspace_role": "viewer",
         })
-        assert client.app.state.db.add_workspace_member.call_args[0][2] == "viewer"
+        assert client.app.state.db.members.add.call_args[0][2] == "viewer"
 
     def test_creating_without_a_workspace_still_works(self):
         """Not every caller has one to give — the API stays usable, the UI insists."""
         client = _client()
         resp = client.post("/api/users", json={"username": "jo", "password": "a-long-enough-pw"})
         assert resp.status_code == 201
-        client.app.state.db.add_workspace_member.assert_not_called()
+        client.app.state.db.members.add.assert_not_called()
 
     def test_an_invalid_workspace_role_is_refused(self):
         client = _client()
@@ -87,7 +87,7 @@ class TestMembershipManagement:
     def test_access_can_be_granted_afterwards(self):
         client = _client()
         client.post(f"/api/users/{USER}/workspaces", json={"workspace_id": WS, "role": "owner"})
-        client.app.state.db.add_workspace_member.assert_called_once_with(WS, USER, "owner")
+        client.app.state.db.members.add.assert_called_once_with(WS, USER, "owner")
 
     def test_access_can_be_revoked(self):
         client = _client()
@@ -96,7 +96,7 @@ class TestMembershipManagement:
 
     def test_revoking_a_missing_membership_is_404(self):
         client = _client()
-        client.app.state.db.remove_workspace_member.return_value = False
+        client.app.state.db.members.remove.return_value = False
         assert client.delete(f"/api/users/{USER}/workspaces/{WS}").status_code == 404
 
     def test_removing_the_last_owner_is_refused_with_409(self):
@@ -107,7 +107,7 @@ class TestMembershipManagement:
         caller.
         """
         client = _client()
-        client.app.state.db.remove_workspace_member.side_effect = LastOwnerError(
+        client.app.state.db.members.remove.side_effect = LastOwnerError(
             "leaked internals from somewhere below")
         resp = client.delete(f"/api/users/{USER}/workspaces/{WS}")
 
@@ -143,10 +143,10 @@ class TestFallbackPicksAUsableWorkspace:
         # is what keeps this test on the membership path it is about.
         db.tokens.is_revoked.return_value = False
         db.users.get_role.return_value = "user"
-        db.resolve_workspace_api_key.return_value = None
-        db.get_default_workspace_id.return_value = default_ws
-        db.get_user_workspaces.return_value = [{"id": w} for w in member_of]
-        db.get_workspace_member_role.side_effect = (
+        db.api_keys.resolve.return_value = None
+        db.workspaces.default_id.return_value = default_ws
+        db.members.for_user.return_value = [{"id": w} for w in member_of]
+        db.members.role.side_effect = (
             lambda ws, uid: "editor" if ws in member_of else None
         )
         scope = {
@@ -188,7 +188,7 @@ class TestFallbackPicksAUsableWorkspace:
         from src.security_fastapi import check_workspace_access, create_access_token
 
         req, db = self._request(member_of=["ws-default"], default_ws="ws-default")
-        db.get_user_workspaces.side_effect = RuntimeError("db blip")
+        db.members.for_user.side_effect = RuntimeError("db blip")
         token = create_access_token(USER, {"role": "user"})
         req.scope["headers"] = [(b"authorization", f"Bearer {token}".encode())]
         with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "live"):

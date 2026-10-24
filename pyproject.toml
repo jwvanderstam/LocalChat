@@ -112,9 +112,12 @@ output = "coverage.xml"
 module = [
     "src.db.users",
     "src.db.tokens",
+    "src.db.workspaces",
+    "src.db.workspace_keys",
     "src.services.errors",
     "src.services.passwords",
     "src.services.users",
+    "src.services.workspaces",
     "src.routes_fastapi._services",
 ]
 # `strict = true` is global-only; these are the per-module flags it turns on.
@@ -143,7 +146,6 @@ allow_indirect_imports = true
 # aggregate: users and auth first, then workspaces, then documents.
 ignore_imports = [
     "src.routes_fastapi.document_routes -> src.db.connection",
-    "src.routes_fastapi.workspace_routes -> src.db.workspaces",
 ]
 
 [[tool.importlinter.contracts]]

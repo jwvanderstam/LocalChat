@@ -32,8 +32,8 @@ class TestDemoModeIsRemoved:
 
         state = MagicMock()
         state.db.is_connected = True
-        state.db.get_workspace_member_role.return_value = None
-        state.db.get_default_workspace_id.return_value = "ws-1"
+        state.db.members.role.return_value = None
+        state.db.workspaces.default_id.return_value = "ws-1"
         app = FastAPI()
         app.include_router(router, prefix="/api/documents")
         app.state = state
@@ -66,8 +66,8 @@ class TestEmptyAdminPasswordNoLongerBypasses:
 
         state = MagicMock()
         state.db.is_connected = True
-        state.db.get_workspace_member_role.return_value = None
-        state.db.get_default_workspace_id.return_value = "ws-1"
+        state.db.members.role.return_value = None
+        state.db.workspaces.default_id.return_value = "ws-1"
         app = FastAPI()
         app.include_router(router, prefix="/api/documents")
         app.state = state

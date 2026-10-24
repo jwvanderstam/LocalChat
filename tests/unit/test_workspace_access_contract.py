@@ -53,10 +53,10 @@ def _member_db(role: str | None = "editor") -> MagicMock:
     """A database that answers the workspace-membership path."""
     db = MagicMock()
     db.is_connected = True
-    db.get_workspace_member_role.return_value = role
-    db.get_default_workspace_id.return_value = _WS
-    db.get_user_workspaces.return_value = []
-    db.resolve_workspace_api_key.return_value = None
+    db.members.role.return_value = role
+    db.workspaces.default_id.return_value = _WS
+    db.members.for_user.return_value = []
+    db.api_keys.resolve.return_value = None
     db.tokens.is_revoked.return_value = False
     return db
 
@@ -64,7 +64,7 @@ def _member_db(role: str | None = "editor") -> MagicMock:
 def _key_db(workspace: str = _WS, role: str = "editor") -> MagicMock:
     db = MagicMock()
     db.is_connected = True
-    db.resolve_workspace_api_key.return_value = (workspace, role)
+    db.api_keys.resolve.return_value = (workspace, role)
     return db
 
 
@@ -124,7 +124,7 @@ class TestDatabasePreconditions:
     def test_no_resolvable_workspace_says_so(self):
         """No requested workspace, none of the caller's own, and no default."""
         db = _member_db()
-        db.get_default_workspace_id.return_value = None
+        db.workspaces.default_id.return_value = None
         denial = check_workspace_access(_request(token=_user_token(), db=db), None, "viewer")
         assert denial == (400, "No workspace context")
 
@@ -138,7 +138,7 @@ class TestDenialMessages:
 
     def test_an_unknown_api_key_is_named_as_such(self):
         db = _key_db()
-        db.resolve_workspace_api_key.return_value = None
+        db.api_keys.resolve.return_value = None
         assert _check_api_key_access(_request(db=db), "lcw_x", _WS, "viewer") == (
             401, "Invalid or revoked API key"
         )

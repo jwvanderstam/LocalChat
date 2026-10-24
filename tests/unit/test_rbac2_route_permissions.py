@@ -33,8 +33,8 @@ def _client(module: str, prefix: str, member_role: str | None = None, global_rol
     router = importlib.import_module(f"src.routes_fastapi.{module}").router
     state = MagicMock()
     state.db.is_connected = True
-    state.db.get_workspace_member_role.return_value = member_role
-    state.db.get_default_workspace_id.return_value = WS
+    state.db.members.role.return_value = member_role
+    state.db.workspaces.default_id.return_value = WS
     # Without this, MagicMock returns a truthy mock and require_auth reads every
     # token as revoked — a 401 that looks exactly like "not authenticated".
     state.db.tokens.is_revoked.return_value = False

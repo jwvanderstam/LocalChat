@@ -41,12 +41,12 @@ def _client(member_role: str | None, global_role: str = "user") -> TestClient:
     # and the admin short-circuit now reads the role from the database.
     state.db.tokens.is_revoked.return_value = False
     state.db.users.get_role.return_value = global_role
-    state.db.resolve_workspace_api_key.return_value = None
-    state.db.get_workspace_member_role.return_value = member_role
-    state.db.list_workspace_members.return_value = [{"user_id": OTHER_USER, "role": "owner"}]
-    state.db.delete_workspace.return_value = True
-    state.db.get_default_workspace_id.return_value = "ws-default"
-    state.db.remove_workspace_member.return_value = True
+    state.db.api_keys.resolve.return_value = None
+    state.db.members.role.return_value = member_role
+    state.db.members.list_for_workspace.return_value = [{"user_id": OTHER_USER, "role": "owner"}]
+    state.db.workspaces.retire.return_value = True
+    state.db.workspaces.default_id.return_value = "ws-default"
+    state.db.members.remove.return_value = True
 
     app = FastAPI()
     app.include_router(router, prefix="/api")
@@ -78,7 +78,7 @@ class TestUnauthenticatedIsRejected:
     def test_add_member_without_token_does_not_write(self):
         client = _client(member_role=None)
         client.post(f"/api/workspaces/{WS}/members", json={"user_id": OTHER_USER, "role": "owner"})
-        client.app.state.db.add_workspace_member.assert_not_called()
+        client.app.state.db.members.add.assert_not_called()
 
     def test_list_members_without_token_is_401(self):
         client = _client(member_role=None)
@@ -108,7 +108,7 @@ class TestAuthenticatedNonMemberIsRejected:
     def test_delete_workspace_as_non_member_does_not_delete(self):
         client = _client(member_role=None)
         client.delete(f"/api/workspaces/{WS}", headers=_auth())
-        client.app.state.db.delete_workspace.assert_not_called()
+        client.app.state.db.workspaces.retire.assert_not_called()
 
     def test_add_member_as_non_member_is_403(self):
         client = _client(member_role=None)
@@ -136,7 +136,7 @@ class TestAuthenticatedNonMemberIsRejected:
     def test_remove_member_as_non_member_does_not_remove(self):
         client = _client(member_role=None)
         client.delete(f"/api/workspaces/{WS}/members/{OTHER_USER}", headers=_auth())
-        client.app.state.db.remove_workspace_member.assert_not_called()
+        client.app.state.db.members.remove.assert_not_called()
 
 
 @pytest.mark.unit
@@ -182,7 +182,7 @@ class TestPermittedCallersStillPass:
             json={"user_id": OTHER_USER, "role": "editor"},
             headers=_auth(),
         )
-        client.app.state.db.add_workspace_member.assert_called_once_with(WS, OTHER_USER, "editor")
+        client.app.state.db.members.add.assert_called_once_with(WS, OTHER_USER, "editor")
 
     def test_owner_may_delete_workspace(self):
         client = _client(member_role="owner")
@@ -205,12 +205,12 @@ class TestPermittedCallersStillPass:
         client = _client(member_role=None, global_role="user")
         resp = client.delete(f"/api/workspaces/{WS}", headers=_auth(role="admin"))
         assert resp.status_code == 403
-        assert not client.app.state.db.delete_workspace.called
+        assert not client.app.state.db.workspaces.retire.called
 
     def test_authorisation_uses_the_path_workspace_not_a_header(self):
         """Guards the query/path trap: the checked workspace must be the one in the URL."""
         client = _client(member_role="owner")
         client.delete(f"/api/workspaces/{WS}", headers={**_auth(), "X-Workspace-ID": "99999999-9999-9999-9999-999999999999"})
-        checked_ws = client.app.state.db.get_workspace_member_role.call_args[0][0]
+        checked_ws = client.app.state.db.members.role.call_args[0][0]
         assert checked_ws == WS
 

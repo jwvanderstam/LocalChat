@@ -28,9 +28,9 @@ def _client(member_role: str | None, global_role: str = "user"):
     # The workspace guard reads the global role from the database rather than the
     # token claim, so this is what makes the caller an admin (or not).
     state.db.users.get_role.return_value = global_role
-    state.db.resolve_workspace_api_key.return_value = None
-    state.db.get_workspace_member_role.return_value = member_role
-    state.db.get_default_workspace_id.return_value = WS
+    state.db.api_keys.resolve.return_value = None
+    state.db.members.role.return_value = member_role
+    state.db.workspaces.default_id.return_value = WS
     state.db.users.get_by_id.return_value = {"id": USER, "username": "jo", "role": global_role}
     app = FastAPI()
     app.include_router(router, prefix="/api")
@@ -82,7 +82,7 @@ class TestIdentityPayload:
     def test_role_is_checked_against_the_header_workspace(self):
         client = _client("editor")
         client.get("/api/users/me", headers={**_auth(), "X-Workspace-ID": WS})
-        assert client.app.state.db.get_workspace_member_role.call_args[0][0] == WS
+        assert client.app.state.db.members.role.call_args[0][0] == WS
 
 
 @pytest.mark.unit

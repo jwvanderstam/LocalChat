@@ -22,11 +22,12 @@ pytestmark = pytest.mark.unit
 _ROOT = Path(__file__).resolve().parents[2]
 
 #: `app.state.db` in route modules: a handler reaching the database itself instead of a
-#: service. 81 on 2026-10-23 (`3623840`); 72 after QP-4 users and auth. Lower it in the PR that removes some.
-APP_STATE_DB_IN_ROUTES = 72
+#: service. 81 on 2026-10-23 (`3623840`); 72 after QP-4 users and auth;
+#: 58 after workspaces. Lower it in the PR that removes some.
+APP_STATE_DB_IN_ROUTES = 58
 
 #: Direct imports from a route into src.db that the forbidden contract tolerates today.
-IGNORED_ROUTE_TO_DB_IMPORTS = 2
+IGNORED_ROUTE_TO_DB_IMPORTS = 1
 
 #: Groups of modules that import each other, found with grimp's graph. Architecture exit
 #: criterion 5 is none at all.

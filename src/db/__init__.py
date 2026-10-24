@@ -28,13 +28,13 @@ from .memories import MemoriesMixin
 from .oauth_tokens import OAuthTokensMixin
 from .tokens import RevokedTokensRepository
 from .users import UsersRepository
-from .workspace_keys import WorkspaceKeysMixin
-from .workspaces import WorkspacesMixin
+from .workspace_keys import WorkspaceKeysRepository
+from .workspaces import WorkspaceMembersRepository, WorkspacesRepository
 
 logger = get_logger(__name__)
 
 
-class Database(DocumentsMixin, ContributionsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, WorkspacesMixin, WorkspaceKeysMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, DatabaseConnection):
+class Database(DocumentsMixin, ContributionsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 
@@ -48,15 +48,18 @@ class Database(DocumentsMixin, ContributionsMixin, ConversationsMixin, MemoriesM
         ...     doc_id = db.insert_document("file.pdf", "content")
         ...     results = db.search_similar_chunks(embedding, top_k=5, scope=workspace_id)
 
-    The users and revoked-tokens aggregates are repositories held as attributes,
-    not mixins (QP-4); the remaining mixins move the same way, one aggregate per PR,
-    and QP-5 removes this class.
+    The users, revoked-tokens, workspaces, memberships and API-key aggregates are
+    repositories held as attributes, not mixins (QP-4); the remaining mixins move the
+    same way, one aggregate per PR, and QP-5 removes this class.
     """
 
     def __init__(self) -> None:
         super().__init__()
         self.users = UsersRepository(self)
         self.tokens = RevokedTokensRepository(self)
+        self.workspaces = WorkspacesRepository(self)
+        self.members = WorkspaceMembersRepository(self)
+        self.api_keys = WorkspaceKeysRepository(self)
 
 
 # Global singleton – imported throughout the application
