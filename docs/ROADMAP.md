@@ -1767,7 +1767,22 @@ Integration tests pass unchanged, and a PR that had to edit one says so.
 captures most of the security value for about a third of the effort, and leaves
 architecture near 7.5.
 
-#### QP-5 — Finish ⬜ (Sprint 28, ~2 days)
+#### QP-5 — Finish ⬜ (Sprint 28; re-sized 2026-10-25 to ~2 days plus 2-3 PRs for the scoping)
+
+> **Correction, 2026-10-25.** ADR-5's amendment gave each QP-4 PR a second job besides the
+> layering: move its methods onto a named scope or an explicit all-workspaces flag. The QP-4
+> checklist above never listed it, and none of the seven PRs did it — the SQL moved verbatim.
+> 47 repository methods still touch the ten RLS tables on an unscoped connection and depend
+> on `0021`'s transition policy. Isolation is no weaker than before QP-4 (scoped transactions
+> are unchanged), but option B is not reached. So QP-5 starts with that work:
+>
+> 1. The all-workspaces flag: `get_connection(scope=ALL_WORKSPACES)` sets a transaction-local
+>    setting that a new policy checks. Today that scope changes nothing on the connection.
+> 2. Each of the 47 methods opens its connection with the workspace it reads or writes, or
+>    with the flag — the API-key lookup, membership checks, admin totals, purges, the global
+>    tier and the connector worker are the flagged ones. A ratchet counts what is left.
+> 3. Then the migration below drops `0021` and adds `FORCE`, with an integration test that an
+>    unscoped, unflagged transaction sees no rows.
 
 - Delete `Database` (`MixinHost` went with the stale-code sweep on 2026-10-24); `app.state` holds services, not a database.
 - Drop migration `0021`'s transition policy (by a new migration) and add `FORCE ROW LEVEL

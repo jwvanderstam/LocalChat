@@ -335,6 +335,9 @@ owner, and installation-wide access becomes an explicit flag, reached in two ste
   transactions run as `localchat_scoped`, which the policy does not match, so isolation is
   unchanged. Each QP-4 PR moves its methods onto a named scope; QP-5 drops `0021`'s policy
   and adds `FORCE`.
+- **Corrected 2026-10-25:** QP-4 moved the layering and not the scoping — its checklist
+  never listed the second job, so 47 methods still rely on `0021`. QP-5 now starts with it
+  (ROADMAP QP-5, the correction note). The decision above is unchanged.
 - **Rejected: `BYPASSRLS`** for `localchat_app`. It is the transition policy made permanent,
   with no path to B.
 - **Rejected again: a second pool** for the installation-wide paths. The reasoning above
