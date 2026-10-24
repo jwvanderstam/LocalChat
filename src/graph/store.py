@@ -52,7 +52,7 @@ class PostgresGraphStore(GraphStore):
         self._db = db
 
     def upsert_entity(self, name: str, entity_type: str) -> str:
-        return self._db.upsert_entity(name, entity_type)
+        return self._db.entities.upsert(name, entity_type)
 
     def insert_relation(
         self,
@@ -62,12 +62,12 @@ class PostgresGraphStore(GraphStore):
         chunk_id: int,
         relation: str = 'mentioned_with',
     ) -> None:
-        self._db.insert_entity_relation(source_id, target_id, doc_id, chunk_id, relation)
+        self._db.entities.insert_relation(source_id, target_id, doc_id, chunk_id, relation)
 
     def get_related_entity_names(
         self, entity_names: list[str], max_results: int = 20
     ) -> list[str]:
-        return self._db.get_related_entity_names(entity_names, max_results=max_results)
+        return self._db.entities.related_names(entity_names, max_results=max_results)
 
 
 def create_graph_store(db: Any) -> GraphStore:

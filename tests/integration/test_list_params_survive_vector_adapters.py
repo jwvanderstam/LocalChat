@@ -113,10 +113,10 @@ db = Database(); db.initialize()
 # entity_relations.doc_id/chunk_id are foreign keys, so a relation needs real rows.
 doc = db.documents.insert('entities.md', 'Ollama and Postgres', {}, 'hash-ent')
 chunk_ids = db.documents.insert_chunks([(doc, 'Ollama and Postgres', 0, [0.02] * 768)])
-a = db.upsert_entity('Ollama', 'PRODUCT')
-b = db.upsert_entity('Postgres', 'ORG')
-db.insert_entity_relation(a, b, doc, chunk_ids[0])
-names = db.get_related_entity_names(['Ollama'], max_results=5)
+a = db.entities.upsert('Ollama', 'PRODUCT')
+b = db.entities.upsert('Postgres', 'ORG')
+db.entities.insert_relation(a, b, doc, chunk_ids[0])
+names = db.entities.related_names(['Ollama'], max_results=5)
 assert names == ['Postgres'], names
 db.close()
 print('OK')
@@ -129,8 +129,8 @@ print('OK')
         result = _run(database, """
 from src.db import Database
 db = Database(); db.initialize()
-db.upsert_entity('Solitary', 'ORG')
-assert db.get_related_entity_names(['Solitary'], max_results=5) == []
+db.entities.upsert('Solitary', 'ORG')
+assert db.entities.related_names(['Solitary'], max_results=5) == []
 db.close()
 print('OK')
 """)

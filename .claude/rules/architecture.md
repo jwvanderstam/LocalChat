@@ -11,9 +11,9 @@ No SQL, no LLM calls, no business logic inside route functions. If you find your
 
 ## Database access
 
-- All SQL lives in `src/db/`. An aggregate QP-4 has moved is a repository class (`UsersRepository`, `WorkspacesRepository`, …) held as an attribute of `Database` (`db.users`, `db.tokens`, `db.workspaces`, `db.members`, `db.api_keys`, `db.documents`, `db.conversations`, `db.memories`, `db.connectors`, `db.oauth_tokens`); the rest are still mixins (`FeedbackMixin`, `AnnotationsMixin`, …) until their PR.
+- All SQL lives in `src/db/`, in one repository class per aggregate (`UsersRepository`, `DocumentsRepository`, …) held as an attribute of `Database`: `db.users`, `db.tokens`, `db.workspaces`, `db.members`, `db.api_keys`, `db.documents`, `db.conversations`, `db.memories`, `db.connectors`, `db.oauth_tokens`, `db.feedback`, `db.annotations`, `db.entities`, `db.contributions`. QP-4 replaced every mixin; repositories carry no business rules.
 - Never write raw SQL in routes, services, or tools.
-- The `Database` class in `src/db/__init__.py` composes the remaining mixins and holds the repositories. A new aggregate is a repository, not a mixin (ADR-7).
+- The `Database` class in `src/db/__init__.py` is the connection pool holding the repositories, until QP-5 removes it. A new aggregate is a new repository attribute (ADR-7).
 - A route reaches a moved aggregate through its service, requested with `Depends(...)` from `src/routes_fastapi/_services.py`; it never reads `app.state.db` for it.
 - A schema change is an Alembic migration in `migrations/versions/` — a new column, index, table, backfill or policy. `_ensure_extensions_and_tables()` in `src/db/connection.py` only creates the base schema a fresh database starts from. See [docs/MIGRATIONS.md](../../docs/MIGRATIONS.md). (This line said the opposite until 2026-10-06, eighteen migrations after it stopped being true.)
 - Migrations are additive: `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Never destructive.
@@ -53,7 +53,7 @@ No SQL, no LLM calls, no business logic inside route functions. If you find your
 
 Checklist:
 - New Pydantic models in `src/models.py`
-- New DB operations in a mixin in `src/db/`
+- New DB operations in the aggregate's repository in `src/db/`; the rules in its service in `src/services/`
 - New route in `src/routes_fastapi/` — thin handler only
 - Router registered in `src/app_fastapi.py`
 - Unit tests for business logic, integration test for the endpoint

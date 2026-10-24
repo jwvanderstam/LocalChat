@@ -115,7 +115,7 @@ class TestEntityExtractorExtractForDocument:
         e = self._extractor()
         mock_nlp = _make_mock_nlp([("Apple", "ORG"), ("Tim Cook", "PERSON")])
         db = _make_db()
-        db.upsert_entity.side_effect = lambda name, etype: hash(name)
+        db.entities.upsert.side_effect = lambda name, etype: hash(name)
         with patch("src.graph.extractor._get_nlp", return_value=mock_nlp):
             total = e.extract_for_document(
                 1,
@@ -141,7 +141,7 @@ class TestEntityExtractorExtractForDocument:
         e = self._extractor()
         mock_nlp = _make_mock_nlp([("Google", "ORG")])
         db = _make_db()
-        db.upsert_entity.side_effect = lambda name, etype: hash(name)
+        db.entities.upsert.side_effect = lambda name, etype: hash(name)
         chunks = [
             {"chunk_id": i, "chunk_text": "Google text"}
             for i in range(1, 4)  # start at 1 — chunk_id=0 is falsy and gets skipped by the guard
@@ -277,7 +277,7 @@ class TestQueryExpanderExpand:
         e = self._expander()
         mock_nlp = _make_mock_nlp([("Apple", "ORG")])
         db = _make_db()
-        db.get_related_entity_names.return_value = ["iPhone", "Tim Cook"]
+        db.entities.related_names.return_value = ["iPhone", "Tim Cook"]
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             result = e.expand("Apple acquires startup", db)
         assert result == ["iPhone", "Tim Cook"]
@@ -286,7 +286,7 @@ class TestQueryExpanderExpand:
         e = self._expander()
         mock_nlp = _make_mock_nlp([("Apple", "ORG")])
         db = _make_db()
-        db.get_related_entity_names.side_effect = Exception("DB error")
+        db.entities.related_names.side_effect = Exception("DB error")
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             result = e.expand("Apple acquires startup", db)
         assert result == []
@@ -302,11 +302,11 @@ class TestQueryExpanderExpand:
         e = self._expander()
         mock_nlp = _make_mock_nlp([("Apple", "ORG")])
         db = _make_db()
-        db.get_related_entity_names.return_value = ["A", "B"]
+        db.entities.related_names.return_value = ["A", "B"]
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             e.expand("Apple text", db, max_extra=3)
         # Verify max_extra is forwarded to the DB call
-        call_kwargs = db.get_related_entity_names.call_args
+        call_kwargs = db.entities.related_names.call_args
         assert call_kwargs.kwargs.get("max_results") == 3 or 3 in call_kwargs.args
 
     def test_filters_entities_by_length(self):
@@ -315,7 +315,7 @@ class TestQueryExpanderExpand:
         # Entity "X" is 1 char — should be filtered before DB lookup
         mock_nlp = _make_mock_nlp([("X", "ORG")])
         db = _make_db()
-        db.get_related_entity_names.return_value = []
+        db.entities.related_names.return_value = []
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             result = e.expand("X Corp", db)
         # No entities passed the length filter → no DB call
@@ -326,11 +326,11 @@ class TestQueryExpanderExpand:
         e = self._expander()
         mock_nlp = _make_mock_nlp([("Hi", "ORG")])
         db = _make_db()
-        db.get_related_entity_names.return_value = ["related"]
+        db.entities.related_names.return_value = ["related"]
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             result = e.expand("Hi Corp", db)
-        db.get_related_entity_names.assert_called_once()
-        assert db.get_related_entity_names.call_args.args[0] == ["Hi"]
+        db.entities.related_names.assert_called_once()
+        assert db.entities.related_names.call_args.args[0] == ["Hi"]
         assert result == ["related"]
 
     def test_filters_entity_at_upper_boundary_200_chars_kept(self):
@@ -339,11 +339,11 @@ class TestQueryExpanderExpand:
         entity_text = "A" * 200
         mock_nlp = _make_mock_nlp([(entity_text, "ORG")])
         db = _make_db()
-        db.get_related_entity_names.return_value = ["related"]
+        db.entities.related_names.return_value = ["related"]
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             result = e.expand("query", db)
-        db.get_related_entity_names.assert_called_once()
-        assert db.get_related_entity_names.call_args.args[0] == [entity_text]
+        db.entities.related_names.assert_called_once()
+        assert db.entities.related_names.call_args.args[0] == [entity_text]
         assert result == ["related"]
 
     def test_filters_entity_over_201_chars_excluded(self):
@@ -354,7 +354,7 @@ class TestQueryExpanderExpand:
         db = _make_db()
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             result = e.expand("query", db)
-        db.get_related_entity_names.assert_not_called()
+        db.entities.related_names.assert_not_called()
         assert result == []
 
     def test_and_not_or_between_label_and_length_checks(self):
@@ -366,7 +366,7 @@ class TestQueryExpanderExpand:
         db = _make_db()
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             result = e.expand("query", db)
-        db.get_related_entity_names.assert_not_called()
+        db.entities.related_names.assert_not_called()
         assert result == []
 
     def test_default_max_extra_is_five(self):
@@ -374,8 +374,8 @@ class TestQueryExpanderExpand:
         e = self._expander()
         mock_nlp = _make_mock_nlp([("Apple", "ORG")])
         db = _make_db()
-        db.get_related_entity_names.return_value = []
+        db.entities.related_names.return_value = []
         with patch("src.graph.expander._get_nlp", return_value=mock_nlp):
             e.expand("Apple text", db)
-        call_kwargs = db.get_related_entity_names.call_args
+        call_kwargs = db.entities.related_names.call_args
         assert call_kwargs.kwargs.get("max_results") == 5 or 5 in call_kwargs.args

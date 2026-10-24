@@ -358,7 +358,7 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
     )
 
     if "chunk_id" in objects:
-        objects["annotation_id"] = db.add_annotation(
+        objects["annotation_id"] = db.annotations.add(
             chunk_id=objects["chunk_id"], text="Workspace B private annotation"
         )
 

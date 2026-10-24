@@ -9,16 +9,27 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from ..services.annotations import AnnotationsService
 from ..services.connectors import ConnectorsService, OAuthAccountsService
+from ..services.contributions import ContributionsService
 from ..services.conversations import ConversationsService
 from ..services.documents import DocumentsService
+from ..services.feedback import FeedbackService
 from ..services.memories import MemoriesService
 from ..services.users import UsersService
 from ..services.workspaces import WorkspacesService
 
 
+def annotations_service(request: Request) -> AnnotationsService:
+    return AnnotationsService(request.app.state.db)
+
+
 def connectors_service(request: Request) -> ConnectorsService:
     return ConnectorsService(request.app.state.db, request.app.state.connector_registry)
+
+
+def contributions_service(request: Request) -> ContributionsService:
+    return ContributionsService(request.app.state.db)
 
 
 def conversations_service(request: Request) -> ConversationsService:
@@ -27,6 +38,10 @@ def conversations_service(request: Request) -> ConversationsService:
 
 def documents_service(request: Request) -> DocumentsService:
     return DocumentsService(request.app.state.db)
+
+
+def feedback_service(request: Request) -> FeedbackService:
+    return FeedbackService(request.app.state.db)
 
 
 def memories_service(request: Request) -> MemoriesService:

@@ -8,16 +8,20 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ..security_fastapi import require_admin_dep
+from ..services.feedback import FeedbackService
 from ..utils.logging_config import get_logger
 from ._authz import deny as _deny
+from ._services import feedback_service
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
+Feedback = Annotated[FeedbackService, Depends(feedback_service)]
+
 
 @router.post("/feedback", status_code=201)
-async def submit_feedback(request: Request) -> Any:
+async def submit_feedback(request: Request, feedback: Feedback) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
@@ -37,18 +41,9 @@ async def submit_feedback(request: Request) -> Any:
         return JSONResponse({"error": "database unavailable"}, status_code=503)
 
     try:
-        feedback_id = request.app.state.db.insert_feedback(
-            rating,
-            message_id=message_id,
-            conversation_id=conversation_id,
-            feedback_type=feedback_type,
-            correct_doc_ids=correct_doc_ids,
+        feedback_id = feedback.record(
+            rating, message_id, conversation_id, feedback_type, correct_doc_ids, source_chunk_ids
         )
-        if source_chunk_ids:
-            if rating == 1:
-                request.app.state.db.increment_chunk_positive(source_chunk_ids)
-            else:
-                request.app.state.db.increment_chunk_negative(source_chunk_ids)
         logger.info("[Feedback] Recorded rating and id")
         return JSONResponse({"ok": True, "id": feedback_id}, status_code=201)
     except Exception as exc:  # noqa: BLE001 — turned into a 500 with a fixed message — the exception text is never shown to the caller
@@ -57,18 +52,17 @@ async def submit_feedback(request: Request) -> Any:
 
 
 @router.get("/feedback/stats")
-def feedback_stats(request: Request, _admin: Annotated[str, Depends(require_admin_dep)], days: int = 7) -> Any:
+def feedback_stats(
+    request: Request,
+    feedback: Feedback,
+    _admin: Annotated[str, Depends(require_admin_dep)],
+    days: int = 7,
+) -> Any:
     days = max(1, min(days, 365))
     if not request.app.state.startup_status.get("database", False):
         return JSONResponse({"error": "database unavailable"}, status_code=503)
     try:
-        db = request.app.state.db
-        return {
-            "period_days": days,
-            "stats": db.get_feedback_stats(days=days),
-            "trend": db.get_feedback_trend(days=days),
-            "stale_chunks": db.get_stale_chunks(limit=20),
-        }
+        return feedback.stats(days)
     except Exception as exc:  # noqa: BLE001 — same, for the stats query
         logger.warning(f"[Feedback] stats query failed: {exc}")
         return JSONResponse({"error": "could not retrieve stats"}, status_code=500)

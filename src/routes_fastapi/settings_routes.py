@@ -11,11 +11,15 @@ from starlette.concurrency import run_in_threadpool
 
 from .. import config
 from ..security_fastapi import require_admin_dep
+from ..services.feedback import FeedbackService
 from ..utils.logging_config import get_logger
 from ..utils.scope import ALL_WORKSPACES
+from ._services import feedback_service
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+Feedback = Annotated[FeedbackService, Depends(feedback_service)]
 
 _RAG_LIMITS: dict[str, dict] = {
     "TOP_K_RESULTS":       {"min": 10,   "max": 50,   "type": int,   "default": 30},
@@ -255,12 +259,14 @@ async def logs_tail(
 
 
 @router.get("/reranker/status")
-def reranker_status(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def reranker_status(
+    request: Request, feedback: Feedback, _admin: Annotated[str, Depends(require_admin_dep)]
+) -> Any:
     from ..rag.reranker import get_reranker
     reranker = get_reranker()
     versions: list[dict] = []
     if request.app.state.startup_status.get("database"):
-        versions = request.app.state.db.get_reranker_versions()
+        versions = feedback.reranker_versions()
     return {
         "available": reranker.is_available(),
         "model_path": reranker.model_path,
@@ -270,51 +276,33 @@ def reranker_status(request: Request, _admin: Annotated[str, Depends(require_adm
 
 
 @router.post("/reranker/train")
-def reranker_train(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def reranker_train(
+    request: Request, feedback: Feedback, _admin: Annotated[str, Depends(require_admin_dep)]
+) -> Any:
     import threading
 
     if not request.app.state.startup_status.get("database"):
         return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
 
-    app_state = request.app.state
-
-    def _train() -> None:
-        try:
-            from ..rag.feedback_pipeline import (
-                export_training_pairs,
-                finetune_reranker,
-                persist_reranker_version,
-                promote_model,
-            )
-            pairs = export_training_pairs(app_state.db, days=30)
-            if len(pairs) < config.FEEDBACK_FINETUNE_MIN_PAIRS:
-                logger.info("[Reranker] Only %d pairs — skipping fine-tune", len(pairs))
-                return
-            result = finetune_reranker(pairs)
-            if not result.get("skipped"):
-                version_id = persist_reranker_version(app_state.db, result)
-                if version_id and result.get("ndcg_after", 0) > result.get("ndcg_before", 0):
-                    promote_model(app_state.db, version_id)
-        except Exception:
-            logger.exception("[Reranker] Background training failed")
-
-    threading.Thread(target=_train, daemon=True, name="reranker-train").start()
+    threading.Thread(target=feedback.retrain, daemon=True, name="reranker-train").start()
     return {"success": True, "message": "Fine-tune started in background"}
 
 
 @router.post("/reranker/promote/{version_id}")
-def reranker_promote(version_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
-    from ..rag.feedback_pipeline import promote_model
-    ok = promote_model(request.app.state.db, version_id)
+def reranker_promote(
+    version_id: str, feedback: Feedback, _admin: Annotated[str, Depends(require_admin_dep)]
+) -> Any:
+    ok = feedback.promote(version_id)
     if not ok:
         return JSONResponse({"success": False, "message": "Version not found"}, status_code=404)
     return {"success": True}
 
 
 @router.post("/reranker/rollback/{version_id}")
-def reranker_rollback(version_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
-    from ..rag.feedback_pipeline import rollback_model
-    ok = rollback_model(request.app.state.db, version_id)
+def reranker_rollback(
+    version_id: str, feedback: Feedback, _admin: Annotated[str, Depends(require_admin_dep)]
+) -> Any:
+    ok = feedback.rollback(version_id)
     if not ok:
         return JSONResponse({"success": False, "message": "Version not found"}, status_code=404)
     return {"success": True}

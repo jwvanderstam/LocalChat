@@ -45,6 +45,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   it is stored. `oauth_routes` asks an `OAuthAccountsService`. The SQL moved verbatim into
   `ConnectorsRepository` and `OAuthTokensRepository` (`db.connectors`, `db.oauth_tokens`).
   `app.state.db` in routes is down to 23. No behaviour changes.
+- **Feedback, annotations, GraphRAG entities and global-tier contributions go through
+  services** (QP-4, seventh and last aggregate). `FeedbackService` (ratings, their
+  statistics, and reranker versions), `AnnotationsService` and `ContributionsService`; the
+  workspace ontology and suggestions join `WorkspacesService`. The SQL moved verbatim into
+  four repositories, so `Database` now composes no mixins at all. Outside the providers
+  module, route modules reach the database four times, all named in the ratchet: three
+  times handing it to chat's functions, and once for the settings page's totals. No
+  behaviour changes.
 
 ### Added
 

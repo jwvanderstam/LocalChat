@@ -2,12 +2,12 @@
 Tests for src/db/feedback.py and src/routes/feedback_routes.py
 
 Covers:
-  - FeedbackMixin.insert_feedback: valid ratings, invalid rating, DB unavailable
-  - FeedbackMixin.increment_chunk_retrieved/positive/negative: upsert calls
-  - FeedbackMixin.get_feedback_stats: aggregate shape, unavailable DB
-  - FeedbackMixin.get_stale_chunks: DB unavailable returns []
-  - FeedbackMixin.get_feedback_trend: DB unavailable returns []
-  - FeedbackMixin.export_feedback_pairs: DB unavailable returns []
+  - FeedbackRepository.feedback.insert: valid ratings, invalid rating, DB unavailable
+  - FeedbackRepository.feedback.count_retrieved/positive/negative: upsert calls
+  - FeedbackRepository.feedback.stats: aggregate shape, unavailable DB
+  - FeedbackRepository.feedback.stale_chunks: DB unavailable returns []
+  - FeedbackRepository.feedback.trend: DB unavailable returns []
+  - FeedbackRepository.feedback.export_pairs: DB unavailable returns []
   - feedback_routes POST /api/feedback: valid, invalid rating, missing DB
   - feedback_routes GET /api/feedback/stats: success, DB unavailable
   - feedback_pipeline: export, write_jsonl, _ndcg_at_k
@@ -25,6 +25,17 @@ from tests.utils.auth import admin_headers, authorise_db
 # Helpers
 # ---------------------------------------------------------------------------
 
+class _Host:
+    """The connection a repository runs over, holding it as ``Database`` does."""
+
+
+def _host(repository, attr):
+    """A host with *repository* attached as *attr*, as ``Database.__init__`` does."""
+    host = _Host()
+    setattr(host, attr, repository(host))
+    return host
+
+
 def _make_db(connected=True):
     db = MagicMock()
     db.is_connected = connected
@@ -39,13 +50,13 @@ def _make_app(db=None, db_ok=True):
 
 
 # ===========================================================================
-# FeedbackMixin — insert_feedback
+# FeedbackRepository — insert_feedback
 # ===========================================================================
 
 class TestInsertFeedback:
     def _mixin(self, connected=True):
-        from src.db.feedback import FeedbackMixin
-        m = FeedbackMixin()
+        from src.db.feedback import FeedbackRepository
+        m = _host(FeedbackRepository, "feedback")
         m.is_connected = connected
         ctx = MagicMock()
         ctx.__enter__ = MagicMock(return_value=MagicMock())
@@ -57,38 +68,38 @@ class TestInsertFeedback:
         from src.db.connection import DatabaseUnavailableError
         m = self._mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.insert_feedback(1)
+            m.feedback.insert(1)
 
     def test_raises_on_invalid_rating(self):
         m = self._mixin()
         with pytest.raises(ValueError, match="rating must be"):
-            m.insert_feedback(0)
+            m.feedback.insert(0)
 
     def test_raises_on_invalid_rating_positive(self):
         m = self._mixin()
         with pytest.raises(ValueError):
-            m.insert_feedback(2)
+            m.feedback.insert(2)
 
     def test_returns_uuid_string(self):
         m = self._mixin()
-        result = m.insert_feedback(1, message_id=42, conversation_id="conv-1")
+        result = m.feedback.insert(1, message_id=42, conversation_id="conv-1")
         assert isinstance(result, str)
         uuid.UUID(result)  # must be valid UUID
 
     def test_thumbs_down_accepted(self):
         m = self._mixin()
-        result = m.insert_feedback(-1)
+        result = m.feedback.insert(-1)
         assert isinstance(result, str)
 
 
 # ===========================================================================
-# FeedbackMixin — chunk stats
+# FeedbackRepository — chunk stats
 # ===========================================================================
 
 class TestChunkStats:
     def _mixin(self, connected=True):
-        from src.db.feedback import FeedbackMixin
-        m = FeedbackMixin()
+        from src.db.feedback import FeedbackRepository
+        m = _host(FeedbackRepository, "feedback")
         m.is_connected = connected
         ctx = MagicMock()
         ctx.__enter__ = MagicMock(return_value=MagicMock())
@@ -98,38 +109,38 @@ class TestChunkStats:
 
     def test_increment_retrieved_no_op_when_disconnected(self):
         m = self._mixin(connected=False)
-        m.increment_chunk_retrieved([1, 2])
+        m.feedback.count_retrieved([1, 2])
         m.get_connection.assert_not_called()
 
     def test_increment_retrieved_no_op_on_empty_list(self):
         m = self._mixin()
-        m.increment_chunk_retrieved([])
+        m.feedback.count_retrieved([])
         m.get_connection.assert_not_called()
 
     def test_increment_retrieved_calls_connection(self):
         m = self._mixin()
-        m.increment_chunk_retrieved([10, 11])
+        m.feedback.count_retrieved([10, 11])
         m.get_connection.assert_called_once()
 
     def test_increment_positive_no_op_when_disconnected(self):
         m = self._mixin(connected=False)
-        m.increment_chunk_positive([5])
+        m.feedback.count_positive([5])
         m.get_connection.assert_not_called()
 
     def test_increment_negative_no_op_when_disconnected(self):
         m = self._mixin(connected=False)
-        m.increment_chunk_negative([5])
+        m.feedback.count_negative([5])
         m.get_connection.assert_not_called()
 
 
 # ===========================================================================
-# FeedbackMixin — read operations
+# FeedbackRepository — read operations
 # ===========================================================================
 
 class TestFeedbackReadOps:
     def _mixin_with_result(self, query_result, connected=True):
-        from src.db.feedback import FeedbackMixin
-        m = FeedbackMixin()
+        from src.db.feedback import FeedbackRepository
+        m = _host(FeedbackRepository, "feedback")
         m.is_connected = connected
 
         cur = MagicMock()
@@ -148,30 +159,30 @@ class TestFeedbackReadOps:
         return m
 
     def test_get_feedback_stats_returns_zero_dict_when_disconnected(self):
-        from src.db.feedback import FeedbackMixin
-        m = FeedbackMixin()
+        from src.db.feedback import FeedbackRepository
+        m = _host(FeedbackRepository, "feedback")
         m.is_connected = False
-        stats = m.get_feedback_stats()
+        stats = m.feedback.stats()
         assert stats["total"] == 0
         assert stats["thumbs_up_rate"] is None
 
     def test_get_stale_chunks_returns_empty_when_disconnected(self):
-        from src.db.feedback import FeedbackMixin
-        m = FeedbackMixin()
+        from src.db.feedback import FeedbackRepository
+        m = _host(FeedbackRepository, "feedback")
         m.is_connected = False
-        assert m.get_stale_chunks() == []
+        assert m.feedback.stale_chunks() == []
 
     def test_get_feedback_trend_returns_empty_when_disconnected(self):
-        from src.db.feedback import FeedbackMixin
-        m = FeedbackMixin()
+        from src.db.feedback import FeedbackRepository
+        m = _host(FeedbackRepository, "feedback")
         m.is_connected = False
-        assert m.get_feedback_trend() == []
+        assert m.feedback.trend() == []
 
     def test_export_feedback_pairs_returns_empty_when_disconnected(self):
-        from src.db.feedback import FeedbackMixin
-        m = FeedbackMixin()
+        from src.db.feedback import FeedbackRepository
+        m = _host(FeedbackRepository, "feedback")
         m.is_connected = False
-        assert m.export_feedback_pairs() == []
+        assert m.feedback.export_pairs() == []
 
 
 # ---------------------------------------------------------------------------
@@ -193,14 +204,14 @@ def _make_fastapi_app(db_ok=True, insert_raises=False, stats=None, trend=None, s
     mock_db = MagicMock()
     mock_db.is_connected = db_ok
     if insert_raises:
-        mock_db.insert_feedback.side_effect = Exception("DB error")
+        mock_db.feedback.insert.side_effect = Exception("DB error")
     else:
-        mock_db.insert_feedback.return_value = str(uuid.uuid4())
-    mock_db.get_feedback_stats.return_value = stats or {
+        mock_db.feedback.insert.return_value = str(uuid.uuid4())
+    mock_db.feedback.stats.return_value = stats or {
         "total": 0, "positive": 0, "negative": 0, "thumbs_up_rate": None, "by_type": {}
     }
-    mock_db.get_feedback_trend.return_value = trend or []
-    mock_db.get_stale_chunks.return_value = stale or []
+    mock_db.feedback.trend.return_value = trend or []
+    mock_db.feedback.stale_chunks.return_value = stale or []
 
     test_app.state.db = authorise_db(mock_db, role="admin")
     test_app.state.startup_status = {"database": db_ok}
@@ -248,18 +259,18 @@ class TestFeedbackRoute:
         app, client = _make_fastapi_app()
         payload = {"rating": 1, "message_id": 1, "source_chunk_ids": [10, 11]}
         client.post("/api/feedback", json=payload)
-        app.state.db.increment_chunk_positive.assert_called_once_with([10, 11])
+        app.state.db.feedback.count_positive.assert_called_once_with([10, 11])
 
     def test_negative_increments_chunk_negative(self):
         app, client = _make_fastapi_app()
         payload = {"rating": -1, "message_id": 1, "source_chunk_ids": [5]}
         client.post("/api/feedback", json=payload)
-        app.state.db.increment_chunk_negative.assert_called_once_with([5])
+        app.state.db.feedback.count_negative.assert_called_once_with([5])
 
     def test_no_chunk_ids_no_stat_update(self):
         app, client = _make_fastapi_app()
         client.post("/api/feedback", json={"rating": 1})
-        app.state.db.increment_chunk_positive.assert_not_called()
+        app.state.db.feedback.count_positive.assert_not_called()
 
 
 # ===========================================================================
@@ -306,9 +317,9 @@ class TestFeedbackPipeline:
     def test_export_training_pairs_calls_db(self):
         from src.rag.feedback_pipeline import export_training_pairs
         db = MagicMock()
-        db.export_feedback_pairs.return_value = [{"query": "q", "chunk_text": "c", "label": 1}]
+        db.feedback.export_pairs.return_value = [{"query": "q", "chunk_text": "c", "label": 1}]
         pairs = export_training_pairs(db, days=3)
-        db.export_feedback_pairs.assert_called_once_with(days=3)
+        db.feedback.export_pairs.assert_called_once_with(days=3)
         assert len(pairs) == 1
 
     def test_finetune_reranker_builds_eval_pairs_from_input_examples(self, tmp_path):
@@ -345,7 +356,7 @@ class TestFeedbackPipeline:
     def test_run_exports_and_returns_count(self):
         from src.rag.feedback_pipeline import run
         db = MagicMock()
-        db.export_feedback_pairs.return_value = [
+        db.feedback.export_pairs.return_value = [
             {"query": "q", "chunk_text": "c", "label": 1}
         ] * 5
         result = run(db, days=7)
@@ -353,7 +364,7 @@ class TestFeedbackPipeline:
         assert result["days"] == 7
 
 # ===========================================================================
-# FeedbackMixin.insert_reranker_version
+# FeedbackRepository.feedback.insert_reranker_version
 # ===========================================================================
 
 class TestInsertRerankerVersion:
@@ -365,8 +376,8 @@ class TestInsertRerankerVersion:
     """
 
     def _mixin(self, fetchone, connected=True):
-        from src.db.feedback import FeedbackMixin
-        m = FeedbackMixin()
+        from src.db.feedback import FeedbackRepository
+        m = _host(FeedbackRepository, "feedback")
         m.is_connected = connected
 
         cur = MagicMock()
@@ -384,14 +395,14 @@ class TestInsertRerankerVersion:
 
     def test_the_new_id_is_returned_as_a_string(self):
         m = self._mixin(fetchone=(uuid.UUID(int=7),))
-        assert m.insert_reranker_version({"pair_count": 5}) == str(uuid.UUID(int=7))
+        assert m.feedback.insert_reranker_version({"pair_count": 5}) == str(uuid.UUID(int=7))
 
     def test_an_insert_that_returns_no_row_yields_none(self):
         """The case the deleted assert stood in for. It must be the documented
         None, not an AssertionError logged as a warning."""
         m = self._mixin(fetchone=None)
-        assert m.insert_reranker_version({"pair_count": 5}) is None
+        assert m.feedback.insert_reranker_version({"pair_count": 5}) is None
 
     def test_a_disconnected_database_yields_none(self):
         m = self._mixin(fetchone=None, connected=False)
-        assert m.insert_reranker_version({"pair_count": 5}) is None
+        assert m.feedback.insert_reranker_version({"pair_count": 5}) is None

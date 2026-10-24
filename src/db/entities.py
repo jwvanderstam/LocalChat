@@ -1,25 +1,23 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..utils.logging_config import get_logger
 from ..utils.scope import Scope, scope_predicate
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
 
-class EntitiesMixin(MixinHost):
-    """Mixin that adds knowledge-graph entity operations to the Database class."""
+class EntitiesRepository:
+    """GraphRAG entities and their relations."""
+
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
 
     # ── Write operations ───────────────────────────────────────────────────────
 
-    def upsert_entity(
+    def upsert(
         self,
         name: str,
         entity_type: str,
@@ -30,10 +28,10 @@ class EntitiesMixin(MixinHost):
         Returns:
             UUID string of the entity.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot upsert entity: Database not connected")
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -52,7 +50,7 @@ class EntitiesMixin(MixinHost):
                 conn.commit()
         return entity_id
 
-    def insert_entity_relation(
+    def insert_relation(
         self,
         source_id: str,
         target_id: str,
@@ -62,9 +60,9 @@ class EntitiesMixin(MixinHost):
         weight: float = 1.0,
     ) -> None:
         """Upsert an entity co-occurrence relation, accumulating weight."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -78,11 +76,11 @@ class EntitiesMixin(MixinHost):
                 )
                 conn.commit()
 
-    def delete_document_entities(self, doc_id: int) -> None:
+    def delete_for_document(self, doc_id: int) -> None:
         """Remove all entity relations for a document (for cleanup on deletion)."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "DELETE FROM entity_relations WHERE doc_id = %s", (doc_id,)
@@ -91,7 +89,7 @@ class EntitiesMixin(MixinHost):
 
     # ── Read operations ────────────────────────────────────────────────────────
 
-    def get_related_entity_names(
+    def related_names(
         self,
         entity_names: list[str],
         max_results: int = 20,
@@ -101,9 +99,9 @@ class EntitiesMixin(MixinHost):
 
         Used by the query expander to broaden lexical search terms.
         """
-        if not entity_names or not self.is_connected:
+        if not entity_names or not self._db.is_connected:
             return []
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -122,11 +120,11 @@ class EntitiesMixin(MixinHost):
                 )
                 return [r[0] for r in cursor.fetchall()]
 
-    def get_entity_by_name(self, name: str) -> dict[str, Any] | None:
+    def by_name(self, name: str) -> dict[str, Any] | None:
         """Return entity dict for an exact name match or None."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT id::text, name, type, doc_count FROM entities WHERE name = %s LIMIT 1",
@@ -137,13 +135,13 @@ class EntitiesMixin(MixinHost):
             return None
         return {"id": row[0], "name": row[1], "type": row[2], "doc_count": row[3]}
 
-    def get_all_entities(
+    def list_all(
         self, limit: int = 200, offset: int = 0
     ) -> list[dict[str, Any]]:
         """Return entities ordered by doc_count descending."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -160,11 +158,11 @@ class EntitiesMixin(MixinHost):
             for r in rows
         ]
 
-    def get_entity_stats(self) -> dict[str, int]:
+    def stats(self) -> dict[str, int]:
         """Return {entity_count, relation_count} summary."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return {"entity_count": 0, "relation_count": 0}
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT COUNT(*) FROM entities")
                 entity_row = cursor.fetchone()
@@ -178,14 +176,14 @@ class EntitiesMixin(MixinHost):
                 relation_count = relation_row[0]
         return {"entity_count": entity_count, "relation_count": relation_count}
 
-    def get_workspace_ontology(self, top_n: int = 20, *, scope: Scope) -> dict[str, Any]:
+    def workspace_ontology(self, top_n: int = 20, *, scope: Scope) -> dict[str, Any]:
         """Return the ontology of *scope*: top entity types and relation patterns."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return {"entity_types": [], "relation_patterns": []}
 
         ws_filter, params_ws = scope_predicate(scope, "d.workspace_id")
 
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 # Top entity types by occurrence in workspace docs
                 cursor.execute(

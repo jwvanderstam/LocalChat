@@ -493,7 +493,7 @@ def update_chunk_stats(app_state: Any, sources: list[dict]) -> None:
     chunk_ids = [s["chunk_id"] for s in sources if s.get("chunk_id")]
     if chunk_ids:
         try:
-            app_state.db.increment_chunk_retrieved(chunk_ids)
+            app_state.db.feedback.count_retrieved(chunk_ids)
         except Exception as exc:  # noqa: BLE001 — chunk_stats is feedback telemetry, written after the answer is served
             logger.debug("[Feedback] chunk_stats update failed: %s", exc)
 

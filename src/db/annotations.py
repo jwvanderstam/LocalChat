@@ -1,6 +1,6 @@
 """
-Annotations Mixin
-=================
+Annotations Repository
+======================
 
 Provides CRUD operations for the ``annotations`` table.
 Annotations allow users to attach notes to specific document chunks,
@@ -8,24 +8,22 @@ optionally linked to a conversation.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..utils.logging_config import get_logger
 from ..utils.scope import Scope, scope_predicate
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
 
-class AnnotationsMixin(MixinHost):
-    """Mixin providing annotation CRUD operations."""
+class AnnotationsRepository:
+    """Annotations on chunks: add, list per chunk, retire."""
 
-    def add_annotation(
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
+
+    def add(
         self,
         chunk_id: int,
         text: str,
@@ -33,11 +31,11 @@ class AnnotationsMixin(MixinHost):
         conversation_id: str | None = None,
     ) -> str:
         """Insert an annotation and return its UUID string."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot add annotation: DB not connected")
         if not text or not text.strip():
             raise ValueError("Annotation text must not be empty")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -55,7 +53,7 @@ class AnnotationsMixin(MixinHost):
         logger.debug(f"[Annotations] Created {annotation_id} on chunk {chunk_id}")
         return annotation_id
 
-    def get_annotations_for_chunk(
+    def for_chunk(
         self, chunk_id: int, *, scope: Scope
     ) -> list[dict[str, Any]]:
         """Return all annotations for a given chunk, ordered by creation time.
@@ -63,10 +61,10 @@ class AnnotationsMixin(MixinHost):
         An annotation has no workspace of its own — it borrows the one belonging to
         its chunk's document, which is what the join is for.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -95,7 +93,7 @@ class AnnotationsMixin(MixinHost):
             for r in rows
         ]
 
-    def delete_annotation(
+    def retire(
         self,
         annotation_id: str,
         user_id: str | None = None,
@@ -109,7 +107,7 @@ class AnnotationsMixin(MixinHost):
         Returns True if a live row was retired. Scoped through the chunk's document,
         so an annotation in another workspace is not retirable by id (C2).
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete annotation: DB not connected")
         where, params = scope_predicate(scope, "d.workspace_id")
         in_scope = """
@@ -118,7 +116,7 @@ class AnnotationsMixin(MixinHost):
                 JOIN documents d ON d.id = dc.document_id
                 WHERE dc.id = annotations.chunk_id AND d.deleted_at IS NULL
         """ + where + " )"  # nosec B608  # scope_predicate fragment: literal column, value is %s
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 if user_id:
                     cur.execute(
@@ -134,4 +132,4 @@ class AnnotationsMixin(MixinHost):
                     )
                 deleted = cur.rowcount > 0
                 conn.commit()
-        return deleted
+        return bool(deleted)

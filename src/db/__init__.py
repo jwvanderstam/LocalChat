@@ -2,8 +2,8 @@
 Database Package
 ================
 
-Composes the Database class from domain-specific mixins and exposes the
-global singleton ``db`` with the same public API as the former ``db.py``.
+The ``Database`` connection holds one repository per aggregate and is exposed as the
+global singleton ``db``.
 
 Submodules:
     connection    — connection pool, pgvector adapters, schema init
@@ -12,18 +12,18 @@ Submodules:
 """
 
 from ..utils.logging_config import get_logger
-from .annotations import AnnotationsMixin
+from .annotations import AnnotationsRepository
 from .connection import (
     DatabaseConnection,
     DatabaseUnavailableError,
     VectorLoader,
 )
 from .connectors import ConnectorsRepository
-from .contributions import ContributionsMixin
+from .contributions import ContributionsRepository
 from .conversations import ConversationsRepository
 from .documents import DocumentsRepository
-from .entities import EntitiesMixin
-from .feedback import FeedbackMixin
+from .entities import EntitiesRepository
+from .feedback import FeedbackRepository
 from .memories import MemoriesRepository
 from .oauth_tokens import OAuthTokensRepository
 from .tokens import RevokedTokensRepository
@@ -34,12 +34,11 @@ from .workspaces import WorkspaceMembersRepository, WorkspacesRepository
 logger = get_logger(__name__)
 
 
-class Database(ContributionsMixin, EntitiesMixin, FeedbackMixin, AnnotationsMixin, DatabaseConnection):
+class Database(DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 
-    Combines connection management, document/chunk operations, and
-    conversation persistence into a single injectable service object.
+    The connection pool, with one repository per aggregate held as an attribute.
 
     Example:
         >>> from src.db import db
@@ -48,10 +47,8 @@ class Database(ContributionsMixin, EntitiesMixin, FeedbackMixin, AnnotationsMixi
         ...     doc_id = db.documents.insert("file.pdf", "content")
         ...     results = db.documents.search_similar(embedding, top_k=5, scope=workspace_id)
 
-    The users, revoked-tokens, workspaces, memberships, API-key, documents,
-    conversations, memories, connectors and OAuth-token aggregates are repositories
-    held as attributes, not mixins (QP-4); the remaining mixins move the same way, one
-    aggregate per PR, and QP-5 removes this class.
+    QP-4 replaced every mixin with a repository; QP-5 removes this class, and
+    ``app.state`` then holds services rather than a database.
     """
 
     def __init__(self) -> None:
@@ -66,6 +63,10 @@ class Database(ContributionsMixin, EntitiesMixin, FeedbackMixin, AnnotationsMixi
         self.memories = MemoriesRepository(self)
         self.connectors = ConnectorsRepository(self)
         self.oauth_tokens = OAuthTokensRepository(self)
+        self.feedback = FeedbackRepository(self)
+        self.annotations = AnnotationsRepository(self)
+        self.entities = EntitiesRepository(self)
+        self.contributions = ContributionsRepository(self)
 
 
 # Global singleton – imported throughout the application

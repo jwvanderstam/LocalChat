@@ -72,20 +72,20 @@ class TestDeleteMemory:
 
 class TestDeleteAnnotation:
     def test_soft_delete_returns_200(self, client, app):
-        app.state.db.delete_annotation = MagicMock(return_value=True)
+        app.state.db.annotations.retire = MagicMock(return_value=True)
         resp = client.delete("/api/annotations/some-ann-id")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_missing_annotation_returns_404(self, client, app):
-        app.state.db.delete_annotation = MagicMock(return_value=False)
+        app.state.db.annotations.retire = MagicMock(return_value=False)
         resp = client.delete("/api/annotations/ghost-id")
         assert resp.status_code == 404
 
     def test_delete_passes_deleted_by(self, client, app):
-        app.state.db.delete_annotation = MagicMock(return_value=True)
+        app.state.db.annotations.retire = MagicMock(return_value=True)
         client.delete("/api/annotations/some-ann-id")
-        app.state.db.delete_annotation.assert_called_once()
+        app.state.db.annotations.retire.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

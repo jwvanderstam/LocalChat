@@ -54,7 +54,7 @@ def workspaces(database: Any) -> Iterator[dict[str, str]]:
            for name in ("a", "b", "reader")}
     yield ids
     for ws in ids.values():
-        database.archive_contributions(ws, None)
+        database.contributions.archive(ws, None)
         database.documents.retire_all(scope=ws)
         database.workspaces.retire(ws)
 
@@ -90,7 +90,7 @@ def test_a_contribution_copies_the_document_and_its_chunks_into_the_global_tier(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md", chunks=3)
-    [result] = database.contribute_documents(workspaces["a"], [source], admin)
+    [result] = database.contributions.contribute(workspaces["a"], [source], admin)
 
     assert (result["document_id"], result["filename"], result["chunks"], result["updated"]) == (
         source, "retro.md", 3, False)
@@ -105,7 +105,7 @@ def test_the_copied_chunks_keep_their_embeddings(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md")
-    [result] = database.contribute_documents(workspaces["a"], [source], admin)
+    [result] = database.contributions.contribute(workspaces["a"], [source], admin)
     with database.get_connection() as conn:
         rows = conn.execute(
             "SELECT document_id, chunk_index, embedding::text FROM document_chunks"
@@ -123,7 +123,7 @@ def test_the_source_document_stays_in_its_workspace(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md")
-    database.contribute_documents(workspaces["a"], [source], admin)
+    database.contributions.contribute(workspaces["a"], [source], admin)
     names = [d["filename"] for d in database.documents.list_all(scope=workspaces["a"])]
     assert names == ["retro.md"]
 
@@ -132,9 +132,9 @@ def test_recontributing_updates_in_place_and_retires_the_old_chunks(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md", chunks=2)
-    [first] = database.contribute_documents(workspaces["a"], [source], admin)
+    [first] = database.contributions.contribute(workspaces["a"], [source], admin)
     database.documents.insert_chunks([(source, "retro.md chunk 2", 2, _vector(99))])
-    [second] = database.contribute_documents(workspaces["a"], [source], admin)
+    [second] = database.contributions.contribute(workspaces["a"], [source], admin)
 
     assert second["global_document_id"] == first["global_document_id"]
     assert (second["updated"], second["chunks"]) == (True, 3)
@@ -145,9 +145,9 @@ def test_recontributing_updates_in_place_and_retires_the_old_chunks(
 def test_two_projects_can_both_contribute_the_same_filename(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
-    [from_a] = database.contribute_documents(
+    [from_a] = database.contributions.contribute(
         workspaces["a"], [_document(database, workspaces["a"], "retro.md")], admin)
-    [from_b] = database.contribute_documents(
+    [from_b] = database.contributions.contribute(
         workspaces["b"], [_document(database, workspaces["b"], "retro.md")], admin)
 
     assert from_a["global_document_id"] != from_b["global_document_id"]
@@ -159,7 +159,7 @@ def test_purging_both_source_projects_cannot_collide_their_contributions(
 ) -> None:
     """What `ON DELETE SET NULL` does at purge; a unique index treats NULLs as distinct."""
     ids = [
-        database.contribute_documents(
+        database.contributions.contribute(
             ws, [_document(database, ws, "retro.md")], admin)[0]["global_document_id"]
         for ws in (workspaces["a"], workspaces["b"])
     ]
@@ -177,8 +177,8 @@ def test_a_document_of_another_workspace_refuses_the_whole_contribution(
     own = _document(database, workspaces["a"], "retro.md")
     foreign = _document(database, workspaces["b"], "secret.md")
 
-    assert database.contribute_documents(workspaces["a"], [own, foreign], admin) is None
-    assert [d["filename"] for d in database.list_contributions()
+    assert database.contributions.contribute(workspaces["a"], [own, foreign], admin) is None
+    assert [d["filename"] for d in database.contributions.list_all()
             if d["source_project_id"] in (workspaces["a"], workspaces["b"])] == []
 
 
@@ -186,9 +186,9 @@ def test_archiving_takes_a_contribution_out_of_what_workspaces_read(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md")
-    [result] = database.contribute_documents(workspaces["a"], [source], admin)
+    [result] = database.contributions.contribute(workspaces["a"], [source], admin)
 
-    assert database.archive_contributions(workspaces["a"], admin) == 1
+    assert database.contributions.archive(workspaces["a"], admin) == 1
     assert _visible(database, workspaces["reader"], result["global_document_id"]) == []
     workspace, _, _, archived_at = _owner_row(database, result["global_document_id"])
     assert (workspace, archived_at is not None) == (None, True)
@@ -197,12 +197,12 @@ def test_archiving_takes_a_contribution_out_of_what_workspaces_read(
 def test_archiving_one_project_leaves_another_projects_contribution(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
-    database.contribute_documents(
+    database.contributions.contribute(
         workspaces["a"], [_document(database, workspaces["a"], "retro.md")], admin)
-    [from_b] = database.contribute_documents(
+    [from_b] = database.contributions.contribute(
         workspaces["b"], [_document(database, workspaces["b"], "retro.md")], admin)
 
-    database.archive_contributions(workspaces["a"], admin)
+    database.contributions.archive(workspaces["a"], admin)
     assert len(_visible(database, workspaces["reader"], from_b["global_document_id"])) == 2
 
 
@@ -210,9 +210,9 @@ def test_a_file_can_be_contributed_again_after_it_was_archived(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md")
-    [first] = database.contribute_documents(workspaces["a"], [source], admin)
-    database.archive_contributions(workspaces["a"], admin)
-    [again] = database.contribute_documents(workspaces["a"], [source], admin)
+    [first] = database.contributions.contribute(workspaces["a"], [source], admin)
+    database.contributions.archive(workspaces["a"], admin)
+    [again] = database.contributions.contribute(workspaces["a"], [source], admin)
 
     assert again["updated"] is False
     assert again["global_document_id"] != first["global_document_id"]
@@ -222,10 +222,10 @@ def test_the_listing_names_the_source_project_and_keeps_archived_ones(
     database: Any, workspaces: dict[str, str], admin: str
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md")
-    [result] = database.contribute_documents(workspaces["a"], [source], admin)
-    database.archive_contributions(workspaces["a"], admin)
+    [result] = database.contributions.contribute(workspaces["a"], [source], admin)
+    database.contributions.archive(workspaces["a"], admin)
 
-    [row] = [d for d in database.list_contributions() if d["id"] == result["global_document_id"]]
+    [row] = [d for d in database.contributions.list_all() if d["id"] == result["global_document_id"]]
     assert row["source_project_id"] == workspaces["a"]
     assert row["source_project_name"] == database.workspaces.get(workspaces["a"])["name"]
     assert row["chunk_count"] == 2
@@ -240,12 +240,12 @@ def test_the_workspace_list_tags_what_it_shares_until_it_is_withdrawn(
     shared = _document(database, workspaces["a"], "retro.md")
     _document(database, workspaces["a"], "draft.md")
     _document(database, workspaces["b"], "retro.md")
-    database.contribute_documents(workspaces["a"], [shared], admin)
+    database.contributions.contribute(workspaces["a"], [shared], admin)
 
     def tags(ws: str) -> dict[str, bool]:
         return {d["filename"]: d["shared_globally"] for d in database.documents.list_all(scope=ws)}
 
     assert tags(workspaces["a"]) == {"retro.md": True, "draft.md": False}
     assert tags(workspaces["b"]) == {"retro.md": False}
-    database.archive_contributions(workspaces["a"], admin)
+    database.contributions.archive(workspaces["a"], admin)
     assert tags(workspaces["a"]) == {"retro.md": False, "draft.md": False}

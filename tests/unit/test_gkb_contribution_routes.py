@@ -32,9 +32,9 @@ def _client(*, role: str, member_role: str | None, headers: dict[str, str]) -> T
 
     state = authenticated_state(role=role, member_role=member_role)
     state.db.workspaces.get.return_value = {"id": WS, "name": "Project A"}
-    state.db.contribute_documents.return_value = CONTRIBUTED
-    state.db.archive_contributions.return_value = 2
-    state.db.list_contributions.return_value = [{"id": 70, "filename": "retro.md"}]
+    state.db.contributions.contribute.return_value = CONTRIBUTED
+    state.db.contributions.archive.return_value = 2
+    state.db.contributions.list_all.return_value = [{"id": 70, "filename": "retro.md"}]
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.state = state
@@ -57,20 +57,20 @@ class TestContribute:
         resp = client.post(f"/api/workspaces/{WS}/contribute", json={"document_ids": [7]})
         assert resp.status_code == 200
         assert resp.json() == {"success": True, "contributed": CONTRIBUTED}
-        client.app.state.db.contribute_documents.assert_called_once_with(WS, [7], ADMIN_ID)
+        client.app.state.db.contributions.contribute.assert_called_once_with(WS, [7], ADMIN_ID)
 
     def test_a_workspace_owner_who_is_not_an_admin_is_refused(self):
         client = _owner()
         resp = client.post(f"/api/workspaces/{WS}/contribute", json={"document_ids": [7]})
         assert resp.status_code == 403
-        client.app.state.db.contribute_documents.assert_not_called()
+        client.app.state.db.contributions.contribute.assert_not_called()
 
     def test_a_workspace_api_key_is_refused(self):
         client = _client(role="user", member_role=None, headers={"X-API-Key": "lcw_bridge"})
         client.app.state.db.api_keys.resolve.return_value = (WS, "editor")
         resp = client.post(f"/api/workspaces/{WS}/contribute", json={"document_ids": [7]})
         assert resp.status_code == 401
-        client.app.state.db.contribute_documents.assert_not_called()
+        client.app.state.db.contributions.contribute.assert_not_called()
 
     @pytest.mark.parametrize("body", [
         {"document_ids": []},
@@ -82,7 +82,7 @@ class TestContribute:
         client = _admin()
         resp = client.post(f"/api/workspaces/{WS}/contribute", json=body)
         assert resp.status_code == 400
-        client.app.state.db.contribute_documents.assert_not_called()
+        client.app.state.db.contributions.contribute.assert_not_called()
 
     def test_the_cap_itself_is_accepted(self):
         client = _admin()
@@ -92,7 +92,7 @@ class TestContribute:
 
     def test_a_document_outside_the_workspace_is_not_found(self):
         client = _admin()
-        client.app.state.db.contribute_documents.return_value = None
+        client.app.state.db.contributions.contribute.return_value = None
         resp = client.post(f"/api/workspaces/{WS}/contribute", json={"document_ids": [7, 8]})
         assert resp.status_code == 404
 
@@ -101,7 +101,7 @@ class TestContribute:
         client.app.state.db.workspaces.get.return_value = None
         resp = client.post(f"/api/workspaces/{WS}/contribute", json={"document_ids": [7]})
         assert resp.status_code == 404
-        client.app.state.db.contribute_documents.assert_not_called()
+        client.app.state.db.contributions.contribute.assert_not_called()
 
 
 class TestArchive:
@@ -109,23 +109,23 @@ class TestArchive:
         client = _owner()
         resp = client.delete(f"/api/workspaces/{WS}/contributions")
         assert resp.json() == {"success": True, "archived": 2}
-        client.app.state.db.archive_contributions.assert_called_once_with(WS, USER_ID)
+        client.app.state.db.contributions.archive.assert_called_once_with(WS, USER_ID)
 
     def test_an_editor_is_refused(self):
         client = _client(role="user", member_role="editor", headers=auth_headers())
         resp = client.delete(f"/api/workspaces/{WS}/contributions")
         assert resp.status_code == 403
-        client.app.state.db.archive_contributions.assert_not_called()
+        client.app.state.db.contributions.archive.assert_not_called()
 
 
 @pytest.mark.parametrize(("method", "path", "db_call"), [
-    ("post", f"/api/workspaces/{WS}/contribute", "contribute_documents"),
-    ("delete", f"/api/workspaces/{WS}/contributions", "archive_contributions"),
-    ("get", "/api/gkb/documents", "list_contributions"),
+    ("post", f"/api/workspaces/{WS}/contribute", "contribute"),
+    ("delete", f"/api/workspaces/{WS}/contributions", "archive"),
+    ("get", "/api/gkb/documents", "list_all"),
 ], ids=["contribute", "archive", "list"])
 def test_a_database_failure_is_a_500_that_names_nothing(method, path, db_call):
     client = _admin()
-    getattr(client.app.state.db, db_call).side_effect = RuntimeError("relation documents: secret")
+    getattr(client.app.state.db.contributions, db_call).side_effect = RuntimeError("relation documents: secret")
     kwargs = {"json": {"document_ids": [7]}} if method == "post" else {}
     resp = getattr(client, method)(path, **kwargs)
     assert (resp.status_code, resp.json()) == (
@@ -141,4 +141,4 @@ class TestList:
         client = _owner()
         resp = client.get("/api/gkb/documents")
         assert resp.status_code == 403
-        client.app.state.db.list_contributions.assert_not_called()
+        client.app.state.db.contributions.list_all.assert_not_called()
