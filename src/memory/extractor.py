@@ -67,7 +67,7 @@ class MemoryExtractor:
             Number of new memories stored.
         """
         if not messages:
-            db.mark_conversation_extracted(conversation_id)
+            db.memories.mark_extracted(conversation_id)
             return 0
 
         # The user's own turns only (GR-1b). An assistant turn is shaped by retrieved
@@ -85,7 +85,7 @@ class MemoryExtractor:
                 transcript_parts.append(f"User: {content[:500]}")  # cap per turn
 
         if not transcript_parts:
-            db.mark_conversation_extracted(conversation_id)
+            db.memories.mark_extracted(conversation_id)
             return 0
 
         transcript = "\n".join(transcript_parts[-20:])  # last 20 turns max
@@ -94,7 +94,7 @@ class MemoryExtractor:
             raw_memories = await self._call_llm(transcript, model, ollama_client)
         except Exception as exc:  # noqa: BLE001 — the conversation is marked extracted either way, so a bad turn is not retried forever
             logger.warning(f"[Memory] LLM extraction failed for conv {conversation_id}: {exc}")
-            db.mark_conversation_extracted(conversation_id)
+            db.memories.mark_extracted(conversation_id)
             return 0
 
         inserted = 0
@@ -104,7 +104,7 @@ class MemoryExtractor:
             ):
                 inserted += 1
 
-        db.mark_conversation_extracted(conversation_id)
+        db.memories.mark_extracted(conversation_id)
         logger.info(f"[Memory] Extracted {inserted} new memories from conv {conversation_id}")
         return inserted
 
@@ -130,10 +130,10 @@ class MemoryExtractor:
                 return False
             # The workspace the memory will be written to. One with none dedupes across
             # every workspace, as it did before the scope was a type.
-            if db.is_duplicate_memory(embedding, scope=workspace_id or ALL_WORKSPACES):
+            if db.memories.is_duplicate(embedding, scope=workspace_id or ALL_WORKSPACES):
                 logger.debug(f"[Memory] Skipping duplicate: {content[:60]}")
                 return False
-            db.insert_memory(
+            db.memories.insert(
                 content=content,
                 embedding=embedding,
                 source_conv_id=conversation_id,

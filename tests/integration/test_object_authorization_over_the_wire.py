@@ -351,7 +351,7 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
         title="Workspace B private conversation", workspace_id=workspace_b
     )
 
-    objects["memory_id"] = db.insert_memory(
+    objects["memory_id"] = db.memories.insert(
         content="Workspace B private memory",
         embedding=[0.0] * _VECTOR_DIM,
         workspace_id=workspace_b,

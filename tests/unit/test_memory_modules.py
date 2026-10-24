@@ -36,7 +36,7 @@ def _make_ollama(embedding_model="nomic-embed-text", embedding_ok=True, embeddin
 def _make_db(connected=True, memories=None):
     db = MagicMock()
     db.is_connected = connected
-    db.search_memories.return_value = memories or []
+    db.memories.search.return_value = memories or []
     return db
 
 
@@ -78,7 +78,7 @@ class TestMemoryRetrieverRetrieve:
     def test_returns_empty_when_search_raises(self):
         r = self._retriever()
         db = _make_db()
-        db.search_memories.side_effect = Exception("DB error")
+        db.memories.search.side_effect = Exception("DB error")
         result = r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
         assert result == []
 
@@ -94,13 +94,13 @@ class TestMemoryRetrieverRetrieve:
         memories = [{"id": 7, "content": "fact", "memory_type": "fact"}]
         db = _make_db(memories=memories)
         r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
-        db.update_memory_usage.assert_called_once_with([7])
+        db.memories.record_use.assert_called_once_with([7])
 
     def test_usage_update_failure_is_silent(self):
         r = self._retriever()
         memories = [{"id": 1, "content": "fact", "memory_type": "fact"}]
         db = _make_db(memories=memories)
-        db.update_memory_usage.side_effect = Exception("quota exceeded")
+        db.memories.record_use.side_effect = Exception("quota exceeded")
         # Should not raise
         result = r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
         assert result == memories
@@ -109,14 +109,14 @@ class TestMemoryRetrieverRetrieve:
         r = self._retriever()
         db = _make_db(memories=[])
         r.retrieve("query", _make_ollama(), db, scope=ALL_WORKSPACES)
-        db.update_memory_usage.assert_not_called()
+        db.memories.record_use.assert_not_called()
 
     def test_passes_top_k_and_min_similarity_to_search(self):
         r = self._retriever()
         db = _make_db()
         r.retrieve("query", _make_ollama(), db, top_k=5, min_similarity=0.7, scope=ALL_WORKSPACES)
-        db.search_memories.assert_called_once()
-        call_kwargs = db.search_memories.call_args
+        db.memories.search.assert_called_once()
+        call_kwargs = db.memories.search.call_args
         assert call_kwargs.kwargs.get("top_k") == 5 or call_kwargs.args[1] == 5
         assert call_kwargs.kwargs.get("min_similarity") == 0.7 or call_kwargs.args[2] == 0.7
 
@@ -194,7 +194,7 @@ class TestMemoryExtractorExtract:
         db = MagicMock()
         count = await e.extract("conv-1", [], "model", MagicMock(), db)
         assert count == 0
-        db.mark_conversation_extracted.assert_called_once_with("conv-1")
+        db.memories.mark_extracted.assert_called_once_with("conv-1")
 
     async def test_all_empty_content_returns_zero(self):
         e = self._extractor()
@@ -202,29 +202,29 @@ class TestMemoryExtractorExtract:
         msgs = [{"role": "user", "content": ""}, {"role": "assistant", "content": None}]
         count = await e.extract("conv-1", msgs, "model", MagicMock(), db)
         assert count == 0
-        db.mark_conversation_extracted.assert_called_once()
+        db.memories.mark_extracted.assert_called_once()
 
     async def test_llm_returns_valid_memories_stores_them(self):
         e = self._extractor()
         db = MagicMock()
-        db.is_duplicate_memory.return_value = False
+        db.memories.is_duplicate.return_value = False
         ollama = self._llm_response([
             {"content": "User prefers dark mode", "memory_type": "preference", "confidence": 0.9}
         ])
         count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 1
-        db.insert_memory.assert_called_once()
+        db.memories.insert.assert_called_once()
 
     async def test_duplicate_memory_is_skipped(self):
         e = self._extractor()
         db = MagicMock()
-        db.is_duplicate_memory.return_value = True
+        db.memories.is_duplicate.return_value = True
         ollama = self._llm_response([
             {"content": "User prefers dark mode", "memory_type": "preference", "confidence": 0.9}
         ])
         count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 0
-        db.insert_memory.assert_not_called()
+        db.memories.insert.assert_not_called()
 
     async def test_embedding_failure_skips_memory(self):
         e = self._extractor()
@@ -238,7 +238,7 @@ class TestMemoryExtractorExtract:
         )
         count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 0
-        db.insert_memory.assert_not_called()
+        db.memories.insert.assert_not_called()
 
     async def test_llm_failure_marks_extracted_and_returns_zero(self):
         e = self._extractor()
@@ -252,12 +252,12 @@ class TestMemoryExtractorExtract:
         ollama.generate_chat_response = _raise
         count = await e.extract("conv-1", self._make_messages(), "model", ollama, db)
         assert count == 0
-        db.mark_conversation_extracted.assert_called_once()
+        db.memories.mark_extracted.assert_called_once()
 
     async def test_short_content_is_skipped(self):
         e = self._extractor()
         db = MagicMock()
-        db.is_duplicate_memory.return_value = False
+        db.memories.is_duplicate.return_value = False
         ollama = self._llm_response([
             {"content": "Hi", "memory_type": "fact", "confidence": 1.0}  # too short (< 5 chars)
         ])
@@ -267,18 +267,18 @@ class TestMemoryExtractorExtract:
     async def test_marks_extracted_even_on_all_duplicates(self):
         e = self._extractor()
         db = MagicMock()
-        db.is_duplicate_memory.return_value = True
+        db.memories.is_duplicate.return_value = True
         ollama = self._llm_response([
             {"content": "Something worth remembering", "memory_type": "fact", "confidence": 1.0}
         ])
         await e.extract("conv-1", self._make_messages(), "model", ollama, db)
-        db.mark_conversation_extracted.assert_called_once()
+        db.memories.mark_extracted.assert_called_once()
 
     async def test_transcript_truncates_to_last_20_turns(self):
         """Verify that very long conversation histories don't crash extract()."""
         e = self._extractor()
         db = MagicMock()
-        db.is_duplicate_memory.return_value = True
+        db.memories.is_duplicate.return_value = True
         ollama = self._llm_response([])
         msgs = [{"role": "user", "content": f"message {i}"} for i in range(100)]
         # Should not raise

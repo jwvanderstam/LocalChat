@@ -1,5 +1,5 @@
 """
-Tests for src/db/entities.py (EntitiesMixin) and src/db/memories.py (MemoriesMixin)
+Tests for src/db/entities.py (EntitiesMixin) and src/db/memories.py (MemoriesRepository)
 
 Covers:
   EntitiesMixin:
@@ -11,7 +11,7 @@ Covers:
     - get_all_entities: DB unavailable returns []
     - get_entity_stats: DB unavailable returns zeros
 
-  MemoriesMixin:
+  MemoriesRepository:
     - insert_memory: DB unavailable raises, returns UUID
     - update_memory_usage: empty list no-op, DB unavailable no-op, normal
     - delete_memory: DB unavailable raises
@@ -64,14 +64,19 @@ def _entities_mixin(connected=True, **conn_kwargs):
     return m, conn, cur
 
 
+class _Host:
+    """The connection a repository runs over, holding it as ``Database`` does."""
+
+
 def _memories_mixin(connected=True, **conn_kwargs):
-    from src.db.memories import MemoriesMixin
+    from src.db.memories import MemoriesRepository
 
     conn, cur = _make_conn_ctx(**conn_kwargs)
-    m = MemoriesMixin()
+    m = _Host()
     m.is_connected = connected
     m.get_connection = MagicMock(return_value=conn)
     m._embedding_to_pg_array = MagicMock(return_value="[0.1,0.2]")
+    m.memories = MemoriesRepository(m)
     return m, conn, cur
 
 
@@ -191,7 +196,7 @@ class TestGetEntityStats:
 
 
 # ===========================================================================
-# MemoriesMixin
+# MemoriesRepository
 # ===========================================================================
 
 class TestInsertMemory:
@@ -199,34 +204,34 @@ class TestInsertMemory:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _memories_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.insert_memory("content", [0.1] * 10)
+            m.memories.insert("content", [0.1] * 10)
 
     def test_returns_uuid_string(self):
         m, _, _ = _memories_mixin()
-        result = m.insert_memory("fact about X", [0.1] * 10)
+        result = m.memories.insert("fact about X", [0.1] * 10)
         # Must be a valid UUID
         uuid.UUID(result)
 
     def test_calls_embedding_conversion(self):
         m, _, _ = _memories_mixin()
-        m.insert_memory("fact", [0.5] * 8)
+        m.memories.insert("fact", [0.5] * 8)
         m._embedding_to_pg_array.assert_called_once()
 
 
 class TestUpdateMemoryUsage:
     def test_no_op_on_empty_list(self):
         m, _, _ = _memories_mixin()
-        m.update_memory_usage([])
+        m.memories.record_use([])
         m.get_connection.assert_not_called()
 
     def test_no_op_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        m.update_memory_usage(["mem-1"])
+        m.memories.record_use(["mem-1"])
         m.get_connection.assert_not_called()
 
     def test_executes_update_when_connected(self):
         m, conn, _ = _memories_mixin()
-        m.update_memory_usage(["mem-1", "mem-2"])
+        m.memories.record_use(["mem-1", "mem-2"])
         m.get_connection.assert_called_once()
 
 
@@ -235,11 +240,11 @@ class TestDeleteMemory:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _memories_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.delete_memory("some-uuid", scope="ws-1")
+            m.memories.retire("some-uuid", scope="ws-1")
 
     def test_executes_delete_when_connected(self):
         m, conn, _ = _memories_mixin()
-        m.delete_memory("mem-uuid", scope="ws-1")
+        m.memories.retire("mem-uuid", scope="ws-1")
         m.get_connection.assert_called_once()
 
 
@@ -248,30 +253,30 @@ class TestDeleteAllMemories:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _memories_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.delete_all_memories(scope="ws-1")
+            m.memories.retire_all(scope="ws-1")
 
     def test_returns_count(self):
         m, _, cur = _memories_mixin(rowcount=7)
-        count = m.delete_all_memories(scope="ws-1")
+        count = m.memories.retire_all(scope="ws-1")
         assert count == 7
 
 
 class TestMarkConversationExtracted:
     def test_no_op_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        m.mark_conversation_extracted("conv-1")  # should not raise
+        m.memories.mark_extracted("conv-1")  # should not raise
         m.get_connection.assert_not_called()
 
     def test_executes_update_when_connected(self):
         m, conn, _ = _memories_mixin()
-        m.mark_conversation_extracted("conv-1")
+        m.memories.mark_extracted("conv-1")
         m.get_connection.assert_called_once()
 
 
 class TestSearchMemories:
     def test_returns_empty_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        assert m.search_memories([0.1] * 10, scope=ALL_WORKSPACES) == []
+        assert m.memories.search([0.1] * 10, scope=ALL_WORKSPACES) == []
 
     def test_returns_list_of_dicts(self):
         from datetime import datetime
@@ -279,7 +284,7 @@ class TestSearchMemories:
         m, _, cur = _memories_mixin(
             fetchall_return=[(mem_id, "fact A", "fact", 0.9, datetime(2025, 1, 1), 2, 0.85)]
         )
-        results = m.search_memories([0.1] * 10, scope=ALL_WORKSPACES)
+        results = m.memories.search([0.1] * 10, scope=ALL_WORKSPACES)
         assert len(results) == 1
         assert results[0]["content"] == "fact A"
         assert results[0]["similarity"] == pytest.approx(0.85)
@@ -288,21 +293,21 @@ class TestSearchMemories:
 class TestIsDuplicateMemory:
     def test_returns_false_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        assert m.is_duplicate_memory([0.1] * 10, scope=ALL_WORKSPACES) is False
+        assert m.memories.is_duplicate([0.1] * 10, scope=ALL_WORKSPACES) is False
 
     def test_returns_true_when_similar_found(self):
         m, _, cur = _memories_mixin(fetchone_return=(1,))
-        assert m.is_duplicate_memory([0.1] * 10, scope=ALL_WORKSPACES) is True
+        assert m.memories.is_duplicate([0.1] * 10, scope=ALL_WORKSPACES) is True
 
     def test_returns_false_when_no_similar_found(self):
         m, _, cur = _memories_mixin(fetchone_return=None)
-        assert m.is_duplicate_memory([0.1] * 10, scope=ALL_WORKSPACES) is False
+        assert m.memories.is_duplicate([0.1] * 10, scope=ALL_WORKSPACES) is False
 
 
 class TestGetAllMemories:
     def test_returns_empty_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        assert m.get_all_memories(scope=ALL_WORKSPACES) == []
+        assert m.memories.list_page(scope=ALL_WORKSPACES) == []
 
     def test_returns_list_of_dicts(self):
         from datetime import datetime
@@ -311,7 +316,7 @@ class TestGetAllMemories:
         m, _, cur = _memories_mixin(
             fetchall_return=[(mid, "content", "fact", 1.0, datetime(2025, 1, 1), None, 0, conv_id)]
         )
-        results = m.get_all_memories(scope=ALL_WORKSPACES)
+        results = m.memories.list_page(scope=ALL_WORKSPACES)
         assert len(results) == 1
         assert results[0]["content"] == "content"
 
@@ -319,7 +324,7 @@ class TestGetAllMemories:
 class TestGetUnextractedConversations:
     def test_returns_empty_when_db_unavailable(self):
         m, _, _ = _memories_mixin(connected=False)
-        assert m.get_unextracted_conversations(scope="ws-1") == []
+        assert m.memories.unextracted_conversations(scope="ws-1") == []
 
     def test_returns_list_of_dicts(self):
         from datetime import datetime
@@ -328,7 +333,7 @@ class TestGetUnextractedConversations:
         m, _, cur = _memories_mixin(
             fetchall_return=[(cid, "My Conversation", datetime(2025, 3, 1), ws_id)]
         )
-        results = m.get_unextracted_conversations(scope="ws-1")
+        results = m.memories.unextracted_conversations(scope="ws-1")
         assert len(results) == 1
         assert results[0]["id"] == cid
         assert results[0]["title"] == "My Conversation"

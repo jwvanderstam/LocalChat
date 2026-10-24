@@ -23,9 +23,9 @@ _ROOT = Path(__file__).resolve().parents[2]
 
 #: `app.state.db` in route modules: a handler reaching the database itself instead of a
 #: service. 81 on 2026-10-23 (`3623840`); 72 after QP-4 users and auth;
-#: 58 after workspaces; 51 after documents; 41 after conversations.
+#: 58 after workspaces; 51 after documents; 41 after conversations; 36 after memories.
 #: Lower it in the PR that removes some.
-APP_STATE_DB_IN_ROUTES = 41
+APP_STATE_DB_IN_ROUTES = 36
 
 #: Direct imports from a route into src.db that the forbidden contract tolerates today.
 IGNORED_ROUTE_TO_DB_IMPORTS = 0

@@ -54,4 +54,4 @@ async def test_a_conversation_with_no_user_text_extracts_nothing_and_is_marked_d
 
     assert stored == 0
     call.assert_not_awaited()
-    db.mark_conversation_extracted.assert_called_once_with("conv-1")
+    db.memories.mark_extracted.assert_called_once_with("conv-1")

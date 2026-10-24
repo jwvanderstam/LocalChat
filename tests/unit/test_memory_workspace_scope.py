@@ -25,8 +25,12 @@ WS_A = "11111111-1111-1111-1111-111111111111"
 WS_B = "22222222-2222-2222-2222-222222222222"
 
 
+class _Host:
+    """The connection a repository runs over, holding it as ``Database`` does."""
+
+
 def _memories_mixin(connected=True, fetchone_return=None, fetchall_return=None):
-    from src.db.memories import MemoriesMixin
+    from src.db.memories import MemoriesRepository
 
     cur = MagicMock()
     cur.fetchone.return_value = fetchone_return
@@ -39,10 +43,11 @@ def _memories_mixin(connected=True, fetchone_return=None, fetchall_return=None):
     conn.__enter__ = MagicMock(return_value=conn)
     conn.__exit__ = MagicMock(return_value=False)
 
-    m = MemoriesMixin()
+    m = _Host()
     m.is_connected = connected
     m.get_connection = MagicMock(return_value=conn)
     m._embedding_to_pg_array = MagicMock(return_value="[0.1,0.2]")
+    m.memories = MemoriesRepository(m)
     return m, cur
 
 
@@ -57,32 +62,32 @@ def _sql_and_params(cur):
 
 class TestAllowedWorkspaceIds:
     def test_returns_empty_for_all_workspaces(self):
-        from src.db.memories import MemoriesMixin
+        from src.db.memories import MemoriesRepository
 
-        assert MemoriesMixin._allowed_workspace_ids(ALL_WORKSPACES) == []
+        assert MemoriesRepository._allowed_workspace_ids(ALL_WORKSPACES) == []
 
     def test_an_absent_scope_is_refused_rather_than_read_as_every_workspace(self):
         """None used to mean unscoped; P2-1b-ii makes that the explicit ALL_WORKSPACES."""
-        from src.db.memories import MemoriesMixin
+        from src.db.memories import MemoriesRepository
 
         with pytest.raises(ValueError, match="workspace scope is required"):
-            MemoriesMixin._allowed_workspace_ids(None)  # type: ignore[arg-type]
+            MemoriesRepository._allowed_workspace_ids(None)  # type: ignore[arg-type]
 
     def test_returns_single_workspace(self):
-        from src.db.memories import MemoriesMixin
+        from src.db.memories import MemoriesRepository
 
-        assert MemoriesMixin._allowed_workspace_ids(WS_A) == [WS_A]
+        assert MemoriesRepository._allowed_workspace_ids(WS_A) == [WS_A]
 
     def test_appends_additional_workspaces_in_order(self):
-        from src.db.memories import MemoriesMixin
+        from src.db.memories import MemoriesRepository
 
-        assert MemoriesMixin._allowed_workspace_ids(WS_A, [WS_B]) == [WS_A, WS_B]
+        assert MemoriesRepository._allowed_workspace_ids(WS_A, [WS_B]) == [WS_A, WS_B]
 
     def test_additional_ids_ignored_without_a_primary_workspace(self):
-        from src.db.memories import MemoriesMixin
+        from src.db.memories import MemoriesRepository
 
         # ALL_WORKSPACES is already unscoped; extras must not silently narrow it.
-        assert MemoriesMixin._allowed_workspace_ids(ALL_WORKSPACES, [WS_B]) == []
+        assert MemoriesRepository._allowed_workspace_ids(ALL_WORKSPACES, [WS_B]) == []
 
 
 # ---------------------------------------------------------------------------
@@ -92,20 +97,20 @@ class TestAllowedWorkspaceIds:
 class TestInsertMemoryRecordsWorkspace:
     def test_workspace_id_is_written(self):
         m, cur = _memories_mixin()
-        m.insert_memory("fact", [0.1] * 8, workspace_id=WS_A)
+        m.memories.insert("fact", [0.1] * 8, workspace_id=WS_A)
         sql, params = _sql_and_params(cur)
         assert "workspace_id" in sql
         assert WS_A in params
 
     def test_workspace_column_count_matches_values(self):
         m, cur = _memories_mixin()
-        m.insert_memory("fact", [0.1] * 8, workspace_id=WS_A)
+        m.memories.insert("fact", [0.1] * 8, workspace_id=WS_A)
         sql, params = _sql_and_params(cur)
         assert sql.count("%s") == len(params)
 
     def test_workspace_is_none_when_not_supplied(self):
         m, cur = _memories_mixin()
-        m.insert_memory("fact", [0.1] * 8)
+        m.memories.insert("fact", [0.1] * 8)
         _, params = _sql_and_params(cur)
         assert params[-1] is None
 
@@ -113,14 +118,14 @@ class TestInsertMemoryRecordsWorkspace:
 class TestDedupIsScopedToWorkspace:
     def test_scoped_dedup_filters_on_workspace(self):
         m, cur = _memories_mixin(fetchone_return=None)
-        m.is_duplicate_memory([0.1] * 8, scope=WS_A)
+        m.memories.is_duplicate([0.1] * 8, scope=WS_A)
         sql, params = _sql_and_params(cur)
         assert "workspace_id = %s" in sql
         assert params[-1] == WS_A
 
     def test_unscoped_dedup_has_no_workspace_clause(self):
         m, cur = _memories_mixin(fetchone_return=None)
-        m.is_duplicate_memory([0.1] * 8, scope=ALL_WORKSPACES)
+        m.memories.is_duplicate([0.1] * 8, scope=ALL_WORKSPACES)
         sql, params = _sql_and_params(cur)
         assert "workspace_id" not in sql
         assert len(params) == 2
@@ -133,7 +138,7 @@ class TestDedupIsScopedToWorkspace:
 class TestSearchMemoriesIsScoped:
     def test_filters_on_the_requested_workspace(self):
         m, cur = _memories_mixin()
-        m.search_memories([0.1] * 8, scope=WS_A)
+        m.memories.search([0.1] * 8, scope=WS_A)
         sql, params = _sql_and_params(cur)
         assert "workspace_id = %s" in sql
         assert WS_A in params
@@ -142,13 +147,13 @@ class TestSearchMemoriesIsScoped:
         """Under row-level security a transaction sees one workspace, so a single query
         over [A, B] would silently return A's memories only (P2-1b-iii)."""
         m, _ = _memories_mixin()
-        m.search_memories([0.1] * 8, scope=WS_A, additional_workspace_ids=[WS_B])
+        m.memories.search([0.1] * 8, scope=WS_A, additional_workspace_ids=[WS_B])
         scopes = [c.kwargs["scope"] for c in m.get_connection.call_args_list]
         assert scopes == [WS_A, WS_B]
 
     def test_other_workspace_is_never_queried(self):
         m, cur = _memories_mixin()
-        m.search_memories([0.1] * 8, scope=WS_A)
+        m.memories.search([0.1] * 8, scope=WS_A)
         scopes = [c.kwargs["scope"] for c in m.get_connection.call_args_list]
         assert scopes == [WS_A]
         assert all(WS_B not in c.args[1] for c in cur.execute.call_args_list)
@@ -165,26 +170,26 @@ class TestSearchMemoriesIsScoped:
             [_row("b1", 0.8), _row("b2", 0.7)],
         ]
         with patch("src.db.memories._decrypt", side_effect=lambda v: v):
-            result = m.search_memories(
+            result = m.memories.search(
                 [0.1] * 8, top_k=3, scope=WS_A, additional_workspace_ids=[WS_B]
             )
         assert [r["id"] for r in result] == ["a1", "b1", "b2"]
 
     def test_unscoped_search_has_no_workspace_clause(self):
         m, cur = _memories_mixin()
-        m.search_memories([0.1] * 8, scope=ALL_WORKSPACES)
+        m.memories.search([0.1] * 8, scope=ALL_WORKSPACES)
         sql, _ = _sql_and_params(cur)
         assert "workspace_id" not in sql
 
     def test_placeholder_count_matches_params_when_scoped(self):
         m, cur = _memories_mixin()
-        m.search_memories([0.1] * 8, scope=WS_A)
+        m.memories.search([0.1] * 8, scope=WS_A)
         sql, params = _sql_and_params(cur)
         assert sql.count("%s") == len(params)
 
     def test_placeholder_count_matches_params_when_unscoped(self):
         m, cur = _memories_mixin()
-        m.search_memories([0.1] * 8, scope=ALL_WORKSPACES)
+        m.memories.search([0.1] * 8, scope=ALL_WORKSPACES)
         sql, params = _sql_and_params(cur)
         assert sql.count("%s") == len(params)
 
@@ -192,14 +197,14 @@ class TestSearchMemoriesIsScoped:
 class TestGetAllMemoriesIsScoped:
     def test_filters_on_workspace(self):
         m, cur = _memories_mixin()
-        m.get_all_memories(scope=WS_A)
+        m.memories.list_page(scope=WS_A)
         sql, params = _sql_and_params(cur)
         assert "workspace_id = %s" in sql
         assert params[0] == WS_A
 
     def test_unscoped_listing_has_no_workspace_clause(self):
         m, cur = _memories_mixin()
-        m.get_all_memories(scope=ALL_WORKSPACES)
+        m.memories.list_page(scope=ALL_WORKSPACES)
         sql, params = _sql_and_params(cur)
         assert "workspace_id" not in sql
         assert params == (200, 0)
@@ -213,7 +218,7 @@ class TestUnextractedConversationsCarryWorkspace:
         m, _ = _memories_mixin(
             fetchall_return=[(conv_id, "Title", datetime(2026, 1, 1), WS_A)]
         )
-        rows = m.get_unextracted_conversations(scope="ws-1")
+        rows = m.memories.unextracted_conversations(scope="ws-1")
         assert rows[0]["workspace_id"] == WS_A
 
 
@@ -227,7 +232,7 @@ class TestRetrieverPassesWorkspaceDown:
 
         db = MagicMock()
         db.is_connected = True
-        db.search_memories.return_value = []
+        db.memories.search.return_value = []
         ollama = MagicMock()
         ollama.get_embedding_model.return_value = "embed-model"
         ollama.generate_embedding.return_value = (True, [0.1] * 8)
@@ -236,7 +241,7 @@ class TestRetrieverPassesWorkspaceDown:
             "query", ollama, db, scope=WS_A, additional_workspace_ids=[WS_B]
         )
 
-        kwargs = db.search_memories.call_args.kwargs
+        kwargs = db.memories.search.call_args.kwargs
         assert kwargs["scope"] == WS_A
         assert kwargs["additional_workspace_ids"] == [WS_B]
 
@@ -276,7 +281,7 @@ class TestChatServicePassesWorkspaceDown:
 def test_orphan_memories_never_leak_into_a_scoped_query(scoped):
     """A NULL-workspace memory is invisible to a scoped query, visible to an unscoped one."""
     m, cur = _memories_mixin()
-    m.search_memories([0.1] * 8, scope=WS_A if scoped else ALL_WORKSPACES)
+    m.memories.search([0.1] * 8, scope=WS_A if scoped else ALL_WORKSPACES)
     sql, _ = _sql_and_params(cur)
     # "= %s" never matches NULL, so scoped queries exclude orphans by construction.
     assert ("workspace_id = %s" in sql) is scoped

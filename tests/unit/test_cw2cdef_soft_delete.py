@@ -49,18 +49,18 @@ class TestPurgeWorkspace:
 
 class TestDeleteMemory:
     def test_soft_delete_returns_200(self, client, app):
-        app.state.db.delete_memory = MagicMock(return_value=True)
+        app.state.db.memories.retire = MagicMock(return_value=True)
         resp = client.delete("/api/memory/some-memory-id")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_missing_memory_returns_404(self, client, app):
-        app.state.db.delete_memory = MagicMock(return_value=False)
+        app.state.db.memories.retire = MagicMock(return_value=False)
         resp = client.delete("/api/memory/ghost-id")
         assert resp.status_code == 404
 
     def test_delete_all_returns_count(self, client, app):
-        app.state.db.delete_all_memories = MagicMock(return_value=7)
+        app.state.db.memories.retire_all = MagicMock(return_value=7)
         resp = client.delete("/api/memory/")
         assert resp.status_code == 200
         assert resp.json()["deleted"] == 7

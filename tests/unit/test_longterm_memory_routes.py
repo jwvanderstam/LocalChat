@@ -37,13 +37,13 @@ def _make_app(
     test_app.include_router(router, prefix="/api/memory")
 
     mock_db = MagicMock()
-    mock_db.get_all_memories.return_value = memories or []
-    mock_db.get_unextracted_conversations.return_value = unextracted or []
+    mock_db.memories.list_page.return_value = memories or []
+    mock_db.memories.unextracted_conversations.return_value = unextracted or []
     mock_db.conversations.messages.return_value = [
         {"role": "user", "content": "hi"},
         {"role": "assistant", "content": "hello"},
     ]
-    mock_db.delete_all_memories.return_value = delete_count
+    mock_db.memories.retire_all.return_value = delete_count
 
     test_app.state.db = authorise_db(mock_db, role="admin")
     test_app.state.startup_status = {"database": db_ok}
@@ -78,7 +78,7 @@ class TestListMemories:
     def test_pagination_params_forwarded(self):
         app, client = _make_app()
         client.get("/api/memory/?limit=10&offset=20")
-        app.state.db.get_all_memories.assert_called_once_with(
+        app.state.db.memories.list_page.assert_called_once_with(
             limit=10, offset=20, scope=ALL_WORKSPACES
         )
 
@@ -86,17 +86,17 @@ class TestListMemories:
         app, client = _make_app()
         ws_id = "11111111-1111-1111-1111-111111111111"
         client.get("/api/memory/", headers={"X-Workspace-ID": ws_id})
-        assert app.state.db.get_all_memories.call_args.kwargs["scope"] == ws_id
+        assert app.state.db.memories.list_page.call_args.kwargs["scope"] == ws_id
 
     def test_limit_capped_at_500(self):
         app, client = _make_app()
         client.get("/api/memory/?limit=9999")
-        call_args = app.state.db.get_all_memories.call_args
+        call_args = app.state.db.memories.list_page.call_args
         assert call_args.kwargs.get("limit", call_args.args[0] if call_args.args else 0) <= 500
 
     def test_db_exception_returns_500(self):
         app, client = _make_app()
-        app.state.db.get_all_memories.side_effect = Exception("DB down")
+        app.state.db.memories.list_page.side_effect = Exception("DB down")
         resp = client.get("/api/memory/")
         assert resp.status_code == 500
 
@@ -163,14 +163,14 @@ class TestExtractMemories:
         app, client = _make_app(unextracted=[])
         self._post_extract(client, body={"limit": 5})
         from src.utils.scope import ALL_WORKSPACES
-        app.state.db.get_unextracted_conversations.assert_called_once_with(
+        app.state.db.memories.unextracted_conversations.assert_called_once_with(
             limit=5, scope=ALL_WORKSPACES
         )
 
     def test_limit_capped_at_50(self):
         app, client = _make_app(unextracted=[])
         self._post_extract(client, body={"limit": 999})
-        call_args = app.state.db.get_unextracted_conversations.call_args
+        call_args = app.state.db.memories.unextracted_conversations.call_args
         assert call_args.kwargs.get("limit", call_args.args[0] if call_args.args else 0) <= 50
 
     def test_normalises_tuple_messages(self):
@@ -190,7 +190,7 @@ class TestExtractMemories:
 
     def test_outer_exception_returns_500(self):
         app, client = _make_app(unextracted=[])
-        app.state.db.get_unextracted_conversations.side_effect = Exception("DB crash")
+        app.state.db.memories.unextracted_conversations.side_effect = Exception("DB crash")
         resp = self._post_extract(client)
         assert resp.status_code == 500
 
@@ -213,14 +213,14 @@ class TestDeleteMemory:
         # bypass was on, so this assertion documented the bypass rather than the
         # Clark-Wilson audit trail it exists for.
         from src.utils.scope import ALL_WORKSPACES
-        kwargs = app.state.db.delete_memory.call_args.kwargs
-        assert app.state.db.delete_memory.call_args.args == ("abc-123",)
+        kwargs = app.state.db.memories.retire.call_args.kwargs
+        assert app.state.db.memories.retire.call_args.args == ("abc-123",)
         assert kwargs["deleted_by"] == ADMIN_ID
         assert kwargs["scope"] is ALL_WORKSPACES
 
     def test_db_raises_returns_500(self):
         app, client = _make_app()
-        app.state.db.delete_memory.side_effect = Exception("not found")
+        app.state.db.memories.retire.side_effect = Exception("not found")
         resp = client.delete("/api/memory/bad-id")
         assert resp.status_code == 500
 
@@ -240,6 +240,6 @@ class TestDeleteAllMemories:
 
     def test_db_raises_returns_500(self):
         app, client = _make_app()
-        app.state.db.delete_all_memories.side_effect = Exception("crash")
+        app.state.db.memories.retire_all.side_effect = Exception("crash")
         resp = client.delete("/api/memory/")
         assert resp.status_code == 500

@@ -25,6 +25,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/services/conversations.py` | `ConversationsService` — QP-4's fourth aggregate: paging (with `total`/`has_more`), reading, renaming, the document filter, retiring and purging conversations, each with the scope the route's guard authorised. Sending a message is `chat.py`'s |
 | `src/services/documents.py` | `DocumentsService` — QP-4's third aggregate: listing, statistics, chunk context, retiring and purging documents, each with the scope the route's guard authorised; a database that cannot answer becomes a 503 `ServiceError`. Upload and ingest stay in `DocumentProcessor` |
 | `src/services/workspaces.py` | `WorkspacesService` — QP-4's second aggregate: workspaces, members and API keys. Decides what depends on the caller once the route's `deny()` has admitted them: which workspaces they are shown, who owns one they create, whose name a retirement or revocation records, and the last-owner refusal |
+| `src/services/memories.py` | `MemoriesService` — QP-4's fifth aggregate: listing, batch extraction (one failed conversation never abandons the rest) and retiring long-term memories, each with the scope the route's guard authorised |
 | `src/services/passwords.py` | Password hashing and checking (Werkzeug PBKDF2-SHA256); every check costs one hash, so timing does not reveal which usernames exist (S3). Its own module so `security_fastapi` can use it without an import cycle |
 | `src/services/errors.py` | `ServiceError` — a refusal carrying the status and a message safe to send; routes map it in one line |
 | `src/services/logs.py` | Reads the tail of the log file back for the admin log viewer; parses both JSON and text lines |
@@ -43,7 +44,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
 | `src/routes_fastapi/_request_state.py` | Per-request state helpers (request ID, workspace ID) |
-| `src/routes_fastapi/_services.py` | FastAPI providers for the services (`conversations_service`, `documents_service`, `users_service`, `workspaces_service`) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
+| `src/routes_fastapi/_services.py` | FastAPI providers for the services (`conversations_service`, `documents_service`, `memories_service`, `users_service`, `workspaces_service`) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
 | `src/routes_fastapi/_authz.py` | `deny()` — wraps `check_workspace_access` in the route layer's JSON envelope; shared by every workspace-scoped router |
 | **RAG** | |
 | `src/rag/processor.py` | Ingest orchestration: load → chunk → embed → store |
@@ -63,7 +64,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/db/documents.py` | `DocumentsRepository` — document/chunk CRUD; `search_similar(filename_filter=, global_tier=)` and `search_lexical(global_tier=)`; held as `Database.documents` |
 | `src/db/conversations.py` | `ConversationsRepository` — persistent conversation history; `count` (paging); `document_filter`/`set_document_filter`; held as `Database.conversations` |
 | `src/db/entities.py` | `EntitiesMixin` — GraphRAG entity/relation CRUD |
-| `src/db/memories.py` | `MemoriesMixin` — long-term memory CRUD + vector search |
+| `src/db/memories.py` | `MemoriesRepository` — long-term memory CRUD + vector search, one scoped transaction per workspace; held as `Database.memories` |
 | `src/db/feedback.py` | `FeedbackMixin` — `answer_feedback` + `chunk_stats` CRUD |
 | `src/db/workspace_keys.py` | `WorkspaceKeysRepository` — workspace API keys: create/resolve/list/revoke; sha256-hashed, prefix-indexed; held as `Database.api_keys` |
 | `src/db/workspaces.py` | `WorkspacesRepository` (workspace CRUD with doc/conversation counts) and `WorkspaceMembersRepository` (memberships; refuses the last owner inside its own transaction); held as `Database.workspaces` and `Database.members` |
@@ -102,6 +103,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_layering_ratchets.py` | QP-3 — three numbers that may only go down: `app.state.db` in route modules (81), the forbidden contract's exceptions (4), and module import cycles found with grimp (2). Fails if one rises, and asks for the constant to be lowered when one falls |
 | `tests/unit/test_conversations_service.py` | QP-4 — `ConversationsService` computes `has_more` from the page it got, lists and counts in the same scope, passes the scope to every call, and records who retired what |
 | `tests/unit/test_documents_service.py` | QP-4 — `DocumentsService` hands the authorised scope to every repository call unchanged (a chunk's neighbours too), records who retired what, and turns an unavailable database into a 503 |
+| `tests/unit/test_memories_service.py` | QP-4 — `MemoriesService` passes the scope to every call, records who retired what, counts an extraction batch across conversations, and skips a failed or vanished conversation without abandoning the rest |
 | `tests/unit/test_workspaces_service.py` | QP-4 — `WorkspacesService`'s caller-dependent decisions: a member sees their own workspaces and an admin all of them (the role read from the database), the creator becomes owner and `anonymous` records nobody, the last owner is a 409 with a constant message |
 | `tests/unit/test_chat_knowledge_scope.py` | GKB-3 — `ChatRequest.knowledge_scope` (local by default), a workspace API key refused `global`/`hybrid` before any retrieval, the tier threaded to retrieval, MCP and the aggregator skipped for a non-local question, and each source naming its tier |
 | `tests/unit/test_frontend_knowledge_scope.py` | GKB-3 in the chat under node — the tier selector restored and sent, and a contribution never folded into a workspace document sharing its filename |
