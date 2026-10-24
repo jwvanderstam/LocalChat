@@ -197,6 +197,11 @@ def app():
     attributes a test added un-shadows the real bound methods; restoring the ones it
     overwrote puts back whatever was there. `tests/utils/auth.py` already tells callers
     to pass `monkeypatch=` for this reason — this makes it true whether they do or not.
+
+    Each repository the singleton holds (`db.connectors`, `db.users`, …) is restored the
+    same way. Since QP-4 a test mocks `app.state.db.connectors.create`, which lands on the
+    repository, not on `db` — and restoring `db` alone brought back exactly the leak
+    above: `"conn-new"` reached the over-the-wire suite again on #481.
     """
     from src.app_fastapi import create_app
     from src.connectors.registry import connector_registry
@@ -204,6 +209,11 @@ def app():
     test_app = create_app(config_override={"TESTING": True})
     db = test_app.state.db
     before = dict(vars(db))
+    repositories = {
+        name: (repo, dict(vars(repo)))
+        for name, repo in before.items()
+        if getattr(repo, "_db", None) is db
+    }
 
     test_app.state.db.is_connected = True
     test_app.state.connector_registry = connector_registry
@@ -212,6 +222,9 @@ def app():
     finally:
         vars(db).clear()
         vars(db).update(before)
+        for repo, attrs in repositories.values():
+            vars(repo).clear()
+            vars(repo).update(attrs)
 
 
 @pytest.fixture
