@@ -278,7 +278,7 @@ def _init_database_service(app: Any, db: Any) -> None:
         doc_count = db.get_document_count(scope=ALL_WORKSPACES)
         logger.info(f"Documents in database: {doc_count}")
         try:
-            purged = db.purge_expired_tokens()
+            purged = db.tokens.purge_expired()
             if purged:
                 logger.info("Purged %d expired revoked token(s)", purged)
         except Exception as _purge_err:  # noqa: BLE001 — opportunistic housekeeping; expired rows are purged again on the next boot
@@ -380,7 +380,7 @@ def _seed_admin_user(db: Any) -> None:
     Uses an upsert, so concurrent workers are safe and a restart never resets an
     existing account's password to a freshly generated one.
     """
-    from .db.users import hash_user_password
+    from .services.passwords import hash_user_password
 
     admin_password = config.ADMIN_PASSWORD
     generated = False
@@ -391,7 +391,7 @@ def _seed_admin_user(db: Any) -> None:
         generated = True
 
     try:
-        db.seed_admin_user(
+        db.users.seed_admin(
             username=config.ADMIN_USERNAME,
             hashed_password=hash_user_password(admin_password),
         )
@@ -400,7 +400,7 @@ def _seed_admin_user(db: Any) -> None:
         return
 
     if generated:
-        # Only meaningful on the first boot: seed_admin_user does nothing when the
+        # Only meaningful on the first boot: users.seed_admin does nothing when the
         # account already exists, so on later boots this password is not the live one.
         logger.warning(
             "[Auth] ADMIN_PASSWORD was not set. If '%s' was created just now, its "

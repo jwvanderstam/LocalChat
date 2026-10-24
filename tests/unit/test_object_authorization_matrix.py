@@ -88,10 +88,10 @@ def _client(router, prefix: str, member_role: str = "owner") -> TestClient:
     state = MagicMock()
     state.db.is_connected = True
     # Revocation is fail-closed and now runs on the workspace path too, so a bare
-    # MagicMock reads every token as revoked. get_user_role decides admin, and must
+    # MagicMock reads every token as revoked. users.get_role decides admin, and must
     # say "user" for these tests to exercise the member path at all.
-    state.db.is_token_revoked.return_value = False
-    state.db.get_user_role.return_value = "user"
+    state.db.tokens.is_revoked.return_value = False
+    state.db.users.get_role.return_value = "user"
     state.db.resolve_workspace_api_key.return_value = None
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_user_workspaces.return_value = [{"id": WS}]

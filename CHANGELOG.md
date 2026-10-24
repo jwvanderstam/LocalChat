@@ -8,6 +8,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+### Changed
+
+- **Users and sign-in go through a service** (ROADMAP QP-4, first of seven aggregates).
+  `auth_routes` no longer touches the database: it asks for a `UsersService`, which owns
+  the last-administrator and last-owner rules and the password checks. The SQL moved
+  verbatim into `UsersRepository` and `RevokedTokensRepository`, held on `Database` until
+  QP-5 removes it. The new modules are type-checked strictly. No behaviour changes.
+
 ### Added
 
 - **The browser suite covers eight paths, up from two** (ROADMAP QP-7).

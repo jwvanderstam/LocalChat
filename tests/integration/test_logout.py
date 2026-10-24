@@ -33,7 +33,7 @@ class TestLogout:
     def test_logout_with_valid_token_returns_200(self, client, app):
         token = create_access_token("test-user")
         app.state.db.is_connected = True
-        app.state.db.revoke_token = MagicMock()
+        app.state.db.tokens.revoke = MagicMock()
 
         resp = client.post(
             "/api/logout",
@@ -46,7 +46,7 @@ class TestLogout:
         token = create_access_token("test-user")
         app.state.db.is_connected = True
         revoke_mock = MagicMock()
-        app.state.db.revoke_token = revoke_mock
+        app.state.db.tokens.revoke = revoke_mock
 
         client.post(
             "/api/logout",
@@ -86,7 +86,7 @@ class TestRequireAuthRevocation:
         app = self._make_app_non_testing()
         token = create_access_token("user-1")
 
-        app.state.db.is_token_revoked.return_value = True
+        app.state.db.tokens.is_revoked.return_value = True
 
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get(
@@ -105,7 +105,7 @@ class TestRequireAuthRevocation:
         app = self._make_app_non_testing()
         token = create_access_token("user-1")
 
-        app.state.db.is_token_revoked.return_value = False
+        app.state.db.tokens.is_revoked.return_value = False
 
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get(

@@ -26,8 +26,8 @@ def _client():
     from src.routes_fastapi.auth_routes import router
 
     state = authenticated_state(role="admin")
-    state.db.create_user.return_value = USER
-    state.db.get_user_by_id.return_value = {"id": USER, "username": "jo", "role": "user"}
+    state.db.users.create.return_value = USER
+    state.db.users.get_by_id.return_value = {"id": USER, "username": "jo", "role": "user"}
     state.db.get_user_workspaces.return_value = [{"id": WS, "name": "Default", "role": "editor"}]
     state.db.remove_workspace_member.return_value = True
     app = FastAPI()
@@ -75,7 +75,7 @@ class TestCreateGrantsMembership:
         client.post("/api/users", json={
             "username": "jo", "password": "a-long-enough-pw", "workspace_id": WS, "workspace_role": "root",
         })
-        client.app.state.db.create_user.assert_not_called()
+        client.app.state.db.users.create.assert_not_called()
 
 
 @pytest.mark.unit
@@ -139,10 +139,10 @@ class TestFallbackPicksAUsableWorkspace:
         db = MagicMock()
         db.is_connected = True
         # Revocation is fail-closed and runs on this path now, so a bare MagicMock
-        # would read every token as revoked; get_user_role decides admin, and "user"
+        # would read every token as revoked; users.get_role decides admin, and "user"
         # is what keeps this test on the membership path it is about.
-        db.is_token_revoked.return_value = False
-        db.get_user_role.return_value = "user"
+        db.tokens.is_revoked.return_value = False
+        db.users.get_role.return_value = "user"
         db.resolve_workspace_api_key.return_value = None
         db.get_default_workspace_id.return_value = default_ws
         db.get_user_workspaces.return_value = [{"id": w} for w in member_of]

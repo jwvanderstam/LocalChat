@@ -39,8 +39,8 @@ def _client(member_role: str | None, global_role: str = "user") -> TestClient:
     state.db.is_connected = True
     # See tests/utils/auth.py: fail-closed revocation reads a bare mock as revoked,
     # and the admin short-circuit now reads the role from the database.
-    state.db.is_token_revoked.return_value = False
-    state.db.get_user_role.return_value = global_role
+    state.db.tokens.is_revoked.return_value = False
+    state.db.users.get_role.return_value = global_role
     state.db.resolve_workspace_api_key.return_value = None
     state.db.get_workspace_member_role.return_value = member_role
     state.db.list_workspace_members.return_value = [{"user_id": OTHER_USER, "role": "owner"}]

@@ -43,7 +43,7 @@ a gain of one deleted heading.
 ### 3. JWT revocation honours a bounded 60-second grace window on database outage
 
 - **What**: `resolve_principal()` (`src/security_fastapi.py`) checks a token's `jti` against
-  the `revoked_tokens` deny-list (`TokensMixin.is_token_revoked`, `src/db/tokens.py`) on every
+  the `revoked_tokens` deny-list (`RevokedTokensRepository.is_revoked`, `src/db/tokens.py`) on every
   authenticated request. `_verify_jti_not_revoked()` **fails closed** — if the database is
   unreachable and the token was not verified in the last 60 seconds, the request is refused
   with 401 rather than let through. The residual risk is the grace window itself: a token

@@ -27,16 +27,16 @@ def _client(*, verify_result=(USER, "user"), member_role: str | None = "editor")
 
     state = MagicMock()
     state.db.is_connected = True
-    state.db.is_token_revoked.return_value = False
+    state.db.tokens.is_revoked.return_value = False
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = WS
-    state.db.get_user_by_id.return_value = {"id": USER, "username": "jo", "role": "user"}
+    state.db.users.get_by_id.return_value = {"id": USER, "username": "jo", "role": "user"}
 
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.state = state
 
-    patcher = patch("src.routes_fastapi.auth_routes.verify_credentials_db",
+    patcher = patch("src.services.users.verify_credentials_db",
                     return_value=verify_result)
     patcher.start()
     client = TestClient(app, raise_server_exceptions=False)
@@ -116,7 +116,7 @@ class TestSessionCookieAuthenticates:
 
         state = MagicMock()
         state.db.is_connected = True
-        state.db.is_token_revoked.return_value = False
+        state.db.tokens.is_revoked.return_value = False
         app = FastAPI()
         app.include_router(model_router, prefix="/api/models")
         app.state = state

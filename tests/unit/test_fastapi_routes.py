@@ -49,9 +49,9 @@ class TestAuthRoutes:
         from src.routes_fastapi.auth_routes import router
 
         state = _base_state()
-        state.db.list_users.return_value = users or []
-        state.db.create_user.return_value = created_id
-        state.db.get_user_by_id.return_value = {
+        state.db.users.list_all.return_value = users or []
+        state.db.users.create.return_value = created_id
+        state.db.users.get_by_id.return_value = {
             "id": created_id, "username": "alice", "role": "user", "hashed_password": "x"
         }
         return _make_client(router, "/api", state)
@@ -72,7 +72,7 @@ class TestAuthRoutes:
 
     def test_create_user_success(self):
         client = self._client()
-        with patch("src.db.users.hash_user_password", return_value="hashed"):
+        with patch("src.services.users.hash_user_password", return_value="hashed"):
             resp = client.post("/api/users", json={"username": "alice", "password": "a-long-enough-pw"})
         assert resp.status_code == 201
 
@@ -80,7 +80,8 @@ class TestAuthRoutes:
         from src.routes_fastapi.auth_routes import router
 
         state = _base_state()
-        state.db.delete_user.return_value = False
+        state.db.users.retire.return_value = False
+        state.db.users.count_live_admins.return_value = 2
         client = _make_client(router, "/api", state)
         resp = client.delete("/api/users/missing-id")
         assert resp.status_code == 404

@@ -57,7 +57,7 @@ def _member_db(role: str | None = "editor") -> MagicMock:
     db.get_default_workspace_id.return_value = _WS
     db.get_user_workspaces.return_value = []
     db.resolve_workspace_api_key.return_value = None
-    db.is_token_revoked.return_value = False
+    db.tokens.is_revoked.return_value = False
     return db
 
 

@@ -125,13 +125,13 @@ class TestSeedGeneratesAPasswordWhenNoneIsSet:
 
     def test_seeds_with_a_generated_password_when_none_is_configured(self):
         db = self._run_seed(admin_password="", app_env="development")
-        db.seed_admin_user.assert_called_once()
+        db.users.seed_admin.assert_called_once()
 
     def test_does_not_seed_a_generated_password_in_production(self):
         """The generated value is logged; that is a developer-machine trade only."""
         db = self._run_seed(admin_password="", app_env="production")
-        db.seed_admin_user.assert_not_called()
+        db.users.seed_admin.assert_not_called()
 
     def test_uses_the_configured_password_when_present(self):
         db = self._run_seed(admin_password="chosen-by-the-operator", app_env="production")
-        db.seed_admin_user.assert_called_once()
+        db.users.seed_admin.assert_called_once()

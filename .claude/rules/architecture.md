@@ -11,9 +11,10 @@ No SQL, no LLM calls, no business logic inside route functions. If you find your
 
 ## Database access
 
-- All SQL lives in `src/db/` mixin classes. One mixin per domain (`DocumentsMixin`, `ConversationsMixin`, `WorkspacesMixin`, etc.).
+- All SQL lives in `src/db/`. An aggregate QP-4 has moved is a repository class (`UsersRepository`, `RevokedTokensRepository`) held as an attribute of `Database` (`db.users`, `db.tokens`); the rest are still mixins (`DocumentsMixin`, `WorkspacesMixin`, …) until their PR.
 - Never write raw SQL in routes, services, or tools.
-- The `Database` class in `src/db/connection.py` composes all mixins — add a new mixin there when you add a new `src/db/*.py` file.
+- The `Database` class in `src/db/__init__.py` composes the remaining mixins and holds the repositories. A new aggregate is a repository, not a mixin (ADR-7).
+- A route reaches a moved aggregate through its service, requested with `Depends(...)` from `src/routes_fastapi/_services.py`; it never reads `app.state.db` for it.
 - A schema change is an Alembic migration in `migrations/versions/` — a new column, index, table, backfill or policy. `_ensure_extensions_and_tables()` in `src/db/connection.py` only creates the base schema a fresh database starts from. See [docs/MIGRATIONS.md](../../docs/MIGRATIONS.md). (This line said the opposite until 2026-10-06, eighteen migrations after it stopped being true.)
 - Migrations are additive: `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Never destructive.
 

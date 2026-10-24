@@ -514,9 +514,17 @@ from every route through `app.state.db`, which is what a layer boundary has to r
 and a repository that decides who may see a row (ADR-5's policies still back that up in
 the database).
 
-**What it does not decide:** how a service is constructed or injected. Today they are
-module functions taking the database as an argument (`src/services/account.py`); a
-container is not needed for a single-node appliance (ADR-1).
+**What it does not decide:** a dependency-injection container; none is needed for a
+single-node appliance (ADR-1).
+
+**Amended 2026-10-24 (QP-4, users and auth), how the move is wired until QP-5.** A
+repository is a class over the connection, held as an attribute of `Database`
+(`db.users`, `db.tokens`) in place of the mixin it replaces. A service is a class over
+the database (`UsersService(db)`), and routes get it from a provider in
+`src/routes_fastapi/_services.py` through `Depends`, so a handler never holds the
+database. Chosen over building repositories on `app.state` separately because it moves
+one aggregate per PR without rewiring `app.state` and every test's stand-in for it at
+once; QP-5, which deletes `Database`, is where that wiring changes.
 
 **Revisit when:** a second front end (a CLI, a worker that is not the web app) needs the
 same use cases. The service layer is then its entry point too, and the question becomes

@@ -16,7 +16,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.db.users import hash_user_password
+from src.services.passwords import hash_user_password, verify_user_password
 from tests.utils.auth import auth_headers
 
 pytestmark = [pytest.mark.integration, pytest.mark.db]
@@ -44,10 +44,10 @@ def database() -> Any:
 @pytest.fixture()
 def account(database: Any) -> Iterator[tuple[str, str]]:
     username = f"pwchange-{uuid.uuid4().hex[:8]}"
-    user_id = database.create_user(username, hash_user_password(CURRENT), role="user")
+    user_id = database.users.create(username, hash_user_password(CURRENT), role="user")
     yield user_id, username
-    database.delete_user(user_id)
-    database.purge_user(user_id)
+    database.users.retire(user_id)
+    database.users.purge(user_id)
 
 
 def _client(database: Any) -> TestClient:
@@ -68,7 +68,7 @@ def _change(database: Any, user_id: str, current: str):
 
 
 def _works(database: Any, username: str, password: str) -> bool:
-    return database.verify_user_password(username, password) is not None
+    return verify_user_password(database.users, username, password) is not None
 
 
 def test_after_a_change_only_the_new_password_signs_in(database, account):

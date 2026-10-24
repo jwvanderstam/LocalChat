@@ -21,7 +21,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | **Routes** | |
 | `src/routes_fastapi/api_routes.py` | Chat (SSE), status — HTTP plumbing only; delegates business logic to `src/services/chat.py` |
 | `src/services/chat.py` | Chat business logic: context retrieval, RAG, planning, memory, model routing, message persistence |
-| `src/services/account.py` | Self-service account changes: `change_own_password()` — verifies the current password, stores the new one, and refuses the env-var bootstrap admin, which has no row. Raises `PasswordChangeError` carrying the status to send |
+| `src/services/users.py` | `UsersService` — QP-4's first aggregate: sign-in, sign-out, `/users/me`'s identity, the admin's user and membership management, and changing your own password. Holds the rules a guard cannot express: the last administrator, the last owner of a workspace, and proving the current password |
+| `src/services/passwords.py` | Password hashing and checking (Werkzeug PBKDF2-SHA256); every check costs one hash, so timing does not reveal which usernames exist (S3). Its own module so `security_fastapi` can use it without an import cycle |
+| `src/services/errors.py` | `ServiceError` — a refusal carrying the status and a message safe to send; routes map it in one line |
 | `src/services/logs.py` | Reads the tail of the log file back for the admin log viewer; parses both JSON and text lines |
 | `src/routes_fastapi/document_routes.py` | Document upload, delete, list; SSE progress stream |
 | `src/routes_fastapi/model_routes.py` | Ollama model list, pull, delete, active-model management |
@@ -38,6 +40,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
 | `src/routes_fastapi/_request_state.py` | Per-request state helpers (request ID, workspace ID) |
+| `src/routes_fastapi/_services.py` | FastAPI providers for the services (`users_service`) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
 | `src/routes_fastapi/_authz.py` | `deny()` — wraps `check_workspace_access` in the route layer's JSON envelope; shared by every workspace-scoped router |
 | **RAG** | |
 | `src/rag/processor.py` | Ingest orchestration: load → chunk → embed → store |
@@ -63,9 +66,9 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/db/workspaces.py` | `WorkspacesMixin` — workspace CRUD with doc/conversation counts |
 | `src/db/contributions.py` | `ContributionsMixin` — GKB-2's TPs on an unscoped connection: copy a workspace's documents and chunks into the global tier (upsert per filename + source project), archive them, list them with provenance |
 | `src/db/connectors.py` | `ConnectorsMixin` — connector CRUD, sync log, `delete_document_by_filename` |
-| `src/db/users.py` | `UsersMixin` — user CRUD, PBKDF2 password hashing |
+| `src/db/users.py` | `UsersRepository` — the `users` table's SQL: create, read, update, retire, purge. No rules; held as `Database.users` until QP-5 |
 | `src/db/oauth_tokens.py` | `OAuthTokensMixin` — Fernet-encrypted OAuth token storage |
-| `src/db/tokens.py` | `TokensMixin` — JWT revocation deny-list (`revoked_tokens` table) |
+| `src/db/tokens.py` | `RevokedTokensRepository` — the JWT revocation deny-list (`revoked_tokens` table); held as `Database.tokens` |
 | `src/db/annotations.py` | `AnnotationsMixin` — annotation CRUD |
 | **Migrations** | |
 | `alembic.ini` | Alembic configuration — script_location, logging |

@@ -47,8 +47,8 @@ _MISSING = object()
 def _healthy_db(*, revoked: bool = False, role: str = "admin") -> MagicMock:
     db = MagicMock()
     db.is_connected = True
-    db.is_token_revoked.return_value = revoked
-    db.get_user_role.return_value = role
+    db.tokens.is_revoked.return_value = revoked
+    db.users.get_role.return_value = role
     return db
 
 
@@ -95,7 +95,7 @@ class TestWhatRequireAuthExtracts:
         db = _healthy_db(revoked=False)
 
         require_auth(_request(token, db=db), credentials=None)
-        assert db.is_token_revoked.called, "revocation was never consulted"
+        assert db.tokens.is_revoked.called, "revocation was never consulted"
 
     def test_the_jti_from_the_token_is_the_one_checked(self):
         """Pins the value, not just the call: a mutant that passes a constant, or
@@ -107,7 +107,7 @@ class TestWhatRequireAuthExtracts:
         db = _healthy_db(revoked=False)
 
         require_auth(_request(token, db=db), credentials=None)
-        assert db.is_token_revoked.call_args[0][0] == expected_jti
+        assert db.tokens.is_revoked.call_args[0][0] == expected_jti
 
 
 class TestCredentialsObjectIsPreferred:
@@ -303,18 +303,18 @@ class TestCurrentGlobalRoleGuards:
 
         db = MagicMock()
         db.is_connected = False
-        db.get_user_role.return_value = "admin"
+        db.users.get_role.return_value = "admin"
 
         assert _current_global_role(self._request_with(db), self._claims()) is None
-        assert not db.get_user_role.called, "a disconnected database was queried"
+        assert not db.users.get_role.called, "a disconnected database was queried"
 
     def test_an_object_without_is_connected_yields_no_role(self):
-        """The getattr default: flipped to True, anything with a get_user_role
+        """The getattr default: flipped to True, anything with a users repository
         becomes an authority on who is an administrator."""
         from src.security_fastapi import _current_global_role
 
-        db = MagicMock(spec=["get_user_role"])
-        db.get_user_role.return_value = "admin"
+        db = MagicMock(spec=["users"])
+        db.users.get_role.return_value = "admin"
 
         assert _current_global_role(self._request_with(db), self._claims()) is None
 
@@ -325,7 +325,7 @@ class TestCurrentGlobalRoleGuards:
 
         db = MagicMock()
         db.is_connected = True
-        db.get_user_role.return_value = "admin"
+        db.users.get_role.return_value = "admin"
 
         assert _current_global_role(self._request_with(db), self._claims()) == "admin"
 

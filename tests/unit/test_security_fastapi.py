@@ -127,8 +127,8 @@ class TestVerifyCredentialsDb:
 
         db = MagicMock()
         db.is_connected = True
-        db.verify_user_password.return_value = {"id": "u1", "role": "user"}
-        result = verify_credentials_db("alice", "secret", db)
+        with patch("src.security_fastapi.verify_user_password", return_value={"id": "u1", "role": "user"}):
+            result = verify_credentials_db("alice", "secret", db)
         assert result == ("u1", "user")
 
     def test_the_row_s_own_role_is_returned_not_the_fallback(self):
@@ -138,18 +138,16 @@ class TestVerifyCredentialsDb:
 
         db = MagicMock()
         db.is_connected = True
-        db.verify_user_password.return_value = {"id": "u1", "role": "admin"}
-
-        assert verify_credentials_db("alice", "secret", db) == ("u1", "admin")
+        with patch("src.security_fastapi.verify_user_password", return_value={"id": "u1", "role": "admin"}):
+            assert verify_credentials_db("alice", "secret", db) == ("u1", "admin")
 
     def test_a_row_with_no_role_falls_back_to_the_least_privileged_one(self):
         from src.security_fastapi import verify_credentials_db
 
         db = MagicMock()
         db.is_connected = True
-        db.verify_user_password.return_value = {"id": "u1"}
-
-        assert verify_credentials_db("alice", "secret", db) == ("u1", "user")
+        with patch("src.security_fastapi.verify_user_password", return_value={"id": "u1"}):
+            assert verify_credentials_db("alice", "secret", db) == ("u1", "user")
 
     def test_a_database_object_without_is_connected_is_not_consulted(self):
         """TQ-3. The `False` default in `getattr(db, "is_connected", False)`: with
@@ -157,10 +155,15 @@ class TestVerifyCredentialsDb:
         authenticate anyway. A MagicMock always has the attribute, so only a real
         object without one reaches the default."""
         from src.security_fastapi import verify_credentials_db
+        from src.services.passwords import hash_user_password
+
+        class _Users:
+            def get_by_username(self, username: str) -> dict[str, object]:
+                return {"id": "u1", "role": "admin", "is_active": True,
+                        "hashed_password": hash_user_password("secret")}
 
         class DatabaseWithoutTheAttribute:
-            def verify_user_password(self, username: str, password: str) -> dict[str, str]:
-                return {"id": "u1", "role": "admin"}
+            users = _Users()
 
         # Falls through to the env-var admin, which refuses a non-admin username.
         assert verify_credentials_db("alice", "secret", DatabaseWithoutTheAttribute()) is None
@@ -186,7 +189,7 @@ class TestGetCurrentUserId:
     def _make_request(self, auth_header=None, revoked=False):
         req = MagicMock()
         req.app.state.db.is_connected = True
-        req.app.state.db.is_token_revoked.return_value = revoked
+        req.app.state.db.tokens.is_revoked.return_value = revoked
         headers = {}
         if auth_header:
             headers["Authorization"] = auth_header
@@ -272,8 +275,8 @@ class TestRequireAdminDep:
         req.cookies = {}
         db = MagicMock()
         db.is_connected = connected
-        db.is_token_revoked.return_value = False
-        db.get_user_role.return_value = role_in_db if user_exists else None
+        db.tokens.is_revoked.return_value = False
+        db.users.get_role.return_value = role_in_db if user_exists else None
         req.app.state.db = db
         return req
 
@@ -289,7 +292,7 @@ class TestRequireAdminDep:
         assert exc_info.value.status_code == 403
 
     def test_a_retired_account_loses_admin_immediately(self):
-        """get_user_by_id filters deleted_at, so a retired admin resolves to nobody."""
+        """users.get_by_id filters deleted_at, so a retired admin resolves to nobody."""
         from fastapi import HTTPException
 
         from src.security_fastapi import require_admin_dep
@@ -315,8 +318,8 @@ class TestRequireAdminDep:
         req.cookies = {}
         db = MagicMock()
         db.is_connected = True
-        db.is_token_revoked.return_value = False
-        db.get_user_role.return_value = "admin"
+        db.tokens.is_revoked.return_value = False
+        db.users.get_role.return_value = "admin"
         req.app.state.db = db
 
         assert require_admin_dep(req, credentials=None)
@@ -341,7 +344,7 @@ class TestRequireAdminDep:
         from src.security_fastapi import require_admin_dep
 
         req = self._request_with("admin")
-        req.app.state.db.get_user_role.side_effect = RuntimeError("connection reset")
+        req.app.state.db.users.get_role.side_effect = RuntimeError("connection reset")
 
         with pytest.raises(HTTPException) as exc_info:
             require_admin_dep(req, credentials=None)
@@ -371,8 +374,8 @@ class TestRequireAdminDep:
 
         db = MagicMock()
         db.is_connected = True
-        db.is_token_revoked.return_value = False
-        db.count_live_admins.return_value = 0
+        db.tokens.is_revoked.return_value = False
+        db.users.count_live_admins.return_value = 0
 
         assert require_admin_dep(self._env_admin_request(db), credentials=None) == "admin"
 
@@ -388,8 +391,8 @@ class TestRequireAdminDep:
 
         db = MagicMock()
         db.is_connected = True
-        db.is_token_revoked.return_value = False
-        db.count_live_admins.return_value = 1
+        db.tokens.is_revoked.return_value = False
+        db.users.count_live_admins.return_value = 1
 
         with pytest.raises(HTTPException) as exc_info:
             require_admin_dep(self._env_admin_request(db), credentials=None)
