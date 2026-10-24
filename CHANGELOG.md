@@ -29,6 +29,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   another project's contribution is tagged "shared globally". A workspace API key asking
   for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
 
+### Security
+
+- **filelock 4.2.1 and pypdf 6.21.2**: three CVEs in each (filelock CVE-2026-112907,
+  -112913, -112940; pypdf CVE-2026-115572, -115580, -115585). One change, because each
+  Dependabot PR failed pip-audit on the other's CVEs. filelock is a transitive dependency of
+  huggingface-hub and torch, neither of which caps it below 4.
+
 ## [3.3.0] — 2026-10-23
 
 The release that closes Phase 1 of the October 2026 audit plan. Requests no longer run as
