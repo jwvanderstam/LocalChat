@@ -155,7 +155,6 @@ class TestVerifyCredentialsDb:
         authenticate anyway. A MagicMock always has the attribute, so only a real
         object without one reaches the default."""
         from src.security_fastapi import verify_credentials_db
-
         from src.services.passwords import hash_user_password
 
         class _Users:
