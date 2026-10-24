@@ -41,11 +41,9 @@ _DB_ACCESS = re.compile(r'app\.state\.db\b|app_state\.db\b|getattr\(app_state, "
 IGNORED_ROUTE_TO_DB_IMPORTS = 0
 
 #: Groups of modules that import each other, found with grimp's graph. Architecture exit
-#: criterion 5 is none at all.
-KNOWN_CYCLES = {
-    frozenset({"src.utils.logging_config", "src.utils.request_id"}),
-    frozenset({"src.config", "src.utils.encryption"}),
-}
+#: criterion 5 is none at all, and since QP-4 there are none: config validates its
+#: encryption key itself, and the request-ID context variable lives in logging_config.
+KNOWN_CYCLES: set[frozenset[str]] = set()
 
 
 def test_route_modules_reach_the_database_no_more_often_than_recorded():

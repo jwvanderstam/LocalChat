@@ -19,6 +19,7 @@ import logging.handlers
 import re
 import sys
 from collections.abc import Callable, Sequence
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -103,6 +104,12 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
+#: The request ID of the current async context. RequestIdMiddleware sets it; the filter
+#: below reads it. Defined here rather than beside the middleware, which already imports
+#: this module: the other way round, the two imported each other (QP-3).
+request_id_var: ContextVar[str] = ContextVar("request_id", default="")
+
+
 class RequestIdFilter(logging.Filter):
     """Copies the current request ID onto every log record.
 
@@ -111,7 +118,6 @@ class RequestIdFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        from .request_id import request_id_var
         record.request_id = request_id_var.get()
         record.user_agent = ""
         return True

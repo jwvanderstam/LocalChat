@@ -1702,12 +1702,15 @@ recorded as **ADR-7** in QP-3, is:
 - ADR-7 written in `docs/ADR.md`, with its row in `.claude/rules/file-map.md` updated.
 - **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
 
-#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27; all 7 aggregates done 2026-10-24, the two cycles open)
+#### QP-4 — Migrate one aggregate per PR ✅ (Sprints 25-27; finished 2026-10-24)
 
 **Cycles to break** (found by QP-3; `KNOWN_CYCLES` in `tests/unit/test_layering_ratchets.py`):
-- [ ] `src.config` ↔ `src.utils.encryption`: `validate_secrets()` imports `_get_fernet`,
-      and encryption reads its key from config.
-- [ ] `src.utils.logging_config` ↔ `src.utils.request_id`.
+- [x] `src.config` ↔ `src.utils.encryption`: `validate_secrets()` imported `_get_fernet`,
+      and encryption reads its key from config. Config now checks the key itself
+      (`_is_fernet_key`), so only encryption → config remains.
+- [x] `src.utils.logging_config` ↔ `src.utils.request_id`: `request_id_var` moved into
+      `logging_config`, which the middleware already imported. `KNOWN_CYCLES` is empty;
+      grimp finds none (2026-10-24).
 
 The order is by security weight, so authorisation moves first:
 
