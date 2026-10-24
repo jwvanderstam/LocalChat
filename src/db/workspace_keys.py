@@ -19,6 +19,7 @@ from typing import Any
 from uuid import UUID
 
 from ..utils.logging_config import get_logger, sanitize_log_value
+from ..utils.scope import ALL_WORKSPACES
 from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
@@ -86,7 +87,7 @@ class WorkspaceKeysRepository:
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot create API key: DB not connected")
         full_key, prefix, key_hash = generate_api_key()
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -114,7 +115,7 @@ class WorkspaceKeysRepository:
         if not presented or not presented.startswith(KEY_PREFIX) or not self._db.is_connected:
             return None
         prefix = presented[:_PREFIX_LEN]
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -135,7 +136,7 @@ class WorkspaceKeysRepository:
     def _touch(self, key_id: str) -> None:
         """Record last use. Best-effort: a failure here must not deny a valid request."""
         try:
-            with self._db.get_connection() as conn:
+            with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "UPDATE workspace_api_keys SET last_used_at = NOW() WHERE id = %s",
@@ -148,7 +149,7 @@ class WorkspaceKeysRepository:
         """List live keys for a workspace. Never returns the key or its hash."""
         if not self._db.is_connected:
             return []
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -175,7 +176,7 @@ class WorkspaceKeysRepository:
         """
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot revoke API key: DB not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """

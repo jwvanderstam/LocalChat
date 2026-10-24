@@ -20,9 +20,11 @@ class AnnotationsService:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    def add(self, chunk_id: int, text: str, user_id: str | None, conversation_id: str | None) -> str:
+    def add(
+        self, chunk_id: int, text: str, user_id: str | None, conversation_id: str | None, scope: Scope
+    ) -> str:
         return self._db.annotations.add(
-            chunk_id=chunk_id, text=text, user_id=user_id, conversation_id=conversation_id,
+            chunk_id=chunk_id, text=text, user_id=user_id, conversation_id=conversation_id, scope=scope,
         )
 
     def for_chunk(self, chunk_id: int, scope: Scope) -> list[dict[str, Any]] | None:

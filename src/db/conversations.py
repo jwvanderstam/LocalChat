@@ -23,7 +23,7 @@ class ConversationsRepository:
             raise DatabaseUnavailableError("Cannot create conversation: Database is not connected")
 
         conversation_id = str(uuid.uuid4())
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id or ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO conversations (id, title, workspace_id) VALUES (%s, %s, %s)",
@@ -56,7 +56,7 @@ class ConversationsRepository:
         from psycopg.types.json import Jsonb
 
         conversation_id = str(uuid.uuid4())
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id or ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO conversations (id, title, workspace_id) VALUES (%s, %s, %s)",
@@ -200,7 +200,7 @@ class ConversationsRepository:
 
         from psycopg.types.json import Jsonb
 
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -334,7 +334,7 @@ class ConversationsRepository:
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge conversation: Database is not connected")
 
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT 1 FROM memories WHERE source_conv = %s LIMIT 1",

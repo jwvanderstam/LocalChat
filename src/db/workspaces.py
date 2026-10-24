@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES
 from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
@@ -48,7 +49,7 @@ class WorkspacesRepository:
         """
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot create workspace: DB not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -98,7 +99,7 @@ class WorkspacesRepository:
         """Return all workspaces with document/conversation counts."""
         if not self._db.is_connected:
             return []
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -186,7 +187,7 @@ class WorkspacesRepository:
         """
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge workspace: DB not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT 1 FROM documents WHERE workspace_id = %s AND deleted_at IS NULL LIMIT 1",
@@ -214,7 +215,7 @@ class WorkspaceMembersRepository:
         """Add or update a member's role in a workspace."""
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot add workspace member: DB not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -232,7 +233,7 @@ class WorkspaceMembersRepository:
         """
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot remove workspace member: DB not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT role FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
@@ -256,7 +257,7 @@ class WorkspaceMembersRepository:
         """Return the role string for this user in this workspace, or None if not a member."""
         if not self._db.is_connected:
             return None
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT role FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
@@ -269,7 +270,7 @@ class WorkspaceMembersRepository:
         """Return members of a workspace with their roles."""
         if not self._db.is_connected:
             return []
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -297,7 +298,7 @@ class WorkspaceMembersRepository:
         """Return all workspaces the user is a member of, with their role."""
         if not self._db.is_connected:
             return []
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """

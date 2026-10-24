@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES
 from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
@@ -34,7 +35,7 @@ class FeedbackRepository:
             raise ValueError(f"rating must be 1 or -1, got {rating!r}")
 
         feedback_id = str(uuid.uuid4())
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -118,7 +119,7 @@ class FeedbackRepository:
         if not self._db.is_connected:
             return {"total": 0, "positive": 0, "negative": 0, "thumbs_up_rate": None, "by_type": {}}
 
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -170,7 +171,7 @@ class FeedbackRepository:
         if not self._db.is_connected:
             return []
 
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -205,7 +206,7 @@ class FeedbackRepository:
         if not self._db.is_connected:
             return []
 
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -230,7 +231,7 @@ class FeedbackRepository:
         if not self._db.is_connected:
             return []
 
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """

@@ -50,7 +50,7 @@ class MemoriesRepository:
 
         memory_id = str(uuid.uuid4())
         emb_str = self._db._embedding_to_pg_array(np.array(embedding))
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id or ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -69,7 +69,7 @@ class MemoriesRepository:
         """Bump use_count and last_used for the given memory IDs."""
         if not memory_ids or not self._db.is_connected:
             return
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -127,7 +127,7 @@ class MemoriesRepository:
         """Record that memories have been extracted for this conversation."""
         if not self._db.is_connected:
             return
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET memory_extracted_at = CURRENT_TIMESTAMP WHERE id = %s",

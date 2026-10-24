@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ..utils.logging_config import get_logger
-from ..utils.scope import Scope, scope_predicate
+from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
 from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
@@ -47,7 +47,7 @@ class ConnectorsRepository:
             raise DatabaseUnavailableError("Cannot create connector: DB not connected")
         from psycopg.types.json import Jsonb
         connector_id = str(uuid.uuid4())
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id or ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -162,7 +162,7 @@ class ConnectorsRepository:
         """
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge connector: DB not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT 1 FROM documents WHERE source_id = %s AND deleted_at IS NULL LIMIT 1",
@@ -183,7 +183,7 @@ class ConnectorsRepository:
         """Return the sync_interval for a connector (seconds)."""
         if not self._db.is_connected:
             return None
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT sync_interval FROM connectors WHERE id = %s",
@@ -200,7 +200,7 @@ class ConnectorsRepository:
         """Update last_sync_at and last_error after a sync cycle."""
         if not self._db.is_connected:
             return
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE connectors SET last_sync_at = %s, last_error = %s WHERE id = %s",
@@ -291,7 +291,7 @@ class ConnectorsRepository:
         """Soft-delete a document by filename (used by SyncWorker). Returns True if found."""
         if not self._db.is_connected:
             return False
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = NULL "

@@ -18,6 +18,8 @@ from typing import Any
 
 import pytest
 
+from src.utils.scope import ALL_WORKSPACES
+
 pytestmark = [pytest.mark.integration, pytest.mark.db]
 
 DIM = 768
@@ -60,9 +62,10 @@ def workspaces(database: Any) -> Iterator[dict[str, str]]:
 
 
 def _document(database: Any, workspace: str, filename: str, chunks: int = 2) -> int:
-    doc_id = database.documents.insert(filename, f"{filename} content", workspace_id=workspace)
+    doc_id = database.documents.insert(filename, f"{filename} content", workspace_id=workspace, scope=workspace)
     database.documents.insert_chunks(
-        [(doc_id, f"{filename} chunk {i}", i, _vector(doc_id + i)) for i in range(chunks)]
+        [(doc_id, f"{filename} chunk {i}", i, _vector(doc_id + i)) for i in range(chunks)],
+        scope=ALL_WORKSPACES,
     )
     return doc_id
 
@@ -133,7 +136,7 @@ def test_recontributing_updates_in_place_and_retires_the_old_chunks(
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md", chunks=2)
     [first] = database.contributions.contribute(workspaces["a"], [source], admin)
-    database.documents.insert_chunks([(source, "retro.md chunk 2", 2, _vector(99))])
+    database.documents.insert_chunks([(source, "retro.md chunk 2", 2, _vector(99))], scope=ALL_WORKSPACES)
     [second] = database.contributions.contribute(workspaces["a"], [source], admin)
 
     assert second["global_document_id"] == first["global_document_id"]

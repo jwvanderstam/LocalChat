@@ -22,6 +22,7 @@ from ..monitoring import counted, timed
 # ruff cannot see that access, hence the noqa.
 from ..ollama_client import ollama_client  # noqa: F401
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES
 from .chunking import TextChunkerMixin
 from .doc_type import ChunkerRegistry, DocTypeClassifier
 from .injection_flags import scan as scan_for_injection
@@ -421,9 +422,12 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 logger.warning(
                     f"[GR-1c] {filename} carries instruction-shaped text: {', '.join(injection_flags)}"
                 )
-            with self._db.get_connection() as conn:
+            # The workspace the document belongs to, so row-level security checks every
+            # write in this transaction against it (QP-5). No workspace means none to check.
+            scope = workspace_id or ALL_WORKSPACES
+            with self._db.get_connection(scope=scope) as conn:
                 if replace_doc_id is not None:
-                    self._db.documents.retire_chunks(replace_doc_id, conn=conn)
+                    self._db.documents.retire_chunks(replace_doc_id, conn=conn, scope=scope)
                     self._db.documents.update(
                         replace_doc_id,
                         content=content_preview,
@@ -433,6 +437,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                         chunker_version=chunker_version,
                         language=language,
                         conn=conn,
+                        scope=scope,
                     )
                     doc_id = replace_doc_id
                 else:
@@ -447,10 +452,11 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                         language=language,
                         source_id=source_id,
                         conn=conn,
+                        scope=scope,
                     )
                 for chunk in chunks_data:
                     chunk['doc_id'] = doc_id
-                chunk_ids = self._db.documents.insert_chunks(chunks_data, conn=conn)
+                chunk_ids = self._db.documents.insert_chunks(chunks_data, conn=conn, scope=scope)
             logger.debug(f"Document ID: {doc_id}")
             logger.info("Chunks inserted successfully")
 
