@@ -84,9 +84,9 @@ def database():
 
 @pytest.fixture(scope="module")
 def workspace(database) -> Iterator[str]:
-    ws_id = database.create_workspace(f"tq2-{uuid.uuid4().hex[:8]}", owner_id=None)
+    ws_id = database.workspaces.create(f"tq2-{uuid.uuid4().hex[:8]}", owner_id=None)
     yield ws_id
-    database.delete_workspace(ws_id)
+    database.workspaces.retire(ws_id)
 
 
 @pytest.fixture(scope="module")
@@ -183,12 +183,12 @@ class TestWorkspaceIsolationHoldsOnTheRealPath:
     def test_another_workspace_sees_none_of_it(self, ingested, database):
         """The cross-workspace leak was found in production, not by a test. This is
         the path it would have travelled."""
-        other = database.create_workspace(f"tq2-other-{uuid.uuid4().hex[:8]}", owner_id=None)
+        other = database.workspaces.create(f"tq2-other-{uuid.uuid4().hex[:8]}", owner_id=None)
         try:
             results = ingested.retrieve_context(QUERIES[0][0], scope=other)
             assert results == []
         finally:
-            database.delete_workspace(other)
+            database.workspaces.retire(other)
 
 
 @pytest.mark.db

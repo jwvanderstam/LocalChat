@@ -467,7 +467,7 @@ def _check_api_key_access(
     if db is None or not db.is_connected:
         return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
 
-    resolved = db.resolve_workspace_api_key(api_key)
+    resolved = db.api_keys.resolve(api_key)
     if resolved is None:
         return (status.HTTP_401_UNAUTHORIZED, "Invalid or revoked API key")
     key_workspace, key_role = resolved
@@ -497,7 +497,7 @@ def _first_workspace_for(db: Any, user_id: str | None) -> str | None:
     if not user_id:
         return None
     try:
-        owned = db.get_user_workspaces(user_id)
+        owned = db.members.for_user(user_id)
     except Exception:  # noqa: BLE001 — a convenience lookup; None means the caller resolves the workspace some other way
         return None
     return str(owned[0]["id"]) if owned else None
@@ -556,10 +556,10 @@ def check_workspace_access(
         # Falling straight to the default was wrong for anyone not a member of it:
         # a user granted access to a second workspace saw 403 everywhere until they
         # switched manually, which on a fresh login they had no way to discover.
-        ws_id = _first_workspace_for(db, principal.user_id) or db.get_default_workspace_id()
+        ws_id = _first_workspace_for(db, principal.user_id) or db.workspaces.default_id()
     if not ws_id:
         return (status.HTTP_400_BAD_REQUEST, "No workspace context")
-    role = db.get_workspace_member_role(ws_id, principal.user_id)
+    role = db.members.role(ws_id, principal.user_id)
     # A non-member gets None here. Denying is the whole point: treating None as
     # "no role to object to" is what let non-members through (BUG-3).
     if role is None:
@@ -621,7 +621,7 @@ def check_additional_workspace_access(
     if db is None or not db.is_connected:
         return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
     for ws_id in dict.fromkeys(workspace_ids):
-        role = db.get_workspace_member_role(ws_id, principal.user_id)
+        role = db.members.role(ws_id, principal.user_id)
         if role is None or _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):
             return (status.HTTP_403_FORBIDDEN, "Access denied: not a member of every requested workspace")
     return None

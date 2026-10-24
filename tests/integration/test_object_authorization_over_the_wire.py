@@ -369,7 +369,7 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
         workspace_id=workspace_b,
     )
 
-    _, key = db.create_workspace_api_key(workspace_id=workspace_b, name="Workspace B key")
+    _, key = db.api_keys.create(workspace_id=workspace_b, name="Workspace B key")
     objects["key_id"] = key.get("id")
 
     return objects

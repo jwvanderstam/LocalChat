@@ -11,22 +11,26 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import config
-from ..db.workspaces import LastOwnerError
 from ..security_fastapi import (
     check_workspace_access,
     get_current_user_id,
     require_admin_dep,
     require_auth,
 )
+from ..services.errors import ServiceError
+from ..services.workspaces import WorkspacesService
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
+from ._services import workspaces_service
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 _NOT_FOUND = "Workspace not found"
 _ERR_INTERNAL = "Internal server error"
+
+Workspaces = Annotated[WorkspacesService, Depends(workspaces_service)]
 
 # In-process presence store: workspace_id → {user_id → expires_at (epoch float)}
 _presence: dict[str, dict[str, float]] = {}
@@ -45,29 +49,11 @@ def _presence_event(workspace_id: str, user_id: str | None) -> str:
 
 
 @router.get("/workspaces")
-def list_workspaces(request: Request) -> Any:
-    """List the workspaces this caller may actually use.
-
-    Everyone used to see every workspace. Selecting one you were not a member of
-    produced a correct Access Denied, but the list had already told you the names of
-    workspaces you have no business knowing about — and offered them as choices,
-    which reads as a broken switcher rather than a boundary.
-
-    A global admin still sees all of them; they can reach any workspace anyway.
-    """
+def list_workspaces(request: Request, workspaces_svc: Workspaces) -> Any:
+    """List the workspaces this caller may actually use; a global admin sees all of them."""
     user_id = require_auth(request)
-    db = request.app.state.db
     try:
-        # "anonymous" means the RBAC bypass is on and there is no caller to scope by;
-        # narrowing to their memberships would empty the switcher entirely.
-        anonymous = not user_id or user_id == "anonymous"
-        # Role from the database rather than the token, matching /api/users/me: a
-        # demotion takes effect immediately instead of at the next login.
-        caller = None if anonymous else db.users.get_by_id(user_id)
-        if anonymous or (caller and caller.get("role") == "admin"):
-            workspaces = db.list_workspaces()
-        else:
-            workspaces = db.get_user_workspaces(user_id)
+        workspaces = workspaces_svc.visible_to(user_id)
         active_id = get_workspace_id(request)
         for ws in workspaces:
             ws["active"] = ws["id"] == active_id
@@ -78,23 +64,20 @@ def list_workspaces(request: Request) -> Any:
 
 
 @router.post("/workspaces", status_code=201)
-async def create_workspace(request: Request) -> Any:
+async def create_workspace(request: Request, workspaces_svc: Workspaces) -> Any:
     require_auth(request)
     data = await request.json() if await request.body() else {}
     name = (data.get("name") or "").strip()
     if not name:
         return JSONResponse({"success": False, "message": "name is required"}, status_code=400)
     try:
-        db = request.app.state.db
-        caller = get_current_user_id(request)
-        workspace_id = db.create_workspace(
+        workspace = workspaces_svc.create(
             name=name,
             description=data.get("description", ""),
             system_prompt=data.get("system_prompt", ""),
             model_class=data.get("model_class"),
-            owner_id=caller if caller and caller != "anonymous" else None,
+            creator=get_current_user_id(request),
         )
-        workspace = db.get_workspace(workspace_id)
         return JSONResponse({"success": True, "workspace": workspace}, status_code=201)
     except Exception:
         logger.exception("[Workspaces] create error")
@@ -102,13 +85,13 @@ async def create_workspace(request: Request) -> Any:
 
 
 @router.get("/workspaces/active")
-def get_active_workspace(request: Request) -> Any:
+def get_active_workspace(request: Request, workspaces_svc: Workspaces) -> Any:
     require_auth(request)
     active_id = get_workspace_id(request)
     if not active_id:
         return {"success": True, "workspace": None}
     try:
-        workspace = request.app.state.db.get_workspace(active_id)
+        workspace = workspaces_svc.get(active_id)
         return {"success": True, "workspace": workspace}
     except Exception:
         logger.exception("[Workspaces] get active error")
@@ -116,14 +99,14 @@ def get_active_workspace(request: Request) -> Any:
 
 
 @router.post("/workspaces/switch")
-async def switch_workspace(request: Request) -> Any:
+async def switch_workspace(request: Request, workspaces_svc: Workspaces) -> Any:
     require_auth(request)
     data = await request.json() if await request.body() else {}
     workspace_id = (data.get("workspace_id") or "").strip()
     if not workspace_id:
         return JSONResponse({"success": False, "message": "workspace_id is required"}, status_code=400)
     try:
-        workspace = request.app.state.db.get_workspace(workspace_id)
+        workspace = workspaces_svc.get(workspace_id)
         if workspace is None:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         from ..utils.logging_config import sanitize_log_value as _slv
@@ -135,12 +118,12 @@ async def switch_workspace(request: Request) -> Any:
 
 
 @router.get("/workspaces/{workspace_id}")
-def get_workspace(workspace_id: str, request: Request) -> Any:
+def get_workspace(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "viewer")
     if denied:
         return denied
     try:
-        workspace = request.app.state.db.get_workspace(workspace_id)
+        workspace = workspaces_svc.get(workspace_id)
         if workspace is None:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         workspace["active"] = workspace_id == get_workspace_id(request)
@@ -151,7 +134,7 @@ def get_workspace(workspace_id: str, request: Request) -> Any:
 
 
 @router.put("/workspaces/{workspace_id}")
-async def update_workspace(workspace_id: str, request: Request) -> Any:
+async def update_workspace(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -161,11 +144,10 @@ async def update_workspace(workspace_id: str, request: Request) -> Any:
     if not fields:
         return JSONResponse({"success": False, "message": "No valid fields provided"}, status_code=400)
     try:
-        db = request.app.state.db
-        updated = db.update_workspace(workspace_id, **fields)
-        if not updated:
+        workspace = workspaces_svc.update(workspace_id, fields)
+        if workspace is None:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
-        return {"success": True, "workspace": db.get_workspace(workspace_id)}
+        return {"success": True, "workspace": workspace}
     except Exception:
         logger.exception("[Workspaces] update error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
@@ -174,11 +156,11 @@ async def update_workspace(workspace_id: str, request: Request) -> Any:
 @router.delete("/workspaces/{workspace_id}/purge")
 def purge_workspace(
     workspace_id: str,
-    request: Request,
+    workspaces_svc: Workspaces,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     try:
-        purged = request.app.state.db.purge_workspace(workspace_id)
+        purged = workspaces_svc.purge(workspace_id)
         if not purged:
             return JSONResponse(
                 {
@@ -197,31 +179,26 @@ def purge_workspace(
 
 
 @router.delete("/workspaces/{workspace_id}")
-def delete_workspace(workspace_id: str, request: Request) -> Any:
+def delete_workspace(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
-    caller = get_current_user_id(request)
-    deleted_by = caller if caller and caller != "anonymous" else None
-    db = request.app.state.db
     try:
-        deleted = db.delete_workspace(workspace_id, deleted_by=deleted_by)
-        if not deleted:
+        if not workspaces_svc.retire(workspace_id, actor=get_current_user_id(request)):
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
-        fallback_id = db.get_default_workspace_id()
-        return {"success": True, "fallback_workspace_id": fallback_id}
+        return {"success": True, "fallback_workspace_id": workspaces_svc.default_id()}
     except Exception:
         logger.exception("[Workspaces] delete error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.get("/workspaces/{workspace_id}/members")
-def list_workspace_members(workspace_id: str, request: Request) -> Any:
+def list_workspace_members(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "viewer")
     if denied:
         return denied
     try:
-        members = request.app.state.db.list_workspace_members(workspace_id)
+        members = workspaces_svc.members(workspace_id)
         return {"success": True, "members": members}
     except Exception:
         logger.exception("[Workspaces] list members error")
@@ -229,7 +206,7 @@ def list_workspace_members(workspace_id: str, request: Request) -> Any:
 
 
 @router.post("/workspaces/{workspace_id}/members")
-async def add_workspace_member(workspace_id: str, request: Request) -> Any:
+async def add_workspace_member(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -241,7 +218,7 @@ async def add_workspace_member(workspace_id: str, request: Request) -> Any:
     if role not in ("viewer", "editor", "owner"):
         return JSONResponse({"success": False, "message": "role must be viewer, editor, or owner"}, status_code=400)
     try:
-        request.app.state.db.add_workspace_member(workspace_id, user_id, role)
+        workspaces_svc.set_member(workspace_id, user_id, role)
         return {"success": True}
     except Exception:
         logger.exception("[Workspaces] add member error")
@@ -249,7 +226,9 @@ async def add_workspace_member(workspace_id: str, request: Request) -> Any:
 
 
 @router.put("/workspaces/{workspace_id}/members/{user_id}")
-async def update_workspace_member(workspace_id: str, user_id: str, request: Request) -> Any:
+async def update_workspace_member(
+    workspace_id: str, user_id: str, request: Request, workspaces_svc: Workspaces
+) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -258,7 +237,7 @@ async def update_workspace_member(workspace_id: str, user_id: str, request: Requ
     if role not in ("viewer", "editor", "owner"):
         return JSONResponse({"success": False, "message": "role must be viewer, editor, or owner"}, status_code=400)
     try:
-        request.app.state.db.add_workspace_member(workspace_id, user_id, role)
+        workspaces_svc.set_member(workspace_id, user_id, role)
         return {"success": True}
     except Exception:
         logger.exception("[Workspaces] update member error")
@@ -266,18 +245,19 @@ async def update_workspace_member(workspace_id: str, user_id: str, request: Requ
 
 
 @router.delete("/workspaces/{workspace_id}/members/{user_id}")
-def remove_workspace_member(workspace_id: str, user_id: str, request: Request) -> Any:
+def remove_workspace_member(
+    workspace_id: str, user_id: str, request: Request, workspaces_svc: Workspaces
+) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
     try:
-        removed = request.app.state.db.remove_workspace_member(workspace_id, user_id)
+        removed = workspaces_svc.remove_member(workspace_id, user_id)
         if not removed:
             return JSONResponse({"success": False, "message": "Member not found"}, status_code=404)
         return {"success": True}
-    except LastOwnerError as exc:
-        logger.warning("[Workspaces] remove member constraint: %s", exc)
-        return JSONResponse({"success": False, "message": "Cannot remove the last owner of a workspace"}, status_code=409)
+    except ServiceError as exc:
+        return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
     except Exception:
         logger.exception("[Workspaces] remove member error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
@@ -351,12 +331,12 @@ def workspace_ontology(workspace_id: str, request: Request, top_n: int = 20) -> 
 
 
 @router.get("/workspaces/{workspace_id}/keys")
-def list_workspace_keys(workspace_id: str, request: Request) -> Any:
+def list_workspace_keys(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
     try:
-        keys = request.app.state.db.list_workspace_api_keys(workspace_id)
+        keys = workspaces_svc.keys(workspace_id)
         return {"success": True, "keys": keys}
     except Exception:
         logger.exception("[WorkspaceKeys] list error")
@@ -364,7 +344,7 @@ def list_workspace_keys(workspace_id: str, request: Request) -> Any:
 
 
 @router.post("/workspaces/{workspace_id}/keys", status_code=201)
-async def create_workspace_key(workspace_id: str, request: Request) -> Any:
+async def create_workspace_key(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -380,12 +360,8 @@ async def create_workspace_key(workspace_id: str, request: Request) -> Any:
             {"success": False, "message": "role must be viewer or editor"}, status_code=400
         )
     try:
-        caller = get_current_user_id(request)
-        full_key, row = request.app.state.db.create_workspace_api_key(
-            workspace_id=workspace_id,
-            name=name,
-            role=role,
-            created_by=caller if caller and caller != "anonymous" else None,
+        full_key, row = workspaces_svc.create_key(
+            workspace_id, name, role, creator=get_current_user_id(request)
         )
         # The only time the plaintext key exists outside the caller's hands.
         return JSONResponse({"success": True, "key": full_key, "info": row}, status_code=201)
@@ -395,16 +371,15 @@ async def create_workspace_key(workspace_id: str, request: Request) -> Any:
 
 
 @router.delete("/workspaces/{workspace_id}/keys/{key_id}")
-def revoke_workspace_key(workspace_id: str, key_id: str, request: Request) -> Any:
+def revoke_workspace_key(
+    workspace_id: str, key_id: str, request: Request, workspaces_svc: Workspaces
+) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
     try:
-        caller = get_current_user_id(request)
-        revoked = request.app.state.db.revoke_workspace_api_key(
-            key_id=key_id,
-            workspace_id=workspace_id,
-            revoked_by=caller if caller and caller != "anonymous" else None,
+        revoked = workspaces_svc.revoke_key(
+            workspace_id, key_id, actor=get_current_user_id(request)
         )
         if not revoked:
             return JSONResponse({"success": False, "message": "Key not found"}, status_code=404)

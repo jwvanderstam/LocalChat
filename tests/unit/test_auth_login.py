@@ -28,8 +28,8 @@ def _client(*, verify_result=(USER, "user"), member_role: str | None = "editor")
     state = MagicMock()
     state.db.is_connected = True
     state.db.tokens.is_revoked.return_value = False
-    state.db.get_workspace_member_role.return_value = member_role
-    state.db.get_default_workspace_id.return_value = WS
+    state.db.members.role.return_value = member_role
+    state.db.workspaces.default_id.return_value = WS
     state.db.users.get_by_id.return_value = {"id": USER, "username": "jo", "role": "user"}
 
     app = FastAPI()

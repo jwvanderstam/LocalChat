@@ -43,8 +43,8 @@ def _request(headers: dict[str, str], db) -> Request:
 def _db(*, resolves_to=(WS_A, "viewer")):
     db = MagicMock()
     db.is_connected = True
-    db.resolve_workspace_api_key.return_value = resolves_to
-    db.get_default_workspace_id.return_value = WS_B  # deliberately NOT the key's
+    db.api_keys.resolve.return_value = resolves_to
+    db.workspaces.default_id.return_value = WS_B  # deliberately NOT the key's
     return db
 
 
@@ -169,7 +169,7 @@ class TestInvalidKeys:
         db = _db()
         req = _request({"Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.x.y"}, db)
         check_workspace_access(req, None, "viewer")
-        db.resolve_workspace_api_key.assert_not_called()
+        db.api_keys.resolve.assert_not_called()
 
     def test_key_is_accepted_as_a_bearer_token(self):
         """n8n and most webhook tools only offer an Authorization field."""
@@ -186,14 +186,14 @@ class TestKeyManagementRoutes:
         # Route wiring, not authorisation — so sign in as an owner rather than
         # switching the check off.
         state = authenticated_state(role="admin", member_role=member_role)
-        state.db.create_workspace_api_key.return_value = (
+        state.db.api_keys.create.return_value = (
             "lcw_plaintext_shown_once",
             {"id": "k1", "name": "discord-bridge", "key_prefix": "lcw_plain", "role": "viewer"},
         )
-        state.db.list_workspace_api_keys.return_value = [
+        state.db.api_keys.list_for_workspace.return_value = [
             {"id": "k1", "name": "discord-bridge", "key_prefix": "lcw_plain", "role": "viewer"}
         ]
-        state.db.revoke_workspace_api_key.return_value = True
+        state.db.api_keys.revoke.return_value = True
         app = FastAPI()
         app.include_router(router, prefix="/api")
         app.state = state
@@ -220,5 +220,5 @@ class TestKeyManagementRoutes:
     def test_revoke_scopes_the_delete_to_the_workspace(self):
         client = self._client()
         client.delete(f"/api/workspaces/{WS_A}/keys/k1")
-        kwargs = client.app.state.db.revoke_workspace_api_key.call_args.kwargs
+        kwargs = client.app.state.db.api_keys.revoke.call_args.kwargs
         assert kwargs["workspace_id"] == WS_A

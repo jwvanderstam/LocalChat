@@ -29,7 +29,7 @@ def _state(role: str = "user") -> MagicMock:
     """A plain user who is a viewer of OWN and SHARED and a member of nothing else."""
     state = authenticated_state(role=role, workspaces=[{"id": OWN}])
     roles = {OWN: "viewer", SHARED: "viewer"}
-    state.db.get_workspace_member_role.side_effect = lambda ws, _user: roles.get(ws)
+    state.db.members.role.side_effect = lambda ws, _user: roles.get(ws)
     return state
 
 
@@ -44,7 +44,7 @@ class TestTheCheck:
     def test_no_additional_workspaces_needs_no_lookup(self):
         state = _state()
         assert check_additional_workspace_access(_request(state, auth_headers()), [], "viewer") is None
-        state.db.get_workspace_member_role.assert_not_called()
+        state.db.members.role.assert_not_called()
 
     def test_a_workspace_the_caller_belongs_to_is_allowed(self):
         state = _state()
@@ -61,7 +61,7 @@ class TestTheCheck:
         """An unrecognised role ranks below viewer; ranking it above (mutant 235)
         would let a role added by a later migration through every check."""
         state = _state()
-        state.db.get_workspace_member_role.side_effect = lambda ws, _user: "guest"
+        state.db.members.role.side_effect = lambda ws, _user: "guest"
         denial = check_additional_workspace_access(
             _request(state, auth_headers()), [SHARED], "viewer"
         )

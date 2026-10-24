@@ -10,10 +10,10 @@ route being tested is broken:
 
 * ``tokens.is_revoked`` — revocation is fail-closed (SEC-2). A bare ``MagicMock``
   returns a truthy stand-in, so every token reads as revoked and every request 401s.
-* ``get_user_workspaces`` — a request without ``X-Workspace-ID`` resolves scope from
+* ``members.for_user`` — a request without ``X-Workspace-ID`` resolves scope from
   the caller's own workspaces. A truthy stand-in silently becomes the workspace under
   test.
-* ``get_workspace_member_role`` — ``None`` means "not a member", which is a 403. It
+* ``members.role`` — ``None`` means "not a member", which is a 403. It
   has to be set to the role the test intends.
 """
 
@@ -55,10 +55,10 @@ def authorise_db(
     """
     answers = {
         "tokens.is_revoked": False,
-        "get_workspace_member_role": member_role,
-        "get_default_workspace_id": DEFAULT_WORKSPACE_ID,
-        "get_user_workspaces": [],
-        "resolve_workspace_api_key": None,
+        "members.role": member_role,
+        "workspaces.default_id": DEFAULT_WORKSPACE_ID,
+        "members.for_user": [],
+        "api_keys.resolve": None,
         "users.get_by_id": {"id": USER_ID, "role": role},
         # The admin guard reads the caller's role from the database rather than the
         # token claim, so a test that only mints an admin token is not yet an admin.
@@ -95,7 +95,7 @@ def authenticated_state(
 ) -> MagicMock:
     """An ``app.state`` whose database answers the authorisation path.
 
-    ``member_role`` is what ``get_workspace_member_role`` returns — ``None`` makes the
+    ``member_role`` is what ``members.role`` returns — ``None`` makes the
     caller a non-member, which is how a 403 is set up deliberately. Pass ``db`` to keep
     a database the test has already built; its authorisation answers are filled in only
     where the test has not set them.
@@ -104,10 +104,10 @@ def authenticated_state(
     state.db = db if db is not None else MagicMock()
     state.db.is_connected = True
     state.db.tokens.is_revoked.return_value = False
-    state.db.get_workspace_member_role.return_value = member_role
-    state.db.get_default_workspace_id.return_value = DEFAULT_WORKSPACE_ID
-    state.db.get_user_workspaces.return_value = workspaces if workspaces is not None else []
-    state.db.resolve_workspace_api_key.return_value = None
+    state.db.members.role.return_value = member_role
+    state.db.workspaces.default_id.return_value = DEFAULT_WORKSPACE_ID
+    state.db.members.for_user.return_value = workspaces if workspaces is not None else []
+    state.db.api_keys.resolve.return_value = None
     # Some routes read the role from the record rather than the token — the workspace
     # switcher is one. Keep *role* equal to the role in the header, or the caller is an
     # admin to one check and a plain user to the next.

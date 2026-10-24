@@ -1,21 +1,15 @@
-"""
-Workspaces Mixin
-================
+"""Workspaces and memberships — the SQL for ``workspaces`` and ``workspace_members``.
 
-Provides CRUD operations for the ``workspaces`` table and the helpers
-needed to scope documents, conversations, and memories per workspace.
+Who may create, change or retire a workspace is decided in
+``src/services/workspaces.py`` (ADR-7). The one rule kept here is the last owner: it is
+checked inside the same transaction as the delete, which a service could not do.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..utils.logging_config import get_logger
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
@@ -26,20 +20,19 @@ class LastOwnerError(Exception):
     The workspace counterpart to `LastAdminError`, and a Clark-Wilson precondition
     for the same reason: nobody would be left able to grant the role back.
 
-    A named type rather than `ValueError` so the route can catch exactly this and
+    A named type rather than `ValueError` so the caller can catch exactly this and
     return its message. Catching `ValueError` meant any other one raised in here —
     a malformed UUID, a library's own — would have been echoed to the caller.
     """
 
 
-class WorkspacesMixin(MixinHost):
-    """Mixin providing workspace CRUD operations."""
+class WorkspacesRepository:
+    """Workspace rows: create, read, update, retire and purge."""
 
-    # ------------------------------------------------------------------
-    # Create
-    # ------------------------------------------------------------------
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
 
-    def create_workspace(
+    def create(
         self,
         name: str,
         description: str = '',
@@ -53,9 +46,9 @@ class WorkspacesMixin(MixinHost):
         transaction. Without it a workspace has no members at all, so once membership
         is enforced its own creator cannot reach it.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot create workspace: DB not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -83,15 +76,11 @@ class WorkspacesMixin(MixinHost):
         logger.info(f"[Workspace] Created '{name}' id={workspace_id} owner={owner_id or 'none'}")
         return workspace_id
 
-    # ------------------------------------------------------------------
-    # Read
-    # ------------------------------------------------------------------
-
-    def get_workspace(self, workspace_id: str) -> dict[str, Any] | None:
+    def get(self, workspace_id: str) -> dict[str, Any] | None:
         """Return workspace dict or None if not found."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -105,11 +94,11 @@ class WorkspacesMixin(MixinHost):
             return None
         return _row_to_workspace(row)
 
-    def list_workspaces(self) -> list[dict[str, Any]]:
+    def list_all(self) -> list[dict[str, Any]]:
         """Return all workspaces with document/conversation counts."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -131,21 +120,17 @@ class WorkspacesMixin(MixinHost):
             for r in rows
         ]
 
-    def get_default_workspace_id(self) -> str | None:
+    def default_id(self) -> str | None:
         """Return the UUID of the oldest workspace (used as the default)."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT id FROM workspaces WHERE deleted_at IS NULL ORDER BY created_at LIMIT 1")
                 row = cur.fetchone()
         return str(row[0]) if row else None
 
-    # ------------------------------------------------------------------
-    # Update
-    # ------------------------------------------------------------------
-
-    def update_workspace(
+    def update(
         self,
         workspace_id: str,
         name: str | None = None,
@@ -154,10 +139,10 @@ class WorkspacesMixin(MixinHost):
         model_class: str | None = None,
     ) -> bool:
         """Update editable workspace fields. Returns True if a row was changed."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot update workspace: DB not connected")
         sets: list[str] = []
-        params: list = []
+        params: list[Any] = []
         if name is not None:
             sets.append("name = %s")
             params.append(name[:255])
@@ -173,39 +158,35 @@ class WorkspacesMixin(MixinHost):
         if not sets:
             return False
         params.append(workspace_id)
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     f"UPDATE workspaces SET {', '.join(sets)} WHERE id = %s",  # nosec B608  # SET list from a fixed column whitelist; values are %s
                     params,
                 )
-                return cur.rowcount > 0
+                return bool(cur.rowcount > 0)
 
-    # ------------------------------------------------------------------
-    # Delete
-    # ------------------------------------------------------------------
-
-    def delete_workspace(self, workspace_id: str, deleted_by: str | None = None) -> bool:
+    def retire(self, workspace_id: str, deleted_by: str | None = None) -> bool:
         """Soft-delete a workspace. Returns True if a live row was retired."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete workspace: DB not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE workspaces SET deleted_at = NOW(), deleted_by = %s "
                     "WHERE id = %s AND deleted_at IS NULL",
                     (deleted_by, workspace_id),
                 )
-                return cur.rowcount > 0
+                return bool(cur.rowcount > 0)
 
-    def purge_workspace(self, workspace_id: str) -> bool:
+    def purge(self, workspace_id: str) -> bool:
         """Hard-delete a soft-deleted workspace if it has no live documents or conversations.
 
         Returns False when blocked; True on success.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge workspace: DB not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT 1 FROM documents WHERE workspace_id = %s AND deleted_at IS NULL LIMIT 1",
@@ -220,22 +201,20 @@ class WorkspacesMixin(MixinHost):
                 if cur.fetchone():
                     return False
                 cur.execute("DELETE FROM workspaces WHERE id = %s", (workspace_id,))
-                return cur.rowcount > 0
+                return bool(cur.rowcount > 0)
 
-    # ------------------------------------------------------------------
-    # Membership
-    # ------------------------------------------------------------------
 
-    def add_workspace_member(
-        self,
-        workspace_id: str,
-        user_id: str,
-        role: str = 'viewer',
-    ) -> None:
+class WorkspaceMembersRepository:
+    """Membership rows: who holds which role in which workspace."""
+
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
+
+    def add(self, workspace_id: str, user_id: str, role: str = 'viewer') -> None:
         """Add or update a member's role in a workspace."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot add workspace member: DB not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -246,14 +225,14 @@ class WorkspacesMixin(MixinHost):
                     (workspace_id, user_id, role),
                 )
 
-    def remove_workspace_member(self, workspace_id: str, user_id: str) -> bool:
+    def remove(self, workspace_id: str, user_id: str) -> bool:
         """Remove a member from a workspace.
 
         Returns True if a row was deleted. Refuses to remove the last owner.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot remove workspace member: DB not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT role FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
@@ -271,13 +250,13 @@ class WorkspacesMixin(MixinHost):
                     "DELETE FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
                     (workspace_id, user_id),
                 )
-                return cur.rowcount > 0
+                return bool(cur.rowcount > 0)
 
-    def get_workspace_owner(self, workspace_id: str) -> str | None:
+    def owner(self, workspace_id: str) -> str | None:
         """Return the user_id of the first owner of a workspace, or None."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -290,26 +269,24 @@ class WorkspacesMixin(MixinHost):
                 row = cur.fetchone()
         return str(row[0]) if row else None
 
-    def get_workspace_member_role(
-        self, workspace_id: str, user_id: str
-    ) -> str | None:
+    def role(self, workspace_id: str, user_id: str) -> str | None:
         """Return the role string for this user in this workspace, or None if not a member."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return None
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT role FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
                     (workspace_id, user_id),
                 )
                 row = cur.fetchone()
-        return row[0] if row else None
+        return str(row[0]) if row else None
 
-    def list_workspace_members(self, workspace_id: str) -> list[dict[str, Any]]:
+    def list_for_workspace(self, workspace_id: str) -> list[dict[str, Any]]:
         """Return members of a workspace with their roles."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -333,11 +310,11 @@ class WorkspacesMixin(MixinHost):
             for r in rows
         ]
 
-    def get_user_workspaces(self, user_id: str) -> list[dict[str, Any]]:
+    def for_user(self, user_id: str) -> list[dict[str, Any]]:
         """Return all workspaces the user is a member of, with their role."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -357,11 +334,7 @@ class WorkspacesMixin(MixinHost):
         ]
 
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
-def _row_to_workspace(row: tuple) -> dict[str, Any]:
+def _row_to_workspace(row: tuple[Any, ...]) -> dict[str, Any]:
     return {
         'id': str(row[0]),
         'name': row[1],

@@ -92,10 +92,10 @@ def _client(router, prefix: str, member_role: str = "owner") -> TestClient:
     # say "user" for these tests to exercise the member path at all.
     state.db.tokens.is_revoked.return_value = False
     state.db.users.get_role.return_value = "user"
-    state.db.resolve_workspace_api_key.return_value = None
-    state.db.get_workspace_member_role.return_value = member_role
-    state.db.get_user_workspaces.return_value = [{"id": WS}]
-    state.db.get_default_workspace_id.return_value = WS
+    state.db.api_keys.resolve.return_value = None
+    state.db.members.role.return_value = member_role
+    state.db.members.for_user.return_value = [{"id": WS}]
+    state.db.workspaces.default_id.return_value = WS
     state.db.list_conversations.return_value = []
     state.db.count_conversations.return_value = 0
     app = FastAPI()

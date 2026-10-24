@@ -241,14 +241,14 @@ class TestWorkspaceRoutesExtended:
         from src.routes_fastapi.workspace_routes import router
 
         state = _base_state()
-        state.db.list_workspaces.return_value = [{"id": "ws-1", "name": "Acme"}]
-        state.db.get_workspace.return_value = {"id": "ws-1", "name": "Acme"}
-        state.db.create_workspace.return_value = "ws-new"
-        state.db.update_workspace.return_value = True
-        state.db.delete_workspace.return_value = True
-        state.db.get_default_workspace_id.return_value = "ws-default"
-        state.db.list_workspace_members.return_value = []
-        state.db.get_workspace_member_role.return_value = None
+        state.db.workspaces.list_all.return_value = [{"id": "ws-1", "name": "Acme"}]
+        state.db.workspaces.get.return_value = {"id": "ws-1", "name": "Acme"}
+        state.db.workspaces.create.return_value = "ws-new"
+        state.db.workspaces.update.return_value = True
+        state.db.workspaces.retire.return_value = True
+        state.db.workspaces.default_id.return_value = "ws-default"
+        state.db.members.list_for_workspace.return_value = []
+        state.db.members.role.return_value = None
         return _make_client(router, "/api", state)
 
     def test_list_workspaces(self):
@@ -292,7 +292,7 @@ class TestWorkspaceRoutesExtended:
         from src.routes_fastapi.workspace_routes import router
 
         state = _base_state()
-        state.db.get_workspace.return_value = None
+        state.db.workspaces.get.return_value = None
         client = _make_client(router, "/api", state)
         resp = client.get("/api/workspaces/missing")
         assert resp.status_code == 404
@@ -320,8 +320,8 @@ class TestWorkspaceRoutesExtended:
         from src.routes_fastapi.workspace_routes import router
 
         state = _base_state()
-        state.db.delete_workspace.return_value = False
-        state.db.get_workspace_member_role.return_value = None
+        state.db.workspaces.retire.return_value = False
+        state.db.members.role.return_value = None
         client = _make_client(router, "/api", state)
         resp = client.delete("/api/workspaces/ghost")
         assert resp.status_code == 404

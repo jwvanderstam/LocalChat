@@ -50,13 +50,13 @@ def admin(database: Any) -> str:
 def workspaces(database: Any) -> Iterator[dict[str, str]]:
     """Two contributing projects and a reader, each new per test so filenames never meet."""
     suffix = uuid.uuid4().hex[:8]
-    ids = {name: database.create_workspace(f"gkb2-{name}-{suffix}", owner_id=None)
+    ids = {name: database.workspaces.create(f"gkb2-{name}-{suffix}", owner_id=None)
            for name in ("a", "b", "reader")}
     yield ids
     for ws in ids.values():
         database.archive_contributions(ws, None)
         database.retire_all_documents(scope=ws)
-        database.delete_workspace(ws)
+        database.workspaces.retire(ws)
 
 
 def _document(database: Any, workspace: str, filename: str, chunks: int = 2) -> int:
@@ -227,7 +227,7 @@ def test_the_listing_names_the_source_project_and_keeps_archived_ones(
 
     [row] = [d for d in database.list_contributions() if d["id"] == result["global_document_id"]]
     assert row["source_project_id"] == workspaces["a"]
-    assert row["source_project_name"] == database.get_workspace(workspaces["a"])["name"]
+    assert row["source_project_name"] == database.workspaces.get(workspaces["a"])["name"]
     assert row["chunk_count"] == 2
     assert row["archived_at"] is not None
 

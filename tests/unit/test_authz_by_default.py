@@ -59,9 +59,9 @@ def _app():
     # before any lookup, so the guard cannot be passing for want of data.
     state_db = MagicMock()
     state_db.is_connected = True
-    state_db.get_workspace_member_role.return_value = None
-    state_db.get_default_workspace_id.return_value = "ws-1"
-    state_db.resolve_workspace_api_key.return_value = None
+    state_db.members.role.return_value = None
+    state_db.workspaces.default_id.return_value = "ws-1"
+    state_db.api_keys.resolve.return_value = None
     app.state.db = state_db
     return app
 

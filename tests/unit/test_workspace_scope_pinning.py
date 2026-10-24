@@ -34,10 +34,10 @@ def _request(headers: dict[str, str], *, member_of: list[str], default_ws: str,
     # the role from the database — a bare MagicMock is "revoked" and "admin".
     db.tokens.is_revoked.return_value = False
     db.users.get_role.return_value = "user"
-    db.resolve_workspace_api_key.return_value = None
-    db.get_default_workspace_id.return_value = default_ws
-    db.get_user_workspaces.return_value = [{"id": w} for w in member_of]
-    db.get_workspace_member_role.side_effect = (
+    db.api_keys.resolve.return_value = None
+    db.workspaces.default_id.return_value = default_ws
+    db.members.for_user.return_value = [{"id": w} for w in member_of]
+    db.members.role.side_effect = (
         lambda ws, uid: "viewer" if ws in member_of else None
     )
     scope = {
@@ -66,7 +66,7 @@ class TestScopeIsPinnedForUsers:
     def test_the_pinned_workspace_is_the_one_authorised_against(self):
         req = _request(_auth(), member_of=[OWN_WS], default_ws=OTHER_WS)
         check_workspace_access(req, None, "viewer")
-        checked = req.scope["app"].state.db.get_workspace_member_role.call_args[0][0]
+        checked = req.scope["app"].state.db.members.role.call_args[0][0]
         assert get_workspace_id(req) == checked
 
     def test_an_explicit_header_is_still_honoured(self):
@@ -140,7 +140,7 @@ class TestTheScopeEachPrincipalIsGiven:
 
     def test_an_api_key_is_scoped_to_its_own_workspace(self):
         req = _request({"X-API-Key": "lcw_" + "k" * 40}, member_of=[], default_ws=OTHER_WS)
-        req.scope["app"].state.db.resolve_workspace_api_key.return_value = (OWN_WS, "viewer")
+        req.scope["app"].state.db.api_keys.resolve.return_value = (OWN_WS, "viewer")
         assert check_workspace_access(req, None, "viewer") is None
         assert get_scope(req) == OWN_WS
 

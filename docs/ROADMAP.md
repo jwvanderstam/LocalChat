@@ -1702,7 +1702,7 @@ recorded as **ADR-7** in QP-3, is:
 - ADR-7 written in `docs/ADR.md`, with its row in `.claude/rules/file-map.md` updated.
 - **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
 
-#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 1 of 7 done)
+#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 2 of 7 done)
 
 **Cycles to break** (found by QP-3; `KNOWN_CYCLES` in `tests/unit/test_layering_ratchets.py`):
 - [ ] `src.config` ↔ `src.utils.encryption`: `validate_secrets()` imports `_get_fernet`,
@@ -1714,7 +1714,11 @@ The order is by security weight, so authorisation moves first:
 1. ✅ Users and auth (`auth_routes`, `users.py`, `tokens.py`), 2026-10-24: `UsersRepository`,
    `RevokedTokensRepository`, `UsersService`; `app.state.db` in routes 81 → 72, contract
    exceptions 4 → 2. The wiring it set for the rest is ADR-7's amendment.
-2. Workspaces, members and API keys (`workspace_routes`)
+2. ✅ Workspaces, members and API keys (`workspace_routes`), 2026-10-24: `WorkspacesRepository`,
+   `WorkspaceMembersRepository`, `WorkspaceKeysRepository`, `WorkspacesService`; `app.state.db` in
+   routes 72 → 58, contract exceptions 2 → 1. The access check stays in the route's `deny()`
+   (ADR-7's second amendment); ontology and suggestions move with entities and documents.
+   Six integration tests were edited, for the renamed methods only.
 3. Documents and chunks, including upload and ingest
 4. Conversations and chat, which carries GKB-3's `knowledge_scope` across
 5. Memories (both route modules)
