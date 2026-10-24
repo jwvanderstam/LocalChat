@@ -42,9 +42,9 @@ class TestDocumentProcessingPipeline:
 
         # Mock database
         with patch('src.rag.db') as mock_db:
-            mock_db.document_exists.return_value = (False, None)
-            mock_db.insert_document.return_value = 1
-            mock_db.insert_chunks_batch.return_value = True
+            mock_db.documents.exists.return_value = (False, None)
+            mock_db.documents.insert.return_value = 1
+            mock_db.documents.insert_chunks.return_value = True
 
             # Mock ollama
             with patch('src.rag.ollama_client') as mock_ollama:
@@ -85,7 +85,7 @@ class TestContextRetrieval:
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
         mock_db = MagicMock()
-        mock_db.search_similar_chunks.return_value = []
+        mock_db.documents.search_similar.return_value = []
         mock_db.search_by_keyword.return_value = []
 
         proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
@@ -103,7 +103,7 @@ class TestContextRetrieval:
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
         mock_db = MagicMock()
-        mock_db.search_similar_chunks.return_value = []
+        mock_db.documents.search_similar.return_value = []
         mock_db.search_by_keyword.return_value = []
 
         proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
@@ -122,7 +122,7 @@ class TestHybridSearch:
             mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
 
             with patch('src.rag.db') as mock_db:
-                mock_db.search_similar_chunks.return_value = []
+                mock_db.documents.search_similar.return_value = []
                 mock_db.search_by_keyword.return_value = []
 
                 try:
@@ -206,7 +206,7 @@ class TestDocumentIngestionEdgeCases:
         from src.rag import doc_processor
 
         with patch('src.rag.db') as mock_db:
-            mock_db.document_exists.return_value = (True, 123)
+            mock_db.documents.exists.return_value = (True, 123)
 
             success, msg, doc_id = doc_processor.ingest_document("file.txt")
 
@@ -218,7 +218,7 @@ class TestDocumentIngestionEdgeCases:
         from src.rag import doc_processor
 
         with patch('src.rag.db') as mock_db:
-            mock_db.document_exists.return_value = (False, None)
+            mock_db.documents.exists.return_value = (False, None)
 
             with patch('src.rag.ollama_client') as mock_ollama:
                 mock_ollama.generate_embedding.return_value = (False, "Error")
@@ -235,7 +235,7 @@ class TestDocumentIngestionEdgeCases:
         test_file.write_text("Content", encoding='utf-8')
 
         with patch('src.rag.db') as mock_db:
-            mock_db.document_exists.side_effect = Exception("DB Error")
+            mock_db.documents.exists.side_effect = Exception("DB Error")
 
             success, msg, doc_id = doc_processor.ingest_document(str(test_file))
 
@@ -255,7 +255,7 @@ class TestRetrievalEdgeCases:
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
         mock_db = MagicMock()
-        mock_db.search_similar_chunks.return_value = []
+        mock_db.documents.search_similar.return_value = []
         mock_db.search_by_keyword.return_value = []
 
         proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
@@ -273,7 +273,7 @@ class TestRetrievalEdgeCases:
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, [0.1] * 768)
         mock_db = MagicMock()
-        mock_db.search_similar_chunks.return_value = []
+        mock_db.documents.search_similar.return_value = []
         mock_db.search_by_keyword.return_value = []
 
         proc = DocumentProcessor(db=mock_db, ollama_client=mock_ollama)
@@ -340,8 +340,8 @@ class TestDocumentStatistics:
         """Test getting document statistics."""
 
         with patch('src.rag.db') as mock_db:
-            mock_db.get_document_count.return_value = 5
-            mock_db.get_chunk_count.return_value = 100
+            mock_db.documents.count.return_value = 5
+            mock_db.documents.chunk_count.return_value = 100
 
             # Just test db is accessible
             assert mock_db is not None

@@ -431,7 +431,7 @@ counts = []
 for _ in range(20):
     q = centres[rng.integers(len(centres))] + 0.04 * rng.standard_normal(768)
     q = (q / np.linalg.norm(q)).tolist()
-    hits = db.search_similar_chunks(q, top_k=top_k, min_similarity=-1.0, scope=workspaces[0])
+    hits = db.documents.search_similar(q, top_k=top_k, min_similarity=-1.0, scope=workspaces[0])
     counts.append(len(hits))
 db.close()
 print(json.dumps({"counts": counts, "top_k": top_k}))

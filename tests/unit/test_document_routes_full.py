@@ -8,12 +8,12 @@ from tests.utils.auth import ADMIN_ID
 
 class TestDocumentListRoute:
     def test_list_documents_returns_200(self, client, app):
-        app.state.db.get_all_documents = MagicMock(return_value=[])
+        app.state.db.documents.list_all = MagicMock(return_value=[])
         response = client.get('/api/documents/list')
         assert response.status_code == 200
 
     def test_list_documents_returns_documents_key(self, client, app):
-        app.state.db.get_all_documents = MagicMock(return_value=[
+        app.state.db.documents.list_all = MagicMock(return_value=[
             {'id': 1, 'filename': 'test.pdf', 'chunk_count': 5}
         ])
         response = client.get('/api/documents/list')
@@ -22,14 +22,14 @@ class TestDocumentListRoute:
         assert len(data['documents']) == 1
 
     def test_list_documents_empty(self, client, app):
-        app.state.db.get_all_documents = MagicMock(return_value=[])
+        app.state.db.documents.list_all = MagicMock(return_value=[])
         response = client.get('/api/documents/list')
         data = response.json()
         assert data.get('documents') == []
 
     def test_list_db_unavailable_returns_503(self, client, app):
         from src.db import DatabaseUnavailableError
-        app.state.db.get_all_documents = MagicMock(
+        app.state.db.documents.list_all = MagicMock(
             side_effect=DatabaseUnavailableError("not connected")
         )
         response = client.get('/api/documents/list')
@@ -38,41 +38,41 @@ class TestDocumentListRoute:
 
 class TestDocumentDeleteRoute:
     def test_delete_document_returns_200_and_success_true(self, client, app):
-        app.state.db.delete_document = MagicMock()
-        app.state.db.get_document_count = MagicMock(return_value=2)
+        app.state.db.documents.retire = MagicMock()
+        app.state.db.documents.count = MagicMock(return_value=2)
         response = client.delete('/api/documents/1')
         assert response.status_code == 200
         assert response.json()['success'] is True
 
     def test_delete_document_calls_db_with_correct_id_and_user(self, client, app):
-        app.state.db.delete_document = MagicMock()
-        app.state.db.get_document_count = MagicMock(return_value=0)
+        app.state.db.documents.retire = MagicMock()
+        app.state.db.documents.count = MagicMock(return_value=0)
         client.delete('/api/documents/42')
         # deleted_by names the caller who retired the document — the Clark-Wilson
         # audit trail. It read None while the RBAC bypass supplied no identity, so
         # this assertion used to prove the trail was empty.
         from src.utils.scope import ALL_WORKSPACES
-        args, kwargs = app.state.db.delete_document.call_args
+        args, kwargs = app.state.db.documents.retire.call_args
         assert args == (42, ADMIN_ID)
         # Every object route now names the workspace it was authorised for, so the
         # query cannot reach a document in another one (C2).
         assert kwargs['scope'] is ALL_WORKSPACES
 
     def test_delete_document_returns_success(self, client, app):
-        app.state.db.delete_document = MagicMock()
+        app.state.db.documents.retire = MagicMock()
         response = client.delete('/api/documents/1')
         assert response.json()['success'] is True
 
     def test_delete_document_db_unavailable_returns_503(self, client, app):
         from src.db import DatabaseUnavailableError
-        app.state.db.delete_document = MagicMock(
+        app.state.db.documents.retire = MagicMock(
             side_effect=DatabaseUnavailableError("not connected")
         )
         response = client.delete('/api/documents/1')
         assert response.status_code == 503
 
     def test_delete_document_unexpected_error_returns_500(self, client, app):
-        app.state.db.delete_document = MagicMock(side_effect=RuntimeError("boom"))
+        app.state.db.documents.retire = MagicMock(side_effect=RuntimeError("boom"))
         response = client.delete('/api/documents/1')
         assert response.status_code == 500
         assert response.json()['success'] is False
@@ -84,14 +84,14 @@ class TestDocumentDeleteRoute:
 
 class TestDocumentPurgeRoute:
     def test_purge_succeeds_when_no_citations(self, client, app):
-        app.state.db.purge_document = MagicMock(return_value=True)
+        app.state.db.documents.purge = MagicMock(return_value=True)
         response = client.delete('/api/documents/5/purge')
         assert response.status_code == 200
         assert response.json()['success'] is True
-        app.state.db.purge_document.assert_called_once_with(5)
+        app.state.db.documents.purge.assert_called_once_with(5)
 
     def test_purge_returns_409_when_citations_exist(self, client, app):
-        app.state.db.purge_document = MagicMock(return_value=False)
+        app.state.db.documents.purge = MagicMock(return_value=False)
         response = client.delete('/api/documents/5/purge')
         assert response.status_code == 409
         assert response.json()['success'] is False
@@ -99,14 +99,14 @@ class TestDocumentPurgeRoute:
 
     def test_purge_db_unavailable_returns_503(self, client, app):
         from src.db import DatabaseUnavailableError
-        app.state.db.purge_document = MagicMock(
+        app.state.db.documents.purge = MagicMock(
             side_effect=DatabaseUnavailableError("not connected")
         )
         response = client.delete('/api/documents/5/purge')
         assert response.status_code == 503
 
     def test_purge_unexpected_error_returns_500(self, client, app):
-        app.state.db.purge_document = MagicMock(side_effect=RuntimeError("boom"))
+        app.state.db.documents.purge = MagicMock(side_effect=RuntimeError("boom"))
         response = client.delete('/api/documents/5/purge')
         assert response.status_code == 500
 
@@ -116,11 +116,11 @@ class TestDocumentClearRoute:
         """/clear retires; it no longer hard-deletes every workspace's documents (C1)."""
         from src.utils.scope import ALL_WORKSPACES
 
-        app.state.db.retire_all_documents = MagicMock(return_value=4)
+        app.state.db.documents.retire_all = MagicMock(return_value=4)
         response = client.delete('/api/documents/clear')
         assert response.status_code == 200
         assert response.json()['retired'] == 4
-        kwargs = app.state.db.retire_all_documents.call_args.kwargs
+        kwargs = app.state.db.documents.retire_all.call_args.kwargs
         # This client is a global admin naming no workspace, which is the one
         # caller for whom installation-wide is the authorised answer.
         assert kwargs['scope'] is ALL_WORKSPACES
@@ -128,7 +128,7 @@ class TestDocumentClearRoute:
 
     def test_clear_documents_db_unavailable_returns_503(self, client, app):
         from src.db import DatabaseUnavailableError
-        app.state.db.retire_all_documents = MagicMock(
+        app.state.db.documents.retire_all = MagicMock(
             side_effect=DatabaseUnavailableError("not connected")
         )
         response = client.delete('/api/documents/clear')
@@ -164,9 +164,9 @@ class TestDocumentUploadRoute:
 
 class TestDocumentStatsRoute:
     def test_stats_returns_counts(self, client, app):
-        app.state.db.get_document_count = MagicMock(return_value=3)
-        app.state.db.get_chunk_count = MagicMock(return_value=150)
-        app.state.db.get_chunk_statistics = MagicMock(return_value={
+        app.state.db.documents.count = MagicMock(return_value=3)
+        app.state.db.documents.chunk_count = MagicMock(return_value=150)
+        app.state.db.documents.chunk_statistics = MagicMock(return_value={
             'avg_chunk_size': 512, 'min_chunk_size': 128, 'max_chunk_size': 1024
         })
         response = client.get('/api/documents/stats')
@@ -176,35 +176,35 @@ class TestDocumentStatsRoute:
         assert data['chunk_count'] == 150
 
     def test_stats_with_zero_documents(self, client, app):
-        app.state.db.get_document_count = MagicMock(return_value=0)
-        app.state.db.get_chunk_count = MagicMock(return_value=0)
-        app.state.db.get_chunk_statistics = MagicMock(return_value={})
+        app.state.db.documents.count = MagicMock(return_value=0)
+        app.state.db.documents.chunk_count = MagicMock(return_value=0)
+        app.state.db.documents.chunk_statistics = MagicMock(return_value={})
         response = client.get('/api/documents/stats')
         assert response.status_code == 200
 
     def test_stats_db_unavailable_returns_503(self, client, app):
         from src.db import DatabaseUnavailableError
-        app.state.db.get_document_count = MagicMock(
+        app.state.db.documents.count = MagicMock(
             side_effect=DatabaseUnavailableError("not connected")
         )
         response = client.get('/api/documents/stats')
         assert response.status_code == 503
 
     def test_stats_passes_workspace_id_to_db(self, client, app):
-        app.state.db.get_document_count = MagicMock(return_value=2)
-        app.state.db.get_chunk_count = MagicMock(return_value=10)
-        app.state.db.get_chunk_statistics = MagicMock(return_value={})
+        app.state.db.documents.count = MagicMock(return_value=2)
+        app.state.db.documents.chunk_count = MagicMock(return_value=10)
+        app.state.db.documents.chunk_statistics = MagicMock(return_value={})
         client.get('/api/documents/stats', headers={'X-Workspace-ID': 'ws-abc'})
-        app.state.db.get_document_count.assert_called_once_with(scope='ws-abc')
-        app.state.db.get_chunk_count.assert_called_once_with(scope='ws-abc')
+        app.state.db.documents.count.assert_called_once_with(scope='ws-abc')
+        app.state.db.documents.chunk_count.assert_called_once_with(scope='ws-abc')
 
     def test_stats_no_workspace_header_passes_all_workspaces(self, client, app):
-        app.state.db.get_document_count = MagicMock(return_value=5)
-        app.state.db.get_chunk_count = MagicMock(return_value=25)
-        app.state.db.get_chunk_statistics = MagicMock(return_value={})
+        app.state.db.documents.count = MagicMock(return_value=5)
+        app.state.db.documents.chunk_count = MagicMock(return_value=25)
+        app.state.db.documents.chunk_statistics = MagicMock(return_value={})
         client.get('/api/documents/stats')
         # The client is an admin who named no workspace: installation-wide, said out loud.
-        app.state.db.get_document_count.assert_called_once_with(scope=ALL_WORKSPACES)
+        app.state.db.documents.count.assert_called_once_with(scope=ALL_WORKSPACES)
 
 
 class TestDocumentSearchRoute:

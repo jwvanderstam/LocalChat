@@ -29,7 +29,7 @@ def _mock_services(retrieve_results: list, documents: list) -> tuple[Mock, Mock]
     doc_processor.retrieve_context = Mock(return_value=retrieve_results)
     doc_processor.format_context_for_llm = Mock(return_value="formatted context")
     db = Mock()
-    db.get_all_documents = Mock(return_value=documents)
+    db.documents.list_all = Mock(return_value=documents)
     return doc_processor, db
 
 
@@ -141,7 +141,7 @@ def test_get_services_returns_doc_processor_and_db_singletons() -> None:
     assert doc_processor is not None
     assert db is not None
     assert hasattr(doc_processor, "retrieve_context")
-    assert hasattr(db, "get_all_documents")
+    assert hasattr(db.documents, "list_all")
 
 
 @pytest.mark.unit

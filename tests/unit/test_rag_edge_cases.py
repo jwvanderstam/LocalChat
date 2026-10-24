@@ -39,7 +39,7 @@ def retrieval_stack():
     ollama.generate_embedding.return_value = (True, [0.1] * 768)
     mock_db = MagicMock()
     mock_db.is_connected = True
-    mock_db.search_similar_chunks.return_value = [
+    mock_db.documents.search_similar.return_value = [
         ("chunk text", "doc.pdf", 0, 0.95, {}, 1),
     ]
     # Patched on the instance, not the module: doc_processor is a singleton that
@@ -249,7 +249,7 @@ class TestRetrievalEdgeCases:
         mock_db, _ = retrieval_stack
         doc_processor.retrieve_context("test <>&\"' query", scope=ALL_WORKSPACES)
 
-        assert mock_db.search_lexical_chunks.call_args[0][0] == "test query"
+        assert mock_db.documents.search_lexical.call_args[0][0] == "test query"
 
 
 class TestModuleConstants:

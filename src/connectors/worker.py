@@ -182,7 +182,7 @@ class SyncWorker:
         """Periodically re-ingest documents older than REINGEST_MAX_AGE_HOURS."""
         while not self._stop_event.is_set():
             try:
-                stale = self._db.get_stale_documents(
+                stale = self._db.documents.stale(
                     app_config.REINGEST_MAX_AGE_HOURS, scope=ALL_WORKSPACES
                 )
                 if stale:
@@ -205,7 +205,7 @@ class SyncWorker:
                 workspace_id=workspace_id,
             )
             if success and doc_id is not None:
-                self._db.update_last_ingested_at(doc_id)
+                self._db.documents.mark_ingested(doc_id)
                 logger.debug(f"[SyncWorker] Re-ingested: {filename}")
             else:
                 logger.warning(f"[SyncWorker] Re-ingest failed for {filename}: {message}")

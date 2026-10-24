@@ -51,12 +51,12 @@ def _results_dict(*args):
 
 
 def _semantic_row(filename, chunk_index, similarity, chunk_id=1, text="some chunk content here"):
-    """Row shape returned by db.search_similar_chunks."""
+    """Row shape returned by db.documents.search_similar."""
     return (text, filename, chunk_index, similarity, {}, chunk_id)
 
 
 def _lexical_row(filename, chunk_index, score, chunk_id=1, text="some chunk content here"):
-    """Row shape returned by db.search_lexical_chunks."""
+    """Row shape returned by db.documents.search_lexical."""
     return (text, filename, chunk_index, score, {}, chunk_id)
 
 
@@ -152,8 +152,8 @@ class TestRunRetrievalPipelineThreshold:
         is below min_similarity (0.30) — it must survive anyway, on
         lexical_score > 0, not on the blended score."""
         retriever._db = MagicMock()
-        retriever._db.search_similar_chunks.return_value = []
-        retriever._db.search_lexical_chunks.return_value = [
+        retriever._db.documents.search_similar.return_value = []
+        retriever._db.documents.search_lexical.return_value = [
             _lexical_row("only_lexical.pdf", 0, 0.9, chunk_id=1),
         ]
 
@@ -175,10 +175,10 @@ class TestRunRetrievalPipelineThreshold:
         different chunk entirely — for this query. Diluting this chunk's
         own score by the blend (0.70 * 0.40 = 0.28 < 0.30) must not drop it."""
         retriever._db = MagicMock()
-        retriever._db.search_similar_chunks.return_value = [
+        retriever._db.documents.search_similar.return_value = [
             _semantic_row("semantic_only.pdf", 0, 0.40, chunk_id=2),
         ]
-        retriever._db.search_lexical_chunks.return_value = [
+        retriever._db.documents.search_lexical.return_value = [
             _lexical_row("other_chunk.pdf", 0, 0.9, chunk_id=3),
         ]
 
@@ -198,10 +198,10 @@ class TestRunRetrievalPipelineThreshold:
         neither a qualifying semantic score nor any lexical match at all
         must still be excluded."""
         retriever._db = MagicMock()
-        retriever._db.search_similar_chunks.return_value = [
+        retriever._db.documents.search_similar.return_value = [
             _semantic_row("weak.pdf", 0, 0.10, chunk_id=4),
         ]
-        retriever._db.search_lexical_chunks.return_value = []
+        retriever._db.documents.search_lexical.return_value = []
 
         filtered = retriever._run_retrieval_pipeline(
             query_clean="query",

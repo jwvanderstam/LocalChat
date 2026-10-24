@@ -334,14 +334,14 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
 
     objects: dict[str, Any] = {}
 
-    doc_id = db.insert_document(
+    doc_id = db.documents.insert(
         filename="p22b-workspace-b.txt",
         content="Workspace B private content about quarterly margin.",
         workspace_id=workspace_b,
     )
     objects["doc_id"] = doc_id
 
-    chunk_ids = db.insert_chunks_batch(
+    chunk_ids = db.documents.insert_chunks(
         [(doc_id, "Workspace B private chunk about quarterly margin.", 0, [0.0] * _VECTOR_DIM)]
     )
     if chunk_ids:

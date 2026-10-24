@@ -32,8 +32,8 @@ def _collect_document_stats(app_state: Any) -> dict:
     try:
         return {
             # Admin-only (settings_stats_api): the installation's totals by design.
-            "document_count": db.get_document_count(scope=ALL_WORKSPACES),
-            "chunk_count": db.get_chunk_count(scope=ALL_WORKSPACES),
+            "document_count": db.documents.count(scope=ALL_WORKSPACES),
+            "chunk_count": db.documents.chunk_count(scope=ALL_WORKSPACES),
             "db_available": True,
         }
     except Exception as exc:  # noqa: BLE001 — the panel renders with zeros and db_available=False rather than failing

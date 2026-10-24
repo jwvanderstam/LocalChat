@@ -208,8 +208,8 @@ class TestDocumentIngestion:
         processor = DocumentProcessor()
 
         # Setup mocks
-        mock_db.document_exists.return_value = (False, None)
-        mock_db.insert_document.return_value = 1
+        mock_db.documents.exists.return_value = (False, None)
+        mock_db.documents.insert.return_value = 1
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
 
@@ -225,9 +225,9 @@ class TestDocumentIngestion:
         processor = DocumentProcessor()
 
         # Setup mocks
-        mock_db.document_exists.return_value = (False, None)
-        mock_db.insert_document.return_value = 1
-        mock_db.insert_chunks_batch.return_value = None
+        mock_db.documents.exists.return_value = (False, None)
+        mock_db.documents.insert.return_value = 1
+        mock_db.documents.insert_chunks.return_value = None
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embeddings_batch.side_effect = lambda model, texts: [generate_mock_embedding() for _ in texts]
 
@@ -247,7 +247,7 @@ class TestDocumentIngestion:
         # _compute_file_hash is not mocked here, so we compute the real hash first.
         from src.rag.processor import _compute_file_hash
         real_hash = _compute_file_hash(sample_txt_path)
-        mock_db.document_exists.return_value = (
+        mock_db.documents.exists.return_value = (
             True, {'id': 1, 'chunk_count': 10, 'content_hash': real_hash}
         )
 
@@ -275,9 +275,9 @@ class TestDocumentIngestion:
         processor = DocumentProcessor()
 
         # Setup mocks
-        mock_db.document_exists.return_value = (False, None)
-        mock_db.insert_document.return_value = 1
-        mock_db.insert_chunks_batch.return_value = None
+        mock_db.documents.exists.return_value = (False, None)
+        mock_db.documents.insert.return_value = 1
+        mock_db.documents.insert_chunks.return_value = None
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embeddings_batch.side_effect = lambda model, texts: [generate_mock_embedding() for _ in texts]
 
@@ -306,7 +306,7 @@ class TestRetrieval:
 
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
-        mock_db.search_similar_chunks.return_value = generate_mock_search_results(5)
+        mock_db.documents.search_similar.return_value = generate_mock_search_results(5)
 
         results = processor.retrieve_context("test query", scope=ALL_WORKSPACES)
 
@@ -321,12 +321,12 @@ class TestRetrieval:
 
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
-        mock_db.search_similar_chunks.return_value = generate_mock_search_results(3)
+        mock_db.documents.search_similar.return_value = generate_mock_search_results(3)
 
         results = processor.retrieve_context("test query", top_k=3, min_similarity=0.5, scope=ALL_WORKSPACES)
 
         assert isinstance(results, list)
-        mock_db.search_similar_chunks.assert_called_once()
+        mock_db.documents.search_similar.assert_called_once()
 
     @patch('src.rag.processor.db')
     @patch('src.rag.processor.ollama_client')
@@ -337,11 +337,11 @@ class TestRetrieval:
 
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
-        mock_db.search_similar_chunks.return_value = []
+        mock_db.documents.search_similar.return_value = []
 
         processor.retrieve_context("test", file_type_filter=".pdf", scope=ALL_WORKSPACES)
 
-        call_args = mock_db.search_similar_chunks.call_args
+        call_args = mock_db.documents.search_similar.call_args
         assert call_args[1]['file_type_filter'] == ".pdf"
 
     @patch('src.rag.processor.db')
@@ -404,10 +404,10 @@ class TestRAGIntegration:
         processor = DocumentProcessor()
 
         # Setup mocks
-        mock_proc_db.document_exists.return_value = (False, None)
-        mock_proc_db.insert_document.return_value = 1
-        mock_proc_db.insert_chunks_batch.return_value = None
-        mock_retr_db.search_similar_chunks.return_value = generate_mock_search_results(5)
+        mock_proc_db.documents.exists.return_value = (False, None)
+        mock_proc_db.documents.insert.return_value = 1
+        mock_proc_db.documents.insert_chunks.return_value = None
+        mock_retr_db.documents.search_similar.return_value = generate_mock_search_results(5)
         mock_proc_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_proc_ollama.generate_embeddings_batch.side_effect = lambda model, texts: [generate_mock_embedding() for _ in texts]
         mock_retr_ollama.get_embedding_model.return_value = "nomic-embed-text"
@@ -429,9 +429,9 @@ class TestRAGIntegration:
         processor = DocumentProcessor()
 
         # Setup mocks
-        mock_db.document_exists.return_value = (False, None)
-        mock_db.insert_document.side_effect = [1, 2, 3]
-        mock_db.insert_chunks_batch.return_value = None
+        mock_db.documents.exists.return_value = (False, None)
+        mock_db.documents.insert.side_effect = [1, 2, 3]
+        mock_db.documents.insert_chunks.return_value = None
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embeddings_batch.side_effect = lambda model, texts: [generate_mock_embedding() for _ in texts]
 
@@ -503,7 +503,7 @@ class TestRAGEdgeCases:
 
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
-        mock_db.search_similar_chunks.return_value = []
+        mock_db.documents.search_similar.return_value = []
 
         results = processor.retrieve_context("", scope=ALL_WORKSPACES)
 

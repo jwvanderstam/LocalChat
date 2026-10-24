@@ -152,7 +152,7 @@ class RetrievalMixin:
     ) -> list:
         """Run the independent full-text lexical search arm; degrades to [] on any failure."""
         try:
-            results = self._db.search_lexical_chunks(
+            results = self._db.documents.search_lexical(
                 query_clean,
                 top_k=top_k,
                 file_type_filter=file_type_filter,
@@ -273,7 +273,7 @@ class RetrievalMixin:
             Filtered results dict mapping chunk_id to result data, or empty dict
             when nothing passes the similarity threshold.
         """
-        semantic_results = self._db.search_similar_chunks(
+        semantic_results = self._db.documents.search_similar(
             query_embedding,
             top_k=top_k * 2,
             min_similarity=min_similarity,
@@ -686,7 +686,7 @@ class RetrievalMixin:
 
         NOTE: Not yet implemented — returns results unchanged.
         Intended future behaviour: fetch window_size chunks before/after
-        each result using db.get_adjacent_chunks() and merge the text.
+        each result using db.documents.adjacent_chunks() and merge the text.
 
         Args:
             results: Dictionary of chunk_id -> result data

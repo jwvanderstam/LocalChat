@@ -75,8 +75,8 @@ out["drop_table_refused"] = refused("DROP TABLE documents")
 
 a = db.workspaces.create("s2-a", owner_id=None)
 b = db.workspaces.create("s2-b", owner_id=None)
-db.insert_document("s2.md", "only in a", workspace_id=a)
-out["unscoped_sees_it"] = db.get_document_count(scope=ALL_WORKSPACES) >= 1
+db.documents.insert("s2.md", "only in a", workspace_id=a)
+out["unscoped_sees_it"] = db.documents.count(scope=ALL_WORKSPACES) >= 1
 with db.get_connection(scope=a) as conn:
     out["scope_a_docs"] = conn.execute("SELECT count(*) FROM documents").fetchone()[0]
 with db.get_connection(scope=b) as conn:

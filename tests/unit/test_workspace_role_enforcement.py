@@ -196,7 +196,7 @@ class TestDocumentDeleteIsEditorNotAdmin:
     def test_editor_soft_delete_records_the_caller(self):
         client = _documents("editor")
         client.delete("/api/documents/42", headers=_auth())
-        args, kwargs = client.app.state.db.delete_document.call_args
+        args, kwargs = client.app.state.db.documents.retire.call_args
         assert args == (42, USER)
         # The scope is the workspace the guard authorised against — here the default,
         # since this caller owns none. An editor cannot reach another workspace's

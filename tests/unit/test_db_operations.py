@@ -56,7 +56,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            exists, doc_info = db_module.db.document_exists("nonexistent.pdf")
+            exists, doc_info = db_module.db.documents.exists("nonexistent.pdf")
 
             assert exists is False
             assert doc_info == {}
@@ -76,7 +76,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            exists, doc_info = db_module.db.document_exists("test.pdf")
+            exists, doc_info = db_module.db.documents.exists("test.pdf")
 
             assert exists is True
             assert doc_info is not None
@@ -99,7 +99,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            doc_id = db_module.db.insert_document(
+            doc_id = db_module.db.documents.insert(
                 filename="test.pdf",
                 content="Sample content",
                 metadata={'pages': 5}
@@ -134,7 +134,7 @@ class TestDocumentOperations:
                 mock_get_conn.return_value.__enter__.return_value = mock_conn
                 mock_get_conn.return_value.__exit__.return_value = None
 
-                db_module.db.insert_document(
+                db_module.db.documents.insert(
                     filename="test.pdf", content="Sample content", metadata={}
                 )
         finally:
@@ -161,7 +161,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            docs = db_module.db.get_all_documents(scope=ALL_WORKSPACES)
+            docs = db_module.db.documents.list_all(scope=ALL_WORKSPACES)
 
             assert len(docs) == 2
             assert docs[0]['filename'] == "doc1.pdf"
@@ -186,7 +186,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            count = db_module.db.get_document_count(scope=ALL_WORKSPACES)
+            count = db_module.db.documents.count(scope=ALL_WORKSPACES)
 
             assert count == 5
             assert isinstance(count, int)
@@ -207,7 +207,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.document_exists("report.txt", workspace_id="ws-1")
+            db_module.db.documents.exists("report.txt", workspace_id="ws-1")
 
             args, _ = mock_cursor.execute.call_args
             query, params = args
@@ -226,7 +226,7 @@ class TestDocumentOperations:
         mock_conn.cursor.return_value.__exit__.return_value = None
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            doc_id = db_module.db.insert_document(
+            doc_id = db_module.db.documents.insert(
                 filename="test.pdf", content="content", conn=mock_conn
             )
 
@@ -248,7 +248,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.update_document(
+            db_module.db.documents.update(
                 3, content="new content", content_hash="newhash"
             )
 
@@ -266,7 +266,7 @@ class TestDocumentOperations:
         mock_conn.cursor.return_value.__exit__.return_value = None
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            db_module.db.update_document(3, content="new content", conn=mock_conn)
+            db_module.db.documents.update(3, content="new content", conn=mock_conn)
 
             mock_conn.commit.assert_not_called()
             mock_get_conn.assert_not_called()
@@ -286,7 +286,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.soft_delete_chunks_for_document(3)
+            db_module.db.documents.retire_chunks(3)
 
             args, params = mock_cursor.execute.call_args[0]
             assert "UPDATE document_chunks" in args
@@ -304,7 +304,7 @@ class TestDocumentOperations:
         mock_conn.cursor.return_value.__exit__.return_value = None
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            db_module.db.soft_delete_chunks_for_document(3, conn=mock_conn)
+            db_module.db.documents.retire_chunks(3, conn=mock_conn)
 
             mock_conn.commit.assert_not_called()
             mock_get_conn.assert_not_called()
@@ -318,7 +318,7 @@ class TestChunkOperations:
         from src import db as db_module
 
         # Empty list should not cause error
-        db_module.db.insert_chunks_batch([])
+        db_module.db.documents.insert_chunks([])
         # No assertion needed - just verify no exception
 
     def test_insert_chunks_batch_processes_multiple(self):
@@ -341,7 +341,7 @@ class TestChunkOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.insert_chunks_batch(chunks_data)
+            db_module.db.documents.insert_chunks(chunks_data)
 
             # Verify cursor was used
             assert mock_cursor.execute.called
@@ -360,7 +360,7 @@ class TestChunkOperations:
         mock_conn.cursor.return_value.__exit__.return_value = None
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            chunk_ids = db_module.db.insert_chunks_batch(chunks_data, conn=mock_conn)
+            chunk_ids = db_module.db.documents.insert_chunks(chunks_data, conn=mock_conn)
 
             assert chunk_ids == [11]
             mock_conn.commit.assert_not_called()
@@ -381,7 +381,7 @@ class TestChunkOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            count = db_module.db.get_chunk_count(scope=ALL_WORKSPACES)
+            count = db_module.db.documents.chunk_count(scope=ALL_WORKSPACES)
 
             assert count == 100
             assert isinstance(count, int)
@@ -410,7 +410,7 @@ class TestVectorSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_similar_chunks(
+            results = db_module.db.documents.search_similar(
                 query_embedding=query_embedding,
                 top_k=5, scope=ALL_WORKSPACES
             )
@@ -438,7 +438,7 @@ class TestVectorSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_similar_chunks(
+            results = db_module.db.documents.search_similar(
                 query_embedding=query_embedding,
                 top_k=2, scope=ALL_WORKSPACES
             )
@@ -462,7 +462,7 @@ class TestVectorSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_similar_chunks(
+            results = db_module.db.documents.search_similar(
                 query_embedding=query_embedding, scope=ALL_WORKSPACES
             )
 
@@ -490,7 +490,7 @@ class TestLexicalSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_lexical_chunks(query="exact code ABC-123", top_k=5, scope=ALL_WORKSPACES)
+            results = db_module.db.documents.search_lexical(query="exact code ABC-123", top_k=5, scope=ALL_WORKSPACES)
 
             assert len(results) == 2
             assert results[0] == ("chunk text 1", "doc1.pdf", 0, 0.55, {}, 1)
@@ -510,7 +510,7 @@ class TestLexicalSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_lexical_chunks(query="nothing matches this", scope=ALL_WORKSPACES)
+            results = db_module.db.documents.search_lexical(query="nothing matches this", scope=ALL_WORKSPACES)
 
             assert results == []
 
@@ -519,7 +519,7 @@ class TestLexicalSearch:
         from src import db as db_module
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            results = db_module.db.search_lexical_chunks(query="   ", scope=ALL_WORKSPACES)
+            results = db_module.db.documents.search_lexical(query="   ", scope=ALL_WORKSPACES)
 
             assert results == []
             mock_get_conn.assert_not_called()
@@ -539,7 +539,7 @@ class TestLexicalSearch:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.search_lexical_chunks(query="term", filename_filter=["a.pdf", "b.pdf"], scope=ALL_WORKSPACES)
+            db_module.db.documents.search_lexical(query="term", filename_filter=["a.pdf", "b.pdf"], scope=ALL_WORKSPACES)
 
             executed_sql, params = mock_cursor.execute.call_args.args
             assert "d.filename = ANY(%s)" in executed_sql
@@ -559,7 +559,7 @@ class TestErrorHandling:
         with patch.object(db_module.db, 'is_connected', True),              patch.object(db_module.db, 'get_connection',
                           side_effect=psycopg.OperationalError("DB Error")):
             with pytest.raises(psycopg.OperationalError):
-                db_module.db.document_exists("test.pdf")
+                db_module.db.documents.exists("test.pdf")
 
     def test_search_handles_connection_error(self):
         """Test search with connection error."""
@@ -571,7 +571,7 @@ class TestErrorHandling:
             # so it records that search does not swallow a failed connection into
             # an empty result set, which would read as "no matching documents".
             with pytest.raises(psycopg.OperationalError):
-                db_module.db.search_similar_chunks(query_embedding=[0.1] * 768, scope=ALL_WORKSPACES)
+                db_module.db.documents.search_similar(query_embedding=[0.1] * 768, scope=ALL_WORKSPACES)
 
 
 class TestDatabaseStats:
@@ -592,8 +592,8 @@ class TestDatabaseStats:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            doc_count = db_module.db.get_document_count(scope=ALL_WORKSPACES)
-            chunk_count = db_module.db.get_chunk_count(scope=ALL_WORKSPACES)
+            doc_count = db_module.db.documents.count(scope=ALL_WORKSPACES)
+            chunk_count = db_module.db.documents.chunk_count(scope=ALL_WORKSPACES)
 
             assert doc_count == 5
             assert chunk_count == 100

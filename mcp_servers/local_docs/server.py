@@ -95,7 +95,7 @@ def list_sources() -> list[dict]:
     _, db = _get_services()
     # Token-authenticated and installation-wide, as before; said rather than defaulted.
     from src.utils.scope import ALL_WORKSPACES
-    docs = db.get_all_documents(scope=ALL_WORKSPACES)
+    docs = db.documents.list_all(scope=ALL_WORKSPACES)
     return [
         {
             "id": d["id"],

@@ -36,8 +36,8 @@ class TestCollectDocumentStats:
         from src.routes_fastapi.settings_routes import _collect_document_stats
 
         app = Mock()
-        app.db.get_document_count.return_value = 5
-        app.db.get_chunk_count.return_value = 42
+        app.db.documents.count.return_value = 5
+        app.db.documents.chunk_count.return_value = 42
 
         result = _collect_document_stats(app)
 
@@ -50,7 +50,7 @@ class TestCollectDocumentStats:
         from src.routes_fastapi.settings_routes import _collect_document_stats
 
         app = Mock()
-        app.db.get_document_count.side_effect = Exception("DB error")
+        app.db.documents.count.side_effect = Exception("DB error")
 
         result = _collect_document_stats(app)
 

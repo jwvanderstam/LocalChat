@@ -194,7 +194,7 @@ def get_doc_count_cached(db: Any, scope: Scope) -> tuple[int, bool]:
         cached = _status_doc_count_cache.get(scope)
         if cached is None or now - cached[1] > _STATUS_CACHE_TTL:
             try:
-                count = db.get_document_count(scope=scope)
+                count = db.documents.count(scope=scope)
                 _status_doc_count_cache[scope] = (count, now)
                 return count, True
             except Exception as exc:  # noqa: BLE001 — the count is displayed, not depended on; 0 with has_docs=False is the safe pair
@@ -481,7 +481,7 @@ def any_local_only_sources(sources: list[dict] | None, app_state: Any) -> bool:
     if not filenames:
         return False
     try:
-        return app_state.db.any_local_only_sources(filenames)
+        return app_state.db.documents.any_local_only_sources(filenames)
     except Exception as exc:  # noqa: BLE001 — returns True — the conservative answer keeps the query local rather than sending it to a cloud model
         logger.warning("[CloudFallback] local_only check failed: %s", exc)
         return True

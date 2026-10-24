@@ -9,8 +9,13 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from ..services.documents import DocumentsService
 from ..services.users import UsersService
 from ..services.workspaces import WorkspacesService
+
+
+def documents_service(request: Request) -> DocumentsService:
+    return DocumentsService(request.app.state.db)
 
 
 def users_service(request: Request) -> UsersService:

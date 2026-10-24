@@ -60,7 +60,7 @@ def list_chunk_annotations(chunk_id: int, request: Request) -> Any:
         # the document's workspace and so never leaked anything — but answering 200 for
         # someone else's chunk still told the caller it exists, and left the route unable
         # to say "no such chunk" at all.
-        if request.app.state.db.get_chunk_by_id(chunk_id, scope=scope) is None:
+        if request.app.state.db.documents.chunk_by_id(chunk_id, scope=scope) is None:
             return JSONResponse(
                 {"success": False, "message": _NOT_FOUND}, status_code=404
             )

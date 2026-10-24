@@ -18,8 +18,9 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile as _StarletteUploadFile
 
 from .. import config
-from ..db.connection import DatabaseUnavailableError
 from ..security_fastapi import get_current_user_id, limiter, require_admin_dep
+from ..services.documents import DocumentsService
+from ..services.errors import ServiceError
 from ..utils.file_validation import validate_file_content
 from ..utils.logging_config import get_logger
 from ..utils.logging_config import sanitize_log_value as _slv
@@ -27,11 +28,16 @@ from ..utils.sanitization import sanitize_filename, validate_path
 from ..utils.scope import Scope
 from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
+from ._services import documents_service
 
 logger = get_logger(__name__)
 router = APIRouter()
 
-_ERR_DB_UNAVAILABLE = "Database unavailable"
+Documents = Annotated[DocumentsService, Depends(documents_service)]
+
+
+def _refused(exc: ServiceError) -> JSONResponse:
+    return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
 
 
 class UploadTooLargeError(Exception):
@@ -164,7 +170,11 @@ def _stream_file_ingest(app_state: Any, file_path: str, workspace_id: str | None
 
 
 async def _generate_upload_sse(
-    app_state: Any, file_paths: list[str], workspace_id: str | None, scope: Scope,
+    app_state: Any,
+    documents: DocumentsService,
+    file_paths: list[str],
+    workspace_id: str | None,
+    scope: Scope,
 ) -> AsyncGenerator[str, None]:
     try:
         for file_path in file_paths:
@@ -177,7 +187,7 @@ async def _generate_upload_sse(
             )
             for event in events:
                 yield event
-        doc_count = app_state.db.get_document_count(scope=scope)
+        doc_count = documents.count(scope)
         yield f"data: {json.dumps({'done': True, 'total_documents': doc_count})}\n\n"
     except Exception:
         logger.exception("Upload stream error")
@@ -194,7 +204,7 @@ async def _generate_upload_sse(
 
 @router.post("/upload")
 @limiter.limit(config.RATELIMIT_UPLOAD)
-async def api_upload_documents(request: Request) -> Any:
+async def api_upload_documents(request: Request, documents: Documents) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
@@ -227,7 +237,7 @@ async def api_upload_documents(request: Request) -> Any:
 
     return StreamingResponse(
         _generate_upload_sse(
-            request.app.state, file_paths, get_workspace_id(request), get_scope(request)
+            request.app.state, documents, file_paths, get_workspace_id(request), get_scope(request)
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -235,39 +245,32 @@ async def api_upload_documents(request: Request) -> Any:
 
 
 @router.get("/list")
-def api_list_documents(request: Request) -> Any:
+def api_list_documents(request: Request, documents: Documents) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
     try:
-        documents = request.app.state.db.get_all_documents(scope=get_scope(request))
-        return {"success": True, "documents": documents}
-    except DatabaseUnavailableError:
-        logger.exception("DB unavailable listing documents")
-        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+        return {"success": True, "documents": documents.list_all(get_scope(request))}
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("Error listing documents")
         return JSONResponse({"success": False, "message": "Failed to retrieve documents"}, status_code=500)
 
 
 @router.get("/stats")
-def api_document_stats(request: Request) -> Any:
+def api_document_stats(request: Request, documents: Documents) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
-    scope = get_scope(request)
     try:
-        db = request.app.state.db
         return {
             "success": True,
-            "document_count": db.get_document_count(scope=scope),
-            "chunk_count": db.get_chunk_count(scope=scope),
-            "chunk_statistics": db.get_chunk_statistics(),
+            **documents.stats(get_scope(request)),
             "max_upload_size": config.MAX_CONTENT_LENGTH,
         }
-    except DatabaseUnavailableError:
-        logger.exception("DB unavailable getting stats")
-        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("Error getting document stats")
         return JSONResponse({"success": False, "message": "Failed to retrieve statistics"}, status_code=500)
@@ -328,7 +331,7 @@ async def api_test_retrieval(request: Request) -> Any:
 
 
 @router.post("/search-text")
-async def api_search_text(request: Request) -> Any:
+async def api_search_text(request: Request, documents: Documents) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
@@ -338,9 +341,7 @@ async def api_search_text(request: Request) -> Any:
     if not search_text:
         return JSONResponse({"success": False, "message": "search_text required"}, status_code=400)
     try:
-        results = request.app.state.db.search_chunks_by_text(
-            search_text, limit, scope=get_scope(request)
-        )
+        results = documents.search_text(search_text, limit, get_scope(request))
         return {"success": True, "search_text": search_text, "count": len(results), "results": results}
     except Exception:
         logger.exception("Error searching text")
@@ -348,27 +349,24 @@ async def api_search_text(request: Request) -> Any:
 
 
 @router.get("/chunks/{chunk_id}/context")
-def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> Any:
+def api_get_chunk_context(
+    chunk_id: int, request: Request, documents: Documents, window: int = 1
+) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
     window = min(window, 5)
     try:
-        db = request.app.state.db
-        scope = get_scope(request)
-        chunk = db.get_chunk_by_id(chunk_id, scope=scope)
-        if chunk is None:
+        context = documents.chunk_context(chunk_id, window, get_scope(request))
+        if context is None:
             return JSONResponse({"success": False, "message": "Chunk not found"}, status_code=404)
-        adjacent = db.get_adjacent_chunks(
-            chunk["document_id"], chunk["chunk_index"], window_size=window, scope=scope
-        )
         return {
             "success": True,
             "chunk_id": chunk_id,
-            "document_id": chunk["document_id"],
-            "chunk_index": chunk["chunk_index"],
+            "document_id": context["document_id"],
+            "chunk_index": context["chunk_index"],
             "window": window,
-            "chunks": [{"chunk_text": text, "chunk_index": idx} for text, idx in adjacent],
+            "chunks": context["chunks"],
         }
     except Exception:
         logger.exception("Error fetching chunk context")
@@ -376,7 +374,7 @@ def api_get_chunk_context(chunk_id: int, request: Request, window: int = 1) -> A
 
 
 @router.delete("/clear")
-def api_clear_documents(request: Request) -> Any:
+def api_clear_documents(request: Request, documents: Documents) -> Any:
     """Retire every document in the caller's own workspace. Reversible.
 
     Requires ``owner``: clearing a whole workspace is not the same decision as
@@ -389,20 +387,15 @@ def api_clear_documents(request: Request) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
         return denied
-    caller = get_current_user_id(request)
-    deleted_by = caller if caller and caller != "anonymous" else None
     try:
-        retired = request.app.state.db.retire_all_documents(
-            scope=get_scope(request), deleted_by=deleted_by
-        )
+        retired = documents.retire_all(get_current_user_id(request), get_scope(request))
         return {
             "success": True,
             "retired": retired,
             "message": f"{retired} documents retired. They can be restored until purged.",
         }
-    except DatabaseUnavailableError:
-        logger.exception("DB unavailable clearing documents")
-        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("Error clearing documents")
         return JSONResponse({"success": False, "message": "Failed to clear documents"}, status_code=500)
@@ -410,7 +403,7 @@ def api_clear_documents(request: Request) -> Any:
 
 @router.delete("/purge-all")
 def api_purge_all_documents(
-    request: Request,
+    documents: Documents,
     admin_user_id: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     """Hard-delete every retired document, installation-wide. Irreversible, admin only.
@@ -419,11 +412,9 @@ def api_purge_all_documents(
     integer route.
     """
     try:
-        purged = request.app.state.db.purge_all_documents()
-        return {"success": True, "purged": purged}
-    except DatabaseUnavailableError:
-        logger.exception("DB unavailable purging documents")
-        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+        return {"success": True, "purged": documents.purge_all()}
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("Error purging documents")
         return JSONResponse({"success": False, "message": "Failed to purge documents"}, status_code=500)
@@ -432,12 +423,12 @@ def api_purge_all_documents(
 @router.delete("/{doc_id}/purge")
 def api_purge_document(
     doc_id: int,
-    request: Request,
+    documents: Documents,
     admin_user_id: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     """Hard-delete a soft-deleted document if no chunk_stats citation exists."""
     try:
-        purged = request.app.state.db.purge_document(doc_id)
+        purged = documents.purge(doc_id)
         if not purged:
             return JSONResponse(
                 {
@@ -451,16 +442,15 @@ def api_purge_document(
                 status_code=409,
             )
         return {"success": True}
-    except DatabaseUnavailableError:
-        logger.exception("DB unavailable purging document %s", _slv(str(doc_id)))
-        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("Error purging document %s", _slv(str(doc_id)))
         return JSONResponse({"success": False, "message": "Failed to purge document"}, status_code=500)
 
 
 @router.delete("/{doc_id}")
-def api_delete_document(doc_id: int, request: Request) -> Any:
+def api_delete_document(doc_id: int, request: Request, documents: Documents) -> Any:
     """Soft-delete a document (sets deleted_at). Does not remove rows or files.
 
     Requires ``editor`` in the workspace, not global admin: whoever may upload may
@@ -471,20 +461,15 @@ def api_delete_document(doc_id: int, request: Request) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
-    caller = get_current_user_id(request)
-    deleted_by = caller if caller and caller != "anonymous" else None
     try:
-        deleted = request.app.state.db.delete_document(
-            doc_id, deleted_by, scope=get_scope(request)
-        )
+        deleted = documents.retire(doc_id, get_current_user_id(request), get_scope(request))
         if not deleted:
             return JSONResponse(
                 {"success": False, "message": "Document not found"}, status_code=404
             )
         return {"success": True}
-    except DatabaseUnavailableError:
-        logger.exception("DB unavailable deleting document %s", _slv(str(doc_id)))
-        return JSONResponse({"success": False, "message": _ERR_DB_UNAVAILABLE}, status_code=503)
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("Error deleting document %s", _slv(str(doc_id)))
         return JSONResponse({"success": False, "message": "Failed to delete document"}, status_code=500)

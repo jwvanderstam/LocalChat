@@ -112,8 +112,10 @@ output = "coverage.xml"
 module = [
     "src.db.users",
     "src.db.tokens",
+    "src.db.documents",
     "src.db.workspaces",
     "src.db.workspace_keys",
+    "src.services.documents",
     "src.services.errors",
     "src.services.passwords",
     "src.services.users",
@@ -142,11 +144,6 @@ forbidden_modules = ["src.db"]
 # Direct imports only: a route reaching the database through a service is the layering
 # working, not a breach of it.
 allow_indirect_imports = true
-# Today's direct imports (exception classes and hashing). QP-4 removes each with its
-# aggregate: users and auth first, then workspaces, then documents.
-ignore_imports = [
-    "src.routes_fastapi.document_routes -> src.db.connection",
-]
 
 [[tool.importlinter.contracts]]
 name = "Routes above services above the database layer"

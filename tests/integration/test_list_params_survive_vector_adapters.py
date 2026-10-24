@@ -111,8 +111,8 @@ class TestListOfStringsIsAcceptedAsAParameter:
 from src.db import Database
 db = Database(); db.initialize()
 # entity_relations.doc_id/chunk_id are foreign keys, so a relation needs real rows.
-doc = db.insert_document('entities.md', 'Ollama and Postgres', {}, 'hash-ent')
-chunk_ids = db.insert_chunks_batch([(doc, 'Ollama and Postgres', 0, [0.02] * 768)])
+doc = db.documents.insert('entities.md', 'Ollama and Postgres', {}, 'hash-ent')
+chunk_ids = db.documents.insert_chunks([(doc, 'Ollama and Postgres', 0, [0.02] * 768)])
 a = db.upsert_entity('Ollama', 'PRODUCT')
 b = db.upsert_entity('Postgres', 'ORG')
 db.insert_entity_relation(a, b, doc, chunk_ids[0])
@@ -150,10 +150,10 @@ class TestTheDocumentFilterNarrowsRetrieval:
 from src.db import Database
 from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
-keep = db.insert_document('keep.md', 'alpha beta', {}, 'hash-keep')
-drop = db.insert_document('drop.md', 'alpha beta', {}, 'hash-drop')
+keep = db.documents.insert('keep.md', 'alpha beta', {}, 'hash-keep')
+drop = db.documents.insert('drop.md', 'alpha beta', {}, 'hash-drop')
 emb = [0.01] * 768
-db.insert_chunks_batch([(keep, 'alpha beta gamma', 0, emb),
+db.documents.insert_chunks([(keep, 'alpha beta gamma', 0, emb),
                         (drop, 'alpha beta gamma', 0, emb)])
 
 # search_similar_chunks returns tuples:
@@ -161,11 +161,11 @@ db.insert_chunks_batch([(keep, 'alpha beta gamma', 0, emb),
 FILENAME = 1
 # Subset, not equality: the fixture database is module-scoped and earlier tests
 # have left their own documents in it.
-unfiltered = db.search_similar_chunks(emb, top_k=10, min_similarity=-1.0, scope=ALL_WORKSPACES)
+unfiltered = db.documents.search_similar(emb, top_k=10, min_similarity=-1.0, scope=ALL_WORKSPACES)
 files = {r[FILENAME] for r in unfiltered}
 assert {'keep.md', 'drop.md'} <= files, files
 
-filtered = db.search_similar_chunks(emb, top_k=10, min_similarity=-1.0,
+filtered = db.documents.search_similar(emb, top_k=10, min_similarity=-1.0,
                                     filename_filter=['keep.md'], scope=ALL_WORKSPACES)
 assert filtered, 'filter returned nothing at all'
 assert {r[FILENAME] for r in filtered} == {'keep.md'}, {r[FILENAME] for r in filtered}
@@ -184,10 +184,10 @@ class TestEmbeddingsStillRoundTrip:
 from src.db import Database
 from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
-doc = db.insert_document('vec.md', 'body', {}, 'hash-vec')
+doc = db.documents.insert('vec.md', 'body', {}, 'hash-vec')
 emb = [0.125] * 768
-db.insert_chunks_batch([(doc, 'body', 0, emb)])
-hits = db.search_similar_chunks(emb, top_k=1, min_similarity=-1.0, scope=ALL_WORKSPACES)
+db.documents.insert_chunks([(doc, 'body', 0, emb)])
+hits = db.documents.search_similar(emb, top_k=1, min_similarity=-1.0, scope=ALL_WORKSPACES)
 assert hits, 'vector search returned nothing'
 assert hits[0][1] == 'vec.md', hits[0][1]       # filename
 assert abs(hits[0][3] - 1.0) < 1e-6, hits[0][3]  # similarity to itself is 1.0

@@ -275,7 +275,7 @@ def _init_database_service(app: Any, db: Any) -> None:
         db.ensure_scoped_role()
         _drop_to_app_identity(db)
         from .utils.scope import ALL_WORKSPACES
-        doc_count = db.get_document_count(scope=ALL_WORKSPACES)
+        doc_count = db.documents.count(scope=ALL_WORKSPACES)
         logger.info(f"Documents in database: {doc_count}")
         try:
             purged = db.tokens.purge_expired()

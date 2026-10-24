@@ -157,7 +157,7 @@ class TestAnnotationRoutes:
         from src.routes_fastapi.annotation_routes import router
 
         state = _base_state()
-        state.db.get_chunk_by_id.return_value = None
+        state.db.documents.chunk_by_id.return_value = None
         client = _make_client(router, "/api", state)
         resp = client.get("/api/chunks/5/annotations")
         assert resp.status_code == 404
@@ -325,7 +325,7 @@ class TestApiStatusRoute:
         from src.routes_fastapi.api_routes import router
 
         state = _base_state()
-        state.db.get_document_count.return_value = 3
+        state.db.documents.count.return_value = 3
         state.ollama_client.check_connection.return_value = (True, None)
 
         with patch("src.routes_fastapi.api_routes.config") as mc:
@@ -347,7 +347,7 @@ class TestApiStatusRoute:
         from src.routes_fastapi.api_routes import router
 
         state = _base_state()
-        state.db.get_document_count.return_value = 3
+        state.db.documents.count.return_value = 3
         state.ollama_client.check_connection.return_value = (True, None)
 
         secret_detail = "connection refused to internal-host:5001"

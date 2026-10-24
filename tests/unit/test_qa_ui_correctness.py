@@ -180,7 +180,7 @@ class TestStatusIsWorkspaceScoped:
 
         state = authenticated_state(role="admin", member_role="viewer")
         state.startup_status = {"database": True, "ollama": True}
-        state.db.get_document_count.return_value = 5
+        state.db.documents.count.return_value = 5
 
         app = FastAPI()
         app.include_router(router, prefix="/api")
@@ -196,7 +196,7 @@ class TestStatusIsWorkspaceScoped:
         assert resp.status_code == 200
         # The count is cached through chat.get_doc_count_cached; what matters here is
         # that the request's workspace reached it rather than being dropped.
-        assert WORKSPACE_ID in str(state.db.get_document_count.call_args)
+        assert WORKSPACE_ID in str(state.db.documents.count.call_args)
 
 
 # --------------------------------------------------------------------------
