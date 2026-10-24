@@ -100,6 +100,23 @@ class TestRouteOrdering:
         resp = _client(None).get("/api/users/me")
         assert resp.json()["can_write"] is False
 
+
+@pytest.mark.unit
+class TestRevokedTokenIsAnonymous:
+    """A signed-out session's token still decodes; it must reveal no identity."""
+
+    def _revoked(self, client):
+        client.app.state.db.is_token_revoked.return_value = True
+        return client.get("/api/users/me", headers={**_auth(), "X-Workspace-ID": WS}).json()
+
+    def test_a_revoked_token_gets_no_identity(self):
+        body = self._revoked(_client("owner", global_role="admin"))
+        assert (body["user_id"], body["role"], body["workspace_role"]) == (None, None, None)
+
+    def test_a_revoked_token_gets_no_permissions(self):
+        body = self._revoked(_client("owner", global_role="admin"))
+        assert (body["can_write"], body["can_contribute"], body["can_withdraw"]) == (False, False, False)
+
 @pytest.mark.unit
 class TestGlobalKnowledgeGuards:
     """GKB-2: contributing is require_admin_dep, withdrawing is ws:owner."""

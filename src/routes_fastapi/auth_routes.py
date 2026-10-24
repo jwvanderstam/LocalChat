@@ -20,7 +20,6 @@ from ..security_fastapi import (
     create_access_token,
     decode_token_for_revocation,
     extract_bearer_token,
-    get_current_user_id,
     limiter,
     require_admin_dep,
     resolve_principal,
@@ -181,7 +180,13 @@ def get_own_identity(request: Request) -> Any:
     themselves call, so the UI never reimplements the role hierarchy — a second
     copy of that rule is exactly what let the member routes drift (BUG-3).
     """
-    user_id = get_current_user_id(request)
+    # Through resolve_principal, not get_current_user_id: a revoked token decodes
+    # fine, and answering it with an id and roles is what the public allowlist
+    # promises this route never does. A refused token reads as anonymous.
+    try:
+        user_id: str | None = resolve_principal(request).user_id
+    except AuthError:
+        user_id = None
     workspace_id = get_workspace_id(request)
     db = getattr(request.app.state, "db", None)
 

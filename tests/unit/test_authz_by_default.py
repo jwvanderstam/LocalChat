@@ -37,7 +37,7 @@ PUBLIC_ALLOWLIST: dict[str, str] = {
     "/api/oauth/microsoft/callback": "the identity provider redirects here with no token",
     "/api/oauth/google/callback": "same as the Microsoft callback",
     "/api/connectors/{connector_id}/webhook": "external systems post here; authenticity is the webhook's own concern",
-    "/api/users/me": "how the frontend discovers whether it is logged in; returns all-null and can_write=false to an anonymous caller, so it reveals nothing",
+    "/api/users/me": "how the frontend discovers whether it is logged in; returns all-null and can_write=false to an anonymous caller or a revoked token, so it reveals nothing",
     "/api/repo-docs": "serves the same markdown that is public in the repository",
     "/api/repo-docs/{slug}": "same as /api/repo-docs",
     "/api/repo-docs/{slug}/fragments/{fragment_slug}": "same as /api/repo-docs",

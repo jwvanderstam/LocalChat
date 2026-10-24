@@ -41,6 +41,10 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   -112913, -112940; pypdf CVE-2026-115572, -115580, -115585). One change, because each
   Dependabot PR failed pip-audit on the other's CVEs. filelock is a transitive dependency of
   huggingface-hub and torch, neither of which caps it below 4.
+- **`GET /api/users/me` no longer answers a revoked token with its identity.** It read the
+  token without the revocation check, so a session cookie copied before sign-out still
+  returned its user id, global and workspace role, and `can_contribute`. A refused token
+  now gets the anonymous answer, all null. Found writing the QP-7 replay test.
 
 ## [3.3.0] — 2026-10-23
 
