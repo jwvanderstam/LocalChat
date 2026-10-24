@@ -50,7 +50,7 @@ def _dashboard_get(*, headers, role, revoked=False):
     app = FastAPI()
     app.include_router(settings_routes.router, prefix="/api")
     app.state = authenticated_state(role=role)
-    app.state.db.is_token_revoked.return_value = revoked
+    app.state.db.tokens.is_revoked.return_value = revoked
     return TestClient(app).get("/api/metrics.json", headers=headers)
 
 

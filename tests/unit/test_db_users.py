@@ -1,16 +1,16 @@
 """
-Tests for src/db/users.py (UsersMixin)
+Tests for src/db/users.py (UsersRepository) and src/services/passwords.py
 
 Covers:
-  - create_user: DB unavailable raises, returns UUID string, lowercases username
-  - seed_admin_user: DB unavailable raises, seeded vs. already-exists (ON CONFLICT)
-  - get_user_by_username: not found, found, excludes soft-deleted (deleted_at IS NULL filter)
-  - get_user_by_id: not found, found
-  - list_users: DB unavailable returns [], returns list of dicts
-  - count_users: DB unavailable returns 0, returns count
-  - update_user: no allowed fields is a no-op, DB unavailable raises, updates and returns bool
-  - delete_user (soft-delete): DB unavailable raises, sets deleted_at/deleted_by, filters live rows
-  - purge_user: blocked when workspace memberships exist, hard-deletes otherwise
+  - create: DB unavailable raises, returns UUID string, lowercases username
+  - seed_admin: DB unavailable raises, seeded vs. already-exists (ON CONFLICT)
+  - get_by_username: not found, found, excludes soft-deleted (deleted_at IS NULL filter)
+  - get_by_id: not found, found
+  - list_all: DB unavailable returns [], returns list of dicts
+  - count: DB unavailable returns 0, returns count
+  - update: no allowed fields is a no-op, DB unavailable raises, updates and returns bool
+  - retire (soft-delete): DB unavailable raises, sets deleted_at/deleted_by, filters live rows
+  - purge: blocked when workspace memberships exist, hard-deletes otherwise
   - verify_user_password: unknown user, inactive user, wrong password, correct password;
     every path hashes exactly once (S3)
   - hash_user_password: produces a verifiable Werkzeug hash
@@ -23,11 +23,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.services.passwords import verify_user_password
+
 pytestmark = pytest.mark.unit
 
 
 # ---------------------------------------------------------------------------
-# Helpers — build a mixin instance with a mocked get_connection
+# Helpers — build a repository over a host with a mocked get_connection
 # ---------------------------------------------------------------------------
 
 def _make_conn_ctx(fetchone_return=None, fetchall_return=None, rowcount=0):
@@ -48,17 +50,17 @@ def _make_conn_ctx(fetchone_return=None, fetchall_return=None, rowcount=0):
 
 
 def _users_mixin(connected=True, **conn_kwargs):
-    from src.db.users import UsersMixin
+    from src.db.users import UsersRepository
 
     conn, cur = _make_conn_ctx(**conn_kwargs)
-    m = UsersMixin()
-    m.is_connected = connected
-    m.get_connection = MagicMock(return_value=conn)
-    return m, conn, cur
+    host = MagicMock()
+    host.is_connected = connected
+    host.get_connection = MagicMock(return_value=conn)
+    return UsersRepository(host), conn, cur
 
 
 # ===========================================================================
-# create_user
+# create
 # ===========================================================================
 
 class TestCreateUser:
@@ -66,30 +68,30 @@ class TestCreateUser:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _users_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.create_user("alice", "hash")
+            m.create("alice", "hash")
 
     def test_returns_string_id(self):
         uid = uuid.uuid4()
         m, _, cur = _users_mixin(fetchone_return=(uid,))
-        result = m.create_user("alice", "hash")
+        result = m.create("alice", "hash")
         assert result == str(uid)
 
     def test_lowercases_and_strips_username(self):
         m, _, cur = _users_mixin(fetchone_return=(uuid.uuid4(),))
-        m.create_user("  Alice  ", "hash")
+        m.create("  Alice  ", "hash")
         params = cur.execute.call_args[0][1]
         assert params[0] == "alice"
 
     def test_passes_email_and_role(self):
         m, _, cur = _users_mixin(fetchone_return=(uuid.uuid4(),))
-        m.create_user("bob", "hash", email="bob@example.com", role="admin")
+        m.create("bob", "hash", email="bob@example.com", role="admin")
         params = cur.execute.call_args[0][1]
         assert params[1] == "bob@example.com"
         assert params[3] == "admin"
 
 
 # ===========================================================================
-# seed_admin_user
+# seed_admin
 # ===========================================================================
 
 class TestSeedAdminUser:
@@ -97,32 +99,32 @@ class TestSeedAdminUser:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _users_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.seed_admin_user("admin", "hash")
+            m.seed_admin("admin", "hash")
 
     def test_seeds_when_no_conflict(self, caplog):
         m, _, cur = _users_mixin(rowcount=1)
-        m.seed_admin_user("admin", "hash")
+        m.seed_admin("admin", "hash")
         cur.execute.assert_called_once()
 
     def test_no_op_log_when_already_exists(self):
         m, _, cur = _users_mixin(rowcount=0)
         # Should not raise even though the row already existed (ON CONFLICT DO NOTHING).
-        m.seed_admin_user("admin", "hash")
+        m.seed_admin("admin", "hash")
         cur.execute.assert_called_once()
 
 
 # ===========================================================================
-# get_user_by_username / get_user_by_id
+# get_by_username / get_by_id
 # ===========================================================================
 
 class TestGetUserByUsername:
     def test_returns_none_when_db_unavailable(self):
         m, _, _ = _users_mixin(connected=False)
-        assert m.get_user_by_username("alice") is None
+        assert m.get_by_username("alice") is None
 
     def test_returns_none_when_not_found(self):
         m, _, _ = _users_mixin(fetchone_return=None)
-        assert m.get_user_by_username("unknown") is None
+        assert m.get_by_username("unknown") is None
 
     def test_returns_user_dict_when_found(self):
         from datetime import datetime
@@ -130,20 +132,20 @@ class TestGetUserByUsername:
         m, _, cur = _users_mixin(
             fetchone_return=(uid, "alice", "alice@example.com", "hash", True, "user", datetime(2025, 1, 1))
         )
-        result = m.get_user_by_username("alice")
+        result = m.get_by_username("alice")
         assert result["id"] == str(uid)
         assert result["username"] == "alice"
         assert result["is_active"] is True
 
     def test_query_filters_soft_deleted_rows(self):
         m, _, cur = _users_mixin(fetchone_return=None)
-        m.get_user_by_username("alice")
+        m.get_by_username("alice")
         query = cur.execute.call_args[0][0]
         assert "deleted_at IS NULL" in query
 
     def test_lowercases_and_strips_username(self):
         m, _, cur = _users_mixin(fetchone_return=None)
-        m.get_user_by_username("  Alice  ")
+        m.get_by_username("  Alice  ")
         params = cur.execute.call_args[0][1]
         assert params[0] == "alice"
 
@@ -151,52 +153,52 @@ class TestGetUserByUsername:
 class TestGetUserRole:
     """The admin guard runs this on every admin request (QA-1).
 
-    Narrower than get_user_by_id deliberately: it reads one column instead of the
+    Narrower than get_by_id deliberately: it reads one column instead of the
     row, so the password hash is not loaded to answer "is this caller an admin".
     """
 
     def test_returns_the_role_of_a_live_user(self):
         m, _, _ = _users_mixin(fetchone_return=("admin",))
-        assert m.get_user_role("some-id") == "admin"
+        assert m.get_role("some-id") == "admin"
 
     def test_returns_none_when_there_is_no_such_user(self):
         """A retired account resolves here, and None means "not an administrator"."""
         m, _, _ = _users_mixin(fetchone_return=None)
-        assert m.get_user_role("missing-id") is None
+        assert m.get_role("missing-id") is None
 
     def test_returns_none_when_the_database_is_unavailable(self):
         """The caller fails closed on None; it must not raise into the guard."""
         m, _, _ = _users_mixin(connected=False)
-        assert m.get_user_role("some-id") is None
+        assert m.get_role("some-id") is None
 
     def test_the_query_filters_soft_deleted_rows(self):
         """Without this a retired administrator keeps their access."""
         m, _, cur = _users_mixin(fetchone_return=None)
-        m.get_user_role("some-id")
+        m.get_role("some-id")
         assert "deleted_at IS NULL" in cur.execute.call_args[0][0]
 
     def test_the_query_reads_only_the_role_column(self):
         """The point of the method: not the hash, not the whole row."""
         m, _, cur = _users_mixin(fetchone_return=("user",))
-        m.get_user_role("some-id")
+        m.get_role("some-id")
         query = cur.execute.call_args[0][0]
         assert "SELECT role FROM users" in query
         assert "hashed_password" not in query
 
     def test_the_user_id_is_a_bound_parameter(self):
         m, _, cur = _users_mixin(fetchone_return=("user",))
-        m.get_user_role("abc-123")
+        m.get_role("abc-123")
         assert cur.execute.call_args[0][1] == ("abc-123",)
 
 
 class TestGetUserById:
     def test_returns_none_when_db_unavailable(self):
         m, _, _ = _users_mixin(connected=False)
-        assert m.get_user_by_id("some-id") is None
+        assert m.get_by_id("some-id") is None
 
     def test_returns_none_when_not_found(self):
         m, _, _ = _users_mixin(fetchone_return=None)
-        assert m.get_user_by_id("missing-id") is None
+        assert m.get_by_id("missing-id") is None
 
     def test_returns_user_dict_when_found(self):
         from datetime import datetime
@@ -204,25 +206,25 @@ class TestGetUserById:
         m, _, cur = _users_mixin(
             fetchone_return=(uid, "bob", None, "hash", True, "admin", datetime(2025, 1, 1))
         )
-        result = m.get_user_by_id(str(uid))
+        result = m.get_by_id(str(uid))
         assert result["username"] == "bob"
         assert result["role"] == "admin"
 
     def test_query_filters_soft_deleted_rows(self):
         m, _, cur = _users_mixin(fetchone_return=None)
-        m.get_user_by_id("some-id")
+        m.get_by_id("some-id")
         query = cur.execute.call_args[0][0]
         assert "deleted_at IS NULL" in query
 
 
 # ===========================================================================
-# list_users / count_users
+# list_all / count
 # ===========================================================================
 
 class TestListUsers:
     def test_returns_empty_when_db_unavailable(self):
         m, _, _ = _users_mixin(connected=False)
-        assert m.list_users() == []
+        assert m.list_all() == []
 
     def test_returns_list_of_dicts(self):
         from datetime import datetime
@@ -230,13 +232,13 @@ class TestListUsers:
         m, _, cur = _users_mixin(
             fetchall_return=[(uid, "alice", "a@example.com", "hash", True, "user", datetime(2025, 1, 1))]
         )
-        result = m.list_users()
+        result = m.list_all()
         assert len(result) == 1
         assert result[0]["username"] == "alice"
 
     def test_query_filters_soft_deleted_rows(self):
         m, _, cur = _users_mixin(fetchall_return=[])
-        m.list_users()
+        m.list_all()
         query = cur.execute.call_args[0][0]
         assert "deleted_at IS NULL" in query
 
@@ -244,21 +246,21 @@ class TestListUsers:
 class TestCountUsers:
     def test_returns_zero_when_db_unavailable(self):
         m, _, _ = _users_mixin(connected=False)
-        assert m.count_users() == 0
+        assert m.count() == 0
 
     def test_returns_count_from_db(self):
         m, _, cur = _users_mixin(fetchone_return=(3,))
-        assert m.count_users() == 3
+        assert m.count() == 3
 
     def test_query_filters_soft_deleted_rows(self):
         m, _, cur = _users_mixin(fetchone_return=(0,))
-        m.count_users()
+        m.count()
         query = cur.execute.call_args[0][0]
         assert "deleted_at IS NULL" in query
 
 
 # ===========================================================================
-# update_user
+# update
 # ===========================================================================
 
 class TestUpdateUser:
@@ -266,32 +268,32 @@ class TestUpdateUser:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _users_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.update_user("uid", role="admin")
+            m.update("uid", role="admin")
 
     def test_returns_false_when_no_allowed_fields(self):
         m, _, cur = _users_mixin()
-        result = m.update_user("uid", not_a_real_field="x")
+        result = m.update("uid", not_a_real_field="x")
         assert result is False
-        m.get_connection.assert_not_called()
+        cur.execute.assert_not_called()
 
     def test_ignores_disallowed_fields(self):
         m, _, cur = _users_mixin(rowcount=1)
-        m.update_user("uid", role="admin", username="hacker")
+        m.update("uid", role="admin", username="hacker")
         query = cur.execute.call_args[0][0]
         assert "username" not in query
         assert "role" in query
 
     def test_returns_true_when_row_updated(self):
         m, _, cur = _users_mixin(rowcount=1)
-        assert m.update_user("uid", is_active=False) is True
+        assert m.update("uid", is_active=False) is True
 
     def test_returns_false_when_no_row_matched(self):
         m, _, cur = _users_mixin(rowcount=0)
-        assert m.update_user("uid", is_active=False) is False
+        assert m.update("uid", is_active=False) is False
 
 
 # ===========================================================================
-# delete_user (soft delete) / purge_user (hard delete)
+# retire (soft delete) / purge (hard delete)
 # ===========================================================================
 
 class TestDeleteUser:
@@ -299,11 +301,11 @@ class TestDeleteUser:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _users_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.delete_user("uid")
+            m.retire("uid")
 
     def test_sets_deleted_at_and_deleted_by_not_hard_delete(self):
         m, _, cur = _users_mixin(rowcount=1)
-        m.delete_user("uid", deleted_by="admin-id")
+        m.retire("uid", deleted_by="admin-id")
         query = cur.execute.call_args[0][0]
         assert "UPDATE users SET deleted_at" in query
         assert "DELETE FROM" not in query
@@ -312,17 +314,17 @@ class TestDeleteUser:
 
     def test_filters_to_live_rows_only(self):
         m, _, cur = _users_mixin(rowcount=1)
-        m.delete_user("uid")
+        m.retire("uid")
         query = cur.execute.call_args[0][0]
         assert "deleted_at IS NULL" in query
 
     def test_returns_true_when_row_retired(self):
         m, _, cur = _users_mixin(rowcount=1)
-        assert m.delete_user("uid") is True
+        assert m.retire("uid") is True
 
     def test_returns_false_when_already_deleted(self):
         m, _, cur = _users_mixin(rowcount=0)
-        assert m.delete_user("uid") is False
+        assert m.retire("uid") is False
 
 
 class TestPurgeUser:
@@ -330,11 +332,11 @@ class TestPurgeUser:
         from src.db.connection import DatabaseUnavailableError
         m, _, _ = _users_mixin(connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.purge_user("uid")
+            m.purge("uid")
 
     def test_blocked_when_workspace_memberships_exist(self):
         m, _, cur = _users_mixin(fetchone_return=(1,))
-        result = m.purge_user("uid")
+        result = m.purge("uid")
         assert result is False
         # Only the membership-check SELECT should run, not a DELETE.
         assert cur.execute.call_count == 1
@@ -343,7 +345,7 @@ class TestPurgeUser:
         m, _, cur = _users_mixin()
         cur.fetchone.return_value = None  # no membership row found
         cur.rowcount = 1
-        result = m.purge_user("uid")
+        result = m.purge("uid")
         assert result is True
         delete_query = cur.execute.call_args_list[-1][0][0]
         assert "DELETE FROM users" in delete_query
@@ -352,7 +354,7 @@ class TestPurgeUser:
         m, _, cur = _users_mixin()
         cur.fetchone.return_value = None
         cur.rowcount = 0
-        assert m.purge_user("uid") is False
+        assert m.purge("uid") is False
 
 
 # ===========================================================================
@@ -362,7 +364,7 @@ class TestPurgeUser:
 class TestVerifyUserPassword:
     def test_returns_none_when_user_not_found(self):
         m, _, cur = _users_mixin(fetchone_return=None)
-        assert m.verify_user_password("nobody", "pw") is None
+        assert verify_user_password(m, "nobody", "pw") is None
 
     def test_returns_none_when_user_inactive(self):
         from datetime import datetime
@@ -370,29 +372,29 @@ class TestVerifyUserPassword:
         m, _, cur = _users_mixin(
             fetchone_return=(uid, "alice", None, "hash", False, "user", datetime(2025, 1, 1))
         )
-        assert m.verify_user_password("alice", "pw") is None
+        assert verify_user_password(m, "alice", "pw") is None
 
     def test_returns_none_when_password_wrong(self):
         from datetime import datetime
 
-        from src.db.users import hash_user_password
+        from src.services.passwords import hash_user_password
         uid = uuid.uuid4()
         real_hash = hash_user_password("correct-password")
         m, _, cur = _users_mixin(
             fetchone_return=(uid, "alice", None, real_hash, True, "user", datetime(2025, 1, 1))
         )
-        assert m.verify_user_password("alice", "wrong-password") is None
+        assert verify_user_password(m, "alice", "wrong-password") is None
 
     def test_returns_user_dict_without_hash_when_password_correct(self):
         from datetime import datetime
 
-        from src.db.users import hash_user_password
+        from src.services.passwords import hash_user_password
         uid = uuid.uuid4()
         real_hash = hash_user_password("correct-password")
         m, _, cur = _users_mixin(
             fetchone_return=(uid, "alice", None, real_hash, True, "user", datetime(2025, 1, 1))
         )
-        result = m.verify_user_password("alice", "correct-password")
+        result = verify_user_password(m, "alice", "correct-password")
         assert result is not None
         assert result["username"] == "alice"
         assert "hashed_password" not in result
@@ -407,12 +409,12 @@ class TestVerifyUserPasswordTiming:
     def _hash_calls(fetchone_return, password: str) -> tuple[object, int]:
         from unittest.mock import patch
 
-        import src.db.users as users_module
+        import src.services.passwords as users_module
         m, _, _ = _users_mixin(fetchone_return=fetchone_return)
         with patch.object(
             users_module, "check_password_hash", wraps=users_module.check_password_hash
         ) as spy:
-            result = m.verify_user_password("alice", password)
+            result = verify_user_password(m, "alice", password)
         return result, spy.call_count
 
     @staticmethod
@@ -424,7 +426,7 @@ class TestVerifyUserPasswordTiming:
         assert self._hash_calls(None, "pw") == (None, 1)
 
     def test_an_inactive_user_with_the_right_password_costs_one_hash_and_fails(self):
-        from src.db.users import hash_user_password
+        from src.services.passwords import hash_user_password
         row = self._row(False, hash_user_password("correct-password"))
         assert self._hash_calls(row, "correct-password") == (None, 1)
 
@@ -432,12 +434,12 @@ class TestVerifyUserPasswordTiming:
         assert self._hash_calls(self._row(True, None), "pw") == (None, 1)
 
     def test_a_wrong_password_costs_one_hash(self):
-        from src.db.users import hash_user_password
+        from src.services.passwords import hash_user_password
         row = self._row(True, hash_user_password("correct-password"))
         assert self._hash_calls(row, "wrong-password") == (None, 1)
 
     def test_the_right_password_costs_one_hash_and_succeeds(self):
-        from src.db.users import hash_user_password
+        from src.services.passwords import hash_user_password
         row = self._row(True, hash_user_password("correct-password"))
         result, calls = self._hash_calls(row, "correct-password")
         assert (result["username"], calls) == ("alice", 1)
@@ -447,7 +449,7 @@ class TestHashUserPassword:
     def test_produces_a_verifiable_hash(self):
         from werkzeug.security import check_password_hash
 
-        from src.db.users import hash_user_password
+        from src.services.passwords import hash_user_password
         hashed = hash_user_password("s3cret")
         assert hashed != "s3cret"
         assert check_password_hash(hashed, "s3cret")

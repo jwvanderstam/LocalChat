@@ -37,10 +37,10 @@ def _client(module: str, prefix: str, member_role: str | None = None, global_rol
     state.db.get_default_workspace_id.return_value = WS
     # Without this, MagicMock returns a truthy mock and require_auth reads every
     # token as revoked — a 401 that looks exactly like "not authenticated".
-    state.db.is_token_revoked.return_value = False
+    state.db.tokens.is_revoked.return_value = False
     # The admin guard reads the caller's role from the database, not the token claim,
     # so an admin header alone no longer makes a caller an admin here either.
-    state.db.get_user_role.return_value = global_role
+    state.db.users.get_role.return_value = global_role
     app = FastAPI()
     app.include_router(router, prefix=prefix)
     app.state = state

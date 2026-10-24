@@ -34,8 +34,8 @@ def _client(router, prefix: str, member_role: str | None, global_role: str = "us
     # See tests/utils/auth.py. Since P0-4 both of these reach every workspace route:
     # revocation is fail-closed, and `global_role` — not the token claim — is what
     # grants the admin short-circuit.
-    state.db.is_token_revoked.return_value = False
-    state.db.get_user_role.return_value = global_role
+    state.db.tokens.is_revoked.return_value = False
+    state.db.users.get_role.return_value = global_role
     state.db.resolve_workspace_api_key.return_value = None
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = DEFAULT_WS

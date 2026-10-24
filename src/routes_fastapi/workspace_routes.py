@@ -63,7 +63,7 @@ def list_workspaces(request: Request) -> Any:
         anonymous = not user_id or user_id == "anonymous"
         # Role from the database rather than the token, matching /api/users/me: a
         # demotion takes effect immediately instead of at the next login.
-        caller = None if anonymous else db.get_user_by_id(user_id)
+        caller = None if anonymous else db.users.get_by_id(user_id)
         if anonymous or (caller and caller.get("role") == "admin"):
             workspaces = db.list_workspaces()
         else:

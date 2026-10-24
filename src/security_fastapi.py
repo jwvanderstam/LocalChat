@@ -35,6 +35,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import config
+from .services.passwords import verify_user_password
 from .utils.logging_config import get_logger, sanitize_log_value
 from .utils.scope import ALL_WORKSPACES
 from .utils.workspace import get_workspace_id
@@ -107,7 +108,7 @@ def env_admin_is_available(db: Any) -> bool:
     if db is None or not getattr(db, "is_connected", False):
         return True
     try:
-        return db.count_live_admins() == 0
+        return db.users.count_live_admins() == 0
     except Exception as exc:  # noqa: BLE001 — cannot count administrators, so the env admin stays available — the documented fail-open, argued in the docstring
         logger.warning(
             "[Auth] Could not count administrators; env admin left available: %s", exc
@@ -118,7 +119,7 @@ def env_admin_is_available(db: Any) -> bool:
 def verify_credentials_db(username: str, password: str, db: Any) -> tuple[str, str] | None:
     """Try DB-backed auth, then the env-var admin while it is still a bootstrap path."""
     if db is not None and getattr(db, "is_connected", False):
-        db_user = db.verify_user_password(username, password)
+        db_user = verify_user_password(db.users, username, password)
         if db_user:
             return str(db_user["id"]), db_user.get("role", "user")
     if not env_admin_is_available(db):
@@ -231,7 +232,7 @@ def _verify_jti_not_revoked(jti: str, db: Any) -> None:
     """
     if db is not None and getattr(db, "is_connected", False):
         try:
-            if db.is_token_revoked(jti):
+            if db.tokens.is_revoked(jti):
                 raise HTTPException(
                     status.HTTP_401_UNAUTHORIZED, detail={"message": "Token has been revoked"}
                 )
@@ -303,11 +304,11 @@ def _current_global_role(request: Request, claims: dict[str, Any]) -> str | None
     if db is None or not getattr(db, "is_connected", False):
         return None
     try:
-        # get_user_role, not get_user_by_id: the guard needs one column, and the wider
+        # get_role, not get_by_id: the guard needs one column, and the wider
         # read would pull the password hash in on every admin request. It filters
         # deleted_at, so a retired administrator resolves to None and loses access on
         # the next request rather than at token expiry.
-        return db.get_user_role(sub)
+        return db.users.get_role(sub)
     except Exception as exc:  # noqa: BLE001 — the role is unreadable, so no role is granted — fail closed
         logger.warning("[Auth] Could not read role for %s: %s", sanitize_log_value(str(sub)), exc)
         return None

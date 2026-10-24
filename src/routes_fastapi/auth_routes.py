@@ -10,8 +10,6 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .. import config
-from ..db.users import LastAdminError
-from ..db.workspaces import LastOwnerError
 from ..models import ChangePasswordRequest, LoginRequest
 from ..security_fastapi import (
     SESSION_COOKIE,
@@ -23,14 +21,16 @@ from ..security_fastapi import (
     limiter,
     require_admin_dep,
     resolve_principal,
-    verify_credentials_db,
 )
-from ..services import account
+from ..services.errors import ServiceError
+from ..services.users import UsersService
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_workspace_id
+from ._services import users_service
 
 logger = get_logger(__name__)
 router = APIRouter()
+Users = Annotated[UsersService, Depends(users_service)]
 
 _NOT_FOUND = "User not found"
 _ERR_INTERNAL = "Internal server error"
@@ -44,8 +44,12 @@ _PASSWORD_TOO_SHORT = f"password must be at least {config.USER_PASSWORD_MIN_LENG
 def _is_acceptable_password(value: Any) -> bool:
     """The one rule every way of setting a password applies (audit S7)."""
     return isinstance(value, str) and len(value) >= config.USER_PASSWORD_MIN_LENGTH
-#: Matches the wording the workspaces router returns for the same refusal.
-_LAST_OWNER = "Cannot remove the last owner of a workspace"
+
+
+def _refused(exc: ServiceError) -> JSONResponse:
+    return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
+
+
 #: One message for "no such user" and "wrong password" alike — distinguishing them
 #: turns the login form into a username oracle.
 _ERR_BAD_CREDENTIALS = "Invalid username or password"
@@ -73,13 +77,9 @@ def _set_session_cookie(response: JSONResponse, token: str, request: Request) ->
     )
 
 
-def _public(user: dict) -> dict:
-    return {k: v for k, v in user.items() if k != "hashed_password"}
-
-
 @router.post("/auth/login")
 @limiter.limit(config.RATELIMIT_LOGIN)
-async def login(request: Request) -> Any:
+async def login(request: Request, users: Users) -> Any:
     """Verify credentials and issue a session JWT as an httpOnly cookie.
 
     Rate-limited because this is the one endpoint where guessing is the attack.
@@ -90,8 +90,7 @@ async def login(request: Request) -> Any:
     except (ValidationError, TypeError):
         return JSONResponse({"success": False, "message": _ERR_BAD_CREDENTIALS}, status_code=401)
 
-    db = getattr(request.app.state, "db", None)
-    result = verify_credentials_db(creds.username, creds.password, db)
+    result = users.authenticate(creds.username, creds.password)
     if result is None:
         # Deliberately no username in the log: failed logins are the one place a
         # log becomes a list of attempted accounts.
@@ -112,9 +111,9 @@ async def login(request: Request) -> Any:
 
 
 @router.post("/users", status_code=201)
-async def create_user(request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
-    from ..db.users import hash_user_password
-
+async def create_user(
+    request: Request, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]
+) -> Any:
     data = await request.json() if await request.body() else {}
     username = (data.get("username") or "").strip()
     # Never stripped: login, password change and reset take the password as typed,
@@ -132,10 +131,8 @@ async def create_user(request: Request, _admin: Annotated[str, Depends(require_a
     if role not in ("admin", "user"):
         return JSONResponse({"success": False, "message": "role must be 'admin' or 'user'"}, status_code=400)
 
-    # Membership is granted in the same request, not as a follow-up call. After RBAC-1
-    # a user with no workspace is refused everything, so a create that succeeds and a
-    # grant that never happens produces an account that can log in and do nothing —
-    # exactly what the first version of this screen shipped.
+    # Membership is granted in the same request, not as a follow-up call; see
+    # UsersService.create_user for why.
     workspace_id = (data.get("workspace_id") or "").strip() or None
     workspace_role = data.get("workspace_role", "editor")
     if workspace_role not in ("viewer", "editor", "owner"):
@@ -145,35 +142,30 @@ async def create_user(request: Request, _admin: Annotated[str, Depends(require_a
         )
 
     try:
-        db = request.app.state.db
-        user_id = db.create_user(username=username, hashed_password=hash_user_password(password), email=email, role=role)
-        if workspace_id:
-            db.add_workspace_member(workspace_id, user_id, workspace_role)
-        user = db.get_user_by_id(user_id)
-        return JSONResponse({"success": True, "user": _public(user)}, status_code=201)
-    except Exception as exc:
-        if "unique" in str(exc).lower():
-            return JSONResponse({"success": False, "message": "Username or email already exists"}, status_code=409)
+        user = users.create_user(username, password, email, role, workspace_id, workspace_role)
+        return JSONResponse({"success": True, "user": user}, status_code=201)
+    except ServiceError as exc:
+        return _refused(exc)
+    except Exception:
         logger.exception("[Users] create error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.get("/users")
 def list_users(
-    request: Request,
+    users: Users,
     _admin: Annotated[str, Depends(require_admin_dep)],
     include_retired: bool = False,
 ) -> Any:
     try:
-        users = request.app.state.db.list_users(include_retired=include_retired)
-        return {"success": True, "users": [_public(u) for u in users]}
+        return {"success": True, "users": users.list_users(include_retired)}
     except Exception:
         logger.exception("[Users] list error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.get("/users/me")
-def get_own_identity(request: Request) -> Any:
+def get_own_identity(request: Request, users: Users) -> Any:
     """Return the caller's identity and whether they may write in the active workspace.
 
     ``can_write`` is decided by the same ``check_workspace_access`` the routes
@@ -188,18 +180,7 @@ def get_own_identity(request: Request) -> Any:
     except AuthError:
         user_id = None
     workspace_id = get_workspace_id(request)
-    db = getattr(request.app.state, "db", None)
-
-    workspace_role = None
-    if user_id and user_id != "anonymous" and db is not None and db.is_connected:
-        ws_id = workspace_id or db.get_default_workspace_id()
-        if ws_id:
-            workspace_role = db.get_workspace_member_role(ws_id, user_id)
-
-    global_role = None
-    if user_id and user_id != "anonymous" and db is not None and db.is_connected:
-        user = db.get_user_by_id(user_id)
-        global_role = user.get("role") if user else None
+    global_role, workspace_role = users.identity(user_id, workspace_id)
 
     return {
         "success": True,
@@ -218,12 +199,12 @@ def get_own_identity(request: Request) -> Any:
 @router.get("/users/{user_id}/workspaces")
 def list_user_workspaces(
     user_id: str,
-    request: Request,
+    users: Users,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     """Which workspaces this user belongs to, and at what role."""
     try:
-        return {"success": True, "workspaces": request.app.state.db.get_user_workspaces(user_id)}
+        return {"success": True, "workspaces": users.user_workspaces(user_id)}
     except Exception:
         logger.exception("[Users] list user workspaces error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
@@ -233,6 +214,7 @@ def list_user_workspaces(
 async def grant_user_workspace(
     user_id: str,
     request: Request,
+    users: Users,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     """Grant or change this user's role in a workspace."""
@@ -244,7 +226,7 @@ async def grant_user_workspace(
     if role not in ("viewer", "editor", "owner"):
         return JSONResponse({"success": False, "message": "role must be viewer, editor or owner"}, status_code=400)
     try:
-        request.app.state.db.add_workspace_member(workspace_id, user_id, role)
+        users.grant_workspace(user_id, workspace_id, role)
         return {"success": True}
     except Exception:
         logger.exception("[Users] grant workspace error")
@@ -255,72 +237,61 @@ async def grant_user_workspace(
 def revoke_user_workspace(
     user_id: str,
     workspace_id: str,
-    request: Request,
+    users: Users,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
     """Remove this user from a workspace. Refuses to remove its last owner."""
     try:
-        removed = request.app.state.db.remove_workspace_member(workspace_id, user_id)
-        if not removed:
+        if not users.revoke_workspace(user_id, workspace_id):
             return JSONResponse({"success": False, "message": "Membership not found"}, status_code=404)
         return {"success": True}
-    except LastOwnerError as exc:
-        # The message is a constant, not str(exc): nothing raised below this line
-        # can reach the caller, whatever it says. The same shape the workspaces
-        # router already uses for this condition, and what closes CodeQL #91 —
-        # narrowing the catch to a named type was an improvement but left the
-        # flagged expression untouched.
-        logger.warning("[Users] revoke workspace constraint: %s", exc)
-        return JSONResponse({"success": False, "message": _LAST_OWNER}, status_code=409)
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("[Users] revoke workspace error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.get("/users/{user_id}")
-def get_user(user_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def get_user(user_id: str, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
-        user = request.app.state.db.get_user_by_id(user_id)
+        user = users.get_user(user_id)
         if user is None:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
-        return {"success": True, "user": _public(user)}
+        return {"success": True, "user": user}
     except Exception:
         logger.exception("[Users] get error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.put("/users/{user_id}")
-async def update_user(user_id: str, request: Request, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
-    from ..db.users import hash_user_password
-
+async def update_user(
+    user_id: str, request: Request, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]
+) -> Any:
     data = await request.json() if await request.body() else {}
     allowed = {"email", "role", "is_active"}
     fields = {k: v for k, v in data.items() if k in allowed}
-    if "password" in data:
-        if not _is_acceptable_password(data["password"]):
-            return JSONResponse({"success": False, "message": _PASSWORD_TOO_SHORT}, status_code=400)
-        fields["hashed_password"] = hash_user_password(data["password"])
-    if not fields:
+    password = data.get("password") if "password" in data else None
+    if "password" in data and not _is_acceptable_password(password):
+        return JSONResponse({"success": False, "message": _PASSWORD_TOO_SHORT}, status_code=400)
+    if not fields and password is None:
         return JSONResponse({"success": False, "message": "No valid fields provided"}, status_code=400)
     try:
-        db = request.app.state.db
-        updated = db.update_user(user_id, **fields)
-        if not updated:
+        user = users.update_user(user_id, fields, password)
+        if user is None:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
-        return {"success": True, "user": _public(db.get_user_by_id(user_id))}
-    except LastAdminError as exc:
-        # 409, not 400: the request is well-formed, the current state forbids it.
-        return JSONResponse({"success": False, "message": str(exc)}, status_code=409)
+        return {"success": True, "user": user}
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("[Users] update error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 
 @router.delete("/users/{user_id}/purge")
-def purge_user(user_id: str, request: Request, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def purge_user(user_id: str, users: Users, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
-        purged = request.app.state.db.purge_user(user_id)
-        if not purged:
+        if not users.purge_user(user_id):
             return JSONResponse(
                 {
                     "success": False,
@@ -338,14 +309,13 @@ def purge_user(user_id: str, request: Request, admin_user_id: Annotated[str, Dep
 
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: str, request: Request, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def delete_user(user_id: str, users: Users, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
-        deleted = request.app.state.db.delete_user(user_id, deleted_by=admin_user_id)
-        if not deleted:
+        if not users.retire_user(user_id, actor=admin_user_id):
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True}
-    except LastAdminError as exc:
-        return JSONResponse({"success": False, "message": str(exc)}, status_code=409)
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("[Users] delete error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
@@ -353,7 +323,7 @@ def delete_user(user_id: str, request: Request, admin_user_id: Annotated[str, De
 
 @router.post("/users/me/password")
 @limiter.limit(config.RATELIMIT_LOGIN)
-async def change_own_password(request: Request) -> Any:
+async def change_own_password(request: Request, users: Users) -> Any:
     """Change the caller's own password, given the current one.
 
     Rate-limited like login: knowing the current password is the whole proof, so this
@@ -371,16 +341,14 @@ async def change_own_password(request: Request) -> Any:
         return JSONResponse({"success": False, "message": _PASSWORD_RULES}, status_code=400)
 
     try:
-        account.change_own_password(
-            request.app.state.db, principal.user_id, body.current_password, body.new_password
-        )
-    except account.PasswordChangeError as exc:
-        return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
+        users.change_own_password(principal.user_id, body.current_password, body.new_password)
+    except ServiceError as exc:
+        return _refused(exc)
     return {"success": True}
 
 
 @router.post("/logout")
-async def logout(request: Request) -> Any:
+async def logout(request: Request, users: Users) -> Any:
     """Revoke the caller's current JWT so it cannot be reused."""
     token = extract_bearer_token(request)
     if not token:
@@ -408,12 +376,11 @@ async def logout(request: Request) -> Any:
     exp_ts = payload.get("exp")
     expires_at = datetime.fromtimestamp(exp_ts, tz=UTC) if exp_ts else datetime.now(UTC)
 
-    db = getattr(request.app.state, "db", None)
-    if db is None or not getattr(db, "is_connected", False):
+    if not users.available:
         return JSONResponse({"success": False, "message": "Database unavailable"}, status_code=503)
 
     try:
-        db.revoke_token(jti, expires_at)
+        users.revoke_session(jti, expires_at)
     except Exception:
         logger.exception("[Auth] logout revoke error")
         return JSONResponse({"success": False, "message": "Failed to revoke token"}, status_code=500)

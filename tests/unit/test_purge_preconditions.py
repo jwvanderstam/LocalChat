@@ -17,7 +17,7 @@ import pytest
 
 from src.db.connection import DatabaseUnavailableError
 from src.db.conversations import ConversationsMixin
-from src.db.users import UsersMixin
+from src.db.users import UsersRepository
 
 pytestmark = pytest.mark.unit
 
@@ -42,6 +42,15 @@ def _mixin(cls, *, cites: bool, rowcount: int = 1, connected: bool = True):
     m.is_connected = connected
     m.get_connection = MagicMock(return_value=conn)
     return m, cur
+
+
+class _Host:
+    """What a repository needs from its connection: is_connected and get_connection."""
+
+
+def _users(**kwargs):
+    host, cur = _mixin(_Host, **kwargs)
+    return UsersRepository(host), cur
 
 
 def _statements(cur) -> list[str]:
@@ -82,23 +91,23 @@ class TestPurgeConversation:
 
 class TestPurgeUser:
     def test_a_user_with_memberships_is_refused(self):
-        m, _ = _mixin(UsersMixin, cites=True)
-        assert m.purge_user(USER) is False
+        m, _ = _users(cites=True)
+        assert m.purge(USER) is False
 
     def test_a_user_with_memberships_is_not_deleted(self):
-        m, cur = _mixin(UsersMixin, cites=True)
-        m.purge_user(USER)
+        m, cur = _users(cites=True)
+        m.purge(USER)
 
         assert not any("DELETE" in sql for sql in _statements(cur))
 
     def test_a_user_without_memberships_is_deleted(self):
-        m, cur = _mixin(UsersMixin, cites=False)
+        m, cur = _users(cites=False)
 
-        assert m.purge_user(USER) is True
+        assert m.purge(USER) is True
         assert any("DELETE FROM users" in sql for sql in _statements(cur))
 
     def test_no_database_refuses_rather_than_returning_false(self):
-        m, _ = _mixin(UsersMixin, cites=False, connected=False)
+        m, _ = _users(cites=False, connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.purge_user(USER)
+            m.purge(USER)
 

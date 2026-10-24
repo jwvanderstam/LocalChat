@@ -19,7 +19,7 @@ role from the database. The token supplies identity and nothing else.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -42,13 +42,13 @@ WS = "11111111-1111-1111-1111-111111111111"
 def _db(*, revoked: bool = False, role: str = "user", live_admins: int = 1) -> MagicMock:
     db = MagicMock()
     db.is_connected = True
-    db.is_token_revoked.return_value = revoked
-    db.get_user_role.return_value = role
+    db.tokens.is_revoked.return_value = revoked
+    db.users.get_role.return_value = role
     db.get_workspace_member_role.return_value = "owner"
     db.get_user_workspaces.return_value = [{"id": WS}]
     db.get_default_workspace_id.return_value = WS
     db.resolve_workspace_api_key.return_value = None
-    db.count_live_admins.return_value = live_admins
+    db.users.count_live_admins.return_value = live_admins
     return db
 
 
@@ -113,7 +113,7 @@ class TestTheRoleComesFromTheDatabaseNotTheToken:
         assert principal.is_admin
 
     def test_a_retired_user_loses_the_role_entirely(self):
-        """get_user_role filters deleted_at, so a retired admin resolves to None."""
+        """users.get_role filters deleted_at, so a retired admin resolves to None."""
         principal = resolve_principal(_request(_db(role=None), claim_role="admin"))
         assert principal.global_role is None
         assert not principal.is_admin
@@ -139,13 +139,13 @@ class TestTheEnvVarAdminIsABootstrapCredential:
 
     def test_a_failing_count_leaves_it_alone_too(self):
         db = _db()
-        db.count_live_admins.side_effect = RuntimeError("boom")
+        db.users.count_live_admins.side_effect = RuntimeError("boom")
         assert env_admin_is_available(db) is True
 
     def test_an_object_that_cannot_report_its_state_counts_as_unknown(self):
         """Mutant 41: defaulting the missing attribute to "connected" asks it to count,
         and a stale answer would withdraw the recovery path."""
-        assert env_admin_is_available(SimpleNamespace(count_live_admins=lambda: 1)) is True
+        assert env_admin_is_available(SimpleNamespace(users=SimpleNamespace(count_live_admins=lambda: 1))) is True
 
     @pytest.mark.skipif(not config.ADMIN_PASSWORD, reason="needs ADMIN_PASSWORD set")
     def test_login_no_longer_falls_back_when_an_administrator_exists(self):
@@ -154,20 +154,20 @@ class TestTheEnvVarAdminIsABootstrapCredential:
         Uses the real env password: with any other the refusal came from the password
         check, so this passed with the bootstrap guard inverted (mutant 56)."""
         db = _db(live_admins=1)
-        db.verify_user_password.return_value = None
-        assert verify_credentials_db("admin", config.ADMIN_PASSWORD, db) is None
+        with patch("src.security_fastapi.verify_user_password", return_value=None):
+            assert verify_credentials_db("admin", config.ADMIN_PASSWORD, db) is None
 
     @pytest.mark.skipif(not config.ADMIN_PASSWORD, reason="needs ADMIN_PASSWORD set")
     def test_the_env_admin_signs_in_while_no_administrator_exists(self):
         """Mutants 56 and 57: the bootstrap path itself, which nothing asserted works."""
         db = _db(live_admins=0)
-        db.verify_user_password.return_value = None
-        assert verify_credentials_db("admin", config.ADMIN_PASSWORD, db) == ("admin", "admin")
+        with patch("src.security_fastapi.verify_user_password", return_value=None):
+            assert verify_credentials_db("admin", config.ADMIN_PASSWORD, db) == ("admin", "admin")
 
     def test_a_database_user_still_signs_in_normally(self):
         db = _db(live_admins=1)
-        db.verify_user_password.return_value = {"id": "u1", "role": "admin"}
-        assert verify_credentials_db("admin", "pw", db) == ("u1", "admin")
+        with patch("src.security_fastapi.verify_user_password", return_value={"id": "u1", "role": "admin"}):
+            assert verify_credentials_db("admin", "pw", db) == ("u1", "admin")
 
 
 @pytest.mark.unit

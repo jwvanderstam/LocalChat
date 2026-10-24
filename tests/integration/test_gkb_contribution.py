@@ -43,7 +43,7 @@ def database() -> Any:
 
 @pytest.fixture(scope="module")
 def admin(database: Any) -> str:
-    return database.create_user(f"gkb2-admin-{uuid.uuid4().hex[:8]}", "x", role="admin")
+    return database.users.create(f"gkb2-admin-{uuid.uuid4().hex[:8]}", "x", role="admin")
 
 
 @pytest.fixture()

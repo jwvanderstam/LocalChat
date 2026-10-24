@@ -8,7 +8,7 @@ state wired so the checks it meets can actually answer.
 Three of those wirings are not obvious, and each fails in a way that looks like the
 route being tested is broken:
 
-* ``is_token_revoked`` — revocation is fail-closed (SEC-2). A bare ``MagicMock``
+* ``tokens.is_revoked`` — revocation is fail-closed (SEC-2). A bare ``MagicMock``
   returns a truthy stand-in, so every token reads as revoked and every request 401s.
 * ``get_user_workspaces`` — a request without ``X-Workspace-ID`` resolves scope from
   the caller's own workspaces. A truthy stand-in silently becomes the workspace under
@@ -54,25 +54,35 @@ def authorise_db(
     setting ``.return_value`` on a bound method raises AttributeError.
     """
     answers = {
-        "is_token_revoked": False,
+        "tokens.is_revoked": False,
         "get_workspace_member_role": member_role,
         "get_default_workspace_id": DEFAULT_WORKSPACE_ID,
         "get_user_workspaces": [],
         "resolve_workspace_api_key": None,
-        "get_user_by_id": {"id": USER_ID, "role": role},
+        "users.get_by_id": {"id": USER_ID, "role": role},
         # The admin guard reads the caller's role from the database rather than the
         # token claim, so a test that only mints an admin token is not yet an admin.
-        "get_user_role": role,
+        "users.get_role": role,
     }
     if monkeypatch is not None:
         monkeypatch.setattr(db, "is_connected", True, raising=False)
-        for name, value in answers.items():
-            monkeypatch.setattr(db, name, MagicMock(return_value=value), raising=False)
+        for path, value in answers.items():
+            owner, name = _owner(db, path)
+            monkeypatch.setattr(owner, name, MagicMock(return_value=value), raising=False)
     else:
         db.is_connected = True
-        for name, value in answers.items():
-            getattr(db, name).return_value = value
+        for path, value in answers.items():
+            owner, name = _owner(db, path)
+            getattr(owner, name).return_value = value
     return db
+
+
+def _owner(db: Any, path: str) -> tuple[Any, str]:
+    """``"users.get_role"`` -> ``(db.users, "get_role")``: the repositories hang off the database."""
+    *parents, name = path.split(".")
+    for parent in parents:
+        db = getattr(db, parent)
+    return db, name
 
 
 def authenticated_state(
@@ -93,7 +103,7 @@ def authenticated_state(
     state = MagicMock()
     state.db = db if db is not None else MagicMock()
     state.db.is_connected = True
-    state.db.is_token_revoked.return_value = False
+    state.db.tokens.is_revoked.return_value = False
     state.db.get_workspace_member_role.return_value = member_role
     state.db.get_default_workspace_id.return_value = DEFAULT_WORKSPACE_ID
     state.db.get_user_workspaces.return_value = workspaces if workspaces is not None else []
@@ -101,12 +111,12 @@ def authenticated_state(
     # Some routes read the role from the record rather than the token — the workspace
     # switcher is one. Keep *role* equal to the role in the header, or the caller is an
     # admin to one check and a plain user to the next.
-    state.db.get_user_by_id.return_value = {"id": USER_ID, "role": role}
+    state.db.users.get_by_id.return_value = {"id": USER_ID, "role": role}
     # The admin guard reads the caller's role from the database, not the token claim,
     # so a test that only mints an admin token is not yet an admin. Separate from
-    # get_user_by_id above because a route often looks up a *different* user than the
+    # users.get_by_id above because a route often looks up a *different* user than the
     # caller — overloading one mock made the caller inherit the target's role.
-    state.db.get_user_role.return_value = role
+    state.db.users.get_role.return_value = role
     for name, value in attrs.items():
         setattr(state, name, value)
     return state

@@ -105,6 +105,29 @@ output = "coverage.xml"
 # Higher layers may import lower ones, never the reverse. The ignore_imports lists are
 # today's violations, recorded so the contracts can run in CI before the code obeys
 # them: each QP-4 PR removes its own lines, and none may be added. QP-5 empties them.
+[tool.mypy]
+# CI runs `mypy src --ignore-missing-imports`. Modules QP-4 has moved to repositories
+# and services are held to strict typing from the PR that creates them (ROADMAP QP-4).
+[[tool.mypy.overrides]]
+module = [
+    "src.db.users",
+    "src.db.tokens",
+    "src.services.errors",
+    "src.services.passwords",
+    "src.services.users",
+    "src.routes_fastapi._services",
+]
+# `strict = true` is global-only; these are the per-module flags it turns on.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+check_untyped_defs = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+
 [tool.importlinter]
 root_package = "src"
 
@@ -119,8 +142,6 @@ allow_indirect_imports = true
 # Today's direct imports (exception classes and hashing). QP-4 removes each with its
 # aggregate: users and auth first, then workspaces, then documents.
 ignore_imports = [
-    "src.routes_fastapi.auth_routes -> src.db.users",
-    "src.routes_fastapi.auth_routes -> src.db.workspaces",
     "src.routes_fastapi.document_routes -> src.db.connection",
     "src.routes_fastapi.workspace_routes -> src.db.workspaces",
 ]

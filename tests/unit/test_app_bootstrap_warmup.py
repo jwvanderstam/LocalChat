@@ -169,7 +169,7 @@ class TestInitDatabaseService:
         db = MagicMock()
         db.initialize.return_value = (True, "Connected")
         db.get_document_count.return_value = 5
-        db.purge_expired_tokens.return_value = 3
+        db.tokens.purge_expired.return_value = 3
 
         with patch("src.app_bootstrap._run_alembic_migrations") as mock_migrate:
             _init_database_service(app, db)
@@ -212,7 +212,7 @@ class TestInitDatabaseService:
         db = MagicMock()
         db.initialize.return_value = (True, "Connected")
         db.get_document_count.return_value = 0
-        db.purge_expired_tokens.side_effect = RuntimeError("boom")
+        db.tokens.purge_expired.side_effect = RuntimeError("boom")
 
         with patch("src.app_bootstrap._run_alembic_migrations"):
             _init_database_service(app, db)  # must not raise
@@ -473,7 +473,7 @@ class TestSeedAdminUser:
             mock_config.ADMIN_USERNAME = "admin"
             _seed_admin_user(db)
 
-        db.seed_admin_user.assert_called_once()
+        db.users.seed_admin.assert_called_once()
 
     def test_still_skips_in_production_when_no_password_configured(self):
         """The generated value goes to the log, which is a developer-machine trade only.
@@ -488,7 +488,7 @@ class TestSeedAdminUser:
             mock_config.APP_ENV = "production"
             _seed_admin_user(db)
 
-        db.seed_admin_user.assert_not_called()
+        db.users.seed_admin.assert_not_called()
 
     def test_seeds_admin_user_when_password_configured(self):
         from src.app_bootstrap import _seed_admin_user
@@ -497,21 +497,21 @@ class TestSeedAdminUser:
         with patch("src.app_bootstrap.config") as mock_config:
             mock_config.ADMIN_PASSWORD = "s3cret"
             mock_config.ADMIN_USERNAME = "admin"
-            with patch("src.db.users.hash_user_password", return_value="hashed") as mock_hash:
+            with patch("src.services.passwords.hash_user_password", return_value="hashed") as mock_hash:
                 _seed_admin_user(db)
 
         mock_hash.assert_called_once_with("s3cret")
-        db.seed_admin_user.assert_called_once_with(username="admin", hashed_password="hashed")
+        db.users.seed_admin.assert_called_once_with(username="admin", hashed_password="hashed")
 
     def test_does_not_raise_when_seeding_fails(self):
         from src.app_bootstrap import _seed_admin_user
 
         db = MagicMock()
-        db.seed_admin_user.side_effect = RuntimeError("db down")
+        db.users.seed_admin.side_effect = RuntimeError("db down")
         with patch("src.app_bootstrap.config") as mock_config:
             mock_config.ADMIN_PASSWORD = "s3cret"
             mock_config.ADMIN_USERNAME = "admin"
-            with patch("src.db.users.hash_user_password", return_value="hashed"):
+            with patch("src.services.passwords.hash_user_password", return_value="hashed"):
                 _seed_admin_user(db)  # non-fatal
 
 

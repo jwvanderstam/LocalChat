@@ -34,9 +34,9 @@ def _db(*, connected: bool = True, revoked: bool = False, raises: bool = False):
     db = MagicMock()
     db.is_connected = connected
     if raises:
-        db.is_token_revoked.side_effect = RuntimeError("connection lost")
+        db.tokens.is_revoked.side_effect = RuntimeError("connection lost")
     else:
-        db.is_token_revoked.return_value = revoked
+        db.tokens.is_revoked.return_value = revoked
     return db
 
 
@@ -200,13 +200,16 @@ class TestTheConnectedCheckFailsClosed:
         connected, which is the fail-open shape SEC-2 removed. A MagicMock always
         has the attribute, so only a real object without one exercises it."""
 
-        class DatabaseWithoutTheAttribute:
-            def is_token_revoked(self, jti: str) -> bool:
+        class _Tokens:
+            def is_revoked(self, jti: str) -> bool:
                 # Answers "not revoked" rather than raising: raising lands in the
                 # `except Exception` fallback, which refuses anyway, so the test
                 # would pass with the default flipped. Answering lets the mutant
                 # through to the accept path, which is what makes it detectable.
                 return False
+
+        class DatabaseWithoutTheAttribute:
+            tokens = _Tokens()
 
         db = DatabaseWithoutTheAttribute()
         with pytest.raises(HTTPException) as exc:

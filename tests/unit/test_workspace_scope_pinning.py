@@ -32,8 +32,8 @@ def _request(headers: dict[str, str], *, member_of: list[str], default_ws: str,
     db.is_connected = True
     # Fail-closed revocation now runs on this path, and the admin short-circuit reads
     # the role from the database — a bare MagicMock is "revoked" and "admin".
-    db.is_token_revoked.return_value = False
-    db.get_user_role.return_value = "user"
+    db.tokens.is_revoked.return_value = False
+    db.users.get_role.return_value = "user"
     db.resolve_workspace_api_key.return_value = None
     db.get_default_workspace_id.return_value = default_ws
     db.get_user_workspaces.return_value = [{"id": w} for w in member_of]
@@ -146,12 +146,12 @@ class TestTheScopeEachPrincipalIsGiven:
 
     def test_an_admin_naming_a_workspace_is_scoped_to_it(self):
         req = _request({**_auth(), "X-Workspace-ID": OWN_WS}, member_of=[], default_ws=OTHER_WS)
-        req.scope["app"].state.db.get_user_role.return_value = "admin"
+        req.scope["app"].state.db.users.get_role.return_value = "admin"
         assert check_workspace_access(req, None, "viewer") is None
         assert get_scope(req) == OWN_WS
 
     def test_an_admin_naming_none_is_scoped_to_every_workspace_explicitly(self):
         req = _request(_auth(), member_of=[], default_ws=OTHER_WS)
-        req.scope["app"].state.db.get_user_role.return_value = "admin"
+        req.scope["app"].state.db.users.get_role.return_value = "admin"
         assert check_workspace_access(req, None, "viewer") is None
         assert get_scope(req) is ALL_WORKSPACES

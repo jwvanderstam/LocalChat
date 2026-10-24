@@ -23,7 +23,9 @@ from werkzeug.security import check_password_hash
 
 from src import config
 from src.security_fastapi import limiter
-from src.services.account import PasswordChangeError, change_own_password
+from src.services.errors import ServiceError as PasswordChangeError
+from src.services.passwords import hash_user_password
+from src.services.users import UsersService
 from tests.utils.auth import auth_headers, authenticated_state
 
 pytestmark = pytest.mark.unit
@@ -34,20 +36,29 @@ NEW = "a brand new password"
 _URL = "/api/users/me/password"
 
 
+_CURRENT_HASH = hash_user_password(CURRENT)
+
+
 def _db(*, current_ok: bool = True, user: dict | None = None, updated: bool = True) -> MagicMock:
     db = MagicMock()
-    db.get_user_by_id.return_value = (
+    db.users.get_by_id.return_value = (
         {"id": USER, "username": "jo", "role": "user"} if user is None else user
     )
-    db.verify_user_password.side_effect = (
-        lambda username, password: {"id": USER} if current_ok and password == CURRENT else None
+    # A fresh row per call: the password check pops the hash off what it is given.
+    db.users.get_by_username.side_effect = lambda username: (
+        {"id": USER, "username": "jo", "is_active": True, "hashed_password": _CURRENT_HASH}
+        if current_ok else None
     )
-    db.update_user.return_value = updated
+    db.users.update.return_value = updated
     return db
 
 
+def change_own_password(db: MagicMock, user_id: str, current: str, new: str) -> None:
+    UsersService(db).change_own_password(user_id, current, new)
+
+
 def _stored_hash(db: MagicMock) -> str:
-    return db.update_user.call_args.kwargs["hashed_password"]
+    return db.users.update.call_args.kwargs["hashed_password"]
 
 
 class TestTheService:
@@ -62,7 +73,7 @@ class TestTheService:
         db = _db()
         with pytest.raises(PasswordChangeError) as exc_info:
             change_own_password(db, USER, "not it", NEW)
-        assert (exc_info.value.status_code, exc_info.value.message, db.update_user.called) == (
+        assert (exc_info.value.status_code, exc_info.value.message, db.users.update.called) == (
             400, "Current password is incorrect", False)
 
     def test_the_bootstrap_admin_has_no_row_and_never_reaches_the_database(self):
@@ -70,11 +81,11 @@ class TestTheService:
         db = _db()
         with pytest.raises(PasswordChangeError) as exc_info:
             change_own_password(db, "admin", CURRENT, NEW)
-        assert (exc_info.value.status_code, db.get_user_by_id.called) == (409, False)
+        assert (exc_info.value.status_code, db.users.get_by_id.called) == (409, False)
 
     def test_a_user_who_no_longer_exists_is_409(self):
         db = _db()
-        db.get_user_by_id.return_value = None
+        db.users.get_by_id.return_value = None
         with pytest.raises(PasswordChangeError) as exc_info:
             change_own_password(db, USER, CURRENT, NEW)
         assert exc_info.value.status_code == 409
@@ -91,12 +102,12 @@ def _client(db: MagicMock, *, revoked: bool = False) -> TestClient:
 
     app = FastAPI()
     app.include_router(router, prefix="/api")
-    user = db.get_user_by_id.return_value
+    user = db.users.get_by_id.return_value
     app.state = authenticated_state(db=db)
-    # authenticated_state answers get_user_by_id for the role lookup, without a
+    # authenticated_state answers users.get_by_id for the role lookup, without a
     # username; put back the row this test set up.
-    db.get_user_by_id.return_value = user
-    db.is_token_revoked.return_value = revoked
+    db.users.get_by_id.return_value = user
+    db.tokens.is_revoked.return_value = revoked
     # slowapi's own handler reads the limiter off app.state, which is a mock here.
     app.add_exception_handler(
         RateLimitExceeded, lambda request, exc: JSONResponse({}, status_code=429)
@@ -122,7 +133,7 @@ class TestTheRoute:
         db = _db()
         short = "x" * (config.USER_PASSWORD_MIN_LENGTH - 1)
         resp = _post(_client(db), {"current_password": CURRENT, "new_password": short})
-        assert (resp.status_code, db.verify_user_password.called) == (400, False)
+        assert (resp.status_code, db.users.get_by_username.called) == (400, False)
 
     def test_a_new_password_at_the_minimum_is_accepted(self):
         exact = "x" * config.USER_PASSWORD_MIN_LENGTH
@@ -146,12 +157,12 @@ class TestTheRoute:
         """A logged-out session must not change the password, even knowing it."""
         db = _db()
         resp = _post(_client(db, revoked=True), {"current_password": CURRENT, "new_password": NEW})
-        assert (resp.status_code, db.update_user.called) == (401, False)
+        assert (resp.status_code, db.users.update.called) == (401, False)
 
     def test_the_caller_changes_only_their_own_account(self):
         db = _db()
         _post(_client(db), {"current_password": CURRENT, "new_password": NEW})
-        assert db.update_user.call_args.args == (USER,)
+        assert db.users.update.call_args.args == (USER,)
 
 
 @pytest.fixture

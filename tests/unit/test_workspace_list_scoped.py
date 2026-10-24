@@ -25,10 +25,10 @@ def _client(*, global_role: str = "user"):
 
     state = MagicMock()
     state.db.is_connected = True
-    state.db.is_token_revoked.return_value = False
+    state.db.tokens.is_revoked.return_value = False
     state.db.list_workspaces.return_value = [dict(MINE), dict(THEIRS)]
     state.db.get_user_workspaces.return_value = [dict(MINE)]
-    state.db.get_user_by_id.return_value = {"id": USER, "role": global_role}
+    state.db.users.get_by_id.return_value = {"id": USER, "role": global_role}
     app = FastAPI()
     app.include_router(router, prefix="/api")
     app.state = state
