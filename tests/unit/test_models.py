@@ -11,12 +11,9 @@ from pydantic import ValidationError
 from src.models import (
     ChatRequest,
     ChunkingParameters,
-    DocumentUploadRequest,
-    ErrorResponse,
     ModelDeleteRequest,
     ModelPullRequest,
     ModelRequest,
-    RetrievalRequest,
 )
 
 # ============================================================================
@@ -105,63 +102,6 @@ class TestChatRequest:
 # DOCUMENTUPLOADREQUEST TESTS
 # ============================================================================
 
-@pytest.mark.unit
-@pytest.mark.validation
-class TestDocumentUploadRequest:
-    """Tests for DocumentUploadRequest model."""
-
-    def test_creates_valid_upload_request(self):
-        """Should create valid upload request."""
-        request = DocumentUploadRequest(
-            filename="document.pdf",
-            file_size=1024000
-        )
-        assert request.filename == "document.pdf"
-        assert request.file_size == 1024000
-
-    def test_rejects_empty_filename(self):
-        """Should reject empty filename."""
-        with pytest.raises(ValidationError):
-            DocumentUploadRequest(filename="", file_size=1000)
-
-    def test_rejects_unsupported_extension(self):
-        """Should reject unsupported file extension."""
-        with pytest.raises(ValidationError):
-            DocumentUploadRequest(filename="file.exe", file_size=1000)
-
-    def test_accepts_pdf_extension(self):
-        """Should accept PDF files."""
-        request = DocumentUploadRequest(filename="doc.pdf", file_size=1000)
-        assert request.filename == "doc.pdf"
-
-    def test_accepts_txt_extension(self):
-        """Should accept TXT files."""
-        request = DocumentUploadRequest(filename="doc.txt", file_size=1000)
-        assert request.filename == "doc.txt"
-
-    def test_accepts_docx_extension(self):
-        """Should accept DOCX files."""
-        request = DocumentUploadRequest(filename="doc.docx", file_size=1000)
-        assert request.filename == "doc.docx"
-
-    def test_rejects_zero_file_size(self):
-        """Should reject zero file size."""
-        with pytest.raises(ValidationError):
-            DocumentUploadRequest(filename="doc.pdf", file_size=0)
-
-    def test_rejects_negative_file_size(self):
-        """Should reject negative file size."""
-        with pytest.raises(ValidationError):
-            DocumentUploadRequest(filename="doc.pdf", file_size=-1)
-
-    def test_rejects_file_too_large(self):
-        """Should reject files larger than 16MB."""
-        with pytest.raises(ValidationError):
-            DocumentUploadRequest(
-                filename="doc.pdf",
-                file_size=17 * 1024 * 1024
-            )
-
 
 # ============================================================================
 # MODELREQUEST TESTS
@@ -223,82 +163,6 @@ class TestModelRequest:
 # ============================================================================
 # RETRIEVALREQUEST TESTS
 # ============================================================================
-
-@pytest.mark.unit
-@pytest.mark.validation
-class TestRetrievalRequest:
-    """Tests for RetrievalRequest model."""
-
-    def test_creates_valid_retrieval_request(self):
-        """Should create valid retrieval request."""
-        request = RetrievalRequest(
-            query="What is this about?",
-            top_k=10,
-            min_similarity=0.25
-        )
-        assert request.query == "What is this about?"
-        assert request.top_k == 10
-        assert request.min_similarity == 0.25
-
-    def test_rejects_empty_query(self):
-        """Should reject empty query."""
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query="")
-
-    def test_trims_query_whitespace(self):
-        """Should trim query whitespace."""
-        request = RetrievalRequest(query="  test query  ")
-        assert request.query == "test query"
-
-    def test_top_k_defaults_to_10(self):
-        """Should default top_k to 10."""
-        request = RetrievalRequest(query="test")
-        assert request.top_k == 10
-
-    def test_rejects_top_k_zero(self):
-        """Should reject top_k of zero."""
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query="test", top_k=0)
-
-    def test_rejects_top_k_negative(self):
-        """Should reject negative top_k."""
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query="test", top_k=-1)
-
-    def test_rejects_top_k_too_large(self):
-        """Should reject top_k larger than 50."""
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query="test", top_k=51)
-
-    def test_min_similarity_defaults_to_025(self):
-        """Should default min_similarity to 0.25."""
-        request = RetrievalRequest(query="test")
-        assert request.min_similarity == 0.25
-
-    def test_rejects_min_similarity_negative(self):
-        """Should reject negative min_similarity."""
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query="test", min_similarity=-0.1)
-
-    def test_rejects_min_similarity_greater_than_one(self):
-        """Should reject min_similarity greater than 1.0."""
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query="test", min_similarity=1.1)
-
-    def test_accepts_valid_file_type_filter(self):
-        """Should accept valid file type filter."""
-        request = RetrievalRequest(query="test", file_type_filter=".pdf")
-        assert request.file_type_filter == ".pdf"
-
-    def test_rejects_file_type_without_dot(self):
-        """Should reject file type filter without dot."""
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query="test", file_type_filter="pdf")
-
-    def test_rejects_unsupported_file_type(self):
-        """Should reject unsupported file type."""
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query="test", file_type_filter=".exe")
 
 
 # ============================================================================
@@ -407,47 +271,6 @@ class TestChunkingParameters:
 # ERRORRESPONSE TESTS
 # ============================================================================
 
-@pytest.mark.unit
-@pytest.mark.validation
-class TestErrorResponse:
-    """Tests for ErrorResponse model."""
-
-    def test_creates_valid_error_response(self):
-        """Should create valid error response."""
-        error = ErrorResponse(
-            error="ValidationError",
-            message="Invalid input"
-        )
-        assert error.success is False
-        assert error.error == "ValidationError"
-        assert error.message == "Invalid input"
-
-    def test_success_always_false(self):
-        """Should always set success to False."""
-        error = ErrorResponse(error="Error", message="Message")
-        assert error.success is False
-
-    def test_includes_timestamp(self):
-        """Should include timestamp."""
-        error = ErrorResponse(error="Error", message="Message")
-        # timestamp is serialized as an ISO string
-        assert isinstance(error.timestamp, str)
-        assert "T" in error.timestamp  # ISO 8601 format
-
-    def test_includes_optional_details(self):
-        """Should include optional details."""
-        error = ErrorResponse(
-            error="ValidationError",
-            message="Invalid",
-            details={"field": "message"}
-        )
-        assert error.details == {"field": "message"}
-
-    def test_details_defaults_to_none(self):
-        """Should default details to empty dict when not provided."""
-        error = ErrorResponse(error="Error", message="Message")
-        assert error.details == {} or error.details is None
-
 
 # ============================================================================
 # EDGE CASES
@@ -463,37 +286,10 @@ class TestModelsEdgeCases:
         request = ChatRequest(message="Hello ?? ??")
         assert "??" in request.message
 
-    def test_retrieval_request_with_very_long_query(self):
-        """Should reject very long queries."""
-        long_query = "a" * 1001
-        with pytest.raises(ValidationError):
-            RetrievalRequest(query=long_query)
-
-    def test_document_upload_with_case_insensitive_extension(self):
-        """Should handle case-insensitive extensions."""
-        request = DocumentUploadRequest(filename="doc.PDF", file_size=1000)
-        assert request.filename == "doc.PDF"
-
     def test_model_request_with_dots_and_colons(self):
         """Should accept dots and colons in model names."""
         request = ModelRequest(model="llama3.2:latest")
         assert request.model == "llama3.2:latest"
-
-    def test_error_response_with_complex_details(self):
-        """Should handle complex details object."""
-        details = {
-            "errors": [
-                {"field": "message", "error": "too long"},
-                {"field": "top_k", "error": "too large"}
-            ],
-            "count": 2
-        }
-        error = ErrorResponse(
-            error="MultipleErrors",
-            message="Multiple validation errors",
-            details=details
-        )
-        assert error.details["count"] == 2
 
 
 # ============================================================================

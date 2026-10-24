@@ -6,7 +6,6 @@ from src.utils.sanitization import (
     sanitize_filename,
     sanitize_model_name,
     sanitize_query,
-    sanitize_text,
     validate_path,
 )
 
@@ -104,28 +103,6 @@ class TestSanitizeModelName:
     def test_removes_path_separator(self):
         result = sanitize_model_name("../../model")
         assert ".." not in result or "/" not in result
-
-
-class TestSanitizeText:
-    def test_normal_text_preserved(self):
-        result = sanitize_text("Hello, world!")
-        assert "Hello" in result
-
-    def test_strips_whitespace(self):
-        result = sanitize_text("   text   ")
-        assert result == result.strip()
-
-    def test_removes_null_bytes(self):
-        result = sanitize_text("text\x00with\x00nulls")
-        assert "\x00" not in result
-
-    def test_empty_returns_empty(self):
-        result = sanitize_text("")
-        assert result == ""
-
-    def test_unicode_text_preserved(self):
-        result = sanitize_text("Ünïcödé téxt")
-        assert "t" in result.lower()
 
 
 class TestValidatePath:

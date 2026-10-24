@@ -128,18 +128,6 @@ class TestInsertEntityRelation:
         assert cur.execute.call_count >= 1
 
 
-class TestDeleteDocumentEntities:
-    def test_no_op_when_db_unavailable(self):
-        m, _, _ = _entities_mixin(connected=False)
-        m.entities.delete_for_document(99)
-        m.get_connection.assert_not_called()
-
-    def test_calls_delete_when_connected(self):
-        m, conn, _ = _entities_mixin()
-        m.entities.delete_for_document(5)
-        m.get_connection.assert_called_once()
-
-
 class TestGetRelatedEntityNames:
     def test_returns_empty_for_empty_input(self):
         m, _, _ = _entities_mixin()
@@ -156,50 +144,6 @@ class TestGetRelatedEntityNames:
         m, _, cur = _entities_mixin(fetchall_return=[("Google",), ("Microsoft",)])
         result = m.entities.related_names(["Apple"])
         assert result == ["Google", "Microsoft"]
-
-
-class TestGetEntityByName:
-    def test_returns_none_when_not_found(self):
-        m, _, cur = _entities_mixin(fetchone_return=None)
-        result = m.entities.by_name("Unknown")
-        assert result is None
-
-    def test_returns_dict_when_found(self):
-        eid = str(uuid.uuid4())
-        m, _, cur = _entities_mixin(fetchone_return=(eid, "Apple", "ORG", 3))
-        result = m.entities.by_name("Apple")
-        assert result == {"id": eid, "name": "Apple", "type": "ORG", "doc_count": 3}
-
-    def test_returns_none_when_db_unavailable(self):
-        m, _, _ = _entities_mixin(connected=False)
-        assert m.entities.by_name("X") is None
-
-
-class TestGetAllEntities:
-    def test_returns_empty_when_db_unavailable(self):
-        m, _, _ = _entities_mixin(connected=False)
-        assert m.entities.list_all() == []
-
-    def test_returns_list_of_dicts(self):
-        eid = str(uuid.uuid4())
-        m, _, cur = _entities_mixin(fetchall_return=[(eid, "Apple", "ORG", 5)])
-        result = m.entities.list_all()
-        assert len(result) == 1
-        assert result[0]["name"] == "Apple"
-
-
-class TestGetEntityStats:
-    def test_returns_zeros_when_db_unavailable(self):
-        m, _, _ = _entities_mixin(connected=False)
-        stats = m.entities.stats()
-        assert stats == {"entity_count": 0, "relation_count": 0}
-
-    def test_returns_counts_from_db(self):
-        m, _, cur = _entities_mixin()
-        cur.fetchone.side_effect = [(10,), (25,)]
-        stats = m.entities.stats()
-        assert stats["entity_count"] == 10
-        assert stats["relation_count"] == 25
 
 
 # ===========================================================================

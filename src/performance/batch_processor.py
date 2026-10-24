@@ -91,15 +91,3 @@ class BatchEmbeddingProcessor:
 
         return results
 
-    def _generate_single(
-        self,
-        text: str,
-        model: str,
-    ) -> list[float] | None:
-        """Generate embedding for single text."""
-        try:
-            success, embedding = self.ollama_client.generate_embedding(model, text)
-            return embedding if success else None
-        except Exception as e:  # noqa: BLE001 — a single embedding; None is the documented 'could not' answer
-            logger.debug(f"Embedding generation failed: {e}")
-            return None

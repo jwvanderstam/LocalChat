@@ -222,22 +222,6 @@ class ConversationsRepository:
         logger.debug(f"Saved {role} message (id={message_id}) to conversation {conversation_id}")
         return int(message_id)
 
-    def update_message_plan(self, message_id: int, plan_json: dict[str, Any]) -> None:
-        """Attach tool_trace and agent warnings to the user turn after AggregatorAgent finishes."""
-        if not self._db.is_connected:
-            raise DatabaseUnavailableError("Cannot update message: Database is not connected")
-
-        from psycopg.types.json import Jsonb
-
-        with self._db.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE conversation_messages SET plan_json = %s WHERE id = %s",
-                    (Jsonb(plan_json), message_id),
-                )
-                conn.commit()
-        logger.debug(f"Updated plan_json for message id={message_id}")
-
     def set_title(
         self, conversation_id: str, title: str, *, scope: Scope
     ) -> bool:

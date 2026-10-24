@@ -1,5 +1,4 @@
 import hashlib
-from collections.abc import Callable
 from typing import Any
 
 from ..utils.logging_config import get_logger
@@ -30,21 +29,6 @@ class EmbeddingCache:
     def set(self, text: str, model: str, embedding: list[float]) -> bool:
         return self.backend.set(self._make_cache_key(text, model), embedding, ttl=self.ttl)
 
-    def get_or_generate(
-        self,
-        text: str,
-        model: str,
-        generate_fn: Callable[[str], list[float]]
-    ) -> tuple[list[float], bool]:
-        embedding = self.get(text, model)
-        if embedding is not None:
-            logger.debug(f"Embedding cache HIT for {len(text)} chars")
-            return embedding, True
-        logger.debug(f"Embedding cache MISS for {len(text)} chars - generating")
-        embedding = generate_fn(text)
-        self.set(text, model, embedding)
-        return embedding, False
-
     def clear(self) -> bool:
         return self.backend.clear()
 
@@ -74,28 +58,6 @@ class QueryCache:
     def set(self, query: str, top_k: int, min_similarity: float, use_hybrid: bool, results: list[tuple]) -> bool:
         return self.backend.set(self._make_cache_key(query, top_k, min_similarity, use_hybrid), results, ttl=self.ttl)
 
-    def get_or_retrieve(
-        self,
-        query: str,
-        top_k: int,
-        min_similarity: float,
-        use_hybrid: bool,
-        retrieve_fn: Callable[[], list[tuple]]
-    ) -> tuple[list[tuple], bool]:
-        results = self.get(query, top_k, min_similarity, use_hybrid)
-        if results is not None:
-            logger.info("Query cache HIT for: %s...", str(query)[:50].replace('\r', '').replace('\n', ' '))
-            return results, True
-        logger.info("Query cache MISS for: %s...", str(query)[:50].replace('\r', '').replace('\n', ' '))
-        results = retrieve_fn()
-        self.set(query, top_k, min_similarity, use_hybrid, results)
-        return results, False
-
-    def invalidate_pattern(self, pattern: str) -> bool:
-        """Pattern-based invalidation is not yet implemented; clears all entries."""
-        logger.info(f"Invalidating query cache (pattern: {pattern})")
-        return self.backend.clear()
-
     def clear(self) -> bool:
         return self.backend.clear()
 
@@ -121,9 +83,3 @@ def init_caches(
     return _embedding_cache, _query_cache
 
 
-def get_embedding_cache() -> EmbeddingCache | None:
-    return _embedding_cache
-
-
-def get_query_cache() -> QueryCache | None:
-    return _query_cache

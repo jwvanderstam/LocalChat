@@ -477,65 +477,6 @@ class DocumentsRepository:
                 logger.debug(f"Found {len(results)} lexical matches")
                 return [(r[0], r[1], r[2], r[3], r[4] or {}, r[5]) for r in results]
 
-    def search_similar_with_scores(
-        self,
-        query_embedding: list[float] | np.ndarray,
-        top_k: int = 5,
-        min_similarity: float = 0.0,
-        file_type_filter: str | None = None,
-    ) -> list[tuple[str, str, int, float, int]]:
-        """Returns ``(chunk_text, filename, chunk_index, similarity, document_id)`` tuples."""
-        if not self._db.is_connected:
-            raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
-
-        logger.debug(f"Searching for top {top_k} similar chunks (min_sim={min_similarity})")
-        with self._db.get_connection() as conn:
-            with conn.cursor() as cursor:
-                embedding_str = self._db._embedding_to_pg_array(query_embedding)
-                max_distance = 1.0 - min_similarity
-
-                if file_type_filter:
-                    cursor.execute(
-                        """
-                        WITH q AS (SELECT %s::vector AS emb)
-                        SELECT dc.chunk_text, d.filename, dc.chunk_index,
-                               1 - (dc.embedding <=> q.emb) AS similarity,
-                               dc.document_id
-                        FROM document_chunks dc
-                        JOIN documents d ON dc.document_id = d.id
-                        CROSS JOIN q
-                        WHERE dc.embedding IS NOT NULL
-                          AND d.deleted_at IS NULL
-                          AND d.filename LIKE %s
-                          AND (dc.embedding <=> q.emb) <= %s
-                        ORDER BY dc.embedding <=> q.emb
-                        LIMIT %s
-                        """,
-                        (embedding_str, f'%{file_type_filter}', max_distance, top_k),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        WITH q AS (SELECT %s::vector AS emb)
-                        SELECT dc.chunk_text, d.filename, dc.chunk_index,
-                               1 - (dc.embedding <=> q.emb) AS similarity,
-                               dc.document_id
-                        FROM document_chunks dc
-                        JOIN documents d ON dc.document_id = d.id
-                        CROSS JOIN q
-                        WHERE dc.embedding IS NOT NULL
-                          AND d.deleted_at IS NULL
-                          AND (dc.embedding <=> q.emb) <= %s
-                        ORDER BY dc.embedding <=> q.emb
-                        LIMIT %s
-                        """,
-                        (embedding_str, max_distance, top_k),
-                    )
-
-                results = cursor.fetchall()
-                logger.debug(f"Found {len(results)} chunks above similarity threshold {min_similarity}")
-                return list(results)
-
     def adjacent_chunks(
         self, document_id: int, chunk_index: int, window_size: int = 1, *, scope: Scope
     ) -> list[tuple[str, int]]:

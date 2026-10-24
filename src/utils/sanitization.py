@@ -41,22 +41,6 @@ def sanitize_model_name(model_name: str, max_length: int = 100) -> str:
     return model_name[:max_length]
 
 
-def sanitize_text(
-    text: str,
-    max_length: int | None = None,
-    remove_html: bool = True
-) -> str:
-    if remove_html:
-        text = re.sub(r'<[^>]+>', '', text)
-    text = ''.join(char for char in text if ord(char) >= 32 or char in '\n\t')
-    text = '\n'.join(' '.join(line.split()) for line in text.split('\n'))
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    if max_length and len(text) > max_length:
-        text = text[:max_length]
-        logger.debug(f"Text truncated to {max_length} characters")
-    return text
-
-
 def validate_path(file_path: str, base_dir: str) -> bool:
     try:
         base_path = Path(base_dir).resolve()
@@ -65,14 +49,6 @@ def validate_path(file_path: str, base_dir: str) -> bool:
     except (ValueError, OSError) as e:
         logger.warning(f"Path validation failed: {e}")
         return False
-
-
-def sanitize_file_extension(filename: str, allowed_extensions: list) -> bool:
-    ext = Path(filename).suffix.lower()
-    is_allowed = ext in allowed_extensions
-    if not is_allowed:
-        logger.warning(f"Rejected file extension: {ext}")
-    return is_allowed
 
 
 def sanitize_json_keys(data: dict, max_depth: int = 10) -> dict:
@@ -102,16 +78,6 @@ def escape_sql_like(pattern: str) -> str:
     pattern = pattern.replace('[', '\\[')
     pattern = pattern.replace(']', '\\]')
     return pattern
-
-
-def truncate_text(text: str, max_length: int, suffix: str = '...') -> str:
-    if len(text) <= max_length:
-        return text
-    return text[:max_length - len(suffix)] + suffix
-
-
-def remove_null_bytes(text: str) -> str:
-    return text.replace('\x00', '')
 
 
 # GR-1a: retrieved text is written by someone other than the person asking, so each source

@@ -70,6 +70,3 @@ class PostgresGraphStore(GraphStore):
         return self._db.entities.related_names(entity_names, max_results=max_results)
 
 
-def create_graph_store(db: Any) -> GraphStore:
-    """Factory: returns the GraphStore instance backing GraphRAG."""
-    return PostgresGraphStore(db)

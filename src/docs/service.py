@@ -141,7 +141,6 @@ class DocEntry:
     slug: str
     path: Path
     title: str
-    raw_markdown: str
     html: str
     fragments: dict[str, str] = field(default_factory=dict)
     mtime: float = 0.0
@@ -176,7 +175,6 @@ class DocsService:
                 slug=slug,
                 path=path,
                 title=_extract_title(raw, path),
-                raw_markdown=raw,
                 html=markdown.markdown(raw, extensions=_MD_EXTENSIONS),
                 fragments=_split_fragments(raw),
                 mtime=path.stat().st_mtime,

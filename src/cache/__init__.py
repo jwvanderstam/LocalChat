@@ -1,4 +1,3 @@
-import hashlib
 import json
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -84,9 +83,6 @@ class CacheBackend(ABC):
 
     def make_key(self, *parts: str) -> str:
         return f"{self.namespace}:{':'.join(parts)}"
-
-    def hash_key(self, data: str) -> str:
-        return hashlib.sha256(data.encode()).hexdigest()
 
 
 class MemoryCache(CacheBackend):

@@ -70,8 +70,6 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         self._db = db if db is not None else _g['db']
         self._ollama_client = ollama_client if ollama_client is not None else _g['ollama_client']
         self.embedding_model: str | None = None
-        self._corpus_chunks: list[str] = []
-        self._corpus_metadata: list[dict[str, Any]] = []
         logger.info("DocumentProcessor initialized")
 
     @timed('rag.generate_embeddings')
@@ -466,34 +464,6 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
             error_msg = f"Error ingesting document: {str(e)}"
             logger.exception(error_msg)
             return False, error_msg, None
-
-    def ingest_multiple_documents(
-        self,
-        file_paths: list[str],
-        progress_callback: Callable[[str], None] | None = None
-    ) -> list[tuple[bool, str, int | None]]:
-        """
-        Ingest multiple documents.
-
-        Args:
-            file_paths: List of file paths to ingest
-            progress_callback: Optional callback for progress updates
-
-        Returns:
-            List of (success, message, doc_id) tuples
-        """
-        results = []
-        logger.info(f"Starting ingestion of {len(file_paths)} documents")
-
-        for idx, file_path in enumerate(file_paths):
-            if progress_callback:
-                progress_callback(f"Processing document {idx + 1}/{len(file_paths)}")
-
-            result = self.ingest_document(file_path, progress_callback)
-            results.append(result)
-
-        logger.info("Batch ingestion completed")
-        return results
 
 
 # ============================================================================

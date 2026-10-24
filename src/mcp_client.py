@@ -168,11 +168,6 @@ class MCPClient:
             return json.loads(content[0]["text"])
         return result
 
-    def list_tools(self) -> list[dict]:
-        """Return tool schemas from the server."""
-        result = self._rpc("tools/list", {})
-        return (result or {}).get("tools", [])
-
     def health(self) -> bool:
         """
         Return True if the server is reachable and healthy.
