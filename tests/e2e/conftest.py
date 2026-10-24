@@ -12,6 +12,7 @@ cookies, SSE, ingest, pgvector retrieval. Only the model process is faked.
 from __future__ import annotations
 
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -20,10 +21,16 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from tests.utils.fake_ollama import FakeOllama
+
+if TYPE_CHECKING:
+    # Not imported at runtime: the perf suite imports this module, and the test
+    # modules decide for themselves how a missing playwright is reported.
+    from playwright.sync_api import Page
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -56,9 +63,12 @@ def server_env() -> dict[str, str]:
     """Extra environment for the server under test. Overridden per suite.
 
     The perf suite raises the chat rate limit through this: a concurrency
-    benchmark that trips the limiter measures the limiter.
+    benchmark that trips the limiter measures the limiter. This suite raises
+    login and upload for the same reason: every request comes from 127.0.0.1,
+    and eight paths signing in and uploading would meet `5 per hour` on upload
+    by the second local run. No test here is about the limiter.
     """
-    return {}
+    return {"RATELIMIT_LOGIN": "1000 per minute", "RATELIMIT_UPLOAD": "1000 per hour"}
 
 
 @pytest.fixture(scope="session")
@@ -133,3 +143,14 @@ def _tail(log_path: Path, lines: int = 40) -> str:
 def base_url(live_server: str) -> str:
     """What `page.goto("/")` resolves against — overrides pytest-base-url's."""
     return live_server
+
+
+def sign_in(page: Page, username: str = ADMIN_USERNAME, password: str = ADMIN_PASSWORD) -> None:
+    """Through the login form, as a user would; lands on the chat page."""
+    from playwright.sync_api import expect
+
+    page.goto("/login")
+    page.locator("#username").fill(username)
+    page.locator("#password").fill(password)
+    page.locator("#login-submit").click()
+    expect(page).to_have_url(re.compile(r"/$"))

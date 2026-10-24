@@ -1769,7 +1769,14 @@ start **before** QP-4's first PR.
 - Record the honest baseline. Set `--cov-fail-under` 2 points below it and a SonarCloud
   new-code condition of 80%. Raise the floor as QP-4 lands.
 
-#### QP-7 — Gates ⬜ (Sprints 24-26, ~4 days)
+#### QP-7 — Gates 🟡 (Sprints 24-26, ~4 days; e2e paths built 2026-10-24)
+
+> **The eight e2e paths are built.** Paths 2 and 3 were already the golden path; the other
+> six are `tests/e2e/test_access_paths.py`. Two were checked against deliberate breakage: a
+> logout that skips `revoke_token`, and an upload guard lowered to viewer. Both turned the
+> suite red. Writing them found that `GET /api/users/me` answers a revoked or absent token
+> with 200, so the replay test probes `/api/workspaces` instead. The 20-green-runs count for
+> making `e2e` required starts with this suite, not the old two tests.
 
 - e2e grows from 2 golden paths to 8:
     1. login and logout
@@ -1898,7 +1905,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 21 | OBS-1a (token accounting, cloud cost) ✅ 2026-10-09 + OBS-1b if wanted | 3–4 days |
 | 22 | QP-1 (S1, S3, S4, defects 1-3) -> **v3.2.0** | ~2 days (week 1) |
 | 23 | QP-2 (S2 role split incl. Scaleway, S5, S7, B608, S6) -> **v3.3.0** | ~3 days (weeks 2-3) |
-| 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ + QP-7 e2e paths begun | ~1 week (weeks 3-4) |
+| 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ #469 + QP-7 e2e, 8 paths ✅ | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (delete `Database`, split `DocumentProcessor`) + QP-9 (external review) -> **v3.4.0**, re-audit | ~1 week (weeks 10-12) |
 | — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |

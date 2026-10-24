@@ -10,6 +10,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Added
 
+- **The browser suite covers eight paths, up from two** (ROADMAP QP-7).
+  `tests/e2e/test_access_paths.py` adds sign-out, a session cookie replayed after sign-out,
+  the workspace switch, an admin creating a user with membership, a viewer who cannot
+  upload, and a workspace API key that reaches only its workspace. Where the UI hides a
+  control, the test asks the server as well.
+
 - **Coverage is measured honestly, with a floor** (ROADMAP QP-6). SonarCloud now gets unit
   and integration coverage combined, with `src/db/` included: 11 of its files were excluded
   before, because the unit suite has no database. The first measurement is 85.68% of

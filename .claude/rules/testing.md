@@ -111,10 +111,18 @@ resulting state; `tests/unit/test_frontend_workspace_selection.py` is a worked e
 - Confirm the test fails with the fix reverted. Tests that guard against
   *over*-correction should pass both ways — that is what makes them worth keeping.
 
-The node harness covers branch logic in one file. The *path* through several of them —
-sign in, upload, ask, cited answer — is covered once, in a real browser, by
-`tests/e2e/test_golden_path.py` (TQ-4). That is the whole of the browser strategy:
-add to it only when a regression escapes both it and the node harness.
+The node harness covers branch logic in one file. The *paths* through several of them run
+in a real browser, eight in all (QP-7):
+
+- `tests/e2e/test_golden_path.py` (TQ-4): sign in, upload with progress, ask, and get a
+  cited answer.
+- `tests/e2e/test_access_paths.py`: sign out, a session replayed after sign-out, switching
+  workspace, an admin creating a user with membership, a viewer who cannot upload, and a
+  workspace API key that reaches only its workspace.
+
+Where the browser hides a control, those tests also ask the server, because the refusal over
+the wire is the guarantee. Add a path only when a regression escapes both the browser suite
+and the node harness.
 
 ## Coverage
 
