@@ -26,12 +26,14 @@ GLOBAL_ROW = ("A contributed lesson about database migrations.", "retro.md", 0, 
 class FakeDb:
     def __init__(self) -> None:
         self.calls: list[tuple[str, object, bool]] = []
+        # Retrieval reads through db.documents; this fake is its own repository.
+        self.documents = self
 
-    def search_similar_chunks(self, _embedding, *, scope, global_tier=False, **_kw):
+    def search_similar(self, _embedding, *, scope, global_tier=False, **_kw):
         self.calls.append(("semantic", scope, global_tier))
         return [GLOBAL_ROW] if global_tier else [LOCAL_ROW]
 
-    def search_lexical_chunks(self, _query, *, scope, global_tier=False, **_kw):
+    def search_lexical(self, _query, *, scope, global_tier=False, **_kw):
         self.calls.append(("lexical", scope, global_tier))
         return []
 
@@ -131,11 +133,11 @@ def _search(method: str, global_tier: bool):
     ):
         get_conn.return_value.__enter__.return_value = conn
         if method == "semantic":
-            db_module.db.search_similar_chunks(
+            db_module.db.documents.search_similar(
                 [0.1] * 8, scope=WORKSPACE, global_tier=global_tier
             )
         else:
-            db_module.db.search_lexical_chunks(
+            db_module.db.documents.search_lexical(
                 "migration lessons", scope=WORKSPACE, global_tier=global_tier
             )
     sql, params = cursor.execute.call_args.args

@@ -109,13 +109,13 @@ def mock_db():
     """
     db = Mock()
     db.is_connected = True
-    db.document_exists = Mock(return_value=(False, None))
-    db.insert_document = Mock(return_value=1)
-    db.insert_chunks_batch = Mock(return_value=[])
-    db.search_similar_chunks = Mock(return_value=[])
-    db.get_document_count = Mock(return_value=0)
-    db.get_chunk_count = Mock(return_value=0)
-    db.get_all_documents = Mock(return_value=[])
+    db.documents.exists = Mock(return_value=(False, None))
+    db.documents.insert = Mock(return_value=1)
+    db.documents.insert_chunks = Mock(return_value=[])
+    db.documents.search_similar = Mock(return_value=[])
+    db.documents.count = Mock(return_value=0)
+    db.documents.chunk_count = Mock(return_value=0)
+    db.documents.list_all = Mock(return_value=[])
     return db
 
 
@@ -511,7 +511,7 @@ def app_with_many_documents(client, monkeypatch):
             for i in range(10)
         ]
 
-    monkeypatch.setattr('src.db.db.get_all_documents', mock_get_docs)
+    monkeypatch.setattr('src.db.db.documents.list_all', mock_get_docs)
 
     return client
 

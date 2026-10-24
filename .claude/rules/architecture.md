@@ -11,7 +11,7 @@ No SQL, no LLM calls, no business logic inside route functions. If you find your
 
 ## Database access
 
-- All SQL lives in `src/db/`. An aggregate QP-4 has moved is a repository class (`UsersRepository`, `WorkspacesRepository`, …) held as an attribute of `Database` (`db.users`, `db.tokens`, `db.workspaces`, `db.members`, `db.api_keys`); the rest are still mixins (`DocumentsMixin`, `ConversationsMixin`, …) until their PR.
+- All SQL lives in `src/db/`. An aggregate QP-4 has moved is a repository class (`UsersRepository`, `WorkspacesRepository`, …) held as an attribute of `Database` (`db.users`, `db.tokens`, `db.workspaces`, `db.members`, `db.api_keys`, `db.documents`); the rest are still mixins (`ConversationsMixin`, `MemoriesMixin`, …) until their PR.
 - Never write raw SQL in routes, services, or tools.
 - The `Database` class in `src/db/__init__.py` composes the remaining mixins and holds the repositories. A new aggregate is a repository, not a mixin (ADR-7).
 - A route reaches a moved aggregate through its service, requested with `Depends(...)` from `src/routes_fastapi/_services.py`; it never reads `app.state.db` for it.

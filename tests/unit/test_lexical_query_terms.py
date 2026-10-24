@@ -60,7 +60,7 @@ class TestTheQuerySent:
             patch.object(db_module.db, "get_connection") as get_conn,
         ):
             get_conn.return_value.__enter__.return_value = conn
-            db_module.db.search_lexical_chunks(
+            db_module.db.documents.search_lexical(
                 "How do I restore the database from a backup?", top_k=5, scope=ALL_WORKSPACES
             )
 
@@ -76,5 +76,5 @@ class TestTheQuerySent:
             patch.object(db_module.db, "is_connected", True),
             patch.object(db_module.db, "get_connection") as get_conn,
         ):
-            assert db_module.db.search_lexical_chunks("how is it the", scope=ALL_WORKSPACES) == []
+            assert db_module.db.documents.search_lexical("how is it the", scope=ALL_WORKSPACES) == []
             get_conn.assert_not_called()

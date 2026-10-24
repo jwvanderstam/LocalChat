@@ -47,7 +47,7 @@ def _make_chat_app(active_model="llama3.2", db_ok=True, ollama_ok=True, chunks=N
 
     test_app.state.startup_status = {"database": db_ok, "ollama": ollama_ok, "ready": db_ok and ollama_ok}
     test_app.state.db = authorise_db(MagicMock())
-    test_app.state.db.get_document_count.return_value = 5
+    test_app.state.db.documents.count.return_value = 5
     test_app.state.db.save_message.return_value = 42
     test_app.state.db.create_conversation_with_message.return_value = ("conv-1", 1)
     test_app.state.db.get_conversation_document_filter.return_value = []

@@ -34,13 +34,15 @@ _SCANNED = (_ROOT / "src", _ROOT / "tests")
 
 # Every database method that reaches a workspace-owned object. A method listed here
 # without a keyword-only `scope` fails TestScopedMethodsRequireTheArgument, so the
-# list and the signatures cannot drift apart.
+# list and the signatures cannot drift apart. A method on a repository QP-4 has moved is
+# named with the attribute that holds it ("documents.retire"): its own name is short and
+# shared — `workspaces.retire` is not scoped — so the bare name would match the wrong calls.
 SCOPED_METHODS = {
-    "delete_document",
-    "get_chunk_by_id",
-    "get_adjacent_chunks",
-    "search_chunks_by_text",
-    "retire_all_documents",
+    "documents.retire",
+    "documents.chunk_by_id",
+    "documents.adjacent_chunks",
+    "documents.search_text",
+    "documents.retire_all",
     "delete_memory",
     "delete_all_memories",
     "get_unextracted_conversations",
@@ -55,12 +57,12 @@ SCOPED_METHODS = {
     "update_connector",
     "delete_connector",
     # P2-1b-ii: the filters where `workspace_id=None` used to mean every workspace.
-    "search_similar_chunks",
-    "search_lexical_chunks",
-    "get_document_count",
-    "get_chunk_count",
-    "get_all_documents",
-    "get_stale_documents",
+    "documents.search_similar",
+    "documents.search_lexical",
+    "documents.count",
+    "documents.chunk_count",
+    "documents.list_all",
+    "documents.stale",
     "count_conversations",
     "list_conversations",
     "delete_all_conversations",
@@ -116,12 +118,12 @@ class TestEveryScopedCallNamesItsScope:
                 for node in ast.walk(tree):
                     if not isinstance(node, ast.Call):
                         continue
-                    func = node.func
-                    if not isinstance(func, ast.Attribute) or func.attr not in SCOPED_METHODS:
+                    name = _called(node)
+                    if name not in SCOPED_METHODS:
                         continue
                     if any(kw.arg == "scope" for kw in node.keywords):
                         continue
-                    offenders.append(f"{path.relative_to(_ROOT)}:{node.lineno} {func.attr}()")
+                    offenders.append(f"{path.relative_to(_ROOT)}:{node.lineno} {name}()")
         return offenders
 
     def test_no_call_omits_the_scope(self):
@@ -137,12 +139,20 @@ class TestEveryScopedCallNamesItsScope:
         """The scan is only worth having if it matches the shape it hunts for."""
         call = next(
             n
-            for n in ast.walk(ast.parse("db.delete_document(42, 'user')"))
+            for n in ast.walk(ast.parse("db.documents.retire(42, 'user')"))
             if isinstance(n, ast.Call)
         )
-        assert isinstance(call.func, ast.Attribute)
-        assert call.func.attr in SCOPED_METHODS
+        assert _called(call) == "documents.retire"
+        assert _called(call) in SCOPED_METHODS
         assert not any(kw.arg == "scope" for kw in call.keywords)
+
+    def test_a_shared_short_name_on_another_repository_is_not_matched(self):
+        call = next(
+            n for n in ast.walk(ast.parse("db.workspaces.retire('ws', deleted_by='u')"))
+            if isinstance(n, ast.Call)
+        )
+        assert _called(call) == "workspaces.retire"
+        assert _called(call) not in SCOPED_METHODS
 
 
 @pytest.mark.unit
@@ -154,7 +164,9 @@ class TestScopedMethodsRequireTheArgument:
 
         problems = []
         for name in sorted(SCOPED_METHODS):
-            method = getattr(Database, name, None)
+            repository, _, method_name = name.rpartition(".")
+            owner = _REPOSITORIES.get(repository) if repository else Database
+            method = getattr(owner, method_name, None)
             if method is None:
                 problems.append(f"{name}: no such method on Database")
                 continue
@@ -168,16 +180,58 @@ class TestScopedMethodsRequireTheArgument:
         assert not problems, problems
 
 
+def _called(call: ast.Call) -> str | None:
+    """``db.documents.retire(...)`` -> "documents.retire" when that is listed, else "retire"."""
+    func = call.func
+    if not isinstance(func, ast.Attribute):
+        return None
+    if isinstance(func.value, ast.Attribute):
+        qualified = f"{func.value.attr}.{func.attr}"
+        if qualified in SCOPED_METHODS or func.value.attr in _REPOSITORY_ATTRS:
+            return qualified
+    return func.attr
+
+
+def _repository_attributes() -> dict[str, str]:
+    """``{"DocumentsRepository": "documents", ...}``, read from ``Database.__init__``."""
+    tree = ast.parse((_ROOT / "src" / "db" / "__init__.py").read_text(encoding="utf-8"))
+    found = {}
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and isinstance(node.targets[0], ast.Attribute)
+        ):
+            found[node.value.func.id] = node.targets[0].attr
+    return found
+
+
+_CLASS_TO_ATTR = _repository_attributes()
+_REPOSITORY_ATTRS = frozenset(_CLASS_TO_ATTR.values())
+
+
+def _repository_classes() -> dict[str, type]:
+    from src import db as db_package
+
+    return {attr: getattr(db_package, cls) for cls, attr in _CLASS_TO_ATTR.items()}
+
+
+_REPOSITORIES = _repository_classes()
+
+
 def _scoped_db_methods() -> dict[str, ast.FunctionDef]:
-    """Every method in src/db that takes a keyword-only ``scope``, by name."""
+    """Every method in src/db that takes a keyword-only ``scope``, keyed as SCOPED_METHODS is."""
     found = {}
     for path in sorted((_ROOT / "src" / "db").glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name != "get_connection" and any(
-                a.arg == "scope" for a in node.args.kwonlyargs
-            ):
-                found[node.name] = node
+        for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+            attr = _CLASS_TO_ATTR.get(cls.name)
+            for node in cls.body:
+                if isinstance(node, ast.FunctionDef) and node.name != "get_connection" and any(
+                    a.arg == "scope" for a in node.args.kwonlyargs
+                ):
+                    found[f"{attr}.{node.name}" if attr else node.name] = node
     return found
 
 
@@ -262,17 +316,17 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
         from src.routes_fastapi.document_routes import router
 
         client = _client(router, "/api/documents", "editor")
-        client.app.state.db.delete_document.return_value = True
+        client.app.state.db.documents.retire.return_value = True
         client.delete("/api/documents/42", headers=_auth())
-        assert client.app.state.db.delete_document.call_args.kwargs["scope"] == WS
+        assert client.app.state.db.documents.retire.call_args.kwargs["scope"] == WS
 
     def test_naming_another_workspace_moves_the_scope_it_does_not_widen_it(self):
         from src.routes_fastapi.document_routes import router
 
         client = _client(router, "/api/documents", "editor")
-        client.app.state.db.delete_document.return_value = True
+        client.app.state.db.documents.retire.return_value = True
         client.delete("/api/documents/42", headers={**_auth(), "X-Workspace-ID": OTHER_WS})
-        scope = client.app.state.db.delete_document.call_args.kwargs["scope"]
+        scope = client.app.state.db.documents.retire.call_args.kwargs["scope"]
         assert scope == OTHER_WS
         assert scope is not ALL_WORKSPACES
 
@@ -280,15 +334,15 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
         from src.routes_fastapi.document_routes import router
 
         client = _client(router, "/api/documents", "viewer")
-        client.app.state.db.get_chunk_by_id.return_value = None
+        client.app.state.db.documents.chunk_by_id.return_value = None
         client.get("/api/documents/chunks/7/context", headers=_auth())
-        assert client.app.state.db.get_chunk_by_id.call_args.kwargs["scope"] == WS
+        assert client.app.state.db.documents.chunk_by_id.call_args.kwargs["scope"] == WS
 
     def test_a_chunk_outside_the_scope_reads_as_not_found(self):
         from src.routes_fastapi.document_routes import router
 
         client = _client(router, "/api/documents", "viewer")
-        client.app.state.db.get_chunk_by_id.return_value = None
+        client.app.state.db.documents.chunk_by_id.return_value = None
         resp = client.get("/api/documents/chunks/7/context", headers=_auth())
         assert resp.status_code == 404
 
@@ -296,9 +350,9 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
         from src.routes_fastapi.document_routes import router
 
         client = _client(router, "/api/documents", "viewer")
-        client.app.state.db.search_chunks_by_text.return_value = []
+        client.app.state.db.documents.search_text.return_value = []
         client.post("/api/documents/search-text", json={"search_text": "x"}, headers=_auth())
-        assert client.app.state.db.search_chunks_by_text.call_args.kwargs["scope"] == WS
+        assert client.app.state.db.documents.search_text.call_args.kwargs["scope"] == WS
 
     def test_conversation_delete_is_scoped(self):
         from src.routes_fastapi.memory_routes import router
@@ -348,10 +402,10 @@ class TestClearRetiresWithinOneWorkspace:
         from src.routes_fastapi.document_routes import router
 
         client = _client(router, "/api/documents", "owner")
-        client.app.state.db.retire_all_documents.return_value = 3
+        client.app.state.db.documents.retire_all.return_value = 3
         resp = client.delete("/api/documents/clear", headers=_auth())
         assert resp.status_code == 200
-        assert client.app.state.db.retire_all_documents.call_args.kwargs["scope"] == WS
+        assert client.app.state.db.documents.retire_all.call_args.kwargs["scope"] == WS
 
     def test_purge_all_is_not_reachable_by_a_workspace_owner(self):
         from src.routes_fastapi.document_routes import router
@@ -359,4 +413,4 @@ class TestClearRetiresWithinOneWorkspace:
         client = _client(router, "/api/documents", "owner")
         resp = client.delete("/api/documents/purge-all", headers=_auth())
         assert resp.status_code in (401, 403)
-        assert not client.app.state.db.purge_all_documents.called
+        assert not client.app.state.db.documents.purge_all.called

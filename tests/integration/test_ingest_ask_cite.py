@@ -103,7 +103,7 @@ def ingested(database, ollama, workspace, tmp_path_factory) -> Iterator[str]:
     yield processor
 
     if doc_id is not None:
-        database.delete_document(doc_id, None, scope=workspace)
+        database.documents.retire(doc_id, None, scope=workspace)
 
 
 @pytest.mark.db
@@ -113,10 +113,10 @@ class TestIngestProducesRetrievableChunks:
         assert ingested is not None
 
     def test_chunks_were_stored(self, database, workspace):
-        assert database.get_chunk_count(scope=workspace) > 0
+        assert database.documents.chunk_count(scope=workspace) > 0
 
     def test_the_document_is_listed_in_its_workspace(self, database, workspace):
-        names = [d["filename"] for d in database.get_all_documents(scope=workspace)]
+        names = [d["filename"] for d in database.documents.list_all(scope=workspace)]
         assert "vector_search.txt" in names
 
 
@@ -171,11 +171,11 @@ class TestTheLexicalArmAnswersAQuestion:
     def test_a_natural_question_finds_the_chunk_that_shares_its_content_words(
         self, ingested, database, workspace
     ):
-        rows = database.search_lexical_chunks(self.QUESTION, top_k=5, scope=workspace)
+        rows = database.documents.search_lexical(self.QUESTION, top_k=5, scope=workspace)
         assert rows and "password" in rows[0][0]
 
     def test_a_question_of_only_stop_words_matches_nothing(self, ingested, database, workspace):
-        assert database.search_lexical_chunks("how is it the", top_k=5, scope=workspace) == []
+        assert database.documents.search_lexical("how is it the", top_k=5, scope=workspace) == []
 
 
 @pytest.mark.db

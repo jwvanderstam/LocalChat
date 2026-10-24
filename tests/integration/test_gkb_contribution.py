@@ -55,13 +55,13 @@ def workspaces(database: Any) -> Iterator[dict[str, str]]:
     yield ids
     for ws in ids.values():
         database.archive_contributions(ws, None)
-        database.retire_all_documents(scope=ws)
+        database.documents.retire_all(scope=ws)
         database.workspaces.retire(ws)
 
 
 def _document(database: Any, workspace: str, filename: str, chunks: int = 2) -> int:
-    doc_id = database.insert_document(filename, f"{filename} content", workspace_id=workspace)
-    database.insert_chunks_batch(
+    doc_id = database.documents.insert(filename, f"{filename} content", workspace_id=workspace)
+    database.documents.insert_chunks(
         [(doc_id, f"{filename} chunk {i}", i, _vector(doc_id + i)) for i in range(chunks)]
     )
     return doc_id
@@ -124,7 +124,7 @@ def test_the_source_document_stays_in_its_workspace(
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md")
     database.contribute_documents(workspaces["a"], [source], admin)
-    names = [d["filename"] for d in database.get_all_documents(scope=workspaces["a"])]
+    names = [d["filename"] for d in database.documents.list_all(scope=workspaces["a"])]
     assert names == ["retro.md"]
 
 
@@ -133,7 +133,7 @@ def test_recontributing_updates_in_place_and_retires_the_old_chunks(
 ) -> None:
     source = _document(database, workspaces["a"], "retro.md", chunks=2)
     [first] = database.contribute_documents(workspaces["a"], [source], admin)
-    database.insert_chunks_batch([(source, "retro.md chunk 2", 2, _vector(99))])
+    database.documents.insert_chunks([(source, "retro.md chunk 2", 2, _vector(99))])
     [second] = database.contribute_documents(workspaces["a"], [source], admin)
 
     assert second["global_document_id"] == first["global_document_id"]
@@ -243,7 +243,7 @@ def test_the_workspace_list_tags_what_it_shares_until_it_is_withdrawn(
     database.contribute_documents(workspaces["a"], [shared], admin)
 
     def tags(ws: str) -> dict[str, bool]:
-        return {d["filename"]: d["shared_globally"] for d in database.get_all_documents(scope=ws)}
+        return {d["filename"]: d["shared_globally"] for d in database.documents.list_all(scope=ws)}
 
     assert tags(workspaces["a"]) == {"retro.md": True, "draft.md": False}
     assert tags(workspaces["b"]) == {"retro.md": False}

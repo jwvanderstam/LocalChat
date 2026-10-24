@@ -160,7 +160,7 @@ def ingested(database, ollama, tmp_path_factory) -> Iterator[tuple[object, str, 
         ok, message, _doc_id = processor.ingest_document(str(path), workspace_id=workspace)
         assert ok, f"{path.name} did not ingest: {message}"
 
-    listed = {d["filename"]: d["injection_flags"] for d in database.get_all_documents(scope=workspace)}
+    listed = {d["filename"]: d["injection_flags"] for d in database.documents.list_all(scope=workspace)}
     try:
         yield processor, workspace, listed
     finally:

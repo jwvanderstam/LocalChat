@@ -231,7 +231,7 @@ class TestChunkStatistics:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            stats = db_module.db.get_chunk_statistics()
+            stats = db_module.db.documents.chunk_statistics()
 
             assert stats['total_chunks'] == 100
             assert stats['chunks_with_embeddings'] == 95
@@ -254,7 +254,7 @@ class TestChunkStatistics:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            stats = db_module.db.get_chunk_statistics()
+            stats = db_module.db.documents.chunk_statistics()
 
             assert stats['total_chunks'] == 0
             assert stats['avg_chunk_length'] == 0
@@ -280,7 +280,7 @@ class TestSearchChunksByText:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_chunks_by_text("keyword", limit=10, scope="ws-1")
+            results = db_module.db.documents.search_text("keyword", limit=10, scope="ws-1")
 
             sql, params = mock_cursor.execute.call_args[0]
             assert "d.workspace_id = %s" in sql
@@ -304,7 +304,7 @@ class TestSearchChunksByText:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_chunks_by_text("nonexistent", scope="ws-1")
+            results = db_module.db.documents.search_text("nonexistent", scope="ws-1")
 
             assert results == []
 
@@ -325,7 +325,7 @@ class TestSearchChunksByText:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.search_chunks_by_text("test", limit=5, scope="ws-1")
+            results = db_module.db.documents.search_text("test", limit=5, scope="ws-1")
 
             assert len(results) <= 5
 
@@ -351,7 +351,7 @@ class TestRetireAllDocuments:
             mock_get_conn.return_value.__enter__.return_value = conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            retired = db_module.db.retire_all_documents(scope="ws-1", deleted_by="u-1")
+            retired = db_module.db.documents.retire_all(scope="ws-1", deleted_by="u-1")
 
         sql, params = cursor.execute.call_args[0]
         assert "workspace_id = %s" in sql
@@ -369,7 +369,7 @@ class TestRetireAllDocuments:
             mock_get_conn.return_value.__enter__.return_value = conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.retire_all_documents(scope="ws-1")
+            db_module.db.documents.retire_all(scope="ws-1")
 
         sql = cursor.execute.call_args[0][0]
         assert "UPDATE documents" in sql
@@ -383,7 +383,7 @@ class TestRetireAllDocuments:
         from src import db as db_module
 
         with pytest.raises(ValueError, match="workspace scope is required"):
-            db_module.db.retire_all_documents(scope=None)  # type: ignore[arg-type]
+            db_module.db.documents.retire_all(scope=None)  # type: ignore[arg-type]
 
 
 class TestPurgeAllDocuments:
@@ -403,7 +403,7 @@ class TestPurgeAllDocuments:
         with mgr as mock_get_conn:
             mock_get_conn.return_value.__enter__.return_value = conn
             mock_get_conn.return_value.__exit__.return_value = None
-            purged = db_module.db.purge_all_documents()
+            purged = db_module.db.documents.purge_all()
         return cursor, purged
 
     def test_touches_only_retired_documents(self):
@@ -453,7 +453,7 @@ class TestGetAdjacentChunks:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            results = db_module.db.get_adjacent_chunks(
+            results = db_module.db.documents.adjacent_chunks(
                 document_id=1,
                 chunk_index=1,
                 window_size=1,
@@ -532,7 +532,7 @@ class TestDocumentSoftDelete:
         with patch.object(db, 'get_connection') as mock_gc:
             mock_gc.return_value.__enter__.return_value = conn
             mock_gc.return_value.__exit__.return_value = None
-            db.delete_document(99, 'user-uuid-123', scope='ws-1')
+            db.documents.retire(99, 'user-uuid-123', scope='ws-1')
 
         sql = cursor.execute.call_args[0][0]
         assert 'UPDATE' in sql.upper()
@@ -548,7 +548,7 @@ class TestDocumentSoftDelete:
         with patch.object(db, 'get_connection') as mock_gc:
             mock_gc.return_value.__enter__.return_value = conn
             mock_gc.return_value.__exit__.return_value = None
-            db.delete_document(7, scope='ws-1')  # no deleted_by
+            db.documents.retire(7, scope='ws-1')  # no deleted_by
 
         params = cursor.execute.call_args[0][1]
         # params = (deleted_by, doc_id) — deleted_by should be None
@@ -565,7 +565,7 @@ class TestDocumentSoftDelete:
         with patch.object(db, 'get_connection') as mock_gc:
             mock_gc.return_value.__enter__.return_value = conn
             mock_gc.return_value.__exit__.return_value = None
-            result = db.purge_document(5)
+            result = db.documents.purge(5)
 
         assert result is False
 
@@ -579,7 +579,7 @@ class TestDocumentSoftDelete:
         with patch.object(db, 'get_connection') as mock_gc:
             mock_gc.return_value.__enter__.return_value = conn
             mock_gc.return_value.__exit__.return_value = None
-            result = db.purge_document(5)
+            result = db.documents.purge(5)
 
         assert result is True
         calls = [call[0][0].upper() for call in cursor.execute.call_args_list]

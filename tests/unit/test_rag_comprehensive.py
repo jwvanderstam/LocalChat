@@ -84,14 +84,14 @@ def mock_db():
     with patch('src.rag.processor.db') as mock_proc_db, \
          patch('src.rag.retrieval.db') as mock_ret_db:
         for mock_database in [mock_proc_db, mock_ret_db]:
-            mock_database.insert_document.return_value = 1
-            mock_database.insert_chunks_batch.return_value = None
-            mock_database.search_similar_chunks.return_value = [
+            mock_database.documents.insert.return_value = 1
+            mock_database.documents.insert_chunks.return_value = None
+            mock_database.documents.search_similar.return_value = [
                 ("chunk text 1", "doc1.pdf", 0, 0.95, {}, 1),
                 ("chunk text 2", "doc1.pdf", 1, 0.87, {}, 2),
                 ("chunk text 3", "doc2.pdf", 0, 0.82, {}, 3)
             ]
-            mock_database.document_exists.return_value = (False, {})
+            mock_database.documents.exists.return_value = (False, {})
             mock_database.is_connected = True
         yield mock_proc_db
 
@@ -445,7 +445,7 @@ class TestContextRetrieval:
 
     def test_retrieve_context_no_results(self, doc_processor, mock_db, mock_ollama):
         """Should handle no results."""
-        mock_db.search_similar_chunks.return_value = []
+        mock_db.documents.search_similar.return_value = []
 
         results = doc_processor.retrieve_context("test query", scope=ALL_WORKSPACES)
 
@@ -453,18 +453,18 @@ class TestContextRetrieval:
 
     def test_retrieve_context_with_filter(self, doc_processor, mock_db, mock_ollama):
         """Should apply file type filter."""
-        mock_db.search_similar_chunks.return_value = [
+        mock_db.documents.search_similar.return_value = [
             ("chunk text 1", "report.pdf", 0, 0.95, {}, 1),
         ]
         doc_processor.retrieve_context("test query", file_type_filter=".pdf", scope=ALL_WORKSPACES)
 
-        call_args = mock_db.search_similar_chunks.call_args
+        call_args = mock_db.documents.search_similar.call_args
         assert call_args[1]['file_type_filter'] == ".pdf"
 
     @patch('src.rag.retrieval.config.RERANK_RESULTS', True)
     def test_retrieve_context_with_reranking(self, doc_processor, mock_db, mock_ollama):
         """Should apply re-ranking when enabled."""
-        mock_db.search_similar_chunks.return_value = [
+        mock_db.documents.search_similar.return_value = [
             ("chunk 1", "doc.pdf", 0, 0.85, {}, 1),
             ("chunk 2", "doc.pdf", 1, 0.90, {}, 2),
             ("chunk 3", "doc.pdf", 2, 0.80, {}, 3),
@@ -477,7 +477,7 @@ class TestContextRetrieval:
 
     def test_retrieve_context_min_similarity(self, doc_processor, mock_db, mock_ollama):
         """Should filter by minimum similarity."""
-        mock_db.search_similar_chunks.return_value = [
+        mock_db.documents.search_similar.return_value = [
             ("chunk 1", "doc.pdf", 0, 0.95, {}, 1),
             ("chunk 2", "doc.pdf", 1, 0.50, {}, 2),
             ("chunk 3", "doc.pdf", 2, 0.85, {}, 3),
@@ -523,21 +523,21 @@ class TestDocumentIngestion:
 
     def test_ingest_document_success(self, doc_processor, temp_file, mock_db, mock_ollama):
         """Should successfully ingest document."""
-        mock_db.document_exists.return_value = (False, None)
+        mock_db.documents.exists.return_value = (False, None)
 
         success, message, doc_id = doc_processor.ingest_document(temp_file)
 
         assert success is True
         assert doc_id is not None
         assert "success" in message.lower()
-        mock_db.insert_document.assert_called_once()
-        mock_db.insert_chunks_batch.assert_called_once()
+        mock_db.documents.insert.assert_called_once()
+        mock_db.documents.insert_chunks.assert_called_once()
 
     def test_ingest_document_duplicate(self, doc_processor, temp_file, mock_db):
         """Should skip re-ingestion when file content is unchanged (same hash)."""
         from src.rag.processor import _compute_file_hash
         real_hash = _compute_file_hash(temp_file)
-        mock_db.document_exists.return_value = (
+        mock_db.documents.exists.return_value = (
             True, {'id': 1, 'chunk_count': 5, 'content_hash': real_hash}
         )
 
@@ -547,11 +547,11 @@ class TestDocumentIngestion:
         assert "up to date" in message.lower()
         assert doc_id == 1
         # Should not insert again
-        mock_db.insert_document.assert_not_called()
+        mock_db.documents.insert.assert_not_called()
 
     def test_ingest_document_file_not_found(self, doc_processor, mock_db):
         """Should handle missing file."""
-        mock_db.document_exists.return_value = (False, None)
+        mock_db.documents.exists.return_value = (False, None)
 
         success, message, doc_id = doc_processor.ingest_document("nonexistent.txt")
 
@@ -561,7 +561,7 @@ class TestDocumentIngestion:
 
     def test_ingest_document_with_progress(self, doc_processor, temp_file, mock_db, mock_ollama):
         """Should call progress callback."""
-        mock_db.document_exists.return_value = (False, None)
+        mock_db.documents.exists.return_value = (False, None)
 
         progress_messages = []
 
@@ -579,7 +579,7 @@ class TestDocumentIngestion:
 
     def test_ingest_document_empty_content(self, doc_processor, mock_db, mock_ollama):
         """Should handle empty document content."""
-        mock_db.document_exists.return_value = (False, None)
+        mock_db.documents.exists.return_value = (False, None)
 
         # Create empty temp file
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
@@ -599,7 +599,7 @@ class TestDocumentIngestion:
 
     def test_ingest_document_embedding_failures(self, doc_processor, temp_file, mock_db, mock_ollama):
         """Should handle partial embedding failures."""
-        mock_db.document_exists.return_value = (False, None)
+        mock_db.documents.exists.return_value = (False, None)
 
         # Simulate partial failures via the batch path: every 3rd slot is None
         call_count = [0]

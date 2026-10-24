@@ -47,13 +47,13 @@ class TestDocumentRoutesExtended:
         from src.routes_fastapi.document_routes import router
 
         state = _base_state()
-        state.db.get_all_documents.return_value = [{"id": 1, "filename": "report.pdf"}]
-        state.db.get_document_count.return_value = 1
-        state.db.get_chunk_count.return_value = 10
-        state.db.get_chunk_statistics.return_value = {"avg_length": 400}
-        state.db.delete_document.return_value = None
+        state.db.documents.list_all.return_value = [{"id": 1, "filename": "report.pdf"}]
+        state.db.documents.count.return_value = 1
+        state.db.documents.chunk_count.return_value = 10
+        state.db.documents.chunk_statistics.return_value = {"avg_length": 400}
+        state.db.documents.retire.return_value = None
         state.db.delete_all_documents.return_value = None
-        state.db.search_chunks_by_text.return_value = []
+        state.db.documents.search_text.return_value = []
         state.doc_processor.retrieve_context.return_value = []
         return _make_client(router, "/api/documents", state)
 
@@ -128,7 +128,7 @@ class TestDocumentRoutesExtended:
         from src.routes_fastapi.document_routes import router
 
         state = _base_state()
-        state.db.get_chunk_by_id.return_value = None
+        state.db.documents.chunk_by_id.return_value = None
         client = _make_client(router, "/api/documents", state)
         resp = client.get("/api/documents/chunks/999/context")
         assert resp.status_code == 404
@@ -137,8 +137,8 @@ class TestDocumentRoutesExtended:
         from src.routes_fastapi.document_routes import router
 
         state = _base_state()
-        state.db.get_chunk_by_id.return_value = {"document_id": 1, "chunk_index": 2}
-        state.db.get_adjacent_chunks.return_value = [("chunk text", 2)]
+        state.db.documents.chunk_by_id.return_value = {"document_id": 1, "chunk_index": 2}
+        state.db.documents.adjacent_chunks.return_value = [("chunk text", 2)]
         client = _make_client(router, "/api/documents", state)
         resp = client.get("/api/documents/chunks/1/context")
         assert resp.status_code == 200
@@ -151,8 +151,8 @@ class TestDocumentRoutesExtended:
 
         state = _base_state()
         # True: a live document in scope was retired. False is the 404 path now.
-        state.db.delete_document.return_value = True
-        state.db.get_document_count.return_value = 0
+        state.db.documents.retire.return_value = True
+        state.db.documents.count.return_value = 0
         client = _make_client(router, "/api/documents", state)
         with patch("src.routes_fastapi.document_routes.config") as mc:
             mc.app_state = MagicMock()
@@ -365,8 +365,8 @@ class TestSettingsRoutesExtended:
         from src.routes_fastapi.settings_routes import router
 
         state = _base_state()
-        state.db.get_document_count.return_value = 5
-        state.db.get_chunk_count.return_value = 50
+        state.db.documents.count.return_value = 5
+        state.db.documents.chunk_count.return_value = 50
         state.ollama_client.get_running_models.return_value = []
         state.ollama_client.get_gpu_info.return_value = []
         state.embedding_cache = None

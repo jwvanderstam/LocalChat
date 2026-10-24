@@ -70,7 +70,7 @@ class TestListDocumentsTool:
 
         token = _REQUEST_SCOPE.set(None)
         try:
-            with patch('src.db.db.get_all_documents', return_value=[]) as get_all, \
+            with patch('src.db.db.documents.list_all', return_value=[]) as get_all, \
                  pytest.raises(ScopeUnavailableError):
                 tool_registry.execute("list_documents", {})
             get_all.assert_not_called()
@@ -81,7 +81,7 @@ class TestListDocumentsTool:
         """It called get_all_documents() bare, listing every workspace's documents."""
         from src.tools.registry import tool_registry
 
-        with patch('src.db.db.get_all_documents', return_value=[]) as get_all:
+        with patch('src.db.db.documents.list_all', return_value=[]) as get_all:
             tool_registry.execute("list_documents", {})
 
         get_all.assert_called_once_with(scope=self.WS)
@@ -91,7 +91,7 @@ class TestListDocumentsTool:
         from src.utils.scope import ALL_WORKSPACES, request_scope
 
         with request_scope(ALL_WORKSPACES), \
-             patch('src.db.db.get_all_documents', return_value=[]) as get_all:
+             patch('src.db.db.documents.list_all', return_value=[]) as get_all:
             tool_registry.execute("list_documents", {})
 
         get_all.assert_called_once_with(scope=ALL_WORKSPACES)
@@ -99,7 +99,7 @@ class TestListDocumentsTool:
     def test_no_documents_returns_message(self):
         from src.tools.registry import tool_registry
 
-        with patch('src.db.db.get_all_documents', return_value=[]):
+        with patch('src.db.db.documents.list_all', return_value=[]):
             result = tool_registry.execute("list_documents", {})
 
         assert "No documents" in result
@@ -111,7 +111,7 @@ class TestListDocumentsTool:
             {"filename": "report.pdf", "chunk_count": 10, "created_at": "2025-01-01"},
             {"filename": "notes.txt", "chunk_count": 3, "created_at": "2025-01-02"},
         ]
-        with patch('src.db.db.get_all_documents', return_value=docs):
+        with patch('src.db.db.documents.list_all', return_value=docs):
             result = tool_registry.execute("list_documents", {})
 
         assert "report.pdf" in result
@@ -121,7 +121,7 @@ class TestListDocumentsTool:
     def test_db_error_returns_error_message(self):
         from src.tools.registry import tool_registry
 
-        with patch('src.db.db.get_all_documents', side_effect=Exception("DB down")):
+        with patch('src.db.db.documents.list_all', side_effect=Exception("DB down")):
             result = tool_registry.execute("list_documents", {})
 
         assert "Could not retrieve" in result

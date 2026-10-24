@@ -21,7 +21,7 @@ from .connection import (
 from .connectors import ConnectorsMixin
 from .contributions import ContributionsMixin
 from .conversations import ConversationsMixin
-from .documents import DocumentsMixin
+from .documents import DocumentsRepository
 from .entities import EntitiesMixin
 from .feedback import FeedbackMixin
 from .memories import MemoriesMixin
@@ -34,7 +34,7 @@ from .workspaces import WorkspaceMembersRepository, WorkspacesRepository
 logger = get_logger(__name__)
 
 
-class Database(DocumentsMixin, ContributionsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, DatabaseConnection):
+class Database(ContributionsMixin, ConversationsMixin, MemoriesMixin, EntitiesMixin, FeedbackMixin, OAuthTokensMixin, ConnectorsMixin, AnnotationsMixin, DatabaseConnection):
     """
     PostgreSQL database manager with pgvector support.
 
@@ -45,12 +45,12 @@ class Database(DocumentsMixin, ContributionsMixin, ConversationsMixin, MemoriesM
         >>> from src.db import db
         >>> success, msg = db.initialize()
         >>> if success:
-        ...     doc_id = db.insert_document("file.pdf", "content")
-        ...     results = db.search_similar_chunks(embedding, top_k=5, scope=workspace_id)
+        ...     doc_id = db.documents.insert("file.pdf", "content")
+        ...     results = db.documents.search_similar(embedding, top_k=5, scope=workspace_id)
 
-    The users, revoked-tokens, workspaces, memberships and API-key aggregates are
-    repositories held as attributes, not mixins (QP-4); the remaining mixins move the
-    same way, one aggregate per PR, and QP-5 removes this class.
+    The users, revoked-tokens, workspaces, memberships, API-key and documents
+    aggregates are repositories held as attributes, not mixins (QP-4); the remaining
+    mixins move the same way, one aggregate per PR, and QP-5 removes this class.
     """
 
     def __init__(self) -> None:
@@ -60,6 +60,7 @@ class Database(DocumentsMixin, ContributionsMixin, ConversationsMixin, MemoriesM
         self.workspaces = WorkspacesRepository(self)
         self.members = WorkspaceMembersRepository(self)
         self.api_keys = WorkspaceKeysRepository(self)
+        self.documents = DocumentsRepository(self)
 
 
 # Global singleton – imported throughout the application

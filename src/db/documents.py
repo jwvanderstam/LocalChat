@@ -9,14 +9,10 @@ from ..utils.logging_config import get_logger
 from ..utils.sanitization import escape_sql_like
 from ..utils.scope import Scope, scope_predicate
 from ..utils.text import content_terms
-from .connection import DatabaseUnavailableError
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 if TYPE_CHECKING:
     import psycopg
-
-    from .connection import MixinHost
-else:
-    MixinHost = object
 
 logger = get_logger(__name__)
 
@@ -40,10 +36,13 @@ def _tier_predicate(scope: Scope, global_tier: bool) -> tuple[str, list[str]]:
     return scope_predicate(scope, "d.workspace_id")
 
 
-class DocumentsMixin(MixinHost):
-    """Mixin that adds document and chunk operations to the Database class."""
+class DocumentsRepository:
+    """Documents and their chunks: insert, search, retire and purge."""
 
-    def insert_document(
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
+
+    def insert(
         self,
         filename: str,
         content: str,
@@ -85,7 +84,7 @@ class DocumentsMixin(MixinHost):
             row = cursor.fetchone()
             if row is None:
                 raise AssertionError("INSERT ... RETURNING id always returns a row")
-            return row[0]
+            return int(row[0])
 
         if conn is not None:
             with conn.cursor() as cursor:
@@ -93,16 +92,16 @@ class DocumentsMixin(MixinHost):
             logger.info(f"Document inserted with ID: {doc_id}")
             return doc_id
 
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot insert document: Database is not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 doc_id = _insert(cursor)
             conn.commit()
         logger.info(f"Document inserted with ID: {doc_id}")
         return doc_id
 
-    def update_document(
+    def update(
         self,
         doc_id: int,
         content: str,
@@ -135,15 +134,15 @@ class DocumentsMixin(MixinHost):
             logger.info(f"Document {doc_id} updated in place")
             return
 
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot update document: Database is not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 _update(cursor)
             conn.commit()
         logger.info(f"Document {doc_id} updated in place")
 
-    def soft_delete_chunks_for_document(
+    def retire_chunks(
         self,
         doc_id: int,
         conn: psycopg.Connection | None = None,
@@ -166,9 +165,9 @@ class DocumentsMixin(MixinHost):
                 _retire(cursor)
             return
 
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot retire chunks: Database is not connected")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 _retire(cursor)
             conn.commit()
@@ -176,10 +175,10 @@ class DocumentsMixin(MixinHost):
 
     def any_local_only_sources(self, filenames: list[str]) -> bool:
         """Used by cloud fallback to block cloud calls when context includes local-only documents."""
-        if not filenames or not self.is_connected:
+        if not filenames or not self._db.is_connected:
             return False
         try:
-            with self.get_connection() as conn:
+            with self._db.get_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "SELECT 1 FROM documents WHERE filename = ANY(%s)"
@@ -191,15 +190,15 @@ class DocumentsMixin(MixinHost):
             logger.warning(f"any_local_only_sources query failed: {e}")
             return True  # Conservative: treat as local-only on error
 
-    def get_chunks_with_ids(self, doc_id: int) -> list[dict[str, Any]]:
+    def chunks_with_ids(self, doc_id: int) -> list[dict[str, Any]]:
         """
         Return chunk_text and id for all chunks of a document.
 
         Used by the GraphRAG entity extractor after ingest.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT id, chunk_text FROM document_chunks WHERE document_id = %s",
@@ -208,7 +207,7 @@ class DocumentsMixin(MixinHost):
                 rows = cursor.fetchall()
         return [{"chunk_id": r[0], "chunk_text": r[1]} for r in rows]
 
-    def delete_document(
+    def retire(
         self, doc_id: int, deleted_by: str | None = None, *, scope: Scope
     ) -> bool:
         """
@@ -221,12 +220,12 @@ class DocumentsMixin(MixinHost):
         caller reports as 404, so a document in another workspace is indistinguishable
         from one that never existed.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete document: Database is not connected")
 
         logger.debug("Soft-deleting document ID: %s", doc_id)
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
@@ -241,16 +240,16 @@ class DocumentsMixin(MixinHost):
         logger.info("Document %s soft-deleted", doc_id)
         return True
 
-    def purge_document(self, doc_id: int) -> bool:
+    def purge(self, doc_id: int) -> bool:
         """
         Hard-delete only when no chunk_stats row exists for any of this document's chunks.
         Returns False when citations block the purge; True on success.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge document: Database is not connected")
 
         logger.debug("Purge requested for document ID: %s", doc_id)
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 # Citation precondition: any chunk that was retrieved blocks the purge.
                 cursor.execute(
@@ -276,7 +275,7 @@ class DocumentsMixin(MixinHost):
         logger.info("Document %s permanently purged", doc_id)
         return True
 
-    def insert_chunks_batch(
+    def insert_chunks(
         self,
         chunks_data: list[tuple[int, str, int, list[float] | np.ndarray] | dict[str, Any]],
         conn: psycopg.Connection | None = None,
@@ -288,7 +287,7 @@ class DocumentsMixin(MixinHost):
         if not chunks_data:
             return []
 
-        if conn is None and not self.is_connected:
+        if conn is None and not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot insert chunks: Database is not connected")
 
         logger.debug(f"Inserting batch of {len(chunks_data)} chunks")
@@ -316,7 +315,7 @@ class DocumentsMixin(MixinHost):
                 doc_id,
                 chunk_text.replace('\x00', ''),
                 chunk_index,
-                self._embedding_to_pg_array(embedding),
+                self._db._embedding_to_pg_array(embedding),
                 Jsonb(metadata),
             ))
 
@@ -334,14 +333,14 @@ class DocumentsMixin(MixinHost):
             with conn.cursor() as cursor:
                 chunk_ids = _insert_all(conn, cursor)
         else:
-            with self.get_connection() as owned_conn:
+            with self._db.get_connection() as owned_conn:
                 with owned_conn.cursor() as cursor:
                     chunk_ids = _insert_all(owned_conn, cursor)
                 owned_conn.commit()
         logger.info(f"Successfully inserted {len(chunks_data)} chunks")
         return chunk_ids
 
-    def search_similar_chunks(
+    def search_similar(
         self,
         query_embedding: list[float] | np.ndarray,
         top_k: int = 5,
@@ -354,17 +353,17 @@ class DocumentsMixin(MixinHost):
         global_tier: bool = False,
     ) -> list[tuple[str, str, int, float, dict[str, Any], int]]:
         """Search via pgvector HNSW; min_similarity applied at DB level to avoid transferring chunks that fail the threshold."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
 
         logger.debug(f"Searching for top {top_k} similar chunks (min_similarity={min_similarity})")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
-                embedding_str = self._embedding_to_pg_array(query_embedding)
+                embedding_str = self._db._embedding_to_pg_array(query_embedding)
                 max_distance = 1.0 - min_similarity  # cosine distance = 1 - similarity
 
                 where_extra = ""
-                params: list = [embedding_str]
+                params: list[Any] = [embedding_str]
                 if file_type_filter:
                     where_extra += "  AND d.filename LIKE %s\n"
                     params.append(f'%{file_type_filter}')
@@ -404,7 +403,7 @@ class DocumentsMixin(MixinHost):
                 logger.debug(f"Found {len(results)} similar chunks")
                 return [(r[0], r[1], r[2], r[3], r[4] or {}, r[5]) for r in results]
 
-    def search_lexical_chunks(
+    def search_lexical(
         self,
         query: str,
         top_k: int = 5,
@@ -425,7 +424,7 @@ class DocumentsMixin(MixinHost):
         score is ts_rank_cd normalized to [0, 1) via rank-normalization option 32,
         comparable in scale to search_similar_chunks' cosine similarity.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
         # Any content word, not every word. plainto_tsquery ANDs every token, and the
         # 'simple' configuration keeps stop words, so a question matched only a chunk that
@@ -437,10 +436,10 @@ class DocumentsMixin(MixinHost):
             return []
 
         logger.debug(f"Lexical search for top {top_k} chunks")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 where_extra = ""
-                params: list = [" | ".join(terms)]
+                params: list[Any] = [" | ".join(terms)]
                 if file_type_filter:
                     where_extra += "  AND d.filename LIKE %s\n"
                     params.append(f'%{file_type_filter}')
@@ -478,7 +477,7 @@ class DocumentsMixin(MixinHost):
                 logger.debug(f"Found {len(results)} lexical matches")
                 return [(r[0], r[1], r[2], r[3], r[4] or {}, r[5]) for r in results]
 
-    def search_similar_chunks_with_scores(
+    def search_similar_with_scores(
         self,
         query_embedding: list[float] | np.ndarray,
         top_k: int = 5,
@@ -486,13 +485,13 @@ class DocumentsMixin(MixinHost):
         file_type_filter: str | None = None,
     ) -> list[tuple[str, str, int, float, int]]:
         """Returns ``(chunk_text, filename, chunk_index, similarity, document_id)`` tuples."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
 
         logger.debug(f"Searching for top {top_k} similar chunks (min_sim={min_similarity})")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
-                embedding_str = self._embedding_to_pg_array(query_embedding)
+                embedding_str = self._db._embedding_to_pg_array(query_embedding)
                 max_distance = 1.0 - min_similarity
 
                 if file_type_filter:
@@ -535,12 +534,12 @@ class DocumentsMixin(MixinHost):
 
                 results = cursor.fetchall()
                 logger.debug(f"Found {len(results)} chunks above similarity threshold {min_similarity}")
-                return results
+                return list(results)
 
-    def get_adjacent_chunks(
+    def adjacent_chunks(
         self, document_id: int, chunk_index: int, window_size: int = 1, *, scope: Scope
     ) -> list[tuple[str, int]]:
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get adjacent chunks: Database is not connected")
 
         logger.debug(
@@ -548,7 +547,7 @@ class DocumentsMixin(MixinHost):
         )
         # document_chunks has no workspace of its own; it borrows the document's.
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -563,19 +562,19 @@ class DocumentsMixin(MixinHost):
                 )
                 results = cursor.fetchall()
                 logger.debug(f"Retrieved {len(results)} adjacent chunks")
-                return results
+                return list(results)
 
-    def get_chunk_by_id(self, chunk_id: int, *, scope: Scope) -> dict[str, Any] | None:
+    def chunk_by_id(self, chunk_id: int, *, scope: Scope) -> dict[str, Any] | None:
         """Return a chunk, or None when no live chunk with that id exists in scope.
 
         Chunk ids are sequential integers, so an unscoped lookup here let anyone walk
         the whole corpus one id at a time (C2).
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk: Database is not connected")
 
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT dc.id, dc.document_id, dc.chunk_index, dc.chunk_text, dc.metadata"
@@ -595,13 +594,13 @@ class DocumentsMixin(MixinHost):
             'metadata': row[4] or {},
         }
 
-    def get_document_count(self, *, scope: Scope) -> int:
+    def count(self, *, scope: Scope) -> int:
         """Return the number of live documents in *scope*."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get document count: Database is not connected")
 
         scope_sql, scope_params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL{scope_sql}",  # nosec B608  # scope_predicate fragment: literal column, value is %s
@@ -610,17 +609,17 @@ class DocumentsMixin(MixinHost):
                 row = cursor.fetchone()
                 if row is None:
                     raise AssertionError("SELECT COUNT(*) always returns a row")
-                count = row[0]
+                count = int(row[0])
                 logger.debug(f"Document count: {count}")
                 return count
 
-    def get_chunk_count(self, *, scope: Scope) -> int:
+    def chunk_count(self, *, scope: Scope) -> int:
         """Return the number of chunks of live documents in *scope*."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk count: Database is not connected")
 
         scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"""
@@ -633,18 +632,18 @@ class DocumentsMixin(MixinHost):
                 row = cursor.fetchone()
                 if row is None:
                     raise AssertionError("SELECT COUNT(*) always returns a row")
-                count = row[0]
+                count = int(row[0])
                 logger.debug(f"Chunk count: {count}")
                 return count
 
-    def get_all_documents(self, *, scope: Scope) -> list[dict[str, Any]]:
+    def list_all(self, *, scope: Scope) -> list[dict[str, Any]]:
         """List live documents in *scope* (id, filename, created_at, chunk_count, injection_flags, shared_globally)."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get documents: Database is not connected")
 
         logger.debug("Getting all documents")
         scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(f"""
                     SELECT d.id, d.filename, d.created_at, COUNT(dc.id) AS chunk_count,
@@ -681,7 +680,7 @@ class DocumentsMixin(MixinHost):
                 logger.debug(f"Retrieved {len(documents)} documents")
                 return documents
 
-    def document_exists(
+    def exists(
         self,
         filename: str,
         workspace_id: str | None = None,
@@ -692,11 +691,11 @@ class DocumentsMixin(MixinHost):
         global. ``IS NOT DISTINCT FROM`` matches NULL-workspace_id documents
         against each other without matching a real workspace's documents.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot check document existence: Database is not connected")
 
         logger.debug(f"Checking if document exists: {filename} (workspace={workspace_id})")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT d.id, d.created_at, COUNT(dc.id) AS chunk_count, d.content_hash
@@ -719,13 +718,13 @@ class DocumentsMixin(MixinHost):
                 logger.debug(f"Document does not exist: {filename}")
                 return False, {}
 
-    def get_chunk_statistics(self) -> dict[str, Any]:
+    def chunk_statistics(self) -> dict[str, Any]:
         """Return statistics about chunks (totals, embedding coverage, samples)."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk statistics: Database is not connected")
 
         logger.debug("Getting chunk statistics")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT COUNT(*) AS total,
@@ -769,7 +768,7 @@ class DocumentsMixin(MixinHost):
                 logger.info(f"Chunk statistics: {total} total, {with_embeddings} with embeddings")
                 return stats
 
-    def search_chunks_by_text(
+    def search_text(
         self, search_text: str, limit: int = 10, *, scope: Scope
     ) -> list[dict[str, Any]]:
         """Case-insensitive text search over chunk content (for debugging).
@@ -778,12 +777,12 @@ class DocumentsMixin(MixinHost):
         unscoped it returned the text of every chunk in the installation,
         retired documents included (C2).
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot search chunks by text: Database is not connected")
 
         logger.debug("Searching chunks for text: %s", str(search_text)[:100].replace('\r', '').replace('\n', ' '))
         where, params = scope_predicate(scope, "d.workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT d.filename, dc.chunk_index, dc.chunk_text,
@@ -807,7 +806,7 @@ class DocumentsMixin(MixinHost):
                 logger.info(f"Found {len(results)} chunks containing '{search_text}'")
                 return results
 
-    def retire_all_documents(self, *, scope: Scope, deleted_by: str | None = None) -> int:
+    def retire_all(self, *, scope: Scope, deleted_by: str | None = None) -> int:
         """Soft-delete every live document in *scope*. Returns how many were retired.
 
         The reversible half of the retire/destroy split: rows stay, ``deleted_at`` is
@@ -816,12 +815,12 @@ class DocumentsMixin(MixinHost):
         installation and broke the Clark-Wilson rule that a delete TP never destroys
         a CDI.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete documents: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
         logger.warning("Retiring all documents in scope %s", scope)
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET deleted_at = NOW(), deleted_by = %s"
@@ -831,9 +830,9 @@ class DocumentsMixin(MixinHost):
                 retired = cursor.rowcount
                 conn.commit()
         logger.info("Retired %s documents", retired)
-        return retired
+        return int(retired)
 
-    def purge_all_documents(self) -> int:
+    def purge_all(self) -> int:
         """Hard-delete every *retired* document and its chunks. Irreversible.
 
         The destroy half, deliberately unreachable from the retire path: it touches
@@ -841,11 +840,11 @@ class DocumentsMixin(MixinHost):
         decisions rather than one. A chunk cited in chunk_stats survives, and keeps
         its document, exactly as the single-document purge behaves.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge documents: Database is not connected")
 
         logger.warning("Purging ALL retired documents and their chunks")
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -871,20 +870,20 @@ class DocumentsMixin(MixinHost):
                 docs_deleted = cursor.rowcount
                 conn.commit()
         logger.info("Purged %s documents and %s chunks", docs_deleted, chunks_deleted)
-        return docs_deleted
+        return int(docs_deleted)
 
-    def get_stale_documents(self, max_age_hours: int, *, scope: Scope) -> list[dict[str, Any]]:
+    def stale(self, max_age_hours: int, *, scope: Scope) -> list[dict[str, Any]]:
         """Return documents whose last_ingested_at is older than max_age_hours.
 
         Documents without last_ingested_at fall back to created_at for comparison.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
         # Outside the try: a missing scope is a programming error, not a query failure
         # for the handler below to turn into an empty list.
         scope_sql, scope_params = scope_predicate(scope, "workspace_id")
         try:
-            with self.get_connection(scope=scope) as conn:
+            with self._db.get_connection(scope=scope) as conn:
                 with conn.cursor() as cursor:
                     sql = f"""
                         SELECT id, filename, workspace_id
@@ -903,12 +902,12 @@ class DocumentsMixin(MixinHost):
             logger.warning(f"get_stale_documents failed: {exc}")
             return []
 
-    def update_last_ingested_at(self, doc_id: int) -> None:
+    def mark_ingested(self, doc_id: int) -> None:
         """Set last_ingested_at = NOW() for the given document after re-ingest."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             return
         try:
-            with self.get_connection() as conn:
+            with self._db.get_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "UPDATE documents SET last_ingested_at = NOW() WHERE id = %s",

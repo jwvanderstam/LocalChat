@@ -21,6 +21,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   `WorkspacesRepository`, `WorkspaceMembersRepository` and `WorkspaceKeysRepository`
   (`db.workspaces`, `db.members`, `db.api_keys`). `app.state.db` in routes is down from 72 to 58,
   and the last-owner refusal now has one implementation instead of two. No behaviour changes.
+- **Documents go through a service** (QP-4, third aggregate). `document_routes` asks a
+  `DocumentsService` for listing, statistics, chunk context, retiring and purging; the
+  SQL moved verbatim into `DocumentsRepository` (`db.documents`). No route module imports
+  `src.db` any more, so the import contract has no exceptions left, and `app.state.db` in
+  routes is down to 51. The scope guard in `test_object_authorization_matrix.py` now names a
+  repository's methods with the attribute that holds them (`documents.retire`), since a short
+  name like `retire` is shared with unscoped methods. No behaviour changes.
 
 ### Added
 

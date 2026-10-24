@@ -101,7 +101,7 @@ def list_documents(**_kwargs) -> str:
     # It used to call get_all_documents() bare, which lists every workspace's documents.
     scope = current_request_scope()
     try:
-        documents = db.get_all_documents(scope=scope)
+        documents = db.documents.list_all(scope=scope)
     except Exception as exc:
         logger.exception("[TOOL] list_documents failed")
         return f"Could not retrieve documents: {exc}"

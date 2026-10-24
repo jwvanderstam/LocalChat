@@ -168,7 +168,7 @@ class TestInitDatabaseService:
         app.state.startup_status = {}
         db = MagicMock()
         db.initialize.return_value = (True, "Connected")
-        db.get_document_count.return_value = 5
+        db.documents.count.return_value = 5
         db.tokens.purge_expired.return_value = 3
 
         with patch("src.app_bootstrap._run_alembic_migrations") as mock_migrate:
@@ -211,7 +211,7 @@ class TestInitDatabaseService:
         app.state.startup_status = {}
         db = MagicMock()
         db.initialize.return_value = (True, "Connected")
-        db.get_document_count.return_value = 0
+        db.documents.count.return_value = 0
         db.tokens.purge_expired.side_effect = RuntimeError("boom")
 
         with patch("src.app_bootstrap._run_alembic_migrations"):

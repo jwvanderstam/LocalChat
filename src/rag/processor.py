@@ -283,7 +283,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         atomically with the fresh chunk insert, after slow chunking/embedding I/O
         has already completed.
         """
-        exists, doc_info = self._db.document_exists(filename, workspace_id)
+        exists, doc_info = self._db.documents.exists(filename, workspace_id)
         if not exists:
             return None, None
         # A zero-chunk document means a prior ingestion died between the document
@@ -425,8 +425,8 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                 )
             with self._db.get_connection() as conn:
                 if replace_doc_id is not None:
-                    self._db.soft_delete_chunks_for_document(replace_doc_id, conn=conn)
-                    self._db.update_document(
+                    self._db.documents.retire_chunks(replace_doc_id, conn=conn)
+                    self._db.documents.update(
                         replace_doc_id,
                         content=content_preview,
                         metadata=metadata,
@@ -438,7 +438,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                     )
                     doc_id = replace_doc_id
                 else:
-                    doc_id = self._db.insert_document(
+                    doc_id = self._db.documents.insert(
                         filename=filename,
                         content=content_preview,
                         metadata=metadata,
@@ -452,7 +452,7 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
                     )
                 for chunk in chunks_data:
                     chunk['doc_id'] = doc_id
-                chunk_ids = self._db.insert_chunks_batch(chunks_data, conn=conn)
+                chunk_ids = self._db.documents.insert_chunks(chunks_data, conn=conn)
             logger.debug(f"Document ID: {doc_id}")
             logger.info("Chunks inserted successfully")
 
