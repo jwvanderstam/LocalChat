@@ -639,15 +639,17 @@ the policy `localchat_workspace_isolation`, comparing the workspace to the trans
 `app.workspace_id`. `documents` and `document_chunks` also carry `localchat_global_read`
 (migration `0019`, GKB-1), a `FOR SELECT` policy that lets a scoped transaction read live
 contributions in the global tier and write none of them. All ten also carry
-`localchat_app_transition` (migration `0021`, QP-2 S2): `current_user = 'localchat_app'`, so
-the application's own login reads and writes every row on an unscoped path, as the owner
-did, until QP-4 gives each path an explicit scope and QP-5 drops it (ADR-5's amendment).
-That makes twenty-two policies on ten tables.
+`localchat_all_workspaces` (migration `0022`, QP-5): it admits a transaction that set
+`app.all_workspaces = on`, which `get_connection(scope=ALL_WORKSPACES)` does, for any role but
+`localchat_scoped`. That makes twenty-two policies on ten tables. (Migration `0021`'s
+`localchat_app_transition`, which let the application read every row on an unscoped path,
+was dropped by `0023` once every path named a scope.)
 
-RLS binds only the `localchat_scoped` role (NOLOGIN), not the table owner or a superuser —
-`FORCE ROW LEVEL SECURITY` is deliberately off. `get_connection(scope=<workspace>)` switches
-the transaction into that role with `SET LOCAL ROLE` and sets `app.workspace_id`;
-`ALL_WORKSPACES` and the owner's own connections are unaffected. The role and its grants are
+`FORCE ROW LEVEL SECURITY` is on (migration `0023`), so the policies bind every role but a
+superuser, the tables' owner included: a transaction that names neither a workspace nor the
+flag sees no rows. `get_connection(scope=<workspace>)` switches the transaction into
+`localchat_scoped` with `SET LOCAL ROLE` and sets `app.workspace_id`; `ALL_WORKSPACES` stays on
+the connection's own identity and sets `app.all_workspaces`. The role and its grants are
 re-created at every boot (`_apply_scoped_role()`), because `pg_dump` never carries a role.
 
 ---

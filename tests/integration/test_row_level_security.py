@@ -734,3 +734,24 @@ def test_the_flag_ends_with_its_transaction(
     with conn.transaction():
         conn.execute("SELECT set_config('app.all_workspaces', 'on', true)")
     assert _count_as(conn, probe_role, "documents", all_workspaces=False) == 0
+
+
+# ── QP-5 step 3: migration 0023, option B reached ─────────────────────────────
+
+
+def test_the_transition_policy_is_gone(conn: Any) -> None:
+    rows = conn.execute(
+        "SELECT tablename FROM pg_policies WHERE schemaname = 'public'"
+        " AND policyname = 'localchat_app_transition'"
+    ).fetchall()
+    assert rows == []
+
+
+def test_row_level_security_is_forced_on_every_protected_table(conn: Any) -> None:
+    """FORCE binds the owner too, which a deployment without PG_APP_PASSWORD runs as."""
+    rows = conn.execute(
+        "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace"
+        " WHERE n.nspname = 'public' AND c.relforcerowsecurity AND c.relname = ANY(%s)",
+        (list(PROTECTED),),
+    ).fetchall()
+    assert sorted(r[0] for r in rows) == sorted(PROTECTED)

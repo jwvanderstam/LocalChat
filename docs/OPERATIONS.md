@@ -420,7 +420,7 @@ docker compose up -d                                            # recreates app
 docker compose logs app | grep "Requests run as"                # [DB] Requests run as localchat_app
 ```
 
-At boot, `PG_USER` applies migration `0021`, creates `localchat_app` (or updates its password
+At boot, `PG_USER` applies the migrations, creates `localchat_app` (or updates its password
 to match `.env`), grants it the tables, and hands over. To confirm from the database side:
 
 ```bash
@@ -428,8 +428,11 @@ docker compose exec db psql -U postgres -d rag_db   -c "SELECT DISTINCT usename 
 ```
 
 **Changing the password** is the same three steps: the boot sets it on every start.
-**Going back** is removing `PG_APP_PASSWORD` (host-run) and restarting. The role and the
-transition policy stay, and are harmless to an owner connection, which bypasses them.
+**Going back** is removing `PG_APP_PASSWORD` (host-run) and restarting; the role stays and
+is unused. Since migration `0023` row-level security is forced, so an owner that is not a
+superuser — a managed database's application identity — is bound by the policies like
+`localchat_app`. That works, because every path names a workspace or the all-workspaces
+flag; a superuser owner, as in the shipped compose, bypasses them as Postgres always does.
 
 **On a managed database** the owner identity needs `CREATEROLE` to create `localchat_app` and
 set its password, as it already does for `localchat_scoped`. The boot refuses a

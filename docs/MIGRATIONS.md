@@ -43,7 +43,9 @@ migrations/
     0018_p21b_grant_scoped_role.py            P2-1b: the app identity may SET ROLE localchat_scoped
     0019_gkb1_global_knowledge.py             GKB-1: the global tier, readable from every scope
     0020_gkb2_contribution_identity.py        GKB-2: a contribution is unique per (filename, project)
-    0021_s2_app_role_transition_policy.py     QP-2 S2: localchat_app keeps unscoped access until QP-4  ← current head
+    0021_s2_app_role_transition_policy.py     QP-2 S2: localchat_app keeps unscoped access (dropped by 0023)
+    0022_qp5_all_workspaces_policy.py         QP-5: the explicit all-workspaces flag a policy admits
+    0023_qp5_force_row_level_security.py      QP-5: drops 0021's policy, FORCE row-level security  ← current head
 ```
 
 > **This listing stopped at `0004` until 2026-08-27**, while twelve more migrations had
