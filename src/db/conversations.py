@@ -1,31 +1,29 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger, sanitize_log_value
 from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
-from .connection import DatabaseUnavailableError
-
-if TYPE_CHECKING:
-    from .connection import MixinHost
-else:
-    MixinHost = object
+from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
 
 
-class ConversationsMixin(MixinHost):
-    """Mixin that adds conversation and message operations to the Database class."""
+class ConversationsRepository:
+    """Conversations and their messages: create, read, retitle, retire and purge."""
 
-    def create_conversation(self, title: str = 'New Conversation', workspace_id: str | None = None) -> str:
-        if not self.is_connected:
+    def __init__(self, db: DatabaseConnection) -> None:
+        self._db = db
+
+    def create(self, title: str = 'New Conversation', workspace_id: str | None = None) -> str:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot create conversation: Database is not connected")
 
         conversation_id = str(uuid.uuid4())
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO conversations (id, title, workspace_id) VALUES (%s, %s, %s)",
@@ -35,13 +33,13 @@ class ConversationsMixin(MixinHost):
         logger.debug(f"Created conversation: {conversation_id}")
         return conversation_id
 
-    def create_conversation_with_message(
+    def create_with_message(
         self,
         title: str,
         role: str,
         content: str,
         workspace_id: str | None = None,
-        plan_json: dict | None = None,
+        plan_json: dict[str, Any] | None = None,
     ) -> tuple[str, int]:
         """Create a conversation and save its first message in a single transaction.
 
@@ -50,7 +48,7 @@ class ConversationsMixin(MixinHost):
         Returns:
             (conversation_id, message_id)
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError(
                 "Cannot create conversation: Database is not connected"
             )
@@ -58,7 +56,7 @@ class ConversationsMixin(MixinHost):
         from psycopg.types.json import Jsonb
 
         conversation_id = str(uuid.uuid4())
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO conversations (id, title, workspace_id) VALUES (%s, %s, %s)",
@@ -92,17 +90,17 @@ class ConversationsMixin(MixinHost):
         logger.debug(f"Created conversation {conversation_id} with first message (id={message_id})")
         return conversation_id, message_id
 
-    def count_conversations(self, *, scope: Scope) -> int:
+    def count(self, *, scope: Scope) -> int:
         """Total live conversations, so a paged listing can say whether more exist.
 
         Without it a caller cannot tell a full page from the end of the list, and the
         default page of 50 silently hides everything past it.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot count conversations: Database is not connected")
 
         scope_sql, scope_params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     f"SELECT COUNT(*) FROM conversations WHERE deleted_at IS NULL{scope_sql}",  # nosec B608  # scope_predicate fragment: literal column, value is %s
@@ -111,7 +109,7 @@ class ConversationsMixin(MixinHost):
                 row = cursor.fetchone()
                 return int(row[0]) if row else 0
 
-    def list_conversations(
+    def list_page(
         self,
         limit: int = 50,
         offset: int = 0,
@@ -119,14 +117,14 @@ class ConversationsMixin(MixinHost):
         scope: Scope,
     ) -> list[dict[str, Any]]:
         """Return conversations ordered by updated_at DESC (id, title, created_at, updated_at, message_count)."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot list conversations: Database is not connected")
 
         limit = max(1, min(limit, 200))
         offset = max(0, offset)
 
         scope_sql, scope_params = scope_predicate(scope, "c.workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(f"""
                     SELECT c.id, c.title, c.created_at, c.updated_at,
@@ -150,7 +148,7 @@ class ConversationsMixin(MixinHost):
                     for row in rows
                 ]
 
-    def get_conversation_messages(
+    def messages(
         self, conversation_id: str, *, scope: Scope
     ) -> list[dict[str, Any]] | None:
         """Return messages (role, content, timestamp) ordered ASC, or None if not found.
@@ -158,12 +156,12 @@ class ConversationsMixin(MixinHost):
         Out of scope reads as not found, so a conversation in another workspace cannot
         be told apart from one that does not exist (C2).
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get messages: Database is not connected")
 
         where, params = scope_predicate(scope, "c.workspace_id")
         bare_where, _ = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT cm.role, cm.content, cm.created_at
@@ -195,14 +193,14 @@ class ConversationsMixin(MixinHost):
         conversation_id: str,
         role: str,
         content: str,
-        plan_json: dict | None = None,
+        plan_json: dict[str, Any] | None = None,
     ) -> int:
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot save message: Database is not connected")
 
         from psycopg.types.json import Jsonb
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -222,16 +220,16 @@ class ConversationsMixin(MixinHost):
                 message_id = row[0]
                 conn.commit()
         logger.debug(f"Saved {role} message (id={message_id}) to conversation {conversation_id}")
-        return message_id
+        return int(message_id)
 
-    def update_message_plan_json(self, message_id: int, plan_json: dict) -> None:
+    def update_message_plan(self, message_id: int, plan_json: dict[str, Any]) -> None:
         """Attach tool_trace and agent warnings to the user turn after AggregatorAgent finishes."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot update message: Database is not connected")
 
         from psycopg.types.json import Jsonb
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversation_messages SET plan_json = %s WHERE id = %s",
@@ -240,14 +238,14 @@ class ConversationsMixin(MixinHost):
                 conn.commit()
         logger.debug(f"Updated plan_json for message id={message_id}")
 
-    def update_conversation_title(
+    def set_title(
         self, conversation_id: str, title: str, *, scope: Scope
     ) -> bool:
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot update conversation: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET title = %s, updated_at = CURRENT_TIMESTAMP"
@@ -256,9 +254,9 @@ class ConversationsMixin(MixinHost):
                 )
                 updated = cursor.rowcount > 0
                 conn.commit()
-        return updated
+        return bool(updated)
 
-    def get_conversation_document_filter(
+    def document_filter(
         self, conversation_id: str, *, scope: Scope
     ) -> list[str] | None:
         """Filenames retrieval is restricted to, or None when there is no such
@@ -269,11 +267,11 @@ class ConversationsMixin(MixinHost):
         used to be [], which made the route's own 404 branch unreachable and had it
         answer 200 for a conversation in someone else's workspace.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get document filter: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT document_ids FROM conversations"
@@ -285,16 +283,16 @@ class ConversationsMixin(MixinHost):
             return None
         return list(row[0]) if row[0] else []
 
-    def set_conversation_document_filter(
+    def set_document_filter(
         self, conversation_id: str, filenames: list[str], *, scope: Scope
     ) -> bool:
         """Store a document filename filter; pass an empty list to clear (all documents)."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot set document filter: Database is not connected")
 
         import json as _json
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET document_ids = %s::jsonb"
@@ -305,16 +303,16 @@ class ConversationsMixin(MixinHost):
                 conn.commit()
         if updated:
             logger.debug(f"Set document filter for {conversation_id}: {filenames}")
-        return updated
+        return bool(updated)
 
-    def delete_conversation(
+    def retire(
         self, conversation_id: str, deleted_by: str | None = None, *, scope: Scope
     ) -> bool:
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversation: Database is not connected")
 
         where, params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s"
@@ -325,17 +323,17 @@ class ConversationsMixin(MixinHost):
                 conn.commit()
         if updated:
             logger.debug(f"Soft-deleted conversation: {conversation_id}")
-        return updated
+        return bool(updated)
 
-    def delete_all_conversations(self, deleted_by: str | None = None, *, scope: Scope) -> int:
+    def retire_all(self, deleted_by: str | None = None, *, scope: Scope) -> int:
         """Soft-delete every live conversation in *scope*."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot delete conversations: Database is not connected")
 
         if scope is ALL_WORKSPACES:
             logger.warning("Soft-deleting ALL conversations across all workspaces")
         scope_sql, scope_params = scope_predicate(scope, "workspace_id")
-        with self.get_connection(scope=scope) as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE conversations SET deleted_at = NOW(), deleted_by = %s"
@@ -345,14 +343,14 @@ class ConversationsMixin(MixinHost):
                 count = cursor.rowcount
                 conn.commit()
         logger.info(f"Soft-deleted {count} conversations")
-        return count
+        return int(count)
 
-    def purge_conversation(self, conversation_id: str) -> bool:
+    def purge(self, conversation_id: str) -> bool:
         """Hard-delete a soft-deleted conversation if no memories cite it. Returns False when blocked."""
-        if not self.is_connected:
+        if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge conversation: Database is not connected")
 
-        with self.get_connection() as conn:
+        with self._db.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT 1 FROM memories WHERE source_conv = %s LIMIT 1",
@@ -367,9 +365,9 @@ class ConversationsMixin(MixinHost):
                 conn.commit()
         if deleted:
             logger.info("Purged conversation: %s", sanitize_log_value(conversation_id))
-        return deleted
+        return bool(deleted)
 
-    def get_low_confidence_queries(
+    def low_confidence_queries(
         self, threshold: float = 0.5, limit: int = 50, *, scope: Scope
     ) -> list[str]:
         """Return user query strings that received poor or no positive feedback.
@@ -378,7 +376,7 @@ class ConversationsMixin(MixinHost):
         answer_feedback on the next assistant message.  Returns queries where
         the average rating is below *threshold* or where no feedback was given.
         """
-        if not self.is_connected:
+        if not self._db.is_connected:
             return []
         # Outside the try, as in get_stale_documents: a missing scope is a defect to
         # raise, not a failed report to render as an empty list.
@@ -386,7 +384,7 @@ class ConversationsMixin(MixinHost):
         try:
             live_filter = "AND c.deleted_at IS NULL"
             params: list[Any] = [*scope_params, threshold, limit]
-            with self.get_connection(scope=scope) as conn:
+            with self._db.get_connection(scope=scope) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         f"""

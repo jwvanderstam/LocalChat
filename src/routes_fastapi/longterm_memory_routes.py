@@ -61,7 +61,7 @@ async def extract_memories(request: Request) -> Any:
 
         for conv in conversations:
             try:
-                messages = app.state.db.get_conversation_messages(conv["id"], scope=scope)
+                messages = app.state.db.conversations.messages(conv["id"], scope=scope)
                 msg_list = []
                 for m in messages:
                     if isinstance(m, dict):

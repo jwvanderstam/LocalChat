@@ -9,18 +9,24 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 
 from ..security_fastapi import get_current_user_id, require_admin_dep
+from ..services.conversations import ConversationsService
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
+from ._services import conversations_service
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 _CONVERSATION_NOT_FOUND = "Conversation not found"
 
+Conversations = Annotated[ConversationsService, Depends(conversations_service)]
+
 
 @router.get("/conversations")
-def list_conversations(request: Request, limit: int = 50, offset: int = 0) -> Any:
+def list_conversations(
+    request: Request, conversations: Conversations, limit: int = 50, offset: int = 0
+) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
@@ -29,54 +35,37 @@ def list_conversations(request: Request, limit: int = 50, offset: int = 0) -> An
         offset = max(offset, 0)
     except (ValueError, TypeError):
         return JSONResponse({"success": False, "message": "limit and offset must be integers"}, status_code=400)
-    scope = get_scope(request)
-    conversations = request.app.state.db.list_conversations(
-        limit=limit, offset=offset, scope=scope
-    )
-    total = request.app.state.db.count_conversations(scope=scope)
     # total/has_more so a caller can tell a full page from the end of the list. The
     # default page is 50; without this the rest were simply invisible.
-    return {
-        "conversations": conversations,
-        "limit": limit,
-        "offset": offset,
-        "total": total,
-        "has_more": offset + len(conversations) < total,
-    }
+    return conversations.page(limit, offset, get_scope(request))
 
 
 @router.post("/conversations", status_code=201)
-async def create_conversation(request: Request) -> Any:
+async def create_conversation(request: Request, conversations: Conversations) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
     data = await request.json() if await request.body() else {}
     title = str(data.get("title", "New Conversation"))[:255].strip() or "New Conversation"
-    conversation_id = request.app.state.db.create_conversation(title, workspace_id=get_workspace_id(request))
+    conversation_id = conversations.create(title, get_workspace_id(request))
     return JSONResponse({"id": conversation_id, "title": title}, status_code=201)
 
 
 @router.delete("/conversations")
-def delete_all_conversations(request: Request) -> Any:
+def delete_all_conversations(request: Request, conversations: Conversations) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
-    actor = get_current_user_id(request)
-    deleted_by = actor if actor and actor != "anonymous" else None
-    deleted = request.app.state.db.delete_all_conversations(
-        deleted_by=deleted_by, scope=get_scope(request)
-    )
+    deleted = conversations.retire_all(get_current_user_id(request), get_scope(request))
     return {"success": True, "deleted": deleted}
 
 
 @router.get("/conversations/{conversation_id}")
-def get_conversation(conversation_id: str, request: Request) -> Any:
+def get_conversation(conversation_id: str, request: Request, conversations: Conversations) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
-    messages = request.app.state.db.get_conversation_messages(
-        conversation_id, scope=get_scope(request)
-    )
+    messages = conversations.messages(conversation_id, get_scope(request))
     if messages is None:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"id": conversation_id, "messages": messages}
@@ -102,7 +91,9 @@ def _build_binary_export(fmt: str, title: str, messages: list) -> bytes:
 
 
 @router.get("/conversations/{conversation_id}/export")
-def export_conversation(conversation_id: str, request: Request, format: str = "json") -> Any:
+def export_conversation(
+    conversation_id: str, request: Request, conversations: Conversations, format: str = "json"
+) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
@@ -110,9 +101,7 @@ def export_conversation(conversation_id: str, request: Request, format: str = "j
     if fmt not in ("json", "markdown", "pdf", "docx"):
         return JSONResponse({"error": "Invalid format. Use json, markdown, pdf, or docx."}, status_code=400)
 
-    messages = request.app.state.db.get_conversation_messages(
-        conversation_id, scope=get_scope(request)
-    )
+    messages = conversations.messages(conversation_id, get_scope(request))
     if messages is None:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
 
@@ -152,20 +141,22 @@ def export_conversation(conversation_id: str, request: Request, format: str = "j
 
 
 @router.get("/conversations/{conversation_id}/documents")
-def get_conversation_documents(conversation_id: str, request: Request) -> Any:
+def get_conversation_documents(
+    conversation_id: str, request: Request, conversations: Conversations
+) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
-    filenames = request.app.state.db.get_conversation_document_filter(
-        conversation_id, scope=get_scope(request)
-    )
+    filenames = conversations.document_filter(conversation_id, get_scope(request))
     if filenames is None:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"conversation_id": conversation_id, "document_filter": filenames}
 
 
 @router.put("/conversations/{conversation_id}/documents")
-async def set_conversation_documents(conversation_id: str, request: Request) -> Any:
+async def set_conversation_documents(
+    conversation_id: str, request: Request, conversations: Conversations
+) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
@@ -174,16 +165,16 @@ async def set_conversation_documents(conversation_id: str, request: Request) -> 
     if not isinstance(filenames, list) or not all(isinstance(f, str) for f in filenames):
         return JSONResponse({"error": '"filenames" must be an array of strings'}, status_code=400)
 
-    updated = request.app.state.db.set_conversation_document_filter(
-        conversation_id, filenames, scope=get_scope(request)
-    )
+    updated = conversations.set_document_filter(conversation_id, filenames, get_scope(request))
     if not updated:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"conversation_id": conversation_id, "document_filter": filenames}
 
 
 @router.patch("/conversations/{conversation_id}")
-async def update_conversation(conversation_id: str, request: Request) -> Any:
+async def update_conversation(
+    conversation_id: str, request: Request, conversations: Conversations
+) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
@@ -192,9 +183,7 @@ async def update_conversation(conversation_id: str, request: Request) -> Any:
     if not title:
         return JSONResponse({"error": "Title is required"}, status_code=400)
 
-    updated = request.app.state.db.update_conversation_title(
-        conversation_id, title, scope=get_scope(request)
-    )
+    updated = conversations.set_title(conversation_id, title, get_scope(request))
     if not updated:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"id": conversation_id, "title": title}
@@ -203,10 +192,10 @@ async def update_conversation(conversation_id: str, request: Request) -> Any:
 @router.delete("/conversations/{conversation_id}/purge")
 def purge_conversation(
     conversation_id: str,
-    request: Request,
+    conversations: Conversations,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
-    purged = request.app.state.db.purge_conversation(conversation_id)
+    purged = conversations.purge(conversation_id)
     if not purged:
         return JSONResponse(
             {
@@ -222,15 +211,11 @@ def purge_conversation(
 
 
 @router.delete("/conversations/{conversation_id}")
-def delete_conversation(conversation_id: str, request: Request) -> Any:
+def delete_conversation(conversation_id: str, request: Request, conversations: Conversations) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied
-    actor = get_current_user_id(request)
-    deleted_by = actor if actor and actor != "anonymous" else None
-    deleted = request.app.state.db.delete_conversation(
-        conversation_id, deleted_by=deleted_by, scope=get_scope(request)
-    )
+    deleted = conversations.retire(conversation_id, get_current_user_id(request), get_scope(request))
     if not deleted:
         return JSONResponse({"error": _CONVERSATION_NOT_FOUND}, status_code=404)
     return {"success": True}

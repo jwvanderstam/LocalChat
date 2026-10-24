@@ -50,7 +50,7 @@ def suggest_documents(
         List of suggested topic strings ordered by frequency.
     """
     try:
-        queries = db.get_low_confidence_queries(
+        queries = db.conversations.low_confidence_queries(
             threshold=feedback_threshold,
             scope=scope,
         )

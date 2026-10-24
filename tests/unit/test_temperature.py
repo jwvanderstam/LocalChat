@@ -322,9 +322,9 @@ class TestStreamChatResponseTemperature:
 
         test_app.state.startup_status = {"database": True, "ollama": True, "ready": True}
         test_app.state.db = authorise_db(Mock())
-        test_app.state.db.save_message = Mock(return_value=1)
-        test_app.state.db.create_conversation_with_message = Mock(return_value=("conv-123", 1))
-        test_app.state.db.get_conversation_document_filter = Mock(return_value=[])
+        test_app.state.db.conversations.save_message = Mock(return_value=1)
+        test_app.state.db.conversations.create_with_message = Mock(return_value=("conv-123", 1))
+        test_app.state.db.conversations.document_filter = Mock(return_value=[])
         test_app.state.doc_processor = Mock()
         test_app.state.doc_processor.retrieve_context = Mock(return_value=[])
         test_app.state.ollama_client = Mock()

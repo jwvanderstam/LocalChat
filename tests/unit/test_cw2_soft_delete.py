@@ -8,34 +8,34 @@ from unittest.mock import MagicMock
 
 class TestDeleteConversation:
     def test_soft_delete_returns_200(self, client, app):
-        app.state.db.delete_conversation = MagicMock(return_value=True)
+        app.state.db.conversations.retire = MagicMock(return_value=True)
         resp = client.delete("/api/conversations/some-uuid")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_missing_conversation_returns_404(self, client, app):
-        app.state.db.delete_conversation = MagicMock(return_value=False)
+        app.state.db.conversations.retire = MagicMock(return_value=False)
         resp = client.delete("/api/conversations/ghost-uuid")
         assert resp.status_code == 404
 
     def test_delete_calls_db_with_deleted_by(self, client, app):
-        app.state.db.delete_conversation = MagicMock(return_value=True)
+        app.state.db.conversations.retire = MagicMock(return_value=True)
         client.delete("/api/conversations/abc-123")
-        app.state.db.delete_conversation.assert_called_once()
-        call_kwargs = app.state.db.delete_conversation.call_args
+        app.state.db.conversations.retire.assert_called_once()
+        call_kwargs = app.state.db.conversations.retire.call_args
         # Second positional arg or deleted_by kwarg must be present
         assert call_kwargs is not None
 
 
 class TestPurgeConversation:
     def test_purge_succeeds_when_no_citations(self, client, app):
-        app.state.db.purge_conversation = MagicMock(return_value=True)
+        app.state.db.conversations.purge = MagicMock(return_value=True)
         resp = client.delete("/api/conversations/some-uuid/purge")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_purge_blocked_by_memories_returns_409(self, client, app):
-        app.state.db.purge_conversation = MagicMock(return_value=False)
+        app.state.db.conversations.purge = MagicMock(return_value=False)
         resp = client.delete("/api/conversations/some-uuid/purge")
         assert resp.status_code == 409
         assert "purged" in resp.json()["message"].lower()
@@ -43,15 +43,15 @@ class TestPurgeConversation:
 
 class TestDeleteAllConversations:
     def test_delete_all_returns_count(self, client, app):
-        app.state.db.delete_all_conversations = MagicMock(return_value=5)
+        app.state.db.conversations.retire_all = MagicMock(return_value=5)
         resp = client.delete("/api/conversations")
         assert resp.status_code == 200
         assert resp.json()["deleted"] == 5
 
     def test_delete_all_calls_db_with_deleted_by(self, client, app):
-        app.state.db.delete_all_conversations = MagicMock(return_value=0)
+        app.state.db.conversations.retire_all = MagicMock(return_value=0)
         client.delete("/api/conversations")
-        app.state.db.delete_all_conversations.assert_called_once()
+        app.state.db.conversations.retire_all.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

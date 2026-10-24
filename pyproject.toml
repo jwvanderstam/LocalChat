@@ -112,9 +112,11 @@ output = "coverage.xml"
 module = [
     "src.db.users",
     "src.db.tokens",
+    "src.db.conversations",
     "src.db.documents",
     "src.db.workspaces",
     "src.db.workspace_keys",
+    "src.services.conversations",
     "src.services.documents",
     "src.services.errors",
     "src.services.passwords",

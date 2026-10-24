@@ -9,9 +9,14 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from ..services.conversations import ConversationsService
 from ..services.documents import DocumentsService
 from ..services.users import UsersService
 from ..services.workspaces import WorkspacesService
+
+
+def conversations_service(request: Request) -> ConversationsService:
+    return ConversationsService(request.app.state.db)
 
 
 def documents_service(request: Request) -> DocumentsService:

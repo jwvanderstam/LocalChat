@@ -48,11 +48,11 @@ SCOPED_METHODS = {
     "get_unextracted_conversations",
     "get_annotations_for_chunk",
     "delete_annotation",
-    "get_conversation_messages",
-    "get_conversation_document_filter",
-    "set_conversation_document_filter",
-    "update_conversation_title",
-    "delete_conversation",
+    "conversations.messages",
+    "conversations.document_filter",
+    "conversations.set_document_filter",
+    "conversations.set_title",
+    "conversations.retire",
     "get_connector",
     "update_connector",
     "delete_connector",
@@ -63,10 +63,10 @@ SCOPED_METHODS = {
     "documents.chunk_count",
     "documents.list_all",
     "documents.stale",
-    "count_conversations",
-    "list_conversations",
-    "delete_all_conversations",
-    "get_low_confidence_queries",
+    "conversations.count",
+    "conversations.list_page",
+    "conversations.retire_all",
+    "conversations.low_confidence_queries",
     "list_connectors",
     "get_workspace_ontology",
     "search_memories",
@@ -98,8 +98,8 @@ def _client(router, prefix: str, member_role: str = "owner") -> TestClient:
     state.db.members.role.return_value = member_role
     state.db.members.for_user.return_value = [{"id": WS}]
     state.db.workspaces.default_id.return_value = WS
-    state.db.list_conversations.return_value = []
-    state.db.count_conversations.return_value = 0
+    state.db.conversations.list_page.return_value = []
+    state.db.conversations.count.return_value = 0
     app = FastAPI()
     app.include_router(router, prefix=prefix)
     app.state = state
@@ -358,9 +358,9 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
         from src.routes_fastapi.memory_routes import router
 
         client = _client(router, "/api", "editor")
-        client.app.state.db.delete_conversation.return_value = True
+        client.app.state.db.conversations.retire.return_value = True
         client.delete(f"/api/conversations/{OTHER_WS}", headers=_auth())
-        assert client.app.state.db.delete_conversation.call_args.kwargs["scope"] == WS
+        assert client.app.state.db.conversations.retire.call_args.kwargs["scope"] == WS
 
     def test_memory_delete_is_scoped(self):
         from src.routes_fastapi.longterm_memory_routes import router

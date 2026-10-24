@@ -28,6 +28,11 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   routes is down to 51. The scope guard in `test_object_authorization_matrix.py` now names a
   repository's methods with the attribute that holds them (`documents.retire`), since a short
   name like `retire` is shared with unscoped methods. No behaviour changes.
+- **Conversations go through a service** (QP-4, fourth aggregate). `memory_routes` asks a
+  `ConversationsService` for paging, reading, exporting, renaming, the document filter,
+  retiring and purging; the SQL moved verbatim into `ConversationsRepository`
+  (`db.conversations`), which the chat service writes through too. `app.state.db` in routes
+  is down to 41. No behaviour changes.
 
 ### Added
 

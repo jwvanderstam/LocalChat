@@ -90,10 +90,10 @@ class TestConversationPagingIsDiscoverable:
         from src.routes_fastapi.memory_routes import router
 
         state = authenticated_state(role="admin", member_role="viewer")
-        state.db.list_conversations.return_value = [
+        state.db.conversations.list_page.return_value = [
             {"id": i, "title": f"c{i}"} for i in range(returned)
         ]
-        state.db.count_conversations.return_value = total
+        state.db.conversations.count.return_value = total
 
         app = FastAPI()
         app.include_router(router, prefix="/api")
@@ -126,12 +126,13 @@ class TestConversationCountQuery:
     """The count is scoped like the listing, or the badge and the list disagree."""
 
     def _db(self):
-        from src.db.conversations import ConversationsMixin
+        from src.db.conversations import ConversationsRepository
 
-        class _Db(ConversationsMixin):
+        class _Db:
             is_connected = True
 
             def __init__(self):
+                self.conversations = ConversationsRepository(self)
                 self.cursor = MagicMock()
                 self.cursor.fetchone.return_value = (42,)
 
@@ -146,21 +147,21 @@ class TestConversationCountQuery:
 
     def test_a_workspace_scoped_count_filters_by_workspace(self):
         db = self._db()
-        assert db.count_conversations(scope="ws-1") == 42
+        assert db.conversations.count(scope="ws-1") == 42
         sql, params = db.cursor.execute.call_args[0]
         assert "workspace_id = %s" in sql
         assert list(params) == ["ws-1"]
 
     def test_an_unscoped_count_does_not_filter_by_workspace(self):
         db = self._db()
-        assert db.count_conversations(scope=ALL_WORKSPACES) == 42
+        assert db.conversations.count(scope=ALL_WORKSPACES) == 42
         assert "workspace_id" not in db.cursor.execute.call_args[0][0]
 
     def test_soft_deleted_conversations_are_not_counted(self):
         """Clark-Wilson: a retired conversation is not a missing one, but it is
         not a listed one either — the count must match what the listing returns."""
         db = self._db()
-        db.count_conversations(scope="ws-1")
+        db.conversations.count(scope="ws-1")
         assert "deleted_at IS NULL" in db.cursor.execute.call_args[0][0]
 
 

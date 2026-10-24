@@ -39,7 +39,7 @@ def _make_app(
     mock_db = MagicMock()
     mock_db.get_all_memories.return_value = memories or []
     mock_db.get_unextracted_conversations.return_value = unextracted or []
-    mock_db.get_conversation_messages.return_value = [
+    mock_db.conversations.messages.return_value = [
         {"role": "user", "content": "hi"},
         {"role": "assistant", "content": "hello"},
     ]
@@ -176,7 +176,7 @@ class TestExtractMemories:
     def test_normalises_tuple_messages(self):
         """get_conversation_messages returning tuples must be handled."""
         app, client = _make_app(unextracted=[{"id": "conv-1", "title": "T", "updated_at": None}])
-        app.state.db.get_conversation_messages.return_value = [
+        app.state.db.conversations.messages.return_value = [
             ("user", "hello"), ("assistant", "world")
         ]
 

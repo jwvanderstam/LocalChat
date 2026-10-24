@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.db.connection import DatabaseUnavailableError
-from src.db.conversations import ConversationsMixin
+from src.db.conversations import ConversationsRepository
 from src.db.users import UsersRepository
 
 pytestmark = pytest.mark.unit
@@ -48,6 +48,12 @@ class _Host:
     """What a repository needs from its connection: is_connected and get_connection."""
 
 
+def _conversations(**kwargs):
+    host, cur = _mixin(_Host, **kwargs)
+    host.conversations = ConversationsRepository(host)
+    return host, cur
+
+
 def _users(**kwargs):
     host, cur = _mixin(_Host, **kwargs)
     return UsersRepository(host), cur
@@ -59,34 +65,34 @@ def _statements(cur) -> list[str]:
 
 class TestPurgeConversation:
     def test_a_cited_conversation_is_refused(self):
-        m, _ = _mixin(ConversationsMixin, cites=True)
-        assert m.purge_conversation(CONV) is False
+        m, _ = _conversations(cites=True)
+        assert m.conversations.purge(CONV) is False
 
     def test_a_cited_conversation_is_not_deleted(self):
         """The refusal has to happen *before* the DELETE, not alongside it."""
-        m, cur = _mixin(ConversationsMixin, cites=True)
-        m.purge_conversation(CONV)
+        m, cur = _conversations(cites=True)
+        m.conversations.purge(CONV)
 
         assert not any("DELETE" in sql for sql in _statements(cur))
 
     def test_an_uncited_conversation_is_deleted(self):
-        m, cur = _mixin(ConversationsMixin, cites=False)
+        m, cur = _conversations(cites=False)
 
-        assert m.purge_conversation(CONV) is True
+        assert m.conversations.purge(CONV) is True
         assert any("DELETE FROM conversations" in sql for sql in _statements(cur))
 
     def test_deleting_nothing_reports_false(self):
         """No matching row is not a successful purge — a caller that reported
         success here would tell the user a record was destroyed that still exists."""
-        m, _ = _mixin(ConversationsMixin, cites=False, rowcount=0)
-        assert m.purge_conversation(CONV) is False
+        m, _ = _conversations(cites=False, rowcount=0)
+        assert m.conversations.purge(CONV) is False
 
     def test_no_database_refuses_rather_than_returning_false(self):
         """False means "blocked by a reference". An unreachable database is a
         different answer and must not be collapsed into it."""
-        m, _ = _mixin(ConversationsMixin, cites=False, connected=False)
+        m, _ = _conversations(cites=False, connected=False)
         with pytest.raises(DatabaseUnavailableError):
-            m.purge_conversation(CONV)
+            m.conversations.purge(CONV)
 
 
 class TestPurgeUser:

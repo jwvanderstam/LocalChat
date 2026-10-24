@@ -270,7 +270,7 @@ def get_filename_filter(fields: dict, db: Any, scope: Scope) -> list[str]:
     try:
         # None means the conversation is not in this scope; retrieval is then simply
         # unfiltered, which is what it was before a filter was ever set.
-        return db.get_conversation_document_filter(conversation_id, scope=scope) or []
+        return db.conversations.document_filter(conversation_id, scope=scope) or []
     except Exception as filter_err:  # noqa: BLE001 — the document filter is a refinement; unfiltered retrieval is correct, just broader
         logger.warning("[RAG] Could not read document filter: %s", filter_err)
         return []
@@ -441,11 +441,11 @@ def persist_user_message(
 
         if not conversation_id:
             title = message[:60] + ("..." if len(message) > 60 else "")
-            conversation_id, message_id = app_state.db.create_conversation_with_message(
+            conversation_id, message_id = app_state.db.conversations.create_with_message(
                 title, "user", message, workspace_id=workspace_id, plan_json=plan_json
             )
         else:
-            message_id = app_state.db.save_message(conversation_id, "user", message, plan_json=plan_json)
+            message_id = app_state.db.conversations.save_message(conversation_id, "user", message, plan_json=plan_json)
         return conversation_id, message_id
     except Exception as mem_err:  # noqa: BLE001 — persistence failure must not lose the answer the user is already receiving
         logger.warning("[MEMORY] Could not persist user message: %s", mem_err)
@@ -456,7 +456,7 @@ def persist_assistant_message(app_state: Any, conversation_id: str | None, text:
     if not conversation_id:
         return None
     try:
-        return app_state.db.save_message(conversation_id, "assistant", text)
+        return app_state.db.conversations.save_message(conversation_id, "assistant", text)
     except Exception as mem_err:  # noqa: BLE001 — same, for the assistant message
         logger.warning("[MEMORY] Could not persist assistant message: %s", mem_err)
         return None

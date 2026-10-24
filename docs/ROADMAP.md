@@ -1702,7 +1702,7 @@ recorded as **ADR-7** in QP-3, is:
 - ADR-7 written in `docs/ADR.md`, with its row in `.claude/rules/file-map.md` updated.
 - **PC-4** (the plugin-absent CI gate), pulled forward from Initiative 6.
 
-#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 3 of 7 done)
+#### QP-4 — Migrate one aggregate per PR 🟡 (Sprints 25-27, ~12 days; 4 of 7 done)
 
 **Cycles to break** (found by QP-3; `KNOWN_CYCLES` in `tests/unit/test_layering_ratchets.py`):
 - [ ] `src.config` ↔ `src.utils.encryption`: `validate_secrets()` imports `_get_fernet`,
@@ -1724,7 +1724,12 @@ The order is by security weight, so authorisation moves first:
    `DocumentProcessor`, whose split is QP-5's. The P0-1 scope guard now names repository
    methods with their attribute (`documents.retire`). Seven integration tests were edited,
    for the renamed methods only.
-4. Conversations and chat, which carries GKB-3's `knowledge_scope` across
+4. ✅ Conversations and chat, 2026-10-24: `ConversationsRepository`, `ConversationsService`;
+   `app.state.db` in routes 51 → 41. Chat was already a service (`src/services/chat.py`,
+   with GKB-3's `knowledge_scope`) and `api_routes` already held no `app.state.db`, so it
+   changes only by writing through `db.conversations`. It is still a module of functions
+   over `app.state` rather than a class; QP-5 is where `app.state` stops holding a database.
+   One integration test was edited, for the renamed methods only.
 5. Memories (both route modules)
 6. Connectors and OAuth tokens. **CONN-1 is decided first**: the connector service is where
    its authorisation model will live, so the decision (2-3 days, no code) comes before this PR.
