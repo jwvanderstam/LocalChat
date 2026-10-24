@@ -1,10 +1,10 @@
 """TQ-4 — the golden path, through a real browser.
 
 Sign in, upload a document, ask about it, and get an answer that cites the file
-just uploaded. This is the entire frontend test strategy, deliberately: the
-vanilla-JS frontend is not worth a component-test investment at this scope, and
-one proof that the path a user actually walks still works catches the
-regressions that matter.
+just uploaded. The vanilla-JS frontend is not worth a component-test investment
+at this scope, and one proof that the path a user actually walks still works
+catches the regressions that matter. `test_access_paths.py` (QP-7) covers the
+boundaries around it: sign-out, workspaces, roles and API keys.
 
 It is an end-to-end test in the strict sense — the only thing faked is the model
 process (`tests/utils/fake_ollama.py`). Auth, templates, the SSE upload stream,
@@ -37,7 +37,7 @@ except ImportError:
         allow_module_level=True,
     )
 
-from tests.e2e.conftest import ADMIN_PASSWORD, ADMIN_USERNAME  # noqa: E402
+from tests.e2e.conftest import sign_in  # noqa: E402
 
 pytestmark = [pytest.mark.e2e, pytest.mark.slow, pytest.mark.db]
 
@@ -91,14 +91,6 @@ def _retire(page: Page, filename: str) -> None:
             page.request.delete(f"/api/documents/{doc['id']}")
 
 
-def _sign_in(page: Page) -> None:
-    page.goto("/login")
-    page.locator("#username").fill(ADMIN_USERNAME)
-    page.locator("#password").fill(ADMIN_PASSWORD)
-    page.locator("#login-submit").click()
-    expect(page).to_have_url(re.compile(r"/$"))
-
-
 def _ask(page: Page, question: str) -> None:
     page.locator("#chat-input").fill(question)
     page.locator("#send-btn").click()
@@ -113,7 +105,7 @@ def test_visiting_the_app_without_a_session_lands_on_the_login_page(page: Page) 
 
 def test_sign_in_upload_ask_and_the_answer_cites_the_document(page: Page,
                                                               document: Document) -> None:
-    _sign_in(page)
+    sign_in(page)
 
     page.goto("/documents")
     page.locator("#file-input").set_input_files(str(document.path))
