@@ -197,6 +197,10 @@ def main() -> int:
     if args.max_p95_ttft is not None and p95_ttft > args.max_p95_ttft:
         print(f"\nFAIL: p95 TTFT {p95_ttft:.2f}s exceeds budget {args.max_p95_ttft:.2f}s")
         return 1
+    breach = canary_verdict(canary, args.max_canary_ms)
+    if breach:
+        print(f"\n{breach}")
+        return 1
     return 0
 
 

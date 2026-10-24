@@ -290,8 +290,8 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 
 | `tests/unit/test_eval_retrieval_gate.py` | EV-1 — rank is relevance, not position; the exact comparison fails on a fall, a rise, changed settings or a different case count; and the gate refuses when the reranker it promises did not load |
 | `tests/unit/test_eval_retrieval_corpus.py` | The eval harness reaches a corpus that is not `docs/` — every supported type is ingested, skipped files are named, and a case's source resolves outside the repo |
-| `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` is the CI gate |
-| `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass |
+| `scripts/bench_concurrency.py` | PERF-2 — concurrent SSE load against `/api/chat`; p50/p95 TTFT plus an `/api/health` canary that exposes a blocked event loop; `--max-canary-ms` fails a run by hand with the same verdict `tests/perf/test_concurrency_canary.py` applies in CI |
+| `tests/unit/test_bench_concurrency.py` | PERF-2 — the canary gate's verdict: fails on the worst probe, and treats an empty sample as a failure rather than a pass; and `--max-canary-ms` actually fails the script |
 | `tests/unit/test_permissions_doc_matches_routes.py` | The IVP for `docs/PERMISSIONS.md` — every route has a row, no row is stale, and the distribution total matches the table |
 
 | `tests/unit/test_lexical_query_terms.py` | The lexical arm ORs a question's content words into `to_tsquery` — it ANDed every word, stop words included, and fired on 1 of 20 eval questions; also that no tsquery operator survives into the expression |

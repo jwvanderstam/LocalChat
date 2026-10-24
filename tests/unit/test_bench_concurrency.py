@@ -69,3 +69,30 @@ class TestPercentile:
 
     def test_empty_is_nan_rather_than_an_exception(self):
         assert math.isnan(bench._percentile([], 95))
+
+
+@pytest.mark.unit
+class TestTheCanaryBudgetFlagIsEnforced:
+    """`--max-canary-ms` was parsed and never checked, so a run with a budget could not fail on it."""
+
+    def _main(self, monkeypatch, probes, *flags):
+        async def fake_canary(url, stop, out):
+            out.extend(probes)
+            await stop.wait()
+
+        async def fake_run(args, headers=None):
+            return [bench.Sample(ttft=0.1, total=0.2, status=200)]
+
+        monkeypatch.setattr(bench, "_canary", fake_canary)
+        monkeypatch.setattr(bench, "_run", fake_run)
+        monkeypatch.setattr(sys, "argv", ["bench_concurrency", *flags])
+        return bench.main()
+
+    def test_a_probe_over_the_budget_fails_the_run(self, monkeypatch):
+        assert self._main(monkeypatch, [0.003, 1.2], "--max-canary-ms", "1000") == 1
+
+    def test_probes_inside_the_budget_pass(self, monkeypatch):
+        assert self._main(monkeypatch, [0.003, 0.3], "--max-canary-ms", "1000") == 0
+
+    def test_without_the_flag_a_slow_probe_does_not_fail(self, monkeypatch):
+        assert self._main(monkeypatch, [0.003, 1.2]) == 0
