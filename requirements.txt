@@ -89,7 +89,7 @@ fastapi==0.143.2
     # via -r requirements.in
 fastuuid==0.14.0
     # via litellm
-filelock==3.32.4
+filelock==4.2.1
     # via
     #   huggingface-hub
     #   torch
@@ -281,7 +281,7 @@ pymupdf-layout==1.28.2
     # via pymupdf4llm
 pymupdf4llm==1.28.2
     # via -r requirements.in
-pypdf==6.21.1
+pypdf==6.21.2
     # via -r requirements.in
 pypdfium2==5.13.0
     # via pdfplumber
