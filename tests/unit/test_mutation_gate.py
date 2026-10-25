@@ -10,6 +10,9 @@ function unreachable — so the screening is worth pinning.
 from __future__ import annotations
 
 import importlib.util
+import shlex
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -130,3 +133,24 @@ class TestSurvivorsAreNamed:
         )
 
         assert "30 more" in report
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="the runner is a POSIX shell command")
+class TestRunnerExitCode:
+    """mutmut<3 kills a mutant only on exit 1, and runs the command split, without a shell."""
+
+    @staticmethod
+    def _exit_code(tmp_path: Path, body: str) -> int:
+        test_file = tmp_path / "test_probe.py"
+        test_file.write_text(body, encoding="utf-8")
+        command = mutation_gate.runner_command([test_file.as_posix()])
+        return subprocess.run(shlex.split(command), cwd=tmp_path, capture_output=True, check=False).returncode
+
+    def test_a_collection_error_counts_as_a_kill(self, tmp_path):
+        assert self._exit_code(tmp_path, "raise ValueError('broken at import')\n") == 1
+
+    def test_a_failing_test_counts_as_a_kill(self, tmp_path):
+        assert self._exit_code(tmp_path, "def test_x():\n    assert False\n") == 1
+
+    def test_passing_tests_are_a_survivor(self, tmp_path):
+        assert self._exit_code(tmp_path, "def test_x():\n    assert True\n") == 0

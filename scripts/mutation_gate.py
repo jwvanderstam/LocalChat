@@ -159,13 +159,24 @@ def survivor_details(limit: int = SURVIVOR_DETAIL_LIMIT) -> list[tuple[str, str]
     return details
 
 
+def runner_command(tests: list[str]) -> str:
+    """The command mutmut runs per mutant, with every failing exit reported as 1.
+
+    `mutmut<3` counts a mutant as killed only on exit code 1. A mutant that breaks
+    collection — a test module computing a hash at import time, say — makes pytest
+    exit 2, and was filed as a survivor: the score understated every module.
+    """
+    pytest = "python -m pytest -x -q --no-cov -p no:cacheprovider " + " ".join(tests)
+    return f"sh -c '{pytest} || exit 1'"
+
+
 def measure(module: str, tests: list[str], time_base: float) -> Result:
     """Mutate *module*, judged by *tests*. One module at a time — mutmut<3 keeps a
     single .mutmut-cache and a second run clears the first's results."""
     if os.path.exists(".mutmut-cache"):
         os.remove(".mutmut-cache")
 
-    runner = "python -m pytest -x -q --no-cov -p no:cacheprovider " + " ".join(tests)
+    runner = runner_command(tests)
     print(f"::group::mutmut {module}", flush=True)
     _run([
         "mutmut", "run",
