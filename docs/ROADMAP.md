@@ -1767,7 +1767,7 @@ Integration tests pass unchanged, and a PR that had to edit one says so.
 captures most of the security value for about a third of the effort, and leaves
 architecture near 7.5.
 
-#### QP-5 — Finish ⬜ (Sprint 28; re-sized 2026-10-25 to ~2 days plus 2-3 PRs for the scoping)
+#### QP-5 — Finish ✅ (Sprint 28; finished 2026-10-25)
 
 > **Correction, 2026-10-25.** ADR-5's amendment gave each QP-4 PR a second job besides the
 > layering: move its methods onto a named scope or an explicit all-workspaces flag. The QP-4
@@ -1808,7 +1808,14 @@ architecture near 7.5.
   mixins". It is reworded to name the repositories. An ADR whose evidence names deleted
   code reads as stale even when the decision is not.
 
-**Gate:** all six architecture exit criteria hold on `main`.
+**Gate:** all six architecture exit criteria hold on `main`. ✅ Checked on `234e5ab`
+(2026-10-25): no `app.state.db` in routes and no import cycles (ratchets at 0), both
+import-linter contracts kept, ADR-7 records the layering. Two hold in the form ADR-7's
+amendments chose rather than the table's wording: (3) the yes-or-no check stays in the
+route's `deny()` and each service method takes the `Scope` it authorised, not a
+`Principal` (amended 2026-10-24; `test_object_authorization_matrix.py` holds it); (4) the
+mixins are replaced by repositories, and `Database` stays as the pool holding them
+(amended 2026-10-25).
 
 ### Phase 3 — maturity to 8 (weeks 3-12, alongside Phase 2)
 

@@ -101,10 +101,6 @@ directory = "htmlcov"
 [tool.coverage.xml]
 output = "coverage.xml"
 
-# QP-3 (ROADMAP Initiative 12, ADR-7): the layering, as contracts `lint-imports` checks.
-# Higher layers may import lower ones, never the reverse. The ignore_imports lists are
-# today's violations, recorded so the contracts can run in CI before the code obeys
-# them: each QP-4 PR removes its own lines, and none may be added. QP-5 empties them.
 [tool.mypy]
 # CI runs `mypy src --ignore-missing-imports`. Modules QP-4 has moved to repositories
 # and services are held to strict typing from the PR that creates them (ROADMAP QP-4).
@@ -147,6 +143,9 @@ warn_return_any = true
 no_implicit_reexport = true
 strict_equality = true
 
+# QP-3 (ROADMAP Initiative 12, ADR-7): the layering, as contracts `lint-imports` checks.
+# Higher layers may import lower ones, never the reverse. QP-5 emptied the exceptions;
+# none may be added.
 [tool.importlinter]
 root_package = "src"
 
