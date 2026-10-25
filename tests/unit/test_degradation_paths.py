@@ -92,12 +92,13 @@ class TestAPageStillRendersWhenItsStatsDoNot:
     """The regression guard for the bug this PR introduced and then fixed."""
 
     def test_settings_falls_back_to_empty_stats(self, monkeypatch):
-        from src.routes_fastapi import settings_routes, web_routes
+        from src.routes_fastapi import web_routes
+        from src.services import admin_stats
 
         def _boom(_state):
             raise RuntimeError("stats backend down")
 
-        monkeypatch.setattr(settings_routes, "gather_admin_stats", _boom)
+        monkeypatch.setattr(admin_stats, "gather_admin_stats", _boom)
 
         captured = {}
 

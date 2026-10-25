@@ -29,6 +29,7 @@ from ..utils.scope import (
 from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
 from ._authz import deny_additional as _deny_additional
+from ._services import chat_service
 
 try:
     from pydantic import ValidationError as PydanticValidationError
@@ -38,6 +39,8 @@ except ImportError:
     PydanticValidationError = _FallbackValidationError  # type: ignore[assignment,misc]
 
 router = APIRouter()
+
+Chat = Annotated[chat.ChatService, Depends(chat_service)]
 logger = get_logger(__name__)
 
 _ERR_INVALID_JSON = "Request body must be valid JSON"
@@ -242,7 +245,7 @@ async def _generate_sse(
 
 
 @router.get("/status")
-def api_status(request: Request) -> Any:
+def api_status(request: Request, chat_svc: Chat) -> Any:
     require_auth(request)
     app_state = request.app.state
     db_available = app_state.startup_status.get("database", False)
@@ -252,7 +255,7 @@ def api_status(request: Request) -> Any:
     # whole installation when absent. A caller with no workspace sees 0, not a 403,
     # so the status bar still renders.
     if db_available and check_workspace_access(request, None, "viewer") is None:
-        doc_count, db_available = chat.get_doc_count_cached(app_state.db, get_scope(request))
+        doc_count, db_available = chat_svc.doc_count(get_scope(request))
 
     ollama_available = chat.check_ollama_live(app_state)
 
@@ -301,7 +304,7 @@ def api_status(request: Request) -> Any:
 
 @router.post("/chat")
 @limiter.limit(config.RATELIMIT_CHAT)
-async def api_chat(request: Request) -> Any:
+async def api_chat(request: Request, chat_svc: Chat) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
@@ -349,10 +352,7 @@ async def api_chat(request: Request) -> Any:
         # are written. They differ only for an admin who named no workspace.
         scope = get_scope(request)
         workspace_id = get_workspace_id(request)
-        plan, memory_context = await chat.retrieve_plan_and_memory(
-            fields, active_model, app_state.ollama_client, app_state.db,
-            scope=scope,
-        )
+        plan, memory_context = await chat_svc.plan_and_memory(fields, active_model, scope)
 
         messages = [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in fields["chat_history"]]
 
@@ -368,8 +368,8 @@ async def api_chat(request: Request) -> Any:
         # retrieval, so every aggregator local_docs job refused and came back empty.
         with request_scope(scope):
             local_ctx, web_ctx, sources, agent_result = await run_in_threadpool(
-                chat.retrieve_contexts,
-                fields, app_state.doc_processor, app_state.db, chunks_retrieved_ref,
+                chat_svc.contexts,
+                fields, chunks_retrieved_ref,
                 plan=plan, scope=scope,
                 additional_workspace_ids=fields.get("additional_workspace_ids") or None,
                 source_ids=fields.get("active_source_ids") or None,

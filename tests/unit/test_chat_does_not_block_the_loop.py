@@ -73,7 +73,11 @@ async def _elapsed_for_two_concurrent_chats() -> float:
 @pytest.fixture
 def chat_service():
     """Everything around retrieval stubbed, so only the blocking call sets the timing."""
+    # The route reaches retrieval through ChatService, which calls the module functions
+    # in src.services.chat, so those are what the blocking stand-ins replace.
     with patch("src.routes_fastapi.api_routes.chat") as svc, \
+            patch("src.services.chat.retrieve_contexts", _blocking_retrieve), \
+            patch("src.services.chat.retrieve_plan_and_memory", _fake_plan_and_memory), \
             patch("src.config.app_state") as app_state:
         app_state.get_active_model.return_value = "test-model"
         svc.parse_chat_request.side_effect = lambda data: {

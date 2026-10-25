@@ -29,10 +29,9 @@ _ROOT = Path(__file__).resolve().parents[2]
 #: 4 after the last aggregate, counted differently from then on: `_services.py` is left
 #: out, since building services from the database is its job, and the other spellings
 #: (`app_state.db`, `getattr(app_state, "db")`) are counted, which the first pattern
-#: missed. The four: `api_routes` hands the database to chat's functions three times,
-#: which QP-5 turns into a service class, and the settings page reads its totals once.
-#: Lower it in the PR that removes some.
-APP_STATE_DB_IN_ROUTES = 4
+#: missed. 0 after QP-5 moved chat's three behind `ChatService` and the settings page's
+#: totals into `services/admin_stats.py`. It stays at zero.
+APP_STATE_DB_IN_ROUTES = 0
 
 #: The one route module that may read the database: it builds the services from it.
 _PROVIDERS = "_services.py"
