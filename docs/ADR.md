@@ -338,6 +338,12 @@ owner, and installation-wide access becomes an explicit flag, reached in two ste
 - **Corrected 2026-10-25:** QP-4 moved the layering and not the scoping — its checklist
   never listed the second job, so 47 methods still rely on `0021`. QP-5 now starts with it
   (ROADMAP QP-5, the correction note). The decision above is unchanged.
+- **The flag, built 2026-10-25 (QP-5 step 1, migration `0022`).** `get_connection(scope=
+  ALL_WORKSPACES)` sets `app.all_workspaces = on` for the transaction, and a policy admits
+  it. Not tied to `localchat_app` by name as `0021` is: under `FORCE` the owner is bound
+  too, and without `PG_APP_PASSWORD` every request runs as the owner, so a name-restricted
+  policy would leave that mode seeing nothing. It refuses `localchat_scoped`, so a
+  transaction scoped to one workspace can never also count as all of them.
 - **Rejected: `BYPASSRLS`** for `localchat_app`. It is the transition policy made permanent,
   with no path to B.
 - **Rejected again: a second pool** for the installation-wide paths. The reasoning above

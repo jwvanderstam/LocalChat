@@ -19,7 +19,7 @@ from psycopg_pool import ConnectionPool
 
 from .. import config
 from ..utils.logging_config import get_logger
-from ..utils.scope import Scope, scope_predicate
+from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
 
 logger = get_logger(__name__)
 
@@ -158,6 +158,19 @@ def _enter_scope(conn: Any, workspace_id: str) -> None:
         cur.execute("SELECT set_config('app.workspace_id', %s, true)", (workspace_id,))
         cur.execute(f"SET LOCAL hnsw.iterative_scan = {SCOPED_HNSW_ITERATIVE_SCAN}")
         cur.execute(f"SET LOCAL hnsw.ef_search = {SCOPED_HNSW_EF_SEARCH}")
+
+
+def _enter_all_workspaces(conn: Any) -> None:
+    """Mark the transaction *conn* is about to open as deliberately installation-wide.
+
+    Migration 0022's policy admits such a transaction on every protected table; nothing
+    else does once QP-5 drops 0021. Transaction-local like a workspace scope, so it ends
+    at commit or rollback and a pooled connection cannot carry it into the next request.
+    """
+    if conn.autocommit is True:
+        raise RuntimeError("an all-workspaces transaction needs autocommit off")
+    with conn.cursor() as cur:
+        cur.execute("SELECT set_config('app.all_workspaces', 'on', true)")
 
 
 def _warn_if_ef_search_did_not_stick(conn: Any) -> None:
@@ -865,9 +878,9 @@ class DatabaseConnection:
         so the row-level security policies from migration 0017 refuse every other
         workspace's rows even if the query forgot to. Both settings are transaction-local:
         they end at commit or rollback, so a pooled connection cannot carry one request's
-        scope into the next. ``None`` and ``ALL_WORKSPACES`` stay on the pool's own identity:
-        the owner, or ``localchat_app`` once S2 has switched to it, which migration 0021's
-        transition policy leaves unrestricted until QP-4 gives each path a scope (ADR-5).
+        scope into the next. ``ALL_WORKSPACES`` stays on the pool's own identity and sets
+        ``app.all_workspaces``, which migration 0022's policy admits. ``None`` sets nothing:
+        it relies on 0021's transition policy, which QP-5 removes once no path passes it.
 
         Raises:
             DatabaseUnavailableError: If the connection pool is not initialised.
@@ -881,6 +894,8 @@ class DatabaseConnection:
         try:
             if isinstance(scope, str):
                 _enter_scope(connection, scope)
+            elif scope is ALL_WORKSPACES:
+                _enter_all_workspaces(connection)
             yield connection
             if connection.info.transaction_status == _PG_TRANSACTION_INTRANS:
                 connection.commit()

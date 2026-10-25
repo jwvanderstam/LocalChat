@@ -44,12 +44,31 @@ def test_a_workspace_scope_switches_role_and_binds_the_workspace():
     ]
 
 
-@pytest.mark.parametrize("scope", [ALL_WORKSPACES, None], ids=["all-workspaces", "none"])
-def test_every_other_scope_stays_on_the_owner_role(scope):
+def test_all_workspaces_stays_on_the_pool_identity_and_sets_the_flag():
+    """QP-5 step 1: the explicit flag migration 0022's policy admits, and no role switch."""
     db, _, cur = _db_with_pooled_connection()
-    with db.get_connection(scope=scope):
+    with db.get_connection(scope=ALL_WORKSPACES):
+        pass
+    calls = [c.args for c in cur.execute.call_args_list]
+    assert calls == [("SELECT set_config('app.all_workspaces', 'on', true)",)]
+
+
+def test_no_scope_sets_nothing():
+    db, _, cur = _db_with_pooled_connection()
+    with db.get_connection(scope=None):
         pass
     cur.execute.assert_not_called()
+
+
+def test_an_autocommit_connection_is_refused_for_all_workspaces_too():
+    """The flag is transaction-local; under autocommit it would lapse before the query."""
+    db, conn, cur = _db_with_pooled_connection()
+    conn.autocommit = True
+    with pytest.raises(RuntimeError, match="autocommit off"):
+        with db.get_connection(scope=ALL_WORKSPACES):
+            pass
+    cur.execute.assert_not_called()
+    db.connection_pool.putconn.assert_called_once_with(conn)
 
 
 def test_an_autocommit_connection_is_refused_and_still_returned_to_the_pool():
