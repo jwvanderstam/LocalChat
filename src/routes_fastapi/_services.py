@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import Request
 
 from ..services.annotations import AnnotationsService
+from ..services.chat import ChatService
 from ..services.connectors import ConnectorsService, OAuthAccountsService
 from ..services.contributions import ContributionsService
 from ..services.conversations import ConversationsService
@@ -22,6 +23,11 @@ from ..services.workspaces import WorkspacesService
 
 def annotations_service(request: Request) -> AnnotationsService:
     return AnnotationsService(request.app.state.db)
+
+
+def chat_service(request: Request) -> ChatService:
+    state = request.app.state
+    return ChatService(state.db, getattr(state, "ollama_client", None), getattr(state, "doc_processor", None))
 
 
 def connectors_service(request: Request) -> ConnectorsService:

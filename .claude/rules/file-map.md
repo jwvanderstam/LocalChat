@@ -20,7 +20,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/exceptions.py` | `LocalChatException` hierarchy (`OllamaConnectionError`, `DatabaseConnectionError`, `DocNotFoundError`, etc.) + `EXCEPTION_STATUS_CODES` |
 | **Routes** | |
 | `src/routes_fastapi/api_routes.py` | Chat (SSE), status — HTTP plumbing only; delegates business logic to `src/services/chat.py` |
-| `src/services/chat.py` | Chat business logic: context retrieval, RAG, planning, memory, model routing, message persistence |
+| `src/services/chat.py` | Chat business logic: context retrieval, RAG, planning, memory, model routing, message persistence; `ChatService`, which the chat route gets by `Depends` so it never holds the database |
 | `src/services/users.py` | `UsersService` — QP-4's first aggregate: sign-in, sign-out, `/users/me`'s identity, the admin's user and membership management, and changing your own password. Holds the rules a guard cannot express: the last administrator, the last owner of a workspace, and proving the current password |
 | `src/services/annotations.py` | `AnnotationsService` — add, list per chunk (a chunk outside the scope reads as not found before any annotation is fetched) and retire |
 | `src/services/connectors.py` | `ConnectorsService` — QP-4's sixth aggregate and CONN-1's rules: a connector spends only its creator's token (`user_id` refused in config), `local_folder` needs a global admin at creation and every config change, a config is validated by its own class, and the registry follows the database. `OAuthAccountsService` — store, inspect and remove a user's provider tokens |
@@ -38,6 +38,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/memory_routes.py` | Conversation CRUD, export, document-filter endpoints |
 | `src/routes_fastapi/longterm_memory_routes.py` | Long-term memory CRUD and manual trigger endpoints |
 | `src/routes_fastapi/settings_routes.py` | Settings, admin ops; `/api/health`, `/api/metrics`, `/api/metrics.json`, `/api/logs` (admin log viewer) |
+| `src/services/admin_stats.py` | `gather_admin_stats()` and its parts: document totals, caches, health, system info, metrics for the settings page and `/api/settings/stats`; each part degrades on its own. Moved out of `settings_routes` (QP-5) |
 | `src/routes_fastapi/workspace_routes.py` | `GET/POST /api/workspaces`, `GET/PUT/DELETE /api/workspaces/{id}`, active, switch |
 | `src/routes_fastapi/gkb_routes.py` | GKB-2 — `POST /api/workspaces/{id}/contribute` (global admin), `DELETE /api/workspaces/{id}/contributions` (ws:owner), `GET /api/gkb/documents` (admin) |
 | `src/routes_fastapi/feedback_routes.py` | `POST /api/feedback`, `GET /api/feedback/stats` |
@@ -47,7 +48,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/annotation_routes.py` | Annotation CRUD (`POST /api/annotations`, `GET /api/chunks/{id}/annotations`, `DELETE /api/annotations/{id}`) |
 | `src/routes_fastapi/docs_routes.py` | Repo-docs API: `GET /api/repo-docs`, `GET /api/repo-docs/{slug}`, `GET /api/repo-docs/{slug}/fragments/{fragment_slug}` — serves `DocsService` (`src/docs/service.py`) |
 | `src/routes_fastapi/web_routes.py` | Serves the frontend SPA and static assets |
-| `src/routes_fastapi/_services.py` | FastAPI providers for the services (one per service, from `annotations_service` to `workspaces_service`) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
+| `src/routes_fastapi/_services.py` | FastAPI providers for the services (one per service, from `annotations_service` to `workspaces_service`, `chat_service` included) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
 | `src/routes_fastapi/_authz.py` | `deny()` — wraps `check_workspace_access` in the route layer's JSON envelope; shared by every workspace-scoped router |
 | **RAG** | |
 | `src/rag/processor.py` | Ingest orchestration: load → chunk → embed → store |

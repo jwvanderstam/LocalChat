@@ -576,3 +576,43 @@ def apply_model_routing(
         except Exception as router_err:  # noqa: BLE001 — routing falls back to the active model, which is always a valid choice
             logger.warning("[Router] Selection failed, using active model: %s", router_err)
     return active_model, None
+
+
+class ChatService:
+    """The chat route's database-backed steps, bound to one database, model client and processor.
+
+    The route asks for this with ``Depends`` and never holds the database itself (QP-5,
+    ADR-7). Each method delegates to the module function of the same job, which keeps the
+    functions testable on their own; what this adds is that the route cannot reach the
+    database except through these.
+    """
+
+    def __init__(self, db: Any, ollama_client: Any, doc_processor: Any) -> None:
+        self._db = db
+        self._ollama_client = ollama_client
+        self._doc_processor = doc_processor
+
+    def doc_count(self, scope: Scope) -> tuple[int, bool]:
+        return get_doc_count_cached(self._db, scope)
+
+    async def plan_and_memory(self, fields: dict, active_model: str, scope: Scope) -> tuple[Any, str]:
+        return await retrieve_plan_and_memory(
+            fields, active_model, self._ollama_client, self._db, scope=scope
+        )
+
+    def contexts(
+        self,
+        fields: dict,
+        chunks_retrieved_ref: list[int],
+        *,
+        plan: Any,
+        scope: Scope,
+        additional_workspace_ids: list[str] | None,
+        source_ids: list[str] | None,
+    ) -> tuple[str, str, list[dict], Any]:
+        """Return (local_ctx, web_ctx, sources, agent_result)."""
+        return retrieve_contexts(
+            fields, self._doc_processor, self._db, chunks_retrieved_ref,
+            plan=plan, scope=scope,
+            additional_workspace_ids=additional_workspace_ids, source_ids=source_ids,
+        )

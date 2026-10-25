@@ -1788,12 +1788,18 @@ architecture near 7.5.
 > 3. ✅ (2026-10-25, migration `0023`) Then the migration below drops `0021` and adds `FORCE`, with an integration test that an
 >    unscoped, unflagged transaction sees no rows.
 
-- Delete `Database` (`MixinHost` went with the stale-code sweep on 2026-10-24); `app.state` holds services, not a database.
+- ✅ Re-scoped 2026-10-25 by the maintainer (ADR-7's amendment): `Database` stays, as the
+  connection pool holding the repositories, since no route reaches it but `_services.py`.
+  The last four route reads moved behind services instead: chat's three behind
+  `ChatService`, the settings page's totals into `services/admin_stats.py`. (`MixinHost` went
+  with the stale-code sweep on 2026-10-24.)
 - ✅ Drop migration `0021`'s transition policy (by a new migration) and add `FORCE ROW LEVEL
   SECURITY` on the ten tables: every path names its scope by then (ADR-5's amendment, B).
 - Split `DocumentProcessor` into `Loader`, `Chunker` and `Retriever`, composed by an
   `IngestPipeline`. That ends the second mixin stack.
-- Empty the ratchet allow-lists, so the contracts become plain failures.
+- ✅ Empty the ratchet allow-lists, so the contracts become plain failures. Database access in
+  route modules 0, the forbidden contract's exceptions 0, import cycles 0, unscoped RLS
+  methods 0.
 - ✅ radon: no function above grade C. Already true when measured (2026-10-25): 1,156
   functions in `src/`, 943 A, 185 B, 28 C, none worse.
 - ✅ ADR-2's reasoning still holds, but its text says DB access "flows through `src/db/`

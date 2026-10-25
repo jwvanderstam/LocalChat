@@ -60,6 +60,11 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Added
 
+- **No route module reaches the database** (QP-5). The chat route gets a `ChatService` by
+  `Depends` instead of handing the database to chat's functions, and the settings page's
+  statistics moved to `services/admin_stats.py`. The ratchet that counted route-level
+  database access is at zero. `Database` itself stays, as the connection pool holding the
+  repositories (ADR-7, amended).
 - **Every database path names its scope** (QP-5 step 2). The 47 repository methods that
   touched a row-level-security table on an unscoped connection now open it with the
   workspace they read or write, or with the explicit all-workspaces flag. Workspace writes

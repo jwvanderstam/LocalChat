@@ -551,6 +551,18 @@ including the workspace-API-key branch. Moving it for one aggregate would leave 
 authorisation paths until the last aggregate moved, and the guard is what the nightly
 mutation gate covers. If it moves, it moves once for every aggregate, after QP-4.
 
+**Amended 2026-10-25 (QP-5, the maintainer's decision): `Database` stays.** QP-5 was to
+delete it so that `app.state` holds services. That was written when `Database` composed
+thirteen mixins and any handler could reach any query through it. Since QP-4 it composes
+none: it is the connection pool holding one repository per aggregate, and no route module
+reaches it except `_services.py`, which builds the services — held by the import contracts
+and a ratchet at zero. Deleting the class now would rewire 47 test files for no further
+guarantee. Instead the last four route reads moved behind services (`ChatService`,
+`services/admin_stats.py`).
+
+**Revisit when:** a second entry point (a worker, a CLI) needs the services without the web
+app — the same trigger as above; that is when `app.state` stops being the composition root.
+
 **Revisit when:** a second front end (a CLI, a worker that is not the web app) needs the
 same use cases. The service layer is then its entry point too, and the question becomes
 whether it moves out of the web process.

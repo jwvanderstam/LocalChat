@@ -64,7 +64,7 @@ _SETTING_DOC_SLUGS = [
 @router.get("/settings", include_in_schema=False)
 def settings(request: Request) -> HTMLResponse:
     try:
-        from .settings_routes import gather_admin_stats
+        from ..services.admin_stats import gather_admin_stats
         stats = gather_admin_stats(request.app.state)
     except Exception:  # noqa: BLE001 — a template must render; an admin panel with empty stats beats a 500
         logger.debug("Could not gather admin stats for the settings page", exc_info=True)
