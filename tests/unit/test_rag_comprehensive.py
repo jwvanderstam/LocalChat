@@ -162,7 +162,7 @@ class TestDocumentLoading:
         mock_reader.pages = [mock_page]
         mock_pypdf2.PdfReader.return_value = mock_reader
 
-        with patch.object(doc_processor, '_try_pdfplumber_import', return_value=None):
+        with patch.object(doc_processor.loader, '_try_pdfplumber_import', return_value=None):
             success, pages = doc_processor._load_pdf_with_pages(temp_file)
 
         assert success is True
@@ -180,7 +180,7 @@ class TestDocumentLoading:
         # temp_file is not a zip; the bounds check (S5) is tested on real archives in
         # test_request_and_ooxml_limits.py, and this test is about slide extraction.
         with (
-            patch.object(doc_processor, '_process_pptx_slide', return_value=(["Slide text"], "Title")),
+            patch.object(doc_processor.loader, '_process_pptx_slide', return_value=(["Slide text"], "Title")),
             patch('src.rag.loaders.check_ooxml_bounds', return_value=(True, '')),
         ):
             success, slides = doc_processor.load_pptx_file(temp_file)
@@ -634,7 +634,7 @@ class TestUtilityMethods:
         query = "What's   the   answer?"
 
         # Access internal method
-        processed = doc_processor._preprocess_query(query)
+        processed = doc_processor.retriever._preprocess_query(query)
 
         assert "what is" in processed.lower()
         assert "  " not in processed  # No double spaces

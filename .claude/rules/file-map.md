@@ -51,10 +51,10 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/_services.py` | FastAPI providers for the services (one per service, from `annotations_service` to `workspaces_service`, `chat_service` included) — the one place a route module reads the database; a handler asks for a service with `Depends` and never holds the database (ADR-7) |
 | `src/routes_fastapi/_authz.py` | `deny()` — wraps `check_workspace_access` in the route layer's JSON envelope; shared by every workspace-scoped router |
 | **RAG** | |
-| `src/rag/processor.py` | Ingest orchestration: load → chunk → embed → store |
-| `src/rag/retrieval.py` | Hybrid search — independent semantic (pgvector) + lexical (Postgres tsvector/GIN) arms, weighted blend; `retrieve_context(filename_filter=, knowledge_scope=)` — `local`/`global`/`hybrid` over the GKB-1 tiers |
-| `src/rag/chunking.py` | Overlapping chunking, preserves table structure |
-| `src/rag/loaders.py` | Multi-format document loading |
+| `src/rag/processor.py` | `DocumentProcessor` — ingest orchestration (load → chunk → embed → store); holds a `Loader`, a `Chunker` and a `Retriever` and delegates their public methods |
+| `src/rag/retrieval.py` | `Retriever` — hybrid search — independent semantic (pgvector) + lexical (Postgres tsvector/GIN) arms, weighted blend; `retrieve_context(filename_filter=, knowledge_scope=)` — `local`/`global`/`hybrid` over the GKB-1 tiers |
+| `src/rag/chunking.py` | `Chunker` — overlapping chunking, preserves table structure |
+| `src/rag/loaders.py` | `Loader` — multi-format document loading |
 | `src/rag/injection_flags.py` | GR-1c — `scan()`: five kinds of instruction-shaped text, run over every chunk at ingest; the kinds found are stored in `documents.metadata.injection_flags` and shown on the Documents page. A heuristic; never blocks |
 | `src/rag/active_learning.py` | `suggest_documents()` — knowledge-gap topic suggestions from low-confidence queries |
 | `src/rag/planner.py` | `QueryPlanner` — decomposes query into `QueryPlan` |

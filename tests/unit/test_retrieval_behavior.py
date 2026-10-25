@@ -1,5 +1,5 @@
 """
-Tests for hybrid scoring and deduplication in RetrievalMixin.
+Tests for hybrid scoring and deduplication in Retriever.
 
 These tests verify the scoring math and deduplication window logic as
 standalone unit tests — no database or Ollama required.
@@ -14,20 +14,13 @@ import pytest
 # Set a test sentinel so collection succeeds without a real database.
 os.environ.setdefault("PG_PASSWORD", "test-sentinel")
 
-from src.rag.retrieval import RetrievalMixin
+from src.rag.retrieval import Retriever
 from src.utils.scope import ALL_WORKSPACES
-
-# ---------------------------------------------------------------------------
-# Minimal concrete class for testing the mixin
-# ---------------------------------------------------------------------------
-
-class Retriever(RetrievalMixin):
-    pass
 
 
 @pytest.fixture
 def retriever():
-    return Retriever()
+    return Retriever(db=None, ollama_client=None)
 
 
 def _result(filename, chunk_index, semantic_score=0.8, text="some chunk content here"):

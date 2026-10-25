@@ -93,9 +93,9 @@ def _detect_language(text: str) -> str | None:
         return None
 
 
-class DocumentLoaderMixin:
+class Loader:
     """
-    Mixin providing document loading methods for DocumentProcessor.
+    Loads a document into text, pages or slides.
 
     Supports text, PDF (with table extraction), DOCX, and image files.
     """

@@ -379,7 +379,7 @@ class TestReranking:
             "doc3_0": {"chunk_text": "chunk about cats and dogs", "filename": "doc3.pdf", "chunk_index": 0, "combined_score": 0.7},
         }
 
-        reranked = processor._rerank_with_signals("cats", results)
+        reranked = processor.retriever._rerank_with_signals("cats", results)
 
         assert isinstance(reranked, dict)
         assert len(reranked) == len(results)
@@ -484,6 +484,6 @@ class TestRAGEdgeCases:
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
 
-        reranked = processor._rerank_with_signals("query", {})
+        reranked = processor.retriever._rerank_with_signals("query", {})
 
         assert reranked == {}

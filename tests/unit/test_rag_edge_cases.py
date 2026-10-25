@@ -42,11 +42,12 @@ def retrieval_stack():
     mock_db.documents.search_similar.return_value = [
         ("chunk text", "doc.pdf", 0, 0.95, {}, 1),
     ]
-    # Patched on the instance, not the module: doc_processor is a singleton that
-    # bound self._db and self._ollama_client at construction, so patching
+    # Patched on the instance, not the module: doc_processor is a singleton whose
+    # retriever bound its database and Ollama client at construction, so patching
     # src.rag.retrieval.db leaves it talking to the real ones — which is how the
     # first version of this fixture still reached localhost:11434.
-    with patch.object(doc_processor, "_db", mock_db),          patch.object(doc_processor, "_ollama_client", ollama):
+    retriever = doc_processor.retriever
+    with patch.object(retriever, "_db", mock_db),          patch.object(retriever, "_ollama_client", ollama):
         yield mock_db, ollama
 
 

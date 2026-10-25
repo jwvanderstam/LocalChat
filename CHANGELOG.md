@@ -10,6 +10,10 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Changed
 
+- **`DocumentProcessor` is composed, not inherited** (QP-5). The three mixins it was built
+  from are now plain classes, `Loader`, `Chunker` and `Retriever`. The processor holds one of
+  each (`.loader`, `.chunker`, `.retriever`) and delegates their public methods, so its callers
+  do not change. No behaviour changes.
 - **Users and sign-in go through a service** (ROADMAP QP-4, first of seven aggregates).
   `auth_routes` no longer touches the database: it asks for a `UsersService`, which owns
   the last-administrator and last-owner rules and the password checks. The SQL moved

@@ -55,16 +55,14 @@ _CONTRACTIONS: dict = {
 }
 
 
-class RetrievalMixin:
+class Retriever:
     """
-    Mixin providing retrieval, re-ranking, and context formatting
-    methods for DocumentProcessor.
+    Retrieval, re-ranking, and context formatting.
     """
 
-    # Provided by DocumentProcessor.__init__ at runtime; declared here so mypy can
-    # see them when type-checking this mixin in isolation.
-    _db: Any
-    _ollama_client: Any
+    def __init__(self, db: Any, ollama_client: Any) -> None:
+        self._db = db
+        self._ollama_client = ollama_client
 
     def _preprocess_query(self, query: str) -> str:
         """

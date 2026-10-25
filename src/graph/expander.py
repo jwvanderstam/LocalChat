@@ -8,7 +8,7 @@ Given a user query, extracts named entities with spaCy, looks up
 1-hop co-occurrences from the ``entity_relations`` table, and returns
 additional entity names to append before the query reaches both the
 embedding model and the tsvector-based lexical retrieval arm
-(``RetrievalMixin._run_lexical_search``).
+(``Retriever._run_lexical_search``).
 """
 
 from __future__ import annotations
