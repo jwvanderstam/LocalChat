@@ -14,7 +14,7 @@ import pytest
 os.environ.setdefault("PG_PASSWORD", "test-sentinel")
 
 from src import config
-from src.rag.retrieval import RetrievalMixin
+from src.rag.retrieval import Retriever
 
 pytestmark = pytest.mark.unit
 
@@ -38,12 +38,11 @@ class FakeDb:
         return []
 
 
-class Retriever(RetrievalMixin):
-    def __init__(self) -> None:
-        self._db = FakeDb()
-        self._ollama_client = MagicMock()
-        self._ollama_client.get_embedding_model.return_value = "embedder"
-        self._ollama_client.generate_embedding.return_value = (True, [0.1] * 8)
+def _retriever() -> Retriever:
+    ollama = MagicMock()
+    ollama.get_embedding_model.return_value = "embedder"
+    ollama.generate_embedding.return_value = (True, [0.1] * 8)
+    return Retriever(FakeDb(), ollama)
 
 
 @pytest.fixture
@@ -52,7 +51,7 @@ def retriever():
         patch.object(config, "RERANKER_ENABLED", False),
         patch.object(config, "GRAPH_RAG_ENABLED", False),
     ):
-        yield Retriever()
+        yield _retriever()
 
 
 def _ids(results) -> set[int]:

@@ -96,15 +96,15 @@ class TestGetVisionModel:
 
 
 class TestLoadImageFile:
-    """Unit tests for DocumentLoaderMixin.load_image_file."""
+    """Unit tests for Loader.load_image_file."""
 
     def test_returns_false_when_no_vision_model_available(self, tmp_path):
-        from src.rag.loaders import DocumentLoaderMixin
+        from src.rag.loaders import Loader
 
         img_path = tmp_path / "test.png"
         img_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
 
-        loader = DocumentLoaderMixin()
+        loader = Loader()
         with patch("src.rag.loaders.ollama_client.get_vision_model", return_value=None):
             success, msg = loader.load_image_file(str(img_path))
 
@@ -112,12 +112,12 @@ class TestLoadImageFile:
         assert "No vision model" in msg
 
     def test_returns_description_on_success(self, tmp_path):
-        from src.rag.loaders import DocumentLoaderMixin
+        from src.rag.loaders import Loader
 
         img_path = tmp_path / "photo.jpg"
         img_path.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 50)
 
-        loader = DocumentLoaderMixin()
+        loader = Loader()
         with patch("src.rag.loaders.ollama_client.get_vision_model", return_value="llava:7b"):
             with patch(
                 "src.rag.loaders.ollama_client.describe_image",
@@ -130,12 +130,12 @@ class TestLoadImageFile:
         assert "A beautiful landscape photo." in content
 
     def test_returns_false_when_describe_fails(self, tmp_path):
-        from src.rag.loaders import DocumentLoaderMixin
+        from src.rag.loaders import Loader
 
         img_path = tmp_path / "broken.jpg"
         img_path.write_bytes(b"\xff\xd8" + b"\x00" * 20)
 
-        loader = DocumentLoaderMixin()
+        loader = Loader()
         with patch("src.rag.loaders.ollama_client.get_vision_model", return_value="llava:7b"):
             with patch(
                 "src.rag.loaders.ollama_client.describe_image",

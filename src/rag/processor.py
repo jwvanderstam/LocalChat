@@ -2,9 +2,8 @@
 Document Processor
 ==================
 
-Main RAG processing engine that coordinates document ingestion,
-embedding generation, and delegates to mixins for loading, chunking,
-and retrieval.
+Main RAG processing engine that coordinates document ingestion and
+embedding generation, composed of a Loader, a Chunker and a Retriever.
 """
 
 import hashlib
@@ -22,11 +21,11 @@ from ..monitoring import counted, timed
 # ruff cannot see that access, hence the noqa.
 from ..ollama_client import ollama_client  # noqa: F401
 from ..utils.logging_config import get_logger
-from ..utils.scope import ALL_WORKSPACES
-from .chunking import TextChunkerMixin
+from ..utils.scope import ALL_WORKSPACES, Scope
+from .chunking import Chunker
 from .doc_type import ChunkerRegistry, DocTypeClassifier
 from .injection_flags import scan as scan_for_injection
-from .loaders import DocumentLoaderMixin
+from .loaders import Loader
 
 _NO_EMBEDDING_MODEL = (
     "Welcome to LocalChat! Enjoy your stay. "
@@ -34,7 +33,7 @@ _NO_EMBEDDING_MODEL = (
     "(e.g. nomic-embed-text) to start ingesting documents."
 )
 from .loaders import _detect_language
-from .retrieval import RetrievalMixin
+from .retrieval import KnowledgeScope, RetrievalResult, Retriever
 
 
 def _compute_file_hash(file_path: str) -> str:
@@ -48,7 +47,7 @@ def _compute_file_hash(file_path: str) -> str:
 logger = get_logger(__name__)
 
 
-class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
+class DocumentProcessor:
     """
     Handles document loading, chunking, and embedding.
 
@@ -71,7 +70,84 @@ class DocumentProcessor(DocumentLoaderMixin, TextChunkerMixin, RetrievalMixin):
         self._db = db if db is not None else _g['db']
         self._ollama_client = ollama_client if ollama_client is not None else _g['ollama_client']
         self.embedding_model: str | None = None
+        self.loader = Loader()
+        self.chunker = Chunker()
+        self.retriever = Retriever(self._db, self._ollama_client)
         logger.info("DocumentProcessor initialized")
+
+    # The public surface of the three parts, kept here so callers, ChunkerRegistry
+    # and the tests keep addressing one object (QP-5, ADR-7).
+
+    def load_document(self, file_path: str) -> tuple[bool, str]:
+        return self.loader.load_document(file_path)
+
+    def load_text_file(self, file_path: str) -> tuple[bool, str]:
+        return self.loader.load_text_file(file_path)
+
+    def load_pdf_file(self, file_path: str) -> tuple[bool, str]:
+        return self.loader.load_pdf_file(file_path)
+
+    def _load_pdf_with_pages(self, file_path: str) -> tuple[bool, list[dict[str, Any]] | str]:
+        return self.loader._load_pdf_with_pages(file_path)
+
+    def load_docx_file(self, file_path: str) -> tuple[bool, str]:
+        return self.loader.load_docx_file(file_path)
+
+    def load_pptx_file(self, file_path: str) -> tuple[bool, list[dict[str, Any]] | str]:
+        return self.loader.load_pptx_file(file_path)
+
+    def load_eml_file(self, file_path: str) -> tuple[bool, str]:
+        return self.loader.load_eml_file(file_path)
+
+    def load_excel_file(self, file_path: str) -> tuple[bool, str]:
+        return self.loader.load_excel_file(file_path)
+
+    def load_image_file(self, file_path: str) -> tuple[bool, str]:
+        return self.loader.load_image_file(file_path)
+
+    def chunk_text(self, text: str, chunk_size: int | None = None, overlap: int | None = None) -> list[str]:
+        return self.chunker.chunk_text(text, chunk_size, overlap)
+
+    def chunk_pages_with_metadata(
+        self, pages_data: list[dict[str, Any]], chunk_size: int | None = None, overlap: int | None = None
+    ) -> list[dict[str, Any]]:
+        return self.chunker.chunk_pages_with_metadata(pages_data, chunk_size, overlap)
+
+    def chunk_slides(self, slides: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return self.chunker.chunk_slides(slides)
+
+    def chunk_code_python(self, text: str) -> list[dict[str, Any]]:
+        return self.chunker.chunk_code_python(text)
+
+    def chunk_code_js_ts(self, text: str) -> list[dict[str, Any]]:
+        return self.chunker.chunk_code_js_ts(text)
+
+    def chunk_email(self, text: str) -> list[dict[str, Any]]:
+        return self.chunker.chunk_email(text)
+
+    def retrieve_context(
+        self,
+        query: str,
+        top_k: int | None = None,
+        min_similarity: float | None = None,
+        file_type_filter: str | None = None,
+        use_hybrid_search: bool = True,
+        expand_context: bool = True,
+        filename_filter: list[str] | None = None,
+        additional_workspace_ids: list[str] | None = None,
+        source_ids: list[str] | None = None,
+        *,
+        scope: Scope,
+        knowledge_scope: KnowledgeScope = "local",
+    ) -> list[RetrievalResult]:
+        return self.retriever.retrieve_context(
+            query, top_k, min_similarity, file_type_filter, use_hybrid_search, expand_context,
+            filename_filter, additional_workspace_ids, source_ids,
+            scope=scope, knowledge_scope=knowledge_scope,
+        )
+
+    def format_context_for_llm(self, results: list[RetrievalResult], max_length: int = 30000) -> str:
+        return self.retriever.format_context_for_llm(results, max_length)
 
     @timed('rag.generate_embeddings')
     @counted('rag.embedding_batches')

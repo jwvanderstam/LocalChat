@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 
 from src import config
-from src.rag.retrieval import RetrievalMixin
+from src.rag.retrieval import Retriever
 
 pytestmark = pytest.mark.unit
 
@@ -37,7 +37,7 @@ def _chunk(name: str, rerank: float | None, *, score: float = 0.6) -> dict:
 
 @pytest.fixture
 def retriever():
-    return RetrievalMixin()
+    return Retriever(db=None, ollama_client=None)
 
 
 @pytest.fixture(autouse=True)

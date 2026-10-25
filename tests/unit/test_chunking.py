@@ -2,7 +2,7 @@
 Tests for src/rag/chunking.py
 
 Covers:
-  - TextChunkerMixin.chunk_text: short text, long text, table markers
+  - Chunker.chunk_text: short text, long text, table markers
   - _chunk_text_standard / _split_text_recursive: overlap, separators
   - _split_large_table: oversized table row-bounded split
   - chunk_pages_with_metadata: metadata propagation
@@ -16,12 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.rag.chunking import TextChunkerMixin
-
-
-# A concrete, no-deps subclass — the mixin has no abstract methods
-class Chunker(TextChunkerMixin):
-    pass
+from src.rag.chunking import Chunker
 
 
 @pytest.fixture

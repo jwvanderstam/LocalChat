@@ -1795,8 +1795,10 @@ architecture near 7.5.
   with the stale-code sweep on 2026-10-24.)
 - ✅ Drop migration `0021`'s transition policy (by a new migration) and add `FORCE ROW LEVEL
   SECURITY` on the ten tables: every path names its scope by then (ADR-5's amendment, B).
-- Split `DocumentProcessor` into `Loader`, `Chunker` and `Retriever`, composed by an
-  `IngestPipeline`. That ends the second mixin stack.
+- ✅ (2026-10-25) Split `DocumentProcessor` into `Loader`, `Chunker` and `Retriever`. That
+  ends the second mixin stack. The maintainer chose composition over an `IngestPipeline`
+  rename, as with `Database`: `DocumentProcessor` holds the three parts and keeps their
+  public methods as one-line delegations, so its callers and most tests did not move.
 - ✅ Empty the ratchet allow-lists, so the contracts become plain failures. Database access in
   route modules 0, the forbidden contract's exceptions 0, import cycles 0, unscoped RLS
   methods 0.

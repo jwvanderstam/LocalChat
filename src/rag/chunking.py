@@ -31,9 +31,9 @@ def _is_cjk_dominant(text: str) -> bool:
 
 
 
-class TextChunkerMixin:
+class Chunker:
     """
-    Mixin providing text chunking methods for DocumentProcessor.
+    Splits loaded text, pages, slides, code and email into chunks.
 
     Supports recursive character splitting with table preservation
     and metadata tracking for enhanced citations.

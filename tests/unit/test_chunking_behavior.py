@@ -1,5 +1,5 @@
 """
-Tests for text chunking algorithms in TextChunkerMixin.
+Tests for text chunking algorithms in Chunker.
 
 Each test targets a specific algorithm — table splitting with header
 preservation, overlap creation, chunk filtering, and metadata propagation —
@@ -15,14 +15,7 @@ import pytest
 # Set a test sentinel so collection succeeds without a real database.
 os.environ.setdefault("PG_PASSWORD", "test-sentinel")
 
-from src.rag.chunking import TextChunkerMixin
-
-# ---------------------------------------------------------------------------
-# Minimal concrete class for testing the mixin
-# ---------------------------------------------------------------------------
-
-class Chunker(TextChunkerMixin):
-    pass
+from src.rag.chunking import Chunker
 
 
 @pytest.fixture

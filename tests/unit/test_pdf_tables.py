@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 from src.rag import DocumentProcessor
+from src.rag.loaders import Loader
 
 TABLE_ROWS = [
     ["Name", "Age", "City"],
@@ -69,7 +70,7 @@ class TestFormatTableRows:
     old tests were reaching for through three layers of mock."""
 
     def test_cells_are_joined_with_pipes_and_rows_with_newlines(self):
-        formatted = DocumentProcessor()._format_table_rows(TABLE_ROWS)
+        formatted = Loader()._format_table_rows(TABLE_ROWS)
 
         assert formatted == (
             "Name | Age | City\n"
@@ -79,7 +80,7 @@ class TestFormatTableRows:
 
     def test_an_empty_cell_becomes_an_empty_column_rather_than_vanishing(self):
         """Dropping a `None` would shift every later cell into the wrong column."""
-        formatted = DocumentProcessor()._format_table_rows([["Name", None, "City"]])
+        formatted = Loader()._format_table_rows([["Name", None, "City"]])
 
         assert formatted == "Name |  | City\n"
 
@@ -90,6 +91,6 @@ class TestFormatTableRows:
         survive into the chunk. Asserted as-is rather than corrected: changing
         the output would change what the chunker sees, which is a decision, not
         a test fix."""
-        formatted = DocumentProcessor()._format_table_rows([["a"], [], ["", None], ["b"]])
+        formatted = Loader()._format_table_rows([["a"], [], ["", None], ["b"]])
 
         assert formatted == "a\n | \nb\n"
