@@ -102,7 +102,8 @@ class TestDocumentOperations:
             doc_id = db_module.db.documents.insert(
                 filename="test.pdf",
                 content="Sample content",
-                metadata={'pages': 5}
+                metadata={'pages': 5},
+                scope=ALL_WORKSPACES,
             )
 
             assert doc_id == 1
@@ -135,7 +136,8 @@ class TestDocumentOperations:
                 mock_get_conn.return_value.__exit__.return_value = None
 
                 db_module.db.documents.insert(
-                    filename="test.pdf", content="Sample content", metadata={}
+                    filename="test.pdf", content="Sample content", metadata={},
+                    scope=ALL_WORKSPACES,
                 )
         finally:
             config.ENCRYPTION_KEY = original_key
@@ -227,7 +229,8 @@ class TestDocumentOperations:
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
             doc_id = db_module.db.documents.insert(
-                filename="test.pdf", content="content", conn=mock_conn
+                filename="test.pdf", content="content", conn=mock_conn,
+                scope=ALL_WORKSPACES,
             )
 
             assert doc_id == 7
@@ -249,7 +252,8 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__exit__.return_value = None
 
             db_module.db.documents.update(
-                3, content="new content", content_hash="newhash"
+                3, content="new content", content_hash="newhash",
+                scope=ALL_WORKSPACES,
             )
 
             args, params = mock_cursor.execute.call_args[0]
@@ -266,7 +270,7 @@ class TestDocumentOperations:
         mock_conn.cursor.return_value.__exit__.return_value = None
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            db_module.db.documents.update(3, content="new content", conn=mock_conn)
+            db_module.db.documents.update(3, content="new content", conn=mock_conn, scope=ALL_WORKSPACES)
 
             mock_conn.commit.assert_not_called()
             mock_get_conn.assert_not_called()
@@ -286,7 +290,7 @@ class TestDocumentOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.documents.retire_chunks(3)
+            db_module.db.documents.retire_chunks(3, scope=ALL_WORKSPACES)
 
             args, params = mock_cursor.execute.call_args[0]
             assert "UPDATE document_chunks" in args
@@ -304,7 +308,7 @@ class TestDocumentOperations:
         mock_conn.cursor.return_value.__exit__.return_value = None
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            db_module.db.documents.retire_chunks(3, conn=mock_conn)
+            db_module.db.documents.retire_chunks(3, conn=mock_conn, scope=ALL_WORKSPACES)
 
             mock_conn.commit.assert_not_called()
             mock_get_conn.assert_not_called()
@@ -318,7 +322,7 @@ class TestChunkOperations:
         from src import db as db_module
 
         # Empty list should not cause error
-        db_module.db.documents.insert_chunks([])
+        db_module.db.documents.insert_chunks([], scope=ALL_WORKSPACES)
         # No assertion needed - just verify no exception
 
     def test_insert_chunks_batch_processes_multiple(self):
@@ -341,7 +345,7 @@ class TestChunkOperations:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            db_module.db.documents.insert_chunks(chunks_data)
+            db_module.db.documents.insert_chunks(chunks_data, scope=ALL_WORKSPACES)
 
             # Verify cursor was used
             assert mock_cursor.execute.called
@@ -360,7 +364,7 @@ class TestChunkOperations:
         mock_conn.cursor.return_value.__exit__.return_value = None
 
         with patch.object(db_module.db, 'get_connection') as mock_get_conn:
-            chunk_ids = db_module.db.documents.insert_chunks(chunks_data, conn=mock_conn)
+            chunk_ids = db_module.db.documents.insert_chunks(chunks_data, conn=mock_conn, scope=ALL_WORKSPACES)
 
             assert chunk_ids == [11]
             mock_conn.commit.assert_not_called()

@@ -36,7 +36,7 @@ class _Db:
 
         self.cursor.execute.side_effect = _record
 
-    def get_connection(self):
+    def get_connection(self, *, scope=None):
         conn = MagicMock()
         conn.__enter__.return_value = conn
         conn.cursor.return_value.__enter__.return_value = self.cursor

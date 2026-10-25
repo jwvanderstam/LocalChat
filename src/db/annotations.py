@@ -29,13 +29,15 @@ class AnnotationsRepository:
         text: str,
         user_id: str | None = None,
         conversation_id: str | None = None,
+        *,
+        scope: Scope,
     ) -> str:
         """Insert an annotation and return its UUID string."""
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot add annotation: DB not connected")
         if not text or not text.strip():
             raise ValueError("Annotation text must not be empty")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """

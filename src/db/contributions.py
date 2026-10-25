@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import ALL_WORKSPACES
 from .connection import DatabaseConnection, DatabaseUnavailableError
 
 logger = get_logger(__name__)
@@ -43,7 +44,7 @@ class ContributionsRepository:
             raise DatabaseUnavailableError("Cannot contribute documents: Database is not connected")
 
         wanted = sorted(set(document_ids))
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT id FROM documents"
@@ -114,7 +115,7 @@ class ContributionsRepository:
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot archive contributions: Database is not connected")
 
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "UPDATE documents SET archived_at = NOW(), archived_by = %s"
@@ -131,7 +132,7 @@ class ContributionsRepository:
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot list contributions: Database is not connected")
 
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT d.id, d.filename, d.source_project_id, w.name,

@@ -7,7 +7,7 @@ from psycopg.types.json import Jsonb
 
 from ..utils.logging_config import get_logger
 from ..utils.sanitization import escape_sql_like
-from ..utils.scope import Scope, scope_predicate
+from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
 from ..utils.text import content_terms
 from .connection import DatabaseConnection, DatabaseUnavailableError
 
@@ -54,6 +54,8 @@ class DocumentsRepository:
         language: str | None = None,
         source_id: str | None = None,
         conn: psycopg.Connection | None = None,
+        *,
+        scope: Scope,
     ) -> int:
         """Insert a new document row.
 
@@ -94,7 +96,7 @@ class DocumentsRepository:
 
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot insert document: Database is not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 doc_id = _insert(cursor)
             conn.commit()
@@ -111,6 +113,8 @@ class DocumentsRepository:
         chunker_version: str | None = None,
         language: str | None = None,
         conn: psycopg.Connection | None = None,
+        *,
+        scope: Scope,
     ) -> None:
         """Update an existing document's content in place — used when re-ingesting
         a changed file under the same filename. The document id is preserved so
@@ -136,7 +140,7 @@ class DocumentsRepository:
 
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot update document: Database is not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 _update(cursor)
             conn.commit()
@@ -146,6 +150,8 @@ class DocumentsRepository:
         self,
         doc_id: int,
         conn: psycopg.Connection | None = None,
+        *,
+        scope: Scope,
     ) -> None:
         """Retire all live chunks of a document ahead of inserting its replacement
         set — used when re-ingesting changed content under the same document id.
@@ -167,7 +173,7 @@ class DocumentsRepository:
 
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot retire chunks: Database is not connected")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 _retire(cursor)
             conn.commit()
@@ -178,7 +184,7 @@ class DocumentsRepository:
         if not filenames or not self._db.is_connected:
             return False
         try:
-            with self._db.get_connection() as conn:
+            with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "SELECT 1 FROM documents WHERE filename = ANY(%s)"
@@ -190,22 +196,6 @@ class DocumentsRepository:
             logger.warning(f"any_local_only_sources query failed: {e}")
             return True  # Conservative: treat as local-only on error
 
-    def chunks_with_ids(self, doc_id: int) -> list[dict[str, Any]]:
-        """
-        Return chunk_text and id for all chunks of a document.
-
-        Used by the GraphRAG entity extractor after ingest.
-        """
-        if not self._db.is_connected:
-            return []
-        with self._db.get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id, chunk_text FROM document_chunks WHERE document_id = %s",
-                    (doc_id,),
-                )
-                rows = cursor.fetchall()
-        return [{"chunk_id": r[0], "chunk_text": r[1]} for r in rows]
 
     def retire(
         self, doc_id: int, deleted_by: str | None = None, *, scope: Scope
@@ -249,7 +239,7 @@ class DocumentsRepository:
             raise DatabaseUnavailableError("Cannot purge document: Database is not connected")
 
         logger.debug("Purge requested for document ID: %s", doc_id)
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 # Citation precondition: any chunk that was retrieved blocks the purge.
                 cursor.execute(
@@ -279,6 +269,8 @@ class DocumentsRepository:
         self,
         chunks_data: list[tuple[int, str, int, list[float] | np.ndarray] | dict[str, Any]],
         conn: psycopg.Connection | None = None,
+        *,
+        scope: Scope,
     ) -> list[int]:
         """Accepts ``(doc_id, chunk_text, chunk_index, embedding)`` tuples or equivalent dicts with optional metadata.
 
@@ -333,7 +325,7 @@ class DocumentsRepository:
             with conn.cursor() as cursor:
                 chunk_ids = _insert_all(conn, cursor)
         else:
-            with self._db.get_connection() as owned_conn:
+            with self._db.get_connection(scope=scope) as owned_conn:
                 with owned_conn.cursor() as cursor:
                     chunk_ids = _insert_all(owned_conn, cursor)
                 owned_conn.commit()
@@ -636,7 +628,7 @@ class DocumentsRepository:
             raise DatabaseUnavailableError("Cannot check document existence: Database is not connected")
 
         logger.debug(f"Checking if document exists: {filename} (workspace={workspace_id})")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=workspace_id or ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT d.id, d.created_at, COUNT(dc.id) AS chunk_count, d.content_hash
@@ -665,7 +657,7 @@ class DocumentsRepository:
             raise DatabaseUnavailableError("Cannot get chunk statistics: Database is not connected")
 
         logger.debug("Getting chunk statistics")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT COUNT(*) AS total,
@@ -785,7 +777,7 @@ class DocumentsRepository:
             raise DatabaseUnavailableError("Cannot purge documents: Database is not connected")
 
         logger.warning("Purging ALL retired documents and their chunks")
-        with self._db.get_connection() as conn:
+        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -848,7 +840,7 @@ class DocumentsRepository:
         if not self._db.is_connected:
             return
         try:
-            with self._db.get_connection() as conn:
+            with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         "UPDATE documents SET last_ingested_at = NOW() WHERE id = %s",

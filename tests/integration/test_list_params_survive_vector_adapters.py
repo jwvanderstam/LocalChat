@@ -109,10 +109,11 @@ class TestListOfStringsIsAcceptedAsAParameter:
         """`= ANY(%s)` with a list[str]. Asserts the value, not merely no exception."""
         result = _run(database, """
 from src.db import Database
+from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
 # entity_relations.doc_id/chunk_id are foreign keys, so a relation needs real rows.
-doc = db.documents.insert('entities.md', 'Ollama and Postgres', {}, 'hash-ent')
-chunk_ids = db.documents.insert_chunks([(doc, 'Ollama and Postgres', 0, [0.02] * 768)])
+doc = db.documents.insert('entities.md', 'Ollama and Postgres', {}, 'hash-ent', scope=ALL_WORKSPACES)
+chunk_ids = db.documents.insert_chunks([(doc, 'Ollama and Postgres', 0, [0.02] * 768)], scope=ALL_WORKSPACES)
 a = db.entities.upsert('Ollama', 'PRODUCT')
 b = db.entities.upsert('Postgres', 'ORG')
 db.entities.insert_relation(a, b, doc, chunk_ids[0])
@@ -150,11 +151,11 @@ class TestTheDocumentFilterNarrowsRetrieval:
 from src.db import Database
 from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
-keep = db.documents.insert('keep.md', 'alpha beta', {}, 'hash-keep')
-drop = db.documents.insert('drop.md', 'alpha beta', {}, 'hash-drop')
+keep = db.documents.insert('keep.md', 'alpha beta', {}, 'hash-keep', scope=ALL_WORKSPACES)
+drop = db.documents.insert('drop.md', 'alpha beta', {}, 'hash-drop', scope=ALL_WORKSPACES)
 emb = [0.01] * 768
 db.documents.insert_chunks([(keep, 'alpha beta gamma', 0, emb),
-                        (drop, 'alpha beta gamma', 0, emb)])
+                        (drop, 'alpha beta gamma', 0, emb)], scope=ALL_WORKSPACES)
 
 # search_similar_chunks returns tuples:
 # (chunk_text, filename, chunk_index, similarity, metadata, chunk_id)
@@ -184,9 +185,9 @@ class TestEmbeddingsStillRoundTrip:
 from src.db import Database
 from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
-doc = db.documents.insert('vec.md', 'body', {}, 'hash-vec')
+doc = db.documents.insert('vec.md', 'body', {}, 'hash-vec', scope=ALL_WORKSPACES)
 emb = [0.125] * 768
-db.documents.insert_chunks([(doc, 'body', 0, emb)])
+db.documents.insert_chunks([(doc, 'body', 0, emb)], scope=ALL_WORKSPACES)
 hits = db.documents.search_similar(emb, top_k=1, min_similarity=-1.0, scope=ALL_WORKSPACES)
 assert hits, 'vector search returned nothing'
 assert hits[0][1] == 'vec.md', hits[0][1]       # filename

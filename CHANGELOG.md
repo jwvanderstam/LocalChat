@@ -60,6 +60,11 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Added
 
+- **Every database path names its scope** (QP-5 step 2). The 47 repository methods that
+  touched a row-level-security table on an unscoped connection now open it with the
+  workspace they read or write, or with the explicit all-workspaces flag. Workspace writes
+  (ingest, new conversations, memories, connectors, API keys) now run under the workspace
+  policies. A ratchet keeps the count at zero.
 - **An explicit all-workspaces flag for the database** (ROADMAP QP-5 step 1, ADR-5).
   `get_connection(scope=ALL_WORKSPACES)` now sets `app.all_workspaces` for its transaction,
   and migration `0022` adds a policy on the ten row-level-security tables that admits

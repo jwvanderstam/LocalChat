@@ -39,6 +39,12 @@ _SCANNED = (_ROOT / "src", _ROOT / "tests")
 # shared — `workspaces.retire` is not scoped — so the bare name would match the wrong calls.
 SCOPED_METHODS = {
     "documents.retire",
+    # QP-5: the ingest writes and the annotation insert open their connection with a scope.
+    "documents.insert",
+    "documents.update",
+    "documents.retire_chunks",
+    "documents.insert_chunks",
+    "annotations.add",
     "documents.chunk_by_id",
     "documents.adjacent_chunks",
     "documents.search_text",

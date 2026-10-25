@@ -43,6 +43,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.db, pytest.mark.slow]
 
 httpx = pytest.importorskip("httpx", reason="the matrix is driven over HTTP")
 
+from src.utils.scope import ALL_WORKSPACES  # noqa: E402
 from tests.e2e.conftest import (  # noqa: E402,F401
     ADMIN_PASSWORD,
     ADMIN_USERNAME,
@@ -338,11 +339,13 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
         filename="p22b-workspace-b.txt",
         content="Workspace B private content about quarterly margin.",
         workspace_id=workspace_b,
+        scope=workspace_b,
     )
     objects["doc_id"] = doc_id
 
     chunk_ids = db.documents.insert_chunks(
-        [(doc_id, "Workspace B private chunk about quarterly margin.", 0, [0.0] * _VECTOR_DIM)]
+        [(doc_id, "Workspace B private chunk about quarterly margin.", 0, [0.0] * _VECTOR_DIM)],
+        scope=ALL_WORKSPACES,
     )
     if chunk_ids:
         objects["chunk_id"] = chunk_ids[0]
@@ -359,7 +362,8 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
 
     if "chunk_id" in objects:
         objects["annotation_id"] = db.annotations.add(
-            chunk_id=objects["chunk_id"], text="Workspace B private annotation"
+            chunk_id=objects["chunk_id"], text="Workspace B private annotation",
+            scope=ALL_WORKSPACES,
         )
 
     objects["connector_id"] = db.connectors.create(

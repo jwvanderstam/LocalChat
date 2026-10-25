@@ -1779,9 +1779,12 @@ architecture near 7.5.
 > 1. ✅ The all-workspaces flag (2026-10-25, migration `0022`): `get_connection(scope=ALL_WORKSPACES)`
 >    sets a transaction-local `app.all_workspaces`, which a new policy admits for any role but
 >    `localchat_scoped`. Proven against Postgres with a role neither 0017 nor 0021 admits.
-> 2. Each of the 47 methods opens its connection with the workspace it reads or writes, or
+> 2. ✅ (2026-10-25) Each of the 47 methods opens its connection with the workspace it reads or writes, or
 >    with the flag — the API-key lookup, membership checks, admin totals, purges, the global
 >    tier and the connector worker are the flagged ones. A ratchet counts what is left.
+>    The ratchet (`UNSCOPED_RLS_METHODS`) went 47 → 0; the ingest transaction, new
+>    conversations, memories, connectors and API keys open with their workspace, and run
+>    as `localchat_scoped` under the policies; the rest carry the flag.
 > 3. Then the migration below drops `0021` and adds `FORCE`, with an integration test that an
 >    unscoped, unflagged transaction sees no rows.
 

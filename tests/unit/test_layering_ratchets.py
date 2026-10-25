@@ -10,6 +10,7 @@ The contracts themselves run as `lint-imports` in CI (pyproject.toml,
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 import tomllib
@@ -39,6 +40,17 @@ _DB_ACCESS = re.compile(r'app\.state\.db\b|app_state\.db\b|getattr\(app_state, "
 
 #: Direct imports from a route into src.db that the forbidden contract tolerates today.
 IGNORED_ROUTE_TO_DB_IMPORTS = 0
+
+#: Repository methods that touch a row-level-security table on a connection opened with
+#: neither a workspace nor ALL_WORKSPACES, and so depend on migration 0021's transition
+#: policy (QP-5, ADR-5's option B). 47 on 2026-10-25, 0 the same day: 0021 can be dropped.
+UNSCOPED_RLS_METHODS = 0
+
+#: The ten tables migration 0017 put under row-level security.
+_RLS_TABLES = re.compile(
+    r"\b(documents|conversations|memories|answer_feedback|connectors|workspace_api_keys"
+    r"|workspace_members|document_chunks|conversation_messages|annotations)\b"
+)
 
 #: Groups of modules that import each other, found with grimp's graph. Architecture exit
 #: criterion 5 is none at all, and since QP-4 there are none: config validates its
@@ -109,3 +121,47 @@ def _cycles() -> set[frozenset[str]]:
 
 def test_no_import_cycle_beyond_the_recorded_ones():
     assert _cycles() == KNOWN_CYCLES
+
+
+def _unscoped_rls_methods() -> list[str]:
+    """``file:Class.method`` for each repository method that opens an unscoped connection.
+
+    A method counts when its SQL names an RLS table and it either calls ``get_connection``
+    without ``scope=``, or takes the caller's ``conn`` with no ``scope`` of its own (the
+    caller then decides, which this cannot see). The boot's schema creation is excluded: it
+    runs as the owner before any request.
+    """
+    found = []
+    for path in sorted((_ROOT / "src" / "db").glob("*.py")):
+        if path.name == "connection.py":
+            continue
+        src = path.read_text(encoding="utf-8")
+        for cls in (n for n in ast.parse(src).body if isinstance(n, ast.ClassDef)):
+            for fn in (n for n in cls.body if isinstance(n, ast.FunctionDef)):
+                sql = " ".join(
+                    n.value for n in ast.walk(fn)
+                    if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                )
+                if not _RLS_TABLES.search(sql):
+                    continue
+                unscoped_call = any(
+                    isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+                    and c.func.attr == "get_connection"
+                    and not any(k.arg == "scope" for k in c.keywords)
+                    for c in ast.walk(fn)
+                )
+                params = [a.arg for a in fn.args.args + fn.args.kwonlyargs]
+                borrows = "conn" in params and "scope" not in params
+                if unscoped_call or borrows:
+                    found.append(f"{path.name}:{cls.name}.{fn.name}")
+    return found
+
+
+def test_no_more_repository_methods_rely_on_the_transition_policy_than_recorded():
+    found = _unscoped_rls_methods()
+    assert len(found) == UNSCOPED_RLS_METHODS, (
+        f"{len(found)} repository methods touch an RLS table without a scope, ratchet says "
+        f"{UNSCOPED_RLS_METHODS}. Above it: open the connection with the workspace, or "
+        "with ALL_WORKSPACES when the path is installation-wide. Below it: lower "
+        "UNSCOPED_RLS_METHODS in this PR.\n  " + "\n  ".join(found)
+    )
