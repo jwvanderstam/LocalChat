@@ -1869,11 +1869,18 @@ start **before** QP-4's first PR.
 
 #### QP-9 — Independent review ⬜ (Sprint 28, ~2 days of maintainer time)
 
-- One external review of the security core and the new service layer, by someone other
-  than the maintainer or an agent working for them. Every finding is triaged in `SECURITY.md`.
-- `CODEOWNERS`, with a required review on `security_fastapi.py`, `services/`, migrations and
-  the `Dockerfile`. The reviewer may be a second Claude session with a fixed checklist;
-  `CONTRIBUTING.md` says so plainly.
+> **Re-scoped 2026-10-25 by the maintainer: no human reviewer.** The reviewer is a separate
+> agent session, given the diff and a fixed checklist and not the author's conversation.
+> There is no `CODEOWNERS` and no required review: the review is posted under the
+> maintainer's account, and GitHub never counts an author's approval, so a required review
+> would block every PR to these paths and nothing could satisfy it. The maintainer reads the
+> review before merging. Maturity criterion (6) is met by such a review, not an external one.
+
+- ✅ (2026-10-25) `CONTRIBUTING.md` names the security-critical paths (`security_fastapi.py`,
+  `services/`, `db/connection.py`, migrations, the `Dockerfile`), the checklist, and what
+  the review is not: an approval, or a second maintainer.
+- ⬜ One full review of the security core and the service layer by a separate agent session,
+  against that checklist. Every Medium-or-higher finding is triaged in `SECURITY.md`.
 
 **Gate:** all six maturity exit criteria hold. Tag v3.4.0 and re-run the audit.
 

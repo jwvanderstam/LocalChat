@@ -73,7 +73,7 @@ Binding rules rather than documentation, but they belong in the map:
 
 - [Project instructions](../CLAUDE.md) — the entry point for anyone, human or agent
 - [Architecture rules](../.claude/rules/architecture.md) · [Python](../.claude/rules/python.md) · [Testing](../.claude/rules/testing.md) · [Plugin contract](../.claude/rules/plugins.md)
-- [Security policy](../SECURITY.md) · [Plugin authoring](../plugins/README.md)
+- [Security policy](../SECURITY.md) · [Contributing](../CONTRIBUTING.md) — the agent review of security-critical changes · [Plugin authoring](../plugins/README.md)
 
 ---
 

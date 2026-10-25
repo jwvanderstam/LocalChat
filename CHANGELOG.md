@@ -10,6 +10,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Changed
 
+- **Security-critical changes get an agent review before they merge** (QP-9).
+  `CONTRIBUTING.md` names the paths (`security_fastapi.py`, `services/`,
+  `db/connection.py`, migrations, the `Dockerfile`) and the checklist a separate agent
+  session reviews a change against. The review is a PR comment: no human reviewer, no
+  `CODEOWNERS`, nothing enforced, by the maintainer's decision.
+
 - **Users and sign-in go through a service** (ROADMAP QP-4, first of seven aggregates).
   `auth_routes` no longer touches the database: it asks for a `UsersService`, which owns
   the last-administrator and last-owner rules and the password checks. The SQL moved
