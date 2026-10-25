@@ -66,11 +66,13 @@ MODULES: dict[str, list[str]] = {
     # Route tests are listed only where the route builds the real service from a mocked
     # database; a test that overrides the service's provider cannot kill anything in it.
     "src/services/passwords.py": [
+        "tests/unit/test_passwords_service.py",
         "tests/unit/test_security_fastapi.py",
         "tests/unit/test_one_authentication_resolver.py",
         "tests/unit/test_change_own_password.py",
     ],
     "src/services/users.py": [
+        "tests/unit/test_users_service.py",
         "tests/unit/test_change_own_password.py",
         "tests/unit/test_auth_routes_unit.py",
         "tests/unit/test_last_admin_precondition.py",
