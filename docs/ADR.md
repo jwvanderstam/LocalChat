@@ -66,8 +66,9 @@ the threadpool is not a stopgap but the correct answer. A deferral invites the q
 every time async purity itches; a rejection closes it.
 
 The cost of being wrong is bounded, and that is why this is safe to decide now: HK-7 sealed
-the data-access boundary, so all DB access already flows through `src/db/` mixins. If this
-ADR is ever superseded, the conversion is one layer, not a call-graph-wide rewrite.
+the data-access boundary, so all DB access already flows through `src/db/` — since QP-4, one
+repository class per aggregate, reached only through the services (ADR-7). If this ADR is
+ever superseded, the conversion is one layer, not a call-graph-wide rewrite.
 
 **What this rules out:** async database drivers, and the async contagion that would follow
 through every caller of `src/db/`.

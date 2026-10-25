@@ -1794,8 +1794,9 @@ architecture near 7.5.
 - Split `DocumentProcessor` into `Loader`, `Chunker` and `Retriever`, composed by an
   `IngestPipeline`. That ends the second mixin stack.
 - Empty the ratchet allow-lists, so the contracts become plain failures.
-- radon: no function above grade C.
-- ADR-2's reasoning still holds, but its text says DB access "flows through `src/db/`
+- ✅ radon: no function above grade C. Already true when measured (2026-10-25): 1,156
+  functions in `src/`, 943 A, 185 B, 28 C, none worse.
+- ✅ ADR-2's reasoning still holds, but its text says DB access "flows through `src/db/`
   mixins". It is reworded to name the repositories. An ADR whose evidence names deleted
   code reads as stale even when the decision is not.
 
