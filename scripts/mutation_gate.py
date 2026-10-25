@@ -62,6 +62,39 @@ MODULES: dict[str, list[str]] = {
         "tests/unit/test_workspace_scope_pinning.py",
         "tests/unit/test_workspace_api_keys.py",
     ],
+    # QP-7: the service layer QP-4 built, where the rules that depend on the caller live.
+    # Route tests are listed only where the route builds the real service from a mocked
+    # database; a test that overrides the service's provider cannot kill anything in it.
+    "src/services/passwords.py": [
+        "tests/unit/test_security_fastapi.py",
+        "tests/unit/test_one_authentication_resolver.py",
+        "tests/unit/test_change_own_password.py",
+    ],
+    "src/services/users.py": [
+        "tests/unit/test_change_own_password.py",
+        "tests/unit/test_auth_routes_unit.py",
+        "tests/unit/test_last_admin_precondition.py",
+        "tests/unit/test_users_me_identity.py",
+        "tests/unit/test_user_workspace_membership.py",
+    ],
+    "src/services/workspaces.py": [
+        "tests/unit/test_workspaces_service.py",
+        "tests/unit/test_workspace_creator_ownership.py",
+        "tests/unit/test_workspace_list_scoped.py",
+    ],
+    "src/services/connectors.py": [
+        "tests/unit/test_connectors_service.py",
+        "tests/unit/test_connector_routes_unit.py",
+    ],
+    "src/services/documents.py": ["tests/unit/test_documents_service.py"],
+    "src/services/conversations.py": ["tests/unit/test_conversations_service.py"],
+    "src/services/memories.py": ["tests/unit/test_memories_service.py"],
+    "src/services/annotations.py": ["tests/unit/test_feedback_annotations_contributions_services.py"],
+    "src/services/contributions.py": [
+        "tests/unit/test_feedback_annotations_contributions_services.py",
+        "tests/unit/test_gkb_contribution_routes.py",
+    ],
+    "src/services/feedback.py": ["tests/unit/test_feedback_annotations_contributions_services.py"],
 }
 
 #: Agreed in docs/history/PRODUCTION_PLAN.md. Deliberately above the measured baseline —
