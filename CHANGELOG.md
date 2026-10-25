@@ -107,6 +107,10 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   inserted and registered a connector with no workspace, then answered 500 when reading it
   back. It is now refused with a 400 before anything is written. Found while moving
   connectors to a service (QP-4).
+- **`scripts/bench_concurrency.py --max-canary-ms` now fails the run.** The flag was parsed and
+  never checked, so a run by hand with a canary budget could not fail on it. CI was not
+  affected: its gate is `tests/perf/test_concurrency_canary.py`, which applies the verdict
+  itself.
 
 ### Security
 
