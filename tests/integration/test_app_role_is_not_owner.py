@@ -6,9 +6,9 @@ drop the schema. This runs the real boot sequence (base schema, migrations, scop
 then the switch) against a database of its own, and asserts what the identity left
 serving requests can and cannot do.
 
-It also asserts what must *not* change yet (B2, ADR-5's amendment): unscoped paths still
-read and write every row, through migration 0021's transition policy, and a scoped
-transaction still sees only its own workspace.
+It also asserts option B, which QP-5 reached (ADR-5's amendment, migrations 0022 and 0023):
+a transaction that names no scope sees no rows at all, the explicit all-workspaces flag
+reaches every row, and a scoped transaction still sees only its own workspace.
 """
 
 from __future__ import annotations
@@ -76,7 +76,9 @@ out["drop_table_refused"] = refused("DROP TABLE documents")
 a = db.workspaces.create("s2-a", owner_id=None)
 b = db.workspaces.create("s2-b", owner_id=None)
 db.documents.insert("s2.md", "only in a", workspace_id=a, scope=a)
-out["unscoped_sees_it"] = db.documents.count(scope=ALL_WORKSPACES) >= 1
+out["flagged_sees_it"] = db.documents.count(scope=ALL_WORKSPACES) >= 1
+with db.get_connection() as conn:
+    out["no_scope_docs"] = conn.execute("SELECT count(*) FROM documents").fetchone()[0]
 with db.get_connection(scope=a) as conn:
     out["scope_a_docs"] = conn.execute("SELECT count(*) FROM documents").fetchone()[0]
 with db.get_connection(scope=b) as conn:
@@ -122,11 +124,15 @@ def test_ddl_is_refused(probe: dict[str, Any], statement: str) -> None:
     assert probe[statement] is True
 
 
-def test_unscoped_paths_still_reach_every_row_through_the_transition_policy(
-    probe: dict[str, Any],
-) -> None:
-    """B2: without 0021 the insert above would have been refused and nothing counted."""
-    assert probe["unscoped_sees_it"] is True
+def test_the_all_workspaces_flag_reaches_every_row(probe: dict[str, Any]) -> None:
+    """0022: an installation-wide path says so, and the policy admits it."""
+    assert probe["flagged_sees_it"] is True
+
+
+def test_a_transaction_naming_no_scope_sees_nothing(probe: dict[str, Any]) -> None:
+    """0023: with 0021's transition policy gone, forgetting the scope is refused by the
+    database rather than reading every workspace."""
+    assert probe["no_scope_docs"] == 0
 
 
 def test_a_scoped_transaction_still_sees_only_its_own_workspace(probe: dict[str, Any]) -> None:

@@ -344,6 +344,12 @@ owner, and installation-wide access becomes an explicit flag, reached in two ste
   too, and without `PG_APP_PASSWORD` every request runs as the owner, so a name-restricted
   policy would leave that mode seeing nothing. It refuses `localchat_scoped`, so a
   transaction scoped to one workspace can never also count as all of them.
+- **Option B reached, 2026-10-25 (QP-5 steps 2 and 3).** Every repository method names a
+  workspace or the flag, held at zero by a ratchet, and migration `0023` drops `0021`'s
+  policy and adds `FORCE`. A path that forgets its scope now reads nothing, in the database,
+  whoever it runs as short of a superuser. Proven by the real boot (`localchat_app` with no
+  scope sees no rows) and table by table. A migration that writes these tables as the owner
+  must set the flag first.
 - **Rejected: `BYPASSRLS`** for `localchat_app`. It is the transition policy made permanent,
   with no path to B.
 - **Rejected again: a second pool** for the installation-wide paths. The reasoning above

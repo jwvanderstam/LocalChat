@@ -1785,11 +1785,11 @@ architecture near 7.5.
 >    The ratchet (`UNSCOPED_RLS_METHODS`) went 47 → 0; the ingest transaction, new
 >    conversations, memories, connectors and API keys open with their workspace, and run
 >    as `localchat_scoped` under the policies; the rest carry the flag.
-> 3. Then the migration below drops `0021` and adds `FORCE`, with an integration test that an
+> 3. ✅ (2026-10-25, migration `0023`) Then the migration below drops `0021` and adds `FORCE`, with an integration test that an
 >    unscoped, unflagged transaction sees no rows.
 
 - Delete `Database` (`MixinHost` went with the stale-code sweep on 2026-10-24); `app.state` holds services, not a database.
-- Drop migration `0021`'s transition policy (by a new migration) and add `FORCE ROW LEVEL
+- ✅ Drop migration `0021`'s transition policy (by a new migration) and add `FORCE ROW LEVEL
   SECURITY` on the ten tables: every path names its scope by then (ADR-5's amendment, B).
 - Split `DocumentProcessor` into `Loader`, `Chunker` and `Retriever`, composed by an
   `IngestPipeline`. That ends the second mixin stack.

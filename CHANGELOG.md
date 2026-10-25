@@ -126,6 +126,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Security
 
+- **The database refuses a query that names no workspace** (QP-5 step 3, ADR-5's option B).
+  Migration `0023` drops `0021`'s transition policy, which let the application's own login
+  read and write every row on an unscoped path, and forces row-level security on the ten
+  workspace tables, so the owner is bound too. A path must name a workspace or the explicit
+  all-workspaces flag; one that forgets gets no rows, from the database, not from a code
+  review. A superuser still bypasses row-level security, as Postgres always allows.
+
 - **filelock 4.2.1 and pypdf 6.21.2**: three CVEs in each (filelock CVE-2026-112907,
   -112913, -112940; pypdf CVE-2026-115572, -115580, -115585). One change, because each
   Dependabot PR failed pip-audit on the other's CVEs. filelock is a transitive dependency of
