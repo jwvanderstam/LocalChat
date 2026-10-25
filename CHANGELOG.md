@@ -10,7 +10,6 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Changed
 
-
 - **Users and sign-in go through a service** (ROADMAP QP-4, first of seven aggregates).
   `auth_routes` no longer touches the database: it asks for a `UsersService`, which owns
   the last-administrator and last-owner rules and the password checks. The SQL moved
