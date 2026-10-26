@@ -84,3 +84,25 @@ class TestExtract:
             counts = await service.extract(10, SCOPE, "model", ollama_client=MagicMock())
         assert counts == {"conversations_processed": 0, "new_memories": 0}
         extractor.extract.assert_not_called()
+
+    async def test_each_message_shape_reaches_the_extractor_as_role_and_content(self):
+        service, db = _service()
+        db.memories.unextracted_conversations.return_value = [{"id": "c1", "workspace_id": SCOPE}]
+        db.conversations.messages.return_value = [
+            {},
+            ("user", "I like tea"),
+            ("assistant", "Noted", "2026-10-25"),
+            ("orphan",),
+            "xy",
+        ]
+        extractor = MagicMock()
+        extractor.extract = AsyncMock(return_value=0)
+        with patch("src.memory.extractor.MemoryExtractor", return_value=extractor):
+            await service.extract(10, SCOPE, "model", ollama_client=MagicMock())
+        kwargs = extractor.extract.call_args.kwargs
+        assert kwargs["messages"] == [
+            {"role": "", "content": ""},
+            {"role": "user", "content": "I like tea"},
+            {"role": "assistant", "content": "Noted"},
+        ]
+        assert kwargs["workspace_id"] == SCOPE

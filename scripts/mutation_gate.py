@@ -62,6 +62,41 @@ MODULES: dict[str, list[str]] = {
         "tests/unit/test_workspace_scope_pinning.py",
         "tests/unit/test_workspace_api_keys.py",
     ],
+    # QP-7: the service layer QP-4 built, where the rules that depend on the caller live.
+    # Route tests are listed only where the route builds the real service from a mocked
+    # database; a test that overrides the service's provider cannot kill anything in it.
+    "src/services/passwords.py": [
+        "tests/unit/test_passwords_service.py",
+        "tests/unit/test_security_fastapi.py",
+        "tests/unit/test_one_authentication_resolver.py",
+        "tests/unit/test_change_own_password.py",
+    ],
+    "src/services/users.py": [
+        "tests/unit/test_users_service.py",
+        "tests/unit/test_change_own_password.py",
+        "tests/unit/test_auth_routes_unit.py",
+        "tests/unit/test_last_admin_precondition.py",
+        "tests/unit/test_users_me_identity.py",
+        "tests/unit/test_user_workspace_membership.py",
+    ],
+    "src/services/workspaces.py": [
+        "tests/unit/test_workspaces_service.py",
+        "tests/unit/test_workspace_creator_ownership.py",
+        "tests/unit/test_workspace_list_scoped.py",
+    ],
+    "src/services/connectors.py": [
+        "tests/unit/test_connectors_service.py",
+        "tests/unit/test_connector_routes_unit.py",
+    ],
+    "src/services/documents.py": ["tests/unit/test_documents_service.py"],
+    "src/services/conversations.py": ["tests/unit/test_conversations_service.py"],
+    "src/services/memories.py": ["tests/unit/test_memories_service.py"],
+    "src/services/annotations.py": ["tests/unit/test_feedback_annotations_contributions_services.py"],
+    "src/services/contributions.py": [
+        "tests/unit/test_feedback_annotations_contributions_services.py",
+        "tests/unit/test_gkb_contribution_routes.py",
+    ],
+    "src/services/feedback.py": ["tests/unit/test_feedback_annotations_contributions_services.py"],
 }
 
 #: Agreed in docs/history/PRODUCTION_PLAN.md. Deliberately above the measured baseline —
@@ -124,13 +159,24 @@ def survivor_details(limit: int = SURVIVOR_DETAIL_LIMIT) -> list[tuple[str, str]
     return details
 
 
+def runner_command(tests: list[str]) -> str:
+    """The command mutmut runs per mutant, with every failing exit reported as 1.
+
+    `mutmut<3` counts a mutant as killed only on exit code 1. A mutant that breaks
+    collection — a test module computing a hash at import time, say — makes pytest
+    exit 2, and was filed as a survivor: the score understated every module.
+    """
+    pytest = "python -m pytest -x -q --no-cov -p no:cacheprovider " + " ".join(tests)
+    return f"sh -c '{pytest} || exit 1'"
+
+
 def measure(module: str, tests: list[str], time_base: float) -> Result:
     """Mutate *module*, judged by *tests*. One module at a time — mutmut<3 keeps a
     single .mutmut-cache and a second run clears the first's results."""
     if os.path.exists(".mutmut-cache"):
         os.remove(".mutmut-cache")
 
-    runner = "python -m pytest -x -q --no-cov -p no:cacheprovider " + " ".join(tests)
+    runner = runner_command(tests)
     print(f"::group::mutmut {module}", flush=True)
     _run([
         "mutmut", "run",

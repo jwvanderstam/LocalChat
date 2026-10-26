@@ -78,6 +78,51 @@ class TestFeedback:
             FeedbackService(db).retrain()
         promote.assert_not_called()
 
+    def test_stats_list_twenty_stale_chunks(self):
+        db = MagicMock()
+        FeedbackService(db).stats(14)
+        db.feedback.stale_chunks.assert_called_once_with(limit=20)
+
+    @staticmethod
+    def _retrain(result, pairs=2, minimum=2, version="v2"):
+        db = MagicMock()
+        with (
+            patch("src.rag.feedback_pipeline.export_training_pairs", return_value=[{}] * pairs) as export,
+            patch("src.rag.feedback_pipeline.finetune_reranker", return_value=result) as finetune,
+            patch("src.rag.feedback_pipeline.persist_reranker_version", return_value=version) as persist,
+            patch("src.rag.feedback_pipeline.promote_model") as promote,
+            patch("src.services.feedback.config.FEEDBACK_FINETUNE_MIN_PAIRS", minimum),
+        ):
+            FeedbackService(db).retrain()
+        return db, export, finetune, persist, promote
+
+    def test_retrain_reads_thirty_days_and_fine_tunes_at_exactly_the_minimum(self):
+        db, export, finetune, _, _ = self._retrain({"skipped": True}, pairs=2, minimum=2)
+        export.assert_called_once_with(db, days=30)
+        finetune.assert_called_once_with([{}, {}])
+
+    def test_retrain_promotes_a_better_model(self):
+        db, _, _, persist, promote = self._retrain({"ndcg_before": 0.4, "ndcg_after": 0.5})
+        persist.assert_called_once_with(db, {"ndcg_before": 0.4, "ndcg_after": 0.5})
+        promote.assert_called_once_with(db, "v2")
+
+    def test_a_skipped_fine_tune_persists_nothing(self):
+        _, _, _, persist, promote = self._retrain({"skipped": True, "ndcg_before": 0.4, "ndcg_after": 0.5})
+        persist.assert_not_called()
+        promote.assert_not_called()
+
+    @pytest.mark.parametrize("result", [
+        {"ndcg_before": 0.5, "ndcg_after": 0.5},
+        {"ndcg_before": 0.5},
+    ])
+    def test_retrain_does_not_promote_a_model_that_is_not_better(self, result):
+        *_, promote = self._retrain(result)
+        promote.assert_not_called()
+
+    def test_a_score_against_no_baseline_is_promoted(self):
+        db, *_, promote = self._retrain({"ndcg_after": 0.5})
+        promote.assert_called_once_with(db, "v2")
+
 
 class TestAnnotations:
     def test_a_chunk_outside_the_scope_is_none_and_no_annotations_are_read(self):

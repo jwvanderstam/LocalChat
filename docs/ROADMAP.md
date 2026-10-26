@@ -1859,8 +1859,13 @@ start **before** QP-4's first PR.
     8. a revoked session is refused
 - **e2e and `retrieval-gate` become required** once each has 20 consecutive green runs; the
   date goes in the workflow comment. This closes EV-1's "not yet required".
-- Mutation testing (TQ-3) extends from 2 modules to the new services layer, with an 80% kill
-  floor, nightly.
+- ✅ (2026-10-25) Mutation testing (TQ-3) extends from 2 modules to the new services layer, with an 80% kill
+  floor, nightly. Eleven services joined; five started under the floor (passwords 57%,
+  users 74%, connectors 68%, memories 67%, feedback 44%) and all are above it now, the
+  lowest at 85.7%. Two survivors were real gaps: an inactive user with the right password
+  was not proven refused, and nothing proved the users service never returns a hash. The
+  work also found the gate filing a mutant that breaks test collection as a survivor;
+  fixed. A full run is about 80 minutes, so the job's limit went from 90 to 180.
 - A weekly answer-level eval on a small CPU-sized model against `answer_baseline.json`,
   reported but not blocking. **It needs P2-3's human calibration first**: an uncalibrated
   judge gives the trend line no meaning. That calibration is the maintainer's to do, so it is
