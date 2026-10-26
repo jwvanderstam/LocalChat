@@ -105,6 +105,11 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   request carries it as `knowledge_scope` (`local` by default). A citation drawn from
   another project's contribution is tagged "shared globally". A workspace API key asking
   for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
+- **The nightly mutation gate covers the service layer** (QP-7). Eleven services join
+  `security_fastapi` and `workspace`, each against the test files that build the real
+  service, all above the 80% floor. New tests close what the first run exposed, among
+  them that an inactive user is refused even with the right password and that no password
+  hash leaves the users service.
 
 ### Removed
 
@@ -123,6 +128,9 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Fixed
 
+- **The mutation gate counted a mutant that broke test collection as a survivor.**
+  `mutmut<3` kills only on exit code 1; a collection error exits 2. The runner now reports
+  any failure as 1, so no module's score is understated by them.
 - **A connector can no longer be created without a workspace.** A global admin passes the
   workspace guard without naming one, so `POST /api/connectors` with no `X-Workspace-ID`
   inserted and registered a connector with no workspace, then answered 500 when reading it

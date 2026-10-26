@@ -146,16 +146,29 @@ how many changes some test failed on ("killed").
 
 **What runs.** `.github/workflows/mutation.yml` runs `scripts/mutation_gate.py` every night
 at 03:00 UTC, and on demand (`workflow_dispatch`, which takes a threshold). It fails when a
-module's kill rate falls under **80%**. It is not in the required-checks ruleset: a scoped
-run takes tens of minutes, and the score is a trend to watch rather than a merge decision.
+module's kill rate falls under **80%**. It is not in the required-checks ruleset: a full
+run takes about 80 minutes (the job allows 180), and the score is a trend to watch rather
+than a merge decision.
 The job summary lists the survivors.
 
-**What it covers.** Two modules, the ones where the confirmed authorisation bugs lived:
+**What it covers.** The two modules where the confirmed authorisation bugs lived, and since
+QP-7 the service layer, where the rules that depend on the caller live. `chat.py`, `logs.py`
+and `admin_stats.py` are left out: they carry no authorisation rule.
 
-| Module | Last nightly (2026-10-23) |
+| Module | Run of 2026-10-25 |
 |---|---|
-| `src/security_fastapi.py` | 265 killed, 32 survived: 89.2% |
+| `src/security_fastapi.py` | 255 killed, 32 survived: 88.9% |
 | `src/utils/workspace.py` | 10 killed, 0 survived: 100% |
+| `src/services/passwords.py` | 12 killed, 2 survived: 85.7% |
+| `src/services/users.py` | 62 killed, 6 survived: 91.2% |
+| `src/services/workspaces.py` | 17 killed, 1 survived: 94.4% |
+| `src/services/connectors.py` | 86 killed, 5 survived: 94.5% |
+| `src/services/documents.py` | 23 killed, 1 survived: 95.8% |
+| `src/services/conversations.py` | 13 killed, 0 survived: 100% |
+| `src/services/memories.py` | 36 killed, 3 survived: 92.3% |
+| `src/services/annotations.py` | 6 killed, 0 survived: 100% |
+| `src/services/contributions.py` | 7 killed, 1 survived: 87.5% |
+| `src/services/feedback.py` | 23 killed, 2 survived: 92.0% |
 
 Each module runs against its own list of test files (`MODULES` in the script), not the
 whole suite. A file belongs there only if it drives the real module: a test that patches
@@ -180,6 +193,10 @@ It mutates the checkout in place and reverts after each mutant. Run it on a clea
 
 - `mutmut<3` is required: 3.x refuses module names starting with `src.`, which all of
   this repo's imports do.
+- `mutmut<3` kills a mutant only on exit code 1. A mutant that breaks collection (a test
+  module that hashes a password at import time) makes pytest exit 2, which it used to file
+  as a survivor; the runner now goes through `sh` and reports any failure as 1. So the
+  local run needs `sh` on the path, as Git Bash provides.
 - A busy machine files kills as "suspicious" (a timing artefact). The gate then refuses
   to score the run and exits 2, which means "the measurement is void", not 1, "the score
   is too low". It does the same when every mutant survives, which means the runner never
