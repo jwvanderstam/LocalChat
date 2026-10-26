@@ -10,6 +10,11 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ### Changed
 
+- **The layout-aware PDF extractor moves to `pymupdf` 2.0.** In 2.0 the `pymupdf4llm`
+  module ships inside `pymupdf`, and the `pymupdf4llm` package is an empty shim. Dependabot's
+  bump of the shim alone (#497) dropped `pymupdf` from the lock. The loader then fell back to
+  pdfplumber without an error, and every check stayed green. `requirements.in` now pins
+  `pymupdf` itself, and `docker-smoke` asserts that `pymupdf4llm.to_markdown` is in the image.
 - **`DocumentProcessor` is composed, not inherited** (QP-5). The three mixins it was built
   from are now plain classes, `Loader`, `Chunker` and `Retriever`. The processor holds one of
   each (`.loader`, `.chunker`, `.retriever`) and delegates their public methods, so its callers

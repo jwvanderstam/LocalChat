@@ -711,6 +711,11 @@ jobs:
           # P2-5: the app container has no GPU; a CUDA torch is gigabytes of dead weight.
           assert torch.version.cuda is None, f"CUDA torch in the image: {torch.__version__}"
           print("torch", torch.__version__, "(CPU)")
+          # The loader falls back to pdfplumber when this import fails, so a lock that
+          # loses the extractor (pymupdf4llm 2.0 alone is an empty shim) passes everything else.
+          import pymupdf, pymupdf4llm
+          assert callable(pymupdf4llm.to_markdown), "pymupdf4llm has no to_markdown"
+          print("pymupdf", pymupdf.__version__, "| pymupdf4llm.to_markdown present")
           '
 
       # .dockerignore excluding docs/ or .claude/ would leave the in-app docs
