@@ -18,7 +18,7 @@ click==8.5.0
     # via
     #   -c requirements.txt
     #   import-linter
-coverage[toml]==7.16.2
+coverage[toml]==7.17.0
     # via
     #   -r requirements-dev.in
     #   pytest-cov
@@ -74,7 +74,7 @@ pytest-asyncio==1.4.0
     # via -r requirements-dev.in
 pytest-cov==7.1.0
     # via -r requirements-dev.in
-pytest-mock==3.16.0
+pytest-mock==3.17.0
     # via -r requirements-dev.in
 pytest-playwright==0.10.0
     # via -r requirements-dev.in
