@@ -491,7 +491,10 @@ jobs:
           pip install -r requirements.txt
 
       # The client must match the server, or pg_dump refuses: "server version
-      # 16.x, pg_dump version 14.x is not supported".
+      # 16.x, pg_dump version 14.x is not supported". A newer client is no better:
+      # pg_dump 18 writes `SET transaction_timeout`, which a 16 server rejects on
+      # restore. The Ubuntu 26.04 runner ships client 18 and the wrapper on PATH
+      # picks the newest, so the 16 binaries are put first rather than trusted to win.
       - name: Install postgresql-client 16
         run: |
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
@@ -499,7 +502,8 @@ jobs:
           sudo sed -i 's|deb http|deb [signed-by=/usr/share/keyrings/pgdg.gpg] http|' /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-16
-          pg_dump --version
+          echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
+          /usr/lib/postgresql/16/bin/pg_dump --version
 
       # The application's own schema, not a hand-written stand-in: a restore
       # proof over a table this app never creates proves nothing about this app.
