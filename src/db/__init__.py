@@ -47,8 +47,8 @@ class Database(DatabaseConnection):
         ...     doc_id = db.documents.insert("file.pdf", "content")
         ...     results = db.documents.search_similar(embedding, top_k=5, scope=workspace_id)
 
-    QP-4 replaced every mixin with a repository; QP-5 removes this class, and
-    ``app.state`` then holds services rather than a database.
+    QP-4 replaced every mixin with a repository. The class stays as the pool holding
+    them (ADR-7, amended 2026-10-25); only ``_services.py`` reaches it from a route.
     """
 
     def __init__(self) -> None:

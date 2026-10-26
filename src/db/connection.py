@@ -879,8 +879,9 @@ class DatabaseConnection:
         workspace's rows even if the query forgot to. Both settings are transaction-local:
         they end at commit or rollback, so a pooled connection cannot carry one request's
         scope into the next. ``ALL_WORKSPACES`` stays on the pool's own identity and sets
-        ``app.all_workspaces``, which migration 0022's policy admits. ``None`` sets nothing:
-        it relies on 0021's transition policy, which QP-5 removes once no path passes it.
+        ``app.all_workspaces``, which migration 0022's policy admits. ``None`` sets nothing,
+        and since migration 0023 forces row-level security, it reads no rows from the ten
+        protected tables.
 
         Raises:
             DatabaseUnavailableError: If the connection pool is not initialised.
