@@ -80,12 +80,12 @@ Global `admin` short-circuits every workspace check, so an admin passes all `ws:
 | Level | Routes |
 |---|---|
 | **admin** | 34 |
-| public | 20 |
+| public | 21 |
 | ws:viewer | 19 |
 | ws:owner | 20 |
 | ws:editor | 11 |
 | authenticated | 11 |
-| **Total** | **115** |
+| **Total** | **116** |
 
 Before RBAC-2, **49 of these 102 had no check at all** — including `POST /api/models/pull`,
 `DELETE /api/models/delete` and `POST /api/plugins/reload`, none of which did an internal
@@ -93,7 +93,7 @@ check either.
 
 ## The public allowlist
 
-These 20 are unauthenticated **by decision**, each for a stated reason:
+These 21 are unauthenticated **by decision**, each for a stated reason:
 
 | Routes | Why public |
 |---|---|
@@ -105,6 +105,7 @@ These 20 are unauthenticated **by decision**, each for a stated reason:
 | `connector`: `/connectors/{id}/webhook` | External systems POST here. Authenticity is the webhook's own concern, not the session's. |
 | `auth`: `/auth/login` | The route that establishes a session cannot require one. Rate-limited (`RATELIMIT_LOGIN`, 10/min) and returns one message for both unknown-user and wrong-password, so it is not a username oracle. |
 | `web`: `/login` | The login page must render without a session, or the 401 redirect loops. |
+| `web`: `/.well-known/security.txt` | RFC 9116: tells someone who found a vulnerability where to report it. They have no account. |
 | `auth`: `/logout`, `/users/me/password` | Self-service; both resolve and verify the caller internally. |
 
 ## Full table
@@ -208,6 +209,7 @@ These 20 are unauthenticated **by decision**, each for a stated reason:
 | `web` | GET | `/settings` | public |
 | `web` | GET | `/login` | public |
 | `web` | GET | `/docs` | public |
+| `web` | GET | `/.well-known/security.txt` | public |
 | `workspace` | GET | `/workspaces` | authenticated |
 | `workspace` | POST | `/workspaces` | authenticated |
 | `workspace` | GET | `/workspaces/active` | authenticated |

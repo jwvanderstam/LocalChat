@@ -2,7 +2,28 @@
 
 The coding rules are in [CLAUDE.md](CLAUDE.md) and [`.claude/rules/`](.claude/rules/), and
 the quality gates every commit must pass are listed there. This file covers what those do
-not: who reviews a change before it merges.
+not: when a release is cut, and who reviews a change before it merges.
+
+## Releases
+
+Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html), counted from
+what an operator notices:
+
+- **Major**: an upgrade needs the operator to act beyond pulling the image and restarting,
+  such as a removed setting, a migration that is not additive, or an API that changes shape.
+- **Minor**: new behaviour that an upgrade picks up without anyone acting.
+- **Patch**: fixes only.
+
+**A security fix is released within 7 days.** The clock starts when the fix merges to
+`main`: a fix for a reported vulnerability, a Medium-or-higher finding in
+[SECURITY.md](SECURITY.md), or a Dependabot security update for a dependency the image
+installs. Within 7 days it ships as a patch release on the latest minor. Other fixes wait
+for the next release.
+
+`CHANGELOG.md` is written by hand, in the PR that makes the change, under `[Unreleased]`.
+It says why, not only what, and that is the part commit titles cannot carry. A release
+renames `[Unreleased]` to the version and date. A release is cut by a person; nothing
+releases on its own.
 
 ## Review of security-critical changes
 

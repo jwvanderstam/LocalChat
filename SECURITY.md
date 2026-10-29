@@ -4,9 +4,14 @@
 
 If you discover a security vulnerability in LocalChat, please report it privately rather than opening a public issue.
 
-- **Contact**: jw.vander.stam@gmail.com
+- **Preferred**: GitHub's private reporting, at
+  [Security → Report a vulnerability](https://github.com/jwvanderstam/LocalChat/security/advisories/new).
+- **Or by email**: jw.vander.stam@gmail.com
 - Include a description of the issue, steps to reproduce, and the affected commit/version.
-- LocalChat is developed on a rolling `main` branch; only the latest commit on `main` is supported — there are no maintained release branches.
+- Every running instance names these channels at `/.well-known/security.txt` (RFC 9116).
+- Only the latest release and `main` are supported; there are no maintained release
+  branches. A fix for a security advisory ships as a patch release within 7 days of the
+  fix merging (see [CONTRIBUTING.md](CONTRIBUTING.md#releases)).
 
 ## Known & Accepted Risks
 
