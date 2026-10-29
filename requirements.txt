@@ -187,14 +187,14 @@ narwhals==2.25.0
     # via scikit-learn
 networkx==3.6.1
     # via
-    #   pymupdf-layout
+    #   pymupdf
     #   torch
 numpy==2.5.4
     # via
     #   -r requirements.in
     #   blis
     #   onnxruntime
-    #   pymupdf-layout
+    #   pymupdf
     #   scikit-learn
     #   scipy
     #   sentence-transformers
@@ -204,7 +204,7 @@ numpy==2.5.4
 onnxruntime==1.31.0
     # via
     #   -r requirements.in
-    #   pymupdf-layout
+    #   pymupdf
 openai==2.54.0
     # via litellm
 openpyxl==3.1.5
@@ -246,7 +246,7 @@ protobuf==7.36.0
 psutil==7.2.2
     # via
     #   -r requirements.in
-    #   pymupdf4llm
+    #   pymupdf
 psycopg[binary]==3.3.6
     # via -r requirements.in
 psycopg-binary==3.3.6
@@ -273,14 +273,12 @@ pygments==2.21.0
     # via rich
 pyjwt==2.15.1
     # via -r requirements.in
-pymupdf==1.28.2
-    # via
-    #   pymupdf-layout
-    #   pymupdf4llm
-pymupdf-layout==1.28.2
-    # via pymupdf4llm
-pymupdf4llm==1.28.2
+pymupdf==2.0
     # via -r requirements.in
+pymupdf-layout==2.0
+    # via pymupdf
+pymupdf4llm==2.0
+    # via pymupdf
 pypdf==6.21.2
     # via -r requirements.in
 pypdfium2==5.13.0
@@ -300,7 +298,7 @@ python-pptx==1.0.2
 pyyaml==6.0.3
     # via
     #   huggingface-hub
-    #   pymupdf-layout
+    #   pymupdf
     #   transformers
     #   uvicorn
 redis==8.1.0
@@ -366,7 +364,7 @@ starlette==1.6.0
 sympy==1.14.0
     # via torch
 tabulate==0.10.0
-    # via pymupdf4llm
+    # via pymupdf
 thinc==8.3.13
     # via spacy
 threadpoolctl==3.6.0
