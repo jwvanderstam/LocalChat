@@ -259,8 +259,10 @@ before assuming a regression — and do not relax a probe to clear a run, the sa
 `e2e`, `retrieval-gate` and `core-without-plugins` joined on 2026-10-30 (QP-7), after more
 than 20 consecutive green runs each on `main`. `e2e` was held out until then because a
 browser flake blocks every merge; read a red run before rerunning it. `retrieval-gate`
-compares exactly against `tests/eval/baseline.json`, so a PR that changes retrieval
-updates the baseline in the same PR.
+compares exactly against `tests/eval/baseline.json`, and its corpus is `docs/`, so a PR
+that changes retrieval or edits `docs/` may have to update the baseline in the same PR. Take
+the new values from the gate's own CI output: a local run on another platform or Python
+version can rank one question differently (2026-10-30: 0.70 locally, 0.75 in CI).
 
 Verify the set by reading it back through the API, not from the settings UI — see
 LESSONS_LEARNED Ch. 11 on a ruleset that rendered as correct in the form that
