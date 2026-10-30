@@ -426,6 +426,7 @@ def get_rag_context_multi_hop(
 def persist_user_message(
     app_state: Any, conversation_id: str | None, message: str,
     plan: Any = None, agent_result: Any = None, workspace_id: str | None = None,
+    *, scope: Scope,
 ) -> tuple[str | None, int | None]:
     if not app_state.startup_status.get("database", False):
         return conversation_id, None
@@ -445,18 +446,26 @@ def persist_user_message(
                 title, "user", message, workspace_id=workspace_id, plan_json=plan_json
             )
         else:
-            message_id = app_state.db.conversations.save_message(conversation_id, "user", message, plan_json=plan_json)
+            message_id = app_state.db.conversations.save_message(
+                conversation_id, "user", message, plan_json=plan_json, scope=scope
+            )
+            if message_id is None:
+                # The route refuses a conversation outside the scope before retrieval;
+                # this is the conversation being retired in between.
+                return None, None
         return conversation_id, message_id
     except Exception as mem_err:  # noqa: BLE001 — persistence failure must not lose the answer the user is already receiving
         logger.warning("[MEMORY] Could not persist user message: %s", mem_err)
         return None, None
 
 
-def persist_assistant_message(app_state: Any, conversation_id: str | None, text: str) -> int | None:
+def persist_assistant_message(
+    app_state: Any, conversation_id: str | None, text: str, *, scope: Scope
+) -> int | None:
     if not conversation_id:
         return None
     try:
-        return app_state.db.conversations.save_message(conversation_id, "assistant", text)
+        return app_state.db.conversations.save_message(conversation_id, "assistant", text, scope=scope)
     except Exception as mem_err:  # noqa: BLE001 — same, for the assistant message
         logger.warning("[MEMORY] Could not persist assistant message: %s", mem_err)
         return None
@@ -594,6 +603,10 @@ class ChatService:
 
     def doc_count(self, scope: Scope) -> tuple[int, bool]:
         return get_doc_count_cached(self._db, scope)
+
+    def conversation_visible(self, conversation_id: str, scope: Scope) -> bool:
+        """Whether *conversation_id* is a live conversation in *scope* (R-3)."""
+        return self._db.conversations.document_filter(conversation_id, scope=scope) is not None
 
     async def plan_and_memory(self, fields: dict, active_model: str, scope: Scope) -> tuple[Any, str]:
         return await retrieve_plan_and_memory(

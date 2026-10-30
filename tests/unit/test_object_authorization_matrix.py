@@ -55,6 +55,7 @@ SCOPED_METHODS = {
     "annotations.for_chunk",
     "annotations.retire",
     "conversations.messages",
+    "conversations.save_message",
     "conversations.document_filter",
     "conversations.set_document_filter",
     "conversations.set_title",

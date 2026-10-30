@@ -111,12 +111,12 @@ class TestGetConversationMessages:
 class TestSaveMessage:
     def test_save_user_message(self):
         db = _make_db_with_conversations()
-        db.conversations.save_message('conv-id', 'user', 'Hello!')
+        db.conversations.save_message('conv-id', 'user', 'Hello!', scope='ws-1')
         db._cursor.execute.assert_called()
 
     def test_save_assistant_message(self):
         db = _make_db_with_conversations()
-        db.conversations.save_message('conv-id', 'assistant', 'Hi there!')
+        db.conversations.save_message('conv-id', 'assistant', 'Hi there!', scope='ws-1')
         db._cursor.execute.assert_called()
 
     def test_save_raises_when_not_connected(self):
@@ -124,7 +124,7 @@ class TestSaveMessage:
         db = _make_db_with_conversations()
         db.is_connected = False
         with pytest.raises(DatabaseUnavailableError):
-            db.conversations.save_message('id', 'user', 'text')
+            db.conversations.save_message('id', 'user', 'text', scope='ws-1')
 
 
 class TestUpdateConversationTitle:

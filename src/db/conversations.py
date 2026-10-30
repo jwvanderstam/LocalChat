@@ -194,31 +194,43 @@ class ConversationsRepository:
         role: str,
         content: str,
         plan_json: dict[str, Any] | None = None,
-    ) -> int:
+        *,
+        scope: Scope,
+    ) -> int | None:
+        """Append a message to a live conversation in *scope*; None when there is none.
+
+        It wrote to any conversation id on an all-workspaces connection, so a chat naming
+        another workspace's conversation appended to it (QP-9 review, R-3).
+        """
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot save message: Database is not connected")
 
         from psycopg.types.json import Jsonb
 
-        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
+        where, params = scope_predicate(scope, "workspace_id")
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
-                    WITH ins AS (
+                    f"""
+                    WITH conv AS (
+                        SELECT id FROM conversations
+                        WHERE id = %s AND deleted_at IS NULL{where}
+                    ), ins AS (
                         INSERT INTO conversation_messages (conversation_id, role, content, plan_json)
-                        VALUES (%s, %s, %s, %s) RETURNING id
+                        SELECT id, %s, %s, %s FROM conv RETURNING id
                     ), upd AS (
-                        UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = %s
+                        UPDATE conversations SET updated_at = CURRENT_TIMESTAMP
+                        WHERE id IN (SELECT id FROM conv)
                     )
                     SELECT id FROM ins
-                    """,
-                    (conversation_id, role, _encrypt(content), Jsonb(plan_json) if plan_json else None, conversation_id),
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
+                    (conversation_id, *params, role, _encrypt(content), Jsonb(plan_json) if plan_json else None),
                 )
                 row = cursor.fetchone()
-                if row is None:
-                    raise AssertionError("INSERT ... RETURNING id always returns a row")
-                message_id = row[0]
                 conn.commit()
+                if row is None:
+                    return None
+                message_id = row[0]
         logger.debug(f"Saved {role} message (id={message_id}) to conversation {conversation_id}")
         return int(message_id)
 

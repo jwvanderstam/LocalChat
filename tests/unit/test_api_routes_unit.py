@@ -267,14 +267,14 @@ class TestPersistMessages:
     def test_persist_user_returns_conversation_id_and_message_id(self):
         from src.services.chat import persist_user_message
         app = self._make_app()
-        conv_id, msg_id = persist_user_message(app, "existing-conv", "hello")
+        conv_id, msg_id = persist_user_message(app, "existing-conv", "hello", scope="ws-1")
         assert conv_id == "existing-conv"
         assert msg_id == 99
 
     def test_persist_user_creates_conversation_when_none(self):
         from src.services.chat import persist_user_message
         app = self._make_app()
-        conv_id, msg_id = persist_user_message(app, None, "first message")
+        conv_id, msg_id = persist_user_message(app, None, "first message", scope="ws-1")
         assert conv_id == "conv-new"
         assert msg_id == 99
         app.db.conversations.create_with_message.assert_called_once()
@@ -282,33 +282,52 @@ class TestPersistMessages:
     def test_persist_user_returns_none_message_id_when_db_unavailable(self):
         from src.services.chat import persist_user_message
         app = self._make_app(db_ok=False)
-        conv_id, msg_id = persist_user_message(app, "conv", "msg")
+        conv_id, msg_id = persist_user_message(app, "conv", "msg", scope="ws-1")
         assert msg_id is None
 
     def test_persist_user_handles_db_exception(self):
         from src.services.chat import persist_user_message
         app = self._make_app()
         app.db.conversations.save_message.side_effect = Exception("DB error")
-        conv_id, msg_id = persist_user_message(app, "conv", "msg")
+        conv_id, msg_id = persist_user_message(app, "conv", "msg", scope="ws-1")
         assert msg_id is None
 
     def test_persist_assistant_returns_message_id(self):
         from src.services.chat import persist_assistant_message
         app = self._make_app()
-        msg_id = persist_assistant_message(app, "conv-1", "response text")
+        msg_id = persist_assistant_message(app, "conv-1", "response text", scope="ws-1")
         assert msg_id == 99
 
     def test_persist_assistant_returns_none_when_no_conv_id(self):
         from src.services.chat import persist_assistant_message
         app = self._make_app()
-        msg_id = persist_assistant_message(app, None, "text")
+        msg_id = persist_assistant_message(app, None, "text", scope="ws-1")
         assert msg_id is None
+
+    def test_persist_user_writes_into_the_conversation_in_the_callers_scope(self):
+        # R-3: save_message ran on an all-workspaces connection with no scope at all.
+        from src.services.chat import persist_user_message
+        app = self._make_app()
+        persist_user_message(app, "conv", "msg", scope="ws-1")
+        assert app.db.conversations.save_message.call_args.kwargs["scope"] == "ws-1"
+
+    def test_persist_user_reports_no_conversation_when_none_is_live_in_scope(self):
+        from src.services.chat import persist_user_message
+        app = self._make_app()
+        app.db.conversations.save_message.return_value = None
+        assert persist_user_message(app, "conv", "msg", scope="ws-1") == (None, None)
+
+    def test_persist_assistant_writes_into_the_conversation_in_the_callers_scope(self):
+        from src.services.chat import persist_assistant_message
+        app = self._make_app()
+        persist_assistant_message(app, "conv", "text", scope="ws-1")
+        assert app.db.conversations.save_message.call_args.kwargs["scope"] == "ws-1"
 
     def test_persist_assistant_handles_exception(self):
         from src.services.chat import persist_assistant_message
         app = self._make_app()
         app.db.conversations.save_message.side_effect = Exception("DB error")
-        msg_id = persist_assistant_message(app, "conv", "text")
+        msg_id = persist_assistant_message(app, "conv", "text", scope="ws-1")
         assert msg_id is None
 
 
