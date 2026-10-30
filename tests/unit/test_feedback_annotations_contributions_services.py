@@ -138,6 +138,19 @@ class TestAnnotations:
         assert AnnotationsService(db).for_chunk(9, SCOPE) == [{"id": "a1"}]
         db.annotations.for_chunk.assert_called_once_with(9, scope=SCOPE)
 
+    def test_annotating_a_chunk_outside_the_scope_is_none_and_writes_nothing(self):
+        db = MagicMock()
+        db.documents.chunk_by_id.return_value = None
+        assert AnnotationsService(db).add(9, "note", USER, None, SCOPE) is None
+        db.annotations.add.assert_not_called()
+
+    def test_annotating_a_chunk_in_scope_returns_the_new_id(self):
+        db = MagicMock()
+        db.documents.chunk_by_id.return_value = {"id": 9}
+        db.annotations.add.return_value = "a1"
+        assert AnnotationsService(db).add(9, "note", USER, None, SCOPE) == "a1"
+        db.documents.chunk_by_id.assert_called_once_with(9, scope=SCOPE)
+
     @pytest.mark.parametrize(("caller", "recorded"), [(USER, USER), ("anonymous", None), (None, None)])
     def test_retire_records_the_caller_as_deleted_by(self, caller, recorded):
         db = MagicMock()

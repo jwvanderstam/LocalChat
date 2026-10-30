@@ -90,6 +90,11 @@ def get_active_workspace(request: Request, workspaces_svc: Workspaces) -> Any:
     active_id = get_workspace_id(request)
     if not active_id:
         return {"success": True, "workspace": None}
+    # The header is the caller's to set, so it names any workspace; without this the
+    # route returned a foreign workspace's name and system prompt to anyone signed in.
+    denied = _deny(request, active_id, "viewer")
+    if denied:
+        return denied
     try:
         workspace = workspaces_svc.get(active_id)
         return {"success": True, "workspace": workspace}
@@ -105,6 +110,9 @@ async def switch_workspace(request: Request, workspaces_svc: Workspaces) -> Any:
     workspace_id = (data.get("workspace_id") or "").strip()
     if not workspace_id:
         return JSONResponse({"success": False, "message": "workspace_id is required"}, status_code=400)
+    denied = _deny(request, workspace_id, "viewer")
+    if denied:
+        return denied
     try:
         workspace = workspaces_svc.get(workspace_id)
         if workspace is None:

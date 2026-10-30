@@ -23,6 +23,14 @@ nobody classified fails `test_every_path_parameter_is_classified` with instructi
 rather than silently dropping its routes out of the matrix — which is how a derived test
 quietly stops testing anything.
 
+**The matrix runs twice: as an editor of A, and as its owner** (QP-9 review, R-5). An editor
+is refused every owner-guarded route by the role check before the scope is consulted, so
+with an editor alone those rows passed whether or not the scope worked — which hid R-7.
+
+**Ids outside the path are probed too.** A conversation in a chat body, a chunk in a
+feedback body, a workspace in a header: `_OFF_PATH_PROBES` names each, beside a control
+that the same request with the caller's own ids is admitted.
+
 **Why the fixture asserts its own objects are reachable.** A 404 is a passing result
 here, so a fixture that failed to create anything would produce a perfect green run with
 no authorization exercised at all — the tautological case `.claude/rules/testing.md`
@@ -35,6 +43,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -96,6 +105,7 @@ _VECTOR_DIM = 768
 _BODIES: dict[tuple[str, str], dict[str, Any]] = {
     ("PATCH", "/api/conversations/{conversation_id}"): {"title": "probe"},
     ("PUT", "/api/conversations/{conversation_id}/documents"): {"filenames": []},
+    ("PUT", "/api/connectors/{connector_id}"): {"display_name": "probe"},
 }
 
 #: For a `global` parameter with no object behind it — a reranker version id. The
@@ -124,6 +134,54 @@ _PUBLIC_BY_DESIGN = {("POST", "/api/connectors/{connector_id}/webhook")}
 #: answers where it should refuse belongs here with the reason and an emptiness assertion,
 #: never in a skip list.
 _DISCLOSES_NOTHING: dict[tuple[str, str], str] = {}
+
+#: Requests that name an object outside the path: (method, path, request kwargs built from
+#: the target's objects and the caller's own). The caller's ``X-Workspace-ID`` is
+#: workspace A unless the probe sets its own header.
+_OFF_PATH_PROBES: dict[str, tuple[str, str, Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]]] = {
+    "chat names a conversation": (
+        "POST", "/api/chat",
+        lambda target, own: {"json": {"message": "probe", "conversation_id": target["conversation_id"]}},
+    ),
+    "the active-workspace header names a workspace": (
+        "GET", "/api/workspaces/active",
+        lambda target, own: {"headers": {"X-Workspace-ID": target["workspace_id"]}},
+    ),
+    "a switch names a workspace": (
+        "POST", "/api/workspaces/switch",
+        lambda target, own: {"json": {"workspace_id": target["workspace_id"]}},
+    ),
+    "an annotation names a chunk": (
+        "POST", "/api/annotations",
+        lambda target, own: {"json": {"chunk_id": target["chunk_id"], "text": "probe"}},
+    ),
+    "an annotation names a conversation": (
+        "POST", "/api/annotations",
+        lambda target, own: {"json": {
+            "chunk_id": own["chunk_id"], "text": "probe", "conversation_id": target["conversation_id"],
+        }},
+    ),
+    "feedback names a conversation": (
+        "POST", "/api/feedback",
+        lambda target, own: {"json": {"rating": 1, "conversation_id": target["conversation_id"]}},
+    ),
+    "feedback names a chunk": (
+        "POST", "/api/feedback",
+        lambda target, own: {"json": {"rating": 1, "source_chunk_ids": [target["chunk_id"]]}},
+    ),
+}
+
+#: Probes that are not refused yet, each with the finding that will refuse it. Strict
+#: xfail, so the fix turns them red until the row comes out of here (the same reason
+#: `_DISCLOSES_NOTHING` holds no skip).
+_OPEN_FINDINGS = {
+    "an annotation names a conversation": "R-8: the annotation's conversation_id is unchecked",
+    "feedback names a conversation": "R-8: feedback's conversation_id is unchecked",
+    "feedback names a chunk": "R-8: feedback upserts chunk_stats for any chunk id",
+}
+
+#: The two callers the matrix runs as; each holds workspace A at this role.
+_CALLER_ROLES = ("editor", "owner")
 
 
 def _spec_paths() -> dict[str, Any]:
@@ -269,26 +327,16 @@ def _login(base_url: str, username: str, password: str) -> httpx.Client:
 
 @pytest.fixture(scope="session")
 def provisioned(live_server: str) -> dict[str, Any]:
-    """Two workspaces, two users, and one of each object type inside workspace B."""
+    """Two workspaces, a plain user per caller role in A, and one of each object in each."""
     admin = _login(live_server, ADMIN_USERNAME, ADMIN_PASSWORD)
 
     workspace_a = _create_workspace(admin, "P2-2b workspace A")
     workspace_b = _create_workspace(admin, "P2-2b workspace B")
 
-    username = f"p22b-user-{uuid.uuid4().hex[:8]}"
-    password = "p22b-plain-user-password"
-    user = admin.post(
-        "/api/users",
-        json={"username": username, "password": password, "role": "user"},
-    )
-    if user.status_code not in (200, 201):
-        pytest.fail(f"could not create the plain user: {user.status_code} {user.text[:200]}")
-    user_id = (user.json().get("user") or {}).get("id") or user.json().get("user_id")
-
-    grant = admin.post(f"/api/users/{user_id}/workspaces",
-                       json={"workspace_id": workspace_a, "role": "editor"})
-    if grant.status_code not in (200, 201):
-        pytest.fail(f"could not grant workspace A: {grant.status_code} {grant.text[:200]}")
+    callers: dict[str, httpx.Client] = {}
+    user_id = None
+    for role in _CALLER_ROLES:
+        user_id, callers[role] = _plain_user_in(live_server, admin, workspace_a, role)
 
     from src.db import db
 
@@ -298,15 +346,39 @@ def provisioned(live_server: str) -> dict[str, Any]:
     objects = _provision_objects(workspace_b)
     objects["workspace_id"] = workspace_b
     objects["user_id"] = user_id
+    own = _provision_objects(workspace_a)
+    own["workspace_id"] = workspace_a
 
-    caller = _login(live_server, username, password)
     return {
         "admin": admin,
-        "caller": caller,
+        "callers": callers,
+        "caller": callers["editor"],
         "workspace_a": workspace_a,
         "workspace_b": workspace_b,
         "objects": objects,
+        "own": own,
     }
+
+
+def _plain_user_in(
+    base_url: str, admin: httpx.Client, workspace: str, role: str
+) -> tuple[str, httpx.Client]:
+    """A new user with global role ``user``, holding *workspace* at *role*, signed in."""
+    username = f"p22b-{role}-{uuid.uuid4().hex[:8]}"
+    password = "p22b-plain-user-password"
+    user = admin.post(
+        "/api/users",
+        json={"username": username, "password": password, "role": "user"},
+    )
+    if user.status_code not in (200, 201):
+        pytest.fail(f"could not create the {role}: {user.status_code} {user.text[:200]}")
+    user_id = (user.json().get("user") or {}).get("id") or user.json().get("user_id")
+
+    grant = admin.post(f"/api/users/{user_id}/workspaces",
+                       json={"workspace_id": workspace, "role": role})
+    if grant.status_code not in (200, 201):
+        pytest.fail(f"could not grant workspace A as {role}: {grant.status_code} {grant.text[:200]}")
+    return user_id, _login(base_url, username, password)
 
 
 def _create_workspace(admin: httpx.Client, name: str) -> str:
@@ -451,9 +523,10 @@ class TestTheFixtureIsReal:
         )
 
 
+@pytest.mark.parametrize("caller_role", _CALLER_ROLES)
 @pytest.mark.parametrize(("method", "path"), matrix_routes(), ids=lambda v: str(v))
 def test_a_foreign_workspaces_object_is_refused(
-    method: str, path: str, provisioned: dict[str, Any]
+    method: str, path: str, caller_role: str, provisioned: dict[str, Any]
 ) -> None:
     """Workspace A's user addresses workspace B's object. Every route must refuse."""
     filled = _fill(path, provisioned["objects"])
@@ -467,7 +540,7 @@ def test_a_foreign_workspaces_object_is_refused(
     if body is None and method in {"POST", "PUT", "PATCH"}:
         body = {}
     status = _status(
-        provisioned["caller"],
+        provisioned["callers"][caller_role],
         method,
         filled,
         headers={"X-Workspace-ID": provisioned["workspace_a"]},
@@ -475,9 +548,46 @@ def test_a_foreign_workspaces_object_is_refused(
         timeout=15.0,
     )
     assert status in _REFUSED, (
-        f"{method} {path} returned {status} for an object in a foreign workspace; "
+        f"{method} {path} returned {status} to workspace A's {caller_role} for an object "
+        f"in a foreign workspace; expected one of {sorted(_REFUSED)}"
+    )
+
+
+def _probe(caller: httpx.Client, name: str, target: dict[str, Any], own: dict[str, Any]) -> int | str:
+    method, path, build = _OFF_PATH_PROBES[name]
+    kwargs = build(target, own)
+    headers = {"X-Workspace-ID": own["workspace_id"], **kwargs.pop("headers", {})}
+    return _status(caller, method, path, headers=headers, timeout=15.0, **kwargs)
+
+
+def _off_path_cases() -> list[Any]:
+    return [
+        pytest.param(name, marks=pytest.mark.xfail(strict=True, reason=_OPEN_FINDINGS[name]))
+        if name in _OPEN_FINDINGS else name
+        for name in _OFF_PATH_PROBES
+    ]
+
+
+@pytest.mark.parametrize("caller_role", _CALLER_ROLES)
+@pytest.mark.parametrize("probe", _off_path_cases())
+def test_a_foreign_object_named_outside_the_path_is_refused(
+    probe: str, caller_role: str, provisioned: dict[str, Any]
+) -> None:
+    status = _probe(provisioned["callers"][caller_role], probe, provisioned["objects"], provisioned["own"])
+    assert status in _REFUSED, (
+        f"{probe}: workspace A's {caller_role} named workspace B's object and got {status}; "
         f"expected one of {sorted(_REFUSED)}"
     )
+
+
+@pytest.mark.parametrize("probe", list(_OFF_PATH_PROBES))
+def test_the_same_request_naming_the_callers_own_object_is_admitted(
+    probe: str, provisioned: dict[str, Any]
+) -> None:
+    """The control: without it a probe that refuses everything would pass above."""
+    own = provisioned["own"]
+    status = _probe(provisioned["callers"]["editor"], probe, own, own)
+    assert isinstance(status, int) and 200 <= status < 300, f"{probe}: own object got {status}"
 
 
 @pytest.mark.skipif(
