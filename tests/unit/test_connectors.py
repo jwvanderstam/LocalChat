@@ -369,13 +369,23 @@ class TestSyncWorker:
         w._next_run["c1"] = time.monotonic() + 900
         assert w._is_due(connector) is False
 
-    def test_handle_delete_calls_db(self):
+    def test_handle_delete_is_bound_to_the_connector_its_workspace_and_its_owner(self):
         mock_db = MagicMock()
         mock_db.connectors.retire_document_by_filename.return_value = True
         w = self._make_worker(db=mock_db)
+        connector = MagicMock(connector_id="c-1", workspace_id="ws-a", owner_user_id="u-1")
         source = DocumentSource(source_id="/path/file.txt", filename="file.txt")
-        w._handle_delete(source)
-        mock_db.connectors.retire_document_by_filename.assert_called_once_with("file.txt")
+        w._handle_delete(connector, source)
+        mock_db.connectors.retire_document_by_filename.assert_called_once_with(
+            "file.txt", source_id="c-1", deleted_by="u-1", scope="ws-a"
+        )
+
+    def test_handle_delete_retires_nothing_for_a_connector_without_a_workspace(self):
+        mock_db = MagicMock()
+        w = self._make_worker(db=mock_db)
+        connector = MagicMock(connector_id="c-1", workspace_id=None, owner_user_id="u-1")
+        w._handle_delete(connector, DocumentSource(source_id="f", filename="file.txt"))
+        mock_db.connectors.retire_document_by_filename.assert_not_called()
 
     def test_handle_event_added_calls_ingest(self, tmp_path):
         mock_processor = MagicMock()
