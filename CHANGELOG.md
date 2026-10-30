@@ -25,6 +25,19 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 - **`dnspython` 2.8.0 → 2.9.1** (CVE-2026-114605): a crafted DNS message could make name
   decompression spin on compression-pointer chains. It reaches the image through
   `email-validator`.
+- **A connector's sync history and manual sync are scoped** (QP-9 review, R-7). Both took
+  the id alone, so the owner of any workspace could read another workspace's sync errors
+  and start a sync that spends that connector's owner's OAuth token. Each now finds the
+  connector in the caller's workspace first, and answers 404 when it is not there.
+- **The active-workspace routes answer only for a member.** `GET /api/workspaces/active`
+  (header) and `POST /api/workspaces/switch` (body) needed only a session, then returned
+  whichever workspace was named, its system prompt included. Both now need `ws:viewer` on
+  it. Found by R-5's new probes.
+- **The object-authorisation matrix runs as an owner too, and probes ids outside the path**
+  (QP-9 review, R-5). As an editor only, every owner-guarded route was refused by the role
+  check before the scope was consulted, which hid R-7. Ids in a body or header are probed
+  beside a control that the caller's own are admitted; R-8's three open cases are strict
+  xfails. Annotating a chunk outside the scope now answers 404 instead of 500.
 - **A connector's delete event retires only what that connector ingested** (QP-9 review,
   R-2, High). The sync worker retired every live document with the event's filename, in
   every workspace and in the global tier. Any user could create a workspace, add a webhook

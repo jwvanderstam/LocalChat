@@ -22,7 +22,14 @@ class AnnotationsService:
 
     def add(
         self, chunk_id: int, text: str, user_id: str | None, conversation_id: str | None, scope: Scope
-    ) -> str:
+    ) -> str | None:
+        """The new annotation's id, or None when *scope* holds no such chunk.
+
+        Row-level security refuses the insert anyway, but as an error, which reached the
+        caller as a 500 (found by R-5's body-borne probes).
+        """
+        if self._db.documents.chunk_by_id(chunk_id, scope=scope) is None:
+            return None
         return self._db.annotations.add(
             chunk_id=chunk_id, text=text, user_id=user_id, conversation_id=conversation_id, scope=scope,
         )

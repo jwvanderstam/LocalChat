@@ -41,6 +41,8 @@ async def create_annotation(request: Request, annotations: Annotations) -> Any:
     user_id = get_current_user_id(request)
     try:
         annotation_id = annotations.add(chunk_id, text, user_id, conversation_id, get_scope(request))
+        if annotation_id is None:
+            return JSONResponse({"success": False, "message": "Chunk not found"}, status_code=404)
         return JSONResponse({"success": True, "id": annotation_id}, status_code=201)
     except ValueError as ve:
         logger.warning("[Annotations] validation error: %s", ve)
