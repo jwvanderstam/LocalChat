@@ -109,9 +109,10 @@ jobs:
       - name: Dependency vulnerability scan (pip-audit)
         run: |
           pip install pip-audit
-          # No suppressions. The one that lived here (PYSEC-2026-1325, ecdsa)
-          # went with python-jose in P2-6; adding another needs the same
-          # justification in SECURITY.md that one had.
+          # One suppression, justified in SECURITY.md item 12: CVE-2026-114612 is in
+          # litellm's proxy server, which LocalChat never runs, and the fixed versions
+          # pull boto3 into the image (ADR-4). It goes when ADR-4 removes litellm.
+          # Adding another needs the same justification in SECURITY.md.
           #
           # torch is installed as 2.13.0+cpu from the PyTorch CPU index (P2-5), a version
           # PyPI does not list, so a plain `pip-audit -r` SKIPS it and still passes. A +cpu
@@ -121,7 +122,8 @@ jobs:
           # audited fails the step instead of vanishing from it.
           sed -E 's/^(torch==[^+]+)\+cpu$/\1/' requirements.txt > /tmp/requirements-audit.txt
           grep -q '^torch==[0-9.]*$' /tmp/requirements-audit.txt
-          pip-audit --strict --disable-pip --no-deps -r /tmp/requirements-audit.txt
+          pip-audit --strict --disable-pip --no-deps -r /tmp/requirements-audit.txt \
+            --ignore-vuln CVE-2026-114612
 
       # pip-audit only reports CVEs. This reports plain version drift, which
       # Dependabot's open-pull-requests-limit can silently suppress — an
