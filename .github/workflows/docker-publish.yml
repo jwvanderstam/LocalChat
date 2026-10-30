@@ -23,6 +23,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
+      # Tags are set by hand (QP-8, the maintainer's decision), so nothing else ties a tag
+      # to the version the code reports. A mismatch stops the release before an image
+      # carries the wrong version. test_app_version_is_consistent keeps the three
+      # declarations of APP_VERSION equal; this compares the tag to one of them.
+      - name: The tag matches APP_VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          declared=$(sed -n "s/^APP_VERSION: str = os.environ.get('APP_VERSION', '\([^']*\)')\r\{0,1\}$/\1/p" src/config.py)
+          if [ -z "$declared" ] || [ "${TAG#v}" != "$declared" ]; then
+            echo "::error::tag $TAG does not match APP_VERSION '$declared' in src/config.py"
+            exit 1
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
 
