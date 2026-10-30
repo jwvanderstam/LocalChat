@@ -194,6 +194,7 @@ jobs:
   # rule in .claude/rules/plugins.md). plugins/README.md stays: it is documentation the
   # docs tests resolve, not plugin code. Not in the required set yet: a check is added
   # there only after it has reported on main (CLAUDE.md, Pull Requests).
+  # PC-4. Required since 2026-10-30.
   core-without-plugins:
     runs-on: ubuntu-latest
     needs: unit-tests
@@ -288,10 +289,9 @@ jobs:
       - name: Run integration tests
         run: pytest tests/integration/ -m "not ollama" -v --tb=short
 
-  # TQ-4. Deliberately not in the "Code Verification" ruleset: a browser test is
-  # the one job whose flake would block every merge, and the golden path it covers
-  # is proven by integration-tests at the service layer regardless. Promote it to
-  # required once it has a run history to justify that.
+  # TQ-4 and QP-7. Required since 2026-10-30, after more than 20 consecutive green
+  # runs on main. It was held out until then because a browser flake blocks every
+  # merge: read a red run before rerunning it.
   e2e:
     runs-on: ubuntu-latest
     needs: unit-tests
@@ -389,7 +389,7 @@ jobs:
   # move the score: the new baseline (--write-baseline) is then part of its diff.
   # Raising or lowering the baseline to clear a red run is forbidden, as for
   # perf-canary. Blind to semantics beyond word overlap and to embedding-model
-  # changes; that is P2-3's job. Not in the ruleset until it has a track record.
+  # changes; that is P2-3's job. Required since 2026-10-30.
   #
   # The reranker runs, because it ships enabled: the gate scores the pipeline as
   # deployed. Its model is cached, and the script refuses to score if it fails to

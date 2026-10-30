@@ -67,6 +67,7 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 
 | Package | What it does |
 |---------|-------------|
+| `src/services/` | Use cases and the rules that depend on the caller; routes reach the database only through them (ADR-7) |
 | `src/rag/` | Ingest pipeline, hybrid retrieval, reranker, query planning |
 | `src/db/` | All SQL — one repository class per aggregate, held on `Database` (`db.documents`, `db.users`, …) |
 | `src/agent/` | Model routing, parallel tool dispatch, result tracing |
@@ -151,11 +152,11 @@ LocalChat supports plugins (LLM tools, connectors, background work) that extend 
 - No core table holds a foreign key into a plugin table. No core module imports a plugin module. No core test depends on a plugin being present.
 - When a plugin needs something the core does not expose, add a **general** capability to the catalogue — named for what it does, not for who asked. Test: *would this capability be reasonable if the requesting plugin vanished?* If not, it is a leak.
 
-**The IVP: the plugin-absent CI gate** — *built 2026-10-23 (PC-4), not yet required*
+**The IVP: the plugin-absent CI gate** — *built 2026-10-23 (PC-4), required since 2026-10-30*
 
 The enforcing procedure is a CI job, `core-without-plugins`, that verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core.
 
-> **It exists since 2026-10-23** (PC-4, built with QP-3): it deletes everything in `plugins/` but its README, then runs `ruff` and the fast suite. It joins the required set only after it has reported on `main` (see Pull Requests); until then a red run is read, not merged past. The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
+> **It exists since 2026-10-23** (PC-4, built with QP-3): it deletes everything in `plugins/` but its README, then runs `ruff` and the fast suite. It has been a required check since 2026-10-30 (see Pull Requests). The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
 
 Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
 
@@ -214,8 +215,9 @@ Update [`.claude/rules/file-map.md`](.claude/rules/file-map.md) when adding or r
 ## Pull Requests and Merging
 
 **`main` is gated.** The "Code Verification" ruleset targets the default branch
-and requires six checks to pass before anything merges: `unit-tests`,
-`integration-tests`, `repo-hygiene`, `docker-smoke`, `perf-canary`, `security-smoke`.
+and requires nine checks to pass before anything merges: `unit-tests`,
+`integration-tests`, `repo-hygiene`, `docker-smoke`, `perf-canary`, `security-smoke`,
+`e2e`, `retrieval-gate`, `core-without-plugins`.
 A PR with red or missing checks cannot be merged — this is enforced, not a
 convention.
 
@@ -250,9 +252,15 @@ required: writing it found that `--profile mcp` could not start two of its three
 at all (`JWT_SECRET_KEY` never reached them, and the image pins `APP_ENV=production`).
 
 It is also the one required check that boots eight containers and drives them through
-TLS, so it has the most flake surface of the six. If it goes red, read the probe output
+TLS, so it has the most flake surface of the set. If it goes red, read the probe output
 before assuming a regression — and do not relax a probe to clear a run, the same rule
 `perf-canary` carries.
+
+`e2e`, `retrieval-gate` and `core-without-plugins` joined on 2026-10-30 (QP-7), after more
+than 20 consecutive green runs each on `main`. `e2e` was held out until then because a
+browser flake blocks every merge; read a red run before rerunning it. `retrieval-gate`
+compares exactly against `tests/eval/baseline.json`, so a PR that changes retrieval
+updates the baseline in the same PR.
 
 Verify the set by reading it back through the API, not from the settings UI — see
 LESSONS_LEARNED Ch. 11 on a ruleset that rendered as correct in the form that
@@ -262,14 +270,13 @@ created it:
 gh api repos/jwvanderstam/LocalChat/rulesets/14700924 --jq '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | "\(.context) \(.integration_id)"]'
 ```
 
-All six must report `integration_id 15368` — a same-named check from another app
+All nine must report `integration_id 15368` — a same-named check from another app
 would satisfy the ruleset without running this workflow.
 
 Deliberately *not* required: `build-and-push` (15–20 min, would block every
 merge), `SonarCloud Scan` (reports `skipping` on some PRs, and a required
-check that never runs blocks the PR forever), and `e2e` (a browser test is the
-one job whose flake would block every merge; the golden path it drives is proven
-at the service layer by `integration-tests` regardless).
+check that never runs blocks the PR forever), and `restore-proof` (it proves the
+backup recipe in `OPERATIONS.md`, which a code change rarely touches).
 
 **The ruleset targets the default branch only.** It once targeted `~ALL`, which
 made `required_status_checks` reject the push of any *new* branch — a fresh
@@ -367,6 +374,7 @@ upstream).
 ## Anti-patterns & Gotchas
 
 - **Never put SQL outside `src/db/`** — raw queries in routes have caused subtle transaction bugs.
+- **Every database call names its scope** — a workspace, or `ALL_WORKSPACES` for an installation-wide path. Row-level security is forced (migration `0023`), so a query that names neither gets no rows. `ALL_WORKSPACES` is the risky one: both High findings of the QP-9 review were on such paths.
 - **Never import `src/app.py`** — it doesn't exist. Use `create_app()` from `src/app_fastapi.py`.
 - **SSE generators must handle disconnect** — wrap `async def _generate()` in `try/finally`; FastAPI silently drops broken generators.
 - **Register `/clear` before `/{id: int}` routes** — FastAPI matches path patterns in order; a literal `/clear` after `/{id}` is shadowed and returns 422.
