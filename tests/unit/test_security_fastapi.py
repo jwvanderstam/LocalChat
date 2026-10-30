@@ -292,7 +292,8 @@ class TestRequireAdminDep:
         assert exc_info.value.status_code == 403
 
     def test_a_retired_account_loses_admin_immediately(self):
-        """users.get_by_id filters deleted_at, so a retired admin resolves to nobody."""
+        """users.get_role filters deleted_at, so a retired admin resolves to nobody — and
+        their session ends with the account (401), not merely their role (R-4)."""
         from fastapi import HTTPException
 
         from src.security_fastapi import require_admin_dep
@@ -300,7 +301,7 @@ class TestRequireAdminDep:
         request = self._request_with("admin", user_exists=False)
         with pytest.raises(HTTPException) as exc_info:
             require_admin_dep(request, credentials=None)
-        assert exc_info.value.status_code == 403
+        assert exc_info.value.status_code == 401
 
     def test_a_current_admin_is_still_allowed(self):
         """The guard against over-correction: this must not lock real admins out."""

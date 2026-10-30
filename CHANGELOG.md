@@ -61,7 +61,10 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   deactivated admin stayed admin until the token expired, a retired user kept every
   membership, and a retired workspace stayed open to its members and its API keys
   indefinitely. `users.get_role` now requires an active user, `members.role` a live active
-  user in a live workspace, and `api_keys.resolve` a live workspace.
+  user in a live workspace, and `api_keys.resolve` a live workspace. A deactivated or
+  retired user's token is now refused outright (401 "Account is not active"), which also
+  closes the routes that ask only for a session, such as creating a workspace. When the
+  database cannot answer, the session is not ended for it; revocation fails closed there.
 
 ### Added
 
