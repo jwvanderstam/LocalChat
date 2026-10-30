@@ -42,6 +42,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   it rendered the version, active model, health and installation-wide totals into the HTML
   for anyone, including an unauthenticated caller. `/api/settings/stats` refused the same
   data to non-admins. The page now gathers it only when the caller's database role is admin.
+- **Access ends when the account or the workspace does** (QP-9 review, R-4). The three
+  lookups every guard reads its answer from ignored whether the user was still active and
+  whether the workspace was still live: a deactivated user kept their workspace roles and a
+  deactivated admin stayed admin until the token expired, a retired user kept every
+  membership, and a retired workspace stayed open to its members and its API keys
+  indefinitely. `users.get_role` now requires an active user, `members.role` a live active
+  user in a live workspace, and `api_keys.resolve` a live workspace.
 
 ### Added
 

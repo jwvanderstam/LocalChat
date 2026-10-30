@@ -89,18 +89,19 @@ class UsersRepository:
         return _row_to_user(row) if row else None
 
     def get_role(self, user_id: str) -> str | None:
-        """Return the user's current global role, or None if there is no live user.
+        """Return the user's current global role, or None if there is no live, active user.
 
         Narrower than get_by_id on purpose: the authorisation guard runs this on
         every admin request and has no business loading the password hash to do it.
-        Filters deleted_at, so a retired administrator resolves to None.
+        Filters deleted_at and is_active, so a retired or deactivated administrator
+        resolves to None; is_active used to be read at login only (R-4).
         """
         if not self._db.is_connected:
             return None
         with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT role FROM users WHERE id = %s AND deleted_at IS NULL",
+                    "SELECT role FROM users WHERE id = %s AND deleted_at IS NULL AND is_active",
                     (user_id,),
                 )
                 row = cur.fetchone()
