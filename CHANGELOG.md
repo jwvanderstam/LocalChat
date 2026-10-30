@@ -31,6 +31,11 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   LiteLLM's proxy server, which LocalChat never runs; it uses two SDK functions. Every fixed
   version pulls `boto3` into the image, which ADR-4 rules out, so the suppression holds
   until ADR-4 replaces `litellm`. Reasoning in `SECURITY.md` item 12.
+- **The Settings page carries admin stats for an administrator only** (QP-9 review, R-6).
+  `GET /settings` needs no session, since every user changes their own password there, and
+  it rendered the version, active model, health and installation-wide totals into the HTML
+  for anyone, including an unauthenticated caller. `/api/settings/stats` refused the same
+  data to non-admins. The page now gathers it only when the caller's database role is admin.
 
 ### Added
 
