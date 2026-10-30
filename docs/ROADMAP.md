@@ -1949,6 +1949,32 @@ change of default behaviour. Each is measured with `scripts/eval_answers.py` aga
 - **RF-4: the lexical arm's language.** `chunk_tsv` uses the `simple` text-search
   configuration (no stemming), so `dienst` and `diensten` do not match. A per-installation
   language would let the lexical arm carry more weight where the embedding model is weak.
+- **RF-5: overview questions.** *Added 2026-10-30. A direction, not a decision.* Top-k
+  retrieval returns a handful of fragments that resemble the question, so it cannot answer
+  questions about the whole: "how many contracts end in 2027", "what are the recurring
+  themes", "summarise everything on X". RF-2 covers one chapter; RF-5 covers the corpus.
+  Overview is computed ahead of the question and made retrievable, or computed over
+  everything on explicit request. Candidates, in the order recommended:
+  1. **The user chooses the mode.** A selector beside the GKB-3 tier selector: *Find* (today's
+     path) or *Overview*. Not a classifier deciding per question: that is the second model
+     in the request path ADR-6 rules out.
+  2. **Structured extraction at ingest.** Fixed fields per document (party, date, value,
+     type) in a table, so counting and filtering become queries rather than searches. The
+     only candidate besides 4 that is *complete*; the price is knowing the fields in advance.
+     Letting the model write SQL from the question would also need ADR-6 reopened and RLS
+     proven to hold for generated queries; fixed, parameterised queries would not.
+  3. **Document- and section-level summaries,** indexed beside the chunks, so a broad
+     question matches a summary and a narrow one a chunk. Builds on RF-2's heading path.
+  4. **Map-reduce over a selection,** for the *Overview* mode: a partial answer per document,
+     then one combined. Complete and checkable, slow and costly; a report, not a chat turn.
+  5. **GraphRAG community summaries** (global search). Today's GraphRAG is spaCy entities and
+     1-hop query expansion, off by default, with no communities. Only worth it when the
+     questions are about connections across many documents: indexing cost and keeping the
+     summaries current on every change are the main objections.
+  Open before anything is built: whether overview questions are frequent enough to earn
+  this, which fields 2 would extract, and how to measure it. recall@k does not measure
+  completeness, so `scripts/eval_answers.py` needs overview cases with a known complete
+  answer first. Only 2 and 4 guarantee completeness; 3 and 5 make it likelier.
 
 **Not in scope:** a second model in the request path to rewrite or route questions (ADR-6:
 the generation path is a deterministic pipeline unless an answer-level eval says otherwise).
@@ -1990,7 +2016,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ #469 + QP-7 e2e, 8 paths ✅ | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (delete `Database`, split `DocumentProcessor`) + QP-9 (external review) -> **v3.4.0**, re-audit | ~1 week (weeks 10-12) |
-| — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |
+| — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
 **Execution order from 2026-10-22.** Finish Sprint 9 (#452). Then Sprints 22 to 28, in
