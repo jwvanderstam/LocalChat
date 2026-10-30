@@ -8,6 +8,16 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+### Security
+
+- **`dnspython` 2.8.0 → 2.9.1** (CVE-2026-114605): a crafted DNS message could make name
+  decompression spin on compression-pointer chains. It reaches the image through
+  `email-validator`.
+- **`litellm` CVE-2026-114612 is suppressed in `pip-audit`, not fixed.** The flaw is in
+  LiteLLM's proxy server, which LocalChat never runs; it uses two SDK functions. Every fixed
+  version pulls `boto3` into the image, which ADR-4 rules out, so the suppression holds
+  until ADR-4 replaces `litellm`. Reasoning in `SECURITY.md` item 12.
+
 ### Changed
 
 - **The layout-aware PDF extractor moves to `pymupdf` 2.0.** In 2.0 the `pymupdf4llm`

@@ -245,6 +245,26 @@ a gain of one deleted heading.
   or a deployment where the people who write the documents are not trusted by the people
   who ask about them.
 
+### 12. `litellm` CVE-2026-114612 is suppressed in `pip-audit` until ADR-4 removes it
+
+- **What**: `litellm` 1.97.0 is in the image. CVE-2026-114612 (published 2026-10-29) is a
+  privilege escalation in the **LiteLLM proxy server**: it reuses one key for stored secrets
+  and session tokens, so a proxy user can forge an administrator bearer token. Fixed in
+  1.100.4 and later.
+- **Why it is not reachable here**: LocalChat never runs the proxy. `src/llm_client.py` is
+  the only importer and calls two SDK functions, `litellm.completion()` and
+  `litellm.cost_per_token()`. No proxy, no API-key flow, no session token exists for the
+  flaw to act on. The package is imported only when `CLOUD_FALLBACK_ENABLED=true`.
+- **Why not upgrade**: every `litellm` from 1.98.0 depends on `boto3`, which puts the AWS SDK
+  in the image. [ADR-4](docs/ADR.md) rules that out and replaces `litellm` with a direct
+  OpenAI-compatible client instead. Taking the fixed version would reverse that decision
+  under the pressure of a CVE that does not apply, which ADR-4 itself warns against.
+- **The suppression**: `pip-audit --ignore-vuln CVE-2026-114612` in
+  `.github/workflows/tests.yml`, for this one ID only.
+- **Ends when**: the ADR-4 replacement removes `litellm` from `requirements.in`. That PR
+  deletes the suppression and this entry. It is the next dependency change after the
+  2026-10-30 fix that introduced the suppression.
+
 ## October 2026 audit: findings register
 
 The 2026-10-22 audit's Medium-or-higher findings, closed through
