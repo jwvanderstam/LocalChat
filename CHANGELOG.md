@@ -16,6 +16,12 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   key. It now takes the authorised scope like its sibling counts and skips retired documents.
   `tests/integration/test_chunk_statistics_scope.py` runs it next to a second workspace and a
   retired document.
+- **Chat refuses a conversation outside the caller's workspace** (QP-9 review, R-3). A
+  `conversation_id` in the request was trusted: both turns were appended to it on an
+  all-workspaces connection, so a viewer of one workspace who knew a conversation id in
+  another wrote into its history, and memory extraction then read that turn as the other
+  workspace's user. The id is now checked against the authorised scope before retrieval
+  (404), and a message is written only into a live conversation in that scope.
 - **`dnspython` 2.8.0 → 2.9.1** (CVE-2026-114605): a crafted DNS message could make name
   decompression spin on compression-pointer chains. It reaches the image through
   `email-validator`.

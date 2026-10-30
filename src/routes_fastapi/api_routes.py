@@ -226,7 +226,8 @@ async def _generate_sse(
         # here delays every *other* request rather than this one — the cost is invisible
         # from the client that caused it, which is why it went unnoticed.
         asst_message_id = await run_in_threadpool(
-            chat.persist_assistant_message, app_state, conversation_id, "".join(full_response)
+            chat.persist_assistant_message, app_state, conversation_id, "".join(full_response),
+            scope=workspace_scope,
         )
         await run_in_threadpool(chat.update_chunk_stats, app_state, sources or [])
         done_payload = _build_done_payload(
@@ -336,6 +337,13 @@ async def api_chat(request: Request, chat_svc: Chat) -> Any:
         if tier_denial:
             code, message = tier_denial
             return JSONResponse({"success": False, "message": message}, status_code=code)
+        # Refused before retrieval, as another workspace's object is everywhere else: the
+        # turn would be appended to that conversation, and memory extraction then reads
+        # it as that workspace's user speaking (QP-9 review, R-3).
+        if fields["conversation_id"] and not await run_in_threadpool(
+            chat_svc.conversation_visible, fields["conversation_id"], get_scope(request)
+        ):
+            return JSONResponse({"success": False, "message": "Conversation not found"}, status_code=404)
 
         active_model = config.app_state.get_active_model()
         if not active_model:
@@ -385,7 +393,7 @@ async def api_chat(request: Request, chat_svc: Chat) -> Any:
         conversation_id, _msg_id = await run_in_threadpool(
             chat.persist_user_message,
             app_state, fields["conversation_id"], fields["message"],
-            plan=plan, agent_result=agent_result, workspace_id=workspace_id,
+            plan=plan, agent_result=agent_result, workspace_id=workspace_id, scope=scope,
         )
 
         tool_executor = None if (local_ctx or web_ctx) else chat.get_tool_executor(app_state)
