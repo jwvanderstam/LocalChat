@@ -651,20 +651,26 @@ class DocumentsRepository:
                 logger.debug(f"Document does not exist: {filename}")
                 return False, {}
 
-    def chunk_statistics(self) -> dict[str, Any]:
-        """Return statistics about chunks (totals, embedding coverage, samples)."""
+    def chunk_statistics(self, *, scope: Scope) -> dict[str, Any]:
+        """Return statistics about the chunks of live documents in *scope*, with samples."""
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk statistics: Database is not connected")
 
         logger.debug("Getting chunk statistics")
-        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
+        scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
-                cursor.execute("""
+                cursor.execute(
+                    f"""
                     SELECT COUNT(*) AS total,
-                           COUNT(embedding) AS with_embeddings,
-                           AVG(LENGTH(chunk_text)) AS avg_length
-                    FROM document_chunks
-                """)
+                           COUNT(dc.embedding) AS with_embeddings,
+                           AVG(LENGTH(dc.chunk_text)) AS avg_length
+                    FROM document_chunks dc
+                    JOIN documents d ON dc.document_id = d.id
+                    WHERE d.deleted_at IS NULL{scope_sql}
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
+                    scope_params,
+                )
                 row = cursor.fetchone()
                 if row is None:
                     raise AssertionError("SELECT COUNT(*)/AVG(...) always returns a row")
@@ -672,14 +678,18 @@ class DocumentsRepository:
                 with_embeddings = row[1]
                 avg_length = float(row[2]) if row[2] else 0.0
 
-                cursor.execute("""
+                cursor.execute(
+                    f"""
                     SELECT d.filename, dc.chunk_index, dc.chunk_text,
                            LENGTH(dc.chunk_text) AS length,
                            dc.embedding IS NOT NULL AS has_embedding
                     FROM document_chunks dc TABLESAMPLE SYSTEM(1)
                     JOIN documents d ON dc.document_id = d.id
+                    WHERE d.deleted_at IS NULL{scope_sql}
                     LIMIT 3
-                """)
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
+                    scope_params,
+                )
                 samples = [
                     {
                         'filename': r[0],

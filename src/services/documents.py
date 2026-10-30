@@ -51,7 +51,7 @@ class DocumentsService:
             return {
                 "document_count": self._db.documents.count(scope=scope),
                 "chunk_count": self._db.documents.chunk_count(scope=scope),
-                "chunk_statistics": self._db.documents.chunk_statistics(),
+                "chunk_statistics": self._db.documents.chunk_statistics(scope=scope),
             }
 
     def search_text(self, text: str, limit: int, scope: Scope) -> list[dict[str, Any]]:

@@ -67,6 +67,7 @@ SCOPED_METHODS = {
     "documents.search_lexical",
     "documents.count",
     "documents.chunk_count",
+    "documents.chunk_statistics",
     "documents.list_all",
     "documents.stale",
     "conversations.count",
