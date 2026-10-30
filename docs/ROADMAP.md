@@ -1872,14 +1872,16 @@ start **before** QP-4's first PR.
   judge gives the trend line no meaning. That calibration is the maintainer's to do, so it is
   scheduled here rather than left open.
 
-#### QP-8 — Release engineering 🟡 (Sprint 25-26, ~2 days; policy and security.txt 2026-10-29)
+#### QP-8 — Release engineering ✅ (Sprint 25-26 and 29; policy and security.txt 2026-10-29, signed images 2026-10-30)
 
 - ✅ (2026-10-29) `CONTRIBUTING.md` holds the release policy: semver, and a patch release within 7 days of
   any fix for a security advisory or a dependency CVE. Dependabot security PRs trigger it.
-- Tagging is automated with release-please. The changelog stays hand-written
-  (`CONTRIBUTING.md`).
-- Images are signed with cosign keyless, with an SBOM (syft) and SLSA provenance attached
-  through `actions/attest-build-provenance`. Verification is documented in `DEPLOYMENT.md`.
+- ⏭️ (2026-10-30) Tagging stays manual, by the maintainer's decision: release-please is
+  dropped. It needed a PAT or App token, because a PR or tag made with `GITHUB_TOKEN`
+  triggers no workflow, and it force-pushes its branch over a hand-edited changelog.
+  Instead, the publish workflow refuses a `v*` tag that does not match `APP_VERSION`.
+- ✅ (2026-10-30) Images are signed with cosign keyless, with an SBOM (syft) and SLSA
+  provenance attested to the registry. Verification is documented in `DEPLOYMENT.md`.
 - ✅ (2026-10-29) GitHub private vulnerability reporting is on, and a `security.txt` points at it.
 
 #### QP-9 — Independent review ✅ (Sprint 28; review 2026-10-30, fixes in v3.4.0)
@@ -2016,7 +2018,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ #469 + QP-7 e2e, 8 paths ✅ | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
-| 29 | QP-8's signed images and release-please -> **v3.5.0**, re-audit; then QP-10 and QP-11 | ~1 week |
+| 29 | QP-8's signed images ✅ -> **v3.5.0**, re-audit; then QP-10 and QP-11 | ~1 week |
 | — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 

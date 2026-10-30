@@ -8,6 +8,19 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+### Added
+
+- **Published images are signed, with an SBOM and build provenance** (QP-8). Every image
+  pushed to `ghcr.io/jwvanderstam/localchat`, from `main` or a release tag, is signed with
+  cosign (keyless, through the workflow's GitHub identity) and carries two attestations:
+  an SPDX SBOM made by syft, and SLSA build provenance. All three name the image's digest.
+  `docs/DEPLOYMENT.md` shows how to verify them with `cosign verify` and
+  `gh attestation verify`. Images published before this release are unsigned.
+- **A release tag must match `APP_VERSION`.** Tags stay manual, by decision: release-please
+  needed a token with more rights than the workflow's own and would overwrite the
+  hand-written changelog. The publish workflow now refuses a `v*` tag that disagrees with
+  `APP_VERSION` before it builds anything.
+
 ## [3.4.0] — 2026-10-30
 
 The release that answers the QP-9 security review. Every database path now names its

@@ -29,6 +29,10 @@ It says why, not only what, and that is the part commit titles cannot carry. A r
 renames `[Unreleased]` to the version and date. A release is cut by a person; nothing
 releases on its own.
 
+The tag is set by hand, after the release PR has merged: `v` plus the version that PR
+puts in `APP_VERSION`. The publish workflow refuses a tag that does not match, and then
+builds, signs and attests the image (verification is in `docs/DEPLOYMENT.md`).
+
 ## Review of security-critical changes
 
 LocalChat has one maintainer, and most changes are written by an agent working for them.
