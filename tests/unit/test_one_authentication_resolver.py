@@ -31,6 +31,7 @@ from src.security_fastapi import (
     create_access_token,
     env_admin_is_available,
     require_admin_dep,
+    require_auth,
     resolve_principal,
     verify_credentials_db,
 )
@@ -113,10 +114,44 @@ class TestTheRoleComesFromTheDatabaseNotTheToken:
         assert principal.is_admin
 
     def test_a_retired_user_loses_the_role_entirely(self):
-        """users.get_role filters deleted_at, so a retired admin resolves to None."""
-        principal = resolve_principal(_request(_db(role=None), claim_role="admin"))
-        assert principal.global_role is None
-        assert not principal.is_admin
+        """users.get_role filters deleted_at, so a retired admin resolves to None —
+        and since R-4's follow-up, so does the session itself."""
+        with pytest.raises(AuthError) as exc_info:
+            resolve_principal(_request(_db(role=None), claim_role="admin"))
+        assert exc_info.value.status_code == 401
+
+
+@pytest.mark.unit
+class TestASessionEndsWithItsAccount:
+    """R-4 (QP-9 review) — a deactivated or retired user's token is refused outright.
+
+    Their workspace and admin roles already resolved to nothing, but a route that asks
+    only for a session (``require_auth``: creating a workspace, ``/api/users/me``)
+    admitted them until the token expired.
+    """
+
+    def test_a_session_route_refuses_a_user_the_database_no_longer_has(self):
+        with pytest.raises(HTTPException) as exc_info:
+            require_auth(_request(_db(role=None)))
+        assert (exc_info.value.status_code, exc_info.value.detail) == (
+            401, {"message": "Account is not active"}
+        )
+
+    def test_a_session_route_admits_a_live_user(self):
+        assert require_auth(_request(_db(role="user"))) == USER
+
+    def test_an_unreadable_role_does_not_end_the_session(self):
+        """Not knowing is not "gone": a database blip must not sign everyone out.
+        Revocation is what fails closed there, with its own one-minute cache."""
+        db = _db()
+        db.users.get_role.side_effect = RuntimeError("connection reset")
+        principal = resolve_principal(_request(db))
+        assert (principal.user_id, principal.global_role) == (USER, None)
+
+    def test_the_env_admin_is_not_looked_up_as_a_row(self):
+        """It has no row, so "no row" must not refuse it; D6 withdraws it instead."""
+        principal = resolve_principal(_request(_db(live_admins=1), sub="admin"))
+        assert (principal.user_id, principal.global_role) == ("admin", None)
 
 
 @pytest.mark.unit

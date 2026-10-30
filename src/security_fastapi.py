@@ -281,28 +281,38 @@ def _current_global_role(request: Request, claims: dict[str, Any]) -> str | None
     Returns ``None`` when the role cannot be established, which callers treat as
     "not an administrator".
     """
+    return _read_global_role(request, claims)[1]
+
+
+def _read_global_role(request: Request, claims: dict[str, Any]) -> tuple[bool, str | None]:
+    """``(answered, role)``: whether the database answered, and the role it gave.
+
+    ``(True, None)`` means the database says there is no live, active user by that id;
+    ``(False, None)`` that it could not say. The two must not be folded together: the
+    first ends the session, the second must not, or a database blip signs everyone out.
+    """
     sub = claims.get("sub")
     if not sub:
-        return None
+        return False, None
     db = getattr(request.app.state, "db", None)
     if sub == "admin":
         # No row to look up. Administrative only while it is still the bootstrap
         # credential — once a real administrator exists, an env-admin session that
         # is already open stops being one too, rather than lingering until its token
         # expires (decision D6).
-        return "admin" if env_admin_is_available(db) else None
+        return False, "admin" if env_admin_is_available(db) else None
 
     if db is None or not getattr(db, "is_connected", False):
-        return None
+        return False, None
     try:
         # get_role, not get_by_id: the guard needs one column, and the wider
         # read would pull the password hash in on every admin request. It filters
-        # deleted_at, so a retired administrator resolves to None and loses access on
-        # the next request rather than at token expiry.
-        return db.users.get_role(sub)
+        # deleted_at and is_active, so a retired or deactivated user resolves to None
+        # and loses access on the next request rather than at token expiry.
+        return True, db.users.get_role(sub)
     except Exception as exc:  # noqa: BLE001 — the role is unreadable, so no role is granted — fail closed
         logger.warning("[Auth] Could not read role for %s: %s", sanitize_log_value(str(sub)), exc)
-        return None
+        return False, None
 
 
 def require_admin_dep(
@@ -403,7 +413,15 @@ def resolve_principal(
             message = detail.get("message") if isinstance(detail, dict) else str(detail)
             raise AuthError(exc.status_code, str(message)) from None
 
-    return Principal(user_id=str(sub), global_role=_current_global_role(request, claims))
+    answered, role = _read_global_role(request, claims)
+    if answered and role is None:
+        # The token is valid, but its user has been deactivated or retired since it was
+        # issued. Their workspace and admin roles already resolve to nothing; this also
+        # closes the routes that ask only for a session, such as creating a workspace
+        # (QP-9 review, R-4).
+        logger.info("[Auth] Refused a session whose account is no longer active")
+        raise AuthError(status.HTTP_401_UNAUTHORIZED, "Account is not active")
+    return Principal(user_id=str(sub), global_role=role)
 
 
 def _extract_api_key(request: Request) -> str | None:
