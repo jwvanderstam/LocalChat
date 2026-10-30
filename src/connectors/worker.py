@@ -134,7 +134,7 @@ class SyncWorker:
 
     def _handle_event(self, connector, event, counts: dict[str, int]) -> None:
         if event.event_type == EventType.DELETED:
-            self._handle_delete(event.source)
+            self._handle_delete(connector, event.source)
             counts["deleted"] += 1
             return
 
@@ -212,9 +212,20 @@ class SyncWorker:
         except Exception as exc:  # noqa: BLE001 — same — a re-ingest failure is per-document, not per-run
             logger.warning(f"[SyncWorker] Re-ingest error for {filename}: {exc}")
 
-    def _handle_delete(self, source) -> None:
+    def _handle_delete(self, connector, source) -> None:
+        if not connector.workspace_id:
+            logger.warning(
+                f"[SyncWorker] Not deleting {source.filename}: connector "
+                f"{connector.connector_id} has no workspace to bound the delete"
+            )
+            return
         try:
-            deleted = self._db.connectors.retire_document_by_filename(source.filename)
+            deleted = self._db.connectors.retire_document_by_filename(
+                source.filename,
+                source_id=connector.connector_id,
+                deleted_by=connector.owner_user_id,
+                scope=connector.workspace_id,
+            )
             if deleted:
                 logger.info(f"[SyncWorker] Deleted document: {source.filename}")
         except Exception as exc:  # noqa: BLE001 — same — a delete that fails is retried on the next poll

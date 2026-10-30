@@ -62,6 +62,7 @@ SCOPED_METHODS = {
     "connectors.get",
     "connectors.update",
     "connectors.retire",
+    "connectors.retire_document_by_filename",
     # P2-1b-ii: the filters where `workspace_id=None` used to mean every workspace.
     "documents.search_similar",
     "documents.search_lexical",

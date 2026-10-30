@@ -19,6 +19,14 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 - **`dnspython` 2.8.0 → 2.9.1** (CVE-2026-114605): a crafted DNS message could make name
   decompression spin on compression-pointer chains. It reaches the image through
   `email-validator`.
+- **A connector's delete event retires only what that connector ingested** (QP-9 review,
+  R-2, High). The sync worker retired every live document with the event's filename, in
+  every workspace and in the global tier. Any user could create a workspace, add a webhook
+  connector and name a filename. The delete now matches the filename, the connector's id and
+  its workspace, runs in that workspace's scope, and records the connector's creator as
+  `deleted_by`. A connector with no workspace retires nothing. A document a connector
+  ingested before `source_id` was recorded (migration 0004) is no longer retired by that
+  connector's delete events; retire it by hand.
 - **`litellm` CVE-2026-114612 is suppressed in `pip-audit`, not fixed.** The flaw is in
   LiteLLM's proxy server, which LocalChat never runs; it uses two SDK functions. Every fixed
   version pulls `boto3` into the image, which ADR-4 rules out, so the suppression holds
