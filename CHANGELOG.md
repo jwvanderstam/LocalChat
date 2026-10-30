@@ -14,7 +14,8 @@ The release that answers the QP-9 security review. Every database path now names
 workspace, and the database itself refuses one that does not (QP-5, ADR-5's option B).
 Routes reach the database only through services (QP-4, ADR-7). The review's findings
 R-1 to R-4, R-6 and R-7 are fixed; R-5's matrix now runs as an owner as well as an editor.
-The open findings are listed in `SECURITY.md`.
+The open findings are listed in `SECURITY.md`. The quality plan's maturity target and the
+re-audit move to v3.5.0: v3.4.0 ships the fixes within the 7-day security policy.
 
 **Upgrading from 3.3.0.** No configuration changes. Migrations `0022` and `0023` apply at
 boot. `0023` forces row-level security on the ten workspace tables. Two behaviours change

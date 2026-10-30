@@ -20,6 +20,10 @@ what an operator notices:
 installs. Within 7 days it ships as a patch release on the latest minor. Other fixes wait
 for the next release.
 
+When `main` already carries unreleased features, the security release is the next minor
+instead. A backport would put the fix on code that `main` no longer runs, and that code is
+tested by nothing. v3.4.0 was the first release cut this way (2026-10-30).
+
 `CHANGELOG.md` is written by hand, in the PR that makes the change, under `[Unreleased]`.
 It says why, not only what, and that is the part commit titles cannot carry. A release
 renames `[Unreleased]` to the version and date. A release is cut by a person; nothing

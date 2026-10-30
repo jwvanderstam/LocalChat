@@ -1581,7 +1581,8 @@ maintainer.
 **Release numbers follow semver, not the plan's draft.** The plan names v3.1.1, v3.2.0 and
 v3.3.0. But the 66 commits since v3.1.0 include 11 `feat:` commits (GKB-1 and GKB-2 among
 them), so the first release is a minor. QP-8's own policy requires semantic versioning.
-That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit).
+That makes it v3.2.0 (QP-1), v3.3.0 (QP-2) and v3.4.0 (the re-audit). The re-audit has since
+moved to v3.5.0: v3.4.0 became the release of QP-9's fixes (see the gate under QP-9).
 
 ### Phase 1 — close the high-impact findings (weeks 1-3)
 
@@ -1896,7 +1897,14 @@ start **before** QP-4's first PR.
 - ⬜ One full review of the security core and the service layer by a separate agent session,
   against that checklist. Every Medium-or-higher finding is triaged in `SECURITY.md`.
 
-**Gate:** all six maturity exit criteria hold. Tag v3.4.0 and re-run the audit.
+**Gate:** all six maturity exit criteria hold. Tag v3.5.0 and re-run the audit.
+
+> **Moved from v3.4.0 to v3.5.0 on 2026-10-30, by the maintainer's decision.** The review's
+> fixes (R-1 to R-7) merged on 2026-10-30, so the 7-day security release falls due on
+> 2026-11-06, while criteria (2) and (4) do not hold yet. v3.4.0 ships the fixes on time and
+> makes no claim about the maturity 8; v3.5.0 does, once both criteria hold. Holding the
+> fixes until the gate is met was rejected, and so was backporting them to v3.3.1: they stand
+> on QP-4's services and QP-5's scoped connections, which 3.3.0 does not have.
 
 | Risk | Likelihood | Effect | Mitigation |
 |---|---|---|---|
@@ -1989,7 +1997,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 23 | QP-2 (S2 role split incl. Scaleway, S5, S7, B608, S6) -> **v3.3.0** | ~3 days (weeks 2-3) |
 | 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ #469 + QP-7 e2e, 8 paths ✅ | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
-| 28 | QP-5 (delete `Database`, split `DocumentProcessor`) + QP-9 (external review) -> **v3.4.0**, re-audit | ~1 week (weeks 10-12) |
+| 28 | QP-5 (delete `Database`, split `DocumentProcessor`) + QP-9 (external review) -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
