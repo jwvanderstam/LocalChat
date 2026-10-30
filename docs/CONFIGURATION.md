@@ -439,7 +439,7 @@ to empty, in which case the router falls back to the active model.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `APP_VERSION` | `3.3.0` | Reported by `GET /api/status`. See the note below |
+| `APP_VERSION` | `3.4.0` | Reported by `GET /api/status`. See the note below |
 | `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB), enforced while the upload streams to disk |
 | `UVICORN_WORKERS` | `1` | Worker processes. **Only `1` is supported** — the app refuses to boot otherwise |
 | `UVICORN_TIMEOUT` | `600` | uvicorn's `--timeout-keep-alive`, applied by `docker-entrypoint.py`. **Not a request timeout**: it closes a connection that has been idle this long, which for an SSE stream means one that has produced nothing. Keep it ≥ `OLLAMA_EMBED_TIMEOUT`; behind the nginx overlay, `proxy_read_timeout 300s` in `nginx/nginx.conf` is the lower and therefore real ceiling |
@@ -491,5 +491,5 @@ to empty, in which case the router falls back to the active model.
 > **That is not hypothetical — it is what happened.** Until 2026-08-31 the three read
 > `1.0.0`, `0.5.0` and `1.0.0` against a `v3.0.0-beta.1` tag: a containerised deployment
 > reported **0.5.0**, a host-run one **1.0.0**, and neither was the version being run.
-> All three now read `3.3.0`, and `tests/unit/test_app_version_is_consistent.py` fails if
+> All three now read `3.4.0`, and `tests/unit/test_app_version_is_consistent.py` fails if
 > they diverge again — the drift was silent precisely because no check compared them.

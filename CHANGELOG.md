@@ -8,6 +8,23 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+## [3.4.0] — 2026-10-30
+
+The release that answers the QP-9 security review. Every database path now names its
+workspace, and the database itself refuses one that does not (QP-5, ADR-5's option B).
+Routes reach the database only through services (QP-4, ADR-7). The review's findings
+R-1 to R-4, R-6 and R-7 are fixed; R-5's matrix now runs as an owner as well as an editor.
+The open findings are listed in `SECURITY.md`. The quality plan's maturity target and the
+re-audit move to v3.5.0: v3.4.0 ships the fixes within the 7-day security policy.
+
+**Upgrading from 3.3.0.** No configuration changes. Migrations `0022` and `0023` apply at
+boot. `0023` forces row-level security on the ten workspace tables. Two behaviours change
+for operators:
+- A deactivated or retired user's session is now refused (401) at its next request. It no
+  longer runs until the token expires.
+- A connector's delete event no longer retires a document that connector ingested before
+  migration `0004` recorded `source_id`. Retire such a document by hand.
+
 ### Security
 
 - **`GET /api/documents/stats` reads only the caller's workspace** (QP-9 review, R-1, High).
@@ -65,6 +82,21 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   retired user's token is now refused outright (401 "Account is not active"), which also
   closes the routes that ask only for a session, such as creating a workspace. When the
   database cannot answer, the session is not ended for it; revocation fails closed there.
+- **The database refuses a query that names no workspace** (QP-5 step 3, ADR-5's option B).
+  Migration `0023` drops `0021`'s transition policy, which let the application's own login
+  read and write every row on an unscoped path, and forces row-level security on the ten
+  workspace tables, so the owner is bound too. A path must name a workspace or the explicit
+  all-workspaces flag; one that forgets gets no rows, from the database, not from a code
+  review. A superuser still bypasses row-level security, as Postgres always allows.
+
+- **filelock 4.2.1 and pypdf 6.21.2**: three CVEs in each (filelock CVE-2026-112907,
+  -112913, -112940; pypdf CVE-2026-115572, -115580, -115585). One change, because each
+  Dependabot PR failed pip-audit on the other's CVEs. filelock is a transitive dependency of
+  huggingface-hub and torch, neither of which caps it below 4.
+- **`GET /api/users/me` no longer answers a revoked token with its identity.** It read the
+  token without the revocation check, so a session cookie copied before sign-out still
+  returned its user id, global and workspace role, and `can_contribute`. A refused token
+  now gets the anonymous answer, all null. Found writing the QP-7 replay test.
 
 ### Added
 
@@ -74,6 +106,57 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   before it lapses.
 - **A release policy in `CONTRIBUTING.md`** (QP-8): semantic versioning counted from what an
   operator must do, and a security fix released as a patch within 7 days of merging.
+- **Security-critical changes get an agent review before they merge** (QP-9).
+  `CONTRIBUTING.md` names the paths (`security_fastapi.py`, `services/`,
+  `db/connection.py`, migrations, the `Dockerfile`) and the checklist a separate agent
+  session reviews a change against. The review is a PR comment: no human reviewer, no
+  `CODEOWNERS`, nothing enforced, by the maintainer's decision.
+- **No route module reaches the database** (QP-5). The chat route gets a `ChatService` by
+  `Depends` instead of handing the database to chat's functions, and the settings page's
+  statistics moved to `services/admin_stats.py`. The ratchet that counted route-level
+  database access is at zero. `Database` itself stays, as the connection pool holding the
+  repositories (ADR-7, amended).
+- **Every database path names its scope** (QP-5 step 2). The 47 repository methods that
+  touched a row-level-security table on an unscoped connection now open it with the
+  workspace they read or write, or with the explicit all-workspaces flag. Workspace writes
+  (ingest, new conversations, memories, connectors, API keys) now run under the workspace
+  policies. A ratchet keeps the count at zero.
+- **An explicit all-workspaces flag for the database** (ROADMAP QP-5 step 1, ADR-5).
+  `get_connection(scope=ALL_WORKSPACES)` now sets `app.all_workspaces` for its transaction,
+  and migration `0022` adds a policy on the ten row-level-security tables that admits
+  such a transaction, for any role but the workspace-scoped one. Nothing changes yet:
+  migration `0021` still admits the application unconditionally. It is what the
+  installation-wide paths stand on once `0021` is dropped.
+
+- **The browser suite covers eight paths, up from two** (ROADMAP QP-7).
+  `tests/e2e/test_access_paths.py` adds sign-out, a session cookie replayed after sign-out,
+  the workspace switch, an admin creating a user with membership, a viewer who cannot
+  upload, and a workspace API key that reaches only its workspace. Where the UI hides a
+  control, the test asks the server as well.
+
+- **Coverage is measured honestly, with a floor** (ROADMAP QP-6). SonarCloud now gets unit
+  and integration coverage combined, with `src/db/` included: 11 of its files were excluded
+  before, because the unit suite has no database. The first measurement is 85.68% of
+  `src/`, and the workflow fails under 83.6%.
+
+- **The layering is checked in CI** (ROADMAP QP-3, ADR-7). `lint-imports` runs two contracts
+  from `pyproject.toml`: routes may not import the database layer directly, and routes,
+  services and the database layer form layers. Today's four exceptions are recorded and may
+  only shrink. `tests/unit/test_layering_ratchets.py` pins `app.state.db` in routes (81) and
+  the import cycles (2) the same way.
+- **`core-without-plugins`** (PC-4): a CI job that deletes every plugin and runs lint and the
+  fast suite, so a core that depends on a plugin goes red. Not a required check yet.
+
+- **Chat can answer from the global knowledge tier** (ROADMAP GKB-3). A selector beside the
+  RAG and Web toggles chooses *Workspace*, *Workspace + shared* or *Shared only*; the
+  request carries it as `knowledge_scope` (`local` by default). A citation drawn from
+  another project's contribution is tagged "shared globally". A workspace API key asking
+  for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
+- **The nightly mutation gate covers the service layer** (QP-7). Eleven services join
+  `security_fastapi` and `workspace`, each against the test files that build the real
+  service, all above the 80% floor. New tests close what the first run exposed, among
+  them that an inactive user is refused even with the right password and that no password
+  hash leaves the users service.
 
 ### Changed
 
@@ -134,60 +217,6 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   context variable moved into `logging_config`, which the request-ID middleware already
   imported. grimp finds no cycle in `src/`, and the ratchet now requires none.
 
-### Added
-
-- **Security-critical changes get an agent review before they merge** (QP-9).
-  `CONTRIBUTING.md` names the paths (`security_fastapi.py`, `services/`,
-  `db/connection.py`, migrations, the `Dockerfile`) and the checklist a separate agent
-  session reviews a change against. The review is a PR comment: no human reviewer, no
-  `CODEOWNERS`, nothing enforced, by the maintainer's decision.
-- **No route module reaches the database** (QP-5). The chat route gets a `ChatService` by
-  `Depends` instead of handing the database to chat's functions, and the settings page's
-  statistics moved to `services/admin_stats.py`. The ratchet that counted route-level
-  database access is at zero. `Database` itself stays, as the connection pool holding the
-  repositories (ADR-7, amended).
-- **Every database path names its scope** (QP-5 step 2). The 47 repository methods that
-  touched a row-level-security table on an unscoped connection now open it with the
-  workspace they read or write, or with the explicit all-workspaces flag. Workspace writes
-  (ingest, new conversations, memories, connectors, API keys) now run under the workspace
-  policies. A ratchet keeps the count at zero.
-- **An explicit all-workspaces flag for the database** (ROADMAP QP-5 step 1, ADR-5).
-  `get_connection(scope=ALL_WORKSPACES)` now sets `app.all_workspaces` for its transaction,
-  and migration `0022` adds a policy on the ten row-level-security tables that admits
-  such a transaction, for any role but the workspace-scoped one. Nothing changes yet:
-  migration `0021` still admits the application unconditionally. It is what the
-  installation-wide paths stand on once `0021` is dropped.
-
-- **The browser suite covers eight paths, up from two** (ROADMAP QP-7).
-  `tests/e2e/test_access_paths.py` adds sign-out, a session cookie replayed after sign-out,
-  the workspace switch, an admin creating a user with membership, a viewer who cannot
-  upload, and a workspace API key that reaches only its workspace. Where the UI hides a
-  control, the test asks the server as well.
-
-- **Coverage is measured honestly, with a floor** (ROADMAP QP-6). SonarCloud now gets unit
-  and integration coverage combined, with `src/db/` included: 11 of its files were excluded
-  before, because the unit suite has no database. The first measurement is 85.68% of
-  `src/`, and the workflow fails under 83.6%.
-
-- **The layering is checked in CI** (ROADMAP QP-3, ADR-7). `lint-imports` runs two contracts
-  from `pyproject.toml`: routes may not import the database layer directly, and routes,
-  services and the database layer form layers. Today's four exceptions are recorded and may
-  only shrink. `tests/unit/test_layering_ratchets.py` pins `app.state.db` in routes (81) and
-  the import cycles (2) the same way.
-- **`core-without-plugins`** (PC-4): a CI job that deletes every plugin and runs lint and the
-  fast suite, so a core that depends on a plugin goes red. Not a required check yet.
-
-- **Chat can answer from the global knowledge tier** (ROADMAP GKB-3). A selector beside the
-  RAG and Web toggles chooses *Workspace*, *Workspace + shared* or *Shared only*; the
-  request carries it as `knowledge_scope` (`local` by default). A citation drawn from
-  another project's contribution is tagged "shared globally". A workspace API key asking
-  for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
-- **The nightly mutation gate covers the service layer** (QP-7). Eleven services join
-  `security_fastapi` and `workspace`, each against the test files that build the real
-  service, all above the 80% floor. New tests close what the first run exposed, among
-  them that an inactive user is refused even with the right password and that no password
-  hash leaves the users service.
-
 ### Removed
 
 - **Dead code, found with vulture and checked name by name** against `src/`, the tests,
@@ -217,24 +246,6 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   never checked, so a run by hand with a canary budget could not fail on it. CI was not
   affected: its gate is `tests/perf/test_concurrency_canary.py`, which applies the verdict
   itself.
-
-### Security
-
-- **The database refuses a query that names no workspace** (QP-5 step 3, ADR-5's option B).
-  Migration `0023` drops `0021`'s transition policy, which let the application's own login
-  read and write every row on an unscoped path, and forces row-level security on the ten
-  workspace tables, so the owner is bound too. A path must name a workspace or the explicit
-  all-workspaces flag; one that forgets gets no rows, from the database, not from a code
-  review. A superuser still bypasses row-level security, as Postgres always allows.
-
-- **filelock 4.2.1 and pypdf 6.21.2**: three CVEs in each (filelock CVE-2026-112907,
-  -112913, -112940; pypdf CVE-2026-115572, -115580, -115585). One change, because each
-  Dependabot PR failed pip-audit on the other's CVEs. filelock is a transitive dependency of
-  huggingface-hub and torch, neither of which caps it below 4.
-- **`GET /api/users/me` no longer answers a revoked token with its identity.** It read the
-  token without the revocation check, so a session cookie copied before sign-out still
-  returned its user id, global and workspace role, and `can_contribute`. A refused token
-  now gets the anonymous answer, all null. Found writing the QP-7 replay test.
 
 ## [3.3.0] — 2026-10-23
 
@@ -1273,7 +1284,8 @@ eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.3.0...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.4.0...HEAD
+[3.4.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0...v3.1.0
