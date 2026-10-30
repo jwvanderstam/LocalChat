@@ -30,9 +30,9 @@ def _no_appstate_io():
     config.app_state.state_file = None
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True)
 def _disable_rate_limiting():
-    """Turn the rate limiter off for the whole session.
+    """Turn the rate limiter off before every test.
 
     slowapi's decorator evaluates limits from the module-level ``Limiter``, not
     from ``app.state.limiter``. Most route tests build a bare app and never call
@@ -46,6 +46,11 @@ def _disable_rate_limiting():
 
     Tests that need limits on re-enable them locally and restore this afterwards
     (see ``tests/unit/test_sec3_rate_limit_keying.py``).
+
+    Per test, not per session: any test that calls ``create_app()`` runs
+    ``_init_security``, which switches the limiter back on for every test after it.
+    Session scope let that leak, and ``/api/chat`` came back 429 once the suite
+    happened to cross ten chat requests after such a test.
     """
     from src.security_fastapi import limiter
     limiter.enabled = False
