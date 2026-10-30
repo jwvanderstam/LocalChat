@@ -1871,15 +1871,15 @@ start **before** QP-4's first PR.
   judge gives the trend line no meaning. That calibration is the maintainer's to do, so it is
   scheduled here rather than left open.
 
-#### QP-8 — Release engineering ⬜ (Sprint 25-26, ~2 days)
+#### QP-8 — Release engineering 🟡 (Sprint 25-26, ~2 days; policy and security.txt 2026-10-29)
 
-- `CONTRIBUTING.md` holds the release policy: semver, and a patch release within 7 days of
+- ✅ (2026-10-29) `CONTRIBUTING.md` holds the release policy: semver, and a patch release within 7 days of
   any fix for a security advisory or a dependency CVE. Dependabot security PRs trigger it.
 - Tagging and the changelog are automated from Conventional Commits (release-please or
   similar).
 - Images are signed with cosign keyless, with an SBOM (syft) and SLSA provenance attached
   through `actions/attest-build-provenance`. Verification is documented in `DEPLOYMENT.md`.
-- GitHub private vulnerability reporting is on, and a `security.txt` points at it.
+- ✅ (2026-10-29) GitHub private vulnerability reporting is on, and a `security.txt` points at it.
 
 #### QP-9 — Independent review ⬜ (Sprint 28, ~2 days of maintainer time)
 

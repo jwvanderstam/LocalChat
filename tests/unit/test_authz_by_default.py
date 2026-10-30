@@ -47,6 +47,7 @@ PUBLIC_ALLOWLIST: dict[str, str] = {
 #: data; every API call they make is itself guarded. Pinned so a new hidden route fails.
 EXPECTED_HIDDEN_ROUTES = {
     "/", "/chat", "/docs", "/documents", "/favicon.ico", "/login", "/models", "/settings",
+    "/.well-known/security.txt",
 }
 
 

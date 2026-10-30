@@ -1,0 +1,5 @@
+Contact: https://github.com/jwvanderstam/LocalChat/security/advisories/new
+Contact: mailto:jw.vander.stam@gmail.com
+Expires: 2027-10-29T00:00:00Z
+Policy: https://github.com/jwvanderstam/LocalChat/blob/main/SECURITY.md
+Preferred-Languages: en, nl

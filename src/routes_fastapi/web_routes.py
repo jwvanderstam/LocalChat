@@ -27,6 +27,13 @@ def favicon(request: Request) -> Response:
     return Response(status_code=204)
 
 
+@router.get("/.well-known/security.txt", include_in_schema=False)
+def security_txt(request: Request) -> FileResponse:
+    """RFC 9116: where to report a vulnerability, readable without a session."""
+    path = Path(request.app.state.static_folder) / "security.txt"
+    return FileResponse(str(path), media_type="text/plain; charset=utf-8")
+
+
 @router.get("/", include_in_schema=False)
 def index(request: Request) -> HTMLResponse:
     return _templates(request).TemplateResponse(request, "chat.html")

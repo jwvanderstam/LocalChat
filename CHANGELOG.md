@@ -18,6 +18,15 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   version pulls `boto3` into the image, which ADR-4 rules out, so the suppression holds
   until ADR-4 replaces `litellm`. Reasoning in `SECURITY.md` item 12.
 
+### Added
+
+- **`/.well-known/security.txt`** (QP-8). Every running instance now says where to report a
+  vulnerability: GitHub's private reporting, which is now enabled, or email. RFC 9116 makes
+  the file's `Expires` date mandatory and nothing renews it, so a unit test fails 30 days
+  before it lapses.
+- **A release policy in `CONTRIBUTING.md`** (QP-8): semantic versioning counted from what an
+  operator must do, and a security fix released as a patch within 7 days of merging.
+
 ### Changed
 
 - **The layout-aware PDF extractor moves to `pymupdf` 2.0.** In 2.0 the `pymupdf4llm`
