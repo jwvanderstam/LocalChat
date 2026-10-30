@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from ..security_fastapi import AuthError, resolve_principal
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -68,14 +70,25 @@ _SETTING_DOC_SLUGS = [
 ]
 
 
+def _caller_is_admin(request: Request) -> bool:
+    try:
+        return resolve_principal(request).is_admin
+    except AuthError:
+        return False
+
+
 @router.get("/settings", include_in_schema=False)
 def settings(request: Request) -> HTMLResponse:
-    try:
-        from ..services.admin_stats import gather_admin_stats
-        stats = gather_admin_stats(request.app.state)
-    except Exception:  # noqa: BLE001 — a template must render; an admin panel with empty stats beats a 500
-        logger.debug("Could not gather admin stats for the settings page", exc_info=True)
-        stats = {}
+    # The page renders for anyone, since every user changes their own password here, but
+    # the stats are what /api/settings/stats guards at admin: version, model, health and
+    # installation-wide totals. Rendered for every caller, they bypassed that guard (R-6).
+    stats: dict[str, Any] = {}
+    if _caller_is_admin(request):
+        try:
+            from ..services.admin_stats import gather_admin_stats
+            stats = gather_admin_stats(request.app.state)
+        except Exception:  # noqa: BLE001 — a template must render; an admin panel with empty stats beats a 500
+            logger.debug("Could not gather admin stats for the settings page", exc_info=True)
     docs_service = request.app.state.docs_service
     # Body only: each slider already carries the same wording as its own label, and
     # the fragment's heading rendered a second, page-sized copy right beneath it.
