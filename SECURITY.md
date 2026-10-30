@@ -270,6 +270,44 @@ a gain of one deleted heading.
   deletes the suppression and this entry. It is the next dependency change after the
   2026-10-30 fix that introduced the suppression.
 
+### 13. Changing a password does not end the sessions already open
+
+- **What**: a session is a JWT that lives `JWT_ACCESS_TOKEN_EXPIRES` (2 hours by default).
+  Changing a password, by the user or by an admin reset, revokes no token, so a session
+  opened before the change, on another device or by whoever learned the old password,
+  keeps working until it expires.
+- **What limits it**: signing out revokes that token immediately. An admin who deactivates
+  or retires the account ends every one of its sessions on the next request (R-4, #511),
+  which is the lever for a suspected compromise: deactivate, then reset the password, then
+  reactivate.
+- **Why accepted for now**: ending them properly needs a per-user `tokens_valid_after`
+  written by the change and compared with each token's issue time in `resolve_principal`,
+  a migration plus a change to the security core. That is planned for after the release
+  that ships the QP-9 review's fixes.
+- **Ends when**: that change lands. It removes this entry.
+
+## QP-9 security review (2026-10-30): findings register
+
+A separate agent session reviewed the security-critical paths against
+[CONTRIBUTING.md](CONTRIBUTING.md)'s checklist. Each fix carries a regression test that
+fails on the code before it.
+
+| Id | Severity | Finding | Status |
+|---|---|---|---|
+| R-1 | High | `GET /api/documents/stats` returned chunk previews from every workspace, retired documents included | **Fixed** (#505) — `tests/integration/test_chunk_statistics_scope.py` |
+| R-2 | High | A connector's delete event retired every live document with that filename, in every workspace | **Fixed** (#506) — `tests/integration/test_connector_delete_scope.py` |
+| R-3 | Medium | Chat appended both turns to any `conversation_id`, in any workspace | **Fixed** (#508) — `tests/unit/test_chat_conversation_is_authorised.py`, `tests/integration/test_save_message_scope.py` |
+| R-4 | Medium | Access outlived a deactivated or retired account, and a retired workspace | **Fixed** (#509, #511) — `tests/integration/test_access_ends_with_the_account.py`, `TestASessionEndsWithItsAccount`. A password change still leaves open sessions running: item 13 above |
+| R-5 | Medium | The object-authorisation matrix ran as an editor only and probed path ids only | **Fixed** (#510): runs as an editor and an owner, probes body and header ids. The ratchet over repository methods that use `ALL_WORKSPACES` is **open** |
+| R-6 | Medium | `GET /settings` rendered installation-wide admin statistics for any caller | **Fixed** (#507) — `tests/unit/test_settings_page_stats_are_admin_only.py` |
+| R-7 | Low | A connector's sync history and manual sync took the id alone | **Fixed** (#510) — `TestAConnectorOutsideTheScopeIsNotFound` |
+| R-8 | Low | Feedback and annotations accept conversation and chunk ids from another workspace; a viewer can make any document un-purgeable | **Open** — strict xfails in the wire matrix turn red when it is fixed |
+| R-9 | Low | Single-object purges do not require the row to be retired first | **Open** (admin-only) |
+| R-10 | Low | Admin user routes take raw dicts; the last-admin count ignores `is_active` | **Open** (admin-only) |
+| R-11 | Low | The image's source is owned by the runtime user | **Open** |
+| R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Open** |
+| — | — | `GET /api/workspaces/active` and `POST /api/workspaces/switch` returned any named workspace, its system prompt included, to anyone signed in; found by R-5's new probes | **Fixed** (#510) — `tests/unit/test_active_workspace_is_authorised.py` |
+
 ## October 2026 audit: findings register
 
 The 2026-10-22 audit's Medium-or-higher findings, closed through
