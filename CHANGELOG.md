@@ -20,6 +20,12 @@ item 13) are QP-10 and are listed in `SECURITY.md`.
 **Upgrading from 3.4.0.** No migrations and no configuration changes. Images from this
 release on are signed; verify one before deploying it, as `docs/DEPLOYMENT.md` shows.
 
+### Security
+
+- **`pypdf` 6.21.2 → 6.21.4** (#515), for seven advisories published on 2026-10-31
+  (CVE-2026-119203 to CVE-2026-119209). `pypdf` parses every uploaded PDF. Released the
+  same day, inside the 7-day policy.
+
 ### Added
 
 - **Published images are signed, with an SBOM and build provenance** (QP-8). Every image
