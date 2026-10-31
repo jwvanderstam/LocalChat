@@ -279,7 +279,7 @@ pymupdf-layout==2.0
     # via pymupdf
 pymupdf4llm==2.0
     # via pymupdf
-pypdf==6.21.2
+pypdf==6.21.4
     # via -r requirements.in
 pypdfium2==5.13.0
     # via pdfplumber
