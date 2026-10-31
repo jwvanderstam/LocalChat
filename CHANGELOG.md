@@ -8,6 +8,24 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+## [3.5.0] — 2026-10-31
+
+The release that closes the quality plan's maturity target (Initiative 12). All six
+maturity exit criteria hold on `main`: honest coverage with an enforced floor, `e2e` and
+`retrieval-gate` required, a written security-release policy, signed images with an SBOM
+and provenance, strict typing on every service and repository, and the QP-9 review
+triaged. The re-audit runs against this tag. The review's open findings (R-8 to R-12,
+item 13) are QP-10 and are listed in `SECURITY.md`.
+
+**Upgrading from 3.4.0.** No migrations and no configuration changes. Images from this
+release on are signed; verify one before deploying it, as `docs/DEPLOYMENT.md` shows.
+
+### Security
+
+- **`pypdf` 6.21.2 → 6.21.4** (#515), for seven advisories published on 2026-10-31
+  (CVE-2026-119203 to CVE-2026-119209). `pypdf` parses every uploaded PDF. Released the
+  same day, inside the 7-day policy.
+
 ### Added
 
 - **Published images are signed, with an SBOM and build provenance** (QP-8). Every image
@@ -20,6 +38,13 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   needed a token with more rights than the workflow's own and would overwrite the
   hand-written changelog. The publish workflow now refuses a `v*` tag that disagrees with
   `APP_VERSION` before it builds anything.
+
+### Changed
+
+- **Every service is held to strict typing** (maturity criterion 5). `chat`, `admin_stats`
+  and `logs` joined the other services and the repositories on `pyproject.toml`'s strict
+  mypy list, and a test now fails when a module in `src/services/` or a repository in
+  `src/db/` is left off it. No behaviour change.
 
 ## [3.4.0] — 2026-10-30
 
@@ -1297,7 +1322,8 @@ eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.4.0...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.5.0...HEAD
+[3.5.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.4.0...v3.5.0
 [3.4.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.1.0...v3.2.0
