@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 _status_doc_count_cache: dict[Scope, tuple[int, float]] = {}
 _STATUS_CACHE_TTL: float = 5.0
 _status_cache_lock = threading.Lock()
-_ollama_status_cache: list = [False, 0.0]  # [available, last_check_time]
+_ollama_status_cache: list[bool | float] = [False, 0.0]  # [available, last_check_time]
 _OLLAMA_STATUS_TTL: float = 10.0
 _ollama_status_lock = threading.Lock()
 _ollama_refresh_thread: threading.Thread | None = None
@@ -47,7 +47,7 @@ def has_web_search_intent(message: str) -> bool:
     return any(phrase in lower for phrase in _WEB_INTENT_PHRASES)
 
 
-def parse_chat_request(data: dict) -> dict:
+def parse_chat_request(data: dict[str, Any]) -> dict[str, Any]:
     from ..models import ChatRequest
     from ..utils.sanitization import sanitize_query
     req = ChatRequest(**data)
@@ -72,10 +72,10 @@ def parse_chat_request(data: dict) -> dict:
 
 def try_mcp_rag(
     message: str,
-    filename_filter: list | None,
+    filename_filter: list[str] | None,
     chunks_retrieved_ref: list[int],
     workspace_id: str,
-) -> tuple[str, list[dict]] | None:
+) -> tuple[str, list[dict[str, Any]]] | None:
     """Retrieve through the local-docs MCP server, or None to fall back.
 
     *workspace_id* is passed on rather than dropped. It used to be absent from this
@@ -106,13 +106,13 @@ def get_rag_context(
     message: str,
     doc_processor: Any,
     chunks_retrieved_ref: list[int],
-    filename_filter: list | None = None,
+    filename_filter: list[str] | None = None,
     additional_workspace_ids: list[str] | None = None,
     source_ids: list[str] | None = None,
     *,
     scope: Scope,
     knowledge_scope: KnowledgeScope = "local",
-) -> tuple[str, list[dict]]:
+) -> tuple[str, list[dict[str, Any]]]:
     if config.MCP_ENABLED and isinstance(scope, str) and knowledge_scope == "local":
         # No workspace, no MCP: the server now refuses an unscoped search, and
         # falling through to the direct path keeps the caller's own scoping rules
@@ -156,7 +156,7 @@ def get_rag_context(
     return doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH), sources
 
 
-def get_web_context(message: str) -> tuple[str, list[dict]]:
+def get_web_context(message: str) -> tuple[str, list[dict[str, Any]]]:
     """Return (context_for_prompt, source_entries) for a web-enhanced query."""
     if config.MCP_ENABLED:
         try:
@@ -263,7 +263,7 @@ def stop_ollama_liveness(timeout: float = 5.0) -> None:
         thread.join(timeout=timeout)
 
 
-def get_filename_filter(fields: dict, db: Any, scope: Scope) -> list[str]:
+def get_filename_filter(fields: dict[str, Any], db: Any, scope: Scope) -> list[str]:
     conversation_id = fields.get("conversation_id")
     if not conversation_id:
         return []
@@ -277,8 +277,8 @@ def get_filename_filter(fields: dict, db: Any, scope: Scope) -> list[str]:
 
 
 def retrieve_via_aggregator(
-    fields: dict, plan: Any, chunks_retrieved_ref: list[int]
-) -> tuple[tuple[str, str, list[dict]], AgentResult] | None:
+    fields: dict[str, Any], plan: Any, chunks_retrieved_ref: list[int]
+) -> tuple[tuple[str, str, list[dict[str, Any]]], AgentResult] | None:
     tools: list[str] = []
     if fields["use_rag"]:
         tools.append("local_docs")
@@ -310,7 +310,7 @@ def retrieve_via_aggregator(
 
 
 def retrieve_contexts(
-    fields: dict,
+    fields: dict[str, Any],
     doc_processor: Any,
     db: Any,
     chunks_retrieved_ref: list[int],
@@ -319,7 +319,7 @@ def retrieve_contexts(
     source_ids: list[str] | None = None,
     *,
     scope: Scope,
-) -> tuple[str, str, list[dict], Any]:
+) -> tuple[str, str, list[dict[str, Any]], Any]:
     """Return (local_ctx, web_ctx, sources, agent_result)."""
     knowledge_scope = fields.get("knowledge_scope", "local")
     # The tiers exist only on the direct path (retrieve_context). The aggregator's and
@@ -376,10 +376,10 @@ def get_rag_context_multi_hop(
     *,
     scope: Scope,
     knowledge_scope: KnowledgeScope = "local",
-) -> tuple[str, list[dict]]:
+) -> tuple[str, list[dict[str, Any]]]:
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    all_results: list = []
+    all_results: list[RetrievalResult] = []
     with ThreadPoolExecutor(max_workers=min(len(sub_questions), 4)) as executor:
         futures = {
             executor.submit(
@@ -431,7 +431,7 @@ def persist_user_message(
     if not app_state.startup_status.get("database", False):
         return conversation_id, None
     try:
-        plan_json: dict | None = plan.to_dict() if plan is not None else None
+        plan_json: dict[str, Any] | None = plan.to_dict() if plan is not None else None
         if agent_result is not None:
             plan_json = plan_json or {}
             plan_json["tool_trace"] = agent_result.to_trace_dict()
@@ -465,7 +465,10 @@ def persist_assistant_message(
     if not conversation_id:
         return None
     try:
-        return app_state.db.conversations.save_message(conversation_id, "assistant", text, scope=scope)
+        message_id: int | None = app_state.db.conversations.save_message(
+            conversation_id, "assistant", text, scope=scope
+        )
+        return message_id
     except Exception as mem_err:  # noqa: BLE001 — same, for the assistant message
         logger.warning("[MEMORY] Could not persist assistant message: %s", mem_err)
         return None
@@ -483,20 +486,21 @@ def get_tool_executor(app_state: Any) -> Any:
     return None
 
 
-def any_local_only_sources(sources: list[dict] | None, app_state: Any) -> bool:
+def any_local_only_sources(sources: list[dict[str, Any]] | None, app_state: Any) -> bool:
     if not sources or not app_state.startup_status.get("database", False):
         return False
     filenames = list({s["filename"] for s in sources if s.get("filename")})
     if not filenames:
         return False
     try:
-        return app_state.db.documents.any_local_only_sources(filenames)
+        local_only: bool = app_state.db.documents.any_local_only_sources(filenames)
+        return local_only
     except Exception as exc:  # noqa: BLE001 — returns True — the conservative answer keeps the query local rather than sending it to a cloud model
         logger.warning("[CloudFallback] local_only check failed: %s", exc)
         return True
 
 
-def update_chunk_stats(app_state: Any, sources: list[dict]) -> None:
+def update_chunk_stats(app_state: Any, sources: list[dict[str, Any]]) -> None:
     if not sources or not app_state.startup_status.get("database", False):
         return
     chunk_ids = [s["chunk_id"] for s in sources if s.get("chunk_id")]
@@ -510,9 +514,9 @@ def update_chunk_stats(app_state: Any, sources: list[dict]) -> None:
 async def stream_chunks_with_fallback(
     local_stream: Any,
     cloud_client: Any,
-    sources: list[dict] | None,
+    sources: list[dict[str, Any]] | None,
     app_state: Any,
-    messages: list,
+    messages: list[dict[str, Any]],
     temperature: float,
 ) -> AsyncGenerator[tuple[str, str], None]:
     from ..llm_client import is_refusal
@@ -539,7 +543,7 @@ async def stream_chunks_with_fallback(
 
 
 async def retrieve_plan_and_memory(
-    fields: dict, active_model: str, ollama_client: Any, db: Any,
+    fields: dict[str, Any], active_model: str, ollama_client: Any, db: Any,
     *,
     scope: Scope,
 ) -> tuple[Any, str]:
@@ -572,7 +576,7 @@ async def retrieve_plan_and_memory(
 
 
 def apply_model_routing(
-    fields: dict, active_model: str, sources: list[dict], plan: Any
+    fields: dict[str, Any], active_model: str, sources: list[dict[str, Any]], plan: Any
 ) -> tuple[str, str | None]:
     if fields.get("model_override"):
         logger.info("[Router] User override → %s", str(fields["model_override"]).replace("\r", "").replace("\n", " "))
@@ -608,21 +612,21 @@ class ChatService:
         """Whether *conversation_id* is a live conversation in *scope* (R-3)."""
         return self._db.conversations.document_filter(conversation_id, scope=scope) is not None
 
-    async def plan_and_memory(self, fields: dict, active_model: str, scope: Scope) -> tuple[Any, str]:
+    async def plan_and_memory(self, fields: dict[str, Any], active_model: str, scope: Scope) -> tuple[Any, str]:
         return await retrieve_plan_and_memory(
             fields, active_model, self._ollama_client, self._db, scope=scope
         )
 
     def contexts(
         self,
-        fields: dict,
+        fields: dict[str, Any],
         chunks_retrieved_ref: list[int],
         *,
         plan: Any,
         scope: Scope,
         additional_workspace_ids: list[str] | None,
         source_ids: list[str] | None,
-    ) -> tuple[str, str, list[dict], Any]:
+    ) -> tuple[str, str, list[dict[str, Any]], Any]:
         """Return (local_ctx, web_ctx, sources, agent_result)."""
         return retrieve_contexts(
             fields, self._doc_processor, self._db, chunks_retrieved_ref,
