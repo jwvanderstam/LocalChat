@@ -70,12 +70,13 @@ is public and needs no login: `docker compose pull` fetches it, and it is signed
 [verify it](docs/DEPLOYMENT.md#verifying-a-published-image) before you deploy it. It is
 published for `linux/amd64` only; on Apple Silicon or another ARM host, compose builds the
 image locally instead. A local build pulls its hardened base from `dhi.io`, Docker's
-Hardened Images registry. It answers anonymous pulls, which is how CI builds, but throttles
-them. If a build fails pulling from `dhi.io`, retry it, or sign in with any free Docker
-account (no subscription needed) to get past the throttle:
+Hardened Images registry, which requires a login: a desktop build without one fails with
+`failed to fetch anonymous token ... 401 Unauthorized`. Any free Docker account works, and no
+subscription is needed. Sign in with your Docker ID (the username, not the email address) and
+a personal access token as the password, created under Account settings at app.docker.com:
 
 ```bash
-docker login dhi.io           # Docker Hub username, and a password or access token
+docker login dhi.io -u <docker-id>    # paste the access token when asked for a password
 ```
 
 An error naming `dhi.io` is about that registry, not about this image, which is public.
