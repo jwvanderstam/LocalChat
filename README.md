@@ -70,15 +70,15 @@ is public and needs no login: `docker compose pull` fetches it, and it is signed
 [verify it](docs/DEPLOYMENT.md#verifying-a-published-image) before you deploy it. It is
 published for `linux/amd64` only; on Apple Silicon or another ARM host, compose builds the
 image locally instead. A local build pulls its hardened base from `dhi.io`, Docker's
-Hardened Images registry, which requires a login. Any free Docker account works, and no
-subscription is needed:
+Hardened Images registry. It answers anonymous pulls, which is how CI builds, but throttles
+them. If a build fails pulling from `dhi.io`, retry it, or sign in with any free Docker
+account (no subscription needed) to get past the throttle:
 
 ```bash
 docker login dhi.io           # Docker Hub username, and a password or access token
 ```
 
-If `docker compose up` fails with an error naming `dhi.io`, this login is what is missing.
-The image is not private.
+An error naming `dhi.io` is about that registry, not about this image, which is public.
 
 **Everything runs in Docker**, on a private network where the services address each other
 by name — the app reaches Ollama at `http://ollama:11434` and Postgres at `db`. Compose
