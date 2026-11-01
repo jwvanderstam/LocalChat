@@ -64,22 +64,44 @@ running as uid 65532. That changes how you debug it — `docker exec ... sh` wil
 use `docker compose run --rm --entrypoint python app`. See
 [DEPLOYMENT.md](docs/DEPLOYMENT.md#the-application-image).
 
-**Prebuilt image or a local build.** `docker-compose.yml` names both a prebuilt image,
-`ghcr.io/jwvanderstam/localchat`, and the `Dockerfile` it is built from. The prebuilt image
-is public and needs no login: `docker compose pull` fetches it, and it is signed, so
-[verify it](docs/DEPLOYMENT.md#verifying-a-published-image) before you deploy it. It is
-published for `linux/amd64` only; on Apple Silicon or another ARM host, compose builds the
-image locally instead. A local build pulls its hardened base from `dhi.io`, Docker's
-Hardened Images registry, which requires a login: a desktop build without one fails with
-`failed to fetch anonymous token ... 401 Unauthorized`. Any free Docker account works, and no
-subscription is needed. Sign in with your Docker ID (the username, not the email address) and
-a personal access token as the password, created under Account settings at app.docker.com:
+**Hardened images, and running without them.** The `app` image is built on Docker
+Hardened Images from `dhi.io`: minimal bases with close to zero known CVEs, signed by
+Docker ([ADR-3](docs/ADR.md)). They are a security choice, not a dependency: LocalChat
+itself runs the same without them. Pick the path that fits:
 
-```bash
-docker login dhi.io -u <docker-id>    # paste the access token when asked for a password
-```
+1. **Use the prebuilt image** (`linux/amd64`). It is public, needs no login, and already
+   carries the hardened base. It is signed, so
+   [verify it](docs/DEPLOYMENT.md#verifying-a-published-image) before you deploy it.
 
-An error naming `dhi.io` is about that registry, not about this image, which is public.
+   ```bash
+   docker compose pull app
+   docker compose up -d --no-build
+   ```
+
+2. **Build the image yourself.** The build pulls its base from `dhi.io`, which requires a
+   login; without one it fails with `failed to fetch anonymous token ... 401 Unauthorized`.
+   Any free Docker account works, with no subscription. Sign in with your Docker ID (the
+   username, not the email address) and a personal access token as the password, created
+   under Account settings at app.docker.com:
+
+   ```bash
+   docker login dhi.io -u <docker-id>    # paste the access token when asked for a password
+   docker compose build app
+   docker compose up -d --no-build
+   ```
+
+3. **Run without the hardened images.** Run the app on the host with Python 3.12, as
+   described in *Running the app outside Docker* below. PostgreSQL, Redis and Ollama still
+   run in Docker from their public images, so no Docker account is needed. You lose the
+   hardened container, not any feature.
+
+An error naming `dhi.io` is about that registry, not about the LocalChat image, which is
+public.
+
+**Need the hardened image and none of these work for you?** For example an ARM machine
+(the prebuilt image is `linux/amd64` only) and no Docker account. Leave a message in
+[Discussions](https://github.com/jwvanderstam/LocalChat/discussions) saying which platform
+you are on, and I will look at publishing for it.
 
 **Everything runs in Docker**, on a private network where the services address each other
 by name — the app reaches Ollama at `http://ollama:11434` and Postgres at `db`. Compose
