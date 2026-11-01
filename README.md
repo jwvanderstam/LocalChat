@@ -64,6 +64,22 @@ running as uid 65532. That changes how you debug it — `docker exec ... sh` wil
 use `docker compose run --rm --entrypoint python app`. See
 [DEPLOYMENT.md](docs/DEPLOYMENT.md#the-application-image).
 
+**Prebuilt image or a local build.** `docker-compose.yml` names both a prebuilt image,
+`ghcr.io/jwvanderstam/localchat`, and the `Dockerfile` it is built from. The prebuilt image
+is public and needs no login: `docker compose pull` fetches it, and it is signed, so
+[verify it](docs/DEPLOYMENT.md#verifying-a-published-image) before you deploy it. It is
+published for `linux/amd64` only; on Apple Silicon or another ARM host, compose builds the
+image locally instead. A local build pulls its hardened base from `dhi.io`, Docker's
+Hardened Images registry, which requires a login. Any free Docker account works, and no
+subscription is needed:
+
+```bash
+docker login dhi.io           # Docker Hub username, and a password or access token
+```
+
+If `docker compose up` fails with an error naming `dhi.io`, this login is what is missing.
+The image is not private.
+
 **Everything runs in Docker**, on a private network where the services address each other
 by name — the app reaches Ollama at `http://ollama:11434` and Postgres at `db`. Compose
 sets those itself, and compose's `environment:` beats `.env`, so `OLLAMA_BASE_URL`,
