@@ -9,12 +9,12 @@
 # only. CI installs both.
 -c requirements.txt
 
-pytest==9.1.1
+pytest==9.2.0
 pytest-cov==7.1.0
 pytest-mock==3.17.0
-pytest-asyncio==1.4.0
+pytest-asyncio==1.4.1
 pytest-playwright==0.10.0   # tests/e2e browser suite — also run: playwright install chromium
-faker==40.43.0
+faker==40.44.0
 responses==0.26.3
 freezegun==1.5.5
 coverage==7.17.0
