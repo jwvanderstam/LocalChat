@@ -26,7 +26,7 @@
 # ---- Stage 1: builder ----------------------------------------
 # The -dev variant carries the shell, apt and compilers the runtime
 # variant deliberately omits. Nothing from it reaches the final image.
-FROM dhi.io/python:3.12-dev@sha256:3b5bbcb41fec489a9ab2c5a16a8bd7cc915526e6e73954415168f9f57f3b58d7 AS builder
+FROM dhi.io/python:3.15-dev@sha256:74f0261e2bfead93cb7b7c553b198ce2a7b8ddeae8e35264043e1864379976ac AS builder
 
 # No apt layer, deliberately. Nothing in requirements.txt needs a compiler:
 # every dependency but one ships a manylinux wheel, and the exception
@@ -61,7 +61,7 @@ RUN mkdir -p /skel/logs /skel/uploads
 
 
 # ---- Stage 2: runtime ----------------------------------------
-FROM dhi.io/python:3.12@sha256:7c247af7f603bba8197ad5c34595066e1e6b81644c5a37b576d157979ceb4ea6 AS runtime
+FROM dhi.io/python:3.15@sha256:8b0f1de0f2a53209a735cab91d52116938aa38858c24537f454f87bbaa718c5a AS runtime
 
 # No libpq layer: psycopg[binary] vendors libpq inside the wheel, and the
 # hardened base has no apt to install a system copy with. Verified by importing
