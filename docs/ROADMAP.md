@@ -1900,7 +1900,8 @@ start **before** QP-4's first PR.
   agent session. Twelve findings, R-1 to R-12, are triaged in `SECURITY.md`. R-1 to R-7 are
   fixed; R-5's ratchet and R-8 to R-12 are QP-10.
 
-**Gate:** all six maturity exit criteria hold. Tag v3.5.0 and re-run the audit.
+**Gate:** all six maturity exit criteria hold. Tag v3.5.0 and re-run the audit. ✅ Met
+2026-10-31: v3.5.0 is the release; the re-audit runs against its tag.
 
 > **Moved from v3.4.0 to v3.5.0 on 2026-10-30, by the maintainer's decision.** The review's
 > fixes (R-1 to R-7) merged on 2026-10-30, so the 7-day security release falls due on
@@ -1908,7 +1909,11 @@ start **before** QP-4's first PR.
 > makes no claim about the maturity 8; v3.5.0 does, once both criteria hold. Holding the
 > fixes until the gate is met was rejected, and so was backporting them to v3.3.1: they stand
 > on QP-4's services and QP-5's scoped connections, which 3.3.0 does not have. Criterion (2)
-> held later the same day, when the three checks became required; (4) is what remains.
+> held later the same day, when the three checks became required. (4) held once #514 merged
+> and its first signed image verified with `cosign verify` and `gh attestation verify`.
+> Checking the gate before tagging found (5) short: `chat`, `admin_stats` and `logs` were
+> not on the strict mypy list. They were typed and added on 2026-10-31, with a test that
+> keeps every service and repository on it.
 
 #### QP-10 — The review's open findings ⬜ (after v3.4.0)
 
@@ -2018,7 +2023,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ #469 + QP-7 e2e, 8 paths ✅ | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
-| 29 | QP-8's signed images ✅ -> **v3.5.0**, re-audit; then QP-10 and QP-11 | ~1 week |
+| 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 and QP-11 | ~1 week |
 | — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
