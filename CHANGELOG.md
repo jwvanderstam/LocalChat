@@ -8,6 +8,16 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+### Security
+
+- **`litellm` 1.97.0 → 1.100.4**, for GHSA-7hp6-4w63-5g45 (published 2026-10-27): an
+  `internal_user` of the LiteLLM *proxy server* could escalate to `proxy_admin`. LocalChat
+  runs no proxy; it imports `litellm` as a library for the cloud fallback
+  (`litellm.completion` and `cost_per_token` in `src/llm_client.py`), so it was not
+  exploitable here. Bumped so the alert closes. From 1.100 on, `litellm` requires `boto3`,
+  which brings `boto3`, `botocore`, `s3transfer`, `jmespath` and `python-dateutil` into
+  the image.
+
 ## [3.5.0] — 2026-10-31
 
 The release that closes the quality plan's maturity target (Initiative 12). All six
