@@ -64,6 +64,21 @@ class ModelClient(Protocol):
 
 # ── OpenAI-compatible implementation ──────────────────────────────────────────
 
+def _sse_data(lines: Iterator[str]) -> Iterator[str]:
+    """The data of each server-sent event; an event's ``data:`` lines join with newlines."""
+    data: list[str] = []
+    for line in lines:
+        if not line:
+            if data:
+                yield "\n".join(data)
+                data = []
+        elif line.startswith("data:"):
+            value = line[len("data:"):]
+            data.append(value[1:] if value.startswith(" ") else value)
+    if data:
+        yield "\n".join(data)
+
+
 class OpenAICompatibleClient:
     """ModelClient over ``POST {base_url}/chat/completions``, the OpenAI wire format.
 
@@ -94,13 +109,14 @@ class OpenAICompatibleClient:
     def _iter_stream_chunks(self, lines: Iterator[str], model: str) -> Generator[str, None, None]:
         """Yield non-empty content strings from a server-sent chat-completions stream."""
         usage = None
-        for line in lines:
-            if not line.startswith("data:"):
-                continue
-            payload = line[len("data:"):].strip()
+        for payload in _sse_data(lines):
             if payload == "[DONE]":
                 break
             chunk = json.loads(payload)
+            if chunk.get("error"):
+                # A provider can fail after the 200 headers. Skipped, the chat route
+                # would save an empty or partial answer and report success.
+                raise RuntimeError(f"Cloud endpoint reported an error mid-stream: {chunk['error']}")
             # With include_usage the final chunk carries usage and no choices.
             usage = chunk.get("usage") or usage
             choices = chunk.get("choices") or []

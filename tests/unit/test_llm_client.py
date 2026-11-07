@@ -148,6 +148,20 @@ class TestStreaming:
         with pytest.raises(httpx.HTTPStatusError):
             list(client.generate_chat_response("m", MESSAGES))
 
+    def test_an_event_split_over_several_data_lines_is_joined_before_decoding(self):
+        text = 'data: {"choices":\ndata: [{"delta": {"content": "joined"}}]}\n\n' + _sse(_delta(" after"))
+        client, _ = _client(lambda request: httpx.Response(200, text=text))
+        assert list(client.generate_chat_response("m", MESSAGES)) == ["joined", " after"]
+
+    def test_an_error_event_after_content_raises_instead_of_ending_quietly(self):
+        error = {"error": {"message": "overloaded", "type": "server_error"}}
+        client, _ = _client(_stream(_delta("partial"), error, _delta("never")))
+        received = []
+        with pytest.raises(RuntimeError, match="overloaded"):
+            for chunk in client.generate_chat_response("m", MESSAGES):
+                received.append(chunk)
+        assert received == ["partial"]
+
 
 class TestNonStreaming:
     def test_it_yields_the_message_content_once_and_asks_for_no_stream(self):
