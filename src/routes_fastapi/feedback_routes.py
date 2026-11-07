@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from ..security_fastapi import require_admin_dep
+from ..security_fastapi import check_knowledge_scope_access, require_admin_dep
 from ..services.feedback import FeedbackService
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_scope
@@ -44,7 +44,7 @@ async def submit_feedback(request: Request, feedback: Feedback) -> Any:
     try:
         feedback_id = feedback.record(
             rating, message_id, conversation_id, feedback_type, correct_doc_ids, source_chunk_ids,
-            get_scope(request),
+            get_scope(request), check_knowledge_scope_access(request, "global") is None,
         )
         if feedback_id is None:
             return JSONResponse({"error": "not found"}, status_code=404)

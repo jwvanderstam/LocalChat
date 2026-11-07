@@ -2,7 +2,8 @@
 
 A rating names a message and chunks, and a chunk's `chunk_stats` row blocks its document's
 purge. The caller's own and the global tier's chunks are citable, because a hybrid answer
-cites both; another workspace's, a retired and an archived one are not.
+cites both; another workspace's, a retired and an archived one are not. A caller the global
+tier is closed to, a workspace API key, cannot cite it either.
 """
 
 from __future__ import annotations
@@ -70,25 +71,35 @@ def world(database: Any) -> Iterator[SimpleNamespace]:
 
 
 def test_a_workspaces_own_chunk_is_citable(database: Any, world: SimpleNamespace) -> None:
-    assert database.documents.citable_chunk_ids([world.own], scope=world.a) == {world.own}
+    assert database.documents.citable_chunk_ids([world.own], scope=world.a, global_tier=True) == {world.own}
 
 
 def test_a_global_chunk_is_citable_from_any_workspace(database: Any, world: SimpleNamespace) -> None:
-    assert database.documents.citable_chunk_ids([world.shared], scope=world.a) == {world.shared}
+    assert database.documents.citable_chunk_ids([world.shared], scope=world.a, global_tier=True) == {world.shared}
 
 
 def test_another_workspaces_chunk_is_not_citable(database: Any, world: SimpleNamespace) -> None:
-    assert database.documents.citable_chunk_ids([world.own, world.foreign], scope=world.a) == {world.own}
+    assert database.documents.citable_chunk_ids([world.own, world.foreign], scope=world.a, global_tier=True) == {world.own}
 
 
 def test_an_archived_contribution_is_not_citable(database: Any, world: SimpleNamespace) -> None:
     database.contributions.archive(world.b, world.admin)
-    assert database.documents.citable_chunk_ids([world.shared], scope=world.a) == set()
+    assert database.documents.citable_chunk_ids([world.shared], scope=world.a, global_tier=True) == set()
+
+
+def test_an_archived_contribution_is_not_citable_installation_wide(database: Any, world: SimpleNamespace) -> None:
+    database.contributions.archive(world.b, world.admin)
+    assert database.documents.citable_chunk_ids([world.shared], scope=ALL_WORKSPACES, global_tier=True) == set()
+
+
+def test_a_global_chunk_is_not_citable_where_the_tier_is_closed(database: Any, world: SimpleNamespace) -> None:
+    cited = database.documents.citable_chunk_ids([world.own, world.shared], scope=world.a, global_tier=False)
+    assert cited == {world.own}
 
 
 def test_a_retired_documents_chunk_is_not_citable(database: Any, world: SimpleNamespace) -> None:
     database.documents.retire_all(scope=world.a)
-    assert database.documents.citable_chunk_ids([world.own], scope=world.a) == set()
+    assert database.documents.citable_chunk_ids([world.own], scope=world.a, global_tier=True) == set()
 
 
 def test_a_message_in_a_live_conversation_of_the_scope_is_found(database: Any, world: SimpleNamespace) -> None:

@@ -30,7 +30,7 @@ class TestFeedback:
         db = MagicMock()
         db.feedback.insert.return_value = "fb-1"
         db.documents.citable_chunk_ids.return_value = {7, 8}
-        assert FeedbackService(db).record(rating, 5, "c1", "answer_quality", [], [7, 8], SCOPE) == "fb-1"
+        assert FeedbackService(db).record(rating, 5, "c1", "answer_quality", [], [7, 8], SCOPE, True) == "fb-1"
         if credited:
             db.feedback.count_positive.assert_called_once_with(credited)
             db.feedback.count_negative.assert_not_called()
@@ -40,17 +40,17 @@ class TestFeedback:
 
     def test_no_source_chunks_touches_no_chunk_counters(self):
         db = MagicMock()
-        FeedbackService(db).record(1, None, None, "answer_quality", [], [], SCOPE)
+        FeedbackService(db).record(1, None, None, "answer_quality", [], [], SCOPE, True)
         db.feedback.count_positive.assert_not_called()
         db.feedback.count_negative.assert_not_called()
 
     def test_every_id_a_rating_names_is_looked_up_in_the_callers_scope(self):
         db = MagicMock()
         db.documents.citable_chunk_ids.return_value = {7}
-        FeedbackService(db).record(1, 5, "c1", "answer_quality", [], [7], SCOPE)
+        FeedbackService(db).record(1, 5, "c1", "answer_quality", [], [7], SCOPE, False)
         db.conversations.document_filter.assert_called_once_with("c1", scope=SCOPE)
         db.conversations.has_message.assert_called_once_with(5, scope=SCOPE)
-        db.documents.citable_chunk_ids.assert_called_once_with([7], scope=SCOPE)
+        db.documents.citable_chunk_ids.assert_called_once_with([7], scope=SCOPE, global_tier=False)
 
     @pytest.mark.parametrize(
         "foreign",
@@ -65,7 +65,7 @@ class TestFeedback:
             db.conversations.has_message.return_value = False
         else:
             db.documents.citable_chunk_ids.return_value = {7}
-        assert FeedbackService(db).record(1, 5, "c1", "answer_quality", [], [7, 8], SCOPE) is None
+        assert FeedbackService(db).record(1, 5, "c1", "answer_quality", [], [7, 8], SCOPE, True) is None
         db.feedback.insert.assert_not_called()
         db.feedback.count_positive.assert_not_called()
 

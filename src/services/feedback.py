@@ -34,14 +34,16 @@ class FeedbackService:
         correct_doc_ids: list[str],
         source_chunk_ids: list[int],
         scope: Scope,
+        global_tier: bool,
     ) -> str | None:
         """Store a rating and credit or debit the chunks it was about; returns its id.
 
         None, with nothing written, when *scope* lacks any id the rating names. A
         ``chunk_stats`` row blocks a document's purge, so an unchecked chunk id let a
-        viewer make another workspace's document un-purgeable (R-8).
+        viewer make another workspace's document un-purgeable (R-8). Without *global_tier*,
+        a chunk of the global tier counts as outside the scope.
         """
-        if not self._ids_in_scope(message_id, conversation_id, source_chunk_ids, scope):
+        if not self._ids_in_scope(message_id, conversation_id, source_chunk_ids, scope, global_tier):
             return None
         feedback_id = self._db.feedback.insert(
             rating,
@@ -58,13 +60,20 @@ class FeedbackService:
         return feedback_id
 
     def _ids_in_scope(
-        self, message_id: int | None, conversation_id: str | None, chunk_ids: list[int], scope: Scope
+        self,
+        message_id: int | None,
+        conversation_id: str | None,
+        chunk_ids: list[int],
+        scope: Scope,
+        global_tier: bool,
     ) -> bool:
         if conversation_id and self._db.conversations.document_filter(conversation_id, scope=scope) is None:
             return False
         if message_id is not None and not self._db.conversations.has_message(message_id, scope=scope):
             return False
-        return not chunk_ids or set(chunk_ids) <= self._db.documents.citable_chunk_ids(chunk_ids, scope=scope)
+        if not chunk_ids:
+            return True
+        return set(chunk_ids) <= self._db.documents.citable_chunk_ids(chunk_ids, scope=scope, global_tier=global_tier)
 
     def stats(self, days: int) -> dict[str, Any]:
         return {
