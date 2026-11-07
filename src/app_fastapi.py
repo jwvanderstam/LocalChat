@@ -180,19 +180,19 @@ def _init_security(app: FastAPI, testing: bool) -> None:
 def _init_cloud_client() -> Any:
     if not config.CLOUD_FALLBACK_ENABLED:
         return None
-    if not config.CLOUD_MODEL:
-        logger.warning("[CloudFallback] CLOUD_FALLBACK_ENABLED=true but CLOUD_MODEL is not set")
+    if not config.CLOUD_MODEL or not config.CLOUD_BASE_URL:
+        logger.warning("[CloudFallback] CLOUD_FALLBACK_ENABLED=true but CLOUD_BASE_URL or CLOUD_MODEL is not set")
         return None
     try:
-        from .llm_client import LiteLLMClient
-        return LiteLLMClient(
-            provider=config.CLOUD_PROVIDER,
+        from .llm_client import OpenAICompatibleClient
+        return OpenAICompatibleClient(
+            base_url=config.CLOUD_BASE_URL,
             api_key=config.CLOUD_API_KEY,
             model=config.CLOUD_MODEL,
+            timeout=config.CLOUD_TIMEOUT,
+            price_input_per_mtok=config.CLOUD_PRICE_INPUT_PER_MTOK,
+            price_output_per_mtok=config.CLOUD_PRICE_OUTPUT_PER_MTOK,
         )
-    except ImportError as e:
-        logger.warning(f"[CloudFallback] {e} — disabled")
-        return None
     except Exception:
         logger.exception("[CloudFallback] Failed to initialise")
         return None

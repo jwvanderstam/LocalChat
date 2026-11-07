@@ -250,7 +250,14 @@ a gain of one deleted heading.
   or a deployment where the people who write the documents are not trusted by the people
   who ask about them.
 
-### 12. `litellm` CVE-2026-114612 is suppressed in `pip-audit` until ADR-4 removes it
+### 12. `litellm` CVE-2026-114612 — resolved 2026-11-07
+
+**No longer an accepted risk.** QP-11 replaced `litellm` with a direct OpenAI-compatible
+client ([ADR-4](docs/ADR.md)), so the package is in neither lock and not in the image. The
+`pip-audit --ignore-vuln CVE-2026-114612` suppression went with it, and the step again runs
+with no suppressions. Kept at its number, like item 2, because other documents cite the
+items below it by number. What the entry recorded while it was open:
+
 
 - **What**: `litellm` 1.97.0 is in the image. CVE-2026-114612 (published 2026-10-29) is a
   privilege escalation in the **LiteLLM proxy server**: it reuses one key for stored secrets

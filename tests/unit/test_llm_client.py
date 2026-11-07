@@ -3,17 +3,17 @@ Tests for src/llm_client.py
 
 Covers:
   - is_refusal: each pattern matches, long text exempt, empty string, no match
-  - LiteLLMClient.__init__: litellm not installed raises ImportError, api_key sets env var
-  - LiteLLMClient.generate_chat_response: streaming yields chunks, non-streaming yields once,
-    empty content skipped, litellm raises propagates
-  - LiteLLMClient.generate_chat_completion: with/without tools, returns model_dump
-  - ModelClient Protocol: LiteLLMClient satisfies it at runtime
+  - OpenAICompatibleClient, against httpx.MockTransport: the request it sends (URL, bearer
+    token, OpenAI body), a server-sent stream parsed to its content, a non-streamed answer,
+    an error status raised, and the tool-call completion returned as the endpoint sent it
+  - ModelClient Protocol: OpenAICompatibleClient satisfies it at runtime
 """
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+import json
 
+import httpx
 import pytest
 
 # ===========================================================================
@@ -67,158 +67,131 @@ class TestIsRefusal:
 
 
 # ===========================================================================
-# LiteLLMClient.__init__
+# OpenAICompatibleClient
 # ===========================================================================
 
-class TestLiteLLMClientInit:
-    def test_raises_import_error_when_litellm_not_installed(self):
-        with patch.dict("sys.modules", {"litellm": None}):
-            with pytest.raises(ImportError, match="litellm is required"):
-                from src.llm_client import LiteLLMClient
-                LiteLLMClient("openai", None, "gpt-4o")
-
-    def test_stores_api_key_as_instance_var(self):
-        mock_litellm = MagicMock()
-        with patch.dict("sys.modules", {"litellm": mock_litellm}):
-            from importlib import reload
-
-            import src.llm_client as mod
-            reload(mod)
-            client = mod.LiteLLMClient("openai", "sk-test-key", "gpt-4o")
-            assert client._api_key == "sk-test-key"
-
-    def test_no_api_key_stored_when_none(self):
-        mock_litellm = MagicMock()
-        with patch.dict("sys.modules", {"litellm": mock_litellm}):
-            from importlib import reload
-
-            import src.llm_client as mod
-            reload(mod)
-            client = mod.LiteLLMClient("anthropic", None, "claude-3-haiku")
-            assert client._api_key is None
+BASE = "https://cloud.example/v1"
+MESSAGES = [{"role": "user", "content": "hi"}]
 
 
-# ===========================================================================
-# LiteLLMClient.generate_chat_response
-# ===========================================================================
-
-class TestLiteLLMClientGenerateChatResponse:
-    def _make_client(self):
-        mock_litellm = MagicMock()
-        with patch.dict("sys.modules", {"litellm": mock_litellm}):
-            from importlib import reload
-
-            import src.llm_client as mod
-            reload(mod)
-            client = mod.LiteLLMClient("openai", None, "gpt-4o")
-            client._litellm = mock_litellm
-        return client, mock_litellm
-
-    def _make_stream_chunk(self, content):
-        chunk = MagicMock()
-        chunk.choices = [MagicMock()]
-        chunk.choices[0].delta.content = content
-        return chunk
-
-    def test_streaming_yields_content_chunks(self):
-        client, mock_litellm = self._make_client()
-        mock_litellm.completion.return_value = [
-            self._make_stream_chunk("Hello"),
-            self._make_stream_chunk(" world"),
-        ]
-        result = list(client.generate_chat_response("gpt-4o", [{"role": "user", "content": "hi"}], stream=True))
-        assert result == ["Hello", " world"]
-
-    def test_empty_content_chunks_are_skipped(self):
-        client, mock_litellm = self._make_client()
-        mock_litellm.completion.return_value = [
-            self._make_stream_chunk(""),
-            self._make_stream_chunk(None),
-            self._make_stream_chunk("real content"),
-        ]
-        result = list(client.generate_chat_response("m", [], stream=True))
-        assert result == ["real content"]
-
-    def test_no_choices_chunk_skipped(self):
-        client, mock_litellm = self._make_client()
-        empty_chunk = MagicMock()
-        empty_chunk.choices = []
-        mock_litellm.completion.return_value = [empty_chunk]
-        result = list(client.generate_chat_response("m", [], stream=True))
-        assert result == []
-
-    def test_non_streaming_yields_single_response(self):
-        client, mock_litellm = self._make_client()
-        mock_resp = MagicMock()
-        mock_resp.choices = [MagicMock()]
-        mock_resp.choices[0].message.content = "Full answer here"
-        mock_litellm.completion.return_value = mock_resp
-        result = list(client.generate_chat_response("m", [], stream=False))
-        assert result == ["Full answer here"]
-
-    def test_litellm_exception_propagates(self):
-        client, mock_litellm = self._make_client()
-        mock_litellm.completion.side_effect = RuntimeError("API error")
-        with pytest.raises(RuntimeError, match="API error"):
-            list(client.generate_chat_response("m", [], stream=True))
-
-    def test_max_tokens_passed_when_provided(self):
-        client, mock_litellm = self._make_client()
-        mock_litellm.completion.return_value = []
-        list(client.generate_chat_response("m", [], stream=True, max_tokens=512))
-        call_kwargs = mock_litellm.completion.call_args.kwargs
-        assert call_kwargs.get("max_tokens") == 512
-
-    def test_max_tokens_not_passed_when_none(self):
-        client, mock_litellm = self._make_client()
-        mock_litellm.completion.return_value = []
-        list(client.generate_chat_response("m", [], stream=True))
-        call_kwargs = mock_litellm.completion.call_args.kwargs
-        assert "max_tokens" not in call_kwargs
+def _delta(content):
+    return {"choices": [{"index": 0, "delta": {"content": content}}]}
 
 
-# ===========================================================================
-# LiteLLMClient.generate_chat_completion
-# ===========================================================================
+def _sse(*events):
+    return "".join(f"data: {json.dumps(e)}\n\n" for e in events) + "data: [DONE]\n\n"
 
-class TestLiteLLMClientGenerateChatCompletion:
-    def _make_client(self):
-        mock_litellm = MagicMock()
-        with patch.dict("sys.modules", {"litellm": mock_litellm}):
-            from importlib import reload
 
-            import src.llm_client as mod
-            reload(mod)
-            client = mod.LiteLLMClient("openai", None, "gpt-4o")
-            client._litellm = mock_litellm
-        return client, mock_litellm
+def _stream(*events):
+    return lambda request: httpx.Response(200, text=_sse(*events))
 
-    def test_returns_model_dump(self):
-        client, mock_litellm = self._make_client()
-        mock_resp = MagicMock()
-        mock_resp.model_dump.return_value = {"choices": []}
-        mock_litellm.completion.return_value = mock_resp
-        result = client.generate_chat_completion("m", [])
-        assert result == {"choices": []}
 
-    def test_tools_passed_when_provided(self):
-        client, mock_litellm = self._make_client()
-        mock_resp = MagicMock()
-        mock_resp.model_dump.return_value = {}
-        mock_litellm.completion.return_value = mock_resp
+def _client(handler, api_key=None):
+    from src.llm_client import OpenAICompatibleClient
+
+    seen = []
+
+    def record(request):
+        seen.append(request)
+        return handler(request)
+
+    client = OpenAICompatibleClient(BASE, api_key, "m", timeout=5, transport=httpx.MockTransport(record))
+    return client, seen
+
+
+class TestTheRequest:
+    def test_it_posts_to_chat_completions_under_the_base_url(self):
+        client, seen = _client(_stream())
+        list(client.generate_chat_response("m", MESSAGES))
+        assert (seen[0].method, str(seen[0].url)) == ("POST", "https://cloud.example/v1/chat/completions")
+
+    def test_the_api_key_is_sent_as_a_bearer_token(self):
+        client, seen = _client(_stream(), api_key="sk-test")
+        list(client.generate_chat_response("m", MESSAGES))
+        assert seen[0].headers["authorization"] == "Bearer sk-test"
+
+    def test_without_an_api_key_no_authorization_header_is_sent(self):
+        client, seen = _client(_stream())
+        list(client.generate_chat_response("m", MESSAGES))
+        assert "authorization" not in seen[0].headers
+
+    def test_a_stream_sends_the_openai_body_and_asks_for_usage(self):
+        client, seen = _client(_stream())
+        list(client.generate_chat_response("m", MESSAGES, temperature=0.2, max_tokens=512))
+        assert json.loads(seen[0].content) == {
+            "model": "m", "messages": MESSAGES, "stream": True, "temperature": 0.2,
+            "max_tokens": 512, "stream_options": {"include_usage": True},
+        }
+
+    def test_max_tokens_is_left_out_when_none(self):
+        client, seen = _client(_stream())
+        list(client.generate_chat_response("m", MESSAGES))
+        assert "max_tokens" not in json.loads(seen[0].content)
+
+
+class TestStreaming:
+    def test_content_chunks_are_yielded_in_order(self):
+        client, _ = _client(_stream(_delta("Hello"), _delta(" world")))
+        assert list(client.generate_chat_response("m", MESSAGES)) == ["Hello", " world"]
+
+    def test_empty_missing_and_choiceless_chunks_are_skipped(self):
+        client, _ = _client(_stream(_delta(""), _delta(None), {"choices": []}, _delta("real content")))
+        assert list(client.generate_chat_response("m", MESSAGES)) == ["real content"]
+
+    def test_nothing_after_done_is_read(self):
+        text = _sse(_delta("Hello")) + f"data: {json.dumps(_delta('late'))}\n\n"
+        client, _ = _client(lambda request: httpx.Response(200, text=text))
+        assert list(client.generate_chat_response("m", MESSAGES)) == ["Hello"]
+
+    def test_an_error_status_raises(self):
+        client, _ = _client(lambda request: httpx.Response(500, text="upstream down"))
+        with pytest.raises(httpx.HTTPStatusError):
+            list(client.generate_chat_response("m", MESSAGES))
+
+    def test_an_event_split_over_several_data_lines_is_joined_before_decoding(self):
+        text = 'data: {"choices":\ndata: [{"delta": {"content": "joined"}}]}\n\n' + _sse(_delta(" after"))
+        client, _ = _client(lambda request: httpx.Response(200, text=text))
+        assert list(client.generate_chat_response("m", MESSAGES)) == ["joined", " after"]
+
+    def test_an_error_event_after_content_raises_instead_of_ending_quietly(self):
+        error = {"error": {"message": "overloaded", "type": "server_error"}}
+        client, _ = _client(_stream(_delta("partial"), error, _delta("never")))
+        received = []
+        with pytest.raises(RuntimeError, match="overloaded"):
+            for chunk in client.generate_chat_response("m", MESSAGES):
+                received.append(chunk)
+        assert received == ["partial"]
+
+
+class TestNonStreaming:
+    def test_it_yields_the_message_content_once_and_asks_for_no_stream(self):
+        client, seen = _client(lambda request: httpx.Response(
+            200, json={"choices": [{"message": {"content": "Full answer here"}}]}))
+        assert list(client.generate_chat_response("m", MESSAGES, stream=False)) == ["Full answer here"]
+        body = json.loads(seen[0].content)
+        assert (body["stream"], "stream_options" in body) == (False, False)
+
+    def test_no_choices_yields_an_empty_string(self):
+        client, _ = _client(lambda request: httpx.Response(200, json={"choices": []}))
+        assert list(client.generate_chat_response("m", MESSAGES, stream=False)) == [""]
+
+
+class TestChatCompletion:
+    def test_it_returns_the_response_as_the_endpoint_sent_it(self):
+        data = {"choices": [{"message": {"tool_calls": [{"id": "c1", "function": {"name": "search"}}]}}]}
+        client, _ = _client(lambda request: httpx.Response(200, json=data))
+        assert client.generate_chat_completion("m", MESSAGES) == data
+
+    def test_tools_are_sent_when_given(self):
         tools = [{"type": "function", "function": {"name": "search"}}]
-        client.generate_chat_completion("m", [], tools=tools)
-        call_kwargs = mock_litellm.completion.call_args.kwargs
-        assert call_kwargs.get("tools") == tools
+        client, seen = _client(lambda request: httpx.Response(200, json={}))
+        client.generate_chat_completion("m", MESSAGES, tools=tools)
+        assert json.loads(seen[0].content)["tools"] == tools
 
-    def test_tools_not_passed_when_none(self):
-        client, mock_litellm = self._make_client()
-        mock_resp = MagicMock()
-        mock_resp.model_dump.return_value = {}
-        mock_litellm.completion.return_value = mock_resp
-        client.generate_chat_completion("m", [], tools=None)
-        call_kwargs = mock_litellm.completion.call_args.kwargs
-        assert "tools" not in call_kwargs
+    def test_tools_are_left_out_when_none(self):
+        client, seen = _client(lambda request: httpx.Response(200, json={}))
+        client.generate_chat_completion("m", MESSAGES, tools=None)
+        assert "tools" not in json.loads(seen[0].content)
 
 
 # ===========================================================================
@@ -226,13 +199,7 @@ class TestLiteLLMClientGenerateChatCompletion:
 # ===========================================================================
 
 class TestModelClientProtocol:
-    def test_litellm_client_satisfies_protocol(self):
+    def test_the_client_satisfies_the_protocol(self):
         from src.llm_client import ModelClient
-        mock_litellm = MagicMock()
-        with patch.dict("sys.modules", {"litellm": mock_litellm}):
-            from importlib import reload
-
-            import src.llm_client as mod
-            reload(mod)
-            client = mod.LiteLLMClient("openai", None, "gpt-4o")
+        client, _ = _client(_stream())
         assert isinstance(client, ModelClient)

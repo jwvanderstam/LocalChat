@@ -191,7 +191,7 @@ requests.
 |---|---|
 | Web framework | FastAPI + Uvicorn |
 | Database | PostgreSQL 16 + pgvector (psycopg3 pool) |
-| LLM | Ollama, local; LiteLLM cloud fallback |
+| LLM | Ollama, local; cloud fallback to an OpenAI-compatible endpoint (ADR-4) |
 | Embeddings | nomic-embed-text |
 | Cache | Redis, with an in-memory fallback |
 | Auth | PyJWT (JWT), slowapi (rate limiting) |

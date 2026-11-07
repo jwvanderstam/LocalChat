@@ -8,6 +8,26 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+**Upgrading.** A deployment that uses the cloud fallback must set `CLOUD_BASE_URL` (for
+OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD_MODEL`.
+`CLOUD_PROVIDER` is no longer read. No migrations.
+
+### Security
+
+- **`litellm` is gone from the image (QP-11, ADR-4).** It carried CVE-2026-114612, in a
+  proxy server LocalChat never ran, and every fixed version pulls `boto3` into the image.
+  The `pip-audit` suppression for it is removed; `SECURITY.md` item 12 is resolved.
+
+### Changed
+
+- **The cloud fallback talks to an OpenAI-compatible endpoint directly.**
+  `OpenAICompatibleClient` posts to `{CLOUD_BASE_URL}/chat/completions` over `httpx`.
+  `CLOUD_BASE_URL` replaces `CLOUD_PROVIDER`; `CLOUD_TIMEOUT` sets the request timeout.
+  The cost counter `llm_cost_usd_total` now comes from `CLOUD_PRICE_INPUT_PER_MTOK` and
+  `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
+  not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
+  accepted.
+
 ## [3.5.0] — 2026-10-31
 
 The release that closes the quality plan's maturity target (Initiative 12). All six
