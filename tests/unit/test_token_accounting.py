@@ -7,14 +7,13 @@ messages below are 3 + 3 = 6 prompt words, and the reply
 "Based on the provided context, what is pgvector" is 8 words.
 """
 
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+import json
 
 import httpx
 import pytest
 
 from src import monitoring
-from src.llm_client import LiteLLMClient
+from src.llm_client import OpenAICompatibleClient
 from src.ollama_client import OllamaClient
 from tests.utils.fake_ollama import create_app
 
@@ -97,33 +96,40 @@ async def test_prometheus_export_carries_the_token_totals(ollama, metrics):
 
 CLOUD_MODEL = "gpt-4o-mini"
 CLOUD = f'model="{CLOUD_MODEL}",path="cloud"'
+PRICES = {"price_input_per_mtok": 10.0, "price_output_per_mtok": 150.0}
 
 
-def _chunk(content: str) -> SimpleNamespace:
-    return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=content))],
-                           usage=None)
+def _event(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
 
 
-def _canned_stream(prompt: int, completion: int) -> list[SimpleNamespace]:
-    # What litellm yields with include_usage: content chunks, then one with usage only.
-    usage = SimpleNamespace(prompt_tokens=prompt, completion_tokens=completion)
-    return [_chunk("Hello"), _chunk(" world"), SimpleNamespace(choices=[], usage=usage)]
+def _canned_stream(prompt: int, completion: int) -> httpx.Response:
+    # What an OpenAI-compatible endpoint streams with include_usage: content chunks,
+    # then one with usage only.
+    usage = {"choices": [], "usage": {"prompt_tokens": prompt, "completion_tokens": completion}}
+    text = "".join(_event({"choices": [{"delta": {"content": c}}]}) for c in ("Hello", " world"))
+    return httpx.Response(200, text=text + _event(usage) + "data: [DONE]\n\n")
 
 
-def _cloud_client(fake_litellm: MagicMock) -> LiteLLMClient:
-    with patch.dict("sys.modules", {"litellm": fake_litellm}):
-        return LiteLLMClient("openai", None, CLOUD_MODEL)
+def _cloud_client(*responses: httpx.Response, **prices: float) -> tuple[OpenAICompatibleClient, list]:
+    replies, seen = iter(responses), []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return next(replies)
+
+    client = OpenAICompatibleClient("https://cloud.example/v1", None, CLOUD_MODEL, timeout=5,
+                                    transport=httpx.MockTransport(handler), **prices)
+    return client, seen
 
 
 def test_two_cloud_streams_add_their_reported_tokens_and_priced_cost(metrics):
-    fake = MagicMock()
-    fake.completion.side_effect = [_canned_stream(120, 30), _canned_stream(80, 20)]
-    fake.cost_per_token.side_effect = [(0.0012, 0.0045), (0.0008, 0.0030)]
-    client = _cloud_client(fake)
+    client, _ = _cloud_client(_canned_stream(120, 30), _canned_stream(80, 20), **PRICES)
 
     assert "".join(client.generate_chat_response(CLOUD_MODEL, MESSAGES)) == "Hello world"
     list(client.generate_chat_response(CLOUD_MODEL, MESSAGES))
 
+    # (120*10 + 30*150 + 80*10 + 20*150) / 1e6
     counters = metrics.get_metrics()["counters"]
     assert (
         counters[f"llm_calls_total{{{CLOUD}}}"],
@@ -133,47 +139,50 @@ def test_two_cloud_streams_add_their_reported_tokens_and_priced_cost(metrics):
     ) == (2, 200, 50, 0.0095)
 
 
-def test_a_cloud_stream_asks_litellm_for_usage(metrics):
-    fake = MagicMock()
-    fake.completion.return_value = _canned_stream(1, 1)
-    fake.cost_per_token.return_value = (0.0, 0.0)
+def test_a_cloud_stream_asks_the_endpoint_for_usage(metrics):
+    client, seen = _cloud_client(_canned_stream(1, 1))
 
-    list(_cloud_client(fake).generate_chat_response(CLOUD_MODEL, MESSAGES))
+    list(client.generate_chat_response(CLOUD_MODEL, MESSAGES))
 
-    assert fake.completion.call_args.kwargs["stream_options"] == {"include_usage": True}
+    assert json.loads(seen[0].content)["stream_options"] == {"include_usage": True}
 
 
-def test_a_model_litellm_cannot_price_still_counts_its_tokens(metrics):
-    fake = MagicMock()
-    fake.completion.return_value = _canned_stream(120, 30)
-    fake.cost_per_token.side_effect = Exception("model not mapped")
+def test_without_prices_a_cloud_call_still_counts_its_tokens(metrics):
+    client, _ = _cloud_client(_canned_stream(120, 30))
 
-    list(_cloud_client(fake).generate_chat_response(CLOUD_MODEL, MESSAGES))
+    list(client.generate_chat_response(CLOUD_MODEL, MESSAGES))
 
     counters = metrics.get_metrics()["counters"]
     assert counters[f"llm_prompt_tokens_total{{{CLOUD}}}"] == 120
     assert f"llm_cost_usd_total{{{CLOUD}}}" not in counters
 
 
-def test_a_cloud_response_without_usage_records_nothing(metrics):
-    fake = MagicMock()
-    fake.completion.return_value = [_chunk("Hello")]
+def test_one_price_alone_adds_no_cost(metrics):
+    client, _ = _cloud_client(_canned_stream(120, 30), price_input_per_mtok=10.0)
 
-    list(_cloud_client(fake).generate_chat_response(CLOUD_MODEL, MESSAGES))
+    list(client.generate_chat_response(CLOUD_MODEL, MESSAGES))
+
+    counters = metrics.get_metrics()["counters"]
+    assert counters[f"llm_completion_tokens_total{{{CLOUD}}}"] == 30
+    assert f"llm_cost_usd_total{{{CLOUD}}}" not in counters
+
+
+def test_a_cloud_response_without_usage_records_nothing(metrics):
+    client, _ = _cloud_client(httpx.Response(200, text=_event({"choices": [{"delta": {"content": "Hello"}}]})))
+
+    list(client.generate_chat_response(CLOUD_MODEL, MESSAGES))
 
     assert not any(k.startswith("llm_") for k in metrics.get_metrics()["counters"])
 
 
 def test_a_non_streamed_cloud_completion_is_counted(metrics):
-    fake = MagicMock()
-    response = MagicMock()
-    response.usage = SimpleNamespace(prompt_tokens=50, completion_tokens=10)
-    fake.completion.return_value = response
-    fake.cost_per_token.return_value = (0.0005, 0.0010)
+    reply = httpx.Response(200, json={"choices": [], "usage": {"prompt_tokens": 50, "completion_tokens": 10}})
+    client, _ = _cloud_client(reply, **PRICES)
 
-    _cloud_client(fake).generate_chat_completion(CLOUD_MODEL, MESSAGES)
+    client.generate_chat_completion(CLOUD_MODEL, MESSAGES)
 
+    # (50*10 + 10*150) / 1e6
     counters = metrics.get_metrics()["counters"]
     assert (counters[f"llm_prompt_tokens_total{{{CLOUD}}}"],
             counters[f"llm_completion_tokens_total{{{CLOUD}}}"],
-            round(counters[f"llm_cost_usd_total{{{CLOUD}}}"], 6)) == (50, 10, 0.0015)
+            round(counters[f"llm_cost_usd_total{{{CLOUD}}}"], 6)) == (50, 10, 0.002)
