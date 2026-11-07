@@ -41,7 +41,7 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 |-------|------|
 | Web framework | FastAPI + Uvicorn |
 | Database | PostgreSQL 16 + pgvector (psycopg3 pool) |
-| LLM | Ollama (local); LiteLLM cloud fallback |
+| LLM | Ollama (local); cloud fallback to an OpenAI-compatible endpoint over `httpx` (ADR-4) |
 | HTTP client | httpx — `httpx.Client` (sync admin/embedding); `httpx.AsyncClient` (async inference) |
 | Validation | Pydantic v2 |
 | Auth / security | PyJWT (JWT), slowapi (rate limiting), Starlette CORSMiddleware |

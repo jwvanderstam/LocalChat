@@ -158,7 +158,12 @@ is the point at which this trade stops being worth it.
 ## ADR-4 — Cloud fallback targets OpenAI-compatible endpoints directly, not a multi-provider adapter
 
 **Accepted 2026-09-03.** Supersedes the implicit choice made when `LiteLLMClient` was
-written; `litellm` is held at 1.97.0 until the replacement lands.
+written; `litellm` was held at 1.97.0 until the replacement landed.
+
+**Implemented 2026-11-07 (QP-11).** `OpenAICompatibleClient` in `src/llm_client.py` posts to
+`{CLOUD_BASE_URL}/chat/completions` with `httpx`, and `litellm` is gone from both locks. Its
+price table went with it: a cloud call's cost now comes from `CLOUD_PRICE_INPUT_PER_MTOK`
+and `CLOUD_PRICE_OUTPUT_PER_MTOK`, exact for the one configured model.
 
 **Decision.** LocalChat keeps its optional cloud fallback. It reaches it through a direct
 OpenAI-compatible HTTP client rather than through `litellm`, and the endpoint it is pointed
