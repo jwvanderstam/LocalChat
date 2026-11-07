@@ -8,6 +8,10 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+### Security
+
+- **A rating or annotation names only what the caller can reach (R-8).** Feedback and annotations stored any conversation, message or chunk id they were given, and a rating's `chunk_stats` row blocks a document's purge, so a viewer could make another workspace's document un-purgeable. Each id is now looked up in the caller's scope first, and a miss is a 404 that writes nothing. Chunks of the global tier stay ratable, since a hybrid answer cites them. The chat's rating buttons now send the active workspace, which they never did.
+
 ## [3.5.0] — 2026-10-31
 
 The release that closes the quality plan's maturity target (Initiative 12). All six

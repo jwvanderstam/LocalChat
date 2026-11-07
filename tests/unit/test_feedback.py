@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.db.workspace_keys import generate_api_key
 from tests.utils.auth import admin_headers, authorise_db
 
 # ---------------------------------------------------------------------------
@@ -203,6 +204,7 @@ def _make_fastapi_app(db_ok=True, insert_raises=False, stats=None, trend=None, s
 
     mock_db = MagicMock()
     mock_db.is_connected = db_ok
+    mock_db.documents.citable_chunk_ids.side_effect = lambda ids, scope, global_tier: set(ids)
     if insert_raises:
         mock_db.feedback.insert.side_effect = Exception("DB error")
     else:
@@ -266,6 +268,28 @@ class TestFeedbackRoute:
         payload = {"rating": -1, "message_id": 1, "source_chunk_ids": [5]}
         client.post("/api/feedback", json=payload)
         app.state.db.feedback.count_negative.assert_called_once_with([5])
+
+    def test_a_chunk_outside_the_scope_is_404_and_records_nothing(self):
+        app, client = _make_fastapi_app()
+        app.state.db.documents.citable_chunk_ids.side_effect = None
+        app.state.db.documents.citable_chunk_ids.return_value = set()
+        resp = client.post("/api/feedback", json={"rating": 1, "source_chunk_ids": [5]})
+        assert resp.status_code == 404
+        app.state.db.feedback.insert.assert_not_called()
+
+    def test_a_signed_in_user_may_rate_a_global_chunk(self):
+        app, client = _make_fastapi_app()
+        client.post("/api/feedback", json={"rating": 1, "source_chunk_ids": [5]})
+        assert app.state.db.documents.citable_chunk_ids.call_args.kwargs["global_tier"] is True
+
+    def test_a_workspace_api_key_may_not_rate_a_global_chunk(self):
+        app, client = _make_fastapi_app()
+        app.state.db.api_keys.resolve.return_value = ("ws-1", "editor")
+        key, _, _ = generate_api_key()
+        client.headers.clear()
+        client.post("/api/feedback", json={"rating": 1, "source_chunk_ids": [5]},
+                    headers={"Authorization": f"Bearer {key}"})
+        assert app.state.db.documents.citable_chunk_ids.call_args.kwargs["global_tier"] is False
 
     def test_no_chunk_ids_no_stat_update(self):
         app, client = _make_fastapi_app()
