@@ -301,7 +301,7 @@ fails on the code before it.
 | R-5 | Medium | The object-authorisation matrix ran as an editor only and probed path ids only | **Fixed** (#510): runs as an editor and an owner, probes body and header ids. The ratchet over repository methods that use `ALL_WORKSPACES` is **open** |
 | R-6 | Medium | `GET /settings` rendered installation-wide admin statistics for any caller | **Fixed** (#507) — `tests/unit/test_settings_page_stats_are_admin_only.py` |
 | R-7 | Low | A connector's sync history and manual sync took the id alone | **Fixed** (#510) — `TestAConnectorOutsideTheScopeIsNotFound` |
-| R-8 | Low | Feedback and annotations accept conversation and chunk ids from another workspace; a viewer can make any document un-purgeable | **Open** — strict xfails in the wire matrix turn red when it is fixed |
+| R-8 | Low | Feedback and annotations accept conversation and chunk ids from another workspace; a viewer can make any document un-purgeable | **Fixed** — every id a rating or annotation names is looked up in the caller's scope first, the global tier's chunks included except for a workspace API key; the message id too, which the review did not name. `tests/integration/test_object_authorization_over_the_wire.py`, `tests/integration/test_rating_ids_are_in_scope.py` |
 | R-9 | Low | Single-object purges do not require the row to be retired first | **Open** (admin-only) |
 | R-10 | Low | Admin user routes take raw dicts; the last-admin count ignores `is_active` | **Open** (admin-only) |
 | R-11 | Low | The image's source is owned by the runtime user | **Open** |

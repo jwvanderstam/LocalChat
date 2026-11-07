@@ -497,6 +497,26 @@ class DocumentsRepository:
                 logger.debug(f"Retrieved {len(results)} adjacent chunks")
                 return list(results)
 
+    def citable_chunk_ids(self, chunk_ids: list[int], *, scope: Scope, global_tier: bool) -> set[int]:
+        """Those of *chunk_ids* an answer in *scope* can cite: its own, with *global_tier* the tier's too."""
+        if not self._db.is_connected:
+            raise DatabaseUnavailableError("Cannot check chunks: Database is not connected")
+
+        own_sql, own_params = _tier_predicate(scope, False)
+        global_sql = f" OR (TRUE{_GLOBAL_TIER_SQL})" if global_tier else ""
+        with self._db.get_connection(scope=scope) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT dc.id FROM document_chunks dc"
+                    " JOIN documents d ON d.id = dc.document_id"
+                    " WHERE dc.id = ANY(%s) AND dc.deleted_at IS NULL AND d.deleted_at IS NULL"
+                    # Outside the OR: installation-wide, own_sql is empty and admits every row.
+                    " AND d.archived_at IS NULL"
+                    f" AND ((TRUE{own_sql}){global_sql})",  # nosec B608  # literal fragments, values are %s
+                    (chunk_ids, *own_params),
+                )
+                return {row[0] for row in cursor.fetchall()}
+
     def chunk_by_id(self, chunk_id: int, *, scope: Scope) -> dict[str, Any] | None:
         """Return a chunk, or None when no live chunk with that id exists in scope.
 

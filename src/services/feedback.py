@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from .. import config
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -32,8 +33,18 @@ class FeedbackService:
         feedback_type: str,
         correct_doc_ids: list[str],
         source_chunk_ids: list[int],
-    ) -> str:
-        """Store a rating and credit or debit the chunks it was about; returns its id."""
+        scope: Scope,
+        global_tier: bool,
+    ) -> str | None:
+        """Store a rating and credit or debit the chunks it was about; returns its id.
+
+        None, with nothing written, when *scope* lacks any id the rating names. A
+        ``chunk_stats`` row blocks a document's purge, so an unchecked chunk id let a
+        viewer make another workspace's document un-purgeable (R-8). Without *global_tier*,
+        a chunk of the global tier counts as outside the scope.
+        """
+        if not self._ids_in_scope(message_id, conversation_id, source_chunk_ids, scope, global_tier):
+            return None
         feedback_id = self._db.feedback.insert(
             rating,
             message_id=message_id,
@@ -47,6 +58,22 @@ class FeedbackService:
             else:
                 self._db.feedback.count_negative(source_chunk_ids)
         return feedback_id
+
+    def _ids_in_scope(
+        self,
+        message_id: int | None,
+        conversation_id: str | None,
+        chunk_ids: list[int],
+        scope: Scope,
+        global_tier: bool,
+    ) -> bool:
+        if conversation_id and self._db.conversations.document_filter(conversation_id, scope=scope) is None:
+            return False
+        if message_id is not None and not self._db.conversations.has_message(message_id, scope=scope):
+            return False
+        if not chunk_ids:
+            return True
+        return set(chunk_ids) <= self._db.documents.citable_chunk_ids(chunk_ids, scope=scope, global_tier=global_tier)
 
     def stats(self, days: int) -> dict[str, Any]:
         return {
