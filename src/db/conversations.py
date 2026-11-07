@@ -188,6 +188,22 @@ class ConversationsRepository:
                     for row in rows
                 ]
 
+    def has_message(self, message_id: int, *, scope: Scope) -> bool:
+        """Whether *message_id* belongs to a live conversation in *scope*."""
+        if not self._db.is_connected:
+            raise DatabaseUnavailableError("Cannot check message: Database is not connected")
+
+        where, params = scope_predicate(scope, "c.workspace_id")
+        with self._db.get_connection(scope=scope) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT 1 FROM conversation_messages m"
+                    " JOIN conversations c ON c.id = m.conversation_id"
+                    " WHERE m.id = %s AND c.deleted_at IS NULL" + where,  # nosec B608  # scope_predicate fragment: literal column, value is %s
+                    (message_id, *params),
+                )
+                return cursor.fetchone() is not None
+
     def save_message(
         self,
         conversation_id: str,

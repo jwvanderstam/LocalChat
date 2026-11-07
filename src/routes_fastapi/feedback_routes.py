@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from ..security_fastapi import require_admin_dep
 from ..services.feedback import FeedbackService
 from ..utils.logging_config import get_logger
+from ..utils.workspace import get_scope
 from ._authz import deny as _deny
 from ._services import feedback_service
 
@@ -42,8 +43,11 @@ async def submit_feedback(request: Request, feedback: Feedback) -> Any:
 
     try:
         feedback_id = feedback.record(
-            rating, message_id, conversation_id, feedback_type, correct_doc_ids, source_chunk_ids
+            rating, message_id, conversation_id, feedback_type, correct_doc_ids, source_chunk_ids,
+            get_scope(request),
         )
+        if feedback_id is None:
+            return JSONResponse({"error": "not found"}, status_code=404)
         logger.info("[Feedback] Recorded rating and id")
         return JSONResponse({"ok": True, "id": feedback_id}, status_code=201)
     except Exception as exc:  # noqa: BLE001 — turned into a 500 with a fixed message — the exception text is never shown to the caller

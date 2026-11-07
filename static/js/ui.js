@@ -292,9 +292,13 @@ export function buildFeedbackBar(messageId, conversationId, sourceChunkIds) {
             bar.dataset.voted = '1';
             btn.classList.add('active');
             try {
+                const workspaceId = localStorage.getItem('localchat_active_workspace_id');
                 await fetch('/api/feedback', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(workspaceId ? { 'X-Workspace-ID': workspaceId } : {}),
+                    },
                     body: JSON.stringify({ rating, message_id: messageId, conversation_id: conversationId, source_chunk_ids: sourceChunkIds }),
                 });
             } catch (_) { /* non-critical */ }

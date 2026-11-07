@@ -165,6 +165,10 @@ _OFF_PATH_PROBES: dict[str, tuple[str, str, Callable[[dict[str, Any], dict[str, 
         "POST", "/api/feedback",
         lambda target, own: {"json": {"rating": 1, "conversation_id": target["conversation_id"]}},
     ),
+    "feedback names a message": (
+        "POST", "/api/feedback",
+        lambda target, own: {"json": {"rating": 1, "message_id": target["message_id"]}},
+    ),
     "feedback names a chunk": (
         "POST", "/api/feedback",
         lambda target, own: {"json": {"rating": 1, "source_chunk_ids": [target["chunk_id"]]}},
@@ -174,11 +178,7 @@ _OFF_PATH_PROBES: dict[str, tuple[str, str, Callable[[dict[str, Any], dict[str, 
 #: Probes that are not refused yet, each with the finding that will refuse it. Strict
 #: xfail, so the fix turns them red until the row comes out of here (the same reason
 #: `_DISCLOSES_NOTHING` holds no skip).
-_OPEN_FINDINGS = {
-    "an annotation names a conversation": "R-8: the annotation's conversation_id is unchecked",
-    "feedback names a conversation": "R-8: feedback's conversation_id is unchecked",
-    "feedback names a chunk": "R-8: feedback upserts chunk_stats for any chunk id",
-}
+_OPEN_FINDINGS: dict[str, str] = {}
 
 #: The two callers the matrix runs as; each holds workspace A at this role.
 _CALLER_ROLES = ("editor", "owner")
@@ -424,6 +424,9 @@ def _provision_objects(workspace_b: str) -> dict[str, Any]:
 
     objects["conversation_id"] = db.conversations.create(
         title="Workspace B private conversation", workspace_id=workspace_b
+    )
+    objects["message_id"] = db.conversations.save_message(
+        objects["conversation_id"], "assistant", "Workspace B private answer", scope=workspace_b
     )
 
     objects["memory_id"] = db.memories.insert(
