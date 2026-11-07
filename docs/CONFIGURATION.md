@@ -341,7 +341,7 @@ to empty, in which case the router falls back to the active model.
 | `CLOUD_BASE_URL` | *(empty)* | Root of an OpenAI-compatible API, version included (`https://api.openai.com/v1`, `https://api.scaleway.ai/v1`). The client posts to `{CLOUD_BASE_URL}/chat/completions`. Unset, the fallback stays off |
 | `CLOUD_MODEL` | *(empty)* | Model id at that endpoint, as the provider names it (no `provider/` prefix) |
 | `CLOUD_API_KEY` | *(empty)* | Credential, sent as a bearer token. Traffic on this path **leaves the machine** — the point of a local-first deployment is that it stays unset |
-| `CLOUD_TIMEOUT` | `120` | Seconds before a cloud request is abandoned |
+| `CLOUD_TIMEOUT` | `120` | Seconds the cloud client waits on any one network step: connecting, or the gap between two reads of a stream. Not a ceiling on a whole answer, which may stream for longer |
 | `CLOUD_PRICE_INPUT_PER_MTOK` / `CLOUD_PRICE_OUTPUT_PER_MTOK` | *(empty)* | USD per million prompt / completion tokens, from the provider's price list. With both set, each call's cost is added to `llm_cost_usd_total`; with either unset, only tokens are counted. A provider that prices in EUR needs converting |
 
 ### MCP servers
