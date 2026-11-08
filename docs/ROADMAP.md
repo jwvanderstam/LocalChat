@@ -1993,6 +1993,39 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 
 ---
 
+## Initiative 14 — Tested deployment patterns ⬜ (proposal, unscheduled)
+
+> **Added 2026-11-08.** A user-reported deployment in a managed workstation environment
+> could not reliably acquire models from the runtime. The report points first to the
+> acquisition path and managed network policy, not hardware sizing. This case is not yet
+> reproduced, and no deployment recipe is claimed to be validated. The anonymized outline
+> is in [DEPLOYMENT_PATTERNS.md](DEPLOYMENT_PATTERNS.md).
+
+Build a library of deployment patterns that are repeatable and tested against their stated
+environments. Bring the existing Docker Compose, Scaleway, and privately owned development
+workstation guidance under one consistent format, then evaluate the managed Windows +
+WSL2/Docker + GPU case as an additional pattern.
+
+Each pattern records prerequisites, topology, configuration, persistent state, artifact and
+model acquisition, network/security boundaries, lifecycle and recovery steps, and the
+commands that verify the deployment. Label what is measured, what is inferred, and what is
+still unverified; do not present a proposed path as tested.
+
+**First candidate — separate model acquisition from runtime startup.** Establish where a
+model pull fails before changing hardware or tuning model size. Evaluate an approved
+host-side pull, pre-populated persistent model storage, offline import, an approved
+internal artifact source, or explicitly configured proxy and certificate trust. Select
+only a path allowed by the target environment; do not bypass its TLS or network controls.
+The runtime should not need public Internet access to download a model during normal
+startup when the pattern claims pre-staged operation.
+
+**Acceptance:** one known-good model is acquired through the documented path, survives
+container recreation, and loads through LocalChat without a startup-time download. Verify
+GPU inference only after acquisition and loading work. Publish this as a tested pattern
+only after another operator can reproduce the documented checks.
+
+---
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -2030,6 +2063,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 and QP-11 | ~1 week |
 | — | Initiative 13 (RF-1..RF-4, retrieval flexibility) — future work, unscheduled by decision (2026-10-23) | — |
+| — | Initiative 14 (tested deployment patterns) — proposal, unscheduled (2026-11-08) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
 **Execution order from 2026-10-22.** Finish Sprint 9 (#452). Then Sprints 22 to 28, in
