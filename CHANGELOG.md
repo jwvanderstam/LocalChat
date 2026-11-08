@@ -18,6 +18,11 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
 - **`litellm` is gone from the image (QP-11, ADR-4).** It carried CVE-2026-114612, in a
   proxy server LocalChat never ran, and every fixed version pulls `boto3` into the image.
   The `pip-audit` suppression for it is removed; `SECURITY.md` item 12 is resolved.
+- **Retrieval no longer consults the query cache.** Its key names no workspace, knowledge
+  tier or document filter, so a hit would have served one workspace's results to another.
+  The path was never reached (`_get_app_cache()` returns `None`), which is why it is
+  removed rather than fixed: re-enabling it would have reopened the leak. Found by the
+  separate review of #527.
 
 ### Changed
 
