@@ -277,7 +277,18 @@ items below it by number. What the entry recorded while it was open:
   deletes the suppression and this entry. It is the next dependency change after the
   2026-10-30 fix that introduced the suppression.
 
-### 13. Changing a password does not end the sessions already open
+### 13. Changing a password does not end the sessions already open — resolved 2026-11-08
+
+**No longer an accepted risk.** Setting a password, by the user or by an admin reset, now
+writes `users.tokens_valid_after` (migration 0024), and the guard refuses any token issued
+before it: `users.get_role` compares the token's `iat`, on every request, in the same query
+that checks `is_active` and `deleted_at`. The user who changed their own password gets a new
+session in the same response. A token issued in the same second as the change, before it,
+still passes: `iat` is whole seconds. Tests:
+`tests/unit/test_password_change_ends_sessions.py`,
+`tests/integration/test_password_change_ends_sessions.py`. Kept at its number, like items 2
+and 12. What the entry recorded while it was open:
+
 
 - **What**: a session is a JWT that lives `JWT_ACCESS_TOKEN_EXPIRES` (2 hours by default).
   Changing a password, by the user or by an admin reset, revokes no token, so a session
@@ -304,7 +315,7 @@ fails on the code before it.
 | R-1 | High | `GET /api/documents/stats` returned chunk previews from every workspace, retired documents included | **Fixed** (#505) — `tests/integration/test_chunk_statistics_scope.py` |
 | R-2 | High | A connector's delete event retired every live document with that filename, in every workspace | **Fixed** (#506) — `tests/integration/test_connector_delete_scope.py` |
 | R-3 | Medium | Chat appended both turns to any `conversation_id`, in any workspace | **Fixed** (#508) — `tests/unit/test_chat_conversation_is_authorised.py`, `tests/integration/test_save_message_scope.py` |
-| R-4 | Medium | Access outlived a deactivated or retired account, and a retired workspace | **Fixed** (#509, #511) — `tests/integration/test_access_ends_with_the_account.py`, `TestASessionEndsWithItsAccount`. A password change still leaves open sessions running: item 13 above |
+| R-4 | Medium | Access outlived a deactivated or retired account, and a retired workspace | **Fixed** (#509, #511) — `tests/integration/test_access_ends_with_the_account.py`, `TestASessionEndsWithItsAccount`. A password change ends the sessions before it since item 13 was resolved |
 | R-5 | Medium | The object-authorisation matrix ran as an editor only and probed path ids only | **Fixed** (#510): runs as an editor and an owner, probes body and header ids. The ratchet over repository methods that use `ALL_WORKSPACES` is **open** |
 | R-6 | Medium | `GET /settings` rendered installation-wide admin statistics for any caller | **Fixed** (#507) — `tests/unit/test_settings_page_stats_are_admin_only.py` |
 | R-7 | Low | A connector's sync history and manual sync took the id alone | **Fixed** (#510) — `TestAConnectorOutsideTheScopeIsNotFound` |
