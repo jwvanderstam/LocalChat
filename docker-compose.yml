@@ -443,6 +443,7 @@ services:
     volumes:
       - app_uploads:/app/uploads
       - app_logs:/app/logs
+      - app_data:/app/data
     # MM-2: ingestion (chunk + batch-embed) is the spiky path here, so the
     # limit sits above the idle footprint with room for a large upload.
     deploy:
@@ -478,6 +479,8 @@ volumes:
   app_uploads:
     driver: local
   app_logs:
+    driver: local
+  app_data:
     driver: local
 
 # ──────────────────────────────────────────────────────────────

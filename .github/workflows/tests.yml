@@ -666,6 +666,19 @@ jobs:
           fi
           echo "OK: uid 65532"
 
+      - name: The runtime user can write only its own directories
+        # R-11: the source and the venv are root's, so code execution in the app cannot
+        # persist by rewriting a module; logs, uploads and data are the app's.
+        run: |
+          docker run --rm --entrypoint python localchat:smoke -c '
+          import os, sys
+          expected = {"/app": False, "/app/src": False, "/app/src/config.py": False,
+                      "/opt/venv/lib": False, "/app/logs": True, "/app/uploads": True, "/app/data": True}
+          wrong = [p for p, w in expected.items() if os.access(p, os.W_OK) != w]
+          sys.exit("::error::write access not as expected for " + ", ".join(wrong) if wrong else 0)
+          '
+          echo "OK: source and venv read-only; logs, uploads, data writable"
+
       - name: No shell and no package manager
         run: |
           docker run --rm --entrypoint python localchat:smoke -c '

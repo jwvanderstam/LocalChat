@@ -118,7 +118,7 @@ def rollback_model(db: Any, version_id: str) -> bool:
 def finetune_reranker(
     pairs: list[dict],
     base_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-    output_dir: str | Path = "./models/reranker",
+    output_dir: str | Path | None = None,
     epochs: int = 3,
     batch_size: int = 16,
 ) -> dict[str, Any]:
@@ -136,7 +136,11 @@ def finetune_reranker(
         logger.info("[Pipeline] No training pairs — skipping fine-tune")
         return {"pair_count": 0, "skipped": True}
 
-    # Use a versioned subdirectory so previous models are preserved
+    # Use a versioned subdirectory so previous models are preserved. By default beside
+    # RERANKER_MODEL_PATH, whose <name>.txt pointer promote_model writes and the reranker reads.
+    if output_dir is None:
+        from .. import config
+        output_dir = Path(config.RERANKER_MODEL_PATH).parent
     versioned_dir = _versioned_output_dir(output_dir)
 
     # Build sentence-transformers InputExample format
@@ -232,7 +236,8 @@ if __name__ == "__main__":
     parser.add_argument("--days", type=int, default=7, help="Days of feedback to export")
     parser.add_argument("--output", type=str, default=None, help="JSONL output path")
     parser.add_argument("--finetune", action="store_true", help="Run reranker fine-tuning")
-    parser.add_argument("--model-dir", type=str, default="./models/reranker", help="Output dir for fine-tuned model")
+    parser.add_argument("--model-dir", type=str, default=None,
+                        help="Output dir for fine-tuned model (default: beside RERANKER_MODEL_PATH)")
     args = parser.parse_args()
 
     from src.db import db as _db

@@ -311,7 +311,7 @@ fails on the code before it.
 | R-8 | Low | Feedback and annotations accept conversation and chunk ids from another workspace; a viewer can make any document un-purgeable | **Fixed** — every id a rating or annotation names is looked up in the caller's scope first, the global tier's chunks included except for a workspace API key; the message id too, which the review did not name. `tests/integration/test_object_authorization_over_the_wire.py`, `tests/integration/test_rating_ids_are_in_scope.py` |
 | R-9 | Low | Single-object purges do not require the row to be retired first | **Open** (admin-only) |
 | R-10 | Low | Admin user routes take raw dicts; the last-admin count ignores `is_active` | **Open** (admin-only) |
-| R-11 | Low | The image's source is owned by the runtime user | **Open** |
+| R-11 | Low | The image's source is owned by the runtime user | **Fixed** — the source and the venv belong to root; the runtime user writes only `/app/logs`, `/app/uploads` and `/app/data`, where the settings state and fine-tuned rerankers now live. `docker-smoke` asserts each path's write access in the built image |
 | R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Open** |
 | — | — | `GET /api/workspaces/active` and `POST /api/workspaces/switch` returned any named workspace, its system prompt included, to anyone signed in; found by R-5's new probes | **Fixed** (#510) — `tests/unit/test_active_workspace_is_authorised.py` |
 

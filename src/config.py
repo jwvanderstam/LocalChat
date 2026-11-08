@@ -640,8 +640,9 @@ LOG_SYSLOG_PROTOCOL: str = os.environ.get('LOG_SYSLOG_PROTOCOL', 'udp')
 # this project's log sanitiser. Set to DEBUG to get it back while diagnosing one.
 LOG_THIRD_PARTY_LEVEL: str = os.environ.get('LOG_THIRD_PARTY_LEVEL', 'WARNING')
 
-# State persistence file
-STATE_FILE: str = 'app_state.json'
+# State persistence file. The image points it into /app/data, the one directory there
+# the runtime user may write besides logs and uploads.
+STATE_FILE: str = os.environ.get('STATE_FILE', 'app_state.json')
 
 # ============================================================================
 # RERANKER CONFIGURATION (Feature 5.2)

@@ -386,7 +386,7 @@ to empty, in which case the router falls back to the active model.
 | `RERANK_MIN_SCORE` | `-5.0` | Cross-encoder score below which a chunk is dropped |
 | `RERANK_LOW_RELEVANCE_LIMIT` | `3` | Chunks kept when everything scores below the threshold |
 | `RERANKER_WEIGHT` | `0.3` | The reranker score's share of the final blend |
-| `RERANKER_MODEL_PATH` | `./models/reranker/latest` | Fine-tuned model directory; falls back to the base cross-encoder |
+| `RERANKER_MODEL_PATH` | `./models/reranker/latest` (host-run); `/app/data/reranker/latest` (image) | Fine-tuned model directory; falls back to the base cross-encoder. A fine-tune writes its versions beside it |
 | `FEEDBACK_FINETUNE_MIN_PAIRS` | `50` | Feedback pairs required before a fine-tune run starts |
 | `EMBEDDING_CONCURRENT_BATCHES` | `2` | Parallel embedding batches during ingest |
 | `PDF_LOADER` | `auto` | PDF extraction backend |
@@ -442,6 +442,7 @@ to empty, in which case the router falls back to the active model.
 | Variable | Default | Effect |
 |---|---|---|
 | `APP_VERSION` | `3.5.0` | Reported by `GET /api/status`. See the note below |
+| `STATE_FILE` | `app_state.json` (host-run); `/app/data/app_state.json` (image) | Where the settings page persists the active model and RAG parameters. In compose it lives on the `app_data` volume |
 | `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB), enforced while the upload streams to disk |
 | `UVICORN_WORKERS` | `1` | Worker processes. **Only `1` is supported** — the app refuses to boot otherwise |
 | `UVICORN_TIMEOUT` | `600` | uvicorn's `--timeout-keep-alive`, applied by `docker-entrypoint.py`. **Not a request timeout**: it closes a connection that has been idle this long, which for an SSE stream means one that has produced nothing. Keep it ≥ `OLLAMA_EMBED_TIMEOUT`; behind the nginx overlay, `proxy_read_timeout 300s` in `nginx/nginx.conf` is the lower and therefore real ceiling |

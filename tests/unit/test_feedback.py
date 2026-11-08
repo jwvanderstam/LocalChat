@@ -15,6 +15,7 @@ Covers:
 
 import json
 import uuid
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -367,6 +368,22 @@ class TestFeedbackPipeline:
         # eval_pairs must be (query, chunk_text) tuples pulled from the real InputExample.texts
         called_eval_pairs = mock_model.predict.call_args[0][0]
         assert all(isinstance(p, tuple) and len(p) == 2 for p in called_eval_pairs)
+
+    def test_finetune_reranker_writes_beside_the_model_the_reranker_loads(self, tmp_path):
+        """R-11: in the image only /app/data is writable, so the default follows RERANKER_MODEL_PATH."""
+        from src import config
+        from src.rag.feedback_pipeline import finetune_reranker
+
+        pairs = [{"query": f"q{i}", "chunk_text": f"c{i}", "label": i % 2} for i in range(10)]
+        mock_model = MagicMock()
+        mock_model.predict.return_value = [0.9, 0.1]
+        with patch.object(config, "RERANKER_MODEL_PATH", str(tmp_path / "reranker" / "latest")), \
+                patch("sentence_transformers.CrossEncoder", return_value=mock_model):
+            result = finetune_reranker(pairs)
+
+        written = Path(result["output_path"])
+        assert (written.parent, (tmp_path / "reranker" / "latest.txt").read_text(encoding="utf-8")) == (
+            tmp_path / "reranker", str(written))
 
     def test_write_jsonl_creates_file(self, tmp_path):
         from src.rag.feedback_pipeline import write_jsonl
