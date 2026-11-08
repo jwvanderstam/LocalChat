@@ -1924,7 +1924,7 @@ From `SECURITY.md`'s QP-9 register, in this order:
 2. Item 13: a password change ends the account's other sessions (`tokens_valid_after`).
 3. R-10: admin user routes take raw dicts; the last-admin count ignores `is_active`.
 4. R-5b: a ratchet over the `ALL_WORKSPACES` call sites, each with a recorded reason.
-5. R-9, R-11, R-12: purge preconditions, the image's file ownership, GraphRAG's scope.
+5. R-9 ✅, R-11, R-12: purge preconditions, the image's file ownership, GraphRAG's scope.
 
 #### QP-11 — Replace `litellm` (ADR-4) ✅ (built 2026-11-07, taken ahead of the rest of QP-10)
 

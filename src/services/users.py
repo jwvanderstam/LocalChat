@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..security_fastapi import verify_credentials_db
 from ..utils.logging_config import get_logger
-from .errors import ServiceError
+from .errors import ServiceError, purge_refusals
 from .passwords import hash_user_password, verify_user_password
 from .workspaces import WorkspacesService
 
@@ -139,7 +139,8 @@ class UsersService:
         return self._db.users.retire(user_id, deleted_by=actor)
 
     def purge_user(self, user_id: str) -> bool:
-        return self._db.users.purge(user_id)
+        with purge_refusals("User"):
+            return self._db.users.purge(user_id)
 
     def user_workspaces(self, user_id: str) -> list[dict[str, Any]]:
         workspaces: list[dict[str, Any]] = self._db.members.for_user(user_id)

@@ -100,7 +100,7 @@ class TestConnectorWorkerPathsAreInstallationWide:
     """The sync worker and an admin's purge act for no request, so they carry the flag."""
 
     def test_purge(self):
-        host = _Host(fetchone=None, rowcount=1)
+        host = _Host(fetchone=(True,), rowcount=1)
         ConnectorsRepository(host).purge("c-1")
         assert host.scopes == [ALL_WORKSPACES]
 

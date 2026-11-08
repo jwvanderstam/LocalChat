@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..utils.scope import Scope
+from .errors import purge_refusals
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -57,7 +58,8 @@ class ConversationsService:
         return self._db.conversations.retire_all(deleted_by=_actor(actor), scope=scope)
 
     def purge(self, conversation_id: str) -> bool:
-        return self._db.conversations.purge(conversation_id)
+        with purge_refusals("Conversation"):
+            return self._db.conversations.purge(conversation_id)
 
 
 def _actor(user_id: str | None) -> str | None:

@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, Response
 
 from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..services.conversations import ConversationsService
+from ..services.errors import ServiceError
 from ..utils.logging_config import get_logger
 from ..utils.workspace import get_scope, get_workspace_id
 from ._authz import deny as _deny
@@ -195,7 +196,10 @@ def purge_conversation(
     conversations: Conversations,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
-    purged = conversations.purge(conversation_id)
+    try:
+        purged = conversations.purge(conversation_id)
+    except ServiceError as exc:
+        return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
     if not purged:
         return JSONResponse(
             {

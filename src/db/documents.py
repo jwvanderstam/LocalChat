@@ -9,7 +9,7 @@ from ..utils.logging_config import get_logger
 from ..utils.sanitization import escape_sql_like
 from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
 from ..utils.text import content_terms
-from .connection import DatabaseConnection, DatabaseUnavailableError
+from .connection import DatabaseConnection, DatabaseUnavailableError, require_retired
 
 if TYPE_CHECKING:
     import psycopg
@@ -232,7 +232,7 @@ class DocumentsRepository:
 
     def purge(self, doc_id: int) -> bool:
         """
-        Hard-delete only when no chunk_stats row exists for any of this document's chunks.
+        Hard-delete a retired document only when no chunk_stats row exists for any of its chunks.
         Returns False when citations block the purge; True on success.
         """
         if not self._db.is_connected:
@@ -241,6 +241,7 @@ class DocumentsRepository:
         logger.debug("Purge requested for document ID: %s", doc_id)
         with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
+                require_retired(cursor, "documents", doc_id)
                 # Citation precondition: any chunk that was retrieved blocks the purge.
                 cursor.execute(
                     """

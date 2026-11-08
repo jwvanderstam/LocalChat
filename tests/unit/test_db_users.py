@@ -335,15 +335,16 @@ class TestPurgeUser:
             m.purge("uid")
 
     def test_blocked_when_workspace_memberships_exist(self):
-        m, _, cur = _users_mixin(fetchone_return=(1,))
+        m, _, cur = _users_mixin()
+        cur.fetchone.side_effect = [(True,), (1,)]  # retired, but a membership row
         result = m.purge("uid")
         assert result is False
-        # Only the membership-check SELECT should run, not a DELETE.
-        assert cur.execute.call_count == 1
+        # Only the retired check and the membership check run, not a DELETE.
+        assert cur.execute.call_count == 2
 
     def test_hard_deletes_when_no_memberships(self):
         m, _, cur = _users_mixin()
-        cur.fetchone.return_value = None  # no membership row found
+        cur.fetchone.side_effect = [(True,), None]  # retired, no membership row
         cur.rowcount = 1
         result = m.purge("uid")
         assert result is True
@@ -352,7 +353,7 @@ class TestPurgeUser:
 
     def test_returns_false_when_delete_matches_no_row(self):
         m, _, cur = _users_mixin()
-        cur.fetchone.return_value = None
+        cur.fetchone.side_effect = [(True,), None]
         cur.rowcount = 0
         assert m.purge("uid") is False
 

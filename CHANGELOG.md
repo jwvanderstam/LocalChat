@@ -28,6 +28,12 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
+- **A purge destroys only what was retired first (R-9).** The single-object purges of a
+  document, conversation, workspace, connector and user checked references and nothing
+  else, so a live row could be hard-deleted in one call, skipping the reversible step
+  before it, and the only active admin could be purged. Each purge now locks the row and
+  refuses unless it is retired: a live row is a 409, a missing one a 404 (a missing
+  document used to report success, a missing connector a 409 about synced documents).
 
 ## [3.5.0] — 2026-10-31
 

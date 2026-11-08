@@ -7,7 +7,7 @@ from ..utils.encryption import decrypt as _decrypt
 from ..utils.encryption import encrypt as _encrypt
 from ..utils.logging_config import get_logger, sanitize_log_value
 from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
-from .connection import DatabaseConnection, DatabaseUnavailableError
+from .connection import DatabaseConnection, DatabaseUnavailableError, require_retired
 
 logger = get_logger(__name__)
 
@@ -364,6 +364,7 @@ class ConversationsRepository:
 
         with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cursor:
+                require_retired(cursor, "conversations", conversation_id)
                 cursor.execute(
                     "SELECT 1 FROM memories WHERE source_conv = %s LIMIT 1",
                     (conversation_id,),
