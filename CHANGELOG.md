@@ -29,6 +29,14 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
 
+### Fixed
+
+- **A global contribution is never mistaken for a document without a workspace.** Both have
+  no `workspace_id`, so an upload naming no workspace, an admin's workspace-less connector,
+  or the re-ingest worker could update a contribution in place, and every workspace reads
+  the tier. The worker also picked contributions as stale and tried to re-read a source
+  file they do not have. Found by the separate review of #528.
+
 ## [3.5.0] — 2026-10-31
 
 The release that closes the quality plan's maturity target (Initiative 12). All six
