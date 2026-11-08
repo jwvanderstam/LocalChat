@@ -89,20 +89,23 @@ def persist_reranker_version(db: Any, result: dict) -> str | None:
 def promote_model(db: Any, version_id: str) -> bool:
     """Set *version_id* as active and update the latest.txt pointer. Returns success.
 
-    DB writes are delegated to the db-layer FeedbackRepository (HK-7); file-pointer update
-    and reranker reload remain here as non-DB concerns.
+    The model must still exist inside the model directory, and the pointer is written
+    before the row is activated: a version trained where the image can no longer write
+    (``./models`` before R-11) is refused rather than marked active while the old model
+    keeps serving. DB writes are delegated to the db-layer FeedbackRepository (HK-7).
     """
     try:
-        model_path = db.feedback.activate_reranker_version(version_id)
+        from ..rag.reranker import confined_model_path, reload_reranker
+
+        version = next((v for v in db.feedback.reranker_versions() if v["id"] == version_id), None)
+        model_path = confined_model_path(version["model_path"]) if version else None
         if model_path is None:
+            logger.warning("[Pipeline] Promote refused: no such version, or its model is gone or misplaced")
+            return False
+        (Path(model_path).parent / "latest.txt").write_text(model_path, encoding="utf-8")
+        if db.feedback.activate_reranker_version(version_id) is None:
             return False
         logger.info("[Pipeline] Promoted reranker version")
-        # Update latest.txt
-        if model_path:
-            pointer = Path(model_path).parent / "latest.txt"
-            pointer.parent.mkdir(parents=True, exist_ok=True)
-            pointer.write_text(model_path, encoding="utf-8")
-        from ..rag.reranker import reload_reranker
         reload_reranker(model_path)
         return True
     except Exception as exc:  # noqa: BLE001 — promotion is reported as False; the running model is untouched
@@ -160,7 +163,7 @@ def finetune_reranker(
     split = int(len(train_samples) * 0.8)
     train_set, eval_set = train_samples[:split], train_samples[split:]
 
-    model = CrossEncoder(base_model, num_labels=1)
+    model = CrossEncoder(base_model, num_labels=1, trust_remote_code=False)
 
     # Baseline NDCG on eval set (before fine-tuning)
     eval_labels = [int(s.label) for s in eval_set]

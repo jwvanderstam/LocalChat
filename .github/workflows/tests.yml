@@ -671,13 +671,22 @@ jobs:
         # persist by rewriting a module; logs, uploads and data are the app's.
         run: |
           docker run --rm --entrypoint python localchat:smoke -c '
-          import os, sys
-          expected = {"/app": False, "/app/src": False, "/app/src/config.py": False,
-                      "/opt/venv/lib": False, "/app/logs": True, "/app/uploads": True, "/app/data": True}
-          wrong = [p for p, w in expected.items() if os.access(p, os.W_OK) != w]
-          sys.exit("::error::write access not as expected for " + ", ".join(wrong) if wrong else 0)
+          import os, site, sys
+          own = ("/app/data", "/app/logs", "/app/uploads")
+          writable = [
+              p
+              for top in ("/app", "/opt/venv")
+              for root, dirs, files in os.walk(top)
+              if not root.startswith(own)
+              for p in [root, *(os.path.join(root, f) for f in files)]
+              if os.access(p, os.W_OK)
+          ]
+          missing = [p for p in own if not os.access(p, os.W_OK)]
+          on_path = [p for p in sys.path if p and os.access(p, os.W_OK)]
+          problems = writable[:5] + missing + on_path + (["ENABLE_USER_SITE"] if site.ENABLE_USER_SITE else [])
+          sys.exit("::error::write access not as expected: " + ", ".join(problems) if problems else 0)
           '
-          echo "OK: source and venv read-only; logs, uploads, data writable"
+          echo "OK: /app and /opt/venv read-only but for logs, uploads, data; nothing writable on sys.path"
 
       - name: No shell and no package manager
         run: |

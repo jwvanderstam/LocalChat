@@ -29,7 +29,7 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
-- **Settings and fine-tuned rerankers live in `/app/data`, on a new `app_data` volume.** `STATE_FILE` (new, default `app_state.json`) and `RERANKER_MODEL_PATH` point there in the image, and a fine-tune now writes its versions beside `RERANKER_MODEL_PATH` instead of a fixed `./models/reranker`. The active model and RAG parameters therefore survive a container recreation, which they never did. **Upgrading:** the settings page's values held in the old container are not carried over; set them once more after the upgrade. A fine-tuned reranker in the old container's `/app/models` is likewise left behind and falls back to the base model until retrained. Host runs are unchanged.
+- **Settings and fine-tuned rerankers live in `/app/data`, on a new `app_data` volume.** `STATE_FILE` (new, default `app_state.json`) and `RERANKER_MODEL_PATH` point there in the image, and a fine-tune now writes its versions beside `RERANKER_MODEL_PATH` instead of a fixed `./models/reranker`. The active model and RAG parameters therefore survive a container recreation, which they never did. **Upgrading:** the settings page's values held in the old container are not carried over; set them once more after the upgrade. A fine-tuned reranker in the old container's `/app/models` is likewise left behind and falls back to the base model until retrained; promoting or rolling back to a version trained there is refused rather than marked active. Host runs are unchanged.
 
 ## [3.5.0] — 2026-10-31
 
