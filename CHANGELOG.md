@@ -18,6 +18,10 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
 - **`litellm` is gone from the image (QP-11, ADR-4).** It carried CVE-2026-114612, in a
   proxy server LocalChat never ran, and every fixed version pulls `boto3` into the image.
   The `pip-audit` suppression for it is removed; `SECURITY.md` item 12 is resolved.
+- **The public webhook receiver no longer reveals which connector ids exist.** It answered
+  404 for an unknown id and 400 for a connector of another type before checking the secret,
+  so an anonymous caller could probe for ids and for which were webhooks. Every refusal
+  before the secret is proven is now the same 403. Found by the separate review of #528.
 
 ### Changed
 

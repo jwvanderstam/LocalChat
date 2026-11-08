@@ -237,11 +237,13 @@ async def receive_webhook(connector_id: str, request: Request, connectors: Conne
     # No user session here: this is a public receiver, and the connector id plus its
     # secret is the whole credential. ALL_WORKSPACES says that rather than relying on
     # an omitted argument to mean it.
+    # One answer for every refusal before the secret is proven: a missing connector, one
+    # of another type, and a wrong secret all read as 403, so an anonymous caller cannot
+    # learn which ids exist or which of them are webhooks.
+    forbidden = JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
     connector = connectors.get(connector_id, ALL_WORKSPACES)
-    if connector is None:
-        return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
-    if connector.get("connector_type") != "webhook":
-        return JSONResponse({"success": False, "message": "Not a webhook connector"}, status_code=400)
+    if connector is None or connector.get("connector_type") != "webhook":
+        return forbidden
 
     # Mandatory, not "checked when present". This endpoint is public — it has to be,
     # since the caller is an external system with no session — so the secret is the
@@ -254,11 +256,11 @@ async def receive_webhook(connector_id: str, request: Request, connectors: Conne
             "[Webhook] Connector has no secret configured; refusing the delivery. "
             "Set one on the connector."
         )
-        return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
+        return forbidden
     provided = request.headers.get("X-LocalChat-Secret", "")
     if not hmac.compare_digest(provided, secret):
         logger.warning("[Webhook] Bad secret for connector")
-        return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
+        return forbidden
 
     instance = request.app.state.connector_registry.get(connector_id)
     if instance is None:
