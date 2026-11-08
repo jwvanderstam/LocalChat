@@ -433,12 +433,21 @@ LONG_TERM_MEMORY_ENABLED: bool = os.environ.get('LONG_TERM_MEMORY_ENABLED', 'Fal
 # ============================================================================
 
 # Set CLOUD_FALLBACK_ENABLED=true to enable cloud fallback when the local
-# model refuses to answer (e.g. "I don't know" responses).
-# Requires litellm: pip install 'litellm>=1.67.0'
+# model refuses to answer (e.g. "I don't know" responses). The endpoint must speak
+# the OpenAI chat-completions format (ADR-4).
 CLOUD_FALLBACK_ENABLED: bool = os.environ.get('CLOUD_FALLBACK_ENABLED', 'false').lower() == 'true'
-CLOUD_PROVIDER: str = os.environ.get('CLOUD_PROVIDER', '')   # e.g. "openai", "anthropic"
+CLOUD_BASE_URL: str = os.environ.get('CLOUD_BASE_URL', '')   # API root with version, e.g. "https://api.openai.com/v1"
 CLOUD_API_KEY: str | None = os.environ.get('CLOUD_API_KEY') or None
-CLOUD_MODEL: str = os.environ.get('CLOUD_MODEL', '')         # e.g. "gpt-4o", "claude-3-5-haiku"
+CLOUD_MODEL: str = os.environ.get('CLOUD_MODEL', '')         # model id at that endpoint, e.g. "gpt-4o-mini"
+CLOUD_TIMEOUT: int = int(os.environ.get('CLOUD_TIMEOUT', '120'))
+# USD per million tokens, from the provider's price list. Both set: each call's cost
+# is counted in llm_cost_usd_total. Either unset: tokens only.
+CLOUD_PRICE_INPUT_PER_MTOK: float | None = (
+    float(os.environ.get('CLOUD_PRICE_INPUT_PER_MTOK', '')) if os.environ.get('CLOUD_PRICE_INPUT_PER_MTOK') else None
+)
+CLOUD_PRICE_OUTPUT_PER_MTOK: float | None = (
+    float(os.environ.get('CLOUD_PRICE_OUTPUT_PER_MTOK', '')) if os.environ.get('CLOUD_PRICE_OUTPUT_PER_MTOK') else None
+)
 
 # Phrases that indicate a local refusal (case-insensitive regex alternation).
 # Only checked on responses shorter than 500 chars to avoid false positives.

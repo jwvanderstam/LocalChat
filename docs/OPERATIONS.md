@@ -355,14 +355,14 @@ single ceiling.
 ## Model Usage and Spend
 
 Every model call adds to four counters on `/api/metrics`, labelled by `model` and by
-`path` — `local` for Ollama, `cloud` for the LiteLLM fallback:
+`path` — `local` for Ollama, `cloud` for the OpenAI-compatible fallback:
 
 | Counter | What it adds |
 |---|---|
 | `llm_calls_total` | One per call — chat, planner, memory extraction, tool calls |
 | `llm_prompt_tokens_total` | Prompt tokens the backend evaluated |
 | `llm_completion_tokens_total` | Tokens the backend generated |
-| `llm_cost_usd_total` | `cloud` only: LiteLLM's price for those tokens |
+| `llm_cost_usd_total` | `cloud` only: those tokens at `CLOUD_PRICE_INPUT_PER_MTOK` / `CLOUD_PRICE_OUTPUT_PER_MTOK` |
 
 There are no user or workspace labels, on purpose: anyone holding `METRICS_TOKEN` can
 read this endpoint, and per-user labels would grow without bound.
@@ -374,8 +374,8 @@ there before it shows up as latency.
 
 **On the cloud path they are the bill**, and nothing else stops it growing — the cloud
 provider sets no hard spend cap (see [COST_KILL_SWITCH.md](COST_KILL_SWITCH.md) for
-Scaleway). A model LiteLLM cannot price still has its tokens counted; it logs
-`Cannot price <model>` and adds no cost.
+Scaleway). Without both price settings the tokens are still counted and no cost is added,
+so set them from the provider's price list wherever the fallback is on.
 
 The "Model Usage" row of `docs/grafana-dashboard.json` plots all three. An example
 Prometheus alert on cloud spend, with a threshold to set to your own budget:

@@ -8,9 +8,26 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+**Upgrading.** A deployment that uses the cloud fallback must set `CLOUD_BASE_URL` (for
+OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD_MODEL`.
+`CLOUD_PROVIDER` is no longer read. No migrations.
+
 ### Security
 
 - **A rating or annotation names only what the caller can reach (R-8).** Feedback and annotations stored any conversation, message or chunk id they were given, and a rating's `chunk_stats` row blocks a document's purge, so a viewer could make another workspace's document un-purgeable. Each id is now looked up in the caller's scope first, and a miss is a 404 that writes nothing. Chunks of the global tier stay ratable, since a hybrid answer cites them. The chat's rating buttons now send the active workspace, which they never did.
+- **`litellm` is gone from the image (QP-11, ADR-4).** It carried CVE-2026-114612, in a
+  proxy server LocalChat never ran, and every fixed version pulls `boto3` into the image.
+  The `pip-audit` suppression for it is removed; `SECURITY.md` item 12 is resolved.
+
+### Changed
+
+- **The cloud fallback talks to an OpenAI-compatible endpoint directly.**
+  `OpenAICompatibleClient` posts to `{CLOUD_BASE_URL}/chat/completions` over `httpx`.
+  `CLOUD_BASE_URL` replaces `CLOUD_PROVIDER`; `CLOUD_TIMEOUT` sets the request timeout.
+  The cost counter `llm_cost_usd_total` now comes from `CLOUD_PRICE_INPUT_PER_MTOK` and
+  `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
+  not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
+  accepted.
 
 ## [3.5.0] — 2026-10-31
 

@@ -1926,10 +1926,15 @@ From `SECURITY.md`'s QP-9 register, in this order:
 4. R-5b: a ratchet over the `ALL_WORKSPACES` call sites, each with a recorded reason.
 5. R-9, R-11, R-12: purge preconditions, the image's file ownership, GraphRAG's scope.
 
-#### QP-11 — Replace `litellm` (ADR-4) ⬜ (after v3.4.0)
+#### QP-11 — Replace `litellm` (ADR-4) ✅ (built 2026-11-07, taken ahead of the rest of QP-10)
 
 A direct OpenAI-compatible client replaces `LiteLLMClient`, and `litellm` leaves
 `requirements.in`. That ends `SECURITY.md` item 12, the suppressed CVE-2026-114612.
+
+Done: `OpenAICompatibleClient` over `httpx`. `CLOUD_BASE_URL` replaces `CLOUD_PROVIDER`, and
+the cost of a cloud call comes from two price settings now that litellm's price table is
+gone. Moved ahead of QP-10 on 2026-11-07, when a Dependabot alert for the suppressed CVE
+led to a bump (#522) that would have reversed ADR-4.
 
 | Risk | Likelihood | Effect | Mitigation |
 |---|---|---|---|
