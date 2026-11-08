@@ -312,7 +312,7 @@ fails on the code before it.
 | R-9 | Low | Single-object purges do not require the row to be retired first | **Open** (admin-only) |
 | R-10 | Low | Admin user routes take raw dicts; the last-admin count ignores `is_active` | **Open** (admin-only) |
 | R-11 | Low | The image's source is owned by the runtime user | **Open** |
-| R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Open** |
+| R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Fixed** — a co-occurrence counts only through a live document of the caller's workspace; retired documents contributed too. `tests/integration/test_graph_expansion_scope.py` |
 | — | — | `GET /api/workspaces/active` and `POST /api/workspaces/switch` returned any named workspace, its system prompt included, to anyone signed in; found by R-5's new probes | **Fixed** (#510) — `tests/unit/test_active_workspace_is_authorised.py` |
 
 ## October 2026 audit: findings register

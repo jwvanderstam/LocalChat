@@ -19,6 +19,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
+from ..utils.scope import Scope
+
 
 class GraphStore(ABC):
     """Abstract interface for the entity / relation graph store."""
@@ -40,9 +42,9 @@ class GraphStore(ABC):
 
     @abstractmethod
     def get_related_entity_names(
-        self, entity_names: list[str], max_results: int = 20
+        self, entity_names: list[str], max_results: int = 20, *, scope: Scope
     ) -> list[str]:
-        """Return entity names that co-occur with any of *entity_names*."""
+        """Return entity names that co-occur with any of *entity_names* in *scope*'s documents."""
 
 
 class PostgresGraphStore(GraphStore):
@@ -65,8 +67,8 @@ class PostgresGraphStore(GraphStore):
         self._db.entities.insert_relation(source_id, target_id, doc_id, chunk_id, relation)
 
     def get_related_entity_names(
-        self, entity_names: list[str], max_results: int = 20
+        self, entity_names: list[str], max_results: int = 20, *, scope: Scope
     ) -> list[str]:
-        return self._db.entities.related_names(entity_names, max_results=max_results)
+        return self._db.entities.related_names(entity_names, max_results=max_results, scope=scope)
 
 

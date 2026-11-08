@@ -32,6 +32,8 @@ import pytest
 
 from src.utils.scope import ALL_WORKSPACES
 
+WS = "11111111-1111-1111-1111-111111111111"
+
 # ---------------------------------------------------------------------------
 # Helpers — build a mixin instance with a mocked get_connection
 # ---------------------------------------------------------------------------
@@ -131,19 +133,35 @@ class TestInsertEntityRelation:
 class TestGetRelatedEntityNames:
     def test_returns_empty_for_empty_input(self):
         m, _, _ = _entities_mixin()
-        result = m.entities.related_names([])
+        result = m.entities.related_names([], scope=WS)
         assert result == []
         m.get_connection.assert_not_called()
 
     def test_returns_empty_when_db_unavailable(self):
         m, _, _ = _entities_mixin(connected=False)
-        result = m.entities.related_names(["Apple"])
+        result = m.entities.related_names(["Apple"], scope=WS)
         assert result == []
 
     def test_returns_names_from_db(self):
         m, _, cur = _entities_mixin(fetchall_return=[("Google",), ("Microsoft",)])
-        result = m.entities.related_names(["Apple"])
+        result = m.entities.related_names(["Apple"], scope=WS)
         assert result == ["Google", "Microsoft"]
+
+    def test_only_the_scopes_live_documents_are_read(self):
+        """R-12: a co-occurrence counts only through a live document of the scope."""
+        m, _, cur = _entities_mixin(fetchall_return=[])
+        m.entities.related_names(["Apple"], max_results=7, scope=WS)
+        statement, params = cur.execute.call_args.args
+        assert (
+            m.get_connection.call_args.kwargs["scope"],
+            "d.deleted_at IS NULL" in statement and "AND d.workspace_id = %s" in statement,
+            params,
+        ) == (WS, True, (["Apple"], ["Apple"], WS, 7))
+
+    def test_a_missing_scope_is_refused(self):
+        m, _, _ = _entities_mixin()
+        with pytest.raises(ValueError):
+            m.entities.related_names(["Apple"], scope=None)
 
 
 # ===========================================================================

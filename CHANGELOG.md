@@ -28,6 +28,7 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
+- **GraphRAG's query expansion reads only the caller's workspace (R-12).** Entities are shared across workspaces, so with `GRAPH_RAG_ENABLED` on, the 1-hop lookup added names that co-occurred in any workspace's documents, retired ones included, to the caller's query. A co-occurrence now counts only through a live document of the scope. GraphRAG is off by default.
 
 ## [3.5.0] — 2026-10-31
 
