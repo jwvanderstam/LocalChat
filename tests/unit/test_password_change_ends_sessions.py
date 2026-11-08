@@ -57,8 +57,10 @@ class TestTheChangeIsRecorded:
 
     def test_an_admin_reset_ends_the_users_sessions_too(self):
         db = _db()
+        before = datetime.now(UTC).replace(microsecond=0)
         UsersService(db).update_user(USER, {}, password="a-new-long-password")
-        assert _written(db).tzinfo is UTC
+        written = _written(db)
+        assert (before <= written <= datetime.now(UTC), written.tzinfo) == (True, UTC)
 
     def test_an_admin_update_without_a_password_ends_no_session(self):
         """Changing an email must not sign the user out everywhere."""

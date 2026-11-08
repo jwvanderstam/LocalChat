@@ -283,8 +283,22 @@ items below it by number. What the entry recorded while it was open:
 writes `users.tokens_valid_after` (migration 0024), and the guard refuses any token issued
 before it: `users.get_role` compares the token's `iat`, on every request, in the same query
 that checks `is_active` and `deleted_at`. The user who changed their own password gets a new
-session in the same response. A token issued in the same second as the change, before it,
-still passes: `iat` is whole seconds. Tests:
+session in the same response. Known limits, from the separate review of #524:
+
+- A token issued in the same second as the change, before it, still passes: `iat` is
+  whole seconds. A sign-in with the old password that reads the hash before the change
+  commits and issues its token after it passes too, since login spends the PBKDF2 time
+  between the two (L-1).
+- A workspace API key outlives the change: a key resolves without looking at its
+  creator, so one minted from a stolen session keeps working. Revoke the keys of the
+  workspaces the account owns as part of the recovery (L-2).
+- A presence stream (`/api/workspaces/{id}/presence`) is authorised once, when it opens,
+  so one opened before the change keeps streaming member ids after it, as it already did
+  after a sign-out or a deactivation (L-3, older than this change).
+- An admin who resets their own password through `PUT /api/users/{id}` signs themselves
+  out with it; the self-service change gives a new session, the admin reset does not (L-4).
+
+Tests:
 `tests/unit/test_password_change_ends_sessions.py`,
 `tests/integration/test_password_change_ends_sessions.py`. Kept at its number, like items 2
 and 12. What the entry recorded while it was open:
