@@ -63,6 +63,11 @@ RUN mkdir -p /skel/logs /skel/uploads /skel/data
 # ---- Stage 2: runtime ----------------------------------------
 FROM dhi.io/python:3.12@sha256:7c247af7f603bba8197ad5c34595066e1e6b81644c5a37b576d157979ceb4ea6 AS runtime
 
+# The base image already runs as 65532, and WORKDIR creates its directory as the
+# current user — so without this, /app itself was the runtime user's, and a module
+# dropped there would shadow any import (R-11). Switched back below.
+USER 0:0
+
 # No libpq layer: psycopg[binary] vendors libpq inside the wheel, and the
 # hardened base has no apt to install a system copy with. Verified by importing
 # psycopg in the built image — see the docker-smoke job in tests.yml.
