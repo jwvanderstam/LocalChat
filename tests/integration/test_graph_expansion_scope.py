@@ -64,3 +64,12 @@ def test_a_retired_document_contributes_nothing(database, workspaces):
     doc = _relate(database, a, anchor, f"{anchor}Retired")
     database.documents.retire(doc, scope=a)
     assert database.entities.related_names([anchor], scope=a) == []
+
+
+def test_a_chunk_retired_by_a_reingest_contributes_nothing(database, workspaces):
+    """A name removed from a document must not outlive the re-ingest that removed it."""
+    a, _ = workspaces
+    anchor = f"Anchor{uuid.uuid4().hex[:6]}"
+    doc = _relate(database, a, anchor, f"{anchor}Old")
+    database.documents.retire_chunks(doc, scope=a)
+    assert database.entities.related_names([anchor], scope=a) == []

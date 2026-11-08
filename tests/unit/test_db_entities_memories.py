@@ -154,7 +154,8 @@ class TestGetRelatedEntityNames:
         statement, params = cur.execute.call_args.args
         assert (
             m.get_connection.call_args.kwargs["scope"],
-            "d.deleted_at IS NULL" in statement and "AND d.workspace_id = %s" in statement,
+            "d.deleted_at IS NULL" in statement and "c.deleted_at IS NULL" in statement
+            and "AND d.workspace_id = %s" in statement,
             params,
         ) == (WS, True, (["Apple"], ["Apple"], WS, 7))
 

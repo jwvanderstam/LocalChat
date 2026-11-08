@@ -10,7 +10,11 @@ logger = get_logger(__name__)
 
 
 class EntitiesRepository:
-    """GraphRAG entities and their relations."""
+    """GraphRAG entities and their relations.
+
+    ``entities`` rows belong to no workspace: read a name only through a relation whose
+    document is in the caller's scope, never from the table directly.
+    """
 
     def __init__(self, db: DatabaseConnection) -> None:
         self._db = db
@@ -90,7 +94,8 @@ class EntitiesRepository:
 
         Used by the query expander to broaden lexical search terms. Only co-occurrences
         in *scope*'s live documents count: entities are shared across workspaces, so the
-        relation's document is the only thing that says whose they are (R-12).
+        relation's document is the only thing that says whose they are (R-12). The chunk
+        must be live too, or a re-ingest would leave the old version's names behind.
         """
         if not entity_names or not self._db.is_connected:
             return []
@@ -103,6 +108,7 @@ class EntitiesRepository:
                     FROM entities e1
                     JOIN entity_relations er ON er.source_id = e1.id OR er.target_id = e1.id
                     JOIN documents d ON d.id = er.doc_id AND d.deleted_at IS NULL
+                    JOIN document_chunks c ON c.id = er.chunk_id AND c.deleted_at IS NULL
                     JOIN entities e2 ON (
                         CASE WHEN er.source_id = e1.id THEN er.target_id ELSE er.source_id END = e2.id
                     )
