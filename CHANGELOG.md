@@ -28,7 +28,7 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
-- **Every installation-wide scope carries a reason (R-5b).** A unit test walks `src/` and fails on a function that passes `ALL_WORKSPACES` without a recorded reason, or on a reason whose function no longer passes it. The 42 functions that do today were each checked against every caller that can reach them; none was a workspace user reaching another workspace's rows.
+- **Every installation-wide scope carries a reason (R-5b).** A unit test walks `src/`, `mcp_servers/` and `plugins/` and fails on a function that passes `ALL_WORKSPACES` without a recorded reason, on a reason whose function no longer passes it, and on an import that renames it. The 44 functions that pass it today were each checked against every caller that can reach them; none lets a workspace user reach another workspace's rows.
 
 ## [3.5.0] — 2026-10-31
 
