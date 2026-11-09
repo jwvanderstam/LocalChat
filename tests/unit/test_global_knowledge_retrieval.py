@@ -170,7 +170,8 @@ def test_the_workspace_tier_is_unchanged(method):
 def test_no_cached_result_is_served_in_place_of_a_scoped_search(retriever):
     """The query cache's key names no workspace; a hit from another one must never be returned."""
     foreign = MagicMock()
-    foreign.get.return_value = ["another workspace's chunk"]
+    # The query cache's lookup took four arguments; the embedding cache's (text, model) misses.
+    foreign.get.side_effect = lambda *args: ["another workspace's chunk"] if len(args) == 4 else None
     with patch.object(Retriever, "_get_app_cache", return_value=foreign):
         results = retriever.retrieve_context("migration lessons", scope=WORKSPACE)
-    assert _ids(results) == {1}
+    assert (_ids(results), {scope for _, scope, _ in retriever._db.calls}) == ({1}, {WORKSPACE})
