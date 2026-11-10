@@ -616,7 +616,8 @@ image      ghcr.io/jwvanderstam/localchat:sha-359069a   (pulled from ghcr.io dir
 scale      min 1 / max 1 (D1, D2)      memory 3 GB, 1000 mvCPU      port 5000
 ```
 
-`DEPLOY_IMAGE_TAG` defaults to `3.0.0`, the release tag. Pass a `sha-` tag to deploy what is
+`DEPLOY_IMAGE_TAG` defaults to the checkout's `APP_VERSION`, the latest release tag (it was a
+literal `3.0.0` until 2026-11-11). Pass a `sha-` tag to deploy what is
 on `main` (§6), and check afterwards which image the container actually holds — Phase 4
 reverted it to the default until 2026-09-08, and no HTTP check can see that.
 
