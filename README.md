@@ -239,7 +239,7 @@ settings UI. CLAUDE.md gives the reason for each.
 **Current state:** 4,036 tests collected on `a04da4d`. CI's `unit-tests` job runs
 `tests/unit`: 3,507 passed in under 10 minutes; a laptop takes about twice that. Coverage of
 `src/`, unit and integration combined with nothing excluded, is **87.83%**, and CI fails
-under 83.6%. `integration-tests` ran 519 passed and 1 skipped against PostgreSQL in the same
+under 85.8%. `integration-tests` ran 519 passed and 1 skipped against PostgreSQL in the same
 run, and `tests/e2e/` drives a real browser. None of them needs a live Ollama, since every
 model call in the suite goes to `tests/utils/fake_ollama.py`. Every number here was read
 from the CI run on 2026-11-08 rather than remembered. See exit criterion 7 in

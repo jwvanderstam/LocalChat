@@ -133,8 +133,9 @@ and the node harness.
   coverage of `src/` with nothing excluded: **85.68%** on 2026-10-23, the first honest
   measurement, and **87.83%** on 2026-11-08. That is what SonarCloud shows. The
   `unit-tests` job's figure (unit only, the whole tree) is lower and is not the measure.
-- **Coverage must not drop.** The same workflow fails under **83.6%**, 2 points below that
-  first measurement. Raise the floor as QP-4 lands; never lower it to clear a red run. The
+- **Coverage must not drop.** The same workflow fails under **85.8%**, 2 points below the
+  2026-11-08 measurement (it was 83.6% until QP-4 had landed). Raise the floor as coverage
+  rises; never lower it to clear a red run. The
   SonarCloud job is not a required check, so a red one is read before merging.
 - Don't add `# pragma: no cover` to avoid covering real logic — cover it.
 
