@@ -407,6 +407,7 @@ Application user accounts.
 | `created_at` | `TIMESTAMPTZ` | Account creation timestamp |
 | `deleted_at` | `TIMESTAMPTZ` | Soft-delete marker (Clark-Wilson, migration `0007`); `NULL` = live |
 | `deleted_by` | `UUID` | FK → `users.id`; who retired it |
+| `tokens_valid_after` | `TIMESTAMPTZ` | Set by a password change (migration `0024`); a token issued before it is refused. `NULL` = no change yet |
 
 The initial admin user is seeded from `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars on first startup.
 

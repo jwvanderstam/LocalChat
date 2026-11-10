@@ -5,6 +5,7 @@ decisions, so they live in ``src/services/users.py`` (ADR-7).
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from ..utils.logging_config import get_logger, sanitize_log_value
@@ -14,7 +15,7 @@ from .connection import DatabaseConnection, DatabaseUnavailableError
 logger = get_logger(__name__)
 
 #: The columns ``update`` may set. A fixed list, because the SET clause is built from it.
-_UPDATABLE = frozenset({'email', 'hashed_password', 'is_active', 'role'})
+_UPDATABLE = frozenset({'email', 'hashed_password', 'is_active', 'role', 'tokens_valid_after'})
 
 
 class UsersRepository:
@@ -88,21 +89,26 @@ class UsersRepository:
                 row = cur.fetchone()
         return _row_to_user(row) if row else None
 
-    def get_role(self, user_id: str) -> str | None:
-        """Return the user's current global role, or None if there is no live, active user.
+    def get_role(self, user_id: str, *, issued_at: datetime) -> str | None:
+        """The user's global role for a token issued at *issued_at*; None if it buys nothing.
 
         Narrower than get_by_id on purpose: the authorisation guard runs this on
         every admin request and has no business loading the password hash to do it.
         Filters deleted_at and is_active, so a retired or deactivated administrator
-        resolves to None; is_active used to be read at login only (R-4).
+        resolves to None; is_active used to be read at login only (R-4). And a token
+        issued before the last password change resolves to None (SECURITY.md item 13).
         """
         if not self._db.is_connected:
             return None
         with self._db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT role FROM users WHERE id = %s AND deleted_at IS NULL AND is_active",
-                    (user_id,),
+                    """
+                    SELECT role FROM users
+                    WHERE id = %s AND deleted_at IS NULL AND is_active
+                      AND (tokens_valid_after IS NULL OR tokens_valid_after <= %s)
+                    """,
+                    (user_id, issued_at),
                 )
                 row = cur.fetchone()
                 return str(row[0]) if row else None
@@ -177,7 +183,8 @@ class UsersRepository:
     def update(self, user_id: str, **fields: Any) -> bool:
         """Set the given columns. Returns True if a row was changed.
 
-        Allowed keys: email, hashed_password, is_active, role; others are ignored.
+        Allowed keys: email, hashed_password, is_active, role, tokens_valid_after; others
+        are ignored.
         """
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot update user: DB not connected")
