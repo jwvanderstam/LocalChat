@@ -29,7 +29,8 @@ class TestFeedback:
     def test_a_rating_credits_or_debits_its_chunks_by_sign(self, rating, credited, debited):
         db = MagicMock()
         db.feedback.insert.return_value = "fb-1"
-        assert FeedbackService(db).record(rating, 5, "c1", "answer_quality", [], [7, 8]) == "fb-1"
+        db.documents.citable_chunk_ids.return_value = {7, 8}
+        assert FeedbackService(db).record(rating, 5, "c1", "answer_quality", [], [7, 8], SCOPE, True) == "fb-1"
         if credited:
             db.feedback.count_positive.assert_called_once_with(credited)
             db.feedback.count_negative.assert_not_called()
@@ -39,9 +40,34 @@ class TestFeedback:
 
     def test_no_source_chunks_touches_no_chunk_counters(self):
         db = MagicMock()
-        FeedbackService(db).record(1, None, None, "answer_quality", [], [])
+        FeedbackService(db).record(1, None, None, "answer_quality", [], [], SCOPE, True)
         db.feedback.count_positive.assert_not_called()
         db.feedback.count_negative.assert_not_called()
+
+    def test_every_id_a_rating_names_is_looked_up_in_the_callers_scope(self):
+        db = MagicMock()
+        db.documents.citable_chunk_ids.return_value = {7}
+        FeedbackService(db).record(1, 5, "c1", "answer_quality", [], [7], SCOPE, False)
+        db.conversations.document_filter.assert_called_once_with("c1", scope=SCOPE)
+        db.conversations.has_message.assert_called_once_with(5, scope=SCOPE)
+        db.documents.citable_chunk_ids.assert_called_once_with([7], scope=SCOPE, global_tier=False)
+
+    @pytest.mark.parametrize(
+        "foreign",
+        ["conversation", "message", "one chunk of two"],
+    )
+    def test_a_rating_naming_a_foreign_id_is_none_and_writes_nothing(self, foreign):
+        db = MagicMock()
+        db.documents.citable_chunk_ids.return_value = {7, 8}
+        if foreign == "conversation":
+            db.conversations.document_filter.return_value = None
+        elif foreign == "message":
+            db.conversations.has_message.return_value = False
+        else:
+            db.documents.citable_chunk_ids.return_value = {7}
+        assert FeedbackService(db).record(1, 5, "c1", "answer_quality", [], [7, 8], SCOPE, True) is None
+        db.feedback.insert.assert_not_called()
+        db.feedback.count_positive.assert_not_called()
 
     def test_stats_report_the_period_they_cover(self):
         db = MagicMock()
@@ -137,6 +163,37 @@ class TestAnnotations:
         db.annotations.for_chunk.return_value = [{"id": "a1"}]
         assert AnnotationsService(db).for_chunk(9, SCOPE) == [{"id": "a1"}]
         db.annotations.for_chunk.assert_called_once_with(9, scope=SCOPE)
+
+    def test_annotating_a_chunk_outside_the_scope_is_none_and_writes_nothing(self):
+        db = MagicMock()
+        db.documents.chunk_by_id.return_value = None
+        assert AnnotationsService(db).add(9, "note", USER, None, SCOPE) is None
+        db.annotations.add.assert_not_called()
+
+    def test_annotating_with_a_conversation_outside_the_scope_is_none_and_writes_nothing(self):
+        db = MagicMock()
+        db.documents.chunk_by_id.return_value = {"id": 9}
+        db.conversations.document_filter.return_value = None
+        assert AnnotationsService(db).add(9, "note", USER, "c1", SCOPE) is None
+        db.conversations.document_filter.assert_called_once_with("c1", scope=SCOPE)
+        db.annotations.add.assert_not_called()
+
+    def test_annotating_with_a_conversation_in_scope_keeps_it(self):
+        db = MagicMock()
+        db.documents.chunk_by_id.return_value = {"id": 9}
+        db.conversations.document_filter.return_value = []
+        db.annotations.add.return_value = "a1"
+        assert AnnotationsService(db).add(9, "note", USER, "c1", SCOPE) == "a1"
+        db.annotations.add.assert_called_once_with(
+            chunk_id=9, text="note", user_id=USER, conversation_id="c1", scope=SCOPE
+        )
+
+    def test_annotating_a_chunk_in_scope_returns_the_new_id(self):
+        db = MagicMock()
+        db.documents.chunk_by_id.return_value = {"id": 9}
+        db.annotations.add.return_value = "a1"
+        assert AnnotationsService(db).add(9, "note", USER, None, SCOPE) == "a1"
+        db.documents.chunk_by_id.assert_called_once_with(9, scope=SCOPE)
 
     @pytest.mark.parametrize(("caller", "recorded"), [(USER, USER), ("anonymous", None), (None, None)])
     def test_retire_records_the_caller_as_deleted_by(self, caller, recorded):

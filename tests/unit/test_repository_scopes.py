@@ -114,10 +114,15 @@ class TestConnectorWorkerPathsAreInstallationWide:
         ConnectorsRepository(host).set_sync_status("c-1", error=None)
         assert host.scopes == [ALL_WORKSPACES]
 
+
+class TestAConnectorRetiresOnlyInItsWorkspace:
     def test_retiring_a_synced_document_by_filename(self):
+        # R-2: this ran on ALL_WORKSPACES and retired the filename everywhere.
         host = _Host(rowcount=1)
-        assert ConnectorsRepository(host).retire_document_by_filename("a.pdf") is True
-        assert host.scopes == [ALL_WORKSPACES]
+        assert ConnectorsRepository(host).retire_document_by_filename(
+            "a.pdf", source_id="c-1", deleted_by=None, scope=WS
+        ) is True
+        assert host.scopes == [WS]
 
 
 class TestDocumentChecksAreInstallationWide:

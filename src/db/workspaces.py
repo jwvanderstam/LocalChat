@@ -254,13 +254,24 @@ class WorkspaceMembersRepository:
                 return bool(cur.rowcount > 0)
 
     def role(self, workspace_id: str, user_id: str) -> str | None:
-        """Return the role string for this user in this workspace, or None if not a member."""
+        """The user's role in this live workspace, or None: not a member, or either side retired.
+
+        The membership row outlives both its user and its workspace, so read alone it let
+        a deactivated or retired user, and anyone in a retired workspace, keep their
+        access after the action that should have ended it (QP-9 review, R-4).
+        """
         if not self._db.is_connected:
             return None
         with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT role FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
+                    """
+                    SELECT wm.role FROM workspace_members wm
+                    JOIN users u ON u.id = wm.user_id
+                                AND u.deleted_at IS NULL AND u.is_active
+                    JOIN workspaces w ON w.id = wm.workspace_id AND w.deleted_at IS NULL
+                    WHERE wm.workspace_id = %s AND wm.user_id = %s
+                    """,
                     (workspace_id, user_id),
                 )
                 row = cur.fetchone()

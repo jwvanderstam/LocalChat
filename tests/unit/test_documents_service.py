@@ -45,6 +45,7 @@ class TestTheScopeReachesTheRepository:
         }
         db.documents.count.assert_called_once_with(scope=SCOPE)
         db.documents.chunk_count.assert_called_once_with(scope=SCOPE)
+        db.documents.chunk_statistics.assert_called_once_with(scope=SCOPE)
 
     def test_search_text(self):
         service, db = _service()

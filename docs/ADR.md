@@ -158,7 +158,12 @@ is the point at which this trade stops being worth it.
 ## ADR-4 — Cloud fallback targets OpenAI-compatible endpoints directly, not a multi-provider adapter
 
 **Accepted 2026-09-03.** Supersedes the implicit choice made when `LiteLLMClient` was
-written; `litellm` is held at 1.97.0 until the replacement lands.
+written; `litellm` was held at 1.97.0 until the replacement landed.
+
+**Implemented 2026-11-07 (QP-11).** `OpenAICompatibleClient` in `src/llm_client.py` posts to
+`{CLOUD_BASE_URL}/chat/completions` with `httpx`, and `litellm` is gone from both locks. Its
+price table went with it: a cloud call's cost now comes from `CLOUD_PRICE_INPUT_PER_MTOK`
+and `CLOUD_PRICE_OUTPUT_PER_MTOK`, exact for the one configured model.
 
 **Decision.** LocalChat keeps its optional cloud fallback. It reaches it through a direct
 OpenAI-compatible HTTP client rather than through `litellm`, and the endpoint it is pointed
@@ -503,7 +508,8 @@ postponed is a deferral, which ADR-2 explains is the weaker form.
    logic.
 2. **Services** (`src/services/`) own authorisation and use cases. Every workspace-scoped
    method takes the caller's `Principal` and `Scope` and checks access itself, so a handler
-   cannot forget to.
+   cannot forget to. *(Amended 2026-10-24, below: the yes-or-no stays in the route's
+   `deny()`; the service takes the scope it authorised.)*
 3. **Repositories**, one per aggregate (users, workspaces and members, API keys, documents
    and chunks, conversations, memories, entities, feedback, connectors, OAuth tokens,
    annotations, contributions, revoked tokens): plain SQL, no business rules. They stay
@@ -525,6 +531,7 @@ from every route through `app.state.db`, which is what a layer boundary has to r
   `app.state.db` in route modules (81), the contract's exceptions (4), and import cycles (2).
 - Each QP-4 PR moves one aggregate and lowers them; QP-5 removes `Database` and the
   `MixinHost` stand-in, empties the exceptions, and the contracts become plain failures.
+  *(Amended 2026-10-25, below: `Database` stays as the pool. All three ratchets are at zero.)*
 
 **What this rules out:** a route that queries the database, a service that renders HTTP,
 and a repository that decides who may see a row (ADR-5's policies still back that up in
@@ -560,12 +567,10 @@ and a ratchet at zero. Deleting the class now would rewire 47 test files for no 
 guarantee. Instead the last four route reads moved behind services (`ChatService`,
 `services/admin_stats.py`).
 
-**Revisit when:** a second entry point (a worker, a CLI) needs the services without the web
-app — the same trigger as above; that is when `app.state` stops being the composition root.
-
 **Revisit when:** a second front end (a CLI, a worker that is not the web app) needs the
-same use cases. The service layer is then its entry point too, and the question becomes
-whether it moves out of the web process.
+same use cases. The service layer is then its entry point too, `app.state` stops being the
+composition root, and the question becomes whether the services move out of the web
+process.
 
 ---
 

@@ -108,6 +108,9 @@ class TestAPageStillRendersWhenItsStatsDoNot:
                 return "rendered"
 
         monkeypatch.setattr(web_routes, "_templates", lambda _request: _Templates())
+        # Only an administrator's page gathers stats (R-6); without this the fallback
+        # under test is never reached and the assertion below holds vacuously.
+        monkeypatch.setattr(web_routes, "_caller_is_admin", lambda _request: True)
 
         request = MagicMock()
         request.app.state.docs_service.get_fragment.return_value = None

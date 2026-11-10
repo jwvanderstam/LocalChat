@@ -287,16 +287,24 @@ class ConnectorsRepository:
             for r in rows
         ]
 
-    def retire_document_by_filename(self, filename: str) -> bool:
-        """Soft-delete a document by filename (used by SyncWorker). Returns True if found."""
+    def retire_document_by_filename(
+        self, filename: str, *, source_id: str, deleted_by: str | None, scope: Scope
+    ) -> bool:
+        """Soft-delete the document one connector ingested under *filename* in *scope*.
+
+        Matching on the filename alone retired that name in every workspace and in the
+        global tier (QP-9 review, R-2); the connector's own id and workspace bound it.
+        """
         if not self._db.is_connected:
             return False
-        with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
+        scope_sql, scope_params = scope_predicate(scope, "workspace_id")
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE documents SET deleted_at = NOW(), deleted_by = NULL "
-                    "WHERE filename = %s AND deleted_at IS NULL",
-                    (filename,),
+                    "UPDATE documents SET deleted_at = NOW(), deleted_by = %s "
+                    "WHERE filename = %s AND source_id = %s AND deleted_at IS NULL"
+                    + scope_sql,  # nosec B608  # scope_predicate fragment: literal column, value is %s
+                    (deleted_by, filename, source_id, *scope_params),
                 )
                 deleted = cur.rowcount > 0
                 conn.commit()

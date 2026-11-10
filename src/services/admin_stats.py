@@ -17,7 +17,7 @@ from ..utils.scope import ALL_WORKSPACES
 logger = get_logger(__name__)
 
 
-def _collect_document_stats(app_state: Any) -> dict:
+def _collect_document_stats(app_state: Any) -> dict[str, Any]:
     db = getattr(app_state, "db", None)
     if not db:
         return {"document_count": 0, "chunk_count": 0, "db_available": False}
@@ -33,7 +33,7 @@ def _collect_document_stats(app_state: Any) -> dict:
         return {"document_count": 0, "chunk_count": 0, "db_available": False}
 
 
-def _collect_cache_stats(app_state: Any) -> dict:
+def _collect_cache_stats(app_state: Any) -> dict[str, Any]:
     result = {
         "embedding_cache": {"available": False, "hit_rate": 0.0, "usage_percent": 0.0},
         "query_cache":     {"available": False, "hit_rate": 0.0, "usage_percent": 0.0},
@@ -58,7 +58,7 @@ def _collect_cache_stats(app_state: Any) -> dict:
     return result
 
 
-def _get_loaded_models(ollama_client: Any) -> list:
+def _get_loaded_models(ollama_client: Any) -> list[dict[str, Any]]:
     if not ollama_client:
         return []
     try:
@@ -79,17 +79,18 @@ def _get_loaded_models(ollama_client: Any) -> list:
         return []
 
 
-def _get_gpu_info(ollama_client: Any) -> list:
+def _get_gpu_info(ollama_client: Any) -> list[dict[str, Any]]:
     if not ollama_client:
         return []
     try:
-        return ollama_client.get_gpu_info()
+        gpus: list[dict[str, Any]] = ollama_client.get_gpu_info()
+        return gpus
     except Exception as exc:  # noqa: BLE001 — same, for hardware info
         logger.debug("Settings: could not fetch GPU hardware info: %s", exc)
         return []
 
 
-def _collect_system_info(app_state: Any) -> dict:
+def _collect_system_info(app_state: Any) -> dict[str, Any]:
     active_model = "—"
     try:
         active_model = config.app_state.get_active_model() or "—"
@@ -108,7 +109,7 @@ def _collect_system_info(app_state: Any) -> dict:
     }
 
 
-def gather_admin_stats(app_state: Any) -> dict:
+def gather_admin_stats(app_state: Any) -> dict[str, Any]:
     from ..monitoring import compute_health_status, get_metrics
     _, _, health_checks = compute_health_status(app_state)
     metrics_snapshot = get_metrics().get_metrics()

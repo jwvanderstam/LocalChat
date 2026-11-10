@@ -4,9 +4,14 @@
 
 If you discover a security vulnerability in LocalChat, please report it privately rather than opening a public issue.
 
-- **Contact**: jw.vander.stam@gmail.com
+- **Preferred**: GitHub's private reporting, at
+  [Security → Report a vulnerability](https://github.com/jwvanderstam/LocalChat/security/advisories/new).
+- **Or by email**: jw.vander.stam@gmail.com
 - Include a description of the issue, steps to reproduce, and the affected commit/version.
-- LocalChat is developed on a rolling `main` branch; only the latest commit on `main` is supported — there are no maintained release branches.
+- Every running instance names these channels at `/.well-known/security.txt` (RFC 9116).
+- Only the latest release and `main` are supported; there are no maintained release
+  branches. A fix for a security advisory ships as a patch release within 7 days of the
+  fix merging (see [CONTRIBUTING.md](CONTRIBUTING.md#releases)).
 
 ## Known & Accepted Risks
 
@@ -244,6 +249,71 @@ a gain of one deleted heading.
 - **Re-review trigger**: tools that act rather than read, a cloud model in the default path,
   or a deployment where the people who write the documents are not trusted by the people
   who ask about them.
+
+### 12. `litellm` CVE-2026-114612 — resolved 2026-11-07
+
+**No longer an accepted risk.** QP-11 replaced `litellm` with a direct OpenAI-compatible
+client ([ADR-4](docs/ADR.md)), so the package is in neither lock and not in the image. The
+`pip-audit --ignore-vuln CVE-2026-114612` suppression went with it, and the step again runs
+with no suppressions. Kept at its number, like item 2, because other documents cite the
+items below it by number. What the entry recorded while it was open:
+
+
+- **What**: `litellm` 1.97.0 is in the image. CVE-2026-114612 (published 2026-10-29) is a
+  privilege escalation in the **LiteLLM proxy server**: it reuses one key for stored secrets
+  and session tokens, so a proxy user can forge an administrator bearer token. Fixed in
+  1.100.4 and later.
+- **Why it is not reachable here**: LocalChat never runs the proxy. `src/llm_client.py` is
+  the only importer and calls two SDK functions, `litellm.completion()` and
+  `litellm.cost_per_token()`. No proxy, no API-key flow, no session token exists for the
+  flaw to act on. The package is imported only when `CLOUD_FALLBACK_ENABLED=true`.
+- **Why not upgrade**: every `litellm` from 1.98.0 depends on `boto3`, which puts the AWS SDK
+  in the image. [ADR-4](docs/ADR.md) rules that out and replaces `litellm` with a direct
+  OpenAI-compatible client instead. Taking the fixed version would reverse that decision
+  under the pressure of a CVE that does not apply, which ADR-4 itself warns against.
+- **The suppression**: `pip-audit --ignore-vuln CVE-2026-114612` in
+  `.github/workflows/tests.yml`, for this one ID only.
+- **Ends when**: the ADR-4 replacement removes `litellm` from `requirements.in`. That PR
+  deletes the suppression and this entry. It is the next dependency change after the
+  2026-10-30 fix that introduced the suppression.
+
+### 13. Changing a password does not end the sessions already open
+
+- **What**: a session is a JWT that lives `JWT_ACCESS_TOKEN_EXPIRES` (2 hours by default).
+  Changing a password, by the user or by an admin reset, revokes no token, so a session
+  opened before the change, on another device or by whoever learned the old password,
+  keeps working until it expires.
+- **What limits it**: signing out revokes that token immediately. An admin who deactivates
+  or retires the account ends every one of its sessions on the next request (R-4, #511),
+  which is the lever for a suspected compromise: deactivate, then reset the password, then
+  reactivate.
+- **Why accepted for now**: ending them properly needs a per-user `tokens_valid_after`
+  written by the change and compared with each token's issue time in `resolve_principal`,
+  a migration plus a change to the security core. That is planned for after the release
+  that ships the QP-9 review's fixes.
+- **Ends when**: that change lands. It removes this entry.
+
+## QP-9 security review (2026-10-30): findings register
+
+A separate agent session reviewed the security-critical paths against
+[CONTRIBUTING.md](CONTRIBUTING.md)'s checklist. Each fix carries a regression test that
+fails on the code before it.
+
+| Id | Severity | Finding | Status |
+|---|---|---|---|
+| R-1 | High | `GET /api/documents/stats` returned chunk previews from every workspace, retired documents included | **Fixed** (#505) — `tests/integration/test_chunk_statistics_scope.py` |
+| R-2 | High | A connector's delete event retired every live document with that filename, in every workspace | **Fixed** (#506) — `tests/integration/test_connector_delete_scope.py` |
+| R-3 | Medium | Chat appended both turns to any `conversation_id`, in any workspace | **Fixed** (#508) — `tests/unit/test_chat_conversation_is_authorised.py`, `tests/integration/test_save_message_scope.py` |
+| R-4 | Medium | Access outlived a deactivated or retired account, and a retired workspace | **Fixed** (#509, #511) — `tests/integration/test_access_ends_with_the_account.py`, `TestASessionEndsWithItsAccount`. A password change still leaves open sessions running: item 13 above |
+| R-5 | Medium | The object-authorisation matrix ran as an editor only and probed path ids only | **Fixed** (#510): runs as an editor and an owner, probes body and header ids. The ratchet over repository methods that use `ALL_WORKSPACES` is **open** |
+| R-6 | Medium | `GET /settings` rendered installation-wide admin statistics for any caller | **Fixed** (#507) — `tests/unit/test_settings_page_stats_are_admin_only.py` |
+| R-7 | Low | A connector's sync history and manual sync took the id alone | **Fixed** (#510) — `TestAConnectorOutsideTheScopeIsNotFound` |
+| R-8 | Low | Feedback and annotations accept conversation and chunk ids from another workspace; a viewer can make any document un-purgeable | **Fixed** — every id a rating or annotation names is looked up in the caller's scope first, the global tier's chunks included except for a workspace API key; the message id too, which the review did not name. `tests/integration/test_object_authorization_over_the_wire.py`, `tests/integration/test_rating_ids_are_in_scope.py` |
+| R-9 | Low | Single-object purges do not require the row to be retired first | **Open** (admin-only) |
+| R-10 | Low | Admin user routes take raw dicts; the last-admin count ignores `is_active` | **Open** (admin-only) |
+| R-11 | Low | The image's source is owned by the runtime user | **Open** |
+| R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Open** |
+| — | — | `GET /api/workspaces/active` and `POST /api/workspaces/switch` returned any named workspace, its system prompt included, to anyone signed in; found by R-5's new probes | **Fixed** (#510) — `tests/unit/test_active_workspace_is_authorised.py` |
 
 ## October 2026 audit: findings register
 

@@ -219,6 +219,34 @@ every PR and asserts the invariants above, then boots it against Postgres and re
 `/api/health`. It exists because the failure mode is silent: the image builds and
 publishes cleanly, then the container dies on start. See LESSONS_LEARNED Ch. 17.
 
+### Verifying a published image
+
+Every image `docker-publish.yml` pushes to `ghcr.io/jwvanderstam/localchat`, from `main` or a
+`v*` tag, is signed with cosign (keyless, through GitHub's OIDC identity) and carries two
+attestations: an SPDX SBOM made by syft, and SLSA build provenance. All three name the
+image's digest, not a tag. Verify before you deploy a pulled image (QP-8):
+
+```bash
+IMAGE=ghcr.io/jwvanderstam/localchat:3.5.0
+
+# The signature: made by this repository's publish workflow, on main or a release tag
+cosign verify "$IMAGE" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/jwvanderstam/LocalChat/\.github/workflows/docker-publish\.yml@refs/(heads/main|tags/v.+)$'
+
+# Build provenance: which commit and workflow run produced this digest
+gh attestation verify "oci://$IMAGE" --repo jwvanderstam/LocalChat
+
+# The SBOM, verified the same way
+gh attestation verify "oci://$IMAGE" --repo jwvanderstam/LocalChat \
+  --predicate-type https://spdx.dev/Document/v2.3
+```
+
+A failed verification means the image did not come from this repository's workflow; do not
+run it. Images published before the release that added signing carry no signature;
+the CHANGELOG names that release. Building locally with `docker compose build` produces an unsigned image, which is
+expected.
+
 ## Security checklist
 
 Before exposing LocalChat beyond localhost:
@@ -233,7 +261,7 @@ Before exposing LocalChat beyond localhost:
 | Field encryption | `ENCRYPTION_KEY` | Required in production; `validate_secrets()` aborts the boot if it is missing or malformed. Covers OAuth tokens, messages and memories — not document text, see SECURITY.md. |
 | TLS | — | Terminate at a proxy; see below. |
 | Container user | — | Runs as uid 65532 by default. Do not override with `user: root` in compose. |
-| Image provenance | — | Base images are digest-pinned. A bare tag makes the CVE posture unverifiable later. |
+| Image provenance | — | Base images are digest-pinned. A bare tag makes the CVE posture unverifiable later. Verify a pulled image's signature and attestations first; see [Verifying a published image](#verifying-a-published-image). |
 
 Which routes require which role is documented in [PERMISSIONS.md](PERMISSIONS.md).
 

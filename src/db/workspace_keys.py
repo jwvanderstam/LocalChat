@@ -119,9 +119,10 @@ class WorkspaceKeysRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, workspace_id, role, key_hash
-                      FROM workspace_api_keys
-                     WHERE key_prefix = %s AND revoked_at IS NULL
+                    SELECT k.id, k.workspace_id, k.role, k.key_hash
+                      FROM workspace_api_keys k
+                      JOIN workspaces w ON w.id = k.workspace_id AND w.deleted_at IS NULL
+                     WHERE k.key_prefix = %s AND k.revoked_at IS NULL
                     """,
                     (prefix,),
                 )

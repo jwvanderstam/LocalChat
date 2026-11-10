@@ -15,6 +15,8 @@ Covers the full REST surface:
 
 from unittest.mock import MagicMock
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -219,6 +221,10 @@ class TestDeleteConnector:
 
 class TestTriggerSync:
 
+    @pytest.fixture(autouse=True)
+    def _connector_in_scope(self, app):
+        app.state.db.connectors.get = MagicMock(return_value=_connector())
+
     def test_triggers_sync(self, client, app):
         mock_instance = MagicMock()
         mock_worker = MagicMock()
@@ -248,6 +254,10 @@ class TestTriggerSync:
 # ---------------------------------------------------------------------------
 
 class TestSyncHistory:
+
+    @pytest.fixture(autouse=True)
+    def _connector_in_scope(self, app):
+        app.state.db.connectors.get = MagicMock(return_value=_connector())
 
     def test_returns_history(self, client, app):
         history = [

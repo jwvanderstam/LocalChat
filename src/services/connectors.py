@@ -169,7 +169,14 @@ class ConnectorsService:
     def purge(self, connector_id: str) -> bool:
         return self._db.connectors.purge(connector_id)
 
-    def sync_history(self, connector_id: str, limit: int) -> list[dict[str, Any]]:
+    def sync_history(self, connector_id: str, limit: int, scope: Scope) -> list[dict[str, Any]] | None:
+        """The connector's sync log, or None when *scope* has no such connector.
+
+        ``connector_sync_log`` has no workspace and no row-level security, so the
+        connector is looked up in the scope first; the log carries its error text (R-7).
+        """
+        if self._db.connectors.get(connector_id, scope=scope) is None:
+            return None
         return self._db.connectors.sync_history(connector_id, limit=limit)
 
     def _validate(self, connector_type: str, config: dict[str, Any]) -> BaseConnector:

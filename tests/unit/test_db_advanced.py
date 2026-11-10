@@ -231,7 +231,7 @@ class TestChunkStatistics:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            stats = db_module.db.documents.chunk_statistics()
+            stats = db_module.db.documents.chunk_statistics(scope="11111111-1111-1111-1111-111111111111")
 
             assert stats['total_chunks'] == 100
             assert stats['chunks_with_embeddings'] == 95
@@ -254,7 +254,7 @@ class TestChunkStatistics:
             mock_get_conn.return_value.__enter__.return_value = mock_conn
             mock_get_conn.return_value.__exit__.return_value = None
 
-            stats = db_module.db.documents.chunk_statistics()
+            stats = db_module.db.documents.chunk_statistics(scope="11111111-1111-1111-1111-111111111111")
 
             assert stats['total_chunks'] == 0
             assert stats['avg_chunk_length'] == 0

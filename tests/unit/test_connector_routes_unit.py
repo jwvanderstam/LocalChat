@@ -77,6 +77,44 @@ class TestConnectorRoutesErrors:
         assert resp.json()['message'] == 'Invalid connector configuration'
 
 
+class TestAConnectorOutsideTheScopeIsNotFound:
+    """R-7 (QP-9 review) — history and manual sync resolve the connector in the scope.
+
+    Both took the id alone: the sync log has no workspace and no row-level security, and
+    the registry holds every workspace's connectors, so the owner of any workspace could
+    read another's sync errors and spend its owner's OAuth token on a sync.
+    """
+
+    def test_history_of_a_foreign_connector_is_not_found(self, client, app):
+        app.state.db.connectors.get = MagicMock(return_value=None)
+        app.state.db.connectors.sync_history = MagicMock(return_value=[{"id": 1}])
+        resp = client.get('/api/connectors/foreign/history', headers={'X-Workspace-ID': 'ws-a'})
+        assert resp.status_code == 404
+        app.state.db.connectors.sync_history.assert_not_called()
+
+    def test_history_looks_the_connector_up_in_the_authorised_scope(self, client, app):
+        app.state.db.connectors.get = MagicMock(return_value={'id': 'own'})
+        app.state.db.connectors.sync_history = MagicMock(return_value=[{"id": 1}])
+        resp = client.get('/api/connectors/own/history', headers={'X-Workspace-ID': 'ws-a'})
+        assert resp.json()['history'] == [{"id": 1}]
+        assert app.state.db.connectors.get.call_args.kwargs['scope'] == 'ws-a'
+
+    def test_a_foreign_connector_is_not_synced(self, client, app):
+        app.state.db.connectors.get = MagicMock(return_value=None)
+        app.state.connector_registry = MagicMock()
+        app.state.sync_worker = MagicMock()
+        resp = client.post('/api/connectors/foreign/sync', headers={'X-Workspace-ID': 'ws-a'})
+        assert resp.status_code == 404
+        app.state.connector_registry.get.assert_not_called()
+
+    def test_the_callers_own_connector_is_synced(self, client, app):
+        app.state.db.connectors.get = MagicMock(return_value={'id': 'own'})
+        app.state.connector_registry = MagicMock()
+        app.state.sync_worker = MagicMock()
+        resp = client.post('/api/connectors/own/sync', headers={'X-Workspace-ID': 'ws-a'})
+        assert resp.status_code == 200
+        assert app.state.db.connectors.get.call_args.kwargs['scope'] == 'ws-a'
+
 
 class TestConnectorOwnerBinding:
     """BUG-4 — a connector spends its creator's OAuth token, nobody else's."""

@@ -304,7 +304,7 @@ absent unless you set it — which is the answer to "why is this doing nothing?"
 | `MCP_ENABLED` | `false` | Talk to the domain MCP servers (`--profile mcp`) |
 | `PLUGINS_ENABLED` | `True` | Load `.py` plugins from `PLUGINS_DIR` at startup |
 | `DOCS_ENABLED` | `True` | The in-app `/docs` viewer and the Settings help text |
-| `CLOUD_FALLBACK_ENABLED` | `false` | Fall back to a hosted model via LiteLLM when Ollama cannot serve |
+| `CLOUD_FALLBACK_ENABLED` | `false` | Fall back to a hosted model on an OpenAI-compatible endpoint when the local model refuses ([ADR-4](ADR.md)) |
 | `REINGEST_ENABLED` | `false` | Re-ingest documents older than `REINGEST_MAX_AGE_HOURS` |
 | `REDIS_STRICT` | `true` | Refuse to start if `REDIS_ENABLED=True` and Redis is unreachable, rather than silently falling back to the in-memory cache |
 | `REQUIRE_DATABASE` | `false` | Refuse to start without PostgreSQL instead of degrading |
@@ -338,9 +338,11 @@ to empty, in which case the router falls back to the active model.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `CLOUD_PROVIDER` | *(empty)* | LiteLLM provider name |
-| `CLOUD_MODEL` | *(empty)* | Model id at that provider |
-| `CLOUD_API_KEY` | *(empty)* | Credential. Traffic on this path **leaves the machine** — the point of a local-first deployment is that it stays unset |
+| `CLOUD_BASE_URL` | *(empty)* | Root of an OpenAI-compatible API, version included (`https://api.openai.com/v1`, `https://api.scaleway.ai/v1`). The client posts to `{CLOUD_BASE_URL}/chat/completions`. Unset, the fallback stays off |
+| `CLOUD_MODEL` | *(empty)* | Model id at that endpoint, as the provider names it (no `provider/` prefix) |
+| `CLOUD_API_KEY` | *(empty)* | Credential, sent as a bearer token. Traffic on this path **leaves the machine** — the point of a local-first deployment is that it stays unset |
+| `CLOUD_TIMEOUT` | `120` | Seconds the cloud client waits on any one network step: connecting, or the gap between two reads of a stream. Not a ceiling on a whole answer, which may stream for longer |
+| `CLOUD_PRICE_INPUT_PER_MTOK` / `CLOUD_PRICE_OUTPUT_PER_MTOK` | *(empty)* | USD per million prompt / completion tokens, from the provider's price list. With both set, each call's cost is added to `llm_cost_usd_total`; with either unset, only tokens are counted. A provider that prices in EUR needs converting |
 
 ### MCP servers
 
@@ -439,7 +441,7 @@ to empty, in which case the router falls back to the active model.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `APP_VERSION` | `3.3.0` | Reported by `GET /api/status`. See the note below |
+| `APP_VERSION` | `3.5.0` | Reported by `GET /api/status`. See the note below |
 | `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB), enforced while the upload streams to disk |
 | `UVICORN_WORKERS` | `1` | Worker processes. **Only `1` is supported** — the app refuses to boot otherwise |
 | `UVICORN_TIMEOUT` | `600` | uvicorn's `--timeout-keep-alive`, applied by `docker-entrypoint.py`. **Not a request timeout**: it closes a connection that has been idle this long, which for an SSE stream means one that has produced nothing. Keep it ≥ `OLLAMA_EMBED_TIMEOUT`; behind the nginx overlay, `proxy_read_timeout 300s` in `nginx/nginx.conf` is the lower and therefore real ceiling |
@@ -491,5 +493,5 @@ to empty, in which case the router falls back to the active model.
 > **That is not hypothetical — it is what happened.** Until 2026-08-31 the three read
 > `1.0.0`, `0.5.0` and `1.0.0` against a `v3.0.0-beta.1` tag: a containerised deployment
 > reported **0.5.0**, a host-run one **1.0.0**, and neither was the version being run.
-> All three now read `3.3.0`, and `tests/unit/test_app_version_is_consistent.py` fails if
+> All three now read `3.5.0`, and `tests/unit/test_app_version_is_consistent.py` fails if
 > they diverge again — the drift was silent precisely because no check compared them.

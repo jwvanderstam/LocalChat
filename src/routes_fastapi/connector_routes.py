@@ -191,10 +191,14 @@ def delete_connector(connector_id: str, request: Request, connectors: Connectors
 
 
 @router.post("/connectors/{connector_id}/sync")
-def trigger_sync(connector_id: str, request: Request) -> Any:
+def trigger_sync(connector_id: str, request: Request, connectors: Connectors) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
         return denied
+    # The registry holds every workspace's connectors, so it cannot answer whose this
+    # one is; a sync spends its owner's OAuth token (R-7).
+    if connectors.get(connector_id, get_scope(request)) is None:
+        return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
     connector_instance = request.app.state.connector_registry.get(connector_id)
     if connector_instance is None:
         return JSONResponse({"success": False, "message": "Connector not found or not loaded"}, status_code=404)
@@ -219,7 +223,9 @@ def sync_history(
         return denied
     limit = min(limit, 100)
     try:
-        history = connectors.sync_history(connector_id, limit)
+        history = connectors.sync_history(connector_id, limit, get_scope(request))
+        if history is None:
+            return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "history": history}
     except Exception:
         logger.exception("[Connectors] history error")

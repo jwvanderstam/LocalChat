@@ -8,6 +8,215 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
 
 ## [Unreleased]
 
+**Upgrading.** A deployment that uses the cloud fallback must set `CLOUD_BASE_URL` (for
+OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD_MODEL`.
+`CLOUD_PROVIDER` is no longer read. No migrations.
+
+### Security
+
+- **A rating or annotation names only what the caller can reach (R-8).** Feedback and annotations stored any conversation, message or chunk id they were given, and a rating's `chunk_stats` row blocks a document's purge, so a viewer could make another workspace's document un-purgeable. Each id is now looked up in the caller's scope first, and a miss is a 404 that writes nothing. Chunks of the global tier stay ratable, since a hybrid answer cites them. The chat's rating buttons now send the active workspace, which they never did.
+- **`litellm` is gone from the image (QP-11, ADR-4).** It carried CVE-2026-114612, in a
+  proxy server LocalChat never ran, and every fixed version pulls `boto3` into the image.
+  The `pip-audit` suppression for it is removed; `SECURITY.md` item 12 is resolved.
+
+### Changed
+
+- **The cloud fallback talks to an OpenAI-compatible endpoint directly.**
+  `OpenAICompatibleClient` posts to `{CLOUD_BASE_URL}/chat/completions` over `httpx`.
+  `CLOUD_BASE_URL` replaces `CLOUD_PROVIDER`; `CLOUD_TIMEOUT` sets the request timeout.
+  The cost counter `llm_cost_usd_total` now comes from `CLOUD_PRICE_INPUT_PER_MTOK` and
+  `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
+  not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
+  accepted.
+
+## [3.5.0] — 2026-10-31
+
+The release that closes the quality plan's maturity target (Initiative 12). All six
+maturity exit criteria hold on `main`: honest coverage with an enforced floor, `e2e` and
+`retrieval-gate` required, a written security-release policy, signed images with an SBOM
+and provenance, strict typing on every service and repository, and the QP-9 review
+triaged. The re-audit runs against this tag. The review's open findings (R-8 to R-12,
+item 13) are QP-10 and are listed in `SECURITY.md`.
+
+**Upgrading from 3.4.0.** No migrations and no configuration changes. Images from this
+release on are signed; verify one before deploying it, as `docs/DEPLOYMENT.md` shows.
+
+### Security
+
+- **`pypdf` 6.21.2 → 6.21.4** (#515), for seven advisories published on 2026-10-31
+  (CVE-2026-119203 to CVE-2026-119209). `pypdf` parses every uploaded PDF. Released the
+  same day, inside the 7-day policy.
+
+### Added
+
+- **Published images are signed, with an SBOM and build provenance** (QP-8). Every image
+  pushed to `ghcr.io/jwvanderstam/localchat`, from `main` or a release tag, is signed with
+  cosign (keyless, through the workflow's GitHub identity) and carries two attestations:
+  an SPDX SBOM made by syft, and SLSA build provenance. All three name the image's digest.
+  `docs/DEPLOYMENT.md` shows how to verify them with `cosign verify` and
+  `gh attestation verify`. Images published before this release are unsigned.
+- **A release tag must match `APP_VERSION`.** Tags stay manual, by decision: release-please
+  needed a token with more rights than the workflow's own and would overwrite the
+  hand-written changelog. The publish workflow now refuses a `v*` tag that disagrees with
+  `APP_VERSION` before it builds anything.
+
+### Changed
+
+- **Every service is held to strict typing** (maturity criterion 5). `chat`, `admin_stats`
+  and `logs` joined the other services and the repositories on `pyproject.toml`'s strict
+  mypy list, and a test now fails when a module in `src/services/` or a repository in
+  `src/db/` is left off it. No behaviour change.
+
+## [3.4.0] — 2026-10-30
+
+The release that answers the QP-9 security review. Every database path now names its
+workspace, and the database itself refuses one that does not (QP-5, ADR-5's option B).
+Routes reach the database only through services (QP-4, ADR-7). The review's findings
+R-1 to R-4, R-6 and R-7 are fixed; R-5's matrix now runs as an owner as well as an editor.
+The open findings are listed in `SECURITY.md`. The quality plan's maturity target and the
+re-audit move to v3.5.0: v3.4.0 ships the fixes within the 7-day security policy.
+
+**Upgrading from 3.3.0.** No configuration changes. Migrations `0022` and `0023` apply at
+boot. `0023` forces row-level security on the ten workspace tables. Two behaviours change
+for operators:
+- A deactivated or retired user's session is now refused (401) at its next request. It no
+  longer runs until the token expires.
+- A connector's delete event no longer retires a document that connector ingested before
+  migration `0004` recorded `source_id`. Retire such a document by hand.
+
+### Security
+
+- **`GET /api/documents/stats` reads only the caller's workspace** (QP-9 review, R-1, High).
+  Its `chunk_statistics` opened an all-workspaces transaction and returned three random chunk
+  previews from every workspace, retired documents included, to any viewer or workspace API
+  key. It now takes the authorised scope like its sibling counts and skips retired documents.
+  `tests/integration/test_chunk_statistics_scope.py` runs it next to a second workspace and a
+  retired document.
+- **Chat refuses a conversation outside the caller's workspace** (QP-9 review, R-3). A
+  `conversation_id` in the request was trusted: both turns were appended to it on an
+  all-workspaces connection, so a viewer of one workspace who knew a conversation id in
+  another wrote into its history, and memory extraction then read that turn as the other
+  workspace's user. The id is now checked against the authorised scope before retrieval
+  (404), and a message is written only into a live conversation in that scope.
+- **`dnspython` 2.8.0 → 2.9.1** (CVE-2026-114605): a crafted DNS message could make name
+  decompression spin on compression-pointer chains. It reaches the image through
+  `email-validator`.
+- **A connector's sync history and manual sync are scoped** (QP-9 review, R-7). Both took
+  the id alone, so the owner of any workspace could read another workspace's sync errors
+  and start a sync that spends that connector's owner's OAuth token. Each now finds the
+  connector in the caller's workspace first, and answers 404 when it is not there.
+- **The active-workspace routes answer only for a member.** `GET /api/workspaces/active`
+  (header) and `POST /api/workspaces/switch` (body) needed only a session, then returned
+  whichever workspace was named, its system prompt included. Both now need `ws:viewer` on
+  it. Found by R-5's new probes.
+- **The object-authorisation matrix runs as an owner too, and probes ids outside the path**
+  (QP-9 review, R-5). As an editor only, every owner-guarded route was refused by the role
+  check before the scope was consulted, which hid R-7. Ids in a body or header are probed
+  beside a control that the caller's own are admitted; R-8's three open cases are strict
+  xfails. Annotating a chunk outside the scope now answers 404 instead of 500.
+- **A connector's delete event retires only what that connector ingested** (QP-9 review,
+  R-2, High). The sync worker retired every live document with the event's filename, in
+  every workspace and in the global tier. Any user could create a workspace, add a webhook
+  connector and name a filename. The delete now matches the filename, the connector's id and
+  its workspace, runs in that workspace's scope, and records the connector's creator as
+  `deleted_by`. A connector with no workspace retires nothing. A document a connector
+  ingested before `source_id` was recorded (migration 0004) is no longer retired by that
+  connector's delete events; retire it by hand.
+- **`litellm` CVE-2026-114612 is suppressed in `pip-audit`, not fixed.** The flaw is in
+  LiteLLM's proxy server, which LocalChat never runs; it uses two SDK functions. Every fixed
+  version pulls `boto3` into the image, which ADR-4 rules out, so the suppression holds
+  until ADR-4 replaces `litellm`. Reasoning in `SECURITY.md` item 12.
+- **The Settings page carries admin stats for an administrator only** (QP-9 review, R-6).
+  `GET /settings` needs no session, since every user changes their own password there, and
+  it rendered the version, active model, health and installation-wide totals into the HTML
+  for anyone, including an unauthenticated caller. `/api/settings/stats` refused the same
+  data to non-admins. The page now gathers it only when the caller's database role is admin.
+- **Access ends when the account or the workspace does** (QP-9 review, R-4). The three
+  lookups every guard reads its answer from ignored whether the user was still active and
+  whether the workspace was still live: a deactivated user kept their workspace roles and a
+  deactivated admin stayed admin until the token expired, a retired user kept every
+  membership, and a retired workspace stayed open to its members and its API keys
+  indefinitely. `users.get_role` now requires an active user, `members.role` a live active
+  user in a live workspace, and `api_keys.resolve` a live workspace. A deactivated or
+  retired user's token is now refused outright (401 "Account is not active"), which also
+  closes the routes that ask only for a session, such as creating a workspace. When the
+  database cannot answer, the session is not ended for it; revocation fails closed there.
+- **The database refuses a query that names no workspace** (QP-5 step 3, ADR-5's option B).
+  Migration `0023` drops `0021`'s transition policy, which let the application's own login
+  read and write every row on an unscoped path, and forces row-level security on the ten
+  workspace tables, so the owner is bound too. A path must name a workspace or the explicit
+  all-workspaces flag; one that forgets gets no rows, from the database, not from a code
+  review. A superuser still bypasses row-level security, as Postgres always allows.
+
+- **filelock 4.2.1 and pypdf 6.21.2**: three CVEs in each (filelock CVE-2026-112907,
+  -112913, -112940; pypdf CVE-2026-115572, -115580, -115585). One change, because each
+  Dependabot PR failed pip-audit on the other's CVEs. filelock is a transitive dependency of
+  huggingface-hub and torch, neither of which caps it below 4.
+- **`GET /api/users/me` no longer answers a revoked token with its identity.** It read the
+  token without the revocation check, so a session cookie copied before sign-out still
+  returned its user id, global and workspace role, and `can_contribute`. A refused token
+  now gets the anonymous answer, all null. Found writing the QP-7 replay test.
+
+### Added
+
+- **`/.well-known/security.txt`** (QP-8). Every running instance now says where to report a
+  vulnerability: GitHub's private reporting, which is now enabled, or email. RFC 9116 makes
+  the file's `Expires` date mandatory and nothing renews it, so a unit test fails 30 days
+  before it lapses.
+- **A release policy in `CONTRIBUTING.md`** (QP-8): semantic versioning counted from what an
+  operator must do, and a security fix released as a patch within 7 days of merging.
+- **Security-critical changes get an agent review before they merge** (QP-9).
+  `CONTRIBUTING.md` names the paths (`security_fastapi.py`, `services/`,
+  `db/connection.py`, migrations, the `Dockerfile`) and the checklist a separate agent
+  session reviews a change against. The review is a PR comment: no human reviewer, no
+  `CODEOWNERS`, nothing enforced, by the maintainer's decision.
+- **No route module reaches the database** (QP-5). The chat route gets a `ChatService` by
+  `Depends` instead of handing the database to chat's functions, and the settings page's
+  statistics moved to `services/admin_stats.py`. The ratchet that counted route-level
+  database access is at zero. `Database` itself stays, as the connection pool holding the
+  repositories (ADR-7, amended).
+- **Every database path names its scope** (QP-5 step 2). The 47 repository methods that
+  touched a row-level-security table on an unscoped connection now open it with the
+  workspace they read or write, or with the explicit all-workspaces flag. Workspace writes
+  (ingest, new conversations, memories, connectors, API keys) now run under the workspace
+  policies. A ratchet keeps the count at zero.
+- **An explicit all-workspaces flag for the database** (ROADMAP QP-5 step 1, ADR-5).
+  `get_connection(scope=ALL_WORKSPACES)` now sets `app.all_workspaces` for its transaction,
+  and migration `0022` adds a policy on the ten row-level-security tables that admits
+  such a transaction, for any role but the workspace-scoped one. Nothing changes yet:
+  migration `0021` still admits the application unconditionally. It is what the
+  installation-wide paths stand on once `0021` is dropped.
+
+- **The browser suite covers eight paths, up from two** (ROADMAP QP-7).
+  `tests/e2e/test_access_paths.py` adds sign-out, a session cookie replayed after sign-out,
+  the workspace switch, an admin creating a user with membership, a viewer who cannot
+  upload, and a workspace API key that reaches only its workspace. Where the UI hides a
+  control, the test asks the server as well.
+
+- **Coverage is measured honestly, with a floor** (ROADMAP QP-6). SonarCloud now gets unit
+  and integration coverage combined, with `src/db/` included: 11 of its files were excluded
+  before, because the unit suite has no database. The first measurement is 85.68% of
+  `src/`, and the workflow fails under 83.6%.
+
+- **The layering is checked in CI** (ROADMAP QP-3, ADR-7). `lint-imports` runs two contracts
+  from `pyproject.toml`: routes may not import the database layer directly, and routes,
+  services and the database layer form layers. Today's four exceptions are recorded and may
+  only shrink. `tests/unit/test_layering_ratchets.py` pins `app.state.db` in routes (81) and
+  the import cycles (2) the same way.
+- **`core-without-plugins`** (PC-4): a CI job that deletes every plugin and runs lint and the
+  fast suite, so a core that depends on a plugin goes red. Not a required check yet.
+
+- **Chat can answer from the global knowledge tier** (ROADMAP GKB-3). A selector beside the
+  RAG and Web toggles chooses *Workspace*, *Workspace + shared* or *Shared only*; the
+  request carries it as `knowledge_scope` (`local` by default). A citation drawn from
+  another project's contribution is tagged "shared globally". A workspace API key asking
+  for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
+- **The nightly mutation gate covers the service layer** (QP-7). Eleven services join
+  `security_fastapi` and `workspace`, each against the test files that build the real
+  service, all above the 80% floor. New tests close what the first run exposed, among
+  them that an inactive user is refused even with the right password and that no password
+  hash leaves the users service.
+
 ### Changed
 
 - **The layout-aware PDF extractor moves to `pymupdf` 2.0.** In 2.0 the `pymupdf4llm`
@@ -67,60 +276,6 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   context variable moved into `logging_config`, which the request-ID middleware already
   imported. grimp finds no cycle in `src/`, and the ratchet now requires none.
 
-### Added
-
-- **Security-critical changes get an agent review before they merge** (QP-9).
-  `CONTRIBUTING.md` names the paths (`security_fastapi.py`, `services/`,
-  `db/connection.py`, migrations, the `Dockerfile`) and the checklist a separate agent
-  session reviews a change against. The review is a PR comment: no human reviewer, no
-  `CODEOWNERS`, nothing enforced, by the maintainer's decision.
-- **No route module reaches the database** (QP-5). The chat route gets a `ChatService` by
-  `Depends` instead of handing the database to chat's functions, and the settings page's
-  statistics moved to `services/admin_stats.py`. The ratchet that counted route-level
-  database access is at zero. `Database` itself stays, as the connection pool holding the
-  repositories (ADR-7, amended).
-- **Every database path names its scope** (QP-5 step 2). The 47 repository methods that
-  touched a row-level-security table on an unscoped connection now open it with the
-  workspace they read or write, or with the explicit all-workspaces flag. Workspace writes
-  (ingest, new conversations, memories, connectors, API keys) now run under the workspace
-  policies. A ratchet keeps the count at zero.
-- **An explicit all-workspaces flag for the database** (ROADMAP QP-5 step 1, ADR-5).
-  `get_connection(scope=ALL_WORKSPACES)` now sets `app.all_workspaces` for its transaction,
-  and migration `0022` adds a policy on the ten row-level-security tables that admits
-  such a transaction, for any role but the workspace-scoped one. Nothing changes yet:
-  migration `0021` still admits the application unconditionally. It is what the
-  installation-wide paths stand on once `0021` is dropped.
-
-- **The browser suite covers eight paths, up from two** (ROADMAP QP-7).
-  `tests/e2e/test_access_paths.py` adds sign-out, a session cookie replayed after sign-out,
-  the workspace switch, an admin creating a user with membership, a viewer who cannot
-  upload, and a workspace API key that reaches only its workspace. Where the UI hides a
-  control, the test asks the server as well.
-
-- **Coverage is measured honestly, with a floor** (ROADMAP QP-6). SonarCloud now gets unit
-  and integration coverage combined, with `src/db/` included: 11 of its files were excluded
-  before, because the unit suite has no database. The first measurement is 85.68% of
-  `src/`, and the workflow fails under 83.6%.
-
-- **The layering is checked in CI** (ROADMAP QP-3, ADR-7). `lint-imports` runs two contracts
-  from `pyproject.toml`: routes may not import the database layer directly, and routes,
-  services and the database layer form layers. Today's four exceptions are recorded and may
-  only shrink. `tests/unit/test_layering_ratchets.py` pins `app.state.db` in routes (81) and
-  the import cycles (2) the same way.
-- **`core-without-plugins`** (PC-4): a CI job that deletes every plugin and runs lint and the
-  fast suite, so a core that depends on a plugin goes red. Not a required check yet.
-
-- **Chat can answer from the global knowledge tier** (ROADMAP GKB-3). A selector beside the
-  RAG and Web toggles chooses *Workspace*, *Workspace + shared* or *Shared only*; the
-  request carries it as `knowledge_scope` (`local` by default). A citation drawn from
-  another project's contribution is tagged "shared globally". A workspace API key asking
-  for anything but `local` gets 403 before any retrieval: its scope cannot be widened.
-- **The nightly mutation gate covers the service layer** (QP-7). Eleven services join
-  `security_fastapi` and `workspace`, each against the test files that build the real
-  service, all above the 80% floor. New tests close what the first run exposed, among
-  them that an inactive user is refused even with the right password and that no password
-  hash leaves the users service.
-
 ### Removed
 
 - **Dead code, found with vulture and checked name by name** against `src/`, the tests,
@@ -150,24 +305,6 @@ reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md
   never checked, so a run by hand with a canary budget could not fail on it. CI was not
   affected: its gate is `tests/perf/test_concurrency_canary.py`, which applies the verdict
   itself.
-
-### Security
-
-- **The database refuses a query that names no workspace** (QP-5 step 3, ADR-5's option B).
-  Migration `0023` drops `0021`'s transition policy, which let the application's own login
-  read and write every row on an unscoped path, and forces row-level security on the ten
-  workspace tables, so the owner is bound too. A path must name a workspace or the explicit
-  all-workspaces flag; one that forgets gets no rows, from the database, not from a code
-  review. A superuser still bypasses row-level security, as Postgres always allows.
-
-- **filelock 4.2.1 and pypdf 6.21.2**: three CVEs in each (filelock CVE-2026-112907,
-  -112913, -112940; pypdf CVE-2026-115572, -115580, -115585). One change, because each
-  Dependabot PR failed pip-audit on the other's CVEs. filelock is a transitive dependency of
-  huggingface-hub and torch, neither of which caps it below 4.
-- **`GET /api/users/me` no longer answers a revoked token with its identity.** It read the
-  token without the revocation check, so a session cookie copied before sign-out still
-  returned its user id, global and workspace role, and `can_contribute`. A refused token
-  now gets the anonymous answer, all null. Found writing the QP-7 replay test.
 
 ## [3.3.0] — 2026-10-23
 
@@ -1206,7 +1343,9 @@ eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.3.0...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.5.0...HEAD
+[3.5.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.4.0...v3.5.0
+[3.4.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.0.0...v3.1.0
