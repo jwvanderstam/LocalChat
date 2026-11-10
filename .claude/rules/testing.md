@@ -130,9 +130,9 @@ and the node harness.
   `pytest -m "not (slow or ollama or db)"`, reports coverage locally.
 - **The number that counts is the combined one** (QP-6). The SonarCloud workflow runs the
   unit and integration suites against Postgres and Redis, combines them, and reports
-  coverage of `src/` with nothing excluded: **85.68%** on 2026-10-23. That is what
-  SonarCloud shows. The `unit-tests` job's figure (unit only, the whole tree) is lower and
-  is not the measure.
+  coverage of `src/` with nothing excluded: **85.68%** on 2026-10-23, the first honest
+  measurement, and **87.83%** on 2026-11-08. That is what SonarCloud shows. The
+  `unit-tests` job's figure (unit only, the whole tree) is lower and is not the measure.
 - **Coverage must not drop.** The same workflow fails under **83.6%**, 2 points below that
   first measurement. Raise the floor as QP-4 lands; never lower it to clear a red run. The
   SonarCloud job is not a required check, so a red one is read before merging.
@@ -155,20 +155,20 @@ The job summary lists the survivors.
 QP-7 the service layer, where the rules that depend on the caller live. `chat.py`, `logs.py`
 and `admin_stats.py` are left out: they carry no authorisation rule.
 
-| Module | Run of 2026-10-25 |
+| Module | Run of 2026-11-09 |
 |---|---|
-| `src/security_fastapi.py` | 255 killed, 32 survived: 88.9% |
+| `src/security_fastapi.py` | 263 killed, 35 survived: 88.3% |
 | `src/utils/workspace.py` | 10 killed, 0 survived: 100% |
 | `src/services/passwords.py` | 12 killed, 2 survived: 85.7% |
 | `src/services/users.py` | 62 killed, 6 survived: 91.2% |
 | `src/services/workspaces.py` | 17 killed, 1 survived: 94.4% |
-| `src/services/connectors.py` | 86 killed, 5 survived: 94.5% |
+| `src/services/connectors.py` | 87 killed, 5 survived: 94.6% |
 | `src/services/documents.py` | 23 killed, 1 survived: 95.8% |
 | `src/services/conversations.py` | 13 killed, 0 survived: 100% |
 | `src/services/memories.py` | 36 killed, 3 survived: 92.3% |
-| `src/services/annotations.py` | 6 killed, 0 survived: 100% |
+| `src/services/annotations.py` | 9 killed, 0 survived: 100% |
 | `src/services/contributions.py` | 7 killed, 1 survived: 87.5% |
-| `src/services/feedback.py` | 23 killed, 2 survived: 92.0% |
+| `src/services/feedback.py` | 33 killed, 3 survived: 91.7% |
 
 Each module runs against its own list of test files (`MODULES` in the script), not the
 whole suite. A file belongs there only if it drives the real module: a test that patches

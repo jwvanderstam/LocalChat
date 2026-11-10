@@ -4,7 +4,7 @@ Notable changes to LocalChat. Format follows [Keep a Changelog](https://keepacha
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file starts at v3.0.0-beta.1. Earlier work is in the commit history and, with the
-reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md).
+reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 

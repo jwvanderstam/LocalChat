@@ -162,9 +162,9 @@ a gain of one deleted heading.
   decides what the application can read, which makes *who may configure one* the control,
   not what the connector does afterwards.
 - **`local_folder` — global administrator, plus an allowlist.** Its path names the server's
-  own filesystem. Both conditions are enforced independently in
-  `src/routes_fastapi/connector_routes.py`: creating or reconfiguring one requires a global
-  administrator, and the path must resolve inside `CONNECTOR_LOCAL_ROOTS`
+  own filesystem. Both conditions are enforced independently: `ConnectorsService`
+  (`src/services/connectors.py`) requires a global administrator to create or reconfigure
+  one, and the path must resolve inside `CONNECTOR_LOCAL_ROOTS`
   ([CONFIGURATION.md](docs/CONFIGURATION.md)), which is **empty by default and so disables
   the type**. Paths are resolved with `realpath` and compared by whole components, so `..`
   and a symlink pointing out of an allowed root both fail.
@@ -182,7 +182,7 @@ a gain of one deleted heading.
   run in the shipped image at all, because `boto3` is deliberately not there
   ([ADR-4](docs/ADR.md)). A connector that cannot run is not a feature worth guarding.
 - **Re-review trigger**: any new connector type whose configuration names something outside
-  the workspace — a path, a host, a credential — belongs in `_ADMIN_ONLY_TYPES` and in this
+  the workspace — a path, a host, a credential — belongs in `ADMIN_ONLY_TYPES` and in this
   list, and the question to answer first is what a workspace owner could reach with it.
 
 ### 9. Outbound fetches resolve before they decide, but do not pin the address
