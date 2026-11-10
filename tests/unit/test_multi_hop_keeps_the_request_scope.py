@@ -14,11 +14,20 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src import config
 from src.rag.planner import QueryPlan
 from src.rag.retrieval import RetrievalResult
 from src.services import chat
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _direct_retrieval(monkeypatch):
+    # Either flag sends retrieval down another path before multi-hop is reached, and the
+    # single-query control would then pass for the wrong reason.
+    monkeypatch.setattr(config, "AGGREGATOR_AGENT_ENABLED", False)
+    monkeypatch.setattr(config, "MCP_ENABLED", False)
 
 WS = "11111111-1111-1111-1111-111111111111"
 OTHER_WS = "22222222-2222-2222-2222-222222222222"
@@ -75,6 +84,22 @@ class TestEverySubQuestionKeepsTheRequestScope:
             (c.kwargs["source_ids"], c.kwargs["additional_workspace_ids"])
             for c in processor.retrieve_context.call_args_list
         ] == [([], None), ([], None)]
+
+    def test_every_sub_question_gets_all_five_restrictions_of_the_request(self):
+        processor = _processor([])
+        db_filter = ["chosen.md"]
+        fields = {"message": "a question", "use_rag": True, "enhance": False,
+                  "conversation_id": "c1", "knowledge_scope": "hybrid"}
+        db = MagicMock()
+        db.conversations.document_filter.return_value = db_filter
+        chat.retrieve_contexts(fields, processor, db, [0], plan=MULTI_HOP, scope=WS,
+                               source_ids=["src-1"], additional_workspace_ids=[OTHER_WS])
+        assert [
+            {k: c.kwargs[k] for k in ("scope", "knowledge_scope", "filename_filter",
+                                      "source_ids", "additional_workspace_ids")}
+            for c in processor.retrieve_context.call_args_list
+        ] == [{"scope": WS, "knowledge_scope": "hybrid", "filename_filter": db_filter,
+               "source_ids": ["src-1"], "additional_workspace_ids": [OTHER_WS]}] * 2
 
     def test_the_single_query_path_still_passes_the_same_restriction(self):
         processor = _processor([])
