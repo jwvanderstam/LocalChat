@@ -126,6 +126,11 @@ class ToolsHandle:
         self._registry = registry
         self._source = source
         self._min_role = min_role
+        self._closed = False
+
+    def close(self) -> None:
+        """Refuse registration from now on; the loader calls this when ``setup()`` returns."""
+        self._closed = True
 
     def register(
         self, name: str, description: str, parameters: dict[str, Any],
@@ -135,6 +140,8 @@ class ToolsHandle:
         Refused rather than overwritten: a plugin replacing ``search_documents`` would
         decide what every chat's document search returns.
         """
+        if self._closed:
+            raise RuntimeError("tools are registered in setup(); this handle is closed")
         if name in self._registry:
             raise ValueError(f"tool {name!r} is already registered")
         return self._registry.register(

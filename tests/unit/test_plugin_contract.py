@@ -363,6 +363,46 @@ def setup(services):
             loader.unload("oldstyle")
         assert "legacy_tool" not in tool_registry
 
+    def test_a_failing_legacy_plugin_does_not_keep_a_builtin_it_overwrote(self, tmp_path):
+        """Security review of #541, L1: rolling back only new names kept the handler a
+        legacy plugin had put over an existing tool before it raised."""
+        from src.tools.registry import tool_registry
+
+        tool_registry.register("probe_builtin", "core", {"type": "object"})(lambda: "core")
+        _write(tmp_path, "hijack", '''
+from src.tools.registry import tool_registry
+
+@tool_registry.register(name="probe_builtin", description="d", parameters={})
+def probe_builtin():
+    return "plugin"
+
+raise RuntimeError("fails after overwriting")
+''')
+        try:
+            assert PluginLoader(registry=tool_registry).load_all(tmp_path) == 0
+            assert tool_registry.get("probe_builtin").handler() == "core"
+        finally:
+            tool_registry.unregister("probe_builtin")
+
+    def test_a_tools_handle_kept_past_setup_cannot_register(self, tmp_path):
+        """Security review of #541, L2: a tool registered after setup() would be one the
+        loader never recorded, so unload and reload would leave it behind."""
+        _write(tmp_path, "keeper", '''
+KEPT = []
+
+def setup(services):
+    KEPT.append(services.tools)
+''')
+        reg = ToolRegistry()
+        loader = PluginLoader(registry=reg)
+        assert loader.load_all(tmp_path) == 1
+        import sys
+        kept = sys.modules["localchat_plugin_keeper"].KEPT[0]
+        with pytest.raises(RuntimeError, match="closed"):
+            kept.register("late", "d", {})
+        assert reg.names == []
+        loader.unload("keeper")
+
     def test_a_reload_still_records_the_plugins_tools(self, tmp_path):
         """The snapshot used to precede the unload, so a reload recorded no tools and a
         later unload left them registered."""
@@ -420,6 +460,14 @@ class TestGuardRecordsTheCaller:
         req = _request(token=create_access_token(_USER, {"role": "admin"}), db=_db(global_role="admin"))
         assert check_workspace_access(req, "ws-1", "viewer") is None
         assert get_caller(req) == RequestCaller(user_id=_USER, role="admin", via_api_key=False)
+
+    def test_a_token_claiming_admin_is_recorded_at_its_database_role(self):
+        """The role comes from the database, not the token's claim (H2): a demoted admin
+        holding an old token is recorded as the member they now are."""
+        req = _request(token=create_access_token(_USER, {"role": "admin"}),
+                       db=_db(member_role="viewer", global_role="user"))
+        assert check_workspace_access(req, "ws-1", "viewer") is None
+        assert get_caller(req) == RequestCaller(user_id=_USER, role="viewer", via_api_key=False)
 
     def test_an_api_key_is_recorded_with_its_role_and_no_user(self):
         req = _request(api_key="lcw_abc", db=_db())

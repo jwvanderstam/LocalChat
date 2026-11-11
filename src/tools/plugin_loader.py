@@ -144,6 +144,9 @@ class PluginLoader:
         # Snapshot after the unload: taken before it, a reloaded plugin's own tools counted
         # as already present, so it recorded none and a later unload left them registered.
         before: set = set(self._registry.names)
+        # The whole table, not just the names: a legacy plugin can overwrite a built-in
+        # before it fails, and rolling back only new names would keep its handler.
+        previous = dict(self._registry._tools)
 
         # Ensure the repo root is on sys.path so plugins can do
         # ``from src.tools.registry import tool_registry``
@@ -164,9 +167,10 @@ class PluginLoader:
             manifest = self._set_up(plugin_key, module)
         except Exception:
             sys.modules.pop(module_name, None)
-            # A plugin that fails part-way must not leave half its tools behind.
-            for tool_name in set(self._registry.names) - before:
-                self._registry.unregister(tool_name)
+            # A plugin that fails part-way must not leave half its tools behind, nor a
+            # tool it overwrote replaced.
+            self._registry._tools.clear()
+            self._registry._tools.update(previous)
             raise
 
         # Determine which tools this plugin registered
@@ -308,7 +312,13 @@ class PluginLoader:
         from ..plugins import build_services, read_manifest
 
         manifest = read_manifest(module)
-        setup(build_services(plugin_key, manifest, self._registry))
+        services = build_services(plugin_key, manifest, self._registry)
+        try:
+            setup(services)
+        finally:
+            # A tool registered later, from a kept handle, would be one the loader never
+            # recorded: listed nowhere, and left behind by unload and reload.
+            services.tools.close()
         return manifest.to_dict()
 
     def _unload_tools(self, plugin_name: str) -> None:

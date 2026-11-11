@@ -109,6 +109,7 @@ role. Move it to `setup(services)` — `example_plugin.py` shows the result.
   is that the core never depends on a plugin, and that a well-behaved plugin cannot reach a
   workspace or a role its caller does not have.
 - Tool names must be **unique**. Through `services.tools.register` a taken name is refused.
+- Register tools **inside `setup()`**. The handle closes when `setup()` returns, so the loader knows every tool a plugin owns and can unload it.
   A legacy plugin that reuses a name still **replaces** it, with only a warning logged.
 - Plugin files starting with `_` (e.g. `__init__.py`) are **skipped**.
 - Keep tool handlers **fast**: they run inside the chat stream, and the LLM waits for the result.
