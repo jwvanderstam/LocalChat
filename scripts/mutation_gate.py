@@ -76,6 +76,7 @@ MODULES: dict[str, list[str]] = {
         "tests/unit/test_change_own_password.py",
         "tests/unit/test_auth_routes_unit.py",
         "tests/unit/test_last_admin_precondition.py",
+        "tests/unit/test_admin_user_bodies_are_validated.py",
         "tests/unit/test_users_me_identity.py",
         "tests/unit/test_user_workspace_membership.py",
     ],

@@ -48,6 +48,13 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   session in the same response. A refused session answers 401 "Session is no longer
   valid", which is also what a deactivated or retired account now gets (it was "Account is
   not active"). Migration 0024 adds `users.tokens_valid_after`.
+- **The admin user routes validate what they are sent (R-10).** Creating, updating and
+  granting took the request body as a raw dict. An update wrote any `role` string, and
+  `"is_active": "false"` passed the last-admin rule as a string and was stored as false,
+  which could deactivate the last administrator. A non-string username or workspace id was
+  a 500. Each body is now a Pydantic model, refused with a 400 naming the field. The rule
+  also counted deactivated admins, so the last active one could be deactivated while a
+  deactivated one existed; it now counts active admins.
 
 ### Fixed
 
