@@ -334,3 +334,16 @@ def test_the_verify_gate_expects_the_version_this_checkout_declares():
     spec.loader.exec_module(module)
 
     assert module.repo_app_version() == config.APP_VERSION
+
+
+def test_the_container_deploys_the_release_this_checkout_declares(tmp_path):
+    """Its default was a literal "3.0.0" that six releases did not move, so a deploy
+    without DEPLOY_IMAGE_TAG shipped an image from before every QP fix. It now reads
+    the checkout's APP_VERSION, as the verify gate does."""
+    from src import config
+
+    proc, calls = _run(CONTAINER_SH, tmp_path)
+
+    assert proc.returncode == 0, proc.stderr
+    create = next(c for c in calls if c.startswith("container container create"))
+    assert f"image=ghcr.io/jwvanderstam/localchat:{config.APP_VERSION}" in create

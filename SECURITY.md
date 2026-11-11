@@ -277,7 +277,32 @@ items below it by number. What the entry recorded while it was open:
   deletes the suppression and this entry. It is the next dependency change after the
   2026-10-30 fix that introduced the suppression.
 
-### 13. Changing a password does not end the sessions already open
+### 13. Changing a password does not end the sessions already open — resolved 2026-11-08
+
+**No longer an accepted risk.** Setting a password, by the user or by an admin reset, now
+writes `users.tokens_valid_after` (migration 0024), and the guard refuses any token issued
+before it: `users.get_role` compares the token's `iat`, on every request, in the same query
+that checks `is_active` and `deleted_at`. The user who changed their own password gets a new
+session in the same response. Known limits, from the separate review of #524:
+
+- A token issued in the same second as the change, before it, still passes: `iat` is
+  whole seconds. A sign-in with the old password that reads the hash before the change
+  commits and issues its token after it passes too, since login spends the PBKDF2 time
+  between the two (L-1).
+- A workspace API key outlives the change: a key resolves without looking at its
+  creator, so one minted from a stolen session keeps working. Revoke the keys of the
+  workspaces the account owns as part of the recovery (L-2).
+- A presence stream (`/api/workspaces/{id}/presence`) is authorised once, when it opens,
+  so one opened before the change keeps streaming member ids after it, as it already did
+  after a sign-out or a deactivation (L-3, older than this change).
+- An admin who resets their own password through `PUT /api/users/{id}` signs themselves
+  out with it; the self-service change gives a new session, the admin reset does not (L-4).
+
+Tests:
+`tests/unit/test_password_change_ends_sessions.py`,
+`tests/integration/test_password_change_ends_sessions.py`. Kept at its number, like items 2
+and 12. What the entry recorded while it was open:
+
 
 - **What**: a session is a JWT that lives `JWT_ACCESS_TOKEN_EXPIRES` (2 hours by default).
   Changing a password, by the user or by an admin reset, revokes no token, so a session
@@ -304,7 +329,7 @@ fails on the code before it.
 | R-1 | High | `GET /api/documents/stats` returned chunk previews from every workspace, retired documents included | **Fixed** (#505) — `tests/integration/test_chunk_statistics_scope.py` |
 | R-2 | High | A connector's delete event retired every live document with that filename, in every workspace | **Fixed** (#506) — `tests/integration/test_connector_delete_scope.py` |
 | R-3 | Medium | Chat appended both turns to any `conversation_id`, in any workspace | **Fixed** (#508) — `tests/unit/test_chat_conversation_is_authorised.py`, `tests/integration/test_save_message_scope.py` |
-| R-4 | Medium | Access outlived a deactivated or retired account, and a retired workspace | **Fixed** (#509, #511) — `tests/integration/test_access_ends_with_the_account.py`, `TestASessionEndsWithItsAccount`. A password change still leaves open sessions running: item 13 above |
+| R-4 | Medium | Access outlived a deactivated or retired account, and a retired workspace | **Fixed** (#509, #511) — `tests/integration/test_access_ends_with_the_account.py`, `TestASessionEndsWithItsAccount`. A password change ends the sessions before it since item 13 was resolved |
 | R-5 | Medium | The object-authorisation matrix ran as an editor only and probed path ids only | **Fixed** (#510): runs as an editor and an owner, probes body and header ids. R-5b: every function in `src/`, `mcp_servers/` and `plugins/` that passes `ALL_WORKSPACES` carries a recorded reason, and a new one without a reason fails — `tests/unit/test_all_workspaces_has_a_reason.py` |
 | R-6 | Medium | `GET /settings` rendered installation-wide admin statistics for any caller | **Fixed** (#507) — `tests/unit/test_settings_page_stats_are_admin_only.py` |
 | R-7 | Low | A connector's sync history and manual sync took the id alone | **Fixed** (#510) — `TestAConnectorOutsideTheScopeIsNotFound` |
