@@ -23,7 +23,7 @@ Row-level security is forced on the ten workspace tables (ADR-5, migration `0023
 
 - Every repository method that touches one of those tables takes `scope=` and opens its connection with `get_connection(scope=...)`. A ratchet holds unscoped methods at zero.
 - The scope is the workspace the route authorised, from `get_scope(request)`. A repository never picks it.
-- `ALL_WORKSPACES` is for installation-wide paths only, such as admin totals and the sync worker. Every use needs a reason that holds for every caller who can reach it. Both High findings of the QP-9 review were `ALL_WORKSPACES` paths that a workspace user could reach.
+- `ALL_WORKSPACES` is for installation-wide paths only, such as admin totals and the sync worker. Every use needs a reason that holds for every caller who can reach it, recorded in `tests/unit/test_all_workspaces_has_a_reason.py`, which fails without one. Both High findings of the QP-9 review were `ALL_WORKSPACES` paths that a workspace user could reach.
 - An id that arrives in a body or a header is looked up in the caller's scope before it is used, just like an id in the path. A miss is a 404.
 - A schema change is an Alembic migration in `migrations/versions/` — a new column, index, table, backfill or policy. `_ensure_extensions_and_tables()` in `src/db/connection.py` only creates the base schema a fresh database starts from. See [docs/MIGRATIONS.md](../../docs/MIGRATIONS.md). (This line said the opposite until 2026-10-06, eighteen migrations after it stopped being true.)
 - Migrations are additive: `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Never destructive.

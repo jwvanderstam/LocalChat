@@ -45,6 +45,7 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
+- **Every installation-wide scope carries a reason (R-5b).** A unit test walks `src/`, `mcp_servers/` and `plugins/` and fails on a function that passes `ALL_WORKSPACES` without a recorded reason, on a reason whose function no longer passes it, and on an import that renames it. The 44 functions that pass it today were each checked against every caller that can reach them; none lets a workspace user reach another workspace's rows.
 - **GraphRAG's query expansion reads only the caller's workspace (R-12).** Entities are shared across workspaces, so with `GRAPH_RAG_ENABLED` on, the 1-hop lookup added names that co-occurred in any workspace's documents, retired ones included, to the caller's query. A co-occurrence now counts only through a live document of the scope. GraphRAG is off by default.
 - **A password change ends the account's other sessions (`SECURITY.md` item 13).** A
   session opened before the change, on another device or by whoever knew the old password,
