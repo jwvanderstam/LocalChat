@@ -138,7 +138,7 @@
   <section class="script" id="provision.sh">
     <h2><code>provision.sh</code></h2>
     <p>Phase 1 — the scoped project, the database, and an identity that can reach that database and nothing else.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/provision.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/provision.sh">raw</a><span>shown as of commit 921c1e4</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/provision.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/provision.sh">raw</a><span>shown as of commit a04da4d</span></div>
     <pre class="source"><code>#!/usr/bin/env bash
 #
 # Stands up the LocalChat test stack&#x27;s Phase 1 on Scaleway: a scoped project, a
@@ -495,7 +495,7 @@ SUMMARY
   <section class="script" id="deploy_container.sh">
     <h2><code>deploy_container.sh</code></h2>
     <p>Phase 2 — the application as a Serverless Container, from a version tag.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_container.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_container.sh">raw</a><span>shown as of commit 921c1e4</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_container.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_container.sh">raw</a><span>shown as of commit a04da4d</span></div>
     <pre class="source"><code>#!/usr/bin/env bash
 #
 # Phase 2 of docs/DEPLOYMENT_SCALEWAY.md: the Serverless Container namespace and
@@ -517,7 +517,7 @@ SUMMARY
 #
 # Usage:
 #   bash scripts/scaleway/deploy_container.sh
-#   DEPLOY_IMAGE_TAG=3.0.1 bash scripts/scaleway/deploy_container.sh
+#   DEPLOY_IMAGE_TAG=sha-&lt;commit&gt; bash scripts/scaleway/deploy_container.sh   # default: this checkout&#x27;s APP_VERSION
 #
 # Reads the database credential written by provision.sh, and generates the
 # application secrets on first run into a second 600-mode file outside the repo.
@@ -533,7 +533,11 @@ note() { printf &#x27;  %s\n&#x27; &quot;$*&quot;; }
 DEPLOY_PROJECT_NAME=&quot;${DEPLOY_PROJECT_NAME:-localchat-test}&quot;
 DEPLOY_NAMESPACE=&quot;${DEPLOY_NAMESPACE:-localchat}&quot;
 DEPLOY_CONTAINER=&quot;${DEPLOY_CONTAINER:-localchat}&quot;
-DEPLOY_IMAGE_TAG=&quot;${DEPLOY_IMAGE_TAG:-3.0.0}&quot;
+# The release this checkout declares. A literal here was left at 3.0.0 for six releases.
+REPO_ROOT=&quot;$(cd &quot;$(dirname &quot;${BASH_SOURCE[0]}&quot;)/../..&quot; &amp;&amp; pwd)&quot;
+CHECKOUT_VERSION=&quot;$(sed -n &quot;s/^APP_VERSION: str = os.environ.get(&#x27;APP_VERSION&#x27;, &#x27;\([^&#x27;]*\)&#x27;).*/\1/p&quot; &quot;$REPO_ROOT/src/config.py&quot;)&quot;
+[[ -n &quot;$CHECKOUT_VERSION&quot; ]] || die &quot;src/config.py no longer declares APP_VERSION the way this script reads it&quot;
+DEPLOY_IMAGE_TAG=&quot;${DEPLOY_IMAGE_TAG:-$CHECKOUT_VERSION}&quot;
 DEPLOY_IMAGE=&quot;${DEPLOY_IMAGE:-ghcr.io/jwvanderstam/localchat:$DEPLOY_IMAGE_TAG}&quot;
 DEPLOY_REGION=&quot;${DEPLOY_REGION:-fr-par}&quot;
 DEPLOY_MEMORY=&quot;${DEPLOY_MEMORY:-3GB}&quot;
@@ -800,7 +804,7 @@ SUMMARY
   <section class="script" id="verify_deployment.py">
     <h2><code>verify_deployment.py</code></h2>
     <p>Phase 3 — the gate: signs in, checks the image, ingests a document and retrieves it semantically. Exits non-zero on failure.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_deployment.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_deployment.py">raw</a><span>shown as of commit 921c1e4</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_deployment.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_deployment.py">raw</a><span>shown as of commit a04da4d</span></div>
     <pre class="source"><code>#!/usr/bin/env python3
 &quot;&quot;&quot;Phase 3: prove a deployed LocalChat actually works, and gate on the answer.
 
@@ -1063,7 +1067,7 @@ if __name__ == &quot;__main__&quot;:
   <section class="script" id="deploy_embeddings.sh">
     <h2><code>deploy_embeddings.sh</code></h2>
     <p>Phase 4 — an Instance serving embeddings over a private network, wired to the container.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_embeddings.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_embeddings.sh">raw</a><span>shown as of commit 921c1e4</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/deploy_embeddings.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/deploy_embeddings.sh">raw</a><span>shown as of commit a04da4d</span></div>
     <pre class="source"><code>#!/usr/bin/env bash
 #
 # Phase 4 of docs/DEPLOYMENT_SCALEWAY.md: an Ollama Instance that serves
@@ -1311,7 +1315,7 @@ SUMMARY
   <section class="script" id="ollama-cloud-init.yaml">
     <h2><code>ollama-cloud-init.yaml</code></h2>
     <p>The cloud-init that Phase 4 hands to that Instance. Installs Ollama and deliberately pulls no model.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/ollama-cloud-init.yaml">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/ollama-cloud-init.yaml">raw</a><span>shown as of commit 921c1e4</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/ollama-cloud-init.yaml">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/ollama-cloud-init.yaml">raw</a><span>shown as of commit a04da4d</span></div>
     <pre class="source"><code>#cloud-config
 # Phase 4: an Ollama host that serves embeddings for the LocalChat test stack.
 #
@@ -1356,7 +1360,7 @@ runcmd:
   <section class="script" id="verify_database.py">
     <h2><code>verify_database.py</code></h2>
     <p>A standalone check of a managed database: TLS required, pgvector present, a setting that survives a transaction boundary.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_database.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_database.py">raw</a><span>shown as of commit 921c1e4</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/verify_database.py">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/verify_database.py">raw</a><span>shown as of commit a04da4d</span></div>
     <pre class="source"><code>#!/usr/bin/env python3
 &quot;&quot;&quot;Prove the Scaleway Serverless SQL Database can actually host LocalChat.
 
@@ -1538,7 +1542,7 @@ if __name__ == &quot;__main__&quot;:
   <section class="script" id="panic_teardown.sh">
     <h2><code>panic_teardown.sh</code></h2>
     <p>The cost kill switch — deletes everything billable in one project, most expensive first. Dry run unless CONFIRM=DESTROY.</p>
-    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/panic_teardown.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/panic_teardown.sh">raw</a><span>shown as of commit 921c1e4</span></div>
+    <div class="script-links"><a href="https://github.com/jwvanderstam/LocalChat/blob/main/scripts/scaleway/panic_teardown.sh">current version on GitHub</a><a href="https://github.com/jwvanderstam/LocalChat/raw/main/scripts/scaleway/panic_teardown.sh">raw</a><span>shown as of commit a04da4d</span></div>
     <pre class="source"><code>#!/usr/bin/env bash
 #
 # Scaleway cost kill switch: delete everything billable in ONE project.
@@ -1768,7 +1772,7 @@ fi
   </section>
 
   <footer>
-    Generated from the repository at commit 921c1e4 on 2026-10-06
+    Generated from the repository at commit a04da4d on 2026-11-11
     &middot; <a href="https://github.com/jwvanderstam/LocalChat">github.com/jwvanderstam/LocalChat</a>
   </footer>
 </div>
