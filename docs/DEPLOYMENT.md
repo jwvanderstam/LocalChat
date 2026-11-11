@@ -228,7 +228,7 @@ attestations: an SPDX SBOM made by syft, and SLSA build provenance. All three na
 image's digest, not a tag. Verify before you deploy a pulled image (QP-8):
 
 ```bash
-IMAGE=ghcr.io/jwvanderstam/localchat:3.5.0
+IMAGE=ghcr.io/jwvanderstam/localchat:3.6.0
 
 # The signature: made by this repository's publish workflow, on main or a release tag
 cosign verify "$IMAGE" \
