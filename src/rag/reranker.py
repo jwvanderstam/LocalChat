@@ -55,6 +55,26 @@ def _to_safe_path(raw: str) -> str | None:
     real = os.path.realpath(raw)
     return real if os.path.exists(real) else None
 
+def confined_model_path(raw: str | None) -> str | None:
+    """*raw* resolved, if it exists inside the directory ``RERANKER_MODEL_PATH`` sits in.
+
+    A pointer file or a version row names the model to load; confining it means a
+    path written by anything else cannot pick what the reranker loads (R-11).
+    """
+    safe = _to_safe_path(raw) if raw else None
+    if safe is None:
+        return None
+    root = os.path.realpath(os.path.dirname(config.RERANKER_MODEL_PATH) or ".")
+    try:
+        inside = os.path.commonpath([root, safe]) == root
+    except ValueError:  # different drives on Windows
+        inside = False
+    if not inside:
+        logger.warning("[Reranker] Ignoring a model path outside the model directory")
+        return None
+    return safe
+
+
 _BASE_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 
@@ -112,7 +132,7 @@ class RerankerModel:
         resolved = self._resolve_model_path(model_path)
         if resolved:
             try:
-                self._model = CrossEncoder(resolved)
+                self._model = CrossEncoder(resolved, trust_remote_code=False)
                 self._model_path = resolved
                 logger.info("[Reranker] Loaded fine-tuned model")
                 return
@@ -121,27 +141,26 @@ class RerankerModel:
 
         # Fall back to base model
         try:
-            self._model = CrossEncoder(_BASE_MODEL)
+            self._model = CrossEncoder(_BASE_MODEL, trust_remote_code=False)
             self._model_path = _BASE_MODEL
             logger.info(f"[Reranker] Loaded base model: {_BASE_MODEL}")
         except Exception as exc:  # noqa: BLE001 — and if the base will not load either, the reranker is simply off
             logger.warning(f"[Reranker] Could not load base model: {exc}")
 
     def _resolve_model_path(self, model_path: str | None) -> str | None:
-        """Return an existing model directory path, or None."""
-        candidates: list[str] = []
-        if model_path:
-            candidates.append(model_path)
+        """Return an existing model directory path, or None.
+
+        The configured path is the operator's; one named by a caller or by the pointer
+        file must lie beside it.
+        """
+        candidates: list[str | None] = [confined_model_path(model_path)]
         cfg_path = config.RERANKER_MODEL_PATH
         if cfg_path:
-            candidates.append(cfg_path)
+            candidates.append(_to_safe_path(cfg_path))
             safe_cfg = os.path.realpath(cfg_path) if '\x00' not in cfg_path else None
             if safe_cfg:
-                pointed = _read_latest_pointer(safe_cfg)
-                if pointed:
-                    candidates.append(pointed)
-        for p in candidates:
-            safe = _to_safe_path(p)
+                candidates.append(confined_model_path(_read_latest_pointer(safe_cfg)))
+        for safe in candidates:
             if safe:
                 return safe
         return None

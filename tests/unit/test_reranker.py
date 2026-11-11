@@ -153,7 +153,8 @@ class TestRerankerModelWithCrossEncoder:
         mock_st = MagicMock()
         mock_st.CrossEncoder = mock_cls
 
-        with patch.dict("sys.modules", {"sentence_transformers": mock_st}):
+        # The fine-tuned model must sit beside RERANKER_MODEL_PATH to be tried at all (R-11).
+        with patch.dict("sys.modules", {"sentence_transformers": mock_st}),                 patch("src.rag.reranker.config.RERANKER_MODEL_PATH", str(tmp_path / "latest")):
             m = RerankerModel(model_path=str(fine_tuned_dir))
 
         assert m.is_available() is True

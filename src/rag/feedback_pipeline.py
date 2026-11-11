@@ -89,20 +89,23 @@ def persist_reranker_version(db: Any, result: dict) -> str | None:
 def promote_model(db: Any, version_id: str) -> bool:
     """Set *version_id* as active and update the latest.txt pointer. Returns success.
 
-    DB writes are delegated to the db-layer FeedbackRepository (HK-7); file-pointer update
-    and reranker reload remain here as non-DB concerns.
+    The model must still exist inside the model directory, and the pointer is written
+    before the row is activated: a version trained where the image can no longer write
+    (``./models`` before R-11) is refused rather than marked active while the old model
+    keeps serving. DB writes are delegated to the db-layer FeedbackRepository (HK-7).
     """
     try:
-        model_path = db.feedback.activate_reranker_version(version_id)
+        from ..rag.reranker import confined_model_path, reload_reranker
+
+        version = next((v for v in db.feedback.reranker_versions() if v["id"] == version_id), None)
+        model_path = confined_model_path(version["model_path"]) if version else None
         if model_path is None:
+            logger.warning("[Pipeline] Promote refused: no such version, or its model is gone or misplaced")
+            return False
+        (Path(model_path).parent / "latest.txt").write_text(model_path, encoding="utf-8")
+        if db.feedback.activate_reranker_version(version_id) is None:
             return False
         logger.info("[Pipeline] Promoted reranker version")
-        # Update latest.txt
-        if model_path:
-            pointer = Path(model_path).parent / "latest.txt"
-            pointer.parent.mkdir(parents=True, exist_ok=True)
-            pointer.write_text(model_path, encoding="utf-8")
-        from ..rag.reranker import reload_reranker
         reload_reranker(model_path)
         return True
     except Exception as exc:  # noqa: BLE001 — promotion is reported as False; the running model is untouched
@@ -118,7 +121,7 @@ def rollback_model(db: Any, version_id: str) -> bool:
 def finetune_reranker(
     pairs: list[dict],
     base_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-    output_dir: str | Path = "./models/reranker",
+    output_dir: str | Path | None = None,
     epochs: int = 3,
     batch_size: int = 16,
 ) -> dict[str, Any]:
@@ -136,7 +139,11 @@ def finetune_reranker(
         logger.info("[Pipeline] No training pairs — skipping fine-tune")
         return {"pair_count": 0, "skipped": True}
 
-    # Use a versioned subdirectory so previous models are preserved
+    # Use a versioned subdirectory so previous models are preserved. By default beside
+    # RERANKER_MODEL_PATH, whose <name>.txt pointer promote_model writes and the reranker reads.
+    if output_dir is None:
+        from .. import config
+        output_dir = Path(config.RERANKER_MODEL_PATH).parent
     versioned_dir = _versioned_output_dir(output_dir)
 
     # Build sentence-transformers InputExample format
@@ -156,7 +163,7 @@ def finetune_reranker(
     split = int(len(train_samples) * 0.8)
     train_set, eval_set = train_samples[:split], train_samples[split:]
 
-    model = CrossEncoder(base_model, num_labels=1)
+    model = CrossEncoder(base_model, num_labels=1, trust_remote_code=False)
 
     # Baseline NDCG on eval set (before fine-tuning)
     eval_labels = [int(s.label) for s in eval_set]
@@ -232,7 +239,8 @@ if __name__ == "__main__":
     parser.add_argument("--days", type=int, default=7, help="Days of feedback to export")
     parser.add_argument("--output", type=str, default=None, help="JSONL output path")
     parser.add_argument("--finetune", action="store_true", help="Run reranker fine-tuning")
-    parser.add_argument("--model-dir", type=str, default="./models/reranker", help="Output dir for fine-tuned model")
+    parser.add_argument("--model-dir", type=str, default=None,
+                        help="Output dir for fine-tuned model (default: beside RERANKER_MODEL_PATH)")
     args = parser.parse_args()
 
     from src.db import db as _db

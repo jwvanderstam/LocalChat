@@ -57,28 +57,37 @@ RUN python -m venv --copies /opt/venv && \
 
 # Writable runtime directories, created here because the runtime stage has no
 # shell to mkdir with. COPY is the only way to introduce a directory there.
-RUN mkdir -p /skel/logs /skel/uploads
+RUN mkdir -p /skel/logs /skel/uploads /skel/data
 
 
 # ---- Stage 2: runtime ----------------------------------------
 FROM dhi.io/python:3.12@sha256:7c247af7f603bba8197ad5c34595066e1e6b81644c5a37b576d157979ceb4ea6 AS runtime
 
+# The base image already runs as 65532, and WORKDIR creates its directory as the
+# current user — so without this, /app itself was the runtime user's, and a module
+# dropped there would shadow any import (R-11). Switched back below.
+USER 0:0
+
 # No libpq layer: psycopg[binary] vendors libpq inside the wheel, and the
 # hardened base has no apt to install a system copy with. Verified by importing
 # psycopg in the built image — see the docker-smoke job in tests.yml.
 
-# Copy virtual environment from builder
-COPY --from=builder --chown=65532:65532 /opt/venv /opt/venv
+# Copy virtual environment from builder. Owned by root, like the source below: the
+# runtime user reads and runs it but cannot rewrite it, so code execution in the app
+# cannot persist by editing a module (QP-9 review, R-11).
+COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
-# Copy application source
-COPY --chown=65532:65532 . /app
+# Copy application source, owned by root (see the venv above)
+COPY . /app
 
-# Runtime directories (see the builder stage for why they arrive by COPY)
+# The only directories the runtime user may write (see the builder stage for why they
+# arrive by COPY). data/ holds the settings page's state and fine-tuned rerankers.
 COPY --from=builder --chown=65532:65532 /skel/logs /app/logs
 COPY --from=builder --chown=65532:65532 /skel/uploads /app/uploads
+COPY --from=builder --chown=65532:65532 /skel/data /app/data
 
 # uid:gid of the hardened base image's own nonroot user. Numeric because the
 # image carries no /etc/passwd entry this file could refer to by name.
@@ -90,6 +99,8 @@ USER 65532:65532
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_ENV=production \
+    STATE_FILE=/app/data/app_state.json \
+    RERANKER_MODEL_PATH=/app/data/reranker/latest \
     SERVER_HOST=0.0.0.0 \
     SERVER_PORT=5000 \
     LOG_FORMAT=json

@@ -18,6 +18,7 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
 - **`litellm` is gone from the image (QP-11, ADR-4).** It carried CVE-2026-114612, in a
   proxy server LocalChat never ran, and every fixed version pulls `boto3` into the image.
   The `pip-audit` suppression for it is removed; `SECURITY.md` item 12 is resolved.
+- **The image's code is no longer writable by the process that runs it (R-11).** The source and the virtual environment were owned by uid 65532, so code execution in the app could persist by rewriting a module. Both now belong to root. The runtime user writes only `/app/logs`, `/app/uploads` and a new `/app/data`.
 - **The public webhook receiver no longer reveals which connector ids exist.** It answered
   404 for an unknown id and 400 for a connector of another type before checking the secret,
   so an anonymous caller could probe for ids and for which were webhooks. Every refusal
@@ -45,6 +46,7 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
+- **Settings and fine-tuned rerankers live in `/app/data`, on a new `app_data` volume.** `STATE_FILE` (new, default `app_state.json`) and `RERANKER_MODEL_PATH` point there in the image, and a fine-tune now writes its versions beside `RERANKER_MODEL_PATH` instead of a fixed `./models/reranker`. The active model and RAG parameters therefore survive a container recreation, which they never did. **Upgrading:** the settings page's values held in the old container are not carried over; set them once more after the upgrade. A fine-tuned reranker in the old container's `/app/models` is likewise left behind and falls back to the base model until retrained; promoting or rolling back to a version trained there is refused rather than marked active. Host runs are unchanged.
 - **A purge destroys only what was retired first (R-9).** The single-object purges of a
   document, conversation, workspace, connector and user checked references and nothing
   else, so a live row could be hard-deleted in one call, skipping the reversible step

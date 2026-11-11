@@ -135,8 +135,9 @@ into a **restart loop**:
 PermissionError: [Errno 13] Permission denied: '/app/logs/app.log'
 ```
 
-The runtime image runs as **uid 65532**, and the `Dockerfile` creates `/app/logs` and
-`/app/uploads` owned by it. But both paths are **named volumes**, and a volume keeps the
+The runtime image runs as **uid 65532**, and the `Dockerfile` creates `/app/logs`,
+`/app/uploads` and `/app/data` owned by it — the only paths it may write; the source and
+the venv belong to root (R-11). But logs and uploads are **named volumes** that may predate it, and a volume keeps the
 ownership it was created with — uid 1000 under the pre-hardening image. The image is
 correct; the volume predates it.
 
