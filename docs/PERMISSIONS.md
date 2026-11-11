@@ -58,8 +58,8 @@ route; drift between this file and the code is the failure mode it exists to pre
 > reason is that any user may create a workspace and become its owner, so `ws:owner` is no
 > barrier at all for a decision that names a path on the server's own filesystem (audit C4,
 > decision D3). The path must also resolve inside `CONNECTOR_LOCAL_ROOTS`, which is empty by
-> default and therefore disables the type. Enforced in `connector_routes.py` by
-> `_ADMIN_ONLY_TYPES`; covered by `tests/unit/test_local_folder_least_privilege.py`.
+> default and therefore disables the type. Enforced by `ADMIN_ONLY_TYPES` in
+> `src/services/connectors.py`; covered by `tests/unit/test_local_folder_least_privilege.py`.
 >
 > **Contributing to the global knowledge tier is `admin` for the same reason** (GKB-2,
 > decided 2026-10-19). The ticket said workspace owner, but the tier is read by every
@@ -99,7 +99,7 @@ These 21 are unauthenticated **by decision**, each for a stated reason:
 |---|---|
 | `web`: `/`, `/chat`, `/documents`, `/models`, `/settings`, `/docs`, `/favicon.ico` | SPA shells. They carry no data; every API call they make is itself guarded. |
 | `settings`: `/health` | The container healthcheck calls it with no credentials. |
-| `settings`: `/metrics`, `/metrics.json` | **Conditionally public.** Both call `_check_metrics_auth()` (`settings_routes.py:158,170`). With `METRICS_TOKEN` empty — the default — they are open, so Prometheus can scrape without a header. Set it and they admit two callers: a `Bearer` token matching `METRICS_TOKEN`, or an authenticated **admin** session. The second is not a loophole but the dashboard — a browser holds an httpOnly cookie and cannot present the token, and shipping it to the page would publish the secret. Everything else gets 403. |
+| `settings`: `/metrics`, `/metrics.json` | **Conditionally public.** Both call `_check_metrics_auth()` (`src/monitoring.py`) before answering. With `METRICS_TOKEN` empty — the default — they are open, so Prometheus can scrape without a header. Set it and they admit two callers: a `Bearer` token matching `METRICS_TOKEN`, or an authenticated **admin** session. The second is not a loophole but the dashboard — a browser holds an httpOnly cookie and cannot present the token, and shipping it to the page would publish the secret. Everything else gets 403. |
 | `docs`: `/`, `/{slug}`, `/{slug}/fragments/{...}` | Serves the same markdown that is public in the repository. |
 | `oauth`: `microsoft/callback`, `google/callback` | The identity provider redirects here and carries no bearer token. `authorize`, `status` and `disconnect` **do** require authentication. |
 | `connector`: `/connectors/{id}/webhook` | External systems POST here. Authenticity is the webhook's own concern, not the session's. |

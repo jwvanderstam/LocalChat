@@ -1,7 +1,7 @@
 # Integration Tests
 
 > Verified against `.github/workflows/tests.yml`, `pyproject.toml` and the test tree at
-> `d0a43d4` on 2026-10-06.
+> `a04da4d` on 2026-11-10.
 
 Integration tests exercise the full HTTP layer (FastAPI routes + service layer)
 with mocked external services (Ollama, real DB optional). A subset of tests
@@ -47,8 +47,9 @@ real model does is the evaluation scripts' job, not the suite's: `scripts/eval_r
 
 ### End-to-end, through a browser
 
-`tests/e2e/` drives the golden path — sign in, upload, ask, cited answer — in Chromium.
-It starts its own LocalChat, so nothing needs to be running first except PostgreSQL:
+`tests/e2e/` drives eight paths in Chromium: the golden path — sign in, upload, ask, cited
+answer — and QP-7's access paths around it (sign-out, workspace switching, user creation, a
+viewer, a workspace API key; see `.claude/rules/testing.md`). It starts its own LocalChat, so nothing needs to be running first except PostgreSQL:
 
 ```bash
 playwright install chromium    # pytest-playwright itself is in requirements-dev.txt
@@ -86,17 +87,17 @@ Tests not marked `ollama` run in CI. Tests marked `db` run in CI via the
 
 ## CI setup
 
-`unit-tests` and `integration-tests` are two of the six **required checks** in the
+`unit-tests`, `integration-tests` and `e2e` are three of the nine **required checks** in the
 "Code Verification" ruleset on `main` — see "Pull Requests and Merging" in
 [CLAUDE.md](../CLAUDE.md) for the full set, and for reading it back through the API rather
 than the settings UI. It is a ruleset, not a branch protection rule.
 
-Every other job starts only after `unit-tests` passes, saving CI minutes when the unit
-tests already fail.
+Every other job except `repo-hygiene` starts only after `unit-tests` passes, saving CI
+minutes when the unit tests already fail.
 
-The `e2e` job is **not** a required check, on purpose: a browser test is the one whose
-flake would block every merge, and the path it covers is proven at the service layer by
-`integration-tests` regardless.
+`e2e` was held out of the required set until 2026-10-30, because a browser flake blocks
+every merge; it joined after more than 20 consecutive green runs on `main`. Read a red run
+before rerunning it.
 
 ## Writing new integration tests
 

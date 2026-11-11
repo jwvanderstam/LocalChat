@@ -275,13 +275,13 @@ requires **nine** checks to pass: `unit-tests`, `integration-tests`, `repo-hygie
 the set back with `gh api repos/jwvanderstam/LocalChat/rulesets/14700924`, not from the
 settings UI. CLAUDE.md gives the reason for each.
 
-**Current state:** 3,735 tests collected on `2bb9d77`. CI's `unit-tests` job runs
-`tests/unit`: 3,352 passed in 12 minutes. Coverage of `src/`, unit and integration combined
-with nothing excluded, is **85.68%** (2026-10-23), and CI fails under 83.6%. A laptop takes about twice that.
-`integration-tests` ran 379 passed and 1 skipped against PostgreSQL in the same run, and
-`tests/e2e/` drives a real browser. None of them needs a live Ollama, since every model call
-in the suite goes to `tests/utils/fake_ollama.py`. Every number here was read from a run on
-2026-10-23 rather than remembered. See exit criterion 7 in
+**Current state:** 4,036 tests collected on `a04da4d`. CI's `unit-tests` job runs
+`tests/unit`: 3,507 passed in under 10 minutes; a laptop takes about twice that. Coverage of
+`src/`, unit and integration combined with nothing excluded, is **87.83%**, and CI fails
+under 85.8%. `integration-tests` ran 519 passed and 1 skipped against PostgreSQL in the same
+run, and `tests/e2e/` drives a real browser. None of them needs a live Ollama, since every
+model call in the suite goes to `tests/utils/fake_ollama.py`. Every number here was read
+from the CI run on 2026-11-08 rather than remembered. See exit criterion 7 in
 [PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md).
 
 **Mutation testing** runs every night, not per PR. It covers `src/security_fastapi.py`,

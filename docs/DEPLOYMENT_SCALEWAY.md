@@ -363,8 +363,9 @@ test what is on `main` ahead of a release — which is usually what this stack i
 tag is the *older* image whenever a fix has landed since.
 
 `APP_VERSION` is not worth setting on Scaleway, and it is **not** a check that you are
-running the image you think you are. It is a constant in `config.py`: every build since the
-`v3.0.0` tag reports `3.0.0`, so it identifies the release and says nothing about the build.
+running the image you think you are. It is a constant in `config.py`, bumped only by a
+release PR: every build between two release tags reports the same number, so it identifies
+the release and says nothing about the build.
 On 2026-09-08 a container was deployed on `sha-359069a`, silently reverted to `3.0.0` by
 Phase 4, and reported `3.0.0` throughout. Ask Scaleway which image is deployed
 (`scw container container list`) — that is the only answer that distinguishes builds.
@@ -638,7 +639,7 @@ on the 2026-09-08 stack, the last one since Phase 4 exists.
 | Check | Result |
 |---|---|
 | `GET /api/health` answers | ✅ 200 — database `up`, cache `up`, ollama `up` once Phase 4 is deployed |
-| The deployed image is the one you think | ⚠️ **this check cannot do that.** `app_version` is `3.0.0` in every build since the release tag; it proves an app answered. Read the image off the container (§6) |
+| The deployed image is the one you think | ⚠️ **this check cannot do that.** `app_version` is the same in every build since the last release tag; it proves an app answered. Read the image off the container (§6) |
 | The Alembic chain applied | ✅ 20 tables, head `0016`, admin user seeded |
 | Log in with `ADMIN_PASSWORD` | ✅ 200, session cookie issued |
 | `hnsw.ef_search` survives a transaction | ✅ reads back `100` — §4's caveat does not bite |

@@ -431,9 +431,9 @@ Workspaces are project containers — isolated knowledge silos scoped to a team 
 >   replaces a shared copy; an owner withdraws all. A document with a live contribution is
 >   tagged "shared globally". `/api/users/me` answers `can_contribute`/`can_withdraw`, so
 >   the page compares no role names. `GET /api/gkb/documents` has no screen yet.
-> - **Still open:** chat cannot read the tier yet — exposing `knowledge_scope` (with the API-key refusal
->   below) is its own ticket, [GKB-3](#gkb-3--chat-reads-the-global-tier--added-2026-10-22-sprint-24),
-  so contributions can be checked before anyone reads them.
+> - **Chat reading the tier** — exposing `knowledge_scope` (with the API-key refusal below) —
+>   was its own ticket, so contributions could be checked before anyone read them. Done in
+>   [GKB-3](#gkb-3--chat-reads-the-global-tier--added-2026-10-22-built-2026-10-23-sprint-24) (#467).
 
 A workspace owner (or admin) marks a project as contributing to the GKB. They select which documents cross the project boundary and approve a contribution narrative before ingestion.
 
@@ -2055,7 +2055,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ #469 + QP-7 e2e, 8 paths ✅ | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
-| 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 and QP-11 | ~1 week |
+| 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 (R-8 ✅ #521) and QP-11 ✅ #523 | ~1 week |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 

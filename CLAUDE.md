@@ -89,7 +89,7 @@ calls `os.getenv`. Read the defaults from that file or from
 
 ## Coding Standards
 
-Full rules across 4 files in `.claude/rules/` — short version here.
+Full rules across 5 files in `.claude/rules/` (the plugin rules are under "Plugin Contract" below) — short version here.
 
 **Architecture** → [`.claude/rules/architecture.md`](.claude/rules/architecture.md)
 - Routes are thin: parse → service → respond. No SQL, no LLM calls in blueprints.
