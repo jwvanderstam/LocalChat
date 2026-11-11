@@ -491,6 +491,10 @@ def _check_api_key_access(
     # default workspace after authorising against the key's.
     request.state.resolved_workspace_id = key_workspace
     request.state.resolved_scope = key_workspace
+    # The role and identity a tool the model calls is checked against (PC-1).
+    request.state.resolved_role = key_role
+    request.state.resolved_user_id = None
+    request.state.resolved_via_api_key = True
     return None
 
 
@@ -549,6 +553,8 @@ def check_workspace_access(
         # forgetting to pass anything (C1/C2).
         named = workspace_id or get_workspace_id(request)
         request.state.resolved_scope = named or ALL_WORKSPACES
+        request.state.resolved_role = "admin"
+        request.state.resolved_user_id = principal.user_id
         return None
     ws_id = workspace_id or get_workspace_id(request)
     db = getattr(request.app.state, "db", None)
@@ -583,6 +589,8 @@ def check_workspace_access(
     # Set only after the checks pass: a refusal has no authorised workspace to name.
     request.state.resolved_workspace_id = ws_id
     request.state.resolved_scope = ws_id
+    request.state.resolved_role = role
+    request.state.resolved_user_id = principal.user_id
     return None
 
 

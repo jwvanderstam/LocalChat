@@ -520,6 +520,18 @@ PLUGINS_ENABLED: bool = os.environ.get('PLUGINS_ENABLED', 'True').lower() == 'tr
 # Directory (relative to repo root) that is scanned for .py plugin files.
 PLUGINS_DIR: str = os.environ.get('PLUGINS_DIR', 'plugins')
 
+
+def plugin_setting(plugin: str, key: str) -> str | None:
+    """The raw value of a plugin's declared setting, ``PLUGIN_<PLUGIN>_<KEY>``, or None.
+
+    A plugin declares its keys and defaults in ``PLUGIN_CONFIG`` and never reads the
+    environment itself; the loader asks here and types the value (PC-1). The names are
+    built from the manifest, so they are documented as a family in CONFIGURATION.md
+    rather than one by one.
+    """
+    name = "".join(c if c.isalnum() else "_" for c in plugin)
+    return os.environ.get(f"PLUGIN_{name}_{key}".upper())
+
 # ============================================================================
 # DOCS SYSTEM CONFIGURATION
 # ============================================================================

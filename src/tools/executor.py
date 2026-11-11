@@ -25,6 +25,7 @@ from typing import Any
 
 from .. import config
 from ..ollama_client import OllamaClient
+from ..utils.caller import caller_has_role
 from ..utils.logging_config import get_logger
 from .registry import ToolRegistry
 
@@ -131,7 +132,11 @@ class ToolExecutor:
         Yields:
             Text chunks of the model's final answer.
         """
-        schemas = self._registry.get_ollama_schemas()
+        # A tool above the caller's role is not offered to the model at all.
+        schemas = [
+            s for s in self._registry.get_ollama_schemas()
+            if self._permitted(s["function"]["name"])
+        ]
         if not schemas:
             async for chunk in self._client.generate_chat_response(
                 model, messages, stream=stream
@@ -240,6 +245,10 @@ class ToolExecutor:
             else:
                 working_messages.append({"role": "tool", "content": result})
 
+    def _permitted(self, name: str) -> bool:
+        spec = self._registry.get(name)
+        return spec is not None and caller_has_role(spec.min_role)
+
     def _run_tool(self, name: str, arguments: dict[str, Any]) -> str:
         """Execute a single tool and return its result as a string."""
         logger.info(
@@ -247,7 +256,10 @@ class ToolExecutor:
             f"{json.dumps(arguments, default=str)[:200]})"
         )
 
-        if name not in self._registry:
+        # A model can name a tool it was never offered. Below the tool's minimum role
+        # the answer is the same as for a tool that does not exist, so the reply does
+        # not tell the caller what a higher role would unlock.
+        if name not in self._registry or not self._permitted(name):
             error = f"Unknown tool: {name}"
             logger.warning(f"[TOOLS] {error}")
             return error

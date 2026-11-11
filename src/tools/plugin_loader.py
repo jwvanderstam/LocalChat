@@ -9,10 +9,16 @@ without touching application source code.
 
 Plugin contract
 ---------------
-A plugin file **must** be importable as a top-level Python module (i.e. it
-can use absolute imports such as ``from src.tools.registry import
-tool_registry``).  The only required content is at least one
-``@tool_registry.register`` decorated function.
+A plugin defines ``setup(services)`` and may declare a manifest (``PLUGIN_SCOPE``,
+``PLUGIN_MIN_ROLE``, ``PLUGIN_HOOKS``, ``PLUGIN_CONFIG``). The loader validates the
+manifest, builds the services (``src/plugins``) and calls ``setup``, where the plugin
+registers its tools through ``services.tools.register``. A malformed manifest, a setting
+that does not parse, or a ``setup`` that raises disables that plugin only, and any tool
+it registered before failing is removed. See ``plugins/README.md``.
+
+A plugin without ``setup`` is *legacy*: it imports ``src.tools.registry`` and registers
+at import time, as every plugin did before PC-1. It still loads, with a warning, and is
+listed as legacy.
 
 Optionally, a plugin can declare metadata at module level::
 
@@ -63,7 +69,9 @@ class PluginLoader:
     """
 
     def __init__(self, registry: ToolRegistry | None = None) -> None:
-        self._registry = registry or tool_registry
+        # `is None`, not `or`: an empty registry has length 0, so `or` swapped a fresh
+        # one for the global singleton.
+        self._registry = registry if registry is not None else tool_registry
         # plugin_stem -> {"path": str, "tools": [name, ...], "meta": {...}, "error": str|None}
         self._plugins: dict[str, dict[str, Any]] = {}
 
@@ -129,12 +137,13 @@ class PluginLoader:
         path = Path(path).resolve()
         plugin_key = path.stem
 
-        # Snapshot existing tools before loading
-        before: set = set(self._registry.names)
-
         # If reloading, cleanly remove the previous version first
         if plugin_key in self._plugins:
             self._unload_tools(plugin_key)
+
+        # Snapshot after the unload: taken before it, a reloaded plugin's own tools counted
+        # as already present, so it recorded none and a later unload left them registered.
+        before: set = set(self._registry.names)
 
         # Ensure the repo root is on sys.path so plugins can do
         # ``from src.tools.registry import tool_registry``
@@ -152,8 +161,12 @@ class PluginLoader:
 
         try:
             spec.loader.exec_module(module)  # type: ignore[union-attr]
+            manifest = self._set_up(plugin_key, module)
         except Exception:
             sys.modules.pop(module_name, None)
+            # A plugin that fails part-way must not leave half its tools behind.
+            for tool_name in set(self._registry.names) - before:
+                self._registry.unregister(tool_name)
             raise
 
         # Determine which tools this plugin registered
@@ -178,6 +191,8 @@ class PluginLoader:
             "tools": new_tools,
             "meta": meta,
             "error": None,
+            "legacy": manifest is None,
+            "manifest": manifest,
         }
 
         logger.info(
@@ -254,6 +269,8 @@ class PluginLoader:
         * ``tool_count`` — ``len(tools)``
         * ``meta``       — contents of ``PLUGIN_META`` (may be ``{}``)
         * ``error``      — load error message, or ``None`` on success
+        * ``legacy``     — True for a plugin without ``setup(services)``
+        * ``manifest``   — the validated manifest, or ``None`` for a legacy plugin
         """
         return [
             {
@@ -263,6 +280,8 @@ class PluginLoader:
                 "tool_count": len(info["tools"]),
                 "meta": info["meta"],
                 "error": info["error"],
+                "legacy": info.get("legacy", False),
+                "manifest": info.get("manifest"),
             }
             for key, info in self._plugins.items()
         ]
@@ -275,6 +294,22 @@ class PluginLoader:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _set_up(self, plugin_key: str, module: Any) -> dict[str, Any] | None:
+        """Read the manifest and call ``setup(services)``; None for a legacy plugin."""
+        setup = getattr(module, "setup", None)
+        if not callable(setup):
+            logger.warning(
+                "[PLUGINS] '%s' has no setup(services): loaded as a legacy plugin, which "
+                "imports core modules directly. See plugins/README.md.", plugin_key,
+            )
+            return None
+
+        from ..plugins import build_services, read_manifest
+
+        manifest = read_manifest(module)
+        setup(build_services(plugin_key, manifest, self._registry))
+        return manifest.to_dict()
 
     def _unload_tools(self, plugin_name: str) -> None:
         """Remove all tools registered by *plugin_name* from the registry."""

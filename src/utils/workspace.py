@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
+from .caller import RequestCaller
 from .scope import Scope
 
 
@@ -44,3 +45,16 @@ def get_scope(request: Request) -> Scope:
             "guard before reading the scope"
         )
     return scope  # type: ignore[no-any-return]
+
+
+def get_caller(request: Request) -> RequestCaller | None:
+    """Return who the workspace guard admitted and at what role, or None when no guard ran."""
+    role = getattr(request.state, "resolved_role", None)
+    if not isinstance(role, str):
+        return None
+    user_id = getattr(request.state, "resolved_user_id", None)
+    return RequestCaller(
+        user_id=user_id if isinstance(user_id, str) else None,
+        role=role,
+        via_api_key=getattr(request.state, "resolved_via_api_key", False) is True,
+    )
