@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..utils.logging_config import get_logger
 from ..utils.scope import Scope
-from .errors import ServiceError
+from .errors import ServiceError, purge_refusals
 
 if TYPE_CHECKING:
     from ..connectors.base import BaseConnector
@@ -167,7 +167,8 @@ class ConnectorsService:
         return retired
 
     def purge(self, connector_id: str) -> bool:
-        return self._db.connectors.purge(connector_id)
+        with purge_refusals("Connector"):
+            return self._db.connectors.purge(connector_id)
 
     def sync_history(self, connector_id: str, limit: int, scope: Scope) -> list[dict[str, Any]] | None:
         """The connector's sync log, or None when *scope* has no such connector.

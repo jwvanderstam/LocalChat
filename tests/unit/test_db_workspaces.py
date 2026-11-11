@@ -259,21 +259,22 @@ class TestPurgeWorkspace:
             m.workspaces.purge("wid")
 
     def test_blocked_when_live_documents_exist(self):
-        m, _, cur = _workspaces_mixin(fetchone_return=(1,))
-        result = m.workspaces.purge("wid")
-        assert result is False
-        assert cur.execute.call_count == 1
-
-    def test_blocked_when_live_conversations_exist(self):
         m, _, cur = _workspaces_mixin()
-        cur.fetchone.side_effect = [None, (1,)]  # no docs, but a live conversation
+        cur.fetchone.side_effect = [(True,), (1,)]  # retired, but a live document
         result = m.workspaces.purge("wid")
         assert result is False
         assert cur.execute.call_count == 2
 
+    def test_blocked_when_live_conversations_exist(self):
+        m, _, cur = _workspaces_mixin()
+        cur.fetchone.side_effect = [(True,), None, (1,)]  # retired, no docs, but a live conversation
+        result = m.workspaces.purge("wid")
+        assert result is False
+        assert cur.execute.call_count == 3
+
     def test_hard_deletes_when_no_live_references(self):
         m, _, cur = _workspaces_mixin()
-        cur.fetchone.side_effect = [None, None]
+        cur.fetchone.side_effect = [(True,), None, None]
         cur.rowcount = 1
         result = m.workspaces.purge("wid")
         assert result is True

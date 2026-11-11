@@ -128,7 +128,7 @@ Hard-deleting a CDI while other data still holds its ID breaks IVPs — citation
   `conversation_messages` has neither (a message goes with its conversation).
 - A "delete" TP sets `deleted_at`; it never issues `DELETE FROM` on a CDI.
 - All SELECT queries on CDIs filter `WHERE deleted_at IS NULL`.
-- A hard purge is a *separate, explicitly authorized TP* with a precondition: no active references exist. It is never the default operation.
+- A hard purge is a *separate, explicitly authorized TP* with a precondition: the row is retired, and no active references exist. It is never the default operation.
 
 **Audit trail** — state changes on CDIs must be traceable: who changed what, when. `deleted_at` + `deleted_by` is the minimum required.
 

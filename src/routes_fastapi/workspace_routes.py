@@ -181,6 +181,8 @@ def purge_workspace(
                 status_code=409,
             )
         return {"success": True}
+    except ServiceError as exc:
+        return JSONResponse({"success": False, "message": exc.message}, status_code=exc.status_code)
     except Exception:
         logger.exception("[Workspaces] purge error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

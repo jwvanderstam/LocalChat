@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from ..db.connection import DatabaseUnavailableError
 from ..utils.logging_config import get_logger
 from ..utils.scope import Scope
-from .errors import ServiceError
+from .errors import ServiceError, purge_refusals
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -80,7 +80,7 @@ class DocumentsService:
             return self._db.documents.retire_all(scope=scope, deleted_by=_actor(actor))
 
     def purge(self, doc_id: int) -> bool:
-        with _database_required():
+        with _database_required(), purge_refusals("Document"):
             return self._db.documents.purge(doc_id)
 
     def purge_all(self) -> int:

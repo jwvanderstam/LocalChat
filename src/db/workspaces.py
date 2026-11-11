@@ -10,7 +10,7 @@ from typing import Any
 
 from ..utils.logging_config import get_logger
 from ..utils.scope import ALL_WORKSPACES
-from .connection import DatabaseConnection, DatabaseUnavailableError
+from .connection import DatabaseConnection, DatabaseUnavailableError, require_retired
 
 logger = get_logger(__name__)
 
@@ -189,6 +189,7 @@ class WorkspacesRepository:
             raise DatabaseUnavailableError("Cannot purge workspace: DB not connected")
         with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
+                require_retired(cur, "workspaces", workspace_id)
                 cur.execute(
                     "SELECT 1 FROM documents WHERE workspace_id = %s AND deleted_at IS NULL LIMIT 1",
                     (workspace_id,),
