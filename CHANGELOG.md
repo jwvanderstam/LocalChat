@@ -49,6 +49,12 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   the tier. The worker also picked contributions as stale and tried to re-read a source
   file they do not have. Found by the separate review of #528.
 
+### Fixed
+
+- **A workspace's ontology counts only its live documents.** `workspace_ontology` counted
+  the entities of retired documents, and of chunks a re-ingest had retired. Found by the
+  separate review of #527.
+
 ## [3.5.0] — 2026-10-31
 
 The release that closes the quality plan's maturity target (Initiative 12). All six
