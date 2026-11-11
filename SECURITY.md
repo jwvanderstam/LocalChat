@@ -337,7 +337,7 @@ fails on the code before it.
 | R-9 | Low | Single-object purges do not require the row to be retired first | **Open** (admin-only). Includes a user: purge has no last-admin check, so the only active admin, with no memberships, can be hard-deleted (found by the review of #525) |
 | R-10 | Low | Admin user routes take raw dicts; the last-admin count ignores `is_active` | **Fixed** — the three routes validate a Pydantic body, so a string `"false"` no longer passes the last-admin rule (Postgres stored it as false), and the rule counts active admins only. The env-var admin's bootstrap check still counts live admins. `tests/unit/test_admin_user_bodies_are_validated.py`, `tests/integration/test_admin_count_is_of_active_admins.py`. Known residual: the rule reads the count and writes on separate connections, so the last two active admins deactivating each other at the same moment both succeed; the repair is SQL by hand (older than R-10) |
 | R-11 | Low | The image's source is owned by the runtime user | **Open** |
-| R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Open** |
+| R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Fixed** — a co-occurrence counts only through a live document of the caller's workspace; retired documents contributed too. `tests/integration/test_graph_expansion_scope.py` |
 | — | — | `GET /api/workspaces/active` and `POST /api/workspaces/switch` returned any named workspace, its system prompt included, to anyone signed in; found by R-5's new probes | **Fixed** (#510) — `tests/unit/test_active_workspace_is_authorised.py` |
 
 ## October 2026 audit: findings register

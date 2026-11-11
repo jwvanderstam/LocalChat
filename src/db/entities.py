@@ -10,7 +10,11 @@ logger = get_logger(__name__)
 
 
 class EntitiesRepository:
-    """GraphRAG entities and their relations."""
+    """GraphRAG entities and their relations.
+
+    ``entities`` rows belong to no workspace: read a name only through a relation whose
+    document is in the caller's scope, never from the table directly.
+    """
 
     def __init__(self, db: DatabaseConnection) -> None:
         self._db = db
@@ -82,30 +86,39 @@ class EntitiesRepository:
         self,
         entity_names: list[str],
         max_results: int = 20,
+        *,
+        scope: Scope,
     ) -> list[str]:
         """
         Return names of entities co-occurring with any of the given entity names.
 
-        Used by the query expander to broaden lexical search terms.
+        Used by the query expander to broaden lexical search terms. Only co-occurrences
+        in *scope*'s live documents count: entities are shared across workspaces, so the
+        relation's document is the only thing that says whose they are (R-12). The chunk
+        must be live too, or a re-ingest would leave the old version's names behind.
         """
         if not entity_names or not self._db.is_connected:
             return []
-        with self._db.get_connection() as conn:
+        ws_filter, params_ws = scope_predicate(scope, "d.workspace_id")
+        with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
+                    f"""
                     SELECT DISTINCT e2.name
                     FROM entities e1
                     JOIN entity_relations er ON er.source_id = e1.id OR er.target_id = e1.id
+                    JOIN documents d ON d.id = er.doc_id AND d.deleted_at IS NULL
+                    JOIN document_chunks c ON c.id = er.chunk_id AND c.deleted_at IS NULL
                     JOIN entities e2 ON (
                         CASE WHEN er.source_id = e1.id THEN er.target_id ELSE er.source_id END = e2.id
                     )
                     WHERE e1.name = ANY(%s)
                       AND e2.name != ALL(%s)
+                      {ws_filter}
                     ORDER BY e2.name
                     LIMIT %s
-                    """,
-                    (entity_names, entity_names, max_results),
+                    """,  # nosec B608  # scope_predicate fragment: literal column, value is %s
+                    (entity_names, entity_names, *params_ws, max_results),
                 )
                 return [r[0] for r in cursor.fetchall()]
 
