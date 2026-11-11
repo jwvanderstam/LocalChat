@@ -24,6 +24,14 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   removed rather than fixed: re-enabling it would have reopened the leak. Found by the
   separate review of #527.
 
+### Fixed
+
+- **A question the planner splits keeps the chat's restrictions.** Multi-hop retrieval
+  passed neither the chosen sources nor the additional workspaces to its sub-questions, so
+  a chat narrowed to some documents searched the whole workspace whenever the planner
+  judged a question multi-hop (ADR-6 recorded it). Its citations also lacked the tier, so
+  a global contribution was cited as a workspace document. Workspace isolation itself held.
+
 ### Changed
 
 - **The cloud fallback talks to an OpenAI-compatible endpoint directly.**
