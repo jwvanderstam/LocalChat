@@ -416,7 +416,7 @@ class Retriever:
         if config.GRAPH_RAG_ENABLED:
             try:
                 from ..graph.expander import QueryExpander
-                extra_terms = QueryExpander().expand(query_clean, db)
+                extra_terms = QueryExpander().expand(query_clean, db, scope=scope)
                 if extra_terms:
                     query_clean = query_clean + " " + " ".join(extra_terms)
                     logger.debug(f"[GraphRAG] Expanded query with: {extra_terms}")

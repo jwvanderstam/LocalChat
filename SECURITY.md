@@ -162,9 +162,9 @@ a gain of one deleted heading.
   decides what the application can read, which makes *who may configure one* the control,
   not what the connector does afterwards.
 - **`local_folder` — global administrator, plus an allowlist.** Its path names the server's
-  own filesystem. Both conditions are enforced independently in
-  `src/routes_fastapi/connector_routes.py`: creating or reconfiguring one requires a global
-  administrator, and the path must resolve inside `CONNECTOR_LOCAL_ROOTS`
+  own filesystem. Both conditions are enforced independently: `ConnectorsService`
+  (`src/services/connectors.py`) requires a global administrator to create or reconfigure
+  one, and the path must resolve inside `CONNECTOR_LOCAL_ROOTS`
   ([CONFIGURATION.md](docs/CONFIGURATION.md)), which is **empty by default and so disables
   the type**. Paths are resolved with `realpath` and compared by whole components, so `..`
   and a symlink pointing out of an allowed root both fail.
@@ -182,7 +182,7 @@ a gain of one deleted heading.
   run in the shipped image at all, because `boto3` is deliberately not there
   ([ADR-4](docs/ADR.md)). A connector that cannot run is not a feature worth guarding.
 - **Re-review trigger**: any new connector type whose configuration names something outside
-  the workspace — a path, a host, a credential — belongs in `_ADMIN_ONLY_TYPES` and in this
+  the workspace — a path, a host, a credential — belongs in `ADMIN_ONLY_TYPES` and in this
   list, and the question to answer first is what a workspace owner could reach with it.
 
 ### 9. Outbound fetches resolve before they decide, but do not pin the address
@@ -334,10 +334,10 @@ fails on the code before it.
 | R-6 | Medium | `GET /settings` rendered installation-wide admin statistics for any caller | **Fixed** (#507) — `tests/unit/test_settings_page_stats_are_admin_only.py` |
 | R-7 | Low | A connector's sync history and manual sync took the id alone | **Fixed** (#510) — `TestAConnectorOutsideTheScopeIsNotFound` |
 | R-8 | Low | Feedback and annotations accept conversation and chunk ids from another workspace; a viewer can make any document un-purgeable | **Fixed** — every id a rating or annotation names is looked up in the caller's scope first, the global tier's chunks included except for a workspace API key; the message id too, which the review did not name. `tests/integration/test_object_authorization_over_the_wire.py`, `tests/integration/test_rating_ids_are_in_scope.py` |
-| R-9 | Low | Single-object purges do not require the row to be retired first | **Open** (admin-only) |
-| R-10 | Low | Admin user routes take raw dicts; the last-admin count ignores `is_active` | **Open** (admin-only) |
+| R-9 | Low | Single-object purges do not require the row to be retired first | **Open** (admin-only). Includes a user: purge has no last-admin check, so the only active admin, with no memberships, can be hard-deleted (found by the review of #525) |
+| R-10 | Low | Admin user routes take raw dicts; the last-admin count ignores `is_active` | **Fixed** — the three routes validate a Pydantic body, so a string `"false"` no longer passes the last-admin rule (Postgres stored it as false), and the rule counts active admins only. The env-var admin's bootstrap check still counts live admins. `tests/unit/test_admin_user_bodies_are_validated.py`, `tests/integration/test_admin_count_is_of_active_admins.py`. Known residual: the rule reads the count and writes on separate connections, so the last two active admins deactivating each other at the same moment both succeed; the repair is SQL by hand (older than R-10) |
 | R-11 | Low | The image's source is owned by the runtime user | **Open** |
-| R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Open** |
+| R-12 | Low | GraphRAG's entity expansion is not scoped (off by default) | **Fixed** — a co-occurrence counts only through a live document of the caller's workspace; retired documents contributed too. `tests/integration/test_graph_expansion_scope.py` |
 | — | — | `GET /api/workspaces/active` and `POST /api/workspaces/switch` returned any named workspace, its system prompt included, to anyone signed in; found by R-5's new probes | **Fixed** (#510) — `tests/unit/test_active_workspace_is_authorised.py` |
 
 ## October 2026 audit: findings register

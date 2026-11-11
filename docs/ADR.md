@@ -460,8 +460,9 @@ settles it.
   return.
 - ⬜ Measure the planner. Latency it adds against multi-hop questions it changes the answer
   for. If it does not pay for its call, it goes the way of DEL-1, by the same rule.
-- ⬜ `api_routes.py:346` becomes documented behaviour, not an accident: tools are the
-  fallback when retrieval finds nothing. A comment at the line citing this ADR.
+- ⬜ `tool_executor = None if (local_ctx or web_ctx)` in `api_routes.py` becomes documented
+  behaviour, not an accident: tools are the fallback when retrieval finds nothing. A
+  comment at the line citing this ADR.
 - ⬜ Honest naming: the aggregator docstring loses "ReAct-style"; "multi-hop" in comments
   and the planner becomes "multi-query" unless hops are made sequential.
 - ⬜ `ModelRouter` regex: `\bfigure\b` sends "figure out" to VISION, `\bclass\b` and

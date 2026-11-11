@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..utils.logging_config import get_logger
+from ..utils.scope import Scope
 from .extractor import _KEEP_TYPES, _get_nlp
 
 logger = get_logger(__name__)
@@ -30,6 +31,8 @@ class QueryExpander:
         db: Any,
         max_extra: int = 5,
         graph_store: Any | None = None,
+        *,
+        scope: Scope,
     ) -> list[str]:
         """
         Return additional entity-name strings for query expansion.
@@ -41,6 +44,7 @@ class QueryExpander:
             max_extra: Maximum additional names to return.
             graph_store: Optional GraphStore — if provided, used instead of db
                          for graph lookups.
+            scope: The workspace whose documents the co-occurrences come from.
 
         Returns:
             List of extra entity name strings (may be empty).
@@ -65,7 +69,7 @@ class QueryExpander:
 
         store = graph_store or _wrap_db(db)
         try:
-            related = store.get_related_entity_names(query_entities, max_results=max_extra)
+            related = store.get_related_entity_names(query_entities, max_results=max_extra, scope=scope)
             if related:
                 logger.info(f"[GraphRAG] Expanded query with {len(related)} entity terms")
             return related

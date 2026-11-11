@@ -35,7 +35,7 @@ class _Users:
     def get_by_id(self, user_id: str):
         return {"id": user_id, "username": "jo", "role": self._role}
 
-    def count_live_admins(self) -> int:
+    def count_active_admins(self) -> int:
         return self._admin_count
 
     def update(self, user_id: str, **fields) -> bool:

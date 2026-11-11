@@ -117,7 +117,7 @@ chunk_ids = db.documents.insert_chunks([(doc, 'Ollama and Postgres', 0, [0.02] *
 a = db.entities.upsert('Ollama', 'PRODUCT')
 b = db.entities.upsert('Postgres', 'ORG')
 db.entities.insert_relation(a, b, doc, chunk_ids[0])
-names = db.entities.related_names(['Ollama'], max_results=5)
+names = db.entities.related_names(['Ollama'], max_results=5, scope=ALL_WORKSPACES)
 assert names == ['Postgres'], names
 db.close()
 print('OK')
@@ -129,9 +129,10 @@ print('OK')
         """The negative case: empty is a real answer here, and must not be an exception."""
         result = _run(database, """
 from src.db import Database
+from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
 db.entities.upsert('Solitary', 'ORG')
-assert db.entities.related_names(['Solitary'], max_results=5) == []
+assert db.entities.related_names(['Solitary'], max_results=5, scope=ALL_WORKSPACES) == []
 db.close()
 print('OK')
 """)

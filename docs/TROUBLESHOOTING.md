@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-> Verified against the code and `docker-compose.yml` at `ff034d1` on 2026-10-03. Entries that
+> Verified against the code and `docker-compose.yml` at `a04da4d` on 2026-11-10. Entries that
 > record an incident (a date, a run, a build) are dated observations, not re-checked.
 
 Common issues and their solutions when running LocalChat.
@@ -152,6 +152,10 @@ CREATE INDEX document_chunks_embedding_hnsw_idx
   ON document_chunks USING hnsw (embedding vector_cosine_ops)
   WITH (m = 16, ef_construction = 64);
 ```
+
+`memories.embedding` is `vector(768)` too, with `memories_embedding_hnsw_idx`; change it the
+same way, or new long-term memories fail to store.
+
 Then re-ingest all documents so embeddings are regenerated.
 
 ### "No documents found" after upload
@@ -160,10 +164,16 @@ Then re-ingest all documents so embeddings are regenerated.
 
 **Check:**
 ```bash
-psql -U postgres -d rag_db -c "SELECT id, filename FROM documents;"
+docker compose exec db psql -U postgres -d rag_db -c "SELECT id, filename, workspace_id FROM documents WHERE deleted_at IS NULL;"
 ```
 
-If rows exist in DB but API returns empty, check that `PG_DB` in `.env` matches the database you're looking at.
+`postgres` is a superuser, so this sees every workspace. The API does not: the list is
+scoped to the active workspace — the switcher in the header, or the `X-Workspace-ID`
+header for an API client — and row-level security is forced on `documents` (migration
+`0023`), so a document uploaded into one workspace is invisible from another. If the row's
+`workspace_id` is not the workspace you are looking from, switch to it.
+
+If there is no row at all, check that `PG_DB` names the database you are looking at.
 
 ---
 
