@@ -28,6 +28,13 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   `CLOUD_PRICE_OUTPUT_PER_MTOK`; without both, only tokens are counted. A provider that is
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
+- **A password change ends the account's other sessions (`SECURITY.md` item 13).** A
+  session opened before the change, on another device or by whoever knew the old password,
+  kept working until its token expired. Changing your own password, or an admin resetting
+  it, now refuses every token issued before the change; the user who changed it gets a new
+  session in the same response. A refused session answers 401 "Session is no longer
+  valid", which is also what a deactivated or retired account now gets (it was "Account is
+  not active"). Migration 0024 adds `users.tokens_valid_after`.
 - **The admin user routes validate what they are sent (R-10).** Creating, updating and
   granting took the request body as a raw dict. An update wrote any `role` string, and
   `"is_active": "false"` passed the last-admin rule as a string and was stored as false,

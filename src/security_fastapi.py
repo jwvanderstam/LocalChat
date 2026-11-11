@@ -284,10 +284,18 @@ def _current_global_role(request: Request, claims: dict[str, Any]) -> str | None
     return _read_global_role(request, claims)[1]
 
 
+def _issued_at(claims: dict[str, Any]) -> datetime:
+    """The token's ``iat``. A token without one reads as issued at the epoch, so any
+    password change ends it."""
+    iat = claims.get("iat")
+    return datetime.fromtimestamp(iat if isinstance(iat, int | float) else 0, tz=UTC)
+
+
 def _read_global_role(request: Request, claims: dict[str, Any]) -> tuple[bool, str | None]:
     """``(answered, role)``: whether the database answered, and the role it gave.
 
-    ``(True, None)`` means the database says there is no live, active user by that id;
+    ``(True, None)`` means the database says there is no live, active user by that id,
+    or that this token was issued before the user's last password change;
     ``(False, None)`` that it could not say. The two must not be folded together: the
     first ends the session, the second must not, or a database blip signs everyone out.
     """
@@ -308,8 +316,9 @@ def _read_global_role(request: Request, claims: dict[str, Any]) -> tuple[bool, s
         # get_role, not get_by_id: the guard needs one column, and the wider
         # read would pull the password hash in on every admin request. It filters
         # deleted_at and is_active, so a retired or deactivated user resolves to None
-        # and loses access on the next request rather than at token expiry.
-        return True, db.users.get_role(sub)
+        # and loses access on the next request rather than at token expiry. It also
+        # resolves a token issued before the last password change to None.
+        return True, db.users.get_role(sub, issued_at=_issued_at(claims))
     except Exception as exc:  # noqa: BLE001 — the role is unreadable, so no role is granted — fail closed
         logger.warning("[Auth] Could not read role for %s: %s", sanitize_log_value(str(sub)), exc)
         return False, None
@@ -415,12 +424,12 @@ def resolve_principal(
 
     answered, role = _read_global_role(request, claims)
     if answered and role is None:
-        # The token is valid, but its user has been deactivated or retired since it was
-        # issued. Their workspace and admin roles already resolve to nothing; this also
-        # closes the routes that ask only for a session, such as creating a workspace
-        # (QP-9 review, R-4).
-        logger.info("[Auth] Refused a session whose account is no longer active")
-        raise AuthError(status.HTTP_401_UNAUTHORIZED, "Account is not active")
+        # The token is valid, but since it was issued its user has been deactivated or
+        # retired (R-4), or their password has changed (SECURITY.md item 13). This also
+        # closes the routes that ask only for a session, such as creating a workspace.
+        # One message for both: which of them it was is not the caller's business.
+        logger.info("[Auth] Refused a session its account no longer admits")
+        raise AuthError(status.HTTP_401_UNAUTHORIZED, "Session is no longer valid")
     return Principal(user_id=str(sub), global_role=role)
 
 

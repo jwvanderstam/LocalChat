@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -74,12 +75,12 @@ def test_a_member_of_a_retired_workspace_has_no_role_there(database, world):
 
 
 def test_an_active_admin_is_admin(database, world):
-    assert database.users.get_role(world.admin) == "admin"
+    assert database.users.get_role(world.admin, issued_at=datetime.now(UTC)) == "admin"
 
 
 def test_a_deactivated_admin_has_no_global_role(database, world):
     database.users.update(world.admin, is_active=False)
-    assert database.users.get_role(world.admin) is None
+    assert database.users.get_role(world.admin, issued_at=datetime.now(UTC)) is None
 
 
 def test_a_key_resolves_to_its_live_workspace(database, world):
