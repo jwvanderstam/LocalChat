@@ -136,24 +136,25 @@ def get_rag_context(
         logger.warning("[RAG] No chunks retrieved from documents")
         return "", []
 
-    sources = [
-        {
-            "filename": r.filename,
-            "chunk_index": r.chunk_index,
-            "page_number": r.metadata.get("page_number"),
-            "section_title": r.metadata.get("section_title"),
-            "chunk_id": r.chunk_id,
-            # Carried so the interface can say the sources are weak rather than
-            # presenting them as if they were not. This is what a citation to an
-            # unrelated document looked like from the outside: indistinguishable.
-            "low_relevance": bool(r.metadata.get("low_relevance")),
-            # "global" when the chunk came from a contribution, so a citation says which
-            # tier it is (GKB-3); a workspace document is "local".
-            "knowledge_tier": r.metadata.get("knowledge_tier", "local"),
-        }
-        for r in results
-    ]
+    sources = [_citation(r) for r in results]
     return doc_processor.format_context_for_llm(results, max_length=config.MAX_CONTEXT_LENGTH), sources
+
+
+def _citation(r: RetrievalResult) -> dict[str, Any]:
+    return {
+        "filename": r.filename,
+        "chunk_index": r.chunk_index,
+        "page_number": r.metadata.get("page_number"),
+        "section_title": r.metadata.get("section_title"),
+        "chunk_id": r.chunk_id,
+        # Carried so the interface can say the sources are weak rather than
+        # presenting them as if they were not. This is what a citation to an
+        # unrelated document looked like from the outside: indistinguishable.
+        "low_relevance": bool(r.metadata.get("low_relevance")),
+        # "global" when the chunk came from a contribution, so a citation says which
+        # tier it is (GKB-3); a workspace document is "local".
+        "knowledge_tier": r.metadata.get("knowledge_tier", "local"),
+    }
 
 
 def get_web_context(message: str) -> tuple[str, list[dict[str, Any]]]:
@@ -341,7 +342,10 @@ def retrieve_contexts(
             if plan is not None and plan.is_multi_hop:
                 local_context, sources = get_rag_context_multi_hop(
                     plan.sub_questions, doc_processor, filename_filter,
-                    chunks_retrieved_ref=chunks_retrieved_ref, scope=scope,
+                    chunks_retrieved_ref=chunks_retrieved_ref,
+                    additional_workspace_ids=additional_workspace_ids,
+                    source_ids=source_ids,
+                    scope=scope,
                     knowledge_scope=knowledge_scope,
                 )
             else:
@@ -373,6 +377,8 @@ def get_rag_context_multi_hop(
     doc_processor: Any,
     filename_filter: list[str],
     chunks_retrieved_ref: list[int] | None = None,
+    additional_workspace_ids: list[str] | None = None,
+    source_ids: list[str] | None = None,
     *,
     scope: Scope,
     knowledge_scope: KnowledgeScope = "local",
@@ -384,7 +390,10 @@ def get_rag_context_multi_hop(
         futures = {
             executor.submit(
                 doc_processor.retrieve_context, q,
-                filename_filter=filename_filter, scope=scope,
+                filename_filter=filename_filter,
+                additional_workspace_ids=additional_workspace_ids,
+                source_ids=source_ids or [],
+                scope=scope,
                 knowledge_scope=knowledge_scope,
             ): q
             for q in sub_questions
@@ -410,14 +419,7 @@ def get_rag_context_multi_hop(
 
     local_context = doc_processor.format_context_for_llm(merged, max_length=config.MAX_CONTEXT_LENGTH)
     sources = [
-        {
-            "filename": r.filename,
-            "chunk_index": r.chunk_index,
-            "page_number": r.metadata.get("page_number"),
-            "section_title": r.metadata.get("section_title"),
-            "chunk_id": r.chunk_id,
-            "combined_score": r.metadata.get("combined_score"),
-        }
+        {**_citation(r), "combined_score": r.metadata.get("combined_score")}
         for r in merged
     ]
     return local_context, sources

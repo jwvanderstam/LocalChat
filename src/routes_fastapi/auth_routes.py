@@ -346,7 +346,11 @@ async def change_own_password(request: Request, users: Users) -> Any:
         users.change_own_password(principal.user_id, body.current_password, body.new_password)
     except ServiceError as exc:
         return _refused(exc)
-    return {"success": True}
+    # The change ended every session issued before it, this one included. The caller
+    # just proved the password, so they keep going on a new session; the others end.
+    response = JSONResponse({"success": True})
+    _set_session_cookie(response, create_access_token(principal.user_id, {"role": principal.global_role}), request)
+    return response
 
 
 @router.post("/logout")

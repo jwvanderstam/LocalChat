@@ -643,7 +643,9 @@ class DocumentsRepository:
 
         Scoped to ``workspace_id`` — filename uniqueness is per-workspace, not
         global. ``IS NOT DISTINCT FROM`` matches NULL-workspace_id documents
-        against each other without matching a real workspace's documents.
+        against each other without matching a real workspace's documents. A global
+        contribution has no workspace either, and is never matched: an upload naming
+        no workspace must not update what every workspace reads.
         """
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot check document existence: Database is not connected")
@@ -657,6 +659,7 @@ class DocumentsRepository:
                     LEFT JOIN document_chunks dc ON d.id = dc.document_id AND dc.deleted_at IS NULL
                     WHERE d.filename = %s AND d.deleted_at IS NULL
                       AND d.workspace_id IS NOT DISTINCT FROM %s
+                      AND d.contributed_at IS NULL
                     GROUP BY d.id, d.created_at, d.content_hash
                 """, (filename, workspace_id))
                 row = cursor.fetchone()
@@ -840,6 +843,7 @@ class DocumentsRepository:
         """Return documents whose last_ingested_at is older than max_age_hours.
 
         Documents without last_ingested_at fall back to created_at for comparison.
+        A global contribution is a copy with no source file to re-read, and is skipped.
         """
         if not self._db.is_connected:
             return []
@@ -854,7 +858,7 @@ class DocumentsRepository:
                         FROM documents
                         WHERE COALESCE(last_ingested_at, created_at)
                               < NOW() - (INTERVAL '1 hour' * %s)
-                          AND deleted_at IS NULL{scope_sql}
+                          AND deleted_at IS NULL AND contributed_at IS NULL{scope_sql}
                     """  # nosec B608  # scope_predicate fragment: literal column, value is %s
                     params: list[Any] = [max_age_hours, *scope_params]
                     cursor.execute(sql, params)
