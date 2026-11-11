@@ -10,7 +10,7 @@ from typing import Any
 
 from ..utils.logging_config import get_logger, sanitize_log_value
 from ..utils.scope import ALL_WORKSPACES
-from .connection import DatabaseConnection, DatabaseUnavailableError
+from .connection import DatabaseConnection, DatabaseUnavailableError, require_retired
 
 logger = get_logger(__name__)
 
@@ -228,11 +228,12 @@ class UsersRepository:
                 return bool(cur.rowcount > 0)
 
     def purge(self, user_id: str) -> bool:
-        """Hard-delete a user if no workspace memberships exist. Returns False when blocked."""
+        """Hard-delete a retired user if no workspace memberships exist. Returns False when blocked."""
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot purge user: DB not connected")
         with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
+                require_retired(cur, "users", user_id)
                 cur.execute(
                     "SELECT 1 FROM workspace_members WHERE user_id = %s LIMIT 1",
                     (user_id,),

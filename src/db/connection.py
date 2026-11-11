@@ -252,6 +252,28 @@ class DatabaseUnavailableError(Exception):
     pass
 
 
+class NotRetiredError(Exception):
+    """A purge named a row that is missing, or still live: Destroy follows Retire (R-9)."""
+
+    def __init__(self, table: str, *, missing: bool) -> None:
+        super().__init__(f"{table} row is {'missing' if missing else 'not retired'}")
+        self.missing = missing
+
+
+def require_retired(cur: Any, table: str, row_id: object) -> None:
+    """Lock the row and refuse unless it is retired, inside the purge's own transaction.
+
+    Locking it means a restore cannot slip in between this check and the DELETE.
+    """
+    cur.execute(
+        sql.SQL("SELECT deleted_at IS NOT NULL FROM {} WHERE id = %s FOR UPDATE").format(sql.Identifier(table)),
+        (row_id,),
+    )
+    row = cur.fetchone()
+    if row is None or not row[0]:
+        raise NotRetiredError(table, missing=row is None)
+
+
 # ============================================================================
 # PGVECTOR TYPE ADAPTERS FOR PSYCOPG3
 # ============================================================================

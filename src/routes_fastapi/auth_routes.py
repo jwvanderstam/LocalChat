@@ -308,6 +308,8 @@ def purge_user(user_id: str, users: Users, admin_user_id: Annotated[str, Depends
                 status_code=409,
             )
         return {"success": True}
+    except ServiceError as exc:
+        return _refused(exc)
     except Exception:
         logger.exception("[Users] purge error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)

@@ -26,9 +26,9 @@ USER = "22222222-2222-2222-2222-222222222222"
 
 
 def _mixin(cls, *, cites: bool, rowcount: int = 1, connected: bool = True):
-    """A mixin whose first SELECT answers "something still references this" or not."""
+    """A mixin whose row is retired (R-9), and whose next SELECT answers "something still references this" or not."""
     cur = MagicMock()
-    cur.fetchone.return_value = (1,) if cites else None
+    cur.fetchone.side_effect = [(True,), (1,) if cites else None]
     cur.rowcount = rowcount
     cur.__enter__ = MagicMock(return_value=cur)
     cur.__exit__ = MagicMock(return_value=False)

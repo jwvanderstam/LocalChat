@@ -14,7 +14,7 @@ from typing import Any
 
 from ..utils.logging_config import get_logger
 from ..utils.scope import ALL_WORKSPACES, Scope, scope_predicate
-from .connection import DatabaseConnection, DatabaseUnavailableError
+from .connection import DatabaseConnection, DatabaseUnavailableError, require_retired
 
 logger = get_logger(__name__)
 
@@ -164,6 +164,7 @@ class ConnectorsRepository:
             raise DatabaseUnavailableError("Cannot purge connector: DB not connected")
         with self._db.get_connection(scope=ALL_WORKSPACES) as conn:
             with conn.cursor() as cur:
+                require_retired(cur, "connectors", connector_id)
                 cur.execute(
                     "SELECT 1 FROM documents WHERE source_id = %s AND deleted_at IS NULL LIMIT 1",
                     (connector_id,),

@@ -573,7 +573,7 @@ class TestDocumentSoftDelete:
         """purge_document returns True and issues DELETEs when no citations exist."""
         db = self._make_db()
         cursor = MagicMock()
-        cursor.fetchone.return_value = (False,)  # no citations
+        cursor.fetchone.side_effect = [(True,), (False,)]  # retired, no citations
         conn = self._make_conn_ctx(cursor)
 
         with patch.object(db, 'get_connection') as mock_gc:
@@ -582,7 +582,7 @@ class TestDocumentSoftDelete:
             result = db.documents.purge(5)
 
         assert result is True
-        calls = [call[0][0].upper() for call in cursor.execute.call_args_list]
+        calls = [str(call[0][0]).upper() for call in cursor.execute.call_args_list]
         assert any('DELETE' in sql for sql in calls)
 
     def _make_conn_ctx(self, cursor):

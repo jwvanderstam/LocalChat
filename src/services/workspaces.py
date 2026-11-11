@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from ..db.workspaces import LastOwnerError
 from ..utils.logging_config import get_logger
 from ..utils.scope import Scope
-from .errors import ServiceError
+from .errors import ServiceError, purge_refusals
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -86,7 +86,8 @@ class WorkspacesService:
         return self._db.workspaces.default_id()
 
     def purge(self, workspace_id: str) -> bool:
-        return self._db.workspaces.purge(workspace_id)
+        with purge_refusals("Workspace"):
+            return self._db.workspaces.purge(workspace_id)
 
     def ontology(self, top_n: int, scope: Scope) -> dict[str, Any]:
         return self._db.entities.workspace_ontology(top_n=top_n, scope=scope)
