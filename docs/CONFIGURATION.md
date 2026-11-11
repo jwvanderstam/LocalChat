@@ -441,7 +441,7 @@ to empty, in which case the router falls back to the active model.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `APP_VERSION` | `3.5.0` | Reported as `system.app_version` by `GET /api/settings/stats` (admin). See the note below |
+| `APP_VERSION` | `3.6.0` | Reported as `system.app_version` by `GET /api/settings/stats` (admin). See the note below |
 | `STATE_FILE` | `app_state.json` (host-run); `/app/data/app_state.json` (image) | Where the settings page persists the active model and RAG parameters. In compose it lives on the `app_data` volume |
 | `MAX_CONTENT_LENGTH` | `16777216` | Upload ceiling in bytes (16 MB), enforced while the upload streams to disk |
 | `UVICORN_WORKERS` | `1` | Worker processes. **Only `1` is supported** — the app refuses to boot otherwise |
@@ -494,5 +494,5 @@ to empty, in which case the router falls back to the active model.
 > **That is not hypothetical — it is what happened.** Until 2026-08-31 the three read
 > `1.0.0`, `0.5.0` and `1.0.0` against a `v3.0.0-beta.1` tag: a containerised deployment
 > reported **0.5.0**, a host-run one **1.0.0**, and neither was the version being run.
-> All three now read `3.5.0`, and `tests/unit/test_app_version_is_consistent.py` fails if
+> All three now read `3.6.0`, and `tests/unit/test_app_version_is_consistent.py` fails if
 > they diverge again — the drift was silent precisely because no check compared them.

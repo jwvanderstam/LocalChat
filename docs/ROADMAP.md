@@ -1915,7 +1915,7 @@ start **before** QP-4's first PR.
 > not on the strict mypy list. They were typed and added on 2026-10-31, with a test that
 > keeps every service and repository on it.
 
-#### QP-10 — The review's open findings ⬜ (after v3.4.0)
+#### QP-10 — The review's open findings ✅ (done 2026-11-11, released as v3.6.0)
 
 From `SECURITY.md`'s QP-9 register, in this order:
 
@@ -2055,7 +2055,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 24 | GKB-3 (chat reads the global tier) ✅ #467 + QP-3 (ratchets, ADR-7, PC-4) ✅ #468 + QP-6 (honest coverage, 85.68%) ✅ #469 + QP-7 e2e, 8 paths ✅ | ~1 week (weeks 3-4) |
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
-| 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 (R-8 ✅ #521) and QP-11 ✅ #523 | ~1 week |
+| 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 

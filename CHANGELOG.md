@@ -8,9 +8,22 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ## [Unreleased]
 
-**Upgrading.** A deployment that uses the cloud fallback must set `CLOUD_BASE_URL` (for
-OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD_MODEL`.
-`CLOUD_PROVIDER` is no longer read. No migrations.
+## [3.6.0] — 2026-11-11
+
+The release of the QP-9 review's open findings (QP-10): R-8 to R-12 and item 13 are fixed,
+along with four found by the separate reviews of those fixes. It also replaces `litellm`
+with a direct OpenAI-compatible client (QP-11, ADR-4). A minor rather than a patch, because
+`main` carries that feature; see `CONTRIBUTING.md`.
+
+**Upgrading from 3.5.0.**
+
+- A deployment that uses the cloud fallback must set `CLOUD_BASE_URL` (for OpenAI,
+  `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD_MODEL`.
+  `CLOUD_PROVIDER` is no longer read.
+- Migration 0024 (additive: `users.tokens_valid_after`) applies at startup.
+- The image keeps the settings page's values and fine-tuned rerankers on a new `app_data`
+  volume. Values held in the old container are not carried over, so set them once more
+  after the upgrade (see Changed).
 
 ### Security
 
@@ -36,6 +49,14 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   a chat narrowed to some documents searched the whole workspace whenever the planner
   judged a question multi-hop (ADR-6 recorded it). Its citations also lacked the tier, so
   a global contribution was cited as a workspace document. Workspace isolation itself held.
+- **A global contribution is never mistaken for a document without a workspace.** Both have
+  no `workspace_id`, so an upload naming no workspace, an admin's workspace-less connector,
+  or the re-ingest worker could update a contribution in place, and every workspace reads
+  the tier. The worker also picked contributions as stale and tried to re-read a source
+  file they do not have. Found by the separate review of #528.
+- **A workspace's ontology counts only its live documents.** `workspace_ontology` counted
+  the entities of retired documents, and of chunks a re-ingest had retired. Found by the
+  separate review of #527.
 
 ### Changed
 
@@ -69,20 +90,6 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   a 500. Each body is now a Pydantic model, refused with a 400 naming the field. The rule
   also counted deactivated admins, so the last active one could be deactivated while a
   deactivated one existed; it now counts active admins.
-
-### Fixed
-
-- **A global contribution is never mistaken for a document without a workspace.** Both have
-  no `workspace_id`, so an upload naming no workspace, an admin's workspace-less connector,
-  or the re-ingest worker could update a contribution in place, and every workspace reads
-  the tier. The worker also picked contributions as stale and tried to re-read a source
-  file they do not have. Found by the separate review of #528.
-
-### Fixed
-
-- **A workspace's ontology counts only its live documents.** `workspace_ontology` counted
-  the entities of retired documents, and of chunks a re-ingest had retired. Found by the
-  separate review of #527.
 
 ## [3.5.0] — 2026-10-31
 
