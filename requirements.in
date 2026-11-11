@@ -41,7 +41,7 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Web Framework — FastAPI (ASGI)
-fastapi==0.161.1
+fastapi==0.162.0
 uvicorn[standard]==0.54.0
 httpx==0.28.1          # async inference + sync admin/embedding client
 
@@ -55,15 +55,15 @@ PyJWT==2.15.1                       # JWT — HS256 over hashlib; pure Python, n
 slowapi==0.1.10                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector
-psycopg[binary]==3.3.6
+psycopg[binary]==3.3.8
 psycopg-pool==3.3.3
 
 # Database migrations
 alembic==1.20.1
-sqlalchemy==2.1.6  # required by alembic; postgresql+psycopg dialect for psycopg3
+sqlalchemy==2.1.8  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
-pydantic==2.14.1
+pydantic==2.14.3
 email-validator==2.3.0
 
 # Document Processing
@@ -73,20 +73,20 @@ pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this versi
 # Layout-aware PDF extraction for column-heavy documents (optional). Since 2.0 the
 # pymupdf4llm module ships inside pymupdf; the pymupdf4llm 2.0 package is an empty
 # shim, and pinning it alone dropped the extractor while every check stayed green.
-pymupdf==2.0
+pymupdf==2.1
 # Transitive via pymupdf-layout, pinned deliberately: 1.29.0 segfaults on import
 # under the hardened runtime base (exit 139, no traceback). 1.28.0 ran clean;
 # 1.30.0 boots (docker-smoke green on #371, 2026-09-14), and so does 1.31.0 (#442,
 # 2026-10-17). Keep 1.29.x out. The
 # docker-smoke job is what catches a regression here — pip install will not.
-onnxruntime==1.31.0
+onnxruntime==1.31.1
 langdetect==1.0.9      # Language detection for multilingual document support
 python-docx==1.2.0
 python-pptx==1.0.2
 reportlab==5.1.0             # PDF export for conversation download (optional)
 openpyxl==3.1.5         # Excel (.xlsx) ingestion
 h11==0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
-spacy==3.8.16      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
+spacy==3.8.18      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
 cryptography==50.0.2
@@ -95,7 +95,7 @@ sentence-transformers==6.2.0
 
 # HTTP Requests
 requests==2.34.2
-ddgs==9.16.0
+ddgs==9.16.1
 
 # Hardware detection — CPU RAM probing for model-fit budget (src/gpu/backends.py)
 psutil==7.2.2
@@ -104,10 +104,10 @@ psutil==7.2.2
 numpy==2.5.4
 
 # Multipart form handling
-python-multipart==0.0.32
+python-multipart==0.0.33
 
 # Markdown rendering
-markdown==3.11.2
+markdown==3.11.3
 
 # Environment configuration
 python-dotenv==1.2.4
