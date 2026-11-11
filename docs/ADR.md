@@ -443,13 +443,14 @@ settles it.
 - Merging an orchestration experiment to the default path on a qualitative impression.
 
 **Consequences to execute.** These make the code agree with the decision; none needs P2-3.
-- ⬜ **Multi-hop retrieval drops the caller's scoping** (a live defect, found while writing
-  this record). `get_rag_context_multi_hop` takes neither `source_ids` nor
-  `additional_workspace_ids`, so a user who narrowed the chat to specific sources and asks a
-  ≥ 7-word question the planner judges multi-hop gets retrieval across the whole workspace,
-  and a request spanning additional workspaces silently loses them. Workspace isolation
-  itself holds; `workspace_id` is still passed. Fix first: it is a correctness bug on the
-  default path, independent of everything else here.
+- ✅ (2026-11-11) **Multi-hop retrieval dropped the caller's scoping** (a live defect, found
+  while writing this record). `get_rag_context_multi_hop` took neither `source_ids` nor
+  `additional_workspace_ids`, so a user who narrowed the chat to specific sources and asked
+  a ≥ 7-word question the planner judged multi-hop got retrieval across the whole
+  workspace, and a request spanning additional workspaces silently lost them. Workspace
+  isolation itself held; `workspace_id` was still passed. Fixed: every sub-question now gets
+  both, and its citations carry `knowledge_tier` and `low_relevance` like the single-query
+  path's (`tests/unit/test_multi_hop_keeps_the_request_scope.py`).
 - ⬜ The aggregator path passes `filename_filter=[]` and receives no `source_ids` or
   `additional_workspace_ids` (`services/chat.py`, `retrieve_via_aggregator`). Latent while
   the flag is off; enabling it would change what gets searched. Wire them through or delete

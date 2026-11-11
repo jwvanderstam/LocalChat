@@ -194,19 +194,6 @@ class Retriever:
             best = max(all_results.values(), key=lambda x: x['semantic_score'])
             logger.warning(f"[RAG] Best similarity was {best['semantic_score']:.3f}")
 
-    def _store_query_cache(
-        self,
-        cache: Any,
-        query_clean: str,
-        top_k: int,
-        min_similarity: float,
-        use_hybrid_search: bool,
-        output: list,
-    ) -> None:
-        """Populate the query cache when results are available."""
-        if cache is not None and output:
-            cache.set(query_clean, top_k, min_similarity, use_hybrid_search, output)
-
     def _run_retrieval_pipeline(
         self,
         query_clean: str,
@@ -436,16 +423,7 @@ class Retriever:
             except Exception as graph_exc:  # noqa: BLE001 — GraphRAG expansion is optional; the query proceeds unexpanded
                 logger.debug(f"[GraphRAG] Expansion skipped: {graph_exc}")
 
-        _app_query_cache = self._get_app_cache()
         _app_emb_cache = self._get_app_cache()
-
-        cached_result = (
-            _app_query_cache.get(query_clean, top_k, min_similarity, use_hybrid_search)
-            if _app_query_cache is not None else None
-        )
-        if cached_result is not None:
-            logger.info("[RAG] Query cache hit")
-            return cached_result
 
         embedding_model = self._ollama_client.get_embedding_model()
         if not embedding_model:
@@ -497,7 +475,6 @@ class Retriever:
 
         total_time = time.time() - start_time
         logger.info(f"[RAG] Retrieved {len(output)} chunks in {total_time:.3f}s")
-        self._store_query_cache(_app_query_cache, query_clean, top_k, min_similarity, use_hybrid_search, output)
         return output
 
     def _get_cached_embedding(self, text: str, model: str, app_cache=None) -> list[float] | None:

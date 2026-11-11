@@ -252,3 +252,12 @@ def test_the_workspace_list_tags_what_it_shares_until_it_is_withdrawn(
     assert tags(workspaces["b"]) == {"retro.md": False}
     database.contributions.archive(workspaces["a"], admin)
     assert tags(workspaces["a"]) == {"retro.md": False, "draft.md": False}
+
+
+def test_a_contribution_is_not_mistaken_for_a_document_without_a_workspace(database, workspaces, admin):
+    """An upload naming no workspace, or the re-ingest worker, must not update the global tier."""
+    filename = f"gkb-nows-{uuid.uuid4().hex[:8]}.txt"
+    doc = _document(database, workspaces["a"], filename)
+    global_id = database.contributions.contribute(workspaces["a"], [doc], admin)[0]["global_document_id"]
+    stale_ids = {d["id"] for d in database.documents.stale(0, scope=ALL_WORKSPACES)}
+    assert (database.documents.exists(filename, None)[0], global_id in stale_ids) == (False, False)
