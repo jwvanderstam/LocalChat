@@ -123,7 +123,7 @@ class EntitiesRepository:
                 return [r[0] for r in cursor.fetchall()]
 
     def workspace_ontology(self, top_n: int = 20, *, scope: Scope) -> dict[str, Any]:
-        """Return the ontology of *scope*: top entity types and relation patterns."""
+        """Return the ontology of *scope*'s live documents: top entity types and relation patterns."""
         if not self._db.is_connected:
             return {"entity_types": [], "relation_patterns": []}
 
@@ -137,7 +137,8 @@ class EntitiesRepository:
                     SELECT e.type, COUNT(DISTINCT er.source_id) AS entity_count
                     FROM entity_relations er
                     JOIN entities e ON e.id = er.source_id
-                    JOIN documents d ON d.id = er.doc_id
+                    JOIN documents d ON d.id = er.doc_id AND d.deleted_at IS NULL
+                    JOIN document_chunks c ON c.id = er.chunk_id AND c.deleted_at IS NULL
                     WHERE true {ws_filter}
                     GROUP BY e.type
                     ORDER BY entity_count DESC
@@ -155,7 +156,8 @@ class EntitiesRepository:
                     f"""
                     SELECT er.relation, COUNT(*) AS freq
                     FROM entity_relations er
-                    JOIN documents d ON d.id = er.doc_id
+                    JOIN documents d ON d.id = er.doc_id AND d.deleted_at IS NULL
+                    JOIN document_chunks c ON c.id = er.chunk_id AND c.deleted_at IS NULL
                     WHERE true {ws_filter}
                     GROUP BY er.relation
                     ORDER BY freq DESC

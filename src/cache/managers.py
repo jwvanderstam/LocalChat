@@ -37,7 +37,12 @@ class EmbeddingCache:
 
 
 class QueryCache:
-    """Parameter-hashed cache for RAG retrieval results."""
+    """Parameter-hashed cache for RAG retrieval results.
+
+    The key names no workspace, knowledge tier or document filter, so it must never hold
+    a scoped retrieval's results: they would be served to another workspace. Retrieval
+    used to consult it on a path that was never reached, and no longer does.
+    """
 
     def __init__(
         self,
