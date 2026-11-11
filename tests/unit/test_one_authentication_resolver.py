@@ -134,7 +134,7 @@ class TestASessionEndsWithItsAccount:
         with pytest.raises(HTTPException) as exc_info:
             require_auth(_request(_db(role=None)))
         assert (exc_info.value.status_code, exc_info.value.detail) == (
-            401, {"message": "Account is not active"}
+            401, {"message": "Session is no longer valid"}
         )
 
     def test_a_session_route_admits_a_live_user(self):

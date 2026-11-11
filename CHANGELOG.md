@@ -19,6 +19,19 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   proxy server LocalChat never ran, and every fixed version pulls `boto3` into the image.
   The `pip-audit` suppression for it is removed; `SECURITY.md` item 12 is resolved.
 - **The image's code is no longer writable by the process that runs it (R-11).** The source and the virtual environment were owned by uid 65532, so code execution in the app could persist by rewriting a module. Both now belong to root. The runtime user writes only `/app/logs`, `/app/uploads` and a new `/app/data`.
+- **Retrieval no longer consults the query cache.** Its key names no workspace, knowledge
+  tier or document filter, so a hit would have served one workspace's results to another.
+  The path was never reached (`_get_app_cache()` returns `None`), which is why it is
+  removed rather than fixed: re-enabling it would have reopened the leak. Found by the
+  separate review of #527.
+
+### Fixed
+
+- **A question the planner splits keeps the chat's restrictions.** Multi-hop retrieval
+  passed neither the chosen sources nor the additional workspaces to its sub-questions, so
+  a chat narrowed to some documents searched the whole workspace whenever the planner
+  judged a question multi-hop (ADR-6 recorded it). Its citations also lacked the tier, so
+  a global contribution was cited as a workspace document. Workspace isolation itself held.
 
 ### Changed
 
@@ -30,6 +43,27 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   not OpenAI-shaped (Anthropic's native API, Vertex) is no longer reachable, as ADR-4
   accepted.
 - **Settings and fine-tuned rerankers live in `/app/data`, on a new `app_data` volume.** `STATE_FILE` (new, default `app_state.json`) and `RERANKER_MODEL_PATH` point there in the image, and a fine-tune now writes its versions beside `RERANKER_MODEL_PATH` instead of a fixed `./models/reranker`. The active model and RAG parameters therefore survive a container recreation, which they never did. **Upgrading:** the settings page's values held in the old container are not carried over; set them once more after the upgrade. A fine-tuned reranker in the old container's `/app/models` is likewise left behind and falls back to the base model until retrained; promoting or rolling back to a version trained there is refused rather than marked active. Host runs are unchanged.
+- **A password change ends the account's other sessions (`SECURITY.md` item 13).** A
+  session opened before the change, on another device or by whoever knew the old password,
+  kept working until its token expired. Changing your own password, or an admin resetting
+  it, now refuses every token issued before the change; the user who changed it gets a new
+  session in the same response. A refused session answers 401 "Session is no longer
+  valid", which is also what a deactivated or retired account now gets (it was "Account is
+  not active"). Migration 0024 adds `users.tokens_valid_after`.
+
+### Fixed
+
+- **A global contribution is never mistaken for a document without a workspace.** Both have
+  no `workspace_id`, so an upload naming no workspace, an admin's workspace-less connector,
+  or the re-ingest worker could update a contribution in place, and every workspace reads
+  the tier. The worker also picked contributions as stale and tried to re-read a source
+  file they do not have. Found by the separate review of #528.
+
+### Fixed
+
+- **A workspace's ontology counts only its live documents.** `workspace_ontology` counted
+  the entities of retired documents, and of chunks a re-ingest had retired. Found by the
+  separate review of #527.
 
 ## [3.5.0] — 2026-10-31
 

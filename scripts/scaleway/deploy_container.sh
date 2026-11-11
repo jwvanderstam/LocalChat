@@ -19,7 +19,7 @@
 #
 # Usage:
 #   bash scripts/scaleway/deploy_container.sh
-#   DEPLOY_IMAGE_TAG=3.0.1 bash scripts/scaleway/deploy_container.sh
+#   DEPLOY_IMAGE_TAG=sha-<commit> bash scripts/scaleway/deploy_container.sh   # default: this checkout's APP_VERSION
 #
 # Reads the database credential written by provision.sh, and generates the
 # application secrets on first run into a second 600-mode file outside the repo.
@@ -35,7 +35,11 @@ note() { printf '  %s\n' "$*"; }
 DEPLOY_PROJECT_NAME="${DEPLOY_PROJECT_NAME:-localchat-test}"
 DEPLOY_NAMESPACE="${DEPLOY_NAMESPACE:-localchat}"
 DEPLOY_CONTAINER="${DEPLOY_CONTAINER:-localchat}"
-DEPLOY_IMAGE_TAG="${DEPLOY_IMAGE_TAG:-3.0.0}"
+# The release this checkout declares. A literal here was left at 3.0.0 for six releases.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CHECKOUT_VERSION="$(sed -n "s/^APP_VERSION: str = os.environ.get('APP_VERSION', '\([^']*\)').*/\1/p" "$REPO_ROOT/src/config.py")"
+[[ -n "$CHECKOUT_VERSION" ]] || die "src/config.py no longer declares APP_VERSION the way this script reads it"
+DEPLOY_IMAGE_TAG="${DEPLOY_IMAGE_TAG:-$CHECKOUT_VERSION}"
 DEPLOY_IMAGE="${DEPLOY_IMAGE:-ghcr.io/jwvanderstam/localchat:$DEPLOY_IMAGE_TAG}"
 DEPLOY_REGION="${DEPLOY_REGION:-fr-par}"
 DEPLOY_MEMORY="${DEPLOY_MEMORY:-3GB}"
