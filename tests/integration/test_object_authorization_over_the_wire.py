@@ -633,11 +633,12 @@ class TestThePublicWebhookReceiver:
 
     _PATH = "/api/connectors/{connector_id}/webhook"
 
-    def test_an_unknown_connector_is_not_found(self, provisioned: dict[str, Any]) -> None:
+    def test_an_unknown_connector_reads_like_a_wrong_secret(self, provisioned: dict[str, Any]) -> None:
+        """A 404 here told an anonymous caller which connector ids exist."""
         response = provisioned["caller"].post(
             self._PATH.replace("{connector_id}", _DUMMY_GLOBAL_ID), json={}, timeout=15.0
         )
-        assert response.status_code == 404, response.text[:300]
+        assert response.status_code == 403, response.text[:300]
 
     def test_a_delivery_without_the_secret_is_refused(self, provisioned: dict[str, Any]) -> None:
         """No `X-LocalChat-Secret`, so `compare_digest` fails and the delivery is refused."""

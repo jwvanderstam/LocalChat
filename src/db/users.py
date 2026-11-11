@@ -180,6 +180,20 @@ class UsersRepository:
                     raise AssertionError("SELECT COUNT(*) always returns a row")
                 return int(row[0])
 
+    def count_active_admins(self) -> int:
+        """Number of live, active users holding the global admin role."""
+        if not self._db.is_connected:
+            return 0
+        with self._db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active AND deleted_at IS NULL"
+                )
+                row = cur.fetchone()
+                if row is None:
+                    raise AssertionError("SELECT COUNT(*) always returns a row")
+                return int(row[0])
+
     def update(self, user_id: str, **fields: Any) -> bool:
         """Set the given columns. Returns True if a row was changed.
 

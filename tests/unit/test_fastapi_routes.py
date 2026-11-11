@@ -81,7 +81,7 @@ class TestAuthRoutes:
 
         state = _base_state()
         state.db.users.retire.return_value = False
-        state.db.users.count_live_admins.return_value = 2
+        state.db.users.count_active_admins.return_value = 2
         client = _make_client(router, "/api", state)
         resp = client.delete("/api/users/missing-id")
         assert resp.status_code == 404

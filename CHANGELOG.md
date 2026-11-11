@@ -4,7 +4,7 @@ Notable changes to LocalChat. Format follows [Keep a Changelog](https://keepacha
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file starts at v3.0.0-beta.1. Earlier work is in the commit history and, with the
-reasoning attached, in [docs/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md).
+reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LEARNED.md).
 
 ## [Unreleased]
 
@@ -18,6 +18,10 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
 - **`litellm` is gone from the image (QP-11, ADR-4).** It carried CVE-2026-114612, in a
   proxy server LocalChat never ran, and every fixed version pulls `boto3` into the image.
   The `pip-audit` suppression for it is removed; `SECURITY.md` item 12 is resolved.
+- **The public webhook receiver no longer reveals which connector ids exist.** It answered
+  404 for an unknown id and 400 for a connector of another type before checking the secret,
+  so an anonymous caller could probe for ids and for which were webhooks. Every refusal
+  before the secret is proven is now the same 403. Found by the separate review of #528.
 - **Retrieval no longer consults the query cache.** Its key names no workspace, knowledge
   tier or document filter, so a hit would have served one workspace's results to another.
   The path was never reached (`_get_app_cache()` returns `None`), which is why it is
@@ -47,6 +51,7 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   before it, and the only active admin could be purged. Each purge now locks the row and
   refuses unless it is retired: a live row is a 409, a missing one a 404 (a missing
   document used to report success, a missing connector a 409 about synced documents).
+- **GraphRAG's query expansion reads only the caller's workspace (R-12).** Entities are shared across workspaces, so with `GRAPH_RAG_ENABLED` on, the 1-hop lookup added names that co-occurred in any workspace's documents, retired ones included, to the caller's query. A co-occurrence now counts only through a live document of the scope. GraphRAG is off by default.
 - **A password change ends the account's other sessions (`SECURITY.md` item 13).** A
   session opened before the change, on another device or by whoever knew the old password,
   kept working until its token expired. Changing your own password, or an admin resetting
@@ -54,6 +59,13 @@ OpenAI, `https://api.openai.com/v1`) and drop any `provider/` prefix from `CLOUD
   session in the same response. A refused session answers 401 "Session is no longer
   valid", which is also what a deactivated or retired account now gets (it was "Account is
   not active"). Migration 0024 adds `users.tokens_valid_after`.
+- **The admin user routes validate what they are sent (R-10).** Creating, updating and
+  granting took the request body as a raw dict. An update wrote any `role` string, and
+  `"is_active": "false"` passed the last-admin rule as a string and was stored as false,
+  which could deactivate the last administrator. A non-string username or workspace id was
+  a 500. Each body is now a Pydantic model, refused with a 400 naming the field. The rule
+  also counted deactivated admins, so the last active one could be deactivated while a
+  deactivated one existed; it now counts active admins.
 
 ### Fixed
 

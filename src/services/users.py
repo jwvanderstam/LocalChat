@@ -172,7 +172,7 @@ class UsersService:
         return WorkspacesService(self._db).remove_member(workspace_id, user_id)
 
     def _would_remove_last_admin(self, user_id: str) -> bool:
-        """True when this user is the only remaining live admin.
+        """True when this user is the only remaining active admin.
 
         Enforced here rather than in the UI: a greyed-out button is a courtesy, not
         a precondition. Without this the API happily leaves an installation with no
@@ -180,9 +180,11 @@ class UsersService:
         the database directly.
         """
         user = self._db.users.get_by_id(user_id)
-        if not user or user.get("role") != "admin":
+        # A deactivated admin manages nothing, so neither counts toward the rule nor is
+        # held by it; counting them let the last active admin be deactivated (R-10).
+        if not user or user.get("role") != "admin" or user.get("is_active") is False:
             return False
-        return self._db.users.count_live_admins() <= 1
+        return self._db.users.count_active_admins() <= 1
 
 
 def _public(user: dict[str, Any]) -> dict[str, Any]:
