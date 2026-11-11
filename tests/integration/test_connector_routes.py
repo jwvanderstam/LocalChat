@@ -315,15 +315,18 @@ class TestWebhookReceiver:
         assert resp.status_code == 403
         assert not app.state.connector_registry.get.called
 
-    def test_wrong_connector_type_returns_400(self, client, app):
-        app.state.db.connectors.get = MagicMock(return_value=_connector(connector_type="local_folder"))
-        resp = client.post("/api/connectors/conn-1/webhook", json={})
-        assert resp.status_code == 400
-
-    def test_connector_not_found_returns_404(self, client, app):
-        app.state.db.connectors.get = MagicMock(return_value=None)
-        resp = client.post("/api/connectors/missing/webhook", json={})
-        assert resp.status_code == 404
+    @pytest.mark.parametrize("found", [None, "local_folder", "wrong-secret"])
+    def test_every_refusal_before_the_secret_reads_the_same(self, client, app, found):
+        """A missing connector, another type, and a wrong secret are indistinguishable, so an
+        anonymous caller learns neither which ids exist nor which are webhooks."""
+        connector = None if found is None else _connector(
+            connector_type="webhook" if found == "wrong-secret" else found)
+        if connector is not None:
+            connector["config"] = {"secret": "correct-secret"}
+        app.state.db.connectors.get = MagicMock(return_value=connector)
+        resp = client.post("/api/connectors/conn-1/webhook", json={},
+                           headers={"X-LocalChat-Secret": "wrong-secret"})
+        assert (resp.status_code, resp.json()) == (403, {"success": False, "message": "Forbidden"})
 
     def test_invalid_payload_returns_400(self, client, app):
         app.state.db.connectors.get = MagicMock(return_value=_webhook_connector())
