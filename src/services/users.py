@@ -10,7 +10,7 @@ that must prove the current password.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from ..security_fastapi import verify_credentials_db
@@ -23,6 +23,20 @@ if TYPE_CHECKING:
     from ..db import Database
 
 logger = get_logger(__name__)
+
+
+def _new_password(password: str) -> dict[str, Any]:
+    """The columns a password change sets: the hash, and the end of every session before it.
+
+    Truncated to the second because a token's ``iat`` is whole seconds: a token issued
+    in the same second as the change, after it, must still pass. A token issued in that
+    second before it passes too, which is the one-second window this leaves open.
+    """
+    return {
+        "hashed_password": hash_user_password(password),
+        "tokens_valid_after": datetime.now(UTC).replace(microsecond=0),
+    }
+
 
 class LastAdminError(ServiceError):
     """The change would leave the installation with no live admin.
@@ -66,7 +80,11 @@ class UsersService:
         return (user.get("role") if user else None), workspace_role
 
     def change_own_password(self, user_id: str, current_password: str, new_password: str) -> None:
-        """Replace *user_id*'s password after proving they know the current one."""
+        """Replace *user_id*'s password after proving they know the current one.
+
+        Ends every session issued before the change, the caller's own included; the
+        route gives the caller a new one.
+        """
         user = self._db.users.get_by_id(user_id) if _is_uuid(user_id) else None
         if user is None:
             # The env-var bootstrap admin signs in as "admin", with no user row, so it has
@@ -78,7 +96,7 @@ class UsersService:
         # the frontend treat a typo as an expired session and send the user to the login page.
         if not verify_user_password(self._db.users, user["username"], current_password):
             raise ServiceError(400, "Current password is incorrect")
-        if not self._db.users.update(user_id, hashed_password=hash_user_password(new_password)):
+        if not self._db.users.update(user_id, **_new_password(new_password)):
             raise ServiceError(409, "The account changed while updating; try again")
         logger.info("[Auth] User %s changed their own password", user_id)
 
@@ -119,10 +137,11 @@ class UsersService:
         return _public(user) if user else None
 
     def update_user(self, user_id: str, fields: dict[str, Any], password: str | None) -> dict[str, Any] | None:
-        """Apply *fields* (and a new *password*); None when there is no such user."""
+        """Apply *fields* (and a new *password*, which ends the user's sessions); None when
+        there is no such user."""
         changes = dict(fields)
         if password is not None:
-            changes["hashed_password"] = hash_user_password(password)
+            changes.update(_new_password(password))
         # Demoting or deactivating the last admin locks everyone out of user,
         # model and settings management.
         demotes = changes.get("role") not in (None, "admin")

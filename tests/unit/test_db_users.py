@@ -19,6 +19,7 @@ Covers:
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -150,6 +151,9 @@ class TestGetUserByUsername:
         assert params[0] == "alice"
 
 
+ISSUED = datetime(2026, 11, 8, 12, 0, tzinfo=UTC)
+
+
 class TestGetUserRole:
     """The admin guard runs this on every admin request (QA-1).
 
@@ -159,36 +163,42 @@ class TestGetUserRole:
 
     def test_returns_the_role_of_a_live_user(self):
         m, _, _ = _users_mixin(fetchone_return=("admin",))
-        assert m.get_role("some-id") == "admin"
+        assert m.get_role("some-id", issued_at=ISSUED) == "admin"
 
     def test_returns_none_when_there_is_no_such_user(self):
         """A retired account resolves here, and None means "not an administrator"."""
         m, _, _ = _users_mixin(fetchone_return=None)
-        assert m.get_role("missing-id") is None
+        assert m.get_role("missing-id", issued_at=ISSUED) is None
 
     def test_returns_none_when_the_database_is_unavailable(self):
         """The caller fails closed on None; it must not raise into the guard."""
         m, _, _ = _users_mixin(connected=False)
-        assert m.get_role("some-id") is None
+        assert m.get_role("some-id", issued_at=ISSUED) is None
 
     def test_the_query_filters_soft_deleted_rows(self):
         """Without this a retired administrator keeps their access."""
         m, _, cur = _users_mixin(fetchone_return=None)
-        m.get_role("some-id")
+        m.get_role("some-id", issued_at=ISSUED)
         assert "deleted_at IS NULL" in cur.execute.call_args[0][0]
 
     def test_the_query_reads_only_the_role_column(self):
         """The point of the method: not the hash, not the whole row."""
         m, _, cur = _users_mixin(fetchone_return=("user",))
-        m.get_role("some-id")
+        m.get_role("some-id", issued_at=ISSUED)
         query = cur.execute.call_args[0][0]
         assert "SELECT role FROM users" in query
         assert "hashed_password" not in query
 
     def test_the_user_id_is_a_bound_parameter(self):
         m, _, cur = _users_mixin(fetchone_return=("user",))
-        m.get_role("abc-123")
-        assert cur.execute.call_args[0][1] == ("abc-123",)
+        m.get_role("abc-123", issued_at=ISSUED)
+        assert cur.execute.call_args[0][1] == ("abc-123", ISSUED)
+
+    def test_the_query_refuses_a_token_issued_before_the_last_password_change(self):
+        """SECURITY.md item 13: the issue time is compared, and a NULL admits every token."""
+        m, _, cur = _users_mixin(fetchone_return=None)
+        m.get_role("some-id", issued_at=ISSUED)
+        assert "(tokens_valid_after IS NULL OR tokens_valid_after <= %s)" in cur.execute.call_args[0][0]
 
 
 class TestGetUserById:
