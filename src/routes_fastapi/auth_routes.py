@@ -10,7 +10,13 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .. import config
-from ..models import ChangePasswordRequest, LoginRequest
+from ..models import (
+    ChangePasswordRequest,
+    CreateUserRequest,
+    GrantWorkspaceRequest,
+    LoginRequest,
+    UpdateUserRequest,
+)
 from ..security_fastapi import (
     SESSION_COOKIE,
     AuthError,
@@ -41,9 +47,29 @@ _PASSWORD_RULES = (
 _PASSWORD_TOO_SHORT = f"password must be at least {config.USER_PASSWORD_MIN_LENGTH} characters"
 
 
-def _is_acceptable_password(value: Any) -> bool:
-    """The one rule every way of setting a password applies (audit S7)."""
-    return isinstance(value, str) and len(value) >= config.USER_PASSWORD_MIN_LENGTH
+_USER_FIELDS = {
+    "username": "username is required",
+    "password": _PASSWORD_TOO_SHORT,
+    "email": "email must be a string",
+    "role": "role must be 'admin' or 'user'",
+    "is_active": "is_active must be true or false",
+    "workspace_id": "workspace_id must be a string",
+    "workspace_role": "workspace_role must be viewer, editor or owner",
+}
+_GRANT_FIELDS = {
+    "workspace_id": "workspace_id is required",
+    "role": "role must be viewer, editor or owner",
+}
+
+
+def _invalid(exc: ValidationError | TypeError, messages: dict[str, str]) -> JSONResponse:
+    """A 400 naming the first field refused, in the route's own words (R-10)."""
+    message = "Invalid request"
+    if isinstance(exc, ValidationError):
+        error = exc.errors()[0]
+        field = str(error["loc"][0]) if error["loc"] else ""
+        message = messages.get(field, str(error["msg"]).removeprefix("Value error, "))
+    return JSONResponse({"success": False, "message": message}, status_code=400)
 
 
 def _refused(exc: ServiceError) -> JSONResponse:
@@ -115,34 +141,15 @@ async def create_user(
     request: Request, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]
 ) -> Any:
     data = await request.json() if await request.body() else {}
-    username = (data.get("username") or "").strip()
-    # Never stripped: login, password change and reset take the password as typed,
-    # so a stripped one here is a password its owner cannot sign in with (defect 2).
-    password = data.get("password") or ""
-    email = (data.get("email") or "").strip() or None
-    role = data.get("role", "user")
-
-    if not username:
-        return JSONResponse({"success": False, "message": "username is required"}, status_code=400)
-    if not password:
-        return JSONResponse({"success": False, "message": "password is required"}, status_code=400)
-    if not _is_acceptable_password(password):
-        return JSONResponse({"success": False, "message": _PASSWORD_TOO_SHORT}, status_code=400)
-    if role not in ("admin", "user"):
-        return JSONResponse({"success": False, "message": "role must be 'admin' or 'user'"}, status_code=400)
-
-    # Membership is granted in the same request, not as a follow-up call; see
-    # UsersService.create_user for why.
-    workspace_id = (data.get("workspace_id") or "").strip() or None
-    workspace_role = data.get("workspace_role", "editor")
-    if workspace_role not in ("viewer", "editor", "owner"):
-        return JSONResponse(
-            {"success": False, "message": "workspace_role must be viewer, editor or owner"},
-            status_code=400,
-        )
+    try:
+        body = CreateUserRequest(**data)
+    except (ValidationError, TypeError) as exc:
+        return _invalid(exc, _USER_FIELDS)
 
     try:
-        user = users.create_user(username, password, email, role, workspace_id, workspace_role)
+        user = users.create_user(
+            body.username, body.password, body.email, body.role, body.workspace_id, body.workspace_role
+        )
         return JSONResponse({"success": True, "user": user}, status_code=201)
     except ServiceError as exc:
         return _refused(exc)
@@ -219,14 +226,12 @@ async def grant_user_workspace(
 ) -> Any:
     """Grant or change this user's role in a workspace."""
     data = await request.json() if await request.body() else {}
-    workspace_id = (data.get("workspace_id") or "").strip()
-    role = data.get("role", "editor")
-    if not workspace_id:
-        return JSONResponse({"success": False, "message": "workspace_id is required"}, status_code=400)
-    if role not in ("viewer", "editor", "owner"):
-        return JSONResponse({"success": False, "message": "role must be viewer, editor or owner"}, status_code=400)
     try:
-        users.grant_workspace(user_id, workspace_id, role)
+        body = GrantWorkspaceRequest(**data)
+    except (ValidationError, TypeError) as exc:
+        return _invalid(exc, _GRANT_FIELDS)
+    try:
+        users.grant_workspace(user_id, body.workspace_id, body.role)
         return {"success": True}
     except Exception:
         logger.exception("[Users] grant workspace error")
@@ -269,15 +274,15 @@ async def update_user(
     user_id: str, request: Request, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]
 ) -> Any:
     data = await request.json() if await request.body() else {}
-    allowed = {"email", "role", "is_active"}
-    fields = {k: v for k, v in data.items() if k in allowed}
-    password = data.get("password") if "password" in data else None
-    if "password" in data and not _is_acceptable_password(password):
-        return JSONResponse({"success": False, "message": _PASSWORD_TOO_SHORT}, status_code=400)
-    if not fields and password is None:
+    try:
+        body = UpdateUserRequest(**data)
+    except (ValidationError, TypeError) as exc:
+        return _invalid(exc, _USER_FIELDS)
+    fields = body.model_dump(include=body.model_fields_set - {"password"})
+    if not fields and body.password is None:
         return JSONResponse({"success": False, "message": "No valid fields provided"}, status_code=400)
     try:
-        user = users.update_user(user_id, fields, password)
+        user = users.update_user(user_id, fields, body.password)
         if user is None:
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)
         return {"success": True, "user": user}

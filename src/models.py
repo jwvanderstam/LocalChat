@@ -3,7 +3,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StrictBool,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 
 _MODEL_NAME_EMPTY = 'Model name cannot be empty'
 _MODEL_NAME_INVALID_CHARS = 'Model name contains invalid characters'
@@ -228,6 +235,73 @@ class ChangePasswordRequest(BaseModel):
     # length cap would leak the storage constraint (see LoginRequest).
     current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=config.USER_PASSWORD_MIN_LENGTH)
+
+
+def _blank_is_none(value: str | None) -> str | None:
+    return (value.strip() or None) if value is not None else None
+
+
+class CreateUserRequest(BaseModel):
+    """Body of POST /api/users (admin)."""
+
+    username: StrictStr
+    # Never stripped: login, password change and reset take the password as typed, so a
+    # stripped one here is a password its owner cannot sign in with (defect 2).
+    password: StrictStr = Field(..., min_length=config.USER_PASSWORD_MIN_LENGTH)
+    email: StrictStr | None = None
+    role: Literal["admin", "user"] = "user"
+    # Granted in the same request, not as a follow-up call; see UsersService.create_user.
+    workspace_id: StrictStr | None = None
+    workspace_role: Literal["viewer", "editor", "owner"] = "editor"
+
+    @field_validator("username")
+    @classmethod
+    def username_present(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("username is required")
+        return v.strip()
+
+    @field_validator("email", "workspace_id")
+    @classmethod
+    def blank_is_none(cls, v: str | None) -> str | None:
+        return _blank_is_none(v)
+
+
+class UpdateUserRequest(BaseModel):
+    """Body of PUT /api/users/{id} (admin). Only the fields sent are changed."""
+
+    # Strict, because the last-administrator rule tests ``is_active is False``: a
+    # string "false" passed it and was then stored as false by Postgres (R-10).
+    email: StrictStr | None = None
+    role: Literal["admin", "user"] | None = None
+    is_active: StrictBool | None = None
+    password: StrictStr | None = Field(None, min_length=config.USER_PASSWORD_MIN_LENGTH)
+
+    @field_validator("email")
+    @classmethod
+    def blank_is_none(cls, v: str | None) -> str | None:
+        return _blank_is_none(v)
+
+    @model_validator(mode="after")
+    def only_email_may_be_cleared(self) -> UpdateUserRequest:
+        for name in ("role", "is_active", "password"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+class GrantWorkspaceRequest(BaseModel):
+    """Body of POST /api/users/{id}/workspaces (admin)."""
+
+    workspace_id: StrictStr
+    role: Literal["viewer", "editor", "owner"] = "editor"
+
+    @field_validator("workspace_id")
+    @classmethod
+    def workspace_present(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("workspace_id is required")
+        return v.strip()
 
 
 class LoginRequest(BaseModel):

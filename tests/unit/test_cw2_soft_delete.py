@@ -60,7 +60,7 @@ class TestDeleteAllConversations:
 
 def _not_the_last_admin(app, monkeypatch):
     """The caller's row reads as an admin, so the last-admin rule asks how many there are."""
-    monkeypatch.setattr(app.state.db.users, "count_live_admins", MagicMock(return_value=2))
+    monkeypatch.setattr(app.state.db.users, "count_active_admins", MagicMock(return_value=2))
 
 
 class TestDeleteUser:

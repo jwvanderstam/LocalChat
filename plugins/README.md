@@ -1,6 +1,6 @@
 # LocalChat Plugin System
 
-> Verified against `src/tools/` and `src/app_bootstrap.py` at `d0a43d4` on 2026-10-06. This
+> Verified against `src/tools/` and `src/app_bootstrap.py` at `a04da4d` on 2026-11-10. This
 > is the plugin mechanism that ships; the contract in `.claude/rules/plugins.md` is the
 > designed, unbuilt target.
 
