@@ -19,6 +19,7 @@ from ..security_fastapi import (
     require_auth,
 )
 from ..services import chat
+from ..utils.caller import RequestCaller, bind_request_caller, reset_request_caller
 from ..utils.logging_config import get_logger
 from ..utils.scope import (
     Scope,
@@ -26,7 +27,7 @@ from ..utils.scope import (
     request_scope,
     reset_request_scope,
 )
-from ..utils.workspace import get_scope, get_workspace_id
+from ..utils.workspace import get_caller, get_scope, get_workspace_id
 from ._authz import deny as _deny
 from ._authz import deny_additional as _deny_additional
 from ._services import chat_service
@@ -195,6 +196,7 @@ async def _generate_sse(
     agent_result: Any,
     routed_rationale: str | None,
     workspace_scope: Scope,
+    caller: RequestCaller | None = None,
 ) -> AsyncGenerator[str, None]:
     full_response: list[str] = []
     model_used = "local"
@@ -203,6 +205,9 @@ async def _generate_sse(
     # the request rather than from their arguments. Unbound they refuse, which is
     # the point — an unscoped retrieval used to mean every workspace (audit C3).
     scope_token = bind_request_scope(workspace_scope)
+    # The caller too: a tool below its minimum role is hidden from the model and refused
+    # if called anyway, and a plugin reads who is asking through its identity handle.
+    caller_token = bind_request_caller(caller)
     try:
         if plan is not None:
             yield f"data: {json.dumps({'plan': plan.to_dict()})}\n\n"
@@ -242,6 +247,7 @@ async def _generate_sse(
         logger.exception("[CHAT API] Unexpected error generating response")
         yield f"data: {json.dumps({'error': 'GenerationError', 'message': 'Failed to generate response', 'done': True})}\n\n"
     finally:
+        reset_request_caller(caller_token)
         reset_request_scope(scope_token)  # also ensures cleanup on client disconnect
 
 
@@ -403,7 +409,7 @@ async def api_chat(request: Request, chat_svc: Chat) -> Any:
             _generate_sse(
                 plan, tool_executor, active_model, app_state, messages, fields,
                 sources, cloud_client, conversation_id, agent_result, routed_rationale,
-                scope,
+                scope, get_caller(request),
             ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

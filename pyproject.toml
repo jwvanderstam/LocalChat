@@ -134,6 +134,10 @@ module = [
     "src.services.users",
     "src.services.workspaces",
     "src.routes_fastapi._services",
+    "src.plugins",
+    "src.plugins.manifest",
+    "src.plugins.services",
+    "src.utils.caller",
 ]
 # `strict = true` is global-only; these are the per-module flags it turns on.
 disallow_untyped_defs = true

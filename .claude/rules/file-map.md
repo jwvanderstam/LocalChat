@@ -174,8 +174,12 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/tools/executor.py` | Ollama tool-call loop (multi-turn until final response) |
 | `src/tools/registry.py` | Tool registration with JSON schemas |
 | `src/tools/builtin.py` | Built-in tools: document search, calculator, datetime |
-| `src/tools/plugin_loader.py` | Loads `.py` plugins from `plugins/` at startup |
-| `plugins/example_plugin.py` | Reference plugin demo (`word_count`, `reverse_text` tools) |
+| `src/tools/plugin_loader.py` | Loads `.py` plugins from `plugins/` at startup; one with `setup(services)` gets its manifest validated and its services built, one without loads as legacy. A failing plugin is disabled alone, with any tool it registered removed |
+| `src/plugins/manifest.py` | PC-1 — `read_manifest()`: `PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_HOOKS` (checked against the catalogue), `PLUGIN_CONFIG`; `PLUGIN_CONTRIBUTES` must be False. Raises `ManifestError` |
+| `src/plugins/services.py` | PC-1 — the handles a plugin's `setup()` receives: `retrieval` (the request's workspace only, tier capped by the manifest), `llm.embed`, `config`, `identity` (read only), `tools.register` (refuses a taken name) |
+| `src/plugins/__init__.py` | `build_services()` — types the plugin's settings from `PLUGIN_<PLUGIN>_<KEY>` and assembles its handles |
+| `plugins/example_plugin.py` | Example plugin on the PC-1 contract — `setup(services)`, a manifest and a setting (`word_count`, `reverse_text` tools) |
+| `tests/unit/test_plugin_contract.py` | PC-1 — the manifest (every malformed field refused by name), each handle (retrieval reads the request's workspace and refuses a tier beyond its reach or a key's), the executor hiding and refusing a tool below its role, the loader disabling one plugin alone and removing its half-registered tools, and the guard recording who it admitted |
 | `plugins/README.md` | Plugin authoring guide |
 | **Graph / Memory / Performance** | |
 | `src/graph/store.py` | `GraphStore` ABC + `PostgresGraphStore`, which reaches the entities through `db.entities` |
@@ -242,6 +246,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/unit/test_injection_flags.py` | GR-1c — each kind is found by the text it names and stays quiet on the near-misses business documents carry (`System: 2`, "you are now logged in") |
 | `tests/unit/test_frontend_injection_flag_badge.py` | GR-1c — the Documents page badges a flagged document, names the kinds, and leaves an unflagged or pre-scan one alone |
 | `tests/integration/test_injection_fixtures.py` | GR-1's acceptance — eleven adversarial documents (text, Markdown, Word paragraph and table cell, spreadsheet cells, slide, white-on-white PDF) ingested for real: each flagged with its kind, a control not, the instruction kept inside its fence, nothing reaching memory extraction; PPTX speaker notes asserted not ingested |
+| `src/utils/caller.py` | `RequestCaller` and `ROLE_LEVELS` (viewer < editor < owner < admin) — who the request was authorised as, bound for the chat stream like the scope, so the tool executor can check a tool's minimum role and a plugin's `identity` handle can read it (PC-1) |
 | `src/utils/text.py` | `STOP_WORDS` and `content_terms()` — a question's topic words, any script, operator-free; what the lexical arm searches for, and the stop-word set active learning shares |
 | **Infra / Config** | |
 | `requirements.in` | Runtime dependencies, hand-written — the input `requirements.txt` is compiled from |

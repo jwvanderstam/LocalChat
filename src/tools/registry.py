@@ -46,6 +46,8 @@ class ToolSpec:
     parameters: dict[str, Any]
     handler: Callable[..., Any]
     source: str = "builtin"
+    #: The lowest role that may call it; the executor hides and refuses it below that.
+    min_role: str = "viewer"
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +73,7 @@ class ToolRegistry:
         description: str,
         parameters: dict[str, Any],
         source: str = "builtin",
+        min_role: str = "viewer",
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """
         Decorator that registers a function as a tool.
@@ -80,6 +83,7 @@ class ToolRegistry:
             description: Human-readable description shown to the model.
             parameters: JSON-Schema object describing accepted arguments.
             source: Origin label — ``"builtin"`` or the plugin stem name.
+            min_role: The lowest caller role that may use the tool.
 
         Returns:
             The original function, unmodified.
@@ -94,6 +98,7 @@ class ToolRegistry:
                 parameters=parameters,
                 handler=func,
                 source=source,
+                min_role=min_role,
             )
             logger.debug(f"Registered tool: {name} (source={source!r})")
             return func

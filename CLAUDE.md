@@ -156,7 +156,7 @@ LocalChat supports plugins (LLM tools, connectors, background work) that extend 
 
 The enforcing procedure is a CI job, `core-without-plugins`, that verifies architectural integrity: the core builds, lints, and passes its full test suite **with the `plugins/` directory and all private plugin code absent.** If that job goes red, a plugin dependency has leaked into the core.
 
-> **It exists since 2026-10-23** (PC-4, built with QP-3): it deletes everything in `plugins/` but its README, then runs `ruff` and the fast suite. It has been a required check since 2026-10-30 (see Pull Requests). The rest of the contract — the services catalogue, the hook bus, the manifest, the `_echo` reference plugin — is likewise designed and unbuilt; what actually ships is the simpler tool-plugin loader described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
+> **It exists since 2026-10-23** (PC-4, built with QP-3): it deletes everything in `plugins/` but its README, then runs `ruff` and the fast suite. It has been a required check since 2026-10-30 (see Pull Requests). The manifest and the services catalogue were built on 2026-11-11 (PC-1, `src/plugins/`), with `PLUGIN_MIN_ROLE` enforced by the core; `storage` and `llm.complete` wait for a consumer. The hook bus (PC-2) and the `_echo` reference plugin (PC-3) are designed and unbuilt. What ships is described in [`plugins/README.md`](plugins/README.md). See the status banner in [.claude/rules/plugins.md](.claude/rules/plugins.md).
 
 Full rules -> [.claude/rules/plugins.md](.claude/rules/plugins.md)
 

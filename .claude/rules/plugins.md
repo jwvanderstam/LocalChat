@@ -3,25 +3,20 @@
 How plugins extend LocalChat without destabilising the core. Read alongside the
 "Plugin Contract" section in `CLAUDE.md` — that states the principle; this is the rule.
 
-> ## ⚠ Status: designed, not built (verified 2026-08-27, re-checked 2026-10-06)
->
-> **Everything below describes PC-1..PC-3, which have not been implemented.** They are
-> ROADMAP Sprints 10–11, which now run after the quality plan (Initiative 12) has built the
-> service layer they wrap. PC-4, the `core-without-plugins` job, was built on 2026-10-23
-> (QP-3). Apart from it, none of the following exists in the repository today:
+> ## ⚠ Status: partly built (PC-1 built 2026-11-11; PC-4 2026-10-23)
 >
 > | Described here | Reality |
 > |---|---|
-> | The services catalogue (`retrieval`, `llm`, `storage`, `config`, `identity`) | No service handles; a plugin imports `src.tools.registry` directly |
-> | The hooks catalogue (`on_document_ingested`, `on_scheduler_tick`, …) | No hook bus |
-> | The manifest (`PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_HOOKS`, `PLUGIN_CONFIG`) | `plugin_loader.py` reads none of these; it reads an optional `PLUGIN_META` dict for display only |
-> | `plugins/_echo/` reference plugin | Absent. `plugins/` holds `example_plugin.py` |
+> | The manifest (`PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_HOOKS`, `PLUGIN_CONFIG`) | **Built** (PC-1) in `src/plugins/manifest.py`; a malformed one disables that plugin only |
+> | The services catalogue | **Built** (PC-1) in `src/plugins/services.py`: `retrieval`, `llm` (`embed` only), `config`, `identity`, and `tools` for registering. `storage` and `llm.complete` are deferred until a consumer needs them |
+> | `PLUGIN_MIN_ROLE` | **Enforced by the core** (PC-1): the tool executor hides and refuses a tool below its minimum role |
+> | The hooks catalogue (`on_document_ingested`, `on_scheduler_tick`, …) | No hook bus (PC-2). `PLUGIN_HOOKS` is validated against the names below and fires nothing |
+> | `plugins/_echo/` reference plugin | Absent (PC-3). `plugins/` holds `example_plugin.py`, on the PC-1 contract |
 > | The `core-without-plugins` CI job | **Built** (2026-10-23) in `.github/workflows/tests.yml`; a required check since 2026-10-30 |
 >
-> **What actually ships** is a much smaller thing, and it is documented accurately in
-> [`plugins/README.md`](../../plugins/README.md): drop a `.py` file in `plugins/`, decorate
-> functions with `@tool_registry.register`, and they become LLM-callable tools. That is the
-> live contract. This file is the target.
+> A plugin without `setup(services)` still loads as a *legacy* plugin that imports
+> `src.tools.registry` directly. [`plugins/README.md`](../../plugins/README.md) documents
+> what ships; the sections below are the target, and say where PC-1 departed from it.
 >
 > The document is kept in present tense below because it is a specification, and rewriting a
 > spec into the conditional makes it harder to build against. Read it as "shall", not "does".
@@ -53,11 +48,12 @@ with a stable method surface and never imports the core module behind it.
 
 | Service | Surface the plugin gets | Behind it (plugin never touches) |
 |---------|------------------------|----------------------------------|
-| `retrieval` | `retrieve(query, scope, workspace_id)` -> ranked chunks. `scope` is `local`/`global`/`hybrid`. | `src/rag/retrieval.py`, pgvector, reranker |
-| `llm` | `complete(prompt, ...)`, `embed(text)` | `src/ollama_client.py`, model routing, warm-up |
-| `storage` | A namespaced handle for the plugin's own tables; optional Clark-Wilson soft-delete helpers | `src/db/connection.py` pool, psycopg3 |
-| `config` | Validated access to the plugin's declared keys + defaults | `src/config.py`, `.env` loading |
-| `identity` | `require_role(min_role)` -> ok / 403 | `src/security_fastapi.py`, JWT claims |
+| `retrieval` | `retrieve(query, knowledge_scope, top_k)` -> ranked chunks. `knowledge_scope` is `local`/`global`/`hybrid`, capped by `PLUGIN_SCOPE`; a workspace API key gets `local` only. **No workspace argument:** it searches the workspace the request was authorised for (decided 2026-11-11; the earlier `workspace_id` parameter would have let a plugin choose its target) | `src/rag/retrieval.py`, pgvector, reranker |
+| `llm` | `embed(text)`. `complete(prompt, ...)` is deferred: tools run synchronously inside the chat stream, so a completion from one needs that changed first | `src/ollama_client.py`, model routing, warm-up |
+| `storage` | *Deferred until a consumer needs it (2026-11-11).* A namespaced handle for the plugin's own tables; optional Clark-Wilson soft-delete helpers. Open: who migrates those tables, and whether RLS applies | `src/db/connection.py` pool, psycopg3 |
+| `config` | Validated access to the plugin's declared keys + defaults, from `PLUGIN_<PLUGIN>_<KEY>` | `src/config.py` (`plugin_setting`), `.env` loading |
+| `identity` | `current()` -> the caller, `has_role(min_role)` -> bool. Reads only: `PLUGIN_MIN_ROLE` is enforced by the core before a tool runs | `src/utils/caller.py`, bound from the workspace guard |
+| `tools` | `register(name, description, parameters)`, tagged with the plugin and its minimum role; a taken name is refused | `src/tools/registry.py` |
 
 **Adding a service.** Only when a real consumer needs it, and only with a name that
 describes the capability generically. A `pricing_lookup` service is a leak; a
@@ -84,8 +80,8 @@ Every plugin declares a manifest the core reads at load time. Minimal shape:
 
 ```python
 PLUGIN_SCOPE = "hybrid"        # local | global | hybrid  (retrieval reach)
-PLUGIN_MIN_ROLE = "viewer"     # viewer | user | admin     (who may invoke)
-PLUGIN_CONTRIBUTES = False     # may it write to the Global Knowledge Base?
+PLUGIN_MIN_ROLE = "viewer"     # viewer | editor | owner | admin  (who may invoke)
+PLUGIN_CONTRIBUTES = False     # may it write to the GKB? Must be False: no service writes
 PLUGIN_HOOKS = ["on_document_ingested", "on_scheduler_tick", "on_tool_invocation"]
 PLUGIN_CONFIG = {              # keys the core loads into the config service
     "FEEDBACK_THRESHOLD": ("float", 0.30),

@@ -8,6 +8,25 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ## [Unreleased]
 
+### Added
+
+- **Plugins get a manifest and services (PC-1).** A plugin defines `setup(services)` and
+  registers its tools through `services.tools.register`, importing nothing from `src`. Its
+  manifest declares how far its retrieval reaches (`PLUGIN_SCOPE`), who may use it
+  (`PLUGIN_MIN_ROLE`) and its settings (`PLUGIN_CONFIG`, read from
+  `PLUGIN_<PLUGIN>_<KEY>`). `services.retrieval` searches only the workspace the request was
+  authorised for. The core enforces the minimum role: a tool is not offered to a caller below
+  it, and is refused if the model names it anyway. A malformed manifest disables that plugin
+  alone. **Upgrading:** nothing to do. A plugin without `setup()` still loads as before, now
+  listed as legacy in `/api/plugins` with a warning in the log.
+
+### Fixed
+
+- **A failing plugin no longer leaves tools behind, and a reloaded one can be unloaded.** A
+  plugin that raised after registering a tool kept that tool. A reload recorded none of the
+  plugin's tools, so unloading it afterwards left them registered. And a loader given an
+  empty registry used the global one instead, since an empty registry is falsy.
+
 ## [3.6.0] — 2026-11-11
 
 The release of the QP-9 review's open findings (QP-10): R-8 to R-12 and item 13 are fixed,

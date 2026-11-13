@@ -463,6 +463,7 @@ to empty, in which case the router falls back to the active model.
 > fixes this product at one node and one process; scale with a second node instead.
 | `LOG_FILE` | `logs/app.log` | Path for the file sink |
 | `PLUGINS_DIR` | `plugins` | Directory scanned for plugins |
+| `PLUGIN_<PLUGIN>_<KEY>` | the plugin's declared default | A setting a plugin declares in `PLUGIN_CONFIG`. `<PLUGIN>` is its file name upper-cased, with anything but letters and digits made `_`. Read by `plugin_setting()` in `config.py`; see [plugins/README.md](../plugins/README.md) |
 | `PRESENCE_TTL_SECONDS` | `30` | How long a workspace presence entry stays live |
 | `CONNECTOR_LOCAL_ROOTS` | *(empty)* | Comma-separated absolute directories the `local_folder` connector may watch. **Empty disables that connector type** — see below |
 

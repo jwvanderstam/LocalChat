@@ -594,7 +594,25 @@ The mechanism that lets plugins extend LocalChat without the core ever depending
 
 ---
 
-### PC-1 — Service catalogue and manifest loader
+### PC-1 — Service catalogue and manifest loader ✅ (built 2026-11-11)
+
+> **As built.** Four of the spec's points were decided differently by the maintainer on
+> 2026-11-11, and `.claude/rules/plugins.md` was amended to match:
+> - `retrieval` takes no `workspace_id`. It searches the workspace the request was
+>   authorised for, so a plugin cannot aim a search at one its caller was never admitted to.
+>   The tier is capped by `PLUGIN_SCOPE`, and a workspace API key gets `local` only.
+> - `PLUGIN_MIN_ROLE` is enforced by the core, not by the plugin: the tool executor hides a
+>   tool from the model below its minimum role and refuses it if named anyway. The roles are
+>   the real ones (viewer < editor < owner, then admin); the workspace guard records the
+>   caller's, and the chat route binds it for the stream. `identity` only reads.
+>   `require_workspace_role_dep`, which the spec named, was deleted by QP-1.
+> - `storage` is deferred until a consumer needs it, and so is `llm.complete`: tools run
+>   synchronously inside the chat stream, so a completion from one needs that changed first.
+> - A plugin without `setup(services)` still loads, as *legacy*, so the release stays a minor.
+>
+> The built-in tools stay on the core directly: they are core code, and the contract governs
+> plugins. Building it found two loader bugs, fixed here: an empty registry was swapped for
+> the global one, and a reload recorded no tools, so a later unload left them registered.
 
 **Current foundation (do not rebuild from scratch).** The following already exists and works:
 - `src/tools/registry.py` — `ToolRegistry` with `@register` decorator, JSON-schema export, execute-by-name, `unregister` for hot-reload.
@@ -2038,7 +2056,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | PG-0..PG-8 | **Production-grade hardening** ✅ — see [PRODUCTION_PLAN.md](history/PRODUCTION_PLAN.md). Gated everything below; **gate lifted 2026-08-31**. | done |
 | 8 | GKB-1 (schema + two-tier retrieval) ✅ 2026-10-09 — read-only global tier under RLS (0019) | 1 week |
 | 9 | GKB-2 (contribution workflow) ✓ backend 2026-10-19 (admin-only contribute, migration 0020), UI 2026-10-20 | 1 week |
-| 10 | PC-1 + PC-2 (services, hooks, scheduler) | 1 week |
+| 10 | PC-1 ✅ 2026-11-11 (manifest, services, the core's role gate) + PC-2 (hooks, scheduler) | 1 week |
 | 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
