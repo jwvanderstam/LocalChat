@@ -29,8 +29,9 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ### Security
 
-- **`dnspython` 2.9.2** (CVE-2026-128089). It comes in through `email-validator`; the lock
-  was recompiled for this package only.
+- **`dnspython` 2.9.2** (CVE-2026-128089) and **`opentelemetry-api` 1.45.2**
+  (CVE-2026-126360). Both come in transitively, through `email-validator` and `fastapi`; the lock
+  was recompiled for these two packages only.
 
 ## [3.6.0] — 2026-11-11
 
