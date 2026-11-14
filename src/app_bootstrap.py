@@ -9,7 +9,7 @@ import logging
 import os
 import secrets
 import shutil
-import threading
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -163,7 +163,7 @@ def bootstrap_app(app: Any) -> None:
     _check_graphrag()
     _load_plugins(app)
     _init_connectors(app, db, doc_processor)
-    _init_reranker_scheduler(app, db)
+    _start_scheduler(app, db)
 
     # Cleanup handlers registered last so sync_worker is already set
     _setup_cleanup_handlers(app)
@@ -319,19 +319,35 @@ def _load_plugins(app: Any) -> None:
     app.state.plugin_loader = plugin_loader
 
 
-def _init_reranker_scheduler(app: Any, db: Any) -> None:
-    """Start a weekly background thread for reranker fine-tuning (opt-in)."""
+def _start_scheduler(app: Any, db: Any) -> None:
+    """Start the core scheduler, with the weekly reranker fine-tune as its first subscriber."""
+    from .plugins.hooks import Scheduler, hook_bus
+
+    _subscribe_reranker_finetune(db, hook_bus)
+    scheduler = Scheduler(hook_bus, config.SCHEDULER_TICK_SECONDS)
+    scheduler.start()
+    app.state.scheduler = scheduler
+
+
+_WEEK_SECONDS = 7 * 24 * 3600
+
+
+def _subscribe_reranker_finetune(db: Any, bus: Any) -> None:
+    """Fine-tune the reranker on the first tick a week or more after the last attempt."""
     if not config.RERANKER_ENABLED:
         return
     try:
         import sentence_transformers  # noqa: F401 — check availability
     except ImportError:
-        logger.info("[Reranker] sentence-transformers not installed — scheduler skipped")
+        logger.info("[Reranker] sentence-transformers not installed — weekly fine-tune skipped")
         return
 
-    _WEEK_SECONDS = 7 * 24 * 3600
+    # Monotonic, so a wall-clock change cannot skip a week or run two in a row.
+    due = [time.monotonic() + _WEEK_SECONDS]
 
-    def _weekly_train() -> None:
+    def _weekly_train(_payload: dict[str, object]) -> None:
+        if time.monotonic() < due[0]:
+            return
         try:
             from .rag.feedback_pipeline import (
                 export_training_pairs,
@@ -352,16 +368,11 @@ def _init_reranker_scheduler(app: Any, db: Any) -> None:
         except Exception:
             logger.exception("[Reranker] Weekly fine-tune failed")
         finally:
-            t = threading.Timer(_WEEK_SECONDS, _weekly_train)
-            t.daemon = True
-            t.start()
-            app.state._reranker_timer = t  # type: ignore[attr-defined]
+            # A failed attempt waits a week too, as the timer it replaced did.
+            due[0] = time.monotonic() + _WEEK_SECONDS
 
-    t = threading.Timer(_WEEK_SECONDS, _weekly_train)
-    t.daemon = True
-    t.start()
-    app.state._reranker_timer = t  # type: ignore[attr-defined]
-    logger.info("[Reranker] Weekly fine-tune scheduler started")
+    bus.subscribe("on_scheduler_tick", "core.reranker", _weekly_train)
+    logger.info("[Reranker] Weekly fine-tune subscribed to the scheduler")
 
 
 def _seed_admin_user(db: Any) -> None:
@@ -492,6 +503,9 @@ def _setup_cleanup_handlers(app: Any) -> None:
         # shutdown means writing to a closing stderr.
         from .services.chat import stop_ollama_liveness
         stop_ollama_liveness()
+        scheduler = getattr(app.state, "scheduler", None)
+        if scheduler is not None:
+            scheduler.stop()
         sync_worker = getattr(app.state, "sync_worker", None)
         if sync_worker is not None:
             logger.info("Stopping connector sync worker...")
