@@ -1,9 +1,11 @@
 # Python 3.14 compatibility: Use string annotations to avoid __annotate__ issues
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     Field,
     StrictBool,
@@ -11,6 +13,15 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+
+def _canonical_uuid(value: str) -> str:
+    return str(UUID(value))
+
+
+#: A path id addressing a row keyed by UUID. Refused at the boundary with a 422, as an
+#: ``int`` id already is: unchecked, Postgres refused it and the route answered 500.
+UuidId = Annotated[str, AfterValidator(_canonical_uuid)]
 
 _MODEL_NAME_EMPTY = 'Model name cannot be empty'
 _MODEL_NAME_INVALID_CHARS = 'Model name contains invalid characters'

@@ -22,6 +22,11 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ### Fixed
 
+- **A malformed id is the caller's mistake, not a server error.** A path id that is not a
+  UUID reached Postgres, which refused it, and the route answered 500 on about thirty
+  routes, from users and workspaces to conversations and connectors. Such an id is now a
+  422 before the route runs, as an integer id already was, and a malformed
+  `X-Workspace-ID` is a 400 from the workspace guard.
 - **A failing plugin no longer leaves tools behind, and a reloaded one can be unloaded.** A
   plugin that raised after registering a tool kept that tool. A reload recorded none of the
   plugin's tools, so unloading it afterwards left them registered. And a loader given an

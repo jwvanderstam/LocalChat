@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from ..models import ContributionRequest
+from ..models import ContributionRequest, UuidId
 from ..security_fastapi import require_admin_dep
 from ..services.contributions import ContributionsService
 from ..services.errors import ServiceError
@@ -27,7 +27,7 @@ Contributions = Annotated[ContributionsService, Depends(contributions_service)]
 
 @router.post("/workspaces/{workspace_id}/contribute")
 async def contribute(
-    workspace_id: str,
+    workspace_id: UuidId,
     request: Request,
     contributions: Contributions,
     admin_id: Annotated[str, Depends(require_admin_dep)],
@@ -54,7 +54,7 @@ async def contribute(
 
 
 @router.delete("/workspaces/{workspace_id}/contributions")
-def archive_contributions(workspace_id: str, request: Request, contributions: Contributions) -> Any:
+def archive_contributions(workspace_id: UuidId, request: Request, contributions: Contributions) -> Any:
     # Withdrawing only narrows what every workspace reads, so the owner may do it alone.
     denied = _deny(request, workspace_id, "owner")
     if denied:

@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import config
+from ..models import UuidId
 from ..security_fastapi import (
     check_workspace_access,
     get_current_user_id,
@@ -126,7 +127,7 @@ async def switch_workspace(request: Request, workspaces_svc: Workspaces) -> Any:
 
 
 @router.get("/workspaces/{workspace_id}")
-def get_workspace(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
+def get_workspace(workspace_id: UuidId, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "viewer")
     if denied:
         return denied
@@ -142,7 +143,7 @@ def get_workspace(workspace_id: str, request: Request, workspaces_svc: Workspace
 
 
 @router.put("/workspaces/{workspace_id}")
-async def update_workspace(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
+async def update_workspace(workspace_id: UuidId, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -163,7 +164,7 @@ async def update_workspace(workspace_id: str, request: Request, workspaces_svc: 
 
 @router.delete("/workspaces/{workspace_id}/purge")
 def purge_workspace(
-    workspace_id: str,
+    workspace_id: UuidId,
     workspaces_svc: Workspaces,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
@@ -189,7 +190,7 @@ def purge_workspace(
 
 
 @router.delete("/workspaces/{workspace_id}")
-def delete_workspace(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
+def delete_workspace(workspace_id: UuidId, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -203,7 +204,7 @@ def delete_workspace(workspace_id: str, request: Request, workspaces_svc: Worksp
 
 
 @router.get("/workspaces/{workspace_id}/members")
-def list_workspace_members(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
+def list_workspace_members(workspace_id: UuidId, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "viewer")
     if denied:
         return denied
@@ -216,7 +217,7 @@ def list_workspace_members(workspace_id: str, request: Request, workspaces_svc: 
 
 
 @router.post("/workspaces/{workspace_id}/members")
-async def add_workspace_member(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
+async def add_workspace_member(workspace_id: UuidId, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -237,7 +238,7 @@ async def add_workspace_member(workspace_id: str, request: Request, workspaces_s
 
 @router.put("/workspaces/{workspace_id}/members/{user_id}")
 async def update_workspace_member(
-    workspace_id: str, user_id: str, request: Request, workspaces_svc: Workspaces
+    workspace_id: UuidId, user_id: UuidId, request: Request, workspaces_svc: Workspaces
 ) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
@@ -256,7 +257,7 @@ async def update_workspace_member(
 
 @router.delete("/workspaces/{workspace_id}/members/{user_id}")
 def remove_workspace_member(
-    workspace_id: str, user_id: str, request: Request, workspaces_svc: Workspaces
+    workspace_id: UuidId, user_id: UuidId, request: Request, workspaces_svc: Workspaces
 ) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
@@ -274,7 +275,7 @@ def remove_workspace_member(
 
 
 @router.get("/workspaces/{workspace_id}/presence")
-async def workspace_presence(workspace_id: str, request: Request) -> StreamingResponse:
+async def workspace_presence(workspace_id: UuidId, request: Request) -> StreamingResponse:
     # Raised, not returned: this route's contract is a stream, and refusing before
     # the generator starts keeps the failure a plain 403 rather than an SSE error event.
     denial = check_workspace_access(request, workspace_id, "viewer")
@@ -306,7 +307,7 @@ async def workspace_presence(workspace_id: str, request: Request) -> StreamingRe
 
 @router.get("/workspaces/{workspace_id}/suggestions")
 def workspace_suggestions(
-    workspace_id: str, request: Request, workspaces_svc: Workspaces, top_k: int = 10
+    workspace_id: UuidId, request: Request, workspaces_svc: Workspaces, top_k: int = 10
 ) -> Any:
     denied = _deny(request, workspace_id, "viewer")
     if denied:
@@ -322,7 +323,7 @@ def workspace_suggestions(
 
 @router.get("/workspaces/{workspace_id}/ontology")
 def workspace_ontology(
-    workspace_id: str, request: Request, workspaces_svc: Workspaces, top_n: int = 20
+    workspace_id: UuidId, request: Request, workspaces_svc: Workspaces, top_n: int = 20
 ) -> Any:
     denied = _deny(request, workspace_id, "viewer")
     if denied:
@@ -344,7 +345,7 @@ def workspace_ontology(
 
 
 @router.get("/workspaces/{workspace_id}/keys")
-def list_workspace_keys(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
+def list_workspace_keys(workspace_id: UuidId, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -357,7 +358,7 @@ def list_workspace_keys(workspace_id: str, request: Request, workspaces_svc: Wor
 
 
 @router.post("/workspaces/{workspace_id}/keys", status_code=201)
-async def create_workspace_key(workspace_id: str, request: Request, workspaces_svc: Workspaces) -> Any:
+async def create_workspace_key(workspace_id: UuidId, request: Request, workspaces_svc: Workspaces) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:
         return denied
@@ -385,7 +386,7 @@ async def create_workspace_key(workspace_id: str, request: Request, workspaces_s
 
 @router.delete("/workspaces/{workspace_id}/keys/{key_id}")
 def revoke_workspace_key(
-    workspace_id: str, key_id: str, request: Request, workspaces_svc: Workspaces
+    workspace_id: UuidId, key_id: UuidId, request: Request, workspaces_svc: Workspaces
 ) -> Any:
     denied = _deny(request, workspace_id, "owner")
     if denied:

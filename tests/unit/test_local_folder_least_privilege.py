@@ -154,9 +154,9 @@ class TestCreatingOneIsAGlobalDecision:
 
     def test_an_admin_may_create_one_inside_an_allowed_root(self, allowed_root):
         client = _client(member_role="owner", global_role="admin")
-        client.app.state.db.connectors.create.return_value = "c-1"
+        client.app.state.db.connectors.create.return_value = "00000000-0000-4000-8000-000000000401"
         client.app.state.db.connectors.get.return_value = {
-            "id": "c-1",
+            "id": "00000000-0000-4000-8000-000000000401",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
             "workspace_id": WS,
@@ -193,13 +193,13 @@ class TestReconfiguringIsTheSameDecision:
     def test_an_owner_may_not_repoint_a_local_folder_connector(self, allowed_root):
         client = _client(member_role="owner", global_role="user")
         client.app.state.db.connectors.get.return_value = {
-            "id": "c-1",
+            "id": "00000000-0000-4000-8000-000000000401",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
             "workspace_id": WS,
         }
         resp = client.put(
-            "/api/connectors/c-1", json={"config": {"path": "/etc"}}, headers=_auth()
+            "/api/connectors/00000000-0000-4000-8000-000000000401", json={"config": {"path": "/etc"}}, headers=_auth()
         )
         assert resp.status_code == 403
         assert not client.app.state.db.connectors.update.called
@@ -207,14 +207,14 @@ class TestReconfiguringIsTheSameDecision:
     def test_an_admin_repointing_outside_the_roots_is_refused(self, allowed_root):
         client = _client(member_role="owner", global_role="admin")
         client.app.state.db.connectors.get.return_value = {
-            "id": "c-1",
+            "id": "00000000-0000-4000-8000-000000000401",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
             "workspace_id": WS,
         }
         with patch("src.routes_fastapi.connector_routes.require_admin_dep", return_value=USER):
             resp = client.put(
-                "/api/connectors/c-1", json={"config": {"path": "/etc"}}, headers=_auth("admin")
+                "/api/connectors/00000000-0000-4000-8000-000000000401", json={"config": {"path": "/etc"}}, headers=_auth("admin")
             )
         assert resp.status_code == 400
         assert not client.app.state.db.connectors.update.called
@@ -222,7 +222,7 @@ class TestReconfiguringIsTheSameDecision:
     def test_an_admin_may_repoint_within_the_roots(self, allowed_root):
         client = _client(member_role="owner", global_role="admin")
         client.app.state.db.connectors.get.return_value = {
-            "id": "c-1",
+            "id": "00000000-0000-4000-8000-000000000401",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
             "workspace_id": WS,
@@ -230,7 +230,7 @@ class TestReconfiguringIsTheSameDecision:
         client.app.state.db.connectors.update.return_value = True
         with patch("src.routes_fastapi.connector_routes.require_admin_dep", return_value=USER):
             resp = client.put(
-                "/api/connectors/c-1",
+                "/api/connectors/00000000-0000-4000-8000-000000000401",
                 json={"config": {"path": str(allowed_root / "inner")}},
                 headers=_auth("admin"),
             )
@@ -242,13 +242,13 @@ class TestReconfiguringIsTheSameDecision:
         client = _client(member_role="owner", global_role="user")
         client.app.state.db.connectors.update.return_value = True
         client.app.state.db.connectors.get.return_value = {
-            "id": "c-1",
+            "id": "00000000-0000-4000-8000-000000000401",
             "connector_type": "local_folder",
             "config": {"path": str(allowed_root)},
             "workspace_id": WS,
             "enabled": False,
         }
         resp = client.put(
-            "/api/connectors/c-1", json={"display_name": "Renamed"}, headers=_auth()
+            "/api/connectors/00000000-0000-4000-8000-000000000401", json={"display_name": "Renamed"}, headers=_auth()
         )
         assert resp.status_code == 200
