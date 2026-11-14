@@ -2038,6 +2038,74 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 
 ---
 
+## Initiative 14 — Deployment patterns: proven recipes, not hours of debugging ⬜ (unscheduled)
+
+> **Added 2026-11-14, from #536.** Someone who wants to run LocalChat should be able to pick
+> the pattern that matches their environment and get a working stack without hours of
+> debugging. Two deployments already work and are documented, but each in its own shape:
+> your own PC in [DEPLOYMENT.md](DEPLOYMENT.md), and Scaleway in
+> [DEPLOYMENT_SCALEWAY.md](DEPLOYMENT_SCALEWAY.md) with its scripts in `scripts/scaleway/`.
+> A third, a managed workstation, was reported in #536 and is not reproduced yet.
+
+**What a pattern is.** One file per pattern under `docs/deployment/`, in one format:
+
+- the environment it is for, and its prerequisites;
+- the topology and configuration;
+- persistent state: data, uploads, models;
+- how models and images arrive, and what network access that needs;
+- the security boundaries: proxy, certificates, open ports;
+- deploy, verify, upgrade and tear down;
+- known pitfalls as symptom, cause and fix: the hours someone else already spent.
+
+A pattern may have its own scripts, under `scripts/deploy/<pattern>/`: deploy, verify,
+tear down. Existing guides stay as reference, and a pattern links to them rather than
+copying them.
+
+**When a pattern is proven.** A pattern is developed by deploying and tearing down, again
+and again. It is **proven** when its own scripts run deploy, verify and tear down end to end
+**twice in a row without an error or a manual step**, from a clean start. Every cycle is
+recorded in the pattern's file: the date, the commit, the duration and the result. A failed
+cycle resets the count to zero. A pattern that is not proven says so at its top. A changed
+script needs two clean cycles again before the pattern counts as proven.
+
+### DP-0 — The format and its index
+
+`docs/deployment/README.md`: which pattern fits which situation, each pattern's status, and
+its last two cycles. The test that checks repository paths in the docs covers the new files.
+
+### DP-1 — Your own PC (Docker Compose, unrestricted network)
+
+The default deployment: `docker compose up -d` on a machine you control, models pulled
+from the internet. It is in DEPLOYMENT.md and works, but has no deploy or tear-down script.
+The cycle runs as its own Compose project on its own ports and volumes, so it never touches a
+stack already running on the same machine.
+
+### DP-2 — Scaleway
+
+The scripts exist: `provision.sh`, `deploy_container.sh`, `deploy_embeddings.sh`,
+`verify_deployment.py` and `panic_teardown.sh`. They are joined into one cycle and proven
+twice. Every cycle bills, so the pattern records what one cycle costs. The billing
+alert stays in place throughout.
+
+### DP-3 — A managed workstation (candidate)
+
+Windows with WSL2, Docker Desktop and a GPU, behind a managed network. Reported in #536:
+pulling models from inside the runtime fails, probably on a proxy, certificates or network
+policy, not on the hardware. It stays a candidate until it has been reproduced.
+
+1. Find the layer that fails: the host, WSL2, the container, the proxy, or Ollama.
+2. Bring one known-good model in through a route the environment allows: a pull on the
+   host, pre-filled model storage, an offline import, an internal mirror, or a configured
+   proxy and trusted certificate. Never bypass TLS or the network controls.
+3. Recreate the containers; the model is still there and loads through LocalChat
+   without a download at startup.
+4. Only then test inference on the GPU, and record that separately.
+
+**Order:** DP-0, then DP-1 and DP-2, which exist already and only need to be proven, then
+DP-3.
+
+---
+
 ## Sprint Plan
 
 | Sprint | Tickets | Est. duration |
@@ -2075,6 +2143,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
+| — | Initiative 14 (DP-0..DP-3, deployment patterns) — unscheduled (2026-11-14) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
 
 **Execution order from 2026-10-22.** Finish Sprint 9 (#452). Then Sprints 22 to 28, in
