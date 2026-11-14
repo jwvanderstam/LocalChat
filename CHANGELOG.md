@@ -27,6 +27,11 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   plugin's tools, so unloading it afterwards left them registered. And a loader given an
   empty registry used the global one instead, since an empty registry is falsy.
 
+### Security
+
+- **`dnspython` 2.9.2** (CVE-2026-128089). It comes in through `email-validator`; the lock
+  was recompiled for this package only.
+
 ## [3.6.0] — 2026-11-11
 
 The release of the QP-9 review's open findings (QP-10): R-8 to R-12 and item 13 are fixed,
