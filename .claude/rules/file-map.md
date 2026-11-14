@@ -6,7 +6,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 |------|------|
 | `app.py` | Entry point; `main()` + `create_uvicorn_app()` for dev/prod (FastAPI + Uvicorn) |
 | `src/app_fastapi.py` | `create_app()` — FastAPI factory, pure wiring only (no I/O); safe to call in tests |
-| `src/app_bootstrap.py` | `bootstrap_app(app)` — all startup I/O (Ollama, DB, caching, plugins, connectors, reranker) plus `_clear_upload_staging()`, which removes staged uploads an interrupted ingest left behind; called from `app.py` only |
+| `src/app_bootstrap.py` | `bootstrap_app(app)` — all startup I/O (Ollama, DB, caching, plugins, connectors, the core scheduler with the weekly reranker fine-tune as its first subscriber) plus `_clear_upload_staging()`, which removes staged uploads an interrupted ingest left behind; called from `app.py` only |
 | `src/config.py` | All configuration constants, loads `.env` |
 | `src/models.py` | Pydantic request/response models |
 | `src/security_fastapi.py` | JWT (`PyJWT`), rate limiting (`slowapi`), CORS (Starlette middleware), `setup_security_headers()` (CSP + nosniff + referrer + framing + HSTS); `resolve_principal()` — the one place a caller is identified: decode, fail-closed revocation, and the role read from the database |
@@ -174,11 +174,13 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/tools/executor.py` | Ollama tool-call loop (multi-turn until final response) |
 | `src/tools/registry.py` | Tool registration with JSON schemas |
 | `src/tools/builtin.py` | Built-in tools: document search, calculator, datetime |
-| `src/tools/plugin_loader.py` | Loads `.py` plugins from `plugins/` at startup; one with `setup(services)` gets its manifest validated and its services built, one without loads as legacy. A failing plugin is disabled alone, with any tool it registered removed |
+| `src/tools/plugin_loader.py` | Loads `.py` plugins from `plugins/` at startup; one with `setup(services)` gets its manifest validated, its services built and its hooks subscribed, one without loads as legacy. A failing plugin is disabled alone, with any tool it registered removed; unloading also ends its subscriptions |
 | `src/plugins/manifest.py` | PC-1 — `read_manifest()`: `PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_HOOKS` (checked against the catalogue), `PLUGIN_CONFIG`; `PLUGIN_CONTRIBUTES` must be False. Raises `ManifestError` |
 | `src/plugins/services.py` | PC-1 — the handles a plugin's `setup()` receives: `retrieval` (the request's workspace only, tier capped by the manifest), `llm.embed`, `config`, `identity` (read only), `tools.register` (refuses a taken name) |
+| `src/plugins/hooks.py` | PC-2 — `HookBus` (`subscribe`/`unsubscribe` per owner, `emit` skipping a subscriber that raises), `Scheduler` (one daemon thread emitting `on_scheduler_tick`), the `HOOKS` catalogue and the `hook_bus` singleton |
 | `src/plugins/__init__.py` | `build_services()` — types the plugin's settings from `PLUGIN_<PLUGIN>_<KEY>` and assembles its handles |
 | `plugins/example_plugin.py` | Example plugin on the PC-1 contract — `setup(services)`, a manifest and a setting (`word_count`, `reverse_text` tools) |
+| `tests/unit/test_hook_bus.py` | PC-2 — a raising subscriber skipped while the next runs, a copy of the payload each, unknown hooks refused, numbered ticks that stop; the loader subscribing a plugin's declared hooks, once across a reload, never for a failed setup, and unsubscribing on unload; the exact payloads of an ingest (new and replaced, none on failure) and of a permitted tool, none for a refused one |
 | `tests/unit/test_plugin_contract.py` | PC-1 — the manifest (every malformed field refused by name), each handle (retrieval reads the request's workspace and refuses a tier beyond its reach or a key's), the executor hiding and refusing a tool below its role, the loader disabling one plugin alone and removing its half-registered tools, and the guard recording who it admitted |
 | `plugins/README.md` | Plugin authoring guide |
 | **Graph / Memory / Performance** | |

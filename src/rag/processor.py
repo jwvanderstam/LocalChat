@@ -20,6 +20,7 @@ from ..monitoring import counted, timed
 # Read via globals() in __init__ so tests can patch src.rag.processor.ollama_client;
 # ruff cannot see that access, hence the noqa.
 from ..ollama_client import ollama_client  # noqa: F401
+from ..plugins.hooks import hook_bus
 from ..utils.logging_config import get_logger
 from ..utils.scope import ALL_WORKSPACES, Scope
 from .chunking import Chunker
@@ -537,6 +538,16 @@ class DocumentProcessor:
             logger.info("Chunks inserted successfully")
 
             self._extract_entities(doc_id, chunk_ids, chunks_data)
+            # Here and not in SyncWorker: a connector ingests through this method too, so
+            # emitting in both would announce one document twice.
+            hook_bus.emit("on_document_ingested", {
+                "document_id": doc_id,
+                "filename": filename,
+                "workspace_id": workspace_id,
+                "chunks": len(chunks_data),
+                "replaced": replace_doc_id is not None,
+                "source_id": source_id,
+            })
 
             success_msg = f"Successfully ingested {filename} ({len(chunks_data)} chunks)"
             logger.info(success_msg)

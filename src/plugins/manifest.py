@@ -12,11 +12,10 @@ from types import ModuleType
 from typing import Any
 
 from ..utils.caller import ROLE_LEVELS
+from .hooks import HOOKS
 
 #: How far the plugin's retrieval reaches: its workspace, the global tier, or both.
 SCOPES = ("local", "global", "hybrid")
-#: The hooks PC-2 will fire. Named now so a manifest is validated against the catalogue.
-HOOKS = ("on_document_ingested", "on_scheduler_tick", "on_tool_invocation", "on_route_mount")
 _CONFIG_TYPES: dict[str, type] = {"str": str, "int": int, "float": float, "bool": bool}
 _KEY = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
@@ -68,6 +67,11 @@ def read_manifest(module: ModuleType) -> Manifest:
     unknown = sorted(set(hooks) - set(HOOKS))
     if unknown:
         raise ManifestError(f"PLUGIN_HOOKS names unknown hook(s): {', '.join(unknown)}")
+    # The subscriber is the module function named after the hook: declared without one,
+    # the plugin would look subscribed while nothing could ever be called.
+    missing = [h for h in hooks if not callable(getattr(module, h, None))]
+    if missing:
+        raise ManifestError(f"PLUGIN_HOOKS names hook(s) with no function: {', '.join(missing)}")
 
     return Manifest(
         scope=scope,
