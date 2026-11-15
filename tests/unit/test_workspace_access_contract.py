@@ -26,7 +26,7 @@ from src.security_fastapi import (
 pytestmark = pytest.mark.unit
 
 _USER = "88888888-8888-8888-8888-888888888888"
-_WS = "ws-1"
+_WS = "00000000-0000-4000-8000-000000001401"
 
 
 def _request(*, token: str | None = None, db=None, api_key: str | None = None) -> MagicMock:
@@ -129,6 +129,37 @@ class TestDatabasePreconditions:
         assert denial == (400, "No workspace context")
 
 
+class TestAMalformedWorkspaceIsRefusedBeforeAnyLookup:
+    """PR #546 review: Postgres refused these inside the route, and the caller got a 500."""
+
+    @pytest.mark.parametrize("value", [
+        "not-a-uuid",
+        # uuid.UUID accepts both; Postgres refuses the urn form and the value reaches it as written.
+        "urn:uuid:" + _WS,
+        "{" + _WS + "}",
+    ])
+    def test_a_named_workspace_that_is_not_a_canonical_uuid_is_a_400(self, value):
+        db = _member_db("owner")
+        assert check_workspace_access(_request(token=_user_token(), db=db), value, "viewer") == (
+            400, "Not a workspace id"
+        )
+        db.members.role.assert_not_called()
+
+    def test_a_malformed_header_is_a_400(self):
+        req = _request(token=_user_token(), db=_member_db("owner"))
+        req.state.resolved_workspace_id = None
+        headers = {"X-Workspace-ID": "urn:uuid:" + _WS}
+        req.headers.get = lambda k, default="": headers.get(k, default)
+        assert check_workspace_access(req, None, "viewer") == (400, "Not a workspace id")
+
+    def test_an_upper_case_uuid_is_still_admitted(self):
+        """Over-correction guard: Postgres reads either case, so refusing it would lock out
+        a client that sends one."""
+        assert check_workspace_access(
+            _request(token=_user_token(), db=_member_db("viewer")), _WS.upper(), "viewer"
+        ) is None
+
+
 class TestDenialMessages:
     """Mutants 153, 156, 162, 167, 186, 201 — what the caller is actually told.
 
@@ -147,7 +178,7 @@ class TestDenialMessages:
         """The rule that keeps a key scoped: a requested workspace may be compared
         against the key's own, never substituted for it."""
         assert _check_api_key_access(
-            _request(db=_key_db(workspace="ws-other")), "lcw_x", _WS, "viewer"
+            _request(db=_key_db(workspace="00000000-0000-4000-8000-000000001402")), "lcw_x", _WS, "viewer"
         ) == (403, "API key is not valid for this workspace")
 
     def test_an_underpowered_key_names_the_role_it_needs(self):

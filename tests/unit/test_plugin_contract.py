@@ -443,8 +443,8 @@ def _db(*, member_role: str | None = "editor", global_role: str | None = "user")
     db.is_connected = True
     db.members.role.return_value = member_role
     db.members.for_user.return_value = []
-    db.workspaces.default_id.return_value = "ws-1"
-    db.api_keys.resolve.return_value = ("ws-1", "viewer")
+    db.workspaces.default_id.return_value = "00000000-0000-4000-8000-000000001301"
+    db.api_keys.resolve.return_value = ("00000000-0000-4000-8000-000000001301", "viewer")
     db.tokens.is_revoked.return_value = False
     db.users.get_role.return_value = global_role
     return db
@@ -453,12 +453,12 @@ def _db(*, member_role: str | None = "editor", global_role: str | None = "user")
 class TestGuardRecordsTheCaller:
     def test_a_member_is_recorded_with_their_workspace_role(self):
         req = _request(token=create_access_token(_USER, {"role": "user"}), db=_db(member_role="owner"))
-        assert check_workspace_access(req, "ws-1", "viewer") is None
+        assert check_workspace_access(req, "00000000-0000-4000-8000-000000001301", "viewer") is None
         assert get_caller(req) == RequestCaller(user_id=_USER, role="owner", via_api_key=False)
 
     def test_a_global_admin_is_recorded_as_admin(self):
         req = _request(token=create_access_token(_USER, {"role": "admin"}), db=_db(global_role="admin"))
-        assert check_workspace_access(req, "ws-1", "viewer") is None
+        assert check_workspace_access(req, "00000000-0000-4000-8000-000000001301", "viewer") is None
         assert get_caller(req) == RequestCaller(user_id=_USER, role="admin", via_api_key=False)
 
     def test_a_token_claiming_admin_is_recorded_at_its_database_role(self):
@@ -466,15 +466,15 @@ class TestGuardRecordsTheCaller:
         holding an old token is recorded as the member they now are."""
         req = _request(token=create_access_token(_USER, {"role": "admin"}),
                        db=_db(member_role="viewer", global_role="user"))
-        assert check_workspace_access(req, "ws-1", "viewer") is None
+        assert check_workspace_access(req, "00000000-0000-4000-8000-000000001301", "viewer") is None
         assert get_caller(req) == RequestCaller(user_id=_USER, role="viewer", via_api_key=False)
 
     def test_an_api_key_is_recorded_with_its_role_and_no_user(self):
         req = _request(api_key="lcw_abc", db=_db())
-        assert check_workspace_access(req, "ws-1", "viewer") is None
+        assert check_workspace_access(req, "00000000-0000-4000-8000-000000001301", "viewer") is None
         assert get_caller(req) == RequestCaller(user_id=None, role="viewer", via_api_key=True)
 
     def test_a_refused_caller_is_not_recorded(self):
         req = _request(token=create_access_token(_USER, {"role": "user"}), db=_db(member_role=None))
-        assert check_workspace_access(req, "ws-1", "viewer") is not None
+        assert check_workspace_access(req, "00000000-0000-4000-8000-000000001301", "viewer") is not None
         assert get_caller(req) is None
