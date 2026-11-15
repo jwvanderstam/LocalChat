@@ -672,7 +672,15 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 
 ---
 
-### PC-3 — Reference echo plugin
+### PC-3 — Reference echo plugin ✅ (built 2026-11-15)
+
+> **As built.** The maintainer decided on 2026-11-15 to put the fixture at
+> `tests/fixtures/plugins/_echo.py`, one file rather than `plugins/_echo/`: the loader loads
+> top-level files only, so a package would have needed loader code for this one fixture, and
+> under `tests/` it survives `core-without-plugins` without an exception. The handles and the
+> bus already had unit tests, so `tests/unit/test_echo_contract.py` proves them together:
+> loaded by the real loader, its tool called by a model through the real tool loop, inside a
+> request. `plugins/example_plugin.py` is deleted.
 
 **What it builds:** the core's own fixture that exercises every service and hook with no domain logic.
 
@@ -689,8 +697,7 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 > **Built 2026-10-23 with QP-3** as the `core-without-plugins` job. It deletes everything in
 > `plugins/` but the README, then runs `ruff` and the fast suite; locally, the docs and
 > plugin tests pass without `example_plugin.py`, so nothing had leaked. Required since
-> 2026-10-30. Once PC-3 ships, the echo exception below
-> applies.
+> 2026-10-30. PC-3 put the echo fixture under `tests/`, so the exception below was never needed.
 
 **What it builds:** the enforcement that makes the whole initiative durable.
 

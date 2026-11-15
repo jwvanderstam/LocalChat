@@ -3,7 +3,7 @@
 How plugins extend LocalChat without destabilising the core. Read alongside the
 "Plugin Contract" section in `CLAUDE.md` — that states the principle; this is the rule.
 
-> ## ⚠ Status: partly built (PC-1 built 2026-11-11; PC-2 2026-11-13; PC-4 2026-10-23)
+> ## ⚠ Status: partly built (PC-1 built 2026-11-11; PC-2 2026-11-13; PC-3 2026-11-15; PC-4 2026-10-23)
 >
 > | Described here | Reality |
 > |---|---|
@@ -11,7 +11,7 @@ How plugins extend LocalChat without destabilising the core. Read alongside the
 > | The services catalogue | **Built** (PC-1) in `src/plugins/services.py`: `retrieval`, `llm` (`embed` only), `config`, `identity`, and `tools` for registering. `storage` and `llm.complete` are deferred until a consumer needs them |
 > | `PLUGIN_MIN_ROLE` | **Enforced by the core** (PC-1): the tool executor hides and refuses a tool below its minimum role |
 > | The hooks catalogue | **Built** (PC-2) in `src/plugins/hooks.py`: `on_document_ingested`, `on_scheduler_tick`, `on_tool_invocation`. `on_route_mount` is deferred until a consumer needs it |
-> | `plugins/_echo/` reference plugin | Absent (PC-3). `plugins/` holds `example_plugin.py`, on the PC-1 contract |
+> | The `_echo` reference plugin | **Built** (PC-3) as `tests/fixtures/plugins/_echo.py`, not `plugins/_echo/` (decided 2026-11-15): a fixture under `tests/` survives `core-without-plugins` without an exception, and never loads in an installation. `plugins/` ships with its README only |
 > | The `core-without-plugins` CI job | **Built** (2026-10-23) in `.github/workflows/tests.yml`; a required check since 2026-10-30 |
 >
 > A plugin without `setup(services)` still loads as a *legacy* plugin that imports
@@ -110,8 +110,9 @@ generic-name test, update this file in the same commit, and add its row above.
 
 ## The reference plugin
 
-The core **will ship** a trivial `plugins/_echo/` reference plugin that exercises every
-service and hook with no domain logic (PC-3; it does not exist yet). It is the core's own fixture: each capability is proven
+The core ships a trivial reference plugin, `tests/fixtures/plugins/_echo.py`, that exercises
+every service and hook with no domain logic (PC-3), driven end to end through the real loader
+and tool loop by `tests/unit/test_echo_contract.py`. It is the core's own fixture: each capability is proven
 generically against echo, never against a domain plugin. A domain plugin (pricing) is
 always the *second* consumer of any capability — never the first, never the author.
 
@@ -119,7 +120,7 @@ always the *second* consumer of any capability — never the first, never the au
 
 `.github/workflows/tests.yml` has a `core-without-plugins` job (PC-4, built 2026-10-23):
 it deletes everything in `plugins/` except its README, then runs `ruff` and the fast suite.
-Once PC-3 ships, the echo fixture is kept too, since it lives in-core. Red = a plugin
+The echo fixture lives under `tests/`, so the job needs no exception for it. Red = a plugin
 dependency leaked into the core. That job is the architectural IVP. It has been a required
 check on every PR to `main` since 2026-10-30.
 
