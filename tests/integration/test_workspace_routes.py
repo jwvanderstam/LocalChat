@@ -19,7 +19,7 @@ from tests.utils.auth import ADMIN_ID
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _workspace(id="ws-1", name="Test WS", active=False):
+def _workspace(id="00000000-0000-4000-8000-000000000001", name="Test WS", active=False):
     return {
         "id": id,
         "name": name,
@@ -53,9 +53,9 @@ class TestListWorkspaces:
         assert len(data["workspaces"]) == 1
 
     def test_active_flag_set_on_matching_workspace(self, client, app):
-        ws = _workspace(id="ws-active")
+        ws = _workspace(id="00000000-0000-4000-8000-0000000000ac")
         app.state.db.workspaces.list_all = MagicMock(return_value=[ws])
-        resp = client.get("/api/workspaces", headers={"X-Workspace-ID": "ws-active"})
+        resp = client.get("/api/workspaces", headers={"X-Workspace-ID": "00000000-0000-4000-8000-0000000000ac"})
         data = resp.json()
         assert data["workspaces"][0]["active"] is True
 
@@ -72,13 +72,13 @@ class TestListWorkspaces:
 class TestCreateWorkspace:
 
     def test_creates_workspace_returns_201(self, client, app):
-        app.state.db.workspaces.create = MagicMock(return_value="ws-new")
-        app.state.db.workspaces.get = MagicMock(return_value=_workspace(id="ws-new", name="New"))
+        app.state.db.workspaces.create = MagicMock(return_value="00000000-0000-4000-8000-0000000000ee")
+        app.state.db.workspaces.get = MagicMock(return_value=_workspace(id="00000000-0000-4000-8000-0000000000ee", name="New"))
         resp = client.post("/api/workspaces", json={"name": "New"})
         assert resp.status_code == 201
         data = resp.json()
         assert data["success"] is True
-        assert data["workspace"]["id"] == "ws-new"
+        assert data["workspace"]["id"] == "00000000-0000-4000-8000-0000000000ee"
 
     def test_missing_name_returns_400(self, client, app):
         resp = client.post("/api/workspaces", json={})
@@ -89,8 +89,8 @@ class TestCreateWorkspace:
         assert resp.status_code == 400
 
     def test_passes_optional_fields(self, client, app):
-        app.state.db.workspaces.create = MagicMock(return_value="ws-2")
-        app.state.db.workspaces.get = MagicMock(return_value=_workspace(id="ws-2"))
+        app.state.db.workspaces.create = MagicMock(return_value="00000000-0000-4000-8000-000000000002")
+        app.state.db.workspaces.get = MagicMock(return_value=_workspace(id="00000000-0000-4000-8000-000000000002"))
         resp = client.post("/api/workspaces", json={
             "name": "Legal",
             "description": "Legal docs",
@@ -119,13 +119,13 @@ class TestGetWorkspace:
 
     def test_returns_workspace(self, client, app):
         app.state.db.workspaces.get = MagicMock(return_value=_workspace())
-        resp = client.get("/api/workspaces/ws-1")
+        resp = client.get("/api/workspaces/00000000-0000-4000-8000-000000000001")
         assert resp.status_code == 200
-        assert resp.json()["workspace"]["id"] == "ws-1"
+        assert resp.json()["workspace"]["id"] == "00000000-0000-4000-8000-000000000001"
 
     def test_not_found_returns_404(self, client, app):
         app.state.db.workspaces.get = MagicMock(return_value=None)
-        resp = client.get("/api/workspaces/missing")
+        resp = client.get("/api/workspaces/00000000-0000-4000-8000-0000000000aa")
         assert resp.status_code == 404
 
 
@@ -138,17 +138,17 @@ class TestUpdateWorkspace:
     def test_updates_and_returns_workspace(self, client, app):
         app.state.db.workspaces.update = MagicMock(return_value=True)
         app.state.db.workspaces.get = MagicMock(return_value=_workspace(name="Renamed"))
-        resp = client.put("/api/workspaces/ws-1", json={"name": "Renamed"})
+        resp = client.put("/api/workspaces/00000000-0000-4000-8000-000000000001", json={"name": "Renamed"})
         assert resp.status_code == 200
         assert resp.json()["workspace"]["name"] == "Renamed"
 
     def test_no_valid_fields_returns_400(self, client, app):
-        resp = client.put("/api/workspaces/ws-1", json={"owner": "bob"})
+        resp = client.put("/api/workspaces/00000000-0000-4000-8000-000000000001", json={"owner": "bob"})
         assert resp.status_code == 400
 
     def test_not_found_returns_404(self, client, app):
         app.state.db.workspaces.update = MagicMock(return_value=False)
-        resp = client.put("/api/workspaces/ws-x", json={"name": "X"})
+        resp = client.put("/api/workspaces/00000000-0000-4000-8000-0000000000ff", json={"name": "X"})
         assert resp.status_code == 404
 
 
@@ -161,24 +161,24 @@ class TestDeleteWorkspace:
     def test_deletes_workspace(self, client, app):
         app.state.db.members.role = MagicMock(return_value=None)
         app.state.db.workspaces.retire = MagicMock(return_value=True)
-        app.state.db.workspaces.default_id = MagicMock(return_value="ws-default")
-        resp = client.delete("/api/workspaces/ws-1")
+        app.state.db.workspaces.default_id = MagicMock(return_value="00000000-0000-4000-8000-0000000000de")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000000001")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_not_found_returns_404(self, client, app):
         app.state.db.members.role = MagicMock(return_value=None)
         app.state.db.workspaces.retire = MagicMock(return_value=False)
-        resp = client.delete("/api/workspaces/missing")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-0000000000aa")
         assert resp.status_code == 404
 
     def test_response_includes_fallback_workspace_id(self, client, app):
         app.state.db.members.role = MagicMock(return_value=None)
         app.state.db.workspaces.retire = MagicMock(return_value=True)
-        app.state.db.workspaces.default_id = MagicMock(return_value="ws-default")
-        resp = client.delete("/api/workspaces/ws-1")
+        app.state.db.workspaces.default_id = MagicMock(return_value="00000000-0000-4000-8000-0000000000de")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000000001")
         assert resp.status_code == 200
-        assert resp.json()["fallback_workspace_id"] == "ws-default"
+        assert resp.json()["fallback_workspace_id"] == "00000000-0000-4000-8000-0000000000de"
 
     def test_non_owner_member_returns_403(self, client, app):
         # Needs the RBAC bypass off to mean anything. It previously passed with the
@@ -198,15 +198,15 @@ class TestDeleteWorkspace:
         token = create_access_token("33333333-3333-3333-3333-333333333333", {"role": "user"})
         with patch("src.security_fastapi._ADMIN_PASSWORD_RAW", "set-so-rbac-is-live"):
             resp = client.delete(
-                "/api/workspaces/ws-1", headers={"Authorization": f"Bearer {token}"}
+                "/api/workspaces/00000000-0000-4000-8000-000000000001", headers={"Authorization": f"Bearer {token}"}
             )
         assert resp.status_code == 403
 
     def test_owner_can_delete(self, client, app):
         app.state.db.members.role = MagicMock(return_value="owner")
         app.state.db.workspaces.retire = MagicMock(return_value=True)
-        app.state.db.workspaces.default_id = MagicMock(return_value="ws-default")
-        resp = client.delete("/api/workspaces/ws-1")
+        app.state.db.workspaces.default_id = MagicMock(return_value="00000000-0000-4000-8000-0000000000de")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000000001")
         assert resp.status_code == 200
 
 
@@ -223,10 +223,10 @@ class TestGetActiveWorkspace:
         assert data["workspace"] is None
 
     def test_returns_active_workspace(self, client, app):
-        app.state.db.workspaces.get = MagicMock(return_value=_workspace(id="ws-1"))
-        resp = client.get("/api/workspaces/active", headers={"X-Workspace-ID": "ws-1"})
+        app.state.db.workspaces.get = MagicMock(return_value=_workspace(id="00000000-0000-4000-8000-000000000001"))
+        resp = client.get("/api/workspaces/active", headers={"X-Workspace-ID": "00000000-0000-4000-8000-000000000001"})
         data = resp.json()
-        assert data["workspace"]["id"] == "ws-1"
+        assert data["workspace"]["id"] == "00000000-0000-4000-8000-000000000001"
 
 
 # ---------------------------------------------------------------------------
@@ -236,8 +236,8 @@ class TestGetActiveWorkspace:
 class TestSwitchWorkspace:
 
     def test_switches_successfully(self, client, app):
-        app.state.db.workspaces.get = MagicMock(return_value=_workspace(id="ws-2", name="Proj"))
-        resp = client.post("/api/workspaces/switch", json={"workspace_id": "ws-2"})
+        app.state.db.workspaces.get = MagicMock(return_value=_workspace(id="00000000-0000-4000-8000-000000000002", name="Proj"))
+        resp = client.post("/api/workspaces/switch", json={"workspace_id": "00000000-0000-4000-8000-000000000002"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
@@ -249,5 +249,5 @@ class TestSwitchWorkspace:
 
     def test_not_found_returns_404(self, client, app):
         app.state.db.workspaces.get = MagicMock(return_value=None)
-        resp = client.post("/api/workspaces/switch", json={"workspace_id": "ws-ghost"})
+        resp = client.post("/api/workspaces/switch", json={"workspace_id": "00000000-0000-4000-8000-0000000000a0"})
         assert resp.status_code == 404
