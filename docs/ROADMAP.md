@@ -639,7 +639,26 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 
 ---
 
-### PC-2 — Hook bus and core scheduler
+### PC-2 — Hook bus and core scheduler ✅ (built 2026-11-13)
+
+> **As built.** Three points were decided by the maintainer on 2026-11-13, and
+> `.claude/rules/plugins.md` was amended to match:
+> - `emit()` is synchronous. The tool loop calls it through `asyncio.to_thread`, so a slow
+>   subscriber cannot stall the event loop.
+> - `on_route_mount` is deferred until a consumer needs it: plugins load in `bootstrap_app()`,
+>   after `create_app()` has assembled the routers, so a contributed router needs a later mount.
+> - One daemon thread ticks every `SCHEDULER_TICK_SECONDS` (default 3600). The reranker's
+>   fine-tune subscribes and runs on the first tick a week after its last attempt, on a
+>   monotonic clock; the `threading.Timer` it replaces is gone.
+>
+> Two departures from the spec below. `on_document_ingested` fires from
+> `DocumentProcessor.ingest_document()` only: `SyncWorker` ingests through it, so emitting in
+> both would announce one document twice. And `on_tool_invocation` fires from the LLM tool
+> loop (`src/tools/executor.py`), not `src/agent/tool_router.py`, which dispatches the
+> aggregator's retrieval rather than tool calls; only a tool the caller was permitted is
+> announced, with its name and source and not its arguments. A plugin subscribes with a
+> module function named after the hook.
+
 
 **What it builds:** the core-to-plugin event surface, and the generic scheduler that replaces ad-hoc timers.
 
@@ -2056,7 +2075,7 @@ the generation path is a deterministic pipeline unless an answer-level eval says
 | PG-0..PG-8 | **Production-grade hardening** ✅ — see [PRODUCTION_PLAN.md](history/PRODUCTION_PLAN.md). Gated everything below; **gate lifted 2026-08-31**. | done |
 | 8 | GKB-1 (schema + two-tier retrieval) ✅ 2026-10-09 — read-only global tier under RLS (0019) | 1 week |
 | 9 | GKB-2 (contribution workflow) ✓ backend 2026-10-19 (admin-only contribute, migration 0020), UI 2026-10-20 | 1 week |
-| 10 | PC-1 ✅ 2026-11-11 (manifest, services, the core's role gate) + PC-2 (hooks, scheduler) | 1 week |
+| 10 | PC-1 ✅ 2026-11-11 (manifest, services, the core's role gate) + PC-2 ✅ 2026-11-13 (hooks, scheduler) | 1 week |
 | 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |

@@ -135,6 +135,7 @@ module = [
     "src.services.workspaces",
     "src.routes_fastapi._services",
     "src.plugins",
+    "src.plugins.hooks",
     "src.plugins.manifest",
     "src.plugins.services",
     "src.utils.caller",

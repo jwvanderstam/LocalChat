@@ -50,6 +50,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from ..plugins.hooks import HookBus, hook_bus
 from ..utils.logging_config import get_logger
 from .registry import ToolRegistry, tool_registry
 
@@ -68,10 +69,11 @@ class PluginLoader:
                   Defaults to the module-level ``tool_registry`` singleton.
     """
 
-    def __init__(self, registry: ToolRegistry | None = None) -> None:
+    def __init__(self, registry: ToolRegistry | None = None, bus: HookBus | None = None) -> None:
         # `is None`, not `or`: an empty registry has length 0, so `or` swapped a fresh
         # one for the global singleton.
         self._registry = registry if registry is not None else tool_registry
+        self._bus = bus if bus is not None else hook_bus
         # plugin_stem -> {"path": str, "tools": [name, ...], "meta": {...}, "error": str|None}
         self._plugins: dict[str, dict[str, Any]] = {}
 
@@ -319,10 +321,14 @@ class PluginLoader:
             # A tool registered later, from a kept handle, would be one the loader never
             # recorded: listed nowhere, and left behind by unload and reload.
             services.tools.close()
+        # Last, so a plugin whose setup failed is never subscribed.
+        for hook in manifest.hooks:
+            self._bus.subscribe(hook, plugin_key, getattr(module, hook))
         return manifest.to_dict()
 
     def _unload_tools(self, plugin_name: str) -> None:
-        """Remove all tools registered by *plugin_name* from the registry."""
+        """Remove all tools registered by *plugin_name*, and its hook subscriptions."""
+        self._bus.unsubscribe(plugin_name)
         tools = self._plugins.get(plugin_name, {}).get("tools", [])
         for tool_name in tools:
             self._registry.unregister(tool_name)

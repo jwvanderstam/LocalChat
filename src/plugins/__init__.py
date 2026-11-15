@@ -6,8 +6,8 @@ from typing import Any
 
 from .. import config
 from ..tools.registry import ToolRegistry
+from .hooks import HOOKS
 from .manifest import (
-    HOOKS,
     SCOPES,
     ConfigValue,
     Manifest,

@@ -19,6 +19,19 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   it, and is refused if the model names it anyway. A malformed manifest disables that plugin
   alone. **Upgrading:** nothing to do. A plugin without `setup()` still loads as before, now
   listed as legacy in `/api/plugins` with a warning in the log.
+- **Plugins can react to the core through hooks (PC-2).** A plugin names a hook in
+  `PLUGIN_HOOKS` and defines a function of that name: `on_document_ingested` after every
+  ingest, by upload or connector; `on_scheduler_tick` from a new core scheduler, every
+  `SCHEDULER_TICK_SECONDS` (default 3600); `on_tool_invocation` after a permitted tool ran. A
+  subscriber that raises is logged and skipped. **Upgrading:** a manifest naming
+  `on_route_mount`, or a hook without its function, now disables that plugin;
+  `on_route_mount` is not offered yet.
+
+### Changed
+
+- **The weekly reranker fine-tune runs on the core scheduler.** It is the scheduler's first
+  subscriber and runs on the first tick a week after its last attempt, so up to
+  `SCHEDULER_TICK_SECONDS` later than the timer it replaces.
 
 ### Fixed
 
