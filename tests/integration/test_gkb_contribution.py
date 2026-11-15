@@ -259,5 +259,9 @@ def test_a_contribution_is_not_mistaken_for_a_document_without_a_workspace(datab
     filename = f"gkb-nows-{uuid.uuid4().hex[:8]}.txt"
     doc = _document(database, workspaces["a"], filename)
     global_id = database.contributions.contribute(workspaces["a"], [doc], admin)[0]["global_document_id"]
+    assert database.documents.exists(filename, None)[0] is False
+    # Beside it, the documents both queries must still find: one with no workspace, and the source.
+    unowned = database.documents.insert(filename, "unowned content", workspace_id=None, scope=ALL_WORKSPACES)
     stale_ids = {d["id"] for d in database.documents.stale(0, scope=ALL_WORKSPACES)}
-    assert (database.documents.exists(filename, None)[0], global_id in stale_ids) == (False, False)
+    assert (database.documents.exists(filename, None)[1]["id"], {doc, unowned, global_id} & stale_ids) == (
+        unowned, {doc, unowned})
