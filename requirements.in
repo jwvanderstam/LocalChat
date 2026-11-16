@@ -41,7 +41,7 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Web Framework — FastAPI (ASGI)
-fastapi==0.162.0
+fastapi==0.162.5
 uvicorn[standard]==0.54.0
 httpx==0.28.1          # async inference + sync admin/embedding client
 
@@ -55,7 +55,7 @@ PyJWT==2.15.1                       # JWT — HS256 over hashlib; pure Python, n
 slowapi==0.1.10                     # Rate limiting for FastAPI/Starlette
 
 # Database — PostgreSQL + pgvector
-psycopg[binary]==3.3.8
+psycopg[binary]==3.3.9
 psycopg-pool==3.3.3
 
 # Database migrations
@@ -91,7 +91,7 @@ spacy==3.8.18      # GraphRAG entity extraction — optional; also run: python -
 # Encryption — OAuth token at-rest encryption
 cryptography==50.0.2
 # Cross-encoder reranker — enabled by default (RERANKER_ENABLED=true)
-sentence-transformers==6.2.0
+sentence-transformers==6.3.0
 
 # HTTP Requests
 requests==2.34.2
