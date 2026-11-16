@@ -5,6 +5,8 @@ tickets added or re-scoped. They sat under the Sprint Plan table until 2026-10-0
 P2-7) and are kept here verbatim, in the order they had there, which is roughly newest first.
 Like everything in `history/`, they describe the plan as it was when written.
 
+> **Initiative 14 added 2026-11-14, unscheduled.** Deployment patterns, from #536: one format per environment with its own deploy, verify and tear-down scripts, proven by two consecutive clean cycles. Your own PC (DP-1) and Scaleway (DP-2) exist and only need to be brought into the format and proven; the managed workstation that #536 reported (DP-3) stays a candidate until it is reproduced.
+
 > **RF-5 added to Initiative 13 on 2026-10-30, as a direction rather than a decision.** Overview questions (counts, themes, whole-corpus summaries) are structurally out of reach for top-k retrieval. The ticket records the candidates in a recommended order (a user-chosen mode, structured extraction, summaries, map-reduce, GraphRAG communities) and the questions to answer before building any of them. The mode is chosen by the user rather than by a classifier, to stay inside ADR-6. Nothing is scheduled.
 
 > **Initiative 13 added 2026-10-23, unscheduled by decision.** Poor answers on a Dutch service catalogue were traced, on the live stack, to an embedding model that barely separates Dutch passages (144 candidates within 0.698-0.740) and to chapter-summary questions that top-k retrieval cannot answer. The maintainer ruled the root cause to be in the use, not the application, and recorded the response as flexibility the application can offer (RF-1..RF-4), as future work behind Initiative 12.

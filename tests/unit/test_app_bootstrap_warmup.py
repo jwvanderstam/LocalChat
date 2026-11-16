@@ -319,138 +319,83 @@ class TestLoadPlugins:
         mock_list.assert_not_called()
 
 
-class TestInitRerankerScheduler:
-    """Test _init_reranker_scheduler (src/app_bootstrap.py)."""
+class TestRerankerFinetuneSubscriber:
+    """The weekly reranker fine-tune, as the scheduler's first subscriber (PC-2)."""
 
-    def test_skips_when_reranker_disabled(self):
-        from src.app_bootstrap import _init_reranker_scheduler
+    WEEK = 7 * 24 * 3600
 
-        app = MagicMock()
+    def _subscribe(self, db, *, enabled=True, available=True, now=1000.0):
+        from src.app_bootstrap import _subscribe_reranker_finetune
+        from src.plugins.hooks import HookBus
+
+        bus = HookBus()
+        modules = {"sentence_transformers": MagicMock() if available else None}
+        with patch("src.app_bootstrap.config") as mock_config,              patch.dict("sys.modules", modules),              patch("src.app_bootstrap.time.monotonic", return_value=now):
+            mock_config.RERANKER_ENABLED = enabled
+            _subscribe_reranker_finetune(db, bus)
+        return bus
+
+    def _tick(self, bus, at, *, pairs=(), min_pairs=1, finetune=None, export_error=None):
+        finetune = finetune if finetune is not None else {"skipped": True}
+        export = {"side_effect": export_error} if export_error else {"return_value": list(pairs)}
+        with patch("src.app_bootstrap.config") as mock_config,              patch("src.app_bootstrap.time.monotonic", return_value=at),              patch("src.rag.feedback_pipeline.export_training_pairs", **export) as mock_export,              patch("src.rag.feedback_pipeline.finetune_reranker", return_value=finetune) as mock_ft,              patch("src.rag.feedback_pipeline.persist_reranker_version", return_value="v2") as mock_persist,              patch("src.rag.feedback_pipeline.promote_model") as mock_promote:
+            mock_config.FEEDBACK_FINETUNE_MIN_PAIRS = min_pairs
+            bus.emit("on_scheduler_tick", {"tick": 1})
+        return mock_export, mock_ft, mock_persist, mock_promote
+
+    def test_not_subscribed_when_reranker_disabled(self):
+        bus = self._subscribe(MagicMock(), enabled=False)
+        assert bus.subscribers("on_scheduler_tick") == []
+
+    def test_not_subscribed_when_sentence_transformers_missing(self):
+        bus = self._subscribe(MagicMock(), available=False)
+        assert bus.subscribers("on_scheduler_tick") == []
+
+    def test_subscribed_as_the_core_reranker_when_available(self):
+        bus = self._subscribe(MagicMock())
+        assert bus.subscribers("on_scheduler_tick") == ["core.reranker"]
+
+    def test_a_tick_before_a_week_has_passed_does_nothing(self):
         db = MagicMock()
-        with patch("src.app_bootstrap.config") as mock_config:
-            mock_config.RERANKER_ENABLED = False
-            with patch("threading.Timer") as mock_timer:
-                _init_reranker_scheduler(app, db)
+        bus = self._subscribe(db, now=1000.0)
+        mock_export, *_ = self._tick(bus, at=1000.0 + self.WEEK - 1, pairs=[1, 2, 3])
+        mock_export.assert_not_called()
 
-        mock_timer.assert_not_called()
-
-    def test_skips_when_sentence_transformers_not_installed(self):
-        from src.app_bootstrap import _init_reranker_scheduler
-
-        app = MagicMock()
+    def test_the_first_tick_a_week_later_trains_and_the_next_one_waits_a_week(self):
         db = MagicMock()
-        with patch("src.app_bootstrap.config") as mock_config:
-            mock_config.RERANKER_ENABLED = True
-            with patch.dict("sys.modules", {"sentence_transformers": None}):
-                with patch("threading.Timer") as mock_timer:
-                    _init_reranker_scheduler(app, db)
-
-        mock_timer.assert_not_called()
-
-    def test_starts_weekly_timer_when_enabled_and_available(self):
-        from src.app_bootstrap import _init_reranker_scheduler
-
-        app = MagicMock()
-        db = MagicMock()
-        with patch("src.app_bootstrap.config") as mock_config:
-            mock_config.RERANKER_ENABLED = True
-            with patch.dict("sys.modules", {"sentence_transformers": MagicMock()}):
-                with patch("threading.Timer") as mock_timer_cls:
-                    mock_timer_instance = MagicMock()
-                    mock_timer_cls.return_value = mock_timer_instance
-                    _init_reranker_scheduler(app, db)
-
-        mock_timer_cls.assert_called_once()
-        mock_timer_instance.start.assert_called_once()
-        assert app.state._reranker_timer is mock_timer_instance
-
-
-class TestWeeklyRerankerTrain:
-    """Test the weekly fine-tune closure scheduled by _init_reranker_scheduler."""
-
-    def _get_weekly_train(self, app, db):
-        from src.app_bootstrap import _init_reranker_scheduler
-
-        with patch("src.app_bootstrap.config") as mock_config:
-            mock_config.RERANKER_ENABLED = True
-            with patch.dict("sys.modules", {"sentence_transformers": MagicMock()}):
-                with patch("threading.Timer") as mock_timer_cls:
-                    mock_timer_cls.return_value = MagicMock()
-                    _init_reranker_scheduler(app, db)
-
-        return mock_timer_cls.call_args[0][1]
+        bus = self._subscribe(db, now=1000.0)
+        due = 1000.0 + self.WEEK
+        mock_export, *_ = self._tick(bus, at=due, pairs=[1])
+        mock_export.assert_called_once_with(db, days=7)
+        again, *_ = self._tick(bus, at=due + self.WEEK - 1, pairs=[1])
+        later, *_ = self._tick(bus, at=due + self.WEEK, pairs=[1])
+        assert (again.call_count, later.call_count) == (0, 1)
 
     def test_skips_finetune_when_below_minimum_pairs(self):
-        app = MagicMock()
-        db = MagicMock()
-        weekly_train = self._get_weekly_train(app, db)
-
-        with patch("src.app_bootstrap.config") as mock_config:
-            mock_config.FEEDBACK_FINETUNE_MIN_PAIRS = 50
-            with patch("src.rag.feedback_pipeline.export_training_pairs", return_value=[1, 2]) as mock_export, \
-                 patch("src.rag.feedback_pipeline.finetune_reranker") as mock_finetune, \
-                 patch("threading.Timer") as mock_timer_cls:
-                mock_timer_cls.return_value = MagicMock()
-                weekly_train()
-
-        mock_export.assert_called_once_with(db, days=7)
-        mock_finetune.assert_not_called()
-        mock_timer_cls.assert_called_once()  # reschedules in finally
+        bus = self._subscribe(MagicMock(), now=0.0)
+        _, mock_ft, _, _ = self._tick(bus, at=self.WEEK, pairs=[1, 2], min_pairs=50)
+        mock_ft.assert_not_called()
 
     def test_promotes_model_when_finetune_improves_ndcg(self):
-        app = MagicMock()
         db = MagicMock()
-        weekly_train = self._get_weekly_train(app, db)
-
-        with patch("src.app_bootstrap.config") as mock_config:
-            mock_config.FEEDBACK_FINETUNE_MIN_PAIRS = 1
-            with patch("src.rag.feedback_pipeline.export_training_pairs", return_value=[1, 2, 3]), \
-                 patch(
-                     "src.rag.feedback_pipeline.finetune_reranker",
-                     return_value={"skipped": False, "ndcg_before": 0.5, "ndcg_after": 0.8},
-                 ), \
-                 patch("src.rag.feedback_pipeline.persist_reranker_version", return_value="v2") as mock_persist, \
-                 patch("src.rag.feedback_pipeline.promote_model") as mock_promote, \
-                 patch("threading.Timer") as mock_timer_cls:
-                mock_timer_cls.return_value = MagicMock()
-                weekly_train()
-
-        mock_persist.assert_called_once()
+        bus = self._subscribe(db, now=0.0)
+        result = {"skipped": False, "ndcg_before": 0.5, "ndcg_after": 0.8}
+        _, _, mock_persist, mock_promote = self._tick(bus, at=self.WEEK, pairs=[1], finetune=result)
+        mock_persist.assert_called_once_with(db, result)
         mock_promote.assert_called_once_with(db, "v2")
 
     def test_does_not_promote_when_ndcg_does_not_improve(self):
-        app = MagicMock()
-        db = MagicMock()
-        weekly_train = self._get_weekly_train(app, db)
-
-        with patch("src.app_bootstrap.config") as mock_config:
-            mock_config.FEEDBACK_FINETUNE_MIN_PAIRS = 1
-            with patch("src.rag.feedback_pipeline.export_training_pairs", return_value=[1, 2, 3]), \
-                 patch(
-                     "src.rag.feedback_pipeline.finetune_reranker",
-                     return_value={"skipped": False, "ndcg_before": 0.8, "ndcg_after": 0.5},
-                 ), \
-                 patch("src.rag.feedback_pipeline.persist_reranker_version", return_value="v2"), \
-                 patch("src.rag.feedback_pipeline.promote_model") as mock_promote, \
-                 patch("threading.Timer") as mock_timer_cls:
-                mock_timer_cls.return_value = MagicMock()
-                weekly_train()
-
+        bus = self._subscribe(MagicMock(), now=0.0)
+        result = {"skipped": False, "ndcg_before": 0.8, "ndcg_after": 0.5}
+        *_, mock_promote = self._tick(bus, at=self.WEEK, pairs=[1], finetune=result)
         mock_promote.assert_not_called()
 
-    def test_reschedules_after_exception(self):
-        app = MagicMock()
-        db = MagicMock()
-        weekly_train = self._get_weekly_train(app, db)
-
-        with patch("src.app_bootstrap.config") as mock_config:
-            mock_config.FEEDBACK_FINETUNE_MIN_PAIRS = 1
-            with patch("src.rag.feedback_pipeline.export_training_pairs", side_effect=RuntimeError("boom")), \
-                 patch("threading.Timer") as mock_timer_cls:
-                mock_timer_cls.return_value = MagicMock()
-                weekly_train()  # must not raise
-
-        mock_timer_cls.assert_called_once()  # reschedules in finally despite the failure
+    def test_a_failed_attempt_also_waits_a_week(self):
+        bus = self._subscribe(MagicMock(), now=0.0)
+        self._tick(bus, at=self.WEEK, export_error=RuntimeError("boom"))  # must not raise
+        soon, *_ = self._tick(bus, at=self.WEEK + 1, pairs=[1])
+        week_later, *_ = self._tick(bus, at=2 * self.WEEK, pairs=[1])
+        assert (soon.call_count, week_later.call_count) == (0, 1)
 
 
 class TestSeedAdminUser:
@@ -691,7 +636,7 @@ class TestBootstrapApp:
              patch("src.app_bootstrap._seed_admin_user") as mock_seed_admin, \
              patch("src.app_bootstrap._load_plugins") as mock_load_plugins, \
              patch("src.app_bootstrap._init_connectors") as mock_init_connectors, \
-             patch("src.app_bootstrap._init_reranker_scheduler") as mock_init_reranker, \
+             patch("src.app_bootstrap._start_scheduler") as mock_start_scheduler, \
              patch("src.app_bootstrap._setup_cleanup_handlers") as mock_setup_cleanup:
             bootstrap_app(app)
 
@@ -704,7 +649,7 @@ class TestBootstrapApp:
         mock_seed_admin.assert_called_once_with(app.state.db)
         mock_load_plugins.assert_called_once_with(app)
         mock_init_connectors.assert_called_once()
-        mock_init_reranker.assert_called_once()
+        mock_start_scheduler.assert_called_once_with(app, app.state.db)
         mock_setup_cleanup.assert_called_once_with(app)
 
     def test_skips_seeding_admin_user_when_database_unavailable(self):
@@ -724,7 +669,7 @@ class TestBootstrapApp:
              patch("src.app_bootstrap._seed_admin_user") as mock_seed_admin, \
              patch("src.app_bootstrap._load_plugins"), \
              patch("src.app_bootstrap._init_connectors"), \
-             patch("src.app_bootstrap._init_reranker_scheduler"), \
+             patch("src.app_bootstrap._start_scheduler"), \
              patch("src.app_bootstrap._setup_cleanup_handlers"):
             bootstrap_app(app)
 

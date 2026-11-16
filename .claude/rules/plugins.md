@@ -3,15 +3,15 @@
 How plugins extend LocalChat without destabilising the core. Read alongside the
 "Plugin Contract" section in `CLAUDE.md` — that states the principle; this is the rule.
 
-> ## ⚠ Status: partly built (PC-1 built 2026-11-11; PC-4 2026-10-23)
+> ## ⚠ Status: partly built (PC-1 built 2026-11-11; PC-2 2026-11-13; PC-3 2026-11-15; PC-4 2026-10-23)
 >
 > | Described here | Reality |
 > |---|---|
 > | The manifest (`PLUGIN_SCOPE`, `PLUGIN_MIN_ROLE`, `PLUGIN_HOOKS`, `PLUGIN_CONFIG`) | **Built** (PC-1) in `src/plugins/manifest.py`; a malformed one disables that plugin only |
 > | The services catalogue | **Built** (PC-1) in `src/plugins/services.py`: `retrieval`, `llm` (`embed` only), `config`, `identity`, and `tools` for registering. `storage` and `llm.complete` are deferred until a consumer needs them |
 > | `PLUGIN_MIN_ROLE` | **Enforced by the core** (PC-1): the tool executor hides and refuses a tool below its minimum role |
-> | The hooks catalogue (`on_document_ingested`, `on_scheduler_tick`, …) | No hook bus (PC-2). `PLUGIN_HOOKS` is validated against the names below and fires nothing |
-> | `plugins/_echo/` reference plugin | Absent (PC-3). `plugins/` holds `example_plugin.py`, on the PC-1 contract |
+> | The hooks catalogue | **Built** (PC-2) in `src/plugins/hooks.py`: `on_document_ingested`, `on_scheduler_tick`, `on_tool_invocation`. `on_route_mount` is deferred until a consumer needs it |
+> | The `_echo` reference plugin | **Built** (PC-3) as `tests/fixtures/plugins/_echo.py`, not `plugins/_echo/` (decided 2026-11-15): a fixture under `tests/` survives `core-without-plugins` without an exception, and never loads in an installation. `plugins/` ships with its README only |
 > | The `core-without-plugins` CI job | **Built** (2026-10-23) in `.github/workflows/tests.yml`; a required check since 2026-10-30 |
 >
 > A plugin without `setup(services)` still loads as a *legacy* plugin that imports
@@ -61,18 +61,27 @@ describes the capability generically. A `pricing_lookup` service is a leak; a
 
 ## Hooks catalogue
 
-A plugin subscribes via its manifest. The core calls all subscribers and is unaffected
-if there are none.
+A plugin subscribes via its manifest: each hook named in `PLUGIN_HOOKS` is a module
+function of the same name taking the payload, `def on_document_ingested(payload): ...`. A
+hook named without its function is a malformed manifest. The core calls all subscribers
+and is unaffected if there are none.
 
-| Hook | Fires when | Typical use |
-|------|-----------|-------------|
-| `on_document_ingested` | A document finishes ingest in `SyncWorker._handle_event()` or `processor.py` | Post-process, extract structured data |
-| `on_scheduler_tick` | The core scheduler emits a periodic tick | Background evaluation, batch jobs |
-| `on_tool_invocation` | An LLM tool call is dispatched (`src/agent/tool_router.py`) | Register LLM-callable tools |
-| `on_route_mount` | App startup, router assembly (`src/app_fastapi.py`) | Contribute a FastAPI `APIRouter` |
+| Hook | Fires when | Payload |
+|------|-----------|---------|
+| `on_document_ingested` | A document finishes ingest in `DocumentProcessor.ingest_document()`, the one path uploads and connectors share | `document_id`, `filename`, `workspace_id`, `chunks`, `replaced`, `source_id` |
+| `on_scheduler_tick` | The core scheduler ticks, every `SCHEDULER_TICK_SECONDS` | `tick` (1, 2, …), `at` (ISO 8601, UTC) |
+| `on_tool_invocation` | An LLM tool call the caller was permitted has run (`src/tools/executor.py`) | `tool`, `source` (`builtin` or the plugin) |
+| `on_route_mount` | *Deferred (2026-11-13).* Plugins load after the app is assembled, so a router they contribute needs a later mount | — |
 
 A subscriber that raises is logged and skipped; the core operation completes normally.
-Hooks are best-effort from the core's side.
+Hooks are best-effort from the core's side. `emit()` is synchronous and runs subscribers in
+the emitting thread, so a slow one slows that operation (an ingest, the scheduler); the tool
+loop emits through `asyncio.to_thread`, so a subscriber never stalls the event loop. The
+payloads carry identifiers, not content: a tool's arguments hold the user's question, and no
+consumer needs them yet.
+
+The weekly reranker fine-tune is the scheduler's first subscriber, a core one: the
+scheduler was proven against an existing consumer, not a plugin.
 
 ## The manifest
 
@@ -101,8 +110,9 @@ generic-name test, update this file in the same commit, and add its row above.
 
 ## The reference plugin
 
-The core **will ship** a trivial `plugins/_echo/` reference plugin that exercises every
-service and hook with no domain logic (PC-3; it does not exist yet). It is the core's own fixture: each capability is proven
+The core ships a trivial reference plugin, `tests/fixtures/plugins/_echo.py`, that exercises
+every service and hook with no domain logic (PC-3), driven end to end through the real loader
+and tool loop by `tests/unit/test_echo_contract.py`. It is the core's own fixture: each capability is proven
 generically against echo, never against a domain plugin. A domain plugin (pricing) is
 always the *second* consumer of any capability — never the first, never the author.
 
@@ -110,7 +120,7 @@ always the *second* consumer of any capability — never the first, never the au
 
 `.github/workflows/tests.yml` has a `core-without-plugins` job (PC-4, built 2026-10-23):
 it deletes everything in `plugins/` except its README, then runs `ruff` and the fast suite.
-Once PC-3 ships, the echo fixture is kept too, since it lives in-core. Red = a plugin
+The echo fixture lives under `tests/`, so the job needs no exception for it. Red = a plugin
 dependency leaked into the core. That job is the architectural IVP. It has been a required
 check on every PR to `main` since 2026-10-30.
 

@@ -519,6 +519,9 @@ MCP_CIRCUIT_RECOVERY_TIMEOUT: int = int(os.environ.get('MCP_CIRCUIT_RECOVERY_TIM
 PLUGINS_ENABLED: bool = os.environ.get('PLUGINS_ENABLED', 'True').lower() == 'true'
 # Directory (relative to repo root) that is scanned for .py plugin files.
 PLUGINS_DIR: str = os.environ.get('PLUGINS_DIR', 'plugins')
+# Seconds between on_scheduler_tick events. A subscriber's own period is a multiple of it:
+# the weekly reranker fine-tune runs at most this late.
+SCHEDULER_TICK_SECONDS: int = int(os.environ.get('SCHEDULER_TICK_SECONDS', '3600'))
 
 
 def plugin_setting(plugin: str, key: str) -> str | None:

@@ -1,8 +1,8 @@
 # LocalChat Plugin System
 
-> Verified against `src/tools/`, `src/plugins/` and `src/app_bootstrap.py` on 2026-11-11.
-> PC-1 of the contract in `.claude/rules/plugins.md` ships: the manifest and the services
-> below. The hook bus (PC-2) and the `_echo` reference plugin (PC-3) do not exist yet.
+> Verified against `src/tools/`, `src/plugins/` and `src/app_bootstrap.py` on 2026-11-15.
+> PC-1 to PC-3 of the contract in `.claude/rules/plugins.md` ship: the manifest, the
+> services, the hooks below, and the reference plugin.
 
 Drop a `.py` file here — LocalChat loads it automatically at startup.
 
@@ -28,7 +28,7 @@ PLUGIN_META = {"name": "My Plugin", "version": "1.0.0", "description": "Shown in
 # The manifest. Every name is optional; these are the defaults.
 PLUGIN_SCOPE = "local"        # retrieval reach: local | global | hybrid
 PLUGIN_MIN_ROLE = "viewer"    # who may use its tools: viewer | editor | owner | admin
-PLUGIN_HOOKS = []             # validated against the catalogue; nothing fires them until PC-2
+PLUGIN_HOOKS = []             # each hook named here is a function of that name; see Hooks
 PLUGIN_CONFIG = {             # KEY: (type, default); type is str | int | float | bool
     "TOP_K": ("int", 5),
 }
@@ -73,12 +73,38 @@ API key's) and then admin (a global administrator).
 for a plugin that needs it. Tools run synchronously inside the chat stream, so a completion
 from inside one needs that changed first. `PLUGIN_CONTRIBUTES` must be `False`.
 
+### Hooks
+
+A plugin reacts to the core through hooks. Name each one in `PLUGIN_HOOKS` and define a
+function of the same name taking one argument, the payload (a fresh `dict` per subscriber):
+
+```python
+PLUGIN_HOOKS = ["on_document_ingested", "on_scheduler_tick"]
+
+def on_document_ingested(payload):   # document_id, filename, workspace_id, chunks, replaced, source_id
+    ...
+
+def on_scheduler_tick(payload):      # tick, at — every SCHEDULER_TICK_SECONDS (default 3600)
+    ...
+```
+
+| Hook | Fires when |
+|---|---|
+| `on_document_ingested` | A document finished ingesting, by upload or connector |
+| `on_scheduler_tick` | The core scheduler ticks |
+| `on_tool_invocation` | A tool the caller was permitted has run; payload `tool`, `source` |
+
+A hook named without its function disables the plugin. A subscriber that raises is logged
+and skipped, and the core carries on. Subscribers run in the thread that emitted, so keep
+them short: a slow `on_document_ingested` slows every ingest. A plugin's subscriptions end
+when it is unloaded and are made afresh on reload. `on_route_mount` is not offered yet.
+
 ### Legacy plugins
 
 A file without `setup(services)` loads the way every plugin did before PC-1: it imports
 `src.tools.registry` and registers at import time. It still works, is listed with
 `"legacy": true` in `GET /api/plugins`, and logs a warning. Its tools are open to every
-role. Move it to `setup(services)` — `example_plugin.py` shows the result.
+role. Move it to `setup(services)` — the reference plugin shows the result.
 
 ---
 
@@ -97,6 +123,7 @@ role. Move it to `setup(services)` — `example_plugin.py` shows the result.
 |---|---|---|
 | `PLUGINS_ENABLED` | `true` | Set to `false` to disable plugin loading |
 | `PLUGINS_DIR` | `plugins` | Directory to scan (relative to repo root) |
+| `SCHEDULER_TICK_SECONDS` | `3600` | Interval of `on_scheduler_tick` |
 | `PLUGIN_<PLUGIN>_<KEY>` | the manifest's default | A plugin's declared setting |
 
 ---
@@ -118,4 +145,8 @@ role. Move it to `setup(services)` — `example_plugin.py` shows the result.
 
 ## Example
 
-See [`example_plugin.py`](example_plugin.py) for a working two-tool example (`word_count`, `reverse_text`) with a manifest and a setting.
+Start from [`tests/fixtures/plugins/_echo.py`](../tests/fixtures/plugins/_echo.py), the
+reference plugin (PC-3): one tool that calls every service, a function for every hook,
+and a setting. It is the core's test fixture, so it lives under `tests/` and never loads
+in an installation: copy it here under a name without the leading `_`, and replace the
+bodies. `tests/unit/test_echo_contract.py` shows what each part receives.

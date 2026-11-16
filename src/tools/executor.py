@@ -19,12 +19,14 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncGenerator
 from typing import Any
 
 from .. import config
 from ..ollama_client import OllamaClient
+from ..plugins.hooks import Payload, hook_bus
 from ..utils.caller import caller_has_role
 from ..utils.logging_config import get_logger
 from .registry import ToolRegistry
@@ -197,7 +199,10 @@ class ToolExecutor:
 
         if not inline_mode:
             working_messages.append(assistant_msg)
-        self._append_tool_results(tool_calls, inline_mode, working_messages)
+        invoked = self._append_tool_results(tool_calls, inline_mode, working_messages)
+        for event in invoked:
+            # Off the event loop: a slow subscriber must not stall every other stream.
+            await asyncio.to_thread(hook_bus.emit, "on_tool_invocation", event)
         return False, None, inline_mode
 
     def _handle_no_tool_calls(
@@ -226,13 +231,19 @@ class ToolExecutor:
         tool_calls: list,
         inline_mode: bool,
         working_messages: list[dict[str, Any]],
-    ) -> None:
-        """Execute each tool call and append results to working_messages."""
+    ) -> list[Payload]:
+        """Execute each tool call, append results to working_messages, return what ran."""
+        invoked: list[Payload] = []
         for tc in tool_calls:
             func = tc.get("function", {})
             name = func.get("name", "")
             arguments = self._parse_tool_arguments(func.get("arguments", {}))
             result = self._run_tool(name, arguments)
+            spec = self._registry.get(name)
+            # A refused tool is announced as nothing, the same answer the caller got.
+            # The arguments stay out: they carry the user's question, which no hook needs yet.
+            if spec is not None and self._permitted(name):
+                invoked.append({"tool": name, "source": spec.source})
             if inline_mode:
                 working_messages.append({
                     "role": "user",
@@ -244,6 +255,7 @@ class ToolExecutor:
                 })
             else:
                 working_messages.append({"role": "tool", "content": result})
+        return invoked
 
     def _permitted(self, name: str) -> bool:
         spec = self._registry.get(name)

@@ -83,6 +83,7 @@ class TestManifest:
         m = read_manifest(_module(
             PLUGIN_SCOPE="hybrid", PLUGIN_MIN_ROLE="owner",
             PLUGIN_HOOKS=["on_scheduler_tick"], PLUGIN_CONFIG={"LIMIT": ("int", 3)},
+            on_scheduler_tick=lambda payload: None,
         ))
         assert (m.scope, m.min_role, m.hooks, m.config) == (
             "hybrid", "owner", ("on_scheduler_tick",), {"LIMIT": ("int", 3)},
