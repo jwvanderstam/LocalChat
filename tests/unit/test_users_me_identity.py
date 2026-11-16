@@ -31,6 +31,9 @@ def _client(member_role: str | None, global_role: str = "user"):
     state.db.api_keys.resolve.return_value = None
     state.db.members.role.return_value = member_role
     state.db.workspaces.default_id.return_value = WS
+    # Not a bare mock: a truthy one becomes the workspace the guard pins, and the
+    # second check this route makes then refuses it as no workspace id.
+    state.db.members.for_user.return_value = []
     state.db.users.get_by_id.return_value = {"id": USER, "username": "jo", "role": global_role}
     app = FastAPI()
     app.include_router(router, prefix="/api")

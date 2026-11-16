@@ -107,12 +107,12 @@ class TestConnectorsRequireWorkspaceOwner:
 
     def test_non_member_may_not_trigger_sync(self):
         client = _client("connector_routes", "/api", member_role=None)
-        assert client.post("/api/connectors/c1/sync", headers=_auth()).status_code == 403
+        assert client.post("/api/connectors/00000000-0000-4000-8000-000000000701/sync", headers=_auth()).status_code == 403
 
     def test_webhook_stays_open(self):
         """Deliberate: external systems POST here without a bearer token."""
         client = _client("connector_routes", "/api", member_role=None)
-        assert client.post("/api/connectors/c1/webhook", json={}).status_code != 401
+        assert client.post("/api/connectors/00000000-0000-4000-8000-000000000701/webhook", json={}).status_code != 401
 
 
 @pytest.mark.unit

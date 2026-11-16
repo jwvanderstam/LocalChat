@@ -14,6 +14,7 @@ from src.models import (
     ModelDeleteRequest,
     ModelPullRequest,
     ModelRequest,
+    UuidId,
 )
 
 # ============================================================================
@@ -310,3 +311,23 @@ class TestChatRequestTemperatureDefault:
         """An explicitly provided temperature is not clamped to the config default."""
         request = ChatRequest(message="hello", temperature=0.9)
         assert request.temperature == 0.9
+
+
+_ID = "00000000-0000-4000-8000-0000000000ab"
+
+
+@pytest.mark.unit
+@pytest.mark.validation
+class TestUuidIdHasTheGuardsRule:
+    """PR #546 review: the path accepted and normalised the spellings the workspace guard refuses."""
+
+    @pytest.mark.parametrize("value", ["urn:uuid:" + _ID, "{" + _ID + "}", _ID.replace("-", "")])
+    def test_a_non_canonical_spelling_is_refused(self, value):
+        from pydantic import TypeAdapter
+        with pytest.raises(ValidationError):
+            TypeAdapter(UuidId).validate_python(value)
+
+    def test_upper_case_is_admitted_and_lowered(self):
+        """Over-correction guard: the workspace guard admits upper case too."""
+        from pydantic import TypeAdapter
+        assert TypeAdapter(UuidId).validate_python(_ID.upper()) == _ID

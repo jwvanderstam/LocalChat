@@ -14,14 +14,14 @@ class TestConnectorRoutesErrors:
 
     def test_get_connector_db_error_returns_500(self, client, app):
         app.state.db.connectors.get = MagicMock(side_effect=Exception("db gone"))
-        resp = client.get('/api/connectors/some-id')
+        resp = client.get('/api/connectors/00000000-0000-4000-8000-000000000101')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
     def test_update_connector_db_error_returns_500(self, client, app):
         app.state.db.connectors.update = MagicMock(side_effect=Exception("db gone"))
         resp = client.put(
-            '/api/connectors/some-id',
+            '/api/connectors/00000000-0000-4000-8000-000000000101',
             json={'display_name': 'new name'},
         )
         assert resp.status_code == 500
@@ -29,13 +29,13 @@ class TestConnectorRoutesErrors:
 
     def test_delete_connector_db_error_returns_500(self, client, app):
         app.state.db.connectors.retire = MagicMock(side_effect=Exception("db gone"))
-        resp = client.delete('/api/connectors/some-id')
+        resp = client.delete('/api/connectors/00000000-0000-4000-8000-000000000101')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
     def test_sync_history_db_error_returns_500(self, client, app):
         app.state.db.connectors.sync_history = MagicMock(side_effect=Exception("db gone"))
-        resp = client.get('/api/connectors/some-id/history')
+        resp = client.get('/api/connectors/00000000-0000-4000-8000-000000000101/history')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
@@ -56,7 +56,7 @@ class TestConnectorRoutesErrors:
         resp = client.post(
             '/api/connectors',
             json={'connector_type': 'webhook', 'config': {}},
-            headers={'X-Workspace-ID': 'ws-1'},
+            headers={'X-Workspace-ID': '00000000-0000-4000-8000-000000000105'},
         )
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
@@ -88,32 +88,32 @@ class TestAConnectorOutsideTheScopeIsNotFound:
     def test_history_of_a_foreign_connector_is_not_found(self, client, app):
         app.state.db.connectors.get = MagicMock(return_value=None)
         app.state.db.connectors.sync_history = MagicMock(return_value=[{"id": 1}])
-        resp = client.get('/api/connectors/foreign/history', headers={'X-Workspace-ID': 'ws-a'})
+        resp = client.get('/api/connectors/00000000-0000-4000-8000-000000000102/history', headers={'X-Workspace-ID': '00000000-0000-4000-8000-000000000104'})
         assert resp.status_code == 404
         app.state.db.connectors.sync_history.assert_not_called()
 
     def test_history_looks_the_connector_up_in_the_authorised_scope(self, client, app):
-        app.state.db.connectors.get = MagicMock(return_value={'id': 'own'})
+        app.state.db.connectors.get = MagicMock(return_value={'id': '00000000-0000-4000-8000-000000000103'})
         app.state.db.connectors.sync_history = MagicMock(return_value=[{"id": 1}])
-        resp = client.get('/api/connectors/own/history', headers={'X-Workspace-ID': 'ws-a'})
+        resp = client.get('/api/connectors/00000000-0000-4000-8000-000000000103/history', headers={'X-Workspace-ID': '00000000-0000-4000-8000-000000000104'})
         assert resp.json()['history'] == [{"id": 1}]
-        assert app.state.db.connectors.get.call_args.kwargs['scope'] == 'ws-a'
+        assert app.state.db.connectors.get.call_args.kwargs['scope'] == '00000000-0000-4000-8000-000000000104'
 
     def test_a_foreign_connector_is_not_synced(self, client, app):
         app.state.db.connectors.get = MagicMock(return_value=None)
         app.state.connector_registry = MagicMock()
         app.state.sync_worker = MagicMock()
-        resp = client.post('/api/connectors/foreign/sync', headers={'X-Workspace-ID': 'ws-a'})
+        resp = client.post('/api/connectors/00000000-0000-4000-8000-000000000102/sync', headers={'X-Workspace-ID': '00000000-0000-4000-8000-000000000104'})
         assert resp.status_code == 404
         app.state.connector_registry.get.assert_not_called()
 
     def test_the_callers_own_connector_is_synced(self, client, app):
-        app.state.db.connectors.get = MagicMock(return_value={'id': 'own'})
+        app.state.db.connectors.get = MagicMock(return_value={'id': '00000000-0000-4000-8000-000000000103'})
         app.state.connector_registry = MagicMock()
         app.state.sync_worker = MagicMock()
-        resp = client.post('/api/connectors/own/sync', headers={'X-Workspace-ID': 'ws-a'})
+        resp = client.post('/api/connectors/00000000-0000-4000-8000-000000000103/sync', headers={'X-Workspace-ID': '00000000-0000-4000-8000-000000000104'})
         assert resp.status_code == 200
-        assert app.state.db.connectors.get.call_args.kwargs['scope'] == 'ws-a'
+        assert app.state.db.connectors.get.call_args.kwargs['scope'] == '00000000-0000-4000-8000-000000000104'
 
 
 class TestConnectorOwnerBinding:
@@ -170,7 +170,7 @@ class TestConnectorOwnerBinding:
         resp = client.post(
             '/api/connectors',
             json={'connector_type': 'google_drive', 'config': {'folder_id': 'f1'}},
-            headers={'X-Workspace-ID': 'ws-1'},
+            headers={'X-Workspace-ID': '00000000-0000-4000-8000-000000000105'},
         )
 
         assert resp.status_code == 201
@@ -182,7 +182,7 @@ class TestConnectorOwnerBinding:
         app.state.db.connectors.update = MagicMock(return_value=True)
 
         resp = client.put(
-            '/api/connectors/some-id',
+            '/api/connectors/00000000-0000-4000-8000-000000000101',
             json={'config': {'user_id': 'someone-else'}},
         )
 
@@ -194,11 +194,11 @@ class TestConnectorOwnerBinding:
         registry = self._registry(app)
         app.state.db.connectors.update = MagicMock(return_value=True)
         app.state.db.connectors.get = MagicMock(return_value={
-            'id': 'some-id', 'connector_type': 'google_drive', 'config': {},
-            'enabled': True, 'workspace_id': 'ws-1', 'created_by': 'creator',
+            'id': '00000000-0000-4000-8000-000000000101', 'connector_type': 'google_drive', 'config': {},
+            'enabled': True, 'workspace_id': '00000000-0000-4000-8000-000000000105', 'created_by': 'creator',
         })
 
-        resp = client.put('/api/connectors/some-id', json={'enabled': True})
+        resp = client.put('/api/connectors/00000000-0000-4000-8000-000000000101', json={'enabled': True})
 
         assert resp.status_code == 200
         assert registry.add.call_args.kwargs['owner_user_id'] == 'creator'

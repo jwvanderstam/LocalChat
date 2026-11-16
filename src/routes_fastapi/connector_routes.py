@@ -10,6 +10,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from ..models import UuidId
 from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..services.connectors import ConnectorsService
 from ..services.errors import ServiceError
@@ -113,7 +114,7 @@ async def create_connector(request: Request, connectors: Connectors) -> Any:
 
 
 @router.get("/connectors/{connector_id}")
-def get_connector(connector_id: str, request: Request, connectors: Connectors) -> Any:
+def get_connector(connector_id: UuidId, request: Request, connectors: Connectors) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
         return denied
@@ -128,7 +129,7 @@ def get_connector(connector_id: str, request: Request, connectors: Connectors) -
 
 
 @router.put("/connectors/{connector_id}")
-async def update_connector(connector_id: str, request: Request, connectors: Connectors) -> Any:
+async def update_connector(connector_id: UuidId, request: Request, connectors: Connectors) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
         return denied
@@ -153,7 +154,7 @@ async def update_connector(connector_id: str, request: Request, connectors: Conn
 
 @router.delete("/connectors/{connector_id}/purge")
 def purge_connector(
-    connector_id: str,
+    connector_id: UuidId,
     connectors: Connectors,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
@@ -179,7 +180,7 @@ def purge_connector(
 
 
 @router.delete("/connectors/{connector_id}")
-def delete_connector(connector_id: str, request: Request, connectors: Connectors) -> Any:
+def delete_connector(connector_id: UuidId, request: Request, connectors: Connectors) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
         return denied
@@ -193,7 +194,7 @@ def delete_connector(connector_id: str, request: Request, connectors: Connectors
 
 
 @router.post("/connectors/{connector_id}/sync")
-def trigger_sync(connector_id: str, request: Request, connectors: Connectors) -> Any:
+def trigger_sync(connector_id: UuidId, request: Request, connectors: Connectors) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
         return denied
@@ -218,7 +219,7 @@ def trigger_sync(connector_id: str, request: Request, connectors: Connectors) ->
 
 @router.get("/connectors/{connector_id}/history")
 def sync_history(
-    connector_id: str, request: Request, connectors: Connectors, limit: int = 20
+    connector_id: UuidId, request: Request, connectors: Connectors, limit: int = 20
 ) -> Any:
     denied = _deny(request, None, "owner")
     if denied:
@@ -235,7 +236,7 @@ def sync_history(
 
 
 @router.post("/connectors/{connector_id}/webhook")
-async def receive_webhook(connector_id: str, request: Request, connectors: Connectors) -> Any:
+async def receive_webhook(connector_id: UuidId, request: Request, connectors: Connectors) -> Any:
     # No user session here: this is a public receiver, and the connector id plus its
     # secret is the whole credential. ALL_WORKSPACES says that rather than relying on
     # an omitted argument to mean it.

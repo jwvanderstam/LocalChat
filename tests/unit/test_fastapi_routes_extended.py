@@ -241,8 +241,8 @@ class TestWorkspaceRoutesExtended:
         from src.routes_fastapi.workspace_routes import router
 
         state = _base_state()
-        state.db.workspaces.list_all.return_value = [{"id": "ws-1", "name": "Acme"}]
-        state.db.workspaces.get.return_value = {"id": "ws-1", "name": "Acme"}
+        state.db.workspaces.list_all.return_value = [{"id": "00000000-0000-4000-8000-000000000301", "name": "Acme"}]
+        state.db.workspaces.get.return_value = {"id": "00000000-0000-4000-8000-000000000301", "name": "Acme"}
         state.db.workspaces.create.return_value = "ws-new"
         state.db.workspaces.update.return_value = True
         state.db.workspaces.retire.return_value = True
@@ -282,11 +282,11 @@ class TestWorkspaceRoutesExtended:
 
     def test_get_workspace_found(self):
         client = self._client()
-        resp = client.get("/api/workspaces/ws-1")
+        resp = client.get("/api/workspaces/00000000-0000-4000-8000-000000000301")
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
-        assert data["workspace"]["id"] == "ws-1"
+        assert data["workspace"]["id"] == "00000000-0000-4000-8000-000000000301"
 
     def test_get_workspace_not_found(self):
         from src.routes_fastapi.workspace_routes import router
@@ -294,23 +294,23 @@ class TestWorkspaceRoutesExtended:
         state = _base_state()
         state.db.workspaces.get.return_value = None
         client = _make_client(router, "/api", state)
-        resp = client.get("/api/workspaces/missing")
+        resp = client.get("/api/workspaces/00000000-0000-4000-8000-000000000302")
         assert resp.status_code == 404
 
     def test_update_workspace_no_fields(self):
         client = self._client()
-        resp = client.put("/api/workspaces/ws-1", json={"unknown_field": "x"})
+        resp = client.put("/api/workspaces/00000000-0000-4000-8000-000000000301", json={"unknown_field": "x"})
         assert resp.status_code == 400
 
     def test_update_workspace_success(self):
         client = self._client()
-        resp = client.put("/api/workspaces/ws-1", json={"name": "New Name"})
+        resp = client.put("/api/workspaces/00000000-0000-4000-8000-000000000301", json={"name": "New Name"})
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_workspace(self):
         client = self._client()
-        resp = client.delete("/api/workspaces/ws-1")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000000301")
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
@@ -323,24 +323,24 @@ class TestWorkspaceRoutesExtended:
         state.db.workspaces.retire.return_value = False
         state.db.members.role.return_value = None
         client = _make_client(router, "/api", state)
-        resp = client.delete("/api/workspaces/ghost")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000000303")
         assert resp.status_code == 404
 
     def test_list_workspace_members(self):
         client = self._client()
-        resp = client.get("/api/workspaces/ws-1/members")
+        resp = client.get("/api/workspaces/00000000-0000-4000-8000-000000000301/members")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
         assert resp.json()["members"] == []
 
     def test_add_workspace_member_missing_user_id(self):
         client = self._client()
-        resp = client.post("/api/workspaces/ws-1/members", json={"role": "viewer"})
+        resp = client.post("/api/workspaces/00000000-0000-4000-8000-000000000301/members", json={"role": "viewer"})
         assert resp.status_code == 400
 
     def test_add_workspace_member_invalid_role(self):
         client = self._client()
-        resp = client.post("/api/workspaces/ws-1/members", json={"user_id": "u1", "role": "superadmin"})
+        resp = client.post("/api/workspaces/00000000-0000-4000-8000-000000000301/members", json={"user_id": "u1", "role": "superadmin"})
         assert resp.status_code == 400
 
     def test_switch_workspace_missing_id(self):
@@ -350,7 +350,7 @@ class TestWorkspaceRoutesExtended:
 
     def test_switch_workspace_success(self):
         client = self._client()
-        resp = client.post("/api/workspaces/switch", json={"workspace_id": "ws-1"})
+        resp = client.post("/api/workspaces/switch", json={"workspace_id": "00000000-0000-4000-8000-000000000301"})
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 

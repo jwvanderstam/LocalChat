@@ -7,6 +7,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
+from ..models import UuidId
 from ..security_fastapi import get_current_user_id
 from ..services.annotations import AnnotationsService
 from ..utils.logging_config import get_logger
@@ -70,7 +71,7 @@ def list_chunk_annotations(chunk_id: int, request: Request, annotations: Annotat
 
 
 @router.delete("/annotations/{annotation_id}")
-def delete_annotation(annotation_id: str, request: Request, annotations: Annotations) -> Any:
+def delete_annotation(annotation_id: UuidId, request: Request, annotations: Annotations) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied

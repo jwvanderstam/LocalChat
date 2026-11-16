@@ -194,9 +194,9 @@ class TestDocumentStatsRoute:
         app.state.db.documents.count = MagicMock(return_value=2)
         app.state.db.documents.chunk_count = MagicMock(return_value=10)
         app.state.db.documents.chunk_statistics = MagicMock(return_value={})
-        client.get('/api/documents/stats', headers={'X-Workspace-ID': 'ws-abc'})
-        app.state.db.documents.count.assert_called_once_with(scope='ws-abc')
-        app.state.db.documents.chunk_count.assert_called_once_with(scope='ws-abc')
+        client.get('/api/documents/stats', headers={'X-Workspace-ID': '00000000-0000-4000-8000-000000000901'})
+        app.state.db.documents.count.assert_called_once_with(scope='00000000-0000-4000-8000-000000000901')
+        app.state.db.documents.chunk_count.assert_called_once_with(scope='00000000-0000-4000-8000-000000000901')
 
     def test_stats_no_workspace_header_passes_all_workspaces(self, client, app):
         app.state.db.documents.count = MagicMock(return_value=5)

@@ -52,14 +52,14 @@ class TestAuthRoutesErrors:
 
     def test_get_user_db_error_returns_500(self, client, app):
         app.state.db.users.get_by_id = MagicMock(side_effect=Exception("db gone"))
-        resp = client.get('/api/users/nonexistent-id')
+        resp = client.get('/api/users/00000000-0000-4000-8000-000000001001')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 
     def test_update_user_db_error_returns_500(self, client, app):
         app.state.db.users.update = MagicMock(side_effect=Exception("db gone"))
         resp = client.put(
-            '/api/users/some-id',
+            '/api/users/00000000-0000-4000-8000-000000001002',
             json={'email': 'new@example.com'},
         )
         assert resp.status_code == 500
@@ -67,7 +67,7 @@ class TestAuthRoutesErrors:
 
     def test_delete_user_db_error_returns_500(self, client, app):
         app.state.db.users.retire = MagicMock(side_effect=Exception("db gone"))
-        resp = client.delete('/api/users/some-id')
+        resp = client.delete('/api/users/00000000-0000-4000-8000-000000001002')
         assert resp.status_code == 500
         assert resp.json()['message'] == 'Internal server error'
 

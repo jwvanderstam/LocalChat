@@ -107,6 +107,14 @@ class TestACreateIsValidated:
                                                "workspace_id": WORKSPACE, "workspace_role": "admin"})
         assert (resp.status_code, db.users.create.called) == (400, False)
 
+    def test_a_workspace_id_that_is_not_a_uuid_creates_nobody(self):
+        """PR #546 review: the membership write refused it after the user was created."""
+        client, db = _client()
+        resp = client.post("/api/users", json={"username": "jo", "password": PASSWORD,
+                                               "workspace_id": "not-a-uuid"})
+        assert (resp.status_code, resp.json()["message"], db.users.create.called) == (
+            400, "workspace_id must be a workspace id", False)
+
     def test_a_valid_body_creates_the_user_and_the_membership(self):
         client, db = _client()
         resp = client.post("/api/users", json={"username": " jo ", "password": PASSWORD, "email": " ",
@@ -121,7 +129,15 @@ class TestAGrantIsValidated:
         client, db = _client()
         resp = client.post(f"/api/users/{USER}/workspaces", json={"workspace_id": 5})
         assert (resp.status_code, resp.json()["message"], db.members.add.called) == (
-            400, "workspace_id is required", False)
+            400, "workspace_id must be a workspace id", False)
+
+    @pytest.mark.parametrize("value", ["not-a-uuid", WORKSPACE[:13]])
+    def test_a_workspace_id_that_is_not_a_uuid_is_a_400_not_a_500(self, value):
+        """PR #546 review: Postgres refused it inside the write, and the route answered 500."""
+        client, db = _client()
+        resp = client.post(f"/api/users/{USER}/workspaces", json={"workspace_id": value})
+        assert (resp.status_code, resp.json()["message"], db.members.add.called) == (
+            400, "workspace_id must be a workspace id", False)
 
     def test_a_grant_defaults_to_editor(self):
         client, db = _client()

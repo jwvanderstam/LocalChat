@@ -16,6 +16,7 @@ from ..models import (
     GrantWorkspaceRequest,
     LoginRequest,
     UpdateUserRequest,
+    UuidId,
 )
 from ..security_fastapi import (
     SESSION_COOKIE,
@@ -53,11 +54,11 @@ _USER_FIELDS = {
     "email": "email must be a string",
     "role": "role must be 'admin' or 'user'",
     "is_active": "is_active must be true or false",
-    "workspace_id": "workspace_id must be a string",
+    "workspace_id": "workspace_id must be a workspace id",
     "workspace_role": "workspace_role must be viewer, editor or owner",
 }
 _GRANT_FIELDS = {
-    "workspace_id": "workspace_id is required",
+    "workspace_id": "workspace_id must be a workspace id",
     "role": "role must be viewer, editor or owner",
 }
 
@@ -205,7 +206,7 @@ def get_own_identity(request: Request, users: Users) -> Any:
 
 @router.get("/users/{user_id}/workspaces")
 def list_user_workspaces(
-    user_id: str,
+    user_id: UuidId,
     users: Users,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
@@ -219,7 +220,7 @@ def list_user_workspaces(
 
 @router.post("/users/{user_id}/workspaces")
 async def grant_user_workspace(
-    user_id: str,
+    user_id: UuidId,
     request: Request,
     users: Users,
     _admin: Annotated[str, Depends(require_admin_dep)],
@@ -240,8 +241,8 @@ async def grant_user_workspace(
 
 @router.delete("/users/{user_id}/workspaces/{workspace_id}")
 def revoke_user_workspace(
-    user_id: str,
-    workspace_id: str,
+    user_id: UuidId,
+    workspace_id: UuidId,
     users: Users,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
@@ -258,7 +259,7 @@ def revoke_user_workspace(
 
 
 @router.get("/users/{user_id}")
-def get_user(user_id: str, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def get_user(user_id: UuidId, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
         user = users.get_user(user_id)
         if user is None:
@@ -271,7 +272,7 @@ def get_user(user_id: str, users: Users, _admin: Annotated[str, Depends(require_
 
 @router.put("/users/{user_id}")
 async def update_user(
-    user_id: str, request: Request, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]
+    user_id: UuidId, request: Request, users: Users, _admin: Annotated[str, Depends(require_admin_dep)]
 ) -> Any:
     data = await request.json() if await request.body() else {}
     try:
@@ -294,7 +295,7 @@ async def update_user(
 
 
 @router.delete("/users/{user_id}/purge")
-def purge_user(user_id: str, users: Users, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def purge_user(user_id: UuidId, users: Users, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
         if not users.purge_user(user_id):
             return JSONResponse(
@@ -316,7 +317,7 @@ def purge_user(user_id: str, users: Users, admin_user_id: Annotated[str, Depends
 
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: str, users: Users, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
+def delete_user(user_id: UuidId, users: Users, admin_user_id: Annotated[str, Depends(require_admin_dep)]) -> Any:
     try:
         if not users.retire_user(user_id, actor=admin_user_id):
             return JSONResponse({"success": False, "message": _NOT_FOUND}, status_code=404)

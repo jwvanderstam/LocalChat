@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 
+from ..models import UuidId
 from ..security_fastapi import get_current_user_id, require_admin_dep
 from ..services.conversations import ConversationsService
 from ..services.errors import ServiceError
@@ -62,7 +63,7 @@ def delete_all_conversations(request: Request, conversations: Conversations) -> 
 
 
 @router.get("/conversations/{conversation_id}")
-def get_conversation(conversation_id: str, request: Request, conversations: Conversations) -> Any:
+def get_conversation(conversation_id: UuidId, request: Request, conversations: Conversations) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
         return denied
@@ -93,7 +94,7 @@ def _build_binary_export(fmt: str, title: str, messages: list) -> bytes:
 
 @router.get("/conversations/{conversation_id}/export")
 def export_conversation(
-    conversation_id: str, request: Request, conversations: Conversations, format: str = "json"
+    conversation_id: UuidId, request: Request, conversations: Conversations, format: str = "json"
 ) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
@@ -143,7 +144,7 @@ def export_conversation(
 
 @router.get("/conversations/{conversation_id}/documents")
 def get_conversation_documents(
-    conversation_id: str, request: Request, conversations: Conversations
+    conversation_id: UuidId, request: Request, conversations: Conversations
 ) -> Any:
     denied = _deny(request, None, "viewer")
     if denied:
@@ -156,7 +157,7 @@ def get_conversation_documents(
 
 @router.put("/conversations/{conversation_id}/documents")
 async def set_conversation_documents(
-    conversation_id: str, request: Request, conversations: Conversations
+    conversation_id: UuidId, request: Request, conversations: Conversations
 ) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
@@ -174,7 +175,7 @@ async def set_conversation_documents(
 
 @router.patch("/conversations/{conversation_id}")
 async def update_conversation(
-    conversation_id: str, request: Request, conversations: Conversations
+    conversation_id: UuidId, request: Request, conversations: Conversations
 ) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
@@ -192,7 +193,7 @@ async def update_conversation(
 
 @router.delete("/conversations/{conversation_id}/purge")
 def purge_conversation(
-    conversation_id: str,
+    conversation_id: UuidId,
     conversations: Conversations,
     _admin: Annotated[str, Depends(require_admin_dep)],
 ) -> Any:
@@ -215,7 +216,7 @@ def purge_conversation(
 
 
 @router.delete("/conversations/{conversation_id}")
-def delete_conversation(conversation_id: str, request: Request, conversations: Conversations) -> Any:
+def delete_conversation(conversation_id: UuidId, request: Request, conversations: Conversations) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied

@@ -202,26 +202,26 @@ class TestExtractMemories:
 class TestDeleteMemory:
     def test_returns_200_on_success(self):
         _, client = _make_app()
-        resp = client.delete("/api/memory/some-uuid")
+        resp = client.delete("/api/memory/00000000-0000-4000-8000-000000000501")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_calls_db_delete_with_id(self):
         app, client = _make_app()
-        client.delete("/api/memory/abc-123")
+        client.delete("/api/memory/00000000-0000-4000-8000-000000000502")
         # deleted_by names the authenticated caller. It read None while the RBAC
         # bypass was on, so this assertion documented the bypass rather than the
         # Clark-Wilson audit trail it exists for.
         from src.utils.scope import ALL_WORKSPACES
         kwargs = app.state.db.memories.retire.call_args.kwargs
-        assert app.state.db.memories.retire.call_args.args == ("abc-123",)
+        assert app.state.db.memories.retire.call_args.args == ("00000000-0000-4000-8000-000000000502",)
         assert kwargs["deleted_by"] == ADMIN_ID
         assert kwargs["scope"] is ALL_WORKSPACES
 
     def test_db_raises_returns_500(self):
         app, client = _make_app()
         app.state.db.memories.retire.side_effect = Exception("not found")
-        resp = client.delete("/api/memory/bad-id")
+        resp = client.delete("/api/memory/00000000-0000-4000-8000-000000000503")
         assert resp.status_code == 500
 
 

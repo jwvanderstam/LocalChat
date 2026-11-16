@@ -83,7 +83,7 @@ class TestAuthRoutes:
         state.db.users.retire.return_value = False
         state.db.users.count_active_admins.return_value = 2
         client = _make_client(router, "/api", state)
-        resp = client.delete("/api/users/missing-id")
+        resp = client.delete("/api/users/00000000-0000-4000-8000-000000000201")
         assert resp.status_code == 404
 
 
@@ -168,7 +168,7 @@ class TestAnnotationRoutes:
         state = _base_state()
         state.db.annotations.retire.return_value = False
         client = _make_client(router, "/api", state)
-        resp = client.delete("/api/annotations/99")
+        resp = client.delete("/api/annotations/00000000-0000-4000-8000-000000000202")
         assert resp.status_code == 404
 
 
@@ -184,7 +184,7 @@ class TestMemoryRoutes:
         state = _base_state()
         state.db.conversations.list_page.return_value = []
         state.db.conversations.count.return_value = 0
-        state.db.conversations.create.return_value = "conv-1"
+        state.db.conversations.create.return_value = "00000000-0000-4000-8000-000000000204"
         state.db.conversations.messages.return_value = []
         state.db.conversations.retire.return_value = True
         state.db.conversations.retire_all.return_value = 2
@@ -203,7 +203,7 @@ class TestMemoryRoutes:
         client = self._client()
         resp = client.post("/api/conversations", json={"title": "My chat"})
         assert resp.status_code == 201
-        assert resp.json()["id"] == "conv-1"
+        assert resp.json()["id"] == "00000000-0000-4000-8000-000000000204"
 
     def test_get_conversation_not_found(self):
         from src.routes_fastapi.memory_routes import router
@@ -211,18 +211,18 @@ class TestMemoryRoutes:
         state = _base_state()
         state.db.conversations.messages.return_value = None
         client = _make_client(router, "/api", state)
-        resp = client.get("/api/conversations/missing")
+        resp = client.get("/api/conversations/00000000-0000-4000-8000-000000000203")
         assert resp.status_code == 404
 
     def test_delete_conversation(self):
         client = self._client()
-        resp = client.delete("/api/conversations/conv-1")
+        resp = client.delete("/api/conversations/00000000-0000-4000-8000-000000000204")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_update_conversation_title_empty(self):
         client = self._client()
-        resp = client.patch("/api/conversations/conv-1", json={"title": ""})
+        resp = client.patch("/api/conversations/00000000-0000-4000-8000-000000000204", json={"title": ""})
         assert resp.status_code == 400
 
 
@@ -311,7 +311,7 @@ class TestLongtermMemoryRoutes:
         state = _base_state()
         state.db.memories.retire.return_value = True
         client = _make_client(router, "/api/memory", state)
-        resp = client.delete("/api/memory/mem-id-1")
+        resp = client.delete("/api/memory/00000000-0000-4000-8000-000000000205")
         assert resp.status_code == 200
 
 

@@ -498,6 +498,20 @@ def _check_api_key_access(
     return None
 
 
+def _is_uuid(value: str | None) -> bool:
+    """True for a UUID in its canonical form, and for no value at all: naming no workspace is allowed.
+
+    Canonical only: ``uuid.UUID`` also accepts ``urn:uuid:`` forms, which Postgres refuses,
+    and the value reaches Postgres as written.
+    """
+    if value is None:
+        return True
+    try:
+        return str(uuid.UUID(value)) == value.lower()
+    except ValueError:
+        return False
+
+
 def _first_workspace_for(db: Any, user_id: str | None) -> str | None:
     """The caller's own workspace to use when the request names none.
 
@@ -530,6 +544,11 @@ def check_workspace_access(
     Pass ``workspace_id=None`` for a header-scoped route; scope then resolves via
     ``get_workspace_id`` and falls back to the default workspace.
     """
+    # Whatever names the workspace: a path, the header, a query or a body. Unchecked, Postgres
+    # refused a malformed one inside the route and the caller got a 500.
+    if not _is_uuid(workspace_id if workspace_id is not None else get_workspace_id(request)):
+        return (status.HTTP_400_BAD_REQUEST, "Not a workspace id")
+
     # A workspace API key is a principal in its own right, checked before user
     # claims because it is not a user and must not fall through to user handling.
     api_key = _extract_api_key(request)

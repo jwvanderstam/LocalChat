@@ -120,3 +120,14 @@ class TestTheChatRoute:
 
         assert resp.status_code == 403
         state.doc_processor.retrieve_context.assert_not_called()
+
+    def test_a_malformed_additional_workspace_is_a_422_before_any_lookup(self):
+        """PR #546 review: a member's malformed id reached Postgres in the role check, and chat answered 500."""
+        state = _state()
+        _, client = _chat_client(state)
+        resp = client.post(
+            "/api/chat",
+            json={"message": "hi", "additional_workspace_ids": [SHARED, "not-a-uuid"]},
+            headers=auth_headers(**{"X-Workspace-ID": OWN}),
+        )
+        assert (resp.status_code, state.db.members.role.call_count) == (422, 1)

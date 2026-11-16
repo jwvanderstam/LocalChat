@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from .. import config
+from ..models import UuidId
 from ..security_fastapi import get_current_user_id
 from ..services.memories import MemoriesService
 from ..utils.logging_config import get_logger
@@ -67,7 +68,7 @@ async def extract_memories(request: Request, memories_svc: Memories) -> Any:
 
 
 @router.delete("/{memory_id}")
-def delete_memory(memory_id: str, request: Request, memories_svc: Memories) -> Any:
+def delete_memory(memory_id: UuidId, request: Request, memories_svc: Memories) -> Any:
     denied = _deny(request, None, "editor")
     if denied:
         return denied

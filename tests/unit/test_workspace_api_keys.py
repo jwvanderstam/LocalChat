@@ -188,10 +188,10 @@ class TestKeyManagementRoutes:
         state = authenticated_state(role="admin", member_role=member_role)
         state.db.api_keys.create.return_value = (
             "lcw_plaintext_shown_once",
-            {"id": "k1", "name": "discord-bridge", "key_prefix": "lcw_plain", "role": "viewer"},
+            {"id": "00000000-0000-4000-8000-000000000801", "name": "discord-bridge", "key_prefix": "lcw_plain", "role": "viewer"},
         )
         state.db.api_keys.list_for_workspace.return_value = [
-            {"id": "k1", "name": "discord-bridge", "key_prefix": "lcw_plain", "role": "viewer"}
+            {"id": "00000000-0000-4000-8000-000000000801", "name": "discord-bridge", "key_prefix": "lcw_plain", "role": "viewer"}
         ]
         state.db.api_keys.revoke.return_value = True
         app = FastAPI()
@@ -219,6 +219,6 @@ class TestKeyManagementRoutes:
 
     def test_revoke_scopes_the_delete_to_the_workspace(self):
         client = self._client()
-        client.delete(f"/api/workspaces/{WS_A}/keys/k1")
+        client.delete(f"/api/workspaces/{WS_A}/keys/00000000-0000-4000-8000-000000000801")
         kwargs = client.app.state.db.api_keys.revoke.call_args.kwargs
         assert kwargs["workspace_id"] == WS_A

@@ -48,30 +48,30 @@ class TestCreateConversation:
 class TestGetConversation:
     def test_get_existing_conversation(self, client, app):
         app.state.db.conversations.messages = MagicMock(return_value=[])
-        response = client.get('/api/conversations/abc-123')
+        response = client.get('/api/conversations/00000000-0000-4000-8000-000000001501')
         assert response.status_code in (200, 404)
 
     def test_get_nonexistent_conversation(self, client, app):
         app.state.db.conversations.messages = MagicMock(return_value=None)
-        response = client.get('/api/conversations/ghost-id')
+        response = client.get('/api/conversations/00000000-0000-4000-8000-000000001502')
         assert response.status_code in (404, 200)
 
 
 class TestRenameConversation:
     def test_rename_conversation(self, client, app):
         app.state.db.conversations.set_title = MagicMock(return_value=True)
-        response = client.patch('/api/conversations/abc-123',
+        response = client.patch('/api/conversations/00000000-0000-4000-8000-000000001501',
                                 json={'title': 'New Name'})
         assert response.status_code in (200, 404)
 
     def test_rename_missing_title(self, client, app):
-        response = client.patch('/api/conversations/abc-123',
+        response = client.patch('/api/conversations/00000000-0000-4000-8000-000000001501',
                                 json={})
         assert response.status_code in (200, 400, 404)
 
     def test_rename_not_found(self, client, app):
         app.state.db.conversations.set_title = MagicMock(return_value=False)
-        response = client.patch('/api/conversations/ghost',
+        response = client.patch('/api/conversations/00000000-0000-4000-8000-000000001503',
                                 json={'title': 'x'})
         assert response.status_code in (200, 404)
 
@@ -79,10 +79,10 @@ class TestRenameConversation:
 class TestDeleteConversation:
     def test_delete_existing_conversation(self, client, app):
         app.state.db.conversations.retire = MagicMock(return_value=True)
-        response = client.delete('/api/conversations/abc-123')
+        response = client.delete('/api/conversations/00000000-0000-4000-8000-000000001501')
         assert response.status_code in (200, 204)
 
     def test_delete_nonexistent_conversation(self, client, app):
         app.state.db.conversations.retire = MagicMock(return_value=False)
-        response = client.delete('/api/conversations/ghost')
+        response = client.delete('/api/conversations/00000000-0000-4000-8000-000000001503')
         assert response.status_code in (200, 404)

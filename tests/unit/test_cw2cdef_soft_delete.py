@@ -11,34 +11,34 @@ class TestDeleteWorkspace:
         app.state.db.members.role = MagicMock(return_value=None)
         app.state.db.workspaces.retire = MagicMock(return_value=True)
         app.state.db.workspaces.default_id = MagicMock(return_value="fallback-id")
-        resp = client.delete("/api/workspaces/some-ws-id")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000001205")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_missing_workspace_returns_404(self, client, app):
         app.state.db.members.role = MagicMock(return_value=None)
         app.state.db.workspaces.retire = MagicMock(return_value=False)
-        resp = client.delete("/api/workspaces/ghost-id")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000001201")
         assert resp.status_code == 404
 
     def test_delete_passes_deleted_by(self, client, app):
         app.state.db.members.role = MagicMock(return_value=None)
         app.state.db.workspaces.retire = MagicMock(return_value=True)
         app.state.db.workspaces.default_id = MagicMock(return_value=None)
-        client.delete("/api/workspaces/some-ws-id")
+        client.delete("/api/workspaces/00000000-0000-4000-8000-000000001205")
         app.state.db.workspaces.retire.assert_called_once()
 
 
 class TestPurgeWorkspace:
     def test_purge_succeeds_when_empty(self, client, app):
         app.state.db.workspaces.purge = MagicMock(return_value=True)
-        resp = client.delete("/api/workspaces/some-ws-id/purge")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000001205/purge")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_purge_blocked_returns_409(self, client, app):
         app.state.db.workspaces.purge = MagicMock(return_value=False)
-        resp = client.delete("/api/workspaces/some-ws-id/purge")
+        resp = client.delete("/api/workspaces/00000000-0000-4000-8000-000000001205/purge")
         assert resp.status_code == 409
         assert "purged" in resp.json()["message"].lower()
 
@@ -50,13 +50,13 @@ class TestPurgeWorkspace:
 class TestDeleteMemory:
     def test_soft_delete_returns_200(self, client, app):
         app.state.db.memories.retire = MagicMock(return_value=True)
-        resp = client.delete("/api/memory/some-memory-id")
+        resp = client.delete("/api/memory/00000000-0000-4000-8000-000000001204")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_missing_memory_returns_404(self, client, app):
         app.state.db.memories.retire = MagicMock(return_value=False)
-        resp = client.delete("/api/memory/ghost-id")
+        resp = client.delete("/api/memory/00000000-0000-4000-8000-000000001201")
         assert resp.status_code == 404
 
     def test_delete_all_returns_count(self, client, app):
@@ -73,18 +73,18 @@ class TestDeleteMemory:
 class TestDeleteAnnotation:
     def test_soft_delete_returns_200(self, client, app):
         app.state.db.annotations.retire = MagicMock(return_value=True)
-        resp = client.delete("/api/annotations/some-ann-id")
+        resp = client.delete("/api/annotations/00000000-0000-4000-8000-000000001202")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_missing_annotation_returns_404(self, client, app):
         app.state.db.annotations.retire = MagicMock(return_value=False)
-        resp = client.delete("/api/annotations/ghost-id")
+        resp = client.delete("/api/annotations/00000000-0000-4000-8000-000000001201")
         assert resp.status_code == 404
 
     def test_delete_passes_deleted_by(self, client, app):
         app.state.db.annotations.retire = MagicMock(return_value=True)
-        client.delete("/api/annotations/some-ann-id")
+        client.delete("/api/annotations/00000000-0000-4000-8000-000000001202")
         app.state.db.annotations.retire.assert_called_once()
 
 
@@ -96,33 +96,33 @@ class TestDeleteConnector:
     def test_soft_delete_returns_200(self, client, app):
         app.state.db.connectors.retire = MagicMock(return_value=True)
         app.state.connector_registry = MagicMock()
-        resp = client.delete("/api/connectors/some-conn-id")
+        resp = client.delete("/api/connectors/00000000-0000-4000-8000-000000001203")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_delete_missing_connector_returns_404(self, client, app):
         app.state.db.connectors.retire = MagicMock(return_value=False)
         app.state.connector_registry = MagicMock()
-        resp = client.delete("/api/connectors/ghost-id")
+        resp = client.delete("/api/connectors/00000000-0000-4000-8000-000000001201")
         assert resp.status_code == 404
 
     def test_registry_remove_called_on_success(self, client, app):
         app.state.db.connectors.retire = MagicMock(return_value=True)
         registry = MagicMock()
         app.state.connector_registry = registry
-        client.delete("/api/connectors/some-conn-id")
-        registry.remove.assert_called_once_with("some-conn-id")
+        client.delete("/api/connectors/00000000-0000-4000-8000-000000001203")
+        registry.remove.assert_called_once_with("00000000-0000-4000-8000-000000001203")
 
 
 class TestPurgeConnector:
     def test_purge_succeeds_when_no_documents(self, client, app):
         app.state.db.connectors.purge = MagicMock(return_value=True)
-        resp = client.delete("/api/connectors/some-conn-id/purge")
+        resp = client.delete("/api/connectors/00000000-0000-4000-8000-000000001203/purge")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
     def test_purge_blocked_by_documents_returns_409(self, client, app):
         app.state.db.connectors.purge = MagicMock(return_value=False)
-        resp = client.delete("/api/connectors/some-conn-id/purge")
+        resp = client.delete("/api/connectors/00000000-0000-4000-8000-000000001203/purge")
         assert resp.status_code == 409
         assert "purged" in resp.json()["message"].lower()

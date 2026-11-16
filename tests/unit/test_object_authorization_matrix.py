@@ -379,7 +379,7 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
 
         client = _client(router, "/api/memory", "editor")
         client.app.state.db.memories.retire.return_value = True
-        client.delete("/api/memory/abc-123", headers=_auth())
+        client.delete("/api/memory/00000000-0000-4000-8000-000000000601", headers=_auth())
         assert client.app.state.db.memories.retire.call_args.kwargs["scope"] == WS
 
     def test_annotation_delete_is_scoped(self):
@@ -387,7 +387,7 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
 
         client = _client(router, "/api", "editor")
         client.app.state.db.annotations.retire.return_value = True
-        client.delete("/api/annotations/abc-123", headers=_auth())
+        client.delete("/api/annotations/00000000-0000-4000-8000-000000000601", headers=_auth())
         assert client.app.state.db.annotations.retire.call_args.kwargs["scope"] == WS
 
     def test_connector_read_is_scoped(self):
@@ -395,7 +395,7 @@ class TestTheScopeReachingTheQueryIsTheAuthorisedOne:
 
         client = _client(router, "/api", "owner")
         client.app.state.db.connectors.get.return_value = None
-        client.get("/api/connectors/abc-123", headers=_auth())
+        client.get("/api/connectors/00000000-0000-4000-8000-000000000601", headers=_auth())
         assert client.app.state.db.connectors.get.call_args.kwargs["scope"] == WS
 
 

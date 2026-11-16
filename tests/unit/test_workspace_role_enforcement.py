@@ -90,7 +90,7 @@ class TestViewerIsReadOnly:
 
     def test_viewer_may_export_a_conversation(self):
         """Decision: export reformats what a viewer can already read."""
-        resp = _conversations("viewer").get("/api/conversations/c1/export", headers=_auth())
+        resp = _conversations("viewer").get("/api/conversations/00000000-0000-4000-8000-000000001601/export", headers=_auth())
         assert resp.status_code != 403
 
     def test_viewer_may_not_create_a_conversation(self):

@@ -1,9 +1,11 @@
 # Python 3.14 compatibility: Use string annotations to avoid __annotate__ issues
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     Field,
     StrictBool,
@@ -11,6 +13,20 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+
+def _canonical_uuid(value: str) -> str:
+    """The canonical spelling, either case. The workspace guard's rule: ``urn:uuid:``, braced
+    and unhyphenated forms are refused rather than normalised, so every id has one rule."""
+    canonical = str(UUID(value))
+    if canonical != value.lower():
+        raise ValueError("not a UUID in canonical form")
+    return canonical
+
+
+#: A path id addressing a row keyed by UUID. Refused at the boundary with a 422, as an
+#: ``int`` id already is: unchecked, Postgres refused it and the route answered 500.
+UuidId = Annotated[str, AfterValidator(_canonical_uuid)]
 
 _MODEL_NAME_EMPTY = 'Model name cannot be empty'
 _MODEL_NAME_INVALID_CHARS = 'Model name contains invalid characters'
@@ -60,7 +76,8 @@ class ChatRequest(BaseModel):
         max_length=100,
         description="Override the model router selection — use this exact Ollama model ID"
     )
-    additional_workspace_ids: list[str] | None = Field(
+    # Typed: a malformed one reached Postgres in the membership check and chat answered 500.
+    additional_workspace_ids: list[UuidId] | None = Field(
         default=None,
         description="Additional workspace UUIDs to include in cross-workspace retrieval"
     )
@@ -266,6 +283,12 @@ class CreateUserRequest(BaseModel):
     def blank_is_none(cls, v: str | None) -> str | None:
         return _blank_is_none(v)
 
+    @field_validator("workspace_id")
+    @classmethod
+    def workspace_is_a_uuid(cls, v: str | None) -> str | None:
+        # Postgres refuses anything else, inside the write, and the route answered 500.
+        return None if v is None else _canonical_uuid(v)
+
 
 class UpdateUserRequest(BaseModel):
     """Body of PUT /api/users/{id} (admin). Only the fields sent are changed."""
@@ -301,7 +324,7 @@ class GrantWorkspaceRequest(BaseModel):
     def workspace_present(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("workspace_id is required")
-        return v.strip()
+        return _canonical_uuid(v.strip())
 
 
 class LoginRequest(BaseModel):
