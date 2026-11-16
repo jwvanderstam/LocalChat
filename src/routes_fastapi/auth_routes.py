@@ -54,11 +54,11 @@ _USER_FIELDS = {
     "email": "email must be a string",
     "role": "role must be 'admin' or 'user'",
     "is_active": "is_active must be true or false",
-    "workspace_id": "workspace_id must be a string",
+    "workspace_id": "workspace_id must be a workspace id",
     "workspace_role": "workspace_role must be viewer, editor or owner",
 }
 _GRANT_FIELDS = {
-    "workspace_id": "workspace_id is required",
+    "workspace_id": "workspace_id must be a workspace id",
     "role": "role must be viewer, editor or owner",
 }
 

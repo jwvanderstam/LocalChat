@@ -277,6 +277,12 @@ class CreateUserRequest(BaseModel):
     def blank_is_none(cls, v: str | None) -> str | None:
         return _blank_is_none(v)
 
+    @field_validator("workspace_id")
+    @classmethod
+    def workspace_is_a_uuid(cls, v: str | None) -> str | None:
+        # Postgres refuses anything else, inside the write, and the route answered 500.
+        return None if v is None else _canonical_uuid(v)
+
 
 class UpdateUserRequest(BaseModel):
     """Body of PUT /api/users/{id} (admin). Only the fields sent are changed."""
@@ -312,7 +318,7 @@ class GrantWorkspaceRequest(BaseModel):
     def workspace_present(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("workspace_id is required")
-        return v.strip()
+        return _canonical_uuid(v.strip())
 
 
 class LoginRequest(BaseModel):
