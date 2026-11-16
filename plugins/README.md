@@ -1,8 +1,8 @@
 # LocalChat Plugin System
 
-> Verified against `src/tools/`, `src/plugins/` and `src/app_bootstrap.py` on 2026-11-11.
-> PC-1 and PC-2 of the contract in `.claude/rules/plugins.md` ship: the manifest, the
-> services and the hooks below. The `_echo` reference plugin (PC-3) does not exist yet.
+> Verified against `src/tools/`, `src/plugins/` and `src/app_bootstrap.py` on 2026-11-15.
+> PC-1 to PC-3 of the contract in `.claude/rules/plugins.md` ship: the manifest, the
+> services, the hooks below, and the reference plugin.
 
 Drop a `.py` file here — LocalChat loads it automatically at startup.
 
@@ -104,7 +104,7 @@ when it is unloaded and are made afresh on reload. `on_route_mount` is not offer
 A file without `setup(services)` loads the way every plugin did before PC-1: it imports
 `src.tools.registry` and registers at import time. It still works, is listed with
 `"legacy": true` in `GET /api/plugins`, and logs a warning. Its tools are open to every
-role. Move it to `setup(services)` — `example_plugin.py` shows the result.
+role. Move it to `setup(services)` — the reference plugin shows the result.
 
 ---
 
@@ -145,4 +145,8 @@ role. Move it to `setup(services)` — `example_plugin.py` shows the result.
 
 ## Example
 
-See [`example_plugin.py`](example_plugin.py) for a working two-tool example (`word_count`, `reverse_text`) with a manifest and a setting.
+Start from [`tests/fixtures/plugins/_echo.py`](../tests/fixtures/plugins/_echo.py), the
+reference plugin (PC-3): one tool that calls every service, a function for every hook,
+and a setting. It is the core's test fixture, so it lives under `tests/` and never loads
+in an installation: copy it here under a name without the leading `_`, and replace the
+bodies. `tests/unit/test_echo_contract.py` shows what each part receives.

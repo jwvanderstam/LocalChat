@@ -26,6 +26,10 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   subscriber that raises is logged and skipped. **Upgrading:** a manifest naming
   `on_route_mount`, or a hook without its function, now disables that plugin;
   `on_route_mount` is not offered yet.
+- **A reference plugin (PC-3).** `tests/fixtures/plugins/_echo.py` uses every service and
+  hook and nothing else, and a test drives it through the real loader and tool loop. It is
+  where a plugin author starts. **Upgrading:** `plugins/example_plugin.py` is removed, so its
+  `word_count` and `reverse_text` tools are no longer offered to the model.
 
 ### Changed
 
