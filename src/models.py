@@ -16,7 +16,12 @@ from pydantic import (
 
 
 def _canonical_uuid(value: str) -> str:
-    return str(UUID(value))
+    """The canonical spelling, either case. The workspace guard's rule: ``urn:uuid:``, braced
+    and unhyphenated forms are refused rather than normalised, so every id has one rule."""
+    canonical = str(UUID(value))
+    if canonical != value.lower():
+        raise ValueError("not a UUID in canonical form")
+    return canonical
 
 
 #: A path id addressing a row keyed by UUID. Refused at the boundary with a 422, as an

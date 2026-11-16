@@ -29,7 +29,8 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   400 to a workspace named in a header, query or body that is not a UUID in canonical
   form; Python reads `urn:uuid:` forms that Postgres refuses. An admin creating a user or
   granting a membership with a `workspace_id` that is not a UUID gets a 400, not a 500, and
-  a chat naming one in `additional_workspace_ids` a 422.
+  a chat naming one in `additional_workspace_ids` a 422. A path id follows the guard's rule:
+  canonical form, either case.
 - **A failing plugin no longer leaves tools behind, and a reloaded one can be unloaded.** A
   plugin that raised after registering a tool kept that tool. A reload recorded none of the
   plugin's tools, so unloading it afterwards left them registered. And a loader given an
