@@ -71,7 +71,8 @@ class ChatRequest(BaseModel):
         max_length=100,
         description="Override the model router selection — use this exact Ollama model ID"
     )
-    additional_workspace_ids: list[str] | None = Field(
+    # Typed: a malformed one reached Postgres in the membership check and chat answered 500.
+    additional_workspace_ids: list[UuidId] | None = Field(
         default=None,
         description="Additional workspace UUIDs to include in cross-workspace retrieval"
     )
