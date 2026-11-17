@@ -9,6 +9,7 @@ from pydantic import (
     BaseModel,
     Field,
     StrictBool,
+    StrictInt,
     StrictStr,
     field_validator,
     model_validator,
@@ -27,6 +28,17 @@ def _canonical_uuid(value: str) -> str:
 #: A path id addressing a row keyed by UUID. Refused at the boundary with a 422, as an
 #: ``int`` id already is: unchecked, Postgres refused it and the route answered 500.
 UuidId = Annotated[str, AfterValidator(_canonical_uuid)]
+
+
+def is_uuid_id(value: object) -> bool:
+    """Whether *value* passes ``UuidId``: for a body field checked outside a model."""
+    if not isinstance(value, str):
+        return False
+    try:
+        _canonical_uuid(value)
+    except ValueError:
+        return False
+    return True
 
 _MODEL_NAME_EMPTY = 'Model name cannot be empty'
 _MODEL_NAME_INVALID_CHARS = 'Model name contains invalid characters'
@@ -98,18 +110,16 @@ class ChatRequest(BaseModel):
     @classmethod
     def valid_uuid(cls, v: str | None) -> str | None:
         """Validate conversation_id is a well-formed UUID if provided."""
-        import uuid as _uuid
         # An empty value means "no conversation yet", not "a conversation named ''".
         # API clients that always send the field — an n8n HTTP node filling it from a
         # stored id that does not exist on the first message — send '' rather than
         # omitting it, and that must start a new conversation like any absent id.
         if v is not None and not v.strip():
             return None
-        if v is not None:
-            try:
-                _uuid.UUID(v)
-            except ValueError as e:
-                raise ValueError('conversation_id must be a valid UUID') from e
+        # Canonical only: ``uuid.UUID`` also accepts ``urn:uuid:`` and braced forms,
+        # which Postgres refuses, and chat answered 500.
+        if v is not None and not is_uuid_id(v):
+            raise ValueError('conversation_id must be a valid UUID')
         return v
 
     @field_validator('message')
@@ -349,3 +359,15 @@ class ContributionRequest(BaseModel):
     # A contribution is a curated choice, not a bulk export; the cap says so and bounds
     # the one transaction the copy runs in.
     document_ids: list[int] = Field(..., min_length=1, max_length=100)
+
+
+class FeedbackRequest(BaseModel):
+    """``POST /api/feedback``. Every id is looked up in Postgres before the rating is
+    stored, so each is typed: a value of the wrong type answered 500."""
+
+    rating: Literal[1, -1]
+    message_id: StrictInt | None = None
+    conversation_id: UuidId | None = None
+    feedback_type: StrictStr = "answer_quality"
+    correct_doc_ids: list[StrictStr] | None = None
+    source_chunk_ids: list[StrictInt] | None = None

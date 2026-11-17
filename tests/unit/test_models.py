@@ -331,3 +331,16 @@ class TestUuidIdHasTheGuardsRule:
         """Over-correction guard: the workspace guard admits upper case too."""
         from pydantic import TypeAdapter
         assert TypeAdapter(UuidId).validate_python(_ID.upper()) == _ID
+
+
+class TestChatConversationIdHasTheSameRule:
+    """``uuid.UUID`` admitted ``urn:uuid:`` and braced forms, Postgres refused them, and chat answered 500."""
+
+    @pytest.mark.parametrize("value", ["urn:uuid:" + _ID, "{" + _ID + "}", _ID.replace("-", "")])
+    def test_a_non_canonical_spelling_is_refused(self, value):
+        with pytest.raises(ValidationError):
+            ChatRequest(message="hi", conversation_id=value)
+
+    @pytest.mark.parametrize("value,expected", [(_ID, _ID), ("", None), ("  ", None)])
+    def test_a_canonical_id_is_kept_and_a_blank_one_starts_a_conversation(self, value, expected):
+        assert ChatRequest(message="hi", conversation_id=value).conversation_id == expected

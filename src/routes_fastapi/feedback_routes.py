@@ -6,7 +6,9 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
+from ..models import FeedbackRequest
 from ..security_fastapi import check_knowledge_scope_access, require_admin_dep
 from ..services.feedback import FeedbackService
 from ..utils.logging_config import get_logger
@@ -27,16 +29,19 @@ async def submit_feedback(request: Request, feedback: Feedback) -> Any:
     if denied:
         return denied
     data = await request.json() if await request.body() else {}
+    try:
+        body = FeedbackRequest.model_validate(data)
+    except ValidationError as exc:
+        field = str(exc.errors()[0]["loc"][0]) if exc.errors()[0]["loc"] else "body"
+        message = "rating must be 1 or -1" if field == "rating" else f"{field} is invalid"
+        return JSONResponse({"error": message}, status_code=400)
 
-    rating = data.get("rating")
-    if rating not in (1, -1):
-        return JSONResponse({"error": "rating must be 1 or -1"}, status_code=400)
-
-    message_id: int | None = data.get("message_id")
-    conversation_id: str | None = data.get("conversation_id")
-    feedback_type: str = data.get("feedback_type", "answer_quality")
-    correct_doc_ids: list[str] = data.get("correct_doc_ids") or []
-    source_chunk_ids: list[int] = data.get("source_chunk_ids") or []
+    rating = body.rating
+    message_id = body.message_id
+    conversation_id = body.conversation_id
+    feedback_type = body.feedback_type
+    correct_doc_ids = body.correct_doc_ids or []
+    source_chunk_ids = body.source_chunk_ids or []
 
     if not request.app.state.startup_status.get("database", False):
         return JSONResponse({"error": "database unavailable"}, status_code=503)

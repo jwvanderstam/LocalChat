@@ -48,6 +48,10 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   granting a membership with a `workspace_id` that is not a UUID gets a 400, not a 500, and
   a chat naming one in `additional_workspace_ids` a 422. A path id follows the guard's rule:
   canonical form, either case.
+- **The same for ids in a request body.** A chat's `conversation_id` in `urn:uuid:` or braced
+  form is a 422, not a 500. A rating whose `conversation_id`, `message_id`,
+  `source_chunk_ids` or `correct_doc_ids` has the wrong type, and an annotation whose
+  `conversation_id` is not a UUID, are a 400 before anything is looked up.
 - **A failing plugin no longer leaves tools behind, and a reloaded one can be unloaded.** A
   plugin that raised after registering a tool kept that tool. A reload recorded none of the
   plugin's tools, so unloading it afterwards left them registered. And a loader given an
