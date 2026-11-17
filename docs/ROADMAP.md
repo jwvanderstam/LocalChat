@@ -2151,7 +2151,7 @@ DP-3.
 | 8 | GKB-1 (schema + two-tier retrieval) ✅ 2026-10-09 — read-only global tier under RLS (0019) | 1 week |
 | 9 | GKB-2 (contribution workflow) ✓ backend 2026-10-19 (admin-only contribute, migration 0020), UI 2026-10-20 | 1 week |
 | 10 | PC-1 ✅ 2026-11-11 (manifest, services, the core's role gate) + PC-2 ✅ 2026-11-13 (hooks, scheduler) | 1 week |
-| 11 | PC-3 + PC-4 (echo plugin, CI gate) | 1 week |
+| 11 | PC-3 ✅ 2026-11-15 (#548) + PC-4 ✅ 2026-10-23 (built in Sprint 24) -> **v3.7.0**, with PC-1, PC-2 and the malformed-id fixes (#546, #551) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
 | 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
