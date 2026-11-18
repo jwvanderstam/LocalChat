@@ -107,3 +107,23 @@ def test_the_callers_own_workspace_is_still_admitted(admin: httpx.Client) -> Non
         _status(admin, "POST", "/api/workspaces/switch", json={"workspace_id": own}),
     ]
     assert statuses == [200, 200, 200], _server_errors(admin)
+
+
+#: Each body names an id the route looks up in Postgres before anything else refuses it.
+_MALFORMED_BODIES = {
+    "chat conversation_id": ("/api/chat", {"message": "hi", "conversation_id": "not-a-uuid"}),
+    "chat urn conversation_id": (
+        "/api/chat", {"message": "hi", "conversation_id": "urn:uuid:00000000-0000-0000-0000-000000000000"},
+    ),
+    "feedback conversation_id": ("/api/feedback", {"rating": 1, "conversation_id": "not-a-uuid"}),
+    "feedback message_id": ("/api/feedback", {"rating": 1, "message_id": "not-a-number"}),
+    "feedback source_chunk_ids": ("/api/feedback", {"rating": 1, "source_chunk_ids": ["x"]}),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_MALFORMED_BODIES))
+def test_a_malformed_id_in_a_body_is_refused_not_a_server_error(admin: httpx.Client, case: str) -> None:
+    """Chat answers a malformed field with a 422 everywhere; the other routes answer 400."""
+    path, body = _MALFORMED_BODIES[case]
+    status = _status(admin, "POST", path, json=body)
+    assert status == (422 if path == "/api/chat" else 400), _server_errors(admin)

@@ -302,6 +302,38 @@ class TestFeedbackRoute:
 # GET /api/feedback/stats
 # ===========================================================================
 
+class TestFeedbackBodyIsTyped:
+    """Each id is looked up in Postgres; one of the wrong type reached it and answered 500."""
+
+    @pytest.mark.parametrize("body", [
+        {"rating": 1, "conversation_id": "not-a-uuid"},
+        {"rating": 1, "conversation_id": "urn:uuid:00000000-0000-4000-8000-000000000001"},
+        {"rating": 1, "message_id": "42"},
+        {"rating": 1, "source_chunk_ids": [10, "x"]},
+        {"rating": 1, "correct_doc_ids": "doc.pdf"},
+    ])
+    def test_a_malformed_id_is_a_400_and_nothing_is_looked_up(self, body):
+        app, client = _make_fastapi_app()
+        resp = client.post("/api/feedback", json=body)
+        field = next(k for k in body if k != "rating")
+        assert (resp.status_code, resp.json(), app.state.db.conversations.method_calls,
+                app.state.db.feedback.insert.called) == (400, {"error": f"{field} is invalid"}, [], False)
+
+    def test_well_formed_ids_reach_the_insert(self):
+        """The control: a model refusing every body would pass the test above."""
+        app, client = _make_fastapi_app()
+        conversation = "00000000-0000-4000-8000-000000000001"
+        resp = client.post("/api/feedback", json={
+            "rating": -1, "message_id": 7, "conversation_id": conversation,
+            "correct_doc_ids": ["a.pdf"], "source_chunk_ids": [10, 11],
+        })
+        assert resp.status_code == 201
+        app.state.db.feedback.insert.assert_called_once_with(
+            -1, message_id=7, conversation_id=conversation,
+            feedback_type="answer_quality", correct_doc_ids=["a.pdf"],
+        )
+
+
 class TestFeedbackStatsRoute:
     def test_returns_200_with_stats_structure(self):
         _, client = _make_fastapi_app(

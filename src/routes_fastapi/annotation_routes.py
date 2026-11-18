@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from ..models import UuidId
+from ..models import UuidId, is_uuid_id
 from ..security_fastapi import get_current_user_id
 from ..services.annotations import AnnotationsService
 from ..utils.logging_config import get_logger
@@ -38,6 +38,9 @@ async def create_annotation(request: Request, annotations: Annotations) -> Any:
         return JSONResponse({"success": False, "message": "chunk_id (integer) is required"}, status_code=400)
     if not text:
         return JSONResponse({"success": False, "message": "text is required"}, status_code=400)
+    # Looked up in Postgres, which refuses anything but a UUID, and the route answered 500.
+    if conversation_id is not None and not is_uuid_id(conversation_id):
+        return JSONResponse({"success": False, "message": "conversation_id must be a conversation id"}, status_code=400)
 
     user_id = get_current_user_id(request)
     try:
