@@ -8,6 +8,23 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ## [Unreleased]
 
+## [3.7.0] — 2026-11-17
+
+The plugin contract's release: a manifest and services (PC-1), hooks and a core scheduler
+(PC-2), and a reference plugin (PC-3). It also stops a malformed id, in a path or a request
+body, from answering 500. A minor, because it adds features.
+
+**Upgrading from 3.6.0.**
+
+- No migrations.
+- `plugins/example_plugin.py` is removed, so its `word_count` and `reverse_text` tools are no
+  longer offered to the model.
+- A plugin manifest naming `on_route_mount`, or naming a hook without defining its function,
+  now disables that plugin. A plugin without `setup()` still loads, listed as legacy.
+- The weekly reranker fine-tune runs on the new core scheduler, so it can start up to
+  `SCHEDULER_TICK_SECONDS` (default 3600) later than before.
+- An API client that sent a malformed id now gets a 400 or 422 instead of a 500.
+
 ### Added
 
 - **Plugins get a manifest and services (PC-1).** A plugin defines `setup(services)` and
@@ -59,6 +76,10 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ### Security
 
+- **`pypdf` 7.0.1** (#550), a major version carrying hardening against crafted PDFs: stricter
+  image size limits, bounded XFA form decoding, and refusing object streams whose offsets do
+  not increase. `pypdf` parses every uploaded PDF. 7.0 drops Python 3.9 and
+  `cryptography<43`, neither of which this image uses.
 - **`dnspython` 2.9.2** (CVE-2026-128089) and **`opentelemetry-api` 1.45.2**
   (CVE-2026-126360). Both come in transitively, through `email-validator` and `fastapi`; the lock
   was recompiled for these two packages only.
