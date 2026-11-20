@@ -61,6 +61,9 @@ MODULES: dict[str, list[str]] = {
     "src/utils/workspace.py": [
         "tests/unit/test_workspace_scope_pinning.py",
         "tests/unit/test_workspace_api_keys.py",
+        # PC-1's get_caller: through the guard, and directly for what the guard never records.
+        "tests/unit/test_plugin_contract.py",
+        "tests/unit/test_get_caller.py",
     ],
     # QP-7: the service layer QP-4 built, where the rules that depend on the caller live.
     # Route tests are listed only where the route builds the real service from a mocked
