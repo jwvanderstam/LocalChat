@@ -496,7 +496,12 @@ jobs:
       - name: Install postgresql-client 16
         run: |
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          # The key is kept in the repository: fetched from www.postgresql.org on every
+          # run, an outage there failed this job twice on 2026-11-17 with no change to
+          # anything it proves. The fingerprint is PGDG's published one.
+          gpg --show-keys --with-colons .github/keys/pgdg-ACCC4CF8.asc \
+            | grep -qx 'fpr:::::::::B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8:'
+          sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg < .github/keys/pgdg-ACCC4CF8.asc
           sudo sed -i 's|deb http|deb [signed-by=/usr/share/keyrings/pgdg.gpg] http|' /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-16
