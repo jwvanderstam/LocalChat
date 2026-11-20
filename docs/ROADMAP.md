@@ -1314,6 +1314,9 @@ those but over-corrects, so both are kept for comparison. Building it also found
   closes it. Deferred by the maintainer, 2026-10-01.
 - **DEL-2.** GraphRAG was not compared on this corpus yet.
 - **Nightly.** Needs a machine with a model; the command is the same when there is one.
+- **A weekly answer-level eval** (moved from QP-7, 2026-11-20): a small CPU-sized model
+  against `answer_baseline.json`, reported but not blocking. It waits on the human
+  calibration above, because an uncalibrated judge gives the trend line no meaning.
 
 ### P2-4 — No blind `except`, no production `assert` ✅ (done 2026-09-21)
 
@@ -1883,7 +1886,7 @@ start **before** QP-4's first PR.
 - Record the honest baseline. Set `--cov-fail-under` 2 points below it and a SonarCloud
   new-code condition of 80%. Raise the floor as QP-4 lands.
 
-#### QP-7 — Gates 🟡 (Sprints 24-26, ~4 days; e2e paths built 2026-10-24)
+#### QP-7 — Gates ✅ (Sprints 24-26, ~4 days; e2e paths built 2026-10-24; closed 2026-11-20, the weekly answer eval moved to P2-3)
 
 > **The eight e2e paths are built.** Paths 2 and 3 were already the golden path; the other
 > six are `tests/e2e/test_access_paths.py`. Two were checked against deliberate breakage: a
@@ -1911,10 +1914,9 @@ start **before** QP-4's first PR.
   was not proven refused, and nothing proved the users service never returns a hash. The
   work also found the gate filing a mutant that breaks test collection as a survivor;
   fixed. A full run is about 80 minutes, so the job's limit went from 90 to 180.
-- A weekly answer-level eval on a small CPU-sized model against `answer_baseline.json`,
-  reported but not blocking. **It needs P2-3's human calibration first**: an uncalibrated
-  judge gives the trend line no meaning. That calibration is the maintainer's to do, so it is
-  scheduled here rather than left open.
+- ➡️ (2026-11-20) The weekly answer-level eval moved to [P2-3](#p2-3--a-retrieval-evaluation-that-measures-answers-not-just-ranks--baseline-2026-09-30-human-calibration-open),
+  whose human calibration it waits on. Held here, it kept a ticket whose gates were all built
+  marked open for a decision that is not about gates.
 
 #### QP-8 — Release engineering ✅ (Sprint 25-26 and 29; policy and security.txt 2026-10-29, signed images 2026-10-30)
 
@@ -2183,7 +2185,8 @@ service layer (PC-4 has already shipped in Sprint 24), then 12 to 14. Three reas
 
 Three open items are absorbed rather than scheduled separately:
 - EV-1's "not yet required" closes in QP-7.
-- P2-3's calibration becomes QP-7's prerequisite.
+- P2-3's calibration becomes QP-7's prerequisite. (Undone 2026-11-20: the weekly eval that
+  needed it moved to P2-3, and QP-7 closed.)
 - CONN-1 becomes QP-4's prerequisite for the connectors aggregate.
 
 > **Dated notes on how this plan changed** — sprint completions, re-orderings, tickets added or re-scoped — are in [history/ROADMAP_LOG.md](history/ROADMAP_LOG.md).
