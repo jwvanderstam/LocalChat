@@ -85,8 +85,9 @@ answered in a median of about 45 words. A larger model did not make answers long
    when the answer is in front of it.
 3. **Replace the eval judge** before using `answer_correct` to steer anything: a 7B judge cannot
    separate a correct answer from a partial one. A stronger judge needs its own calibration.
-4. **Answer prompt**: ask for complete, specific answers rather than concise ones (tried on the
-   live stack on 2026-11-20, branch `rag/answer-prompt`, not yet measured).
+4. **Answer prompt**: ask for complete, specific answers rather than concise ones (#556). On
+   2026-11-21 it took `llama3.2`'s median answer from 45 to 128 words, with refusals down from
+   18 to 14 of 105; `qwen2.5:14b` and correctness under it were not measured.
 5. Smaller, untested: the context reaches the model in alphabetical order
    (`src/rag/retrieval.py`, the final `sorted(... filename, chunk_index)`), not by relevance.
 
