@@ -324,8 +324,9 @@ class TestUuidIdHasTheGuardsRule:
     @pytest.mark.parametrize("value", ["urn:uuid:" + _ID, "{" + _ID + "}", _ID.replace("-", "")])
     def test_a_non_canonical_spelling_is_refused(self, value):
         from pydantic import TypeAdapter
+        adapter = TypeAdapter(UuidId)
         with pytest.raises(ValidationError):
-            TypeAdapter(UuidId).validate_python(value)
+            adapter.validate_python(value)
 
     def test_upper_case_is_admitted_and_lowered(self):
         """Over-correction guard: the workspace guard admits upper case too."""

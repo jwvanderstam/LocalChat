@@ -110,7 +110,8 @@ def test_a_query_with_no_scope_returns_nothing(scoped_table):
 def test_a_scope_set_for_the_transaction_selects_that_workspace(scoped_table):
     _scope(scoped_table, _WS_A)
     row = scoped_table.execute("SELECT body FROM docs").fetchone()
-    assert row is not None and row[0] == "workspace A"
+    assert row is not None
+    assert row[0] == "workspace A"
     scoped_table.rollback()
 
 
@@ -135,5 +136,6 @@ def test_a_later_transaction_does_not_inherit_an_earlier_scope(scoped_table):
 
     _scope(scoped_table, _WS_B)
     row = scoped_table.execute("SELECT body FROM docs").fetchone()
-    assert row is not None and row[0] == "workspace B"
+    assert row is not None
+    assert row[0] == "workspace B"
     scoped_table.rollback()

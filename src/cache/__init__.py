@@ -297,10 +297,7 @@ class RedisCache(CacheBackend):
         try:
             # Find all keys in namespace
             pattern = f"{self.namespace}:*"
-            keys = []
-
-            for key in self.client.scan_iter(match=pattern, count=100):
-                keys.append(key)
+            keys = list(self.client.scan_iter(match=pattern, count=100))
 
             if keys:
                 self.client.delete(*keys)

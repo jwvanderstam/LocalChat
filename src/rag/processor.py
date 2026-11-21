@@ -37,6 +37,23 @@ from .loaders import _detect_language
 from .retrieval import KnowledgeScope, RetrievalResult, Retriever
 
 
+def _document_metadata(
+    filename: str, file_path: str, chunks: list[dict[str, Any]], stored: int
+) -> dict[str, Any]:
+    """The document row's metadata, with the GR-1c injection flags its chunks raise."""
+    metadata: dict[str, Any] = {'total_chunks': stored, 'file_path': file_path}
+    # GR-1c: the chunks are exactly what retrieval can put in front of the model.
+    # Flagged, never refused — the scan is a heuristic, and a document about
+    # prompt injection matches it as surely as one carrying an attack.
+    injection_flags = scan_for_injection([c['text'] for c in chunks])
+    if injection_flags:
+        metadata['injection_flags'] = injection_flags
+        logger.warning(
+            f"[GR-1c] {filename} carries instruction-shaped text: {', '.join(injection_flags)}"
+        )
+    return metadata
+
+
 def _compute_file_hash(file_path: str) -> str:
     """Return the SHA-256 hex digest of a file's raw bytes."""
     h = hashlib.sha256()
@@ -489,16 +506,7 @@ class DocumentProcessor:
             # id, so citations stay valid — or insert new) + insert the fresh
             # chunk batch, as one short transaction. Runs only after all slow
             # I/O (chunking, embedding) has already completed.
-            metadata: dict[str, Any] = {'total_chunks': len(chunks_data), 'file_path': file_path}
-            # GR-1c: the chunks are exactly what retrieval can put in front of the model.
-            # Flagged, never refused — the scan is a heuristic, and a document about
-            # prompt injection matches it as surely as one carrying an attack.
-            injection_flags = scan_for_injection([c['text'] for c in chunks_with_metadata])
-            if injection_flags:
-                metadata['injection_flags'] = injection_flags
-                logger.warning(
-                    f"[GR-1c] {filename} carries instruction-shaped text: {', '.join(injection_flags)}"
-                )
+            metadata = _document_metadata(filename, file_path, chunks_with_metadata, len(chunks_data))
             # The workspace the document belongs to, so row-level security checks every
             # write in this transaction against it (QP-5). No workspace means none to check.
             scope = workspace_id or ALL_WORKSPACES

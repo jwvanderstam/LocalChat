@@ -30,7 +30,7 @@ def database() -> Any:
     return db
 
 
-@pytest.fixture()
+@pytest.fixture
 def admin(database: Any) -> Iterator[str]:
     user_id = database.users.create(f"r10-{uuid.uuid4().hex[:8]}", hash_user_password("x" * 16), role="admin")
     yield user_id

@@ -144,7 +144,7 @@ class RerankerModel:
             self._model = CrossEncoder(_BASE_MODEL, trust_remote_code=False)
             self._model_path = _BASE_MODEL
             logger.info(f"[Reranker] Loaded base model: {_BASE_MODEL}")
-        except Exception as exc:  # noqa: BLE001 — and if the base will not load either, the reranker is simply off
+        except Exception as exc:  # noqa: BLE001 — and if the base will not load either the reranker is simply off
             logger.warning(f"[Reranker] Could not load base model: {exc}")
 
     def _resolve_model_path(self, model_path: str | None) -> str | None:

@@ -70,8 +70,9 @@ class TestTheChangeIsRecorded:
 
     def test_a_refused_change_writes_nothing(self):
         db = _db()
+        service = UsersService(db)
         with pytest.raises(Exception):  # noqa: B017 — the 400 itself is test_change_own_password's
-            UsersService(db).change_own_password(USER, "not it", NEW)
+            service.change_own_password(USER, "not it", NEW)
         assert db.users.update.called is False
 
 

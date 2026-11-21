@@ -39,12 +39,14 @@ def test_there_are_templates_to_check():
 def test_no_template_builds_an_absolute_url_for_its_own_assets(template):
     text = template.read_text(encoding="utf-8")
 
-    assert "url_for('static'" not in text and 'url_for("static"' not in text, (
+    reason = (
         f"{template.name} uses Starlette's url_for for a static asset. That returns an "
         "absolute URL carrying the scheme the app *thinks* it is serving, which is http "
         "behind a TLS-terminating proxy — and the browser then blocks it as mixed "
         "content. Use /static/... instead."
     )
+    assert "url_for('static'" not in text, reason
+    assert 'url_for("static"' not in text, reason
 
 
 @pytest.mark.parametrize("template", TEMPLATES, ids=lambda p: p.name)

@@ -147,7 +147,8 @@ class TestJudgePrompts:
         text = ev.JUDGE_PROMPTS[version].format(
             question="Q?", reference="R.", context="C.", answer="ANSWER-MARKER"
         )
-        assert "ANSWER-MARKER" in text and "{" in text  # the JSON example survives formatting
+        assert "ANSWER-MARKER" in text
+        assert "{" in text  # the JSON example survives formatting
 
     def test_v2_has_every_specific_checked(self):
         """The failure v1 passed: a correct core with an invented clause or section number."""
@@ -175,7 +176,8 @@ class TestJudgeV3:
             {"correct": "partial", "faithful": "no"}, {"correct": "yes"},
         ])
         assert (verdict["correct"], verdict["faithful"]) == (1.0, 0.0)
-        assert "CONTEXT-MARKER" in sent[0] and "CONTEXT-MARKER" not in sent[1]
+        assert "CONTEXT-MARKER" in sent[0]
+        assert "CONTEXT-MARKER" not in sent[1]
 
     def test_v2_still_grades_both_in_one_call(self, monkeypatch):
         verdict, sent = self._judge(monkeypatch, "v2", [{"correct": "partial", "faithful": "no"}])

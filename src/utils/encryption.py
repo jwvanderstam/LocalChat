@@ -27,7 +27,7 @@ def _get_fernet():
         from cryptography.fernet import Fernet
 
         return Fernet(key.encode() if isinstance(key, str) else key)
-    except Exception as exc:  # noqa: BLE001 — any unusable key means encryption is off, which is the one thing the caller needs to know
+    except Exception as exc:  # noqa: BLE001 — any unusable key means encryption is off; that is the one thing the caller needs to know
         logger.warning(f"[Encryption] Invalid ENCRYPTION_KEY: {exc}")
         return None
 

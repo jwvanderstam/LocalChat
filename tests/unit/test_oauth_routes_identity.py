@@ -90,7 +90,8 @@ class TestOAuthStatusAndDisconnectIdentity:
         assert resp.json() == {"connected": False}
         looked_up, asked_provider = app.state.db.oauth_tokens.get.call_args[0]
         assert asked_provider == provider
-        assert looked_up and looked_up != "admin"
+        assert looked_up
+        assert looked_up != "admin"
 
     def test_disconnect_removes_the_callers_own_token(self, client, app, provider):
         app.state.db.oauth_tokens.delete = MagicMock(return_value=True)
@@ -101,7 +102,8 @@ class TestOAuthStatusAndDisconnectIdentity:
         assert resp.json() == {"success": True, "removed": True}
         deleted_for, asked_provider = app.state.db.oauth_tokens.delete.call_args[0]
         assert asked_provider == provider
-        assert deleted_for and deleted_for != "admin"
+        assert deleted_for
+        assert deleted_for != "admin"
 
     def test_status_refuses_an_unauthenticated_caller(self, unauthenticated_client, app, provider):
         app.state.db.oauth_tokens.get = MagicMock()

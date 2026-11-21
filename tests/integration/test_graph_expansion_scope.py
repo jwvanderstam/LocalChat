@@ -31,7 +31,7 @@ def database() -> Any:
     return db
 
 
-@pytest.fixture()
+@pytest.fixture
 def workspaces(database: Any) -> Iterator[tuple[str, str]]:
     a = database.workspaces.create(f"r12-a-{uuid.uuid4().hex[:8]}", owner_id=None)
     b = database.workspaces.create(f"r12-b-{uuid.uuid4().hex[:8]}", owner_id=None)

@@ -9,7 +9,9 @@ target-version = "py312"
 # BLE001 (P2-4b): `except Exception` must be argued, not reached for. Every
 # suppression in src/ names what degrades and to what — a bare `# noqa: BLE001`
 # is the thing this rule exists to prevent, so it does not count as compliance.
-select = ["E", "F", "W", "I", "UP", "B", "SIM", "S101", "BLE001"]
+# PT001 and PT018 hold two of SonarCloud's test rules (S9083, S9073) locally, so the
+# backlog cleared in 2026-11 does not come back between scans.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "S101", "BLE001", "PT001", "PT018"]
 ignore = [
     "E501",    # line-too-long — enforced by reviewer judgment, not tooling
     "E402",    # module-import-not-at-top — intentional in several modules

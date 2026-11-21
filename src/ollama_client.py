@@ -846,7 +846,7 @@ class OllamaClient:
                     gpu_tick = 0
                     try:
                         self.get_gpu_info()
-                    except Exception:  # noqa: BLE001 — same, for the GPU tick
+                    except Exception:  # noqa: BLE001 — same for the GPU tick
                         logger.debug("Background GPU-info refresh failed", exc_info=True)
                 time.sleep(4.0)
 

@@ -48,7 +48,7 @@ def admin(database: Any) -> str:
     return database.users.create(f"gkb2-admin-{uuid.uuid4().hex[:8]}", "x", role="admin")
 
 
-@pytest.fixture()
+@pytest.fixture
 def workspaces(database: Any) -> Iterator[dict[str, str]]:
     """Two contributing projects and a reader, each new per test so filenames never meet."""
     suffix = uuid.uuid4().hex[:8]

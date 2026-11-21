@@ -103,8 +103,10 @@ class TestManifest:
         ({"PLUGIN_CONFIG": {"ON": ("bool", 1)}}, "is not a bool"),
     ])
     def test_a_malformed_manifest_is_refused_naming_the_field(self, names, fragment):
-        with pytest.raises(ManifestError, match=__import__("re").escape(fragment)):
-            read_manifest(_module(**names))
+        module = _module(**names)
+        pattern = __import__("re").escape(fragment)
+        with pytest.raises(ManifestError, match=pattern):
+            read_manifest(module)
 
     def test_a_float_setting_accepts_an_integer_default(self):
         assert read_manifest(_module(PLUGIN_CONFIG={"T": ("float", 1)})).config == {"T": ("float", 1)}
@@ -149,8 +151,9 @@ class TestConfigHandle:
             _services(PLUGIN_CONFIG={"LIMIT": ("int", 3)})
 
     def test_an_undeclared_key_is_a_key_error(self):
+        handle = ConfigHandle({"A": 1})
         with pytest.raises(KeyError):
-            ConfigHandle({"A": 1}).get("B")
+            handle.get("B")
 
 
 class _FakeProcessor:
@@ -176,22 +179,25 @@ class TestRetrievalHandle:
 
     def test_with_no_request_scope_it_refuses_rather_than_searching_everything(self):
         proc = _FakeProcessor()
+        handle = RetrievalHandle(proc, "local")
         with pytest.raises(ScopeUnavailableError):
-            RetrievalHandle(proc, "local").retrieve("q")
+            handle.retrieve("q")
         assert proc.calls == []
 
     def test_a_tier_beyond_the_manifest_scope_is_refused(self):
         proc = _FakeProcessor()
         with request_scope("ws-a"), request_caller(RequestCaller("u", "admin")):
+            handle = RetrievalHandle(proc, "local")
             with pytest.raises(PermissionError, match="PLUGIN_SCOPE"):
-                RetrievalHandle(proc, "local").retrieve("q", knowledge_scope="global")
+                handle.retrieve("q", knowledge_scope="global")
         assert proc.calls == []
 
     def test_a_workspace_api_key_is_refused_the_global_tier(self):
         proc = _FakeProcessor()
         with request_scope("ws-a"), request_caller(RequestCaller(None, "owner", via_api_key=True)):
+            handle = RetrievalHandle(proc, "hybrid")
             with pytest.raises(PermissionError, match="not open"):
-                RetrievalHandle(proc, "hybrid").retrieve("q", knowledge_scope="hybrid")
+                handle.retrieve("q", knowledge_scope="hybrid")
         assert proc.calls == []
 
     def test_a_user_within_the_manifest_scope_reaches_the_global_tier(self):
@@ -214,8 +220,9 @@ class TestLlmHandle:
         client = MagicMock()
         client.get_embedding_model.return_value = "nomic"
         client.generate_embedding.return_value = (False, [])
+        handle = LlmHandle(client)
         with pytest.raises(RuntimeError):
-            LlmHandle(client).embed("hi")
+            handle.embed("hi")
 
 
 class TestIdentityHandle:
@@ -238,8 +245,9 @@ class TestToolsHandle:
     def test_a_name_already_taken_is_refused_and_the_original_kept(self):
         reg = ToolRegistry()
         reg.register("search_documents", "core", {"type": "object"})(lambda: "core")
+        handle = ToolsHandle(reg, source="p", min_role="viewer")
         with pytest.raises(ValueError, match="already registered"):
-            ToolsHandle(reg, source="p", min_role="viewer").register("search_documents", "d", {})
+            handle.register("search_documents", "d", {})
         assert reg.get("search_documents").handler() == "core"
 
 

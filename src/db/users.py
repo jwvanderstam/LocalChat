@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 
 #: The columns ``update`` may set. A fixed list, because the SET clause is built from it.
 _UPDATABLE = frozenset({'email', 'hashed_password', 'is_active', 'role', 'tokens_valid_after'})
+_COUNT_HAS_A_ROW = "SELECT COUNT(*) always returns a row"
 
 
 class UsersRepository:
@@ -163,7 +164,7 @@ class UsersRepository:
                 cur.execute("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
                 row = cur.fetchone()
                 if row is None:
-                    raise AssertionError("SELECT COUNT(*) always returns a row")
+                    raise AssertionError(_COUNT_HAS_A_ROW)
                 return int(row[0])
 
     def count_live_admins(self) -> int:
@@ -177,7 +178,7 @@ class UsersRepository:
                 )
                 row = cur.fetchone()
                 if row is None:
-                    raise AssertionError("SELECT COUNT(*) always returns a row")
+                    raise AssertionError(_COUNT_HAS_A_ROW)
                 return int(row[0])
 
     def count_active_admins(self) -> int:
@@ -191,7 +192,7 @@ class UsersRepository:
                 )
                 row = cur.fetchone()
                 if row is None:
-                    raise AssertionError("SELECT COUNT(*) always returns a row")
+                    raise AssertionError(_COUNT_HAS_A_ROW)
                 return int(row[0])
 
     def update(self, user_id: str, **fields: Any) -> bool:

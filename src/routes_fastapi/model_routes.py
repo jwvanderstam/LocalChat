@@ -135,7 +135,7 @@ async def set_active_model(request: Request, _admin: Annotated[str, Depends(requ
     try:
         request_data = ModelRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400, and letting one through as a 500 would report the caller's mistake as ours
+    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400 — letting one through as a 500 would report the caller's mistake as ours
         message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
         return JSONResponse({"success": False, "message": message}, status_code=400)
 
@@ -190,7 +190,7 @@ async def pull_model(request: Request, _admin: Annotated[str, Depends(require_ad
     try:
         request_data = ModelPullRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400, and letting one through as a 500 would report the caller's mistake as ours
+    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400 — letting one through as a 500 would report the caller's mistake as ours
         message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
         return JSONResponse({"success": False, "message": message}, status_code=400)
 
@@ -223,7 +223,7 @@ async def delete_model(request: Request, _admin: Annotated[str, Depends(require_
     try:
         request_data = ModelDeleteRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400, and letting one through as a 500 would report the caller's mistake as ours
+    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400 — letting one through as a 500 would report the caller's mistake as ours
         message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
         return JSONResponse({"success": False, "message": message}, status_code=400)
 
@@ -243,7 +243,7 @@ async def unload_model(request: Request, _admin: Annotated[str, Depends(require_
     try:
         request_data = ModelRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400, and letting one through as a 500 would report the caller's mistake as ours
+    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400 — letting one through as a 500 would report the caller's mistake as ours
         message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
         return JSONResponse({"success": False, "message": message}, status_code=400)
 
@@ -262,7 +262,7 @@ async def test_model(request: Request, _admin: Annotated[str, Depends(require_ad
     try:
         request_data = ModelRequest(**data)
         model_name = sanitize_model_name(request_data.model)
-    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400, and letting one through as a 500 would report the caller's mistake as ours
+    except Exception as exc:  # noqa: BLE001 — the body is caller-supplied JSON; every shape error here is a 400 — letting one through as a 500 would report the caller's mistake as ours
         message = _validation_error_message(exc, _ERR_MODEL_REQUIRED)
         return JSONResponse({"success": False, "message": message}, status_code=400)
 

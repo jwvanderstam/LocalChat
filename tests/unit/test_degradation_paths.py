@@ -64,10 +64,10 @@ class TestTimestampParsingIsNarrowedNotBlind:
             def replace(self, *_args):
                 raise RuntimeError("not a parsing failure")
 
+        connector = self._onedrive()
+        item = {"id": "item-1", "lastModifiedDateTime": _HostileTimestamp()}
         with pytest.raises(RuntimeError, match="not a parsing failure"):
-            self._onedrive()._item_to_source(
-                {"id": "item-1", "lastModifiedDateTime": _HostileTimestamp()}
-            )
+            connector._item_to_source(item)
 
 
 class TestExpiredTokenFailsSafe:

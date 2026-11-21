@@ -292,7 +292,7 @@ def _check_metrics_auth(req: Any) -> bool:
         from .security_fastapi import resolve_principal
 
         return resolve_principal(req).is_admin
-    except Exception as e:  # noqa: BLE001 — fail closed — an unverifiable session is not an authorised one, whatever went wrong
+    except Exception as e:  # noqa: BLE001 — fail closed — an unverifiable session is not an authorised one whatever went wrong
         logger.debug("[Metrics] Could not establish an administrator: %s", e)
         return False
 
@@ -334,7 +334,7 @@ def _live_check_database(app) -> bool:
             with conn.cursor() as cur:
                 cur.execute('SELECT 1')
                 up = cur.fetchone() is not None
-    except Exception as e:  # noqa: BLE001 — the probe's job is to report the database as unreachable, which every failure here means
+    except Exception as e:  # noqa: BLE001 — the probe's job is to report the database as unreachable; every failure here means that
         # Degraded, not fatal: the caller turns this into a 503 for the probe to act on.
         logger.warning("[Health] Database probe failed: %s", e)
         up = False
@@ -415,12 +415,14 @@ def export_prometheus_metrics() -> str:
         lines.append(f'# TYPE {base_name} histogram')
         for key, stats in histogram_entries.items():
             raw = raw_histograms.get(key, [])
-            lines.append(f'{key}_count {stats["count"]}')
-            lines.append(f'{key}_sum {stats["sum"]}')
-            lines.append(f'{key}_bucket{{le="0.1"}} {sum(1 for v in raw if v <= 0.1)}')
-            lines.append(f'{key}_bucket{{le="0.5"}} {sum(1 for v in raw if v <= 0.5)}')
-            lines.append(f'{key}_bucket{{le="1.0"}} {sum(1 for v in raw if v <= 1.0)}')
-            lines.append(f'{key}_bucket{{le="+Inf"}} {stats["count"]}')
+            lines.extend([
+                f'{key}_count {stats["count"]}',
+                f'{key}_sum {stats["sum"]}',
+                f'{key}_bucket{{le="0.1"}} {sum(1 for v in raw if v <= 0.1)}',
+                f'{key}_bucket{{le="0.5"}} {sum(1 for v in raw if v <= 0.5)}',
+                f'{key}_bucket{{le="1.0"}} {sum(1 for v in raw if v <= 1.0)}',
+                f'{key}_bucket{{le="+Inf"}} {stats["count"]}',
+            ])
 
     # Gauges
     gauge_groups: dict[str, dict[str, float]] = {}

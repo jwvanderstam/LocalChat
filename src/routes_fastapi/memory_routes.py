@@ -78,10 +78,7 @@ def _build_markdown_export(conversation_id: str, messages: list) -> str:
     for msg in messages:
         role_label = "You" if msg["role"] == "user" else "Assistant"
         ts = msg.get("timestamp") or ""
-        lines.append(f'### {role_label}{" — " + ts if ts else ""}')
-        lines.append("")
-        lines.append(msg["content"])
-        lines.append("")
+        lines.extend([f'### {role_label}{" — " + ts if ts else ""}', "", msg["content"], ""])
     return "\n".join(lines)
 
 
