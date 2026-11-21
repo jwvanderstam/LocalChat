@@ -58,7 +58,8 @@ class TestOrphansLeftByAnInterruptedIngest:
 
         _clear_upload_staging()
 
-        assert nested.is_dir() and (nested / "inner.txt").exists()
+        assert nested.is_dir()
+        assert (nested / "inner.txt").exists()
         assert not (staging / "orphan.pdf").exists()
 
     def test_dotfiles_are_left_alone(self, staging):

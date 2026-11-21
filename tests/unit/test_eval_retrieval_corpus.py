@@ -58,10 +58,9 @@ class TestIngestCorpusFileSelection:
                 seen.append(Path(path).name)
                 return True, "ok", None
 
-        monkeypatch.setitem(
-            sys.modules, "src.rag.processor", type(sys)("src.rag.processor")
-        )
-        sys.modules["src.rag.processor"].doc_processor = _Processor()
+        fake = type(sys)("src.rag.processor")
+        fake.doc_processor = _Processor()
+        monkeypatch.setitem(sys.modules, "src.rag.processor", fake)
 
         count = ev.ingest_corpus(self._corpus(tmp_path), None)
 
@@ -80,10 +79,9 @@ class TestIngestCorpusFileSelection:
             def ingest_document(self, path, workspace_id=None):
                 return True, "ok", None
 
-        monkeypatch.setitem(
-            sys.modules, "src.rag.processor", type(sys)("src.rag.processor")
-        )
-        sys.modules["src.rag.processor"].doc_processor = _Processor()
+        fake = type(sys)("src.rag.processor")
+        fake.doc_processor = _Processor()
+        monkeypatch.setitem(sys.modules, "src.rag.processor", fake)
 
         ev.ingest_corpus(self._corpus(tmp_path), None)
 
@@ -104,10 +102,9 @@ class TestIngestCorpusFileSelection:
                 seen.append(Path(path).relative_to(tmp_path).as_posix())
                 return True, "ok", None
 
-        monkeypatch.setitem(
-            sys.modules, "src.rag.processor", type(sys)("src.rag.processor")
-        )
-        sys.modules["src.rag.processor"].doc_processor = _Processor()
+        fake = type(sys)("src.rag.processor")
+        fake.doc_processor = _Processor()
+        monkeypatch.setitem(sys.modules, "src.rag.processor", fake)
         (tmp_path / "top.pdf").write_bytes(b"x")
         (tmp_path / "rfp" / "exhibits").mkdir(parents=True)
         (tmp_path / "rfp" / "brief.docx").write_bytes(b"x")

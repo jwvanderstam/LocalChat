@@ -157,9 +157,9 @@ class TestStreaming:
         error = {"error": {"message": "overloaded", "type": "server_error"}}
         client, _ = _client(_stream(_delta("partial"), error, _delta("never")))
         received = []
+        stream = client.generate_chat_response("m", MESSAGES)
         with pytest.raises(RuntimeError, match="overloaded"):
-            for chunk in client.generate_chat_response("m", MESSAGES):
-                received.append(chunk)
+            received.extend(stream)
         assert received == ["partial"]
 
 

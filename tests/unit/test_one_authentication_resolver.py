@@ -72,8 +72,9 @@ class TestRevocationIsCheckedOnEveryPath:
     """H1 — the check lived in one guard of three."""
 
     def test_the_resolver_refuses_a_revoked_token(self):
+        request = _request(_db(revoked=True))
         with pytest.raises(AuthError) as exc_info:
-            resolve_principal(_request(_db(revoked=True)))
+            resolve_principal(request)
         assert exc_info.value.status_code == 401
         assert "revoked" in exc_info.value.message
 
@@ -85,8 +86,9 @@ class TestRevocationIsCheckedOnEveryPath:
 
     def test_the_admin_guard_refuses_a_revoked_token(self):
         """31 admin routes sit behind this one."""
+        request = _request(_db(revoked=True, role="admin"))
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(_request(_db(revoked=True, role="admin")), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 401
 
     def test_a_live_token_still_passes_each_of_them(self):
@@ -116,8 +118,9 @@ class TestTheRoleComesFromTheDatabaseNotTheToken:
     def test_a_retired_user_loses_the_role_entirely(self):
         """users.get_role filters deleted_at, so a retired admin resolves to None —
         and since R-4's follow-up, so does the session itself."""
+        request = _request(_db(role=None), claim_role="admin")
         with pytest.raises(AuthError) as exc_info:
-            resolve_principal(_request(_db(role=None), claim_role="admin"))
+            resolve_principal(request)
         assert exc_info.value.status_code == 401
 
 
@@ -131,8 +134,9 @@ class TestASessionEndsWithItsAccount:
     """
 
     def test_a_session_route_refuses_a_user_the_database_no_longer_has(self):
+        request = _request(_db(role=None))
         with pytest.raises(HTTPException) as exc_info:
-            require_auth(_request(_db(role=None)))
+            require_auth(request)
         assert (exc_info.value.status_code, exc_info.value.detail) == (
             401, {"message": "Session is no longer valid"}
         )

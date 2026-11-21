@@ -103,7 +103,8 @@ class TestCompareToBaseline:
 
         problems = ev.compare_to_baseline(_record(0.5, 0.8, 0.6, changed), _record(0.5, 0.8, 0.6))
 
-        assert len(problems) == 1 and problems[0].startswith("retrieval settings differ")
+        assert len(problems) == 1
+        assert problems[0].startswith("retrieval settings differ")
 
     def test_a_different_case_count_is_reported(self):
         problems = ev.compare_to_baseline(_record(0.5, 0.8, 0.6, n=19), _record(0.5, 0.8, 0.6))

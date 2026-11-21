@@ -42,7 +42,7 @@ def database() -> Any:
     return db
 
 
-@pytest.fixture()
+@pytest.fixture
 def workspace(database: Any) -> Iterator[str]:
     ws = database.workspaces.create(f"r9-{uuid.uuid4().hex[:8]}", owner_id=None)
     yield ws

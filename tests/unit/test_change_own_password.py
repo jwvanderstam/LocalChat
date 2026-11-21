@@ -92,8 +92,9 @@ class TestTheService:
 
     def test_an_update_that_changed_no_row_is_not_reported_as_success(self):
         """The account was retired between the check and the write."""
+        db = _db(updated=False)
         with pytest.raises(PasswordChangeError) as exc_info:
-            change_own_password(_db(updated=False), USER, CURRENT, NEW)
+            change_own_password(db, USER, CURRENT, NEW)
         assert exc_info.value.status_code == 409
 
 

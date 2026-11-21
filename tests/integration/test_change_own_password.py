@@ -41,7 +41,7 @@ def database() -> Any:
     return db
 
 
-@pytest.fixture()
+@pytest.fixture
 def account(database: Any) -> Iterator[tuple[str, str]]:
     username = f"pwchange-{uuid.uuid4().hex[:8]}"
     user_id = database.users.create(username, hash_user_password(CURRENT), role="user")

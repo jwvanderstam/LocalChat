@@ -51,7 +51,7 @@ def _global_chunk(database: Any, global_doc: int) -> int:
         ).fetchone()[0]
 
 
-@pytest.fixture()
+@pytest.fixture
 def world(database: Any) -> Iterator[SimpleNamespace]:
     tag = uuid.uuid4().hex[:8]
     a = database.workspaces.create(f"r8-a-{tag}", owner_id=None)

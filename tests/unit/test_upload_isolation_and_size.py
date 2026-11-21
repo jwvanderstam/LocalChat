@@ -46,7 +46,8 @@ class TestTwoUploadsOfTheSameNameDoNotCollide:
         first = _save_upload_file(_upload("report.txt", b"workspace A content"))
         second = _save_upload_file(_upload("report.txt", b"workspace B content"))
 
-        assert first is not None and second is not None
+        assert first is not None
+        assert second is not None
         assert first != second
 
     def test_each_keeps_its_own_content(self, staging):
@@ -85,8 +86,9 @@ class TestTwoUploadsOfTheSameNameDoNotCollide:
 class TestTheSizeLimitIsEnforced:
     def test_an_oversized_upload_is_refused(self, staging, monkeypatch):
         monkeypatch.setattr("src.config.MAX_CONTENT_LENGTH", 100)
+        upload = _upload("big.txt", b"x" * 101)
         with pytest.raises(UploadTooLargeError):
-            _save_upload_file(_upload("big.txt", b"x" * 101))
+            _save_upload_file(upload)
 
     def test_a_file_at_the_limit_is_accepted(self, staging, monkeypatch):
         """The boundary on the other side — a cap of zero would pass the test above."""
@@ -96,8 +98,9 @@ class TestTheSizeLimitIsEnforced:
     def test_nothing_is_left_behind_when_it_is_refused(self, staging, monkeypatch):
         """Refusing mid-write must not leave the part it already wrote."""
         monkeypatch.setattr("src.config.MAX_CONTENT_LENGTH", 100)
+        upload = _upload("big.txt", b"x" * 5000)
         with pytest.raises(UploadTooLargeError):
-            _save_upload_file(_upload("big.txt", b"x" * 5000))
+            _save_upload_file(upload)
 
         assert list(Path(staging).iterdir()) == []
 
