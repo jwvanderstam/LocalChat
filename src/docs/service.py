@@ -70,6 +70,7 @@ _CATALOGUE: list[tuple[str, str]] = [
     ("docs-remediation-plan", "docs/history/REMEDIATION_PLAN.md"),
     ("docs-lessons-learned", "docs/history/LESSONS_LEARNED.md"),
     ("docs-test-quality-audit", "docs/history/TEST_QUALITY_AUDIT.md"),
+    ("docs-rag-quality-2026-11", "docs/history/RAG_QUALITY_2026-11.md"),
     ("docs-integration-tests", "docs/INTEGRATION_TESTS.md"),
     ("docs-deployment-scaleway", "docs/DEPLOYMENT_SCALEWAY.md"),
     ("docs-cost-kill-switch", "docs/COST_KILL_SWITCH.md"),
