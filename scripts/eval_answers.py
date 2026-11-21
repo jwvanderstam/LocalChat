@@ -295,6 +295,31 @@ List the details you checked before deciding. Reply with JSON only:
 "reason": "one sentence"}}""",
 }
 
+# v2's "correct" agreed with 104 blind grades only 28 times: given the whole context, mistral
+# graded verbatim-correct answers "partial". Asked in a call of its own, against the reference
+# alone, with extra detail ruled out as a reason, the same model agreed 88 of 103 times
+# (2026-11-21). v3 takes "correct" from that call and "faithful" from v2's.
+_CORRECT_V3 = """You check whether an assistant's answer contains the information in a reference answer.
+
+QUESTION: {question}
+REFERENCE ANSWER: {reference}
+ASSISTANT'S ANSWER:
+{answer}
+
+Grade "correct":
+- "yes" if the answer states the reference's key information: its main point and every number,
+  date, name or condition the reference gives. Different wording, a longer answer, or extra
+  details are fine and are never a reason to lower the grade.
+- "partial" if the answer states some of the reference's key information but leaves out or
+  changes another part of it.
+- "no" if the answer does not state the key information, contradicts it, or says the documents
+  do not contain it.
+
+First list each key fact of the reference and whether the answer states it. Reply with JSON only:
+{{"facts": [{{"fact": "...", "stated": true}}], "correct": "...", "reason": "one sentence"}}"""
+
+JUDGE_PROMPTS["v3"] = JUDGE_PROMPTS["v2"]
+
 
 def judge(result: dict[str, Any], model: str, prompt: str) -> dict[str, Any]:
     """Grade one result's answer against its reference and the context it was given."""
@@ -302,8 +327,13 @@ def judge(result: dict[str, Any], model: str, prompt: str) -> dict[str, Any]:
         question=result["question"], reference=result["reference_answer"],
         context=result["context"], answer=result["answer"],
     )) or {}
+    correct = verdict.get("correct")
+    if prompt == "v3":
+        correct = (ask_json(model, _CORRECT_V3.format(
+            question=result["question"], reference=result["reference_answer"], answer=result["answer"],
+        )) or {}).get("correct")
     return {
-        "correct": grade(verdict.get("correct")), "faithful": grade(verdict.get("faithful")),
+        "correct": grade(correct), "faithful": grade(verdict.get("faithful")),
         "judge_reason": verdict.get("reason"), "judge_unsupported": verdict.get("unsupported"),
     }
 
@@ -593,7 +623,7 @@ def main() -> None:
     r.add_argument("--ingest", action="store_true")
     r.add_argument("--model", default="llama3.2")
     r.add_argument("--judge-model", default="mistral")
-    r.add_argument("--judge-prompt", choices=sorted(JUDGE_PROMPTS), default="v2")
+    r.add_argument("--judge-prompt", choices=sorted(JUDGE_PROMPTS), default="v3")
     r.add_argument("--retrieval-only", action="store_true",
                    help="retrieval metrics only: no answers, no judge; seconds, not an hour")
 
@@ -602,7 +632,7 @@ def main() -> None:
     j.add_argument("--cases", type=Path, required=True)
     j.add_argument("--out", type=Path, required=True)
     j.add_argument("--judge-model", default="mistral")
-    j.add_argument("--judge-prompt", choices=sorted(JUDGE_PROMPTS), default="v2")
+    j.add_argument("--judge-prompt", choices=sorted(JUDGE_PROMPTS), default="v3")
 
     c = sub.add_parser("calibrate")
     c.add_argument("--results", type=Path, required=True)

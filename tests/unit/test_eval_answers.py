@@ -141,7 +141,7 @@ class TestPrivacyGuard:
 
 
 class TestJudgePrompts:
-    @pytest.mark.parametrize("version", ["v1", "v2"])
+    @pytest.mark.parametrize("version", ["v1", "v2", "v3"])
     def test_every_prompt_formats_and_carries_the_answer(self, version):
         """A stray brace in a template is a KeyError halfway through a run, not at import."""
         text = ev.JUDGE_PROMPTS[version].format(
@@ -153,6 +153,36 @@ class TestJudgePrompts:
         """The failure v1 passed: a correct core with an invented clause or section number."""
         assert "clause, section and page numbers" in ev.JUDGE_PROMPTS["v2"]
         assert "clause" not in ev.JUDGE_PROMPTS["v1"]
+
+
+class TestJudgeV3:
+    RESULT = {"question": "Q?", "reference_answer": "R.", "context": "CONTEXT-MARKER", "answer": "A."}
+
+    def _judge(self, monkeypatch, prompt, replies):
+        sent = []
+
+        def fake_ask(model, text):
+            sent.append(text)
+            return replies[len(sent) - 1]
+
+        monkeypatch.setattr(ev, "ask_json", fake_ask)
+        return ev.judge(self.RESULT, "m", prompt), sent
+
+    def test_correct_comes_from_a_call_that_never_sees_the_context(self, monkeypatch):
+        """Given the whole context, the judge graded verbatim-correct answers partial (28 of 104)."""
+        verdict, sent = self._judge(monkeypatch, "v3", [
+            {"correct": "partial", "faithful": "no"}, {"correct": "yes"},
+        ])
+        assert (verdict["correct"], verdict["faithful"]) == (1.0, 0.0)
+        assert "CONTEXT-MARKER" in sent[0] and "CONTEXT-MARKER" not in sent[1]
+
+    def test_v2_still_grades_both_in_one_call(self, monkeypatch):
+        verdict, sent = self._judge(monkeypatch, "v2", [{"correct": "partial", "faithful": "no"}])
+        assert (verdict["correct"], verdict["faithful"], len(sent)) == (0.5, 0.0, 1)
+
+    def test_an_unparseable_correct_call_is_unscored_not_borrowed_from_v2(self, monkeypatch):
+        verdict, _ = self._judge(monkeypatch, "v3", [{"correct": "yes", "faithful": "yes"}, None])
+        assert verdict["correct"] is None
 
 
 class TestSelectForRejudge:
