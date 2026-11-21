@@ -1333,6 +1333,10 @@ relevance instead of reading order made no measurable difference. Details: [RAG_
   once, with the current retrieval, prompt and judge `v3`.
 - **A held-out check of judge `v3`.** Its 85% agreement is in-sample. Grade a fresh set of
   answers blind and score `v3` against them before trusting small differences.
+- **`faithfulness` is uncalibrated.** It still comes from the `v2` call, and the blind grades
+  cover correctness only.
+- **The prompt's "say what the documents do not cover" is mostly ignored** (about 4 in 36
+  answers without the passage). A prompt change, measured with judge `v3`.
 - **Human calibration.** 38 of the 40 calibration grades are an AI assistant's; agreement with
   a model is not what this ticket asks for. `calibrate --dims correct` makes a sheet a person
   can grade in a few minutes in `eval_review.html`; doing so and re-running `calibrate --score`
@@ -2195,7 +2199,7 @@ DP-3.
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
-| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) — re-baseline and a held-out judge check open | 1 day |
+| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ — re-baseline and a held-out judge check open | 1 day |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | — | Initiative 14 (DP-0..DP-3, deployment patterns) — unscheduled (2026-11-14) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
