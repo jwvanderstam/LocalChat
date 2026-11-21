@@ -8,6 +8,17 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ## [Unreleased]
 
+### Changed
+
+- **Chat answers from documents are complete, not concise.** The RAG system prompt asked for
+  answers "directly and concisely", and a 3B and a 14B model both answered in a median of
+  about 45 words, leaving out the numbers, dates, conditions and responsibilities the passages
+  held. It now asks for those specifics, for passages to be combined when a question needs it,
+  and for a partial answer to say what the documents do not cover; it refuses only when nothing
+  in the context is relevant. A simple question still gets a short paragraph. The web-search
+  prompt and the prompt-injection rule are unchanged. **Upgrading:** answers are longer, so they
+  take longer to stream.
+
 ## [3.7.0] — 2026-11-17
 
 The plugin contract's release: a manifest and services (PC-1), hooks and a core scheduler
