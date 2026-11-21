@@ -5,6 +5,8 @@ tickets added or re-scoped. They sat under the Sprint Plan table until 2026-10-0
 P2-7) and are kept here verbatim, in the order they had there, which is roughly newest first.
 Like everything in `history/`, they describe the plan as it was when written.
 
+> **Sprint 30 added 2026-11-21: answer quality.** P2-3's numbers said answers were short and missed office documents. Three PRs followed in one session: #556 asked for complete answers (median 41 to 96 words on `qwen2.5:14b`), #558 found the office misses were two ranking bugs rather than ingest (answer passage in context 0.50 to 0.64), and #559 found the judge's prompt made `answer_correct` noise (28 of 104 to 88 of 103 agreement with blind grades, in-sample). The structured-ingest premise P2-3 recorded on 2026-10-01 is corrected in its ticket. Open: re-baselining `answer_baseline.json` and a held-out check of the judge.
+
 > **QP-7 closed 2026-11-20; its weekly answer eval moved to P2-3.** Every gate QP-7 named was built and required, but the ticket stayed 🟡 for one item, a weekly answer-level eval, which waits on P2-3's human calibration, a decision the maintainer has deferred since 2026-10-01. The eval now sits under P2-3 with that calibration, so the open work is in one place and QP-7 reads as what it is.
 
 > **Initiative 14 added 2026-11-14, unscheduled.** Deployment patterns, from #536: one format per environment with its own deploy, verify and tear-down scripts, proven by two consecutive clean cycles. Your own PC (DP-1) and Scaleway (DP-2) exist and only need to be brought into the format and proven; the managed workstation that #536 reported (DP-3) stays a candidate until it is reproduced.
