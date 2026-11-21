@@ -82,7 +82,7 @@ class TestPinnedRetrievalSettings:
                 return self.state.get("rag_params", {}).get(key, {"TOP_K_RESULTS": 30}.get(key, 1))
 
         cfg = types.SimpleNamespace(
-            app_state=_State(), RERANKER_ENABLED=True, RERANKER_WEIGHT=0.3,
+            app_state=_State(), RERANKER_ENABLED=True, RERANKER_WEIGHT=0.3, RERANK_CANDIDATES=36,
             CHUNK_SIZE=1200, CHUNK_OVERLAP=150, MAX_CONTEXT_LENGTH=24576,
         )
         settings = ev.pin_retrieval_settings(cfg)

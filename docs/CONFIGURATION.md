@@ -383,6 +383,7 @@ to empty, in which case the router falls back to the active model.
 
 | Variable | Default | Effect |
 |---|---|---|
+| `RERANK_CANDIDATES` | `36` | Candidates the cross-encoder scores before `RERANK_TOP_K` are kept; more finds more answers and costs CPU time per question. Never fewer than `RERANK_TOP_K` |
 | `RERANK_MIN_SCORE` | `-5.0` | Cross-encoder score below which a chunk is dropped |
 | `RERANK_LOW_RELEVANCE_LIMIT` | `3` | Chunks kept when everything scores below the threshold |
 | `RERANKER_WEIGHT` | `0.3` | The reranker score's share of the final blend |

@@ -52,7 +52,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/routes_fastapi/_authz.py` | `deny()` — wraps `check_workspace_access` in the route layer's JSON envelope; shared by every workspace-scoped router |
 | **RAG** | |
 | `src/rag/processor.py` | `DocumentProcessor` — ingest orchestration (load → chunk → embed → store); holds a `Loader`, a `Chunker` and a `Retriever` and delegates their public methods |
-| `src/rag/retrieval.py` | `Retriever` — hybrid search — independent semantic (pgvector) + lexical (Postgres tsvector/GIN) arms, weighted blend; `retrieve_context(filename_filter=, knowledge_scope=)` — `local`/`global`/`hybrid` over the GKB-1 tiers |
+| `src/rag/retrieval.py` | `Retriever` — hybrid search — independent semantic (pgvector) + lexical (Postgres tsvector/GIN) arms, weighted blend in which a chunk only the lexical arm found carries its real similarity; `retrieve_context(filename_filter=, knowledge_scope=)` — `local`/`global`/`hybrid` over the GKB-1 tiers |
 | `src/rag/chunking.py` | `Chunker` — overlapping chunking, preserves table structure |
 | `src/rag/loaders.py` | `Loader` — multi-format document loading |
 | `src/rag/injection_flags.py` | GR-1c — `scan()`: five kinds of instruction-shaped text, run over every chunk at ingest; the kinds found are stored in `documents.metadata.injection_flags` and shown on the Documents page. A heuristic; never blocks |
@@ -65,7 +65,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `src/rag/web_search.py` | Optional DuckDuckGo integration |
 | **Database** | |
 | `src/db/connection.py` | psycopg3 pool, pgvector HNSW index, `_ensure_extensions_and_tables()`, additive migrations; `get_connection(scope=)` switches a workspace-scoped transaction into `localchat_scoped` with the iterative HNSW scan (ADR-5); `_apply_scoped_role()` re-creates that role and its grants at every boot, because `pg_dump` never carries a role |
-| `src/db/documents.py` | `DocumentsRepository` — document/chunk CRUD; `search_similar(filename_filter=, global_tier=)` and `search_lexical(global_tier=)`; held as `Database.documents` |
+| `src/db/documents.py` | `DocumentsRepository` — document/chunk CRUD; `search_similar(filename_filter=, global_tier=)`, `search_lexical(global_tier=)` and `similarity_for_chunks`; held as `Database.documents` |
 | `src/db/conversations.py` | `ConversationsRepository` — persistent conversation history; `count` (paging); `document_filter`/`set_document_filter`; held as `Database.conversations` |
 | `src/db/entities.py` | `EntitiesRepository` — GraphRAG entity/relation CRUD and the workspace ontology; held as `Database.entities` and reached through `PostgresGraphStore` |
 | `src/db/memories.py` | `MemoriesRepository` — long-term memory CRUD + vector search, one scoped transaction per workspace; held as `Database.memories` |
@@ -142,6 +142,7 @@ Full module index for LocalChat. **Keep this current** — update in the same co
 | `tests/integration/test_malformed_ids_are_not_server_errors.py` | Every object route of the authorisation matrix, given `not-a-uuid` and a number past bigint, answers below 500: a malformed UUID path id is a 422 (`UuidId` in `src/models.py`), one well-formed but absent still reaches the database as a 404, and a malformed `X-Workspace-ID` is the guard's 400. Each used to be the route's own 500 |
 | `tests/integration/test_graph_expansion_scope.py` | R-12 (QP-9 review) — GraphRAG's 1-hop lookup returns a name that co-occurs in the caller's workspace, not one from another workspace's document or from a retired one |
 | `tests/integration/test_ontology_reads_live_documents.py` | A workspace's ontology counts only its live documents and live chunks: a retired document and a chunk retired by a re-ingest leave it |
+| `tests/integration/test_similarity_for_chunks.py` | `similarity_for_chunks` against Postgres — the cosine of a chunk in scope, nothing for another workspace's chunk or a retired document's (only the join on `documents.deleted_at` excludes those) |
 | `tests/integration/test_chunk_statistics_scope.py` | R-1 (QP-9 review) — document statistics count and sample only the caller's workspace's live chunks, with a second workspace and a retired document beside it |
 | `tests/integration/test_migrations_apply.py` | TQ-5b — the migration chain applies against a real database, lands on the single head, and a second run does nothing |
 | `tests/integration/test_set_local_scope_mechanism.py` | P2-1b's precondition, made executable — a transaction-local scope plus RLS returns zero rows when unset, does not survive `COMMIT`, and is not inherited by the next transaction; the properties `hnsw.ef_search` lacks |

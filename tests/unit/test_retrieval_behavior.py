@@ -127,6 +127,63 @@ class TestMergeSemanticAndLexical:
         assert abs(merged["a.pdf:0"]["combined_score"] - expected_a) < 1e-9
 
 
+class TestLexicalOnlyChunksAreBlendedWithTheirSimilarity:
+    """A lexical-only chunk blended as semantic 0.0 ranked below every semantic hit, so on the
+    P2-3 corpus none reached the context; 20 of the 29 answers lost before reranking were such
+    chunks (2026-11-21)."""
+
+    def test_a_lexical_only_chunk_blends_its_real_similarity(self, retriever):
+        lexical = [_lexical_row("sheet.xlsx", 4, 0.8, chunk_id=9)]
+
+        with patch("src.rag.retrieval.config") as cfg:
+            cfg.app_state.get_rag_param.return_value = 0.7
+            merged = retriever._merge_semantic_and_lexical([], lexical, {9: 0.6})
+
+        assert merged["sheet.xlsx:4"]["semantic_score"] == 0.6
+        assert abs(merged["sheet.xlsx:4"]["combined_score"] - (0.7 * 0.6 + 0.3 * 0.8)) < 1e-9
+
+    def test_a_strong_lexical_only_chunk_now_outranks_a_weaker_semantic_hit(self, retriever):
+        semantic = [_semantic_row("deck.pdf", 0, 0.65, chunk_id=1)]
+        lexical = [_lexical_row("sheet.xlsx", 4, 0.8, chunk_id=9)]
+
+        with patch("src.rag.retrieval.config") as cfg:
+            cfg.app_state.get_rag_param.return_value = 0.7
+            merged = retriever._merge_semantic_and_lexical(semantic, lexical, {9: 0.6})
+
+        # 0.7 * 0.6 + 0.3 * 0.8 = 0.66 against 0.7 * 0.65 = 0.455; scored 0.0 it was 0.24.
+        assert merged["sheet.xlsx:4"]["combined_score"] > merged["deck.pdf:0"]["combined_score"]
+
+    def test_the_pipeline_asks_only_for_chunks_vector_search_did_not_return(self, retriever):
+        retriever._db = MagicMock()
+        retriever._db.documents.search_similar.return_value = [_semantic_row("a.pdf", 0, 0.7, chunk_id=1)]
+        retriever._db.documents.search_lexical.return_value = [
+            _lexical_row("a.pdf", 0, 0.5, chunk_id=1),
+            _lexical_row("b.docx", 2, 0.9, chunk_id=7),
+        ]
+        retriever._db.documents.similarity_for_chunks.return_value = {7: 0.55}
+
+        filtered = retriever._run_retrieval_pipeline(
+            query_clean="query", query_embedding=[0.5] * 768, top_k=5, min_similarity=0.30,
+            file_type_filter=None, use_hybrid_search=True, scope="ws-1",
+        )
+
+        retriever._db.documents.similarity_for_chunks.assert_called_once_with([0.5] * 768, [7], scope="ws-1")
+        assert filtered["b.docx:2"]["semantic_score"] == 0.55
+
+    def test_a_failed_similarity_lookup_falls_back_to_semantic_zero(self, retriever):
+        retriever._db = MagicMock()
+        retriever._db.documents.search_similar.return_value = []
+        retriever._db.documents.search_lexical.return_value = [_lexical_row("b.docx", 2, 0.9, chunk_id=7)]
+        retriever._db.documents.similarity_for_chunks.side_effect = RuntimeError("pool exhausted")
+
+        filtered = retriever._run_retrieval_pipeline(
+            query_clean="query", query_embedding=[0.5] * 768, top_k=5, min_similarity=0.30,
+            file_type_filter=None, use_hybrid_search=True, scope="ws-1",
+        )
+
+        assert filtered["b.docx:2"]["semantic_score"] == 0.0
+
+
 # ---------------------------------------------------------------------------
 # _run_retrieval_pipeline — the threshold must gate on each arm's own score,
 # never on the blended combined_score. Regression coverage for a bug where
@@ -149,6 +206,8 @@ class TestRunRetrievalPipelineThreshold:
         retriever._db.documents.search_lexical.return_value = [
             _lexical_row("only_lexical.pdf", 0, 0.9, chunk_id=1),
         ]
+        # Its real similarity is below the threshold: it must survive on lexical_score alone.
+        retriever._db.documents.similarity_for_chunks.return_value = {1: 0.10}
 
         filtered = retriever._run_retrieval_pipeline(
             query_clean="exact identifier",
@@ -174,6 +233,7 @@ class TestRunRetrievalPipelineThreshold:
         retriever._db.documents.search_lexical.return_value = [
             _lexical_row("other_chunk.pdf", 0, 0.9, chunk_id=3),
         ]
+        retriever._db.documents.similarity_for_chunks.return_value = {3: 0.20}
 
         filtered = retriever._run_retrieval_pipeline(
             query_clean="query",
@@ -338,3 +398,60 @@ class TestApplyCrossEncoder:
 
         expected = 0.7 * 0.6 + 0.3 * 0.4  # 0.54
         assert abs(result[0]["combined_score"] - expected) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# _rank_and_finalize — the cross-encoder chooses from RERANK_CANDIDATES, not RERANK_TOP_K.
+# It scored only the blend's top RERANK_TOP_K, and the blend ranks worse than it does: on the
+# P2-3 corpus a pool of 36 put the answer in the context for 67 of 105 questions against 57.
+# ---------------------------------------------------------------------------
+
+def _distinct(n: int) -> dict:
+    """n candidates in different files, blend-ranked 0 (best) .. n-1, each with distinct words."""
+    return _results_dict(*(
+        _result(f"doc{i:02d}.pdf", 0, semantic_score=0.9 - i * 0.01, text=f"unique words for passage {i} only{i}")
+        for i in range(n)
+    ))
+
+
+def _cross_encoder_preferring(winner: str):
+    reranker = MagicMock()
+    reranker.is_available.return_value = True
+    reranker.score.side_effect = lambda q, passages: [5.0 if winner in p else -1.0 for p in passages]
+    return reranker
+
+
+def _finalize(retriever, candidates: dict, *, reranker_enabled: bool, pool: int, top_k: int = 3):
+    with patch("src.rag.retrieval.config") as cfg, \
+         patch("src.rag.reranker.get_reranker", return_value=_cross_encoder_preferring("passage 20 ")):
+        cfg.ENABLE_DIVERSITY_FILTER = True
+        cfg.RERANK_RESULTS = False
+        cfg.RERANKER_ENABLED = reranker_enabled
+        cfg.RERANKER_WEIGHT = 0.3
+        cfg.RERANK_MIN_SCORE = -5.0
+        cfg.RERANK_CANDIDATES = pool
+        cfg.app_state.get_rag_param.side_effect = {"RERANK_TOP_K": top_k, "DIVERSITY_THRESHOLD": 0.7}.get
+        return retriever._rank_and_finalize("query", candidates)
+
+
+class TestTheCrossEncoderChoosesFromAWiderPool:
+    def test_a_candidate_ranked_21st_by_the_blend_reaches_the_context(self, retriever):
+        results = _finalize(retriever, _distinct(30), reranker_enabled=True, pool=24)
+
+        assert "doc20.pdf" in {r.filename for r in results}
+
+    def test_only_rerank_top_k_are_kept(self, retriever):
+        results = _finalize(retriever, _distinct(30), reranker_enabled=True, pool=24, top_k=3)
+
+        assert len(results) == 3
+
+    def test_a_pool_smaller_than_the_candidate_misses_it(self, retriever):
+        # The counterpart: with the old reach the same candidate never meets the cross-encoder.
+        results = _finalize(retriever, _distinct(30), reranker_enabled=True, pool=12)
+
+        assert "doc20.pdf" not in {r.filename for r in results}
+
+    def test_without_the_reranker_the_blend_keeps_its_own_top_k(self, retriever):
+        results = _finalize(retriever, _distinct(30), reranker_enabled=False, pool=24, top_k=3)
+
+        assert {r.filename for r in results} == {"doc00.pdf", "doc01.pdf", "doc02.pdf"}
