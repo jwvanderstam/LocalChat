@@ -1307,7 +1307,32 @@ those but over-corrects, so both are kept for comparison. Building it also found
 `eval_retrieval.ingest_corpus` read only the top level of a folder (a real corpus ingested as
 4 documents of 274), and that drafting picked tables of contents and templates, now filtered.
 
+**Corrected 2026-11-21: the office-format misses were ranking, not ingest (#558).** A
+stage-by-stage trace of the 42 missed office questions found the answering passage stored
+intact in a chunk every time. Twenty-nine of those chunks were dropped before the reranker, 20
+of them found only by the lexical arm, which scored them as if their semantic similarity were
+zero. Reading their real similarity, and letting the cross-encoder score up to
+`RERANK_CANDIDATES` (36) instead of the top 12, raised the answer passage in context from 0.50
+to 0.64 (PowerPoint 0.40 → 0.73, Excel 0.35 → 0.59, Word 0.48 → 0.65, PDF 0.58 → 0.62), at a
+median retrieval cost of 0.54 s → 1.46 s on CPU. Structured office ingest is no longer the
+explanation; whether it still helps is unmeasured.
+
+**The judge, 2026-11-21 (#559).** Against 104 blind grades by an AI assistant, the `mistral`
+judge with prompt `v2` agreed exactly on 27%: it graded verbatim-correct answers "partial".
+Prompt `v3` grades correctness against the reference alone and agrees on 85%. That figure is
+in-sample: `v3` was designed from, and chosen on, the same grades, with no held-out set.
+`v3` is now the default. Graded with it, #556's answer prompt took `qwen2.5:14b` from 0.66 to
+0.75 `answer_correct`, almost all of it where the answering passage was not retrieved, and
+`v3` is lenient there, so read it as a direction. The prompt's "say what the documents do not
+cover" is mostly ignored: about 4 in 36 such answers name a gap. Ordering the context by
+relevance instead of reading order made no measurable difference. Details: [RAG_QUALITY_2026-11](history/RAG_QUALITY_2026-11.md).
+
 **Still open:**
+- **Re-baseline `answer_baseline.json`.** `check` refuses every run since #558, because the
+  baseline does not record `RERANK_CANDIDATES`, and it still records judge `v1`. Re-measure
+  once, with the current retrieval, prompt and judge `v3`.
+- **A held-out check of judge `v3`.** Its 85% agreement is in-sample. Grade a fresh set of
+  answers blind and score `v3` against them before trusting small differences.
 - **Human calibration.** 38 of the 40 calibration grades are an AI assistant's; agreement with
   a model is not what this ticket asks for. `calibrate --dims correct` makes a sheet a person
   can grade in a few minutes in `eval_review.html`; doing so and re-running `calibrate --score`
@@ -2170,6 +2195,7 @@ DP-3.
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
+| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) — re-baseline and a held-out judge check open | 1 day |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | — | Initiative 14 (DP-0..DP-3, deployment patterns) — unscheduled (2026-11-14) | — |
 | **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
