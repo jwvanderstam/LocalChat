@@ -297,8 +297,9 @@ List the details you checked before deciding. Reply with JSON only:
 
 # v2's "correct" agreed with 104 blind grades only 28 times: given the whole context, mistral
 # graded verbatim-correct answers "partial". Asked in a call of its own, against the reference
-# alone, with extra detail ruled out as a reason, the same model agreed 88 of 103 times
-# (2026-11-21). v3 takes "correct" from that call and "faithful" from v2's.
+# alone, with extra detail ruled out as a reason, the same model agreed with 88 of the 103 grades
+# its replies parsed for (one did not; 2026-11-21, in-sample). v3 takes "correct" from that call
+# and "faithful" from v2's.
 _CORRECT_V3 = """You check whether an assistant's answer contains the information in a reference answer.
 
 QUESTION: {question}
@@ -318,6 +319,7 @@ Grade "correct":
 First list each key fact of the reference and whether the answer states it. Reply with JSON only:
 {{"facts": [{{"fact": "...", "stated": true}}], "correct": "...", "reason": "one sentence"}}"""
 
+# v3 sends v2's prompt for "faithful" and discards that call's "correct" (see judge()).
 JUDGE_PROMPTS["v3"] = JUDGE_PROMPTS["v2"]
 
 

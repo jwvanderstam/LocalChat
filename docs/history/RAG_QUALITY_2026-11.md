@@ -102,14 +102,21 @@ answered in a median of about 45 words. A larger model did not make answers long
 3. **Replace the eval judge** before using `answer_correct` to steer anything: a 7B judge cannot
    separate a correct answer from a partial one. A stronger judge needs its own calibration.
    *Done differently (2026-11-21): the judge prompt was the failure, not the model.* Re-graded
-   against the same 104 blind grades:
+   against the same 104 blind grades (52 cases × two models). Each v3 judge failed to give a
+   parseable reply on one answer, and not the same one (mistral on a llama3.2 answer, qwen2.5:14b
+   on a qwen2.5:14b answer to another question), so each v3 row is over 103:
 
-   | Judge | Exact | Within one grade | Bias |
+   | Judge | n | Exact | Bias |
    |---|---|---|---|
-   | mistral, v2 (context in the prompt) | 0.27 | 1.00 | −0.30 |
-   | qwen2.5:14b, v2 | 0.78 | 0.97 | 0.00 |
-   | qwen2.5:14b, v3 | 0.82 | 1.00 | −0.06 |
-   | **mistral, v3** | **0.85** | **1.00** | **+0.07** |
+   | mistral, v2 (context in the prompt) | 104 | 0.27 (28) | −0.30 |
+   | qwen2.5:14b, v2 | 104 | 0.78 (81) | 0.00 |
+   | qwen2.5:14b, v3 | 103 | 0.82 (84) | −0.06 |
+   | **mistral, v3** | **103** | **0.85 (88)** | **+0.07** |
+
+   On a three-point scale, agreement within one grade is near-automatic (only yes against no
+   misses it), so it is not reported. The calibration is in-sample: v3 was written from the
+   failures read off these same grades and chosen on them, with no held-out set, so 0.85 is an
+   upper bound. qwen2.5:14b's untuned v2 at 0.78 suggests most of the gain is real.
 
    v3 grades `correct` in a call of its own against the reference alone, and rules out extra
    detail as a reason to lower the grade. mistral v3 is now the default: the best agreement, and a
@@ -120,25 +127,28 @@ answered in a median of about 45 words. A larger model did not make answers long
    follow-up.
 4. **Answer prompt**: ask for complete, specific answers rather than concise ones (#556). On
    2026-11-21 it took `llama3.2`'s median answer from 45 to 128 words, with refusals down from
-   18 to 14 of 105. For `qwen2.5:14b`, on the same retrieval (before #558), graded by mistral v3:
+   18 to 14 of 105. For `qwen2.5:14b`, on the same retrieval (before #558), graded by mistral v3.
+   The new-prompt run has no grade for one case (an unparseable judge reply, the passage in
+   context), so the paired comparison covers 104 of 105 questions and 51 of the 52 in context:
 
    | qwen2.5:14b | old prompt | new prompt |
    |---|---|---|
    | Median words (middle half) | 41 (15–64) | 96 (59–157) |
    | Refusals | 23 | 17 |
-   | `answer_correct`, all 104 | 0.66 | 0.75 (16 better, 2 worse) |
-   | `answer_correct`, the 51 with the passage in context | 0.97 | 0.99 |
+   | `answer_correct`, 104 paired | 0.66 | 0.75 (16 better, 2 worse) |
+   | `answer_correct`, 51 paired with the passage in context | 0.97 | 0.99 |
    | `faithfulness` | 0.63 | 0.76 |
 
    The gain is almost all in questions whose passage was not retrieved, where a longer answer
    gathers part of the reference from neighbouring passages; v3 is lenient on such answers, so
    read it as a direction. The prompt's "say what the documents do not cover" is mostly ignored:
-   of about 36 answers given without the passage, 4 named a gap.
-5. **Passage order** (2026-11-21, measured before #558): the context reaches the model in
-   alphabetical order (`src/rag/retrieval.py`, the final `sorted(... filename, chunk_index)`).
-   Relevance order changed nothing beyond judge noise: `answer_correct` 0.745 alphabetical
-   against 0.729 by relevance, 3 cases better and 5 worse, and in no case did the order decide
-   whether the passage fit the context budget. Left as it is.
+   of the 36 answers given without the passage (53 questions, 17 refusals), 4 named a gap.
+5. **Passage order** (2026-11-21, measured before #558, `qwen2.5:14b` answering under #556's
+   prompt, graded by mistral v3): the context reaches the model in alphabetical order
+   (`src/rag/retrieval.py`, the final `sorted(... filename, chunk_index)`). Relevance order made
+   no measurable difference: `answer_correct` 0.745 alphabetical against 0.729 by relevance,
+   3 cases better and 5 worse of 104 paired (the same case ungraded), and in no case did the
+   order decide whether the passage fit the context budget. Left as it is.
 
 ## Setup note
 

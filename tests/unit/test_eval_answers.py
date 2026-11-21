@@ -169,7 +169,8 @@ class TestJudgeV3:
         return ev.judge(self.RESULT, "m", prompt), sent
 
     def test_correct_comes_from_a_call_that_never_sees_the_context(self, monkeypatch):
-        """Given the whole context, the judge graded verbatim-correct answers partial (28 of 104)."""
+        """Given the whole context, the judge graded verbatim-correct answers partial; it agreed
+        with the blind grades on only 28 of 104."""
         verdict, sent = self._judge(monkeypatch, "v3", [
             {"correct": "partial", "faithful": "no"}, {"correct": "yes"},
         ])
