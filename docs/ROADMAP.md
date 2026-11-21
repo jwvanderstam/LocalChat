@@ -2155,7 +2155,7 @@ DP-3.
 | 10 | PC-1 ✅ 2026-11-11 (manifest, services, the core's role gate) + PC-2 ✅ 2026-11-13 (hooks, scheduler) | 1 week |
 | 11 | PC-3 ✅ 2026-11-15 (#548) + PC-4 ✅ 2026-10-23 (built in Sprint 24) -> **v3.7.0**, with PC-1, PC-2 and the malformed-id fixes (#546, #551) | 1 week |
 | 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
-| 13 | CONN-1 (connector authorisation model — decision, no code) | 2–3 days |
+| 13 | CONN-1 (connector authorisation model — decision, no code) ✅ decided 2026-10-24, as proposed; creation stays `ws:owner` | — |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
 | 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ + P2-4b (`BLE001`) ✅ 2026-09-21 — **sprint complete**. P2-6 retired two open Dependabot alerts. P2-4b was the one item that was not mechanical: 120 handlers read individually, 4 narrowed, 11 that were failing silently given a log | 3–4 days |
 | 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) ✅ (#399) + P2-1b (row-level security) ✅ 2026-10-02 (#400, #404, #406, #407) — **sprint complete** | 1 week |
