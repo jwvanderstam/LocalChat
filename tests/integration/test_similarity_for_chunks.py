@@ -84,5 +84,30 @@ def test_a_retired_documents_chunk_is_not_scored(database, chunks):
     assert database.documents.similarity_for_chunks(X, [chunks["retired"]], scope=chunks["a"]) == {}
 
 
+@pytest.fixture(scope="module")
+def contribution(database) -> Iterator[dict[str, object]]:
+    """A live global-tier chunk, and a workspace that reads it through its own scope."""
+    tag = uuid.uuid4().hex[:8]
+    admin = database.users.create(f"sim-admin-{tag}", "x", role="admin")
+    source = database.workspaces.create(f"sim-src-{tag}", owner_id=None)
+    reader = database.workspaces.create(f"sim-reader-{tag}", owner_id=None)
+    filename = f"global-{tag}.docx"
+    doc_id, _ = _document(database, source, filename, X)
+    database.contributions.contribute(source, [doc_id], admin)
+    rows = database.documents.search_similar(X, top_k=50, filename_filter=[filename], scope=reader, global_tier=True)
+    yield {"reader": reader, "chunk": rows[0][5]}
+    database.contributions.archive(source, None)
+    database.workspaces.retire(source)
+    database.workspaces.retire(reader)
+
+
+def test_a_global_tier_chunk_is_scored_under_a_workspace_scope(database, contribution):
+    # Hybrid retrieval scores a lexical-only global hit with this read; were the global tier
+    # hidden from it, the chunk would silently blend as similarity 0.0 again.
+    scores = database.documents.similarity_for_chunks(X, [contribution["chunk"]], scope=contribution["reader"])
+
+    assert scores == {contribution["chunk"]: pytest.approx(1.0)}
+
+
 def test_no_ids_reads_nothing(database, chunks):
     assert database.documents.similarity_for_chunks(X, [], scope=chunks["a"]) == {}

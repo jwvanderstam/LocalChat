@@ -268,9 +268,10 @@ class Retriever:
         # already cleared min_similarity at the SQL level (search_similar_chunks
         # applies it), and lexical_score > 0 means the row survived chunk_tsv @@
         # tsquery's boolean match. combined_score is a weighted average of a
-        # cosine similarity and a ts_rank_cd score on an unrelated scale — a
-        # lexical-only chunk's semantic_score is 0.0, so filtering on the blend
-        # made survival mathematically impossible for the exact chunks the
+        # cosine similarity and a ts_rank_cd score on an unrelated scale. A
+        # lexical-only chunk carries its own similarity, usually below
+        # min_similarity since vector search did not return it (0.0 when it could
+        # not be read), so filtering on the blend would drop the exact chunks the
         # lexical arm exists to surface, and it silently punished pure-semantic
         # matches the moment any lexical result existed for the query at all.
         # combined_score is still used below for ranking/dedup/answer_confidence
@@ -550,13 +551,14 @@ class Retriever:
     def _apply_diversity_filter_dict(
         self,
         results: dict[str, dict[str, Any]],
-        limit: int | None = None,
+        limit: int,
     ) -> dict[str, dict[str, Any]]:
         """
         Remove near-duplicate chunks to increase diversity.
 
         Args:
             results: Dictionary of chunk_id -> result data
+            limit: How many diverse candidates to keep
 
         Returns:
             Filtered dictionary with duplicates removed
@@ -579,7 +581,7 @@ class Retriever:
                 diverse_results[chunk_id] = data
                 selected_words.append(chunk_words)
                 # Stop once we have enough diverse candidates (O(n×k) instead of O(n²))
-                if len(diverse_results) >= (limit or config.app_state.get_rag_param("RERANK_TOP_K")):
+                if len(diverse_results) >= limit:
                     break
 
         return diverse_results
