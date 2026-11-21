@@ -1317,10 +1317,10 @@ to 0.64 (PowerPoint 0.40 → 0.73, Excel 0.35 → 0.59, Word 0.48 → 0.65, PDF 
 median retrieval cost of 0.54 s → 1.46 s on CPU. Structured office ingest is no longer the
 explanation; whether it still helps is unmeasured.
 
-**The judge, 2026-11-21 (#559).** Against 104 blind grades by an AI assistant, the `mistral`
-judge with prompt `v2` agreed exactly on 27%: it graded verbatim-correct answers "partial".
-Prompt `v3` grades correctness against the reference alone and agrees on 85%. That figure is
-in-sample: `v3` was designed from, and chosen on, the same grades, with no held-out set.
+**The judge, 2026-11-21 (#559).** Against blind grades by an AI assistant, the `mistral`
+judge with prompt `v2` agreed exactly on 28 of 104: it graded verbatim-correct answers "partial".
+Prompt `v3` grades correctness against the reference alone and agrees on 88 of 103 (0.85; one
+reply did not parse). That figure is in-sample: `v3` was designed from, and chosen on, the same grades, with no held-out set.
 `v3` is now the default. Graded with it, #556's answer prompt took `qwen2.5:14b` from 0.66 to
 0.75 `answer_correct`, almost all of it where the answering passage was not retrieved, and
 `v3` is lenient there, so read it as a direction. The prompt's "say what the documents do not
@@ -1328,8 +1328,8 @@ cover" is mostly ignored: about 4 in 36 such answers name a gap. Ordering the co
 relevance instead of reading order made no measurable difference. Details: [RAG_QUALITY_2026-11](history/RAG_QUALITY_2026-11.md).
 
 **Still open:**
-- **Re-baseline `answer_baseline.json`.** `check` refuses every run since #558, because the
-  baseline does not record `RERANK_CANDIDATES`, and it still records judge `v1`. Re-measure
+- **Re-baseline `answer_baseline.json`.** `check` refuses current runs: the baseline records
+  judge `v1` and lacks `RERANK_CANDIDATES`. Re-measure
   once, with the current retrieval, prompt and judge `v3`.
 - **A held-out check of judge `v3`.** Its 85% agreement is in-sample. Grade a fresh set of
   answers blind and score `v3` against them before trusting small differences.
