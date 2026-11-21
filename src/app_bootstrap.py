@@ -257,7 +257,7 @@ def _warmup_reranker() -> None:
             logger.info("Reranker warm-up complete")
         else:
             logger.warning("Reranker warm-up: no model available (non-fatal)")
-    except Exception as e:  # noqa: BLE001 — same for the reranker — a cold model is slower, not broken
+    except Exception as e:  # noqa: BLE001 — same for the reranker — a cold model is slower but not broken
         logger.warning(f"Reranker warm-up failed (non-fatal): {e}")
 
 
@@ -332,6 +332,27 @@ def _start_scheduler(app: Any, db: Any) -> None:
 _WEEK_SECONDS = 7 * 24 * 3600
 
 
+def _run_weekly_finetune(db: Any) -> None:
+    """Export a week of feedback, fine-tune, and promote only a model that scores better."""
+    from .rag.feedback_pipeline import (
+        export_training_pairs,
+        finetune_reranker,
+        persist_reranker_version,
+        promote_model,
+    )
+    pairs = export_training_pairs(db, days=7)
+    if len(pairs) < config.FEEDBACK_FINETUNE_MIN_PAIRS:
+        logger.info(f"[Reranker] {len(pairs)} pairs < minimum — skipping weekly fine-tune")
+        return
+    result = finetune_reranker(pairs)
+    if result.get("skipped"):
+        return
+    version_id = persist_reranker_version(db, result)
+    if version_id and result.get("ndcg_after", 0) > result.get("ndcg_before", 0):
+        promote_model(db, version_id)
+        logger.info("[Reranker] Weekly fine-tune complete — model promoted")
+
+
 def _subscribe_reranker_finetune(db: Any, bus: Any) -> None:
     """Fine-tune the reranker on the first tick a week or more after the last attempt."""
     if not config.RERANKER_ENABLED:
@@ -349,22 +370,7 @@ def _subscribe_reranker_finetune(db: Any, bus: Any) -> None:
         if time.monotonic() < due[0]:
             return
         try:
-            from .rag.feedback_pipeline import (
-                export_training_pairs,
-                finetune_reranker,
-                persist_reranker_version,
-                promote_model,
-            )
-            pairs = export_training_pairs(db, days=7)
-            if len(pairs) < config.FEEDBACK_FINETUNE_MIN_PAIRS:
-                logger.info(f"[Reranker] {len(pairs)} pairs < minimum — skipping weekly fine-tune")
-            else:
-                result = finetune_reranker(pairs)
-                if not result.get("skipped"):
-                    version_id = persist_reranker_version(db, result)
-                    if version_id and result.get("ndcg_after", 0) > result.get("ndcg_before", 0):
-                        promote_model(db, version_id)
-                        logger.info("[Reranker] Weekly fine-tune complete — model promoted")
+            _run_weekly_finetune(db)
         except Exception:
             logger.exception("[Reranker] Weekly fine-tune failed")
         finally:
@@ -406,7 +412,7 @@ def _seed_admin_user(db: Any) -> None:
             username=config.ADMIN_USERNAME,
             hashed_password=hash_user_password(admin_password),
         )
-    except Exception as exc:  # noqa: BLE001 — seeding is skipped, not fatal — the env-var admin is still the way in
+    except Exception as exc:  # noqa: BLE001 — seeding is skipped rather than fatal — the env-var admin is still the way in
         logger.warning(f"[Auth] Admin seeding skipped: {exc}")
         return
 
@@ -478,7 +484,7 @@ def _init_caching(app: Any) -> None:
 
         logger.info(f"Caching initialized ({type(embedding_backend).__name__})")
 
-    except Exception as e:  # noqa: BLE001 — REDIS_STRICT below decides whether this is fatal; that is the policy, not this handler
+    except Exception as e:  # noqa: BLE001 — REDIS_STRICT below decides whether this is fatal; that is the policy and not this handler
         if config.REDIS_ENABLED and config.REDIS_STRICT:
             import sys
             logger.critical(

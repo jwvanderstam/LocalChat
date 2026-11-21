@@ -312,6 +312,17 @@ def api_status(request: Request, chat_svc: Chat) -> Any:
     return response
 
 
+def _json_object(body: bytes) -> dict[str, Any] | None:
+    """The body as a JSON object, or None when it is empty, not JSON, or not an object."""
+    if not body:
+        return None
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 @router.post("/chat")
 @limiter.limit(config.RATELIMIT_CHAT)
 async def api_chat(request: Request, chat_svc: Chat) -> Any:
@@ -319,16 +330,8 @@ async def api_chat(request: Request, chat_svc: Chat) -> Any:
     if denied:
         return denied
     try:
-        body = await request.body()
-        if not body:
-            return JSONResponse({"error": "BadRequest", "success": False, "message": _ERR_INVALID_JSON}, status_code=400)
-        import json as _json
-        try:
-            data = _json.loads(body)
-        except _json.JSONDecodeError:
-            return JSONResponse({"error": "BadRequest", "success": False, "message": _ERR_INVALID_JSON}, status_code=400)
-
-        if not isinstance(data, dict):
+        data = _json_object(await request.body())
+        if data is None:
             return JSONResponse({"error": "BadRequest", "success": False, "message": _ERR_INVALID_JSON}, status_code=400)
 
         try:

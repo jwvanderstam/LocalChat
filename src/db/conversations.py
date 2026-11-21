@@ -11,6 +11,8 @@ from .connection import DatabaseConnection, DatabaseUnavailableError, require_re
 
 logger = get_logger(__name__)
 
+_WORKSPACE_COLUMN = "c.workspace_id"
+
 
 class ConversationsRepository:
     """Conversations and their messages: create, read, retitle, retire and purge."""
@@ -123,7 +125,7 @@ class ConversationsRepository:
         limit = max(1, min(limit, 200))
         offset = max(0, offset)
 
-        scope_sql, scope_params = scope_predicate(scope, "c.workspace_id")
+        scope_sql, scope_params = scope_predicate(scope, _WORKSPACE_COLUMN)
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(f"""
@@ -159,7 +161,7 @@ class ConversationsRepository:
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get messages: Database is not connected")
 
-        where, params = scope_predicate(scope, "c.workspace_id")
+        where, params = scope_predicate(scope, _WORKSPACE_COLUMN)
         bare_where, _ = scope_predicate(scope, "workspace_id")
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
@@ -193,7 +195,7 @@ class ConversationsRepository:
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot check message: Database is not connected")
 
-        where, params = scope_predicate(scope, "c.workspace_id")
+        where, params = scope_predicate(scope, _WORKSPACE_COLUMN)
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -393,7 +395,7 @@ class ConversationsRepository:
             return []
         # Outside the try, as in get_stale_documents: a missing scope is a defect to
         # raise, not a failed report to render as an empty list.
-        ws_filter, scope_params = scope_predicate(scope, "c.workspace_id")
+        ws_filter, scope_params = scope_predicate(scope, _WORKSPACE_COLUMN)
         try:
             live_filter = "AND c.deleted_at IS NULL"
             params: list[Any] = [*scope_params, threshold, limit]

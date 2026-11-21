@@ -20,8 +20,10 @@
 - Use `except Exception` only where the breadth is the point — an SSE boundary, an
   optional subsystem, a per-item loop that must not abandon the rest. `ruff` enforces
   this (`BLE001`). Clear it by narrowing, by calling `logger.exception`, or with
-  `# noqa: BLE001 — <what degrades, and to what>`. A bare `# noqa: BLE001` is the thing
+  `# noqa: BLE001 — <what degrades and to what>`. A bare `# noqa: BLE001` is the thing
   the rule exists to prevent; write the reason or narrow the catch. Always log.
+  Keep commas out of the reason: SonarCloud (S7632) reads `# noqa: X — a, b` as a list
+  of codes and flags the text after the comma as a malformed one. Use `;` or `—`.
 - Re-raise with context: `raise SomeError("msg") from e`, not swallowed or re-raised without cause.
 
 ## Comments

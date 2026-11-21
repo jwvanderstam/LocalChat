@@ -173,5 +173,5 @@ def calculate(expression: str) -> str:
         tree = _ast.parse(expression, mode='eval')
         result = _ast_eval(tree.body)
         return str(int(result) if result == int(result) else result)
-    except Exception as exc:  # noqa: BLE001 — evaluates a user-supplied expression — the failure modes are the user's, and are returned as text
+    except Exception as exc:  # noqa: BLE001 — evaluates a user-supplied expression — the failure modes are the user's and are returned as text
         return f"Calculation error: {exc}"

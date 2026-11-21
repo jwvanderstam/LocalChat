@@ -85,7 +85,7 @@ def _get_gpu_info(ollama_client: Any) -> list[dict[str, Any]]:
     try:
         gpus: list[dict[str, Any]] = ollama_client.get_gpu_info()
         return gpus
-    except Exception as exc:  # noqa: BLE001 — same, for hardware info
+    except Exception as exc:  # noqa: BLE001 — same for hardware info
         logger.debug("Settings: could not fetch GPU hardware info: %s", exc)
         return []
 

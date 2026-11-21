@@ -72,6 +72,6 @@ def feedback_stats(
         return JSONResponse({"error": "database unavailable"}, status_code=503)
     try:
         return feedback.stats(days)
-    except Exception as exc:  # noqa: BLE001 — same, for the stats query
+    except Exception as exc:  # noqa: BLE001 — same for the stats query
         logger.warning(f"[Feedback] stats query failed: {exc}")
         return JSONResponse({"error": "could not retrieve stats"}, status_code=500)

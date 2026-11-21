@@ -124,6 +124,16 @@ def resolve_and_validate(url: str, *, require_https: bool = False) -> list[str]:
     return addresses
 
 
+def _read_capped(response: requests.Response, max_bytes: int) -> bytearray:
+    """The body, refused as soon as it passes *max_bytes* rather than after it has all arrived."""
+    body = bytearray()
+    for chunk in response.iter_content(8192):
+        body.extend(chunk)
+        if len(body) > max_bytes:
+            raise UnsafeUrlError(f"response exceeded {max_bytes} bytes")
+    return body
+
+
 def safe_fetch(
     url: str,
     *,
@@ -159,12 +169,7 @@ def safe_fetch(
             if allowed_content_types and content_type not in allowed_content_types:
                 raise UnsafeUrlError(f"unexpected content type {content_type!r}")
 
-            body = bytearray()
-            for chunk in response.iter_content(8192):
-                body.extend(chunk)
-                if len(body) > max_bytes:
-                    raise UnsafeUrlError(f"response exceeded {max_bytes} bytes")
-
+            body = _read_capped(response, max_bytes)
             return FetchResult(
                 url=current,
                 status_code=response.status_code,
