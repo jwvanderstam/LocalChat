@@ -69,6 +69,7 @@ SCOPED_METHODS = {
     # P2-1b-ii: the filters where `workspace_id=None` used to mean every workspace.
     "documents.search_similar",
     "documents.search_lexical",
+    "documents.similarity_for_chunks",
     "documents.count",
     "documents.chunk_count",
     "documents.chunk_statistics",

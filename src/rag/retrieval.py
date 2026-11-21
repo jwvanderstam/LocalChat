@@ -120,10 +120,23 @@ class Retriever:
             logger.debug(f"[RAG] Lexical search skipped: {lex_exc}")
             return []
 
+    def _similarity_for_lexical_only(
+        self, query_embedding: list[float], semantic_results: list, lexical_results: list, *, scope: Scope
+    ) -> dict[int, float]:
+        """The cosine similarity of each lexical hit vector search did not return; {} if it cannot be read."""
+        returned = {row[5] for row in semantic_results}
+        missing = [row[5] for row in lexical_results if row[5] not in returned]
+        try:
+            return self._db.documents.similarity_for_chunks(query_embedding, missing, scope=scope)
+        except Exception as sim_exc:  # noqa: BLE001 — without it a lexical-only hit blends as semantic 0.0, as before
+            logger.debug(f"[RAG] Similarity of lexical-only hits skipped: {sim_exc}")
+            return {}
+
     def _merge_semantic_and_lexical(
         self,
         semantic_results: list,
         lexical_results: list,
+        lexical_only_similarity: dict[int, float] | None = None,
     ) -> dict[str, dict[str, Any]]:
         """Merge two independently-retrieved candidate sets (in-place-free).
 
@@ -132,7 +145,12 @@ class Retriever:
         silently dropped — this is the fix for hybrid search only ever
         reordering vector search's own candidates rather than running a
         genuine second retrieval path.
+
+        Such a chunk is blended with its real similarity from
+        *lexical_only_similarity*. Scored 0.0 it ranked below every semantic hit,
+        so on the P2-3 corpus none ever reached the context (2026-11-21).
         """
+        filled = lexical_only_similarity or {}
         merged: dict[str, dict[str, Any]] = {}
 
         for chunk_text, filename, chunk_index, similarity, metadata, chunk_id in semantic_results:
@@ -149,10 +167,11 @@ class Retriever:
             if key in merged:
                 merged[key]['lexical_score'] = lexical_score
             else:
+                semantic_score = filled.get(chunk_id, 0.0)
                 merged[key] = {
                     'chunk_text': chunk_text, 'filename': filename, 'chunk_index': chunk_index,
-                    'semantic_score': 0.0, 'lexical_score': lexical_score,
-                    'combined_score': 0.0,
+                    'semantic_score': semantic_score, 'lexical_score': lexical_score,
+                    'combined_score': semantic_score,
                     'metadata': metadata or {}, 'chunk_id': chunk_id,
                 }
 
@@ -238,7 +257,11 @@ class Retriever:
             logger.warning("[RAG] No semantic or lexical search results")
             return {}
 
-        all_results = self._merge_semantic_and_lexical(semantic_results, lexical_results)
+        lexical_only_similarity = (
+            self._similarity_for_lexical_only(query_embedding, semantic_results, lexical_results, scope=scope)
+            if lexical_results else {}
+        )
+        all_results = self._merge_semantic_and_lexical(semantic_results, lexical_results, lexical_only_similarity)
         logger.debug(f"[RAG] Merged into {len(all_results)} candidate results")
 
         # Survival is decided per-arm, never by the blended score: semantic_score
@@ -329,8 +352,11 @@ class Retriever:
         Returns:
             Final list of RetrievalResult named tuples.
         """
+        final_top_k = config.app_state.get_rag_param("RERANK_TOP_K")
+        # The cross-encoder ranks better than the blend, so it chooses from more than it keeps.
+        pool = max(final_top_k, config.RERANK_CANDIDATES) if config.RERANKER_ENABLED else final_top_k
         if config.ENABLE_DIVERSITY_FILTER:
-            filtered_results = self._apply_diversity_filter_dict(filtered_results)
+            filtered_results = self._apply_diversity_filter_dict(filtered_results, pool)
             logger.debug(f"[RAG] After diversity filter: {len(filtered_results)} chunks")
         if config.RERANK_RESULTS and len(filtered_results) > 1:
             filtered_results = self._rerank_with_signals(query_clean, filtered_results)
@@ -340,13 +366,13 @@ class Retriever:
             key=lambda x: (x['combined_score'], -(x['chunk_index'])),
             reverse=True
         )
-        final_top_k = config.app_state.get_rag_param("RERANK_TOP_K")
-        deduped = self._deduplicate_results(sorted_results[:final_top_k])
+        deduped = self._deduplicate_results(sorted_results[:pool])
         logger.debug(f"[RAG] After dedup: {len(deduped)} chunks")
 
         if config.RERANKER_ENABLED and deduped:
             deduped = self._apply_cross_encoder(query_clean, deduped)
             deduped = self._apply_relevance_floor(deduped)
+        deduped = deduped[:final_top_k]
 
         deduped = sorted(deduped, key=lambda x: (x['filename'], x['chunk_index']))
         return [
@@ -523,7 +549,8 @@ class Retriever:
 
     def _apply_diversity_filter_dict(
         self,
-        results: dict[str, dict[str, Any]]
+        results: dict[str, dict[str, Any]],
+        limit: int | None = None,
     ) -> dict[str, dict[str, Any]]:
         """
         Remove near-duplicate chunks to increase diversity.
@@ -552,7 +579,7 @@ class Retriever:
                 diverse_results[chunk_id] = data
                 selected_words.append(chunk_words)
                 # Stop once we have enough diverse candidates (O(n×k) instead of O(n²))
-                if len(diverse_results) >= config.app_state.get_rag_param("RERANK_TOP_K"):
+                if len(diverse_results) >= (limit or config.app_state.get_rag_param("RERANK_TOP_K")):
                     break
 
         return diverse_results

@@ -208,7 +208,10 @@ def pin_retrieval_settings(config: Any) -> dict[str, Any]:
     settings = {k: config.app_state.get_rag_param(k) for k in keys}
     settings.update({
         k: getattr(config, k)
-        for k in ("RERANKER_ENABLED", "RERANKER_WEIGHT", "CHUNK_SIZE", "CHUNK_OVERLAP", "MAX_CONTEXT_LENGTH")
+        for k in (
+            "RERANKER_ENABLED", "RERANKER_WEIGHT", "RERANK_CANDIDATES", "CHUNK_SIZE", "CHUNK_OVERLAP",
+            "MAX_CONTEXT_LENGTH",
+        )
     })
     return settings
 

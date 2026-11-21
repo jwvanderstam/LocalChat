@@ -19,6 +19,18 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   prompt and the prompt-injection rule are unchanged. **Upgrading:** answers are longer, so they
   take longer to stream.
 
+### Fixed
+
+- **Hybrid search finds what only the lexical arm matched.** A chunk the full-text search found
+  but vector search did not return was blended as if its semantic similarity were zero, so it
+  ranked below every semantic hit and never reached the answer. It now carries its real
+  similarity. And the cross-encoder, which ranks better than the blend, now chooses the
+  `RERANK_TOP_K` chunks from `RERANK_CANDIDATES` (default 36) rather than scoring only the
+  blend's top `RERANK_TOP_K`. On a private 105-question corpus the answering passage now reaches
+  the model for 67 questions instead of 52, and Word, PowerPoint and Excel documents gain most.
+  **Upgrading:** reranking more candidates costs CPU time per question; set
+  `RERANK_CANDIDATES=12` for the previous behaviour.
+
 ## [3.7.0] — 2026-11-17
 
 The plugin contract's release: a manifest and services (PC-1), hooks and a core scheduler

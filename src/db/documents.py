@@ -396,6 +396,30 @@ class DocumentsRepository:
                 logger.debug(f"Found {len(results)} similar chunks")
                 return [(r[0], r[1], r[2], r[3], r[4] or {}, r[5]) for r in results]
 
+    def similarity_for_chunks(
+        self, query_embedding: list[float] | np.ndarray, chunk_ids: list[int], *, scope: Scope
+    ) -> dict[int, float]:
+        """Cosine similarity of the query to each named chunk, for candidates vector search did not return."""
+        if not chunk_ids:
+            return {}
+        if not self._db.is_connected:
+            raise DatabaseUnavailableError(_ERR_NOT_CONNECTED)
+        with self._db.get_connection(scope=scope) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT dc.id, 1 - (dc.embedding <=> %s::vector)
+                    FROM document_chunks dc
+                    JOIN documents d ON dc.document_id = d.id
+                    WHERE dc.id = ANY(%s)
+                      AND dc.embedding IS NOT NULL
+                      AND dc.deleted_at IS NULL
+                      AND d.deleted_at IS NULL
+                    """,
+                    (self._db._embedding_to_pg_array(query_embedding), chunk_ids),
+                )
+                return {row[0]: float(row[1]) for row in cursor.fetchall()}
+
     def search_lexical(
         self,
         query: str,

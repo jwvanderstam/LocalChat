@@ -369,6 +369,11 @@ RERANK_MIN_SCORE: float = float(os.environ.get('RERANK_MIN_SCORE', '-5.0'))
 RERANK_LOW_RELEVANCE_LIMIT: int = int(os.environ.get('RERANK_LOW_RELEVANCE_LIMIT', '3'))
 RERANK_RESULTS: bool = True                  # Always re-rank for precision
 RERANK_TOP_K: int = int(os.environ.get("RERANK_TOP_K", "12"))   # 12 chunks cover multi-chapter docs (was 4)
+# How many candidates the cross-encoder scores before RERANK_TOP_K are kept. It used to score
+# only RERANK_TOP_K, chosen by the hybrid blend, which never ranks as well as the
+# cross-encoder: on the P2-3 corpus 36 put the answer in the context for 67 of 105
+# questions against 57 (2026-11-21), for more CPU time per question.
+RERANK_CANDIDATES: int = int(os.environ.get("RERANK_CANDIDATES", "36"))
 
 # Hybrid Search Configuration
 SEMANTIC_WEIGHT: float = float(os.environ.get("SEMANTIC_WEIGHT", "0.70"))  # Semantic similarity weight in hybrid

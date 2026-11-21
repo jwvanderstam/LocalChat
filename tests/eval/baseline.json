@@ -1,9 +1,9 @@
 {
   "n": 20,
   "metrics": {
-    "recall@1": 0.45,
-    "recall@5": 0.75,
-    "mrr": 0.591667
+    "recall@1": 0.65,
+    "recall@5": 0.9,
+    "mrr": 0.75
   },
   "settings": {
     "TOP_K_RESULTS": 30,
@@ -12,6 +12,7 @@
     "SEMANTIC_WEIGHT": 0.7,
     "RERANKER_ENABLED": true,
     "RERANKER_WEIGHT": 0.3,
+    "RERANK_CANDIDATES": 36,
     "CHUNK_SIZE": 1200,
     "CHUNK_OVERLAP": 150,
     "MAX_CONTEXT_LENGTH": 24576
