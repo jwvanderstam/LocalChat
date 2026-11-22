@@ -228,7 +228,9 @@ def ask_json(model: str, prompt: str) -> dict[str, Any] | None:
         f"{config.OLLAMA_BASE_URL}/api/chat",
         json={
             "model": model, "stream": False, "format": "json",
-            "options": {"temperature": 0},
+            # The judge reads the whole context the answer model was given, plus the question,
+            # reference and answer; at Ollama's default window the start is silently dropped.
+            "options": {"temperature": 0, "num_ctx": 2 * config.OLLAMA_NUM_CTX},
             "messages": [{"role": "user", "content": prompt}],
         },
         timeout=300,
@@ -473,7 +475,9 @@ def cmd_run(args: argparse.Namespace) -> None:
             "id": case["id"], "question": case["question"], "source": case["source"],
             "reference_answer": case["reference_answer"],
             # Exactly what the judge saw, so a human calibrating it can see the same.
-            "context": context[:6000] or "(no documents were retrieved)",
+            # Uncut: at 6000 characters a passage the answer drew on could sit past what the
+            # judge saw, and the answer was graded unfaithful for using it (2026-11-22).
+            "context": context or "(no documents were retrieved)",
             "rank": relevance_rank(case["source"], scored),
             "proof_in_context": normalise(case["proof"]) in normalise(context),
             "answer": None, "correct": None, "faithful": None,

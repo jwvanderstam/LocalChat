@@ -188,6 +188,30 @@ class TestJudgeV3:
         assert verdict["correct"] is None
 
 
+class TestJudgeWindow:
+    def test_the_judge_call_asks_for_twice_the_answer_models_window(self, monkeypatch):
+        """At Ollama's default window the context the answer model saw is cut before the judge
+        reads it, so an answer drawing on a later passage is graded unfaithful."""
+        from src import config
+
+        posted = {}
+
+        class Reply:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"message": {"content": '{"faithful": "yes"}'}}
+
+        def fake_post(url, json, timeout):
+            posted.update(json)
+            return Reply()
+
+        monkeypatch.setattr("httpx.post", fake_post)
+        ev.ask_json("m", "prompt")
+        assert posted["options"] == {"temperature": 0, "num_ctx": 2 * config.OLLAMA_NUM_CTX}
+
+
 class TestSelectForRejudge:
     RESULTS = [
         {"id": 1, "question": "What is the term?", "reference_answer": "old"},
