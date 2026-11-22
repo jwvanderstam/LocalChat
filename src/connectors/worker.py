@@ -209,7 +209,7 @@ class SyncWorker:
                 logger.debug(f"[SyncWorker] Re-ingested: {filename}")
             else:
                 logger.warning(f"[SyncWorker] Re-ingest failed for {filename}: {message}")
-        except Exception as exc:  # noqa: BLE001 — same — a re-ingest failure is per-document, not per-run
+        except Exception as exc:  # noqa: BLE001 — same — a re-ingest failure is per document and not per run
             logger.warning(f"[SyncWorker] Re-ingest error for {filename}: {exc}")
 
     def _handle_delete(self, connector, source) -> None:

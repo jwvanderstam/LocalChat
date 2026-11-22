@@ -49,7 +49,7 @@ def database() -> Any:
     return db
 
 
-@pytest.fixture()
+@pytest.fixture
 def people(database: Any) -> Iterator[SimpleNamespace]:
     tag = uuid.uuid4().hex[:8]
     user = database.users.create(f"item13-{tag}", hash_user_password(CURRENT), role="user")

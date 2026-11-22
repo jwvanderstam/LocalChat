@@ -592,7 +592,8 @@ def test_a_workspace_cannot_change_global_knowledge(
 def test_a_workspace_cannot_contribute_by_inserting_a_global_row(
     conn: Any, seeded: dict[str, str]
 ) -> None:
-    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+    # The transaction must enclose the refused statement; raising inside it rolls it back.
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):  # NOSONAR
         with conn.transaction():
             conn.execute(f'SET LOCAL ROLE "{ROLE}"')
             conn.execute("SELECT set_config('app.workspace_id', %s, true)", (seeded["a"],))
@@ -605,7 +606,8 @@ def test_a_workspace_cannot_contribute_by_inserting_a_global_row(
 
 def test_a_contributed_document_cannot_keep_a_workspace(conn: Any, seeded: dict[str, str]) -> None:
     """The CHECK keeps the marker's two halves from disagreeing."""
-    with pytest.raises(psycopg.errors.CheckViolation):
+    # The transaction must enclose the refused statement; raising inside it rolls it back.
+    with pytest.raises(psycopg.errors.CheckViolation):  # NOSONAR
         with conn.transaction():
             conn.execute(
                 "INSERT INTO documents (filename, content, workspace_id, contributed_at)"

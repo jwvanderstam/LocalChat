@@ -60,7 +60,7 @@ class MemoryRetriever:
             ok, embedding = ollama_client.generate_embedding(embedding_model, query)
             if not ok or not embedding:
                 return []
-        except Exception as exc:  # noqa: BLE001 — embedding the query is the optional half; no embedding means no memories, not an error
+        except Exception as exc:  # noqa: BLE001 — embedding the query is the optional half; no embedding means no memories rather than an error
             logger.debug(f"[Memory] Embedding failed for retrieval: {exc}")
             return []
 

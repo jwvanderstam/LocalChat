@@ -128,7 +128,8 @@ class TestTheProbeIsCheapToPoll:
         first = monitoring.compute_health_status(app)[2]["database"]["healthy"]
         second = monitoring.compute_health_status(app)[2]["database"]["healthy"]
 
-        assert first is False and second is False
+        assert first is False
+        assert second is False
 
     def test_a_stale_verdict_expires(self):
         app, calls = _app()

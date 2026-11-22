@@ -319,7 +319,7 @@ class FeedbackRepository:
                     )
                     row = cur.fetchone()
                     return str(row[0]) if row is not None else None
-        except Exception as exc:  # noqa: BLE001 — same — the model still loads, it is just not recorded
+        except Exception as exc:  # noqa: BLE001 — same — the model still loads; it is just not recorded
             logger.warning(f"[Reranker] Could not persist version: {exc}")
             return None
 

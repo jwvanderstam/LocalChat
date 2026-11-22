@@ -175,7 +175,7 @@ def get_web_context(message: str) -> tuple[str, list[dict[str, Any]]]:
                     return context, sources
                 logger.warning("[ENHANCED/MCP] Web search server returned no results")
                 return "", []
-        except Exception as mcp_err:  # noqa: BLE001 — same, for web search
+        except Exception as mcp_err:  # noqa: BLE001 — same for web search
             logger.warning("[ENHANCED/MCP] web-search call failed, falling back: %s", mcp_err)
 
     from ..rag.web_search import WebSearchProvider, to_source_dict
@@ -198,7 +198,7 @@ def get_doc_count_cached(db: Any, scope: Scope) -> tuple[int, bool]:
                 count = db.documents.count(scope=scope)
                 _status_doc_count_cache[scope] = (count, now)
                 return count, True
-            except Exception as exc:  # noqa: BLE001 — the count is displayed, not depended on; 0 with has_docs=False is the safe pair
+            except Exception as exc:  # noqa: BLE001 — the count is displayed and not depended on; 0 with has_docs=False is the safe pair
                 logger.warning("Could not get document count: %s", exc)
                 return 0, False
         return cached[0], True
@@ -218,7 +218,7 @@ def _ollama_refresh_worker(app_state: Any) -> None:
     while not _ollama_refresh_stop.wait(_OLLAMA_STATUS_TTL):
         try:
             available, _ = app_state.ollama_client.check_connection()
-        except Exception:  # noqa: BLE001 — an availability probe — any failure means unavailable, which is what is recorded
+        except Exception:  # noqa: BLE001 — an availability probe — any failure means unavailable and that is what is recorded
             available = False
         with _ollama_status_lock:
             _ollama_status_cache[:] = [available, time.monotonic()]
@@ -272,7 +272,7 @@ def get_filename_filter(fields: dict[str, Any], db: Any, scope: Scope) -> list[s
         # None means the conversation is not in this scope; retrieval is then simply
         # unfiltered, which is what it was before a filter was ever set.
         return db.conversations.document_filter(conversation_id, scope=scope) or []
-    except Exception as filter_err:  # noqa: BLE001 — the document filter is a refinement; unfiltered retrieval is correct, just broader
+    except Exception as filter_err:  # noqa: BLE001 — the document filter is a refinement; unfiltered retrieval is correct but broader
         logger.warning("[RAG] Could not read document filter: %s", filter_err)
         return []
 
@@ -471,7 +471,7 @@ def persist_assistant_message(
             conversation_id, "assistant", text, scope=scope
         )
         return message_id
-    except Exception as mem_err:  # noqa: BLE001 — same, for the assistant message
+    except Exception as mem_err:  # noqa: BLE001 — same for the assistant message
         logger.warning("[MEMORY] Could not persist assistant message: %s", mem_err)
         return None
 
@@ -509,7 +509,7 @@ def update_chunk_stats(app_state: Any, sources: list[dict[str, Any]]) -> None:
     if chunk_ids:
         try:
             app_state.db.feedback.count_retrieved(chunk_ids)
-        except Exception as exc:  # noqa: BLE001 — chunk_stats is feedback telemetry, written after the answer is served
+        except Exception as exc:  # noqa: BLE001 — chunk_stats is feedback telemetry written after the answer is served
             logger.debug("[Feedback] chunk_stats update failed: %s", exc)
 
 
@@ -588,7 +588,7 @@ def apply_model_routing(
             from ..agent.router import ModelRouter
             doc_types = [dt for s in sources if (dt := s.get("doc_type"))]
             return ModelRouter().select(fields["message"], plan=plan, doc_types=doc_types, active_model=active_model)
-        except Exception as router_err:  # noqa: BLE001 — routing falls back to the active model, which is always a valid choice
+        except Exception as router_err:  # noqa: BLE001 — routing falls back to the active model; that is always a valid choice
             logger.warning("[Router] Selection failed, using active model: %s", router_err)
     return active_model, None
 

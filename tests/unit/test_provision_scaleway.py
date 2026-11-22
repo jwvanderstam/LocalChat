@@ -129,7 +129,8 @@ class TestAFreshAccount:
         _, calls, _ = _run(tmp_path)
 
         create = next(c for c in calls if c.startswith("sdb-sql database create"))
-        assert "cpu-min=0" in create and "cpu-max=1" in create
+        assert "cpu-min=0" in create
+        assert "cpu-max=1" in create
 
     def test_the_policy_is_scoped_to_the_project_not_the_organisation(self, tmp_path):
         _, calls, _ = _run(tmp_path)

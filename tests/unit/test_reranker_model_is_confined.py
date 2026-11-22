@@ -18,7 +18,7 @@ from src.rag.reranker import RerankerModel, confined_model_path
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture()
+@pytest.fixture
 def model_dir(tmp_path):
     base = tmp_path / "reranker"
     (base / "v1").mkdir(parents=True)

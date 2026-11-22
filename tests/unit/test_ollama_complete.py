@@ -196,8 +196,10 @@ class TestStreamingEdgeCases:
         # and make it a decision. The old version could not — the assertion sat
         # inside `except Exception: pass` and held whichever way the code behaved.
         chunks = []
-        with pytest.raises(json.JSONDecodeError):
-            async for c in client.generate_chat_response(model="llama3.2", messages=[]):
+        stream = client.generate_chat_response(model="llama3.2", messages=[])
+        # An async stream is consumed item by item, and the items before the error are the point.
+        with pytest.raises(json.JSONDecodeError):  # NOSONAR
+            async for c in stream:
                 chunks.append(c)
 
         # Content before the bad line still reached the caller.

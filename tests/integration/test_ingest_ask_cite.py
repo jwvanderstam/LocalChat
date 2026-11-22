@@ -172,7 +172,8 @@ class TestTheLexicalArmAnswersAQuestion:
         self, ingested, database, workspace
     ):
         rows = database.documents.search_lexical(self.QUESTION, top_k=5, scope=workspace)
-        assert rows and "password" in rows[0][0]
+        assert rows
+        assert "password" in rows[0][0]
 
     def test_a_question_of_only_stop_words_matches_nothing(self, ingested, database, workspace):
         assert database.documents.search_lexical("how is it the", top_k=5, scope=workspace) == []

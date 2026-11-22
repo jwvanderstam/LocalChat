@@ -114,14 +114,14 @@ class EntityExtractor:
             try:
                 eid = store.upsert_entity(name, etype)
                 entity_ids.append(eid)
-            except Exception as exc:  # noqa: BLE001 — same, per entity
+            except Exception as exc:  # noqa: BLE001 — same per entity
                 logger.debug(f"[GraphRAG] upsert_entity failed for {name!r}: {exc}")
 
         # Create co-occurrence relations for all pairs in this chunk
         for eid_a, eid_b in itertools.combinations(entity_ids, 2):
             try:
                 store.insert_relation(eid_a, eid_b, doc_id, chunk_id)
-            except Exception as exc:  # noqa: BLE001 — same, per relation
+            except Exception as exc:  # noqa: BLE001 — same per relation
                 logger.debug(f"[GraphRAG] relation insert failed: {exc}")
 
 

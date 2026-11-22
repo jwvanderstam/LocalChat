@@ -157,7 +157,8 @@ class TestTheContainerIsCreatedTheWayScalewayAccepts:
         _, calls = _run(CONTAINER_SH, tmp_path)
 
         create = next(c for c in calls if c.startswith("container container create"))
-        assert "min-scale=1" in create and "max-scale=1" in create
+        assert "min-scale=1" in create
+        assert "max-scale=1" in create
 
     def test_secrets_go_in_the_secret_map_and_never_the_plain_one(self, tmp_path):
         proc, calls = _run(CONTAINER_SH, tmp_path)
@@ -329,7 +330,8 @@ def test_the_verify_gate_expects_the_version_this_checkout_declares():
 
     path = Path(__file__).resolve().parents[2] / "scripts" / "scaleway" / "verify_deployment.py"
     spec = importlib.util.spec_from_file_location("verify_deployment", path)
-    assert spec and spec.loader
+    assert spec
+    assert spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 

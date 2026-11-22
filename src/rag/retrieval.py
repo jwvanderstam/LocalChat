@@ -128,7 +128,7 @@ class Retriever:
         missing = [row[5] for row in lexical_results if row[5] not in returned]
         try:
             return self._db.documents.similarity_for_chunks(query_embedding, missing, scope=scope)
-        except Exception as sim_exc:  # noqa: BLE001 — without it a lexical-only hit blends as semantic 0.0, as before
+        except Exception as sim_exc:  # noqa: BLE001 — without it a lexical-only hit blends as semantic 0.0 as before
             logger.debug(f"[RAG] Similarity of lexical-only hits skipped: {sim_exc}")
             return {}
 
@@ -394,6 +394,22 @@ class Retriever:
             for r in deduped
         ]
 
+    @staticmethod
+    def _expand_with_graph(query_clean: str, scope: Scope) -> str:
+        """The query plus GraphRAG's 1-hop terms from *scope*, or unchanged when it is off or fails."""
+        if not config.GRAPH_RAG_ENABLED:
+            return query_clean
+        try:
+            from ..graph.expander import QueryExpander
+            extra_terms = QueryExpander().expand(query_clean, db, scope=scope)
+        except Exception as graph_exc:  # noqa: BLE001 — GraphRAG expansion is optional; the query proceeds unexpanded
+            logger.debug(f"[GraphRAG] Expansion skipped: {graph_exc}")
+            return query_clean
+        if not extra_terms:
+            return query_clean
+        logger.debug(f"[GraphRAG] Expanded query with: {extra_terms}")
+        return query_clean + " " + " ".join(extra_terms)
+
     @timed('rag.retrieve_context')
     @counted('rag.retrieval_requests')
     def retrieve_context(
@@ -437,18 +453,7 @@ class Retriever:
         logger.info(f"[RAG] Retrieve context - query: {query[:80]}...")
         logger.debug(f"[RAG] Parameters: top_k={top_k}, min_sim={min_similarity}, hybrid={use_hybrid_search}")
 
-        query_clean = self._preprocess_query(query)
-
-        # ── GraphRAG query expansion (optional) ──────────────────────────────
-        if config.GRAPH_RAG_ENABLED:
-            try:
-                from ..graph.expander import QueryExpander
-                extra_terms = QueryExpander().expand(query_clean, db, scope=scope)
-                if extra_terms:
-                    query_clean = query_clean + " " + " ".join(extra_terms)
-                    logger.debug(f"[GraphRAG] Expanded query with: {extra_terms}")
-            except Exception as graph_exc:  # noqa: BLE001 — GraphRAG expansion is optional; the query proceeds unexpanded
-                logger.debug(f"[GraphRAG] Expansion skipped: {graph_exc}")
+        query_clean = self._expand_with_graph(self._preprocess_query(query), scope)
 
         _app_emb_cache = self._get_app_cache()
 

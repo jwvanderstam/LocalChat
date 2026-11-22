@@ -269,7 +269,7 @@ class Loader:
                 try:
                     text = self._extract_pdfplumber_text(pdfplumber, file_path)
                     method = _EXTRACTOR_PDFPLUMBER
-                except Exception as plumber_error:  # noqa: BLE001 — same, falling through to pypdf
+                except Exception as plumber_error:  # noqa: BLE001 — same; falls through to pypdf
                     logger.warning(f"{_EXTRACTOR_PDFPLUMBER} extraction failed: {plumber_error}, falling back to {_EXTRACTOR_PYPDF}")
 
         if not text and loader_pref in ('auto', 'pypdf', 'pymupdf4llm', 'pdfplumber'):

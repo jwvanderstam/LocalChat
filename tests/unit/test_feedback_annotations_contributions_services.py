@@ -206,8 +206,9 @@ class TestContributions:
     def test_a_missing_workspace_is_404_and_contributes_nothing(self):
         db = MagicMock()
         db.workspaces.get.return_value = None
+        service = ContributionsService(db)
         with pytest.raises(ServiceError) as refused:
-            ContributionsService(db).contribute("ws", [1], USER)
+            service.contribute("ws", [1], USER)
         assert (refused.value.status_code, refused.value.message) == (404, "Workspace not found")
         db.contributions.contribute.assert_not_called()
 
@@ -215,8 +216,9 @@ class TestContributions:
         db = MagicMock()
         db.workspaces.get.return_value = {"id": "ws"}
         db.contributions.contribute.return_value = None
+        service = ContributionsService(db)
         with pytest.raises(ServiceError) as refused:
-            ContributionsService(db).contribute("ws", [1, 2], USER)
+            service.contribute("ws", [1, 2], USER)
         assert refused.value.status_code == 404
 
     def test_a_valid_selection_returns_what_was_contributed(self):

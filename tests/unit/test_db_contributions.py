@@ -110,7 +110,8 @@ class TestContributeDocuments:
         mixin.contributions.contribute(WS, [7], ADMIN)
 
         (check_sql, check), (upsert_sql, upsert), (_, retire), (_, copy) = cursor.executed
-        assert "workspace_id = %s" in check_sql and check == ([7], WS)
+        assert "workspace_id = %s" in check_sql
+        assert check == ([7], WS)
         assert "ON CONFLICT (filename, source_project_id)" in upsert_sql
         assert upsert == (ADMIN, 7)
         assert retire == (70,)

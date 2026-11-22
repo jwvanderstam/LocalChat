@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 _ERR_NOT_CONNECTED = "Cannot search chunks: Database is not connected"
+_WORKSPACE_COLUMN = "d.workspace_id"
 
 # Migration 0019's marker. A NULL workspace alone is not enough: a purged workspace's
 # retired documents have one too.
@@ -33,7 +34,7 @@ def _tier_predicate(scope: Scope, global_tier: bool) -> tuple[str, list[str]]:
     """
     if global_tier:
         return _GLOBAL_TIER_SQL, []
-    return scope_predicate(scope, "d.workspace_id")
+    return scope_predicate(scope, _WORKSPACE_COLUMN)
 
 
 class DocumentsRepository:
@@ -504,7 +505,7 @@ class DocumentsRepository:
             f"Getting adjacent chunks for doc {document_id}, chunk {chunk_index}, window {window_size}"
         )
         # document_chunks has no workspace of its own; it borrows the document's.
-        where, params = scope_predicate(scope, "d.workspace_id")
+        where, params = scope_predicate(scope, _WORKSPACE_COLUMN)
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -551,7 +552,7 @@ class DocumentsRepository:
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk: Database is not connected")
 
-        where, params = scope_predicate(scope, "d.workspace_id")
+        where, params = scope_predicate(scope, _WORKSPACE_COLUMN)
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -596,7 +597,7 @@ class DocumentsRepository:
         if not self._db.is_connected:
             raise DatabaseUnavailableError("Cannot get chunk count: Database is not connected")
 
-        scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+        scope_sql, scope_params = scope_predicate(scope, _WORKSPACE_COLUMN)
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -620,7 +621,7 @@ class DocumentsRepository:
             raise DatabaseUnavailableError("Cannot get documents: Database is not connected")
 
         logger.debug("Getting all documents")
-        scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+        scope_sql, scope_params = scope_predicate(scope, _WORKSPACE_COLUMN)
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(f"""
@@ -705,7 +706,7 @@ class DocumentsRepository:
             raise DatabaseUnavailableError("Cannot get chunk statistics: Database is not connected")
 
         logger.debug("Getting chunk statistics")
-        scope_sql, scope_params = scope_predicate(scope, "d.workspace_id")
+        scope_sql, scope_params = scope_predicate(scope, _WORKSPACE_COLUMN)
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -772,7 +773,7 @@ class DocumentsRepository:
             raise DatabaseUnavailableError("Cannot search chunks by text: Database is not connected")
 
         logger.debug("Searching chunks for text: %s", str(search_text)[:100].replace('\r', '').replace('\n', ' '))
-        where, params = scope_predicate(scope, "d.workspace_id")
+        where, params = scope_predicate(scope, _WORKSPACE_COLUMN)
         with self._db.get_connection(scope=scope) as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""

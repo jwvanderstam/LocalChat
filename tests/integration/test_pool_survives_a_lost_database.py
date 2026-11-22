@@ -157,7 +157,8 @@ class TestAPoolWhoseServerWentAway:
 
             _kill_backends(scratch_database)
 
-            with pytest.raises(psycopg.Error):
+            # The broken connection itself is what raises, so it stays inside the block.
+            with pytest.raises(psycopg.Error):  # NOSONAR
                 with unchecked.connection() as conn:
                     conn.execute("SELECT 1")
         finally:

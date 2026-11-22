@@ -33,7 +33,8 @@ def _fences(context: str, tag: str) -> list[str]:
     """The source attribute of every fence, asserting each one is closed before the next opens."""
     sources = []
     for match in re.finditer(rf'<{tag} source="([^"]*)">\n(.*?)</{tag}>\n', context, re.DOTALL):
-        assert f"<{tag}" not in match.group(2) and f"</{tag}" not in match.group(2)
+        assert f"<{tag}" not in match.group(2)
+        assert f"</{tag}" not in match.group(2)
         sources.append(match.group(1))
     assert context.count(f"<{tag} ") == context.count(f"</{tag}>") == len(sources)
     return sources

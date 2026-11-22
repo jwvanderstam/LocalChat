@@ -142,6 +142,6 @@ class GpuMonitor:
                     "temperature_c": None,
                 })
             return gpus
-        except Exception as exc:  # noqa: BLE001 — same, for rocm-smi
+        except Exception as exc:  # noqa: BLE001 — same for rocm-smi
             logger.debug("rocm-smi query failed: %s", exc)
             return []

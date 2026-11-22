@@ -590,7 +590,8 @@ def test_the_same_request_naming_the_callers_own_object_is_admitted(
     """The control: without it a probe that refuses everything would pass above."""
     own = provisioned["own"]
     status = _probe(provisioned["callers"]["editor"], probe, own, own)
-    assert isinstance(status, int) and 200 <= status < 300, f"{probe}: own object got {status}"
+    assert isinstance(status, int), f"{probe}: own object got {status}"
+    assert 200 <= status < 300, f"{probe}: own object got {status}"
 
 
 @pytest.mark.skipif(

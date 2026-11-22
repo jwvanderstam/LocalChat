@@ -395,8 +395,9 @@ class TestRequireAdminDep:
         db.tokens.is_revoked.return_value = False
         db.users.count_live_admins.return_value = 1
 
+        request = self._env_admin_request(db)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(self._env_admin_request(db), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 403
 
     def test_an_unverifiable_token_is_refused_on_admin_routes_too(self):
@@ -414,8 +415,9 @@ class TestRequireAdminDep:
         db = MagicMock()
         db.is_connected = False
 
+        request = self._env_admin_request(db)
         with pytest.raises(HTTPException) as exc_info:
-            require_admin_dep(self._env_admin_request(db), credentials=None)
+            require_admin_dep(request, credentials=None)
         assert exc_info.value.status_code == 401
         assert "verify token status" in exc_info.value.detail["message"]
 

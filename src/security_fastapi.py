@@ -54,6 +54,7 @@ _ADMIN_PASSWORD_HASH: bytes = hashlib.pbkdf2_hmac(
 
 _ROLE_LEVELS: dict[str, int] = {"viewer": 0, "editor": 1, "owner": 2}
 _ERR_AUTH_REQUIRED = "Authentication required"
+_ERR_DB_UNAVAILABLE = "Database unavailable"
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -109,7 +110,7 @@ def env_admin_is_available(db: Any) -> bool:
         return True
     try:
         return db.users.count_live_admins() == 0
-    except Exception as exc:  # noqa: BLE001 — cannot count administrators, so the env admin stays available — the documented fail-open, argued in the docstring
+    except Exception as exc:  # noqa: BLE001 — cannot count administrators so the env admin stays available — the documented fail-open argued in the docstring
         logger.warning(
             "[Auth] Could not count administrators; env admin left available: %s", exc
         )
@@ -240,7 +241,7 @@ def _verify_jti_not_revoked(jti: str, db: Any) -> None:
             return
         except HTTPException:
             raise
-        except Exception:  # noqa: BLE001 — falls back to the cached answer; the cache TTL is what bounds this, not the exception type
+        except Exception:  # noqa: BLE001 — falls back to the cached answer; the cache TTL bounds this and not the exception type
             logger.warning("[Auth] Revocation check failed; falling back to cache")
 
     if _recently_verified(jti):
@@ -319,7 +320,7 @@ def _read_global_role(request: Request, claims: dict[str, Any]) -> tuple[bool, s
         # and loses access on the next request rather than at token expiry. It also
         # resolves a token issued before the last password change to None.
         return True, db.users.get_role(sub, issued_at=_issued_at(claims))
-    except Exception as exc:  # noqa: BLE001 — the role is unreadable, so no role is granted — fail closed
+    except Exception as exc:  # noqa: BLE001 — the role is unreadable so no role is granted — fail closed
         logger.warning("[Auth] Could not read role for %s: %s", sanitize_log_value(str(sub)), exc)
         return False, None
 
@@ -472,7 +473,7 @@ def _check_api_key_access(
     """
     db = getattr(request.app.state, "db", None)
     if db is None or not db.is_connected:
-        return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+        return (status.HTTP_503_SERVICE_UNAVAILABLE, _ERR_DB_UNAVAILABLE)
 
     resolved = db.api_keys.resolve(api_key)
     if resolved is None:
@@ -556,7 +557,7 @@ def check_workspace_access(
         return _check_api_key_access(request, api_key, workspace_id, min_role)
 
     try:
-        principal = resolve_principal(request, database_required="Database unavailable")
+        principal = resolve_principal(request, database_required=_ERR_DB_UNAVAILABLE)
     except AuthError as exc:
         return (exc.status_code, exc.message)
     if principal.is_admin:
@@ -578,7 +579,7 @@ def check_workspace_access(
     ws_id = workspace_id or get_workspace_id(request)
     db = getattr(request.app.state, "db", None)
     if db is None or not db.is_connected:
-        return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+        return (status.HTTP_503_SERVICE_UNAVAILABLE, _ERR_DB_UNAVAILABLE)
     if not ws_id:
         # X-Workspace-ID is optional and the frontend omits it until localStorage
         # holds an active workspace, so a fresh session sends none. Fall back to a
@@ -646,14 +647,14 @@ def check_additional_workspace_access(
         # A key's scope is its one workspace by construction (WORKSPACE_API_KEYS.md).
         return (status.HTTP_403_FORBIDDEN, "API key is not valid for other workspaces")
     try:
-        principal = resolve_principal(request, database_required="Database unavailable")
+        principal = resolve_principal(request, database_required=_ERR_DB_UNAVAILABLE)
     except AuthError as exc:
         return (exc.status_code, exc.message)
     if principal.is_admin:
         return None
     db = getattr(request.app.state, "db", None)
     if db is None or not db.is_connected:
-        return (status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable")
+        return (status.HTTP_503_SERVICE_UNAVAILABLE, _ERR_DB_UNAVAILABLE)
     for ws_id in dict.fromkeys(workspace_ids):
         role = db.members.role(ws_id, principal.user_id)
         if role is None or _ROLE_LEVELS.get(role, -1) < _ROLE_LEVELS.get(min_role, 0):

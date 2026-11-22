@@ -31,8 +31,9 @@ def _cursor(answer: tuple[bool] | None) -> MagicMock:
 class TestTheCheck:
     @pytest.mark.parametrize(("answer", "missing"), [(None, True), ((False,), False)], ids=["missing", "live"])
     def test_a_missing_or_live_row_is_refused(self, answer, missing):
+        cursor = _cursor(answer)
         with pytest.raises(NotRetiredError) as refused:
-            require_retired(_cursor(answer), "users", ROW)
+            require_retired(cursor, "users", ROW)
         assert refused.value.missing is missing
 
     def test_a_retired_row_passes(self):
