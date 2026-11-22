@@ -1,4 +1,4 @@
-# ROADMAP — v3.0
+# ROADMAP — v3
 
 > **Status:** Active
 > **Predecessor:** v2.0 completed May 2026 (dual-stack migration, JWT revocation, Alembic migrations, CI integration tests, chat.js ES modules).
@@ -9,7 +9,7 @@ The guiding constraint across all of them: **the core stays stable and clean.** 
 
 **Hardening plan:** [`PRODUCTION_PLAN.md`](history/PRODUCTION_PLAN.md) holds the production-grade hardening track (ADR-1/ADR-2 and sprints PG-0..PG-8) from the 2026-08-04 external audit. It was a *gate on this roadmap*, not a parallel one: Sprints 8-14 below could not start until its Exit Criteria were green. **All eight criteria are green and the gate was lifted on 2026-08-31** — Sprints 8-14 are un-queued and the freeze rule is over. Confirmed bugs were always exempt from that gate, per the Sprint 5 precedent.
 
-**Quality plan (added 2026-10-22):** [Initiative 12](#initiative-12--quality-plan-architecture-8-and-maturity-8) takes the 2026-10-22 audit's findings and its architecture and maturity scores (7.0 each) to 8 over roughly twelve part-time weeks. It runs **next**, ahead of Sprints 10-14: its Phase 2 builds the service layer the plugin contract's service catalogue wraps, so PC-1..PC-3 wait for it rather than being built twice. The execution order is under the [Sprint Plan](#sprint-plan).
+**Quality plan (added 2026-10-22):** [Initiative 12](#initiative-12--quality-plan-architecture-8-and-maturity-8) takes the 2026-10-22 audit's findings and its architecture and maturity scores (7.0 each) to 8 over roughly twelve part-time weeks. It ran ahead of Sprints 10-14, because its Phase 2 built the service layer the plugin contract's service catalogue wraps, so PC-1..PC-3 waited for it rather than being built twice. It finished on 2026-11-11 with QP-10, released as v3.6.0. The execution order is under the [Sprint Plan](#sprint-plan).
 
 ---
 
@@ -167,7 +167,7 @@ The Clark-Wilson integrity model requires that no delete operation leaves refere
 
 ---
 
-### CW-1 — Document soft-delete (pilot ticket)
+### CW-1 — Document soft-delete (pilot ticket) ✅ (done, merged #119)
 
 **Why first:** Documents are the highest-integrity CDI. Chunk IDs are embedded in citation references inside conversation history. A hard-deleted document currently produces ghost citations — the conversation record references a chunk that no longer exists, and no IVP can repair it.
 
@@ -196,7 +196,7 @@ ALTER TABLE document_chunks  ADD COLUMN deleted_at  TIMESTAMPTZ;
 
 ---
 
-### CW-2 — Full CDI soft-delete sweep
+### CW-2 — Full CDI soft-delete sweep ✅ (done, merged #124, #126)
 
 Apply the same pattern to all remaining CDIs. Each sub-item is one migration + one mixin change + route update.
 
@@ -257,7 +257,7 @@ Read-only access is a **workspace** concern, so it is the workspace tier that ne
 
 ---
 
-### RBAC-1 — Enforce the workspace role tier
+### RBAC-1 — Enforce the workspace role tier ✅ (done; #219-#221, fixes #222, #223, #225)
 
 > **Rewritten 2026-08-04.** The original ticket proposed adding `viewer` as a third `users.role` plus a new `require_role_dep`. That is superseded: a workspace-scoped `viewer`/`editor`/`owner` tier already exists — table, DB mixin, member-management routes, `_ROLE_LEVELS` hierarchy, and a correct enforcement dependency. Building a global `viewer` alongside it would have created two different roles with the same name at different tiers. This ticket adopts what exists instead of duplicating it. The original text is in git history at `961d0bd`.
 
@@ -410,7 +410,7 @@ Workspaces are project containers — isolated knowledge silos scoped to a team 
 
 ---
 
-### GKB-2 — Contribution workflow ✓ (backend 2026-10-19; UI 2026-10-20)
+### GKB-2 — Contribution workflow ✅ (backend 2026-10-19; UI 2026-10-20)
 
 > **Backend built differently from the text below.** Decided with the maintainer on
 > 2026-10-10 and 2026-10-19; the ticket text is kept as written.
@@ -692,7 +692,7 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 
 ---
 
-### PC-4 — Plugin-absent CI gate (the architectural IVP)
+### PC-4 — Plugin-absent CI gate (the architectural IVP) ✅ (built 2026-10-23; required since 2026-10-30)
 
 > **Built 2026-10-23 with QP-3** as the `core-without-plugins` job. It deletes everything in
 > `plugins/` but the README, then runs `ruff` and the fast suite; locally, the docs and
@@ -712,7 +712,7 @@ PC-1 **extends** this foundation: it adds the manifest contract, service injecti
 
 ## Initiative 7 — Pricing Plugin (first external consumer)
 
-> **Status: Deferred** — not in scope for single-GPU self-hosted deployment. Design artefacts exist in the private Atos/Eviden repo (`LocalChat_PricingRAG_Design_v2.1.docx`). Revisit after PC-4 proves the plugin contract against a generic consumer. No timeline set.
+> **Status: ⏸️ Parked (2026-11-22).** Not in scope for single-GPU self-hosted deployment. Design artefacts exist in the private Atos/Eviden repo (`LocalChat_PricingRAG_Design_v2.1.docx`). The earlier trigger, "revisit after PC-4", passed on 2026-10-23 without a decision being recorded. It is replaced: **reopen when a named bid or user needs price-to-win, and not before P2-3's answer-quality items close.** A price-to-win narrative is RAG output, so it inherits retrieval's ceiling: on 2026-11-21 the passage holding the answer reached the model in 64% of questions.
 
 The pricing plugin is the **first consumer** of the plugin contract — not its reference implementation, and not part of the core. It lives in a private Atos/Eviden repository as a directory overlay. The core neither imports it nor tests against it; the `core-without-plugins` gate proves this on every PR.
 
@@ -720,7 +720,13 @@ Full design: `LocalChat_PricingRAG_Design_v2.1.docx` (private repo).
 
 ---
 
-### PR-1 — Pricing plugin against the contract
+### PR-1 — Pricing plugin against the contract ⏸️ (parked 2026-11-22)
+
+> **What it would need first.** Three core capabilities that are deliberately unbuilt, each proven against the echo fixture before pricing uses it (pricing is never the first consumer):
+> `storage` (open: who migrates a plugin's tables, and whether row-level security applies), `llm.complete` (tools run synchronously inside the chat stream, so the tool loop
+> changes first) and `on_route_mount` (plugins load after the app is assembled). If it reopens, `llm.complete` comes first: it is the largest of the three and the one other
+> plugins would use too. The spec below predates the contract as built (PC-1..PC-3): tools register through `tools.register`, not `on_tool_invocation`, which only reports a
+> call that has run; and retrieval is `retrieve(query, knowledge_scope, top_k)`, capped by `PLUGIN_SCOPE`, searching the workspace the request was authorised for.
 
 **What it builds:** price-to-win analysis for an active project, entirely through consumed capabilities.
 
@@ -1257,7 +1263,7 @@ without them.
    Worth keeping as the honest record of what reading could not find: prerequisites 5
    and 6 were predicted correctly and neither was what went red first.
 
-### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; human calibration open)
+### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baseline, held-out judge check and faithfulness calibration open)
 
 **Driver 3** (thin RAG quality evidence). `scripts/eval_retrieval.py` scores 20 pairs on
 recall of the source; nothing measures whether the *answer* is faithful to it or cites it.
@@ -2180,16 +2186,16 @@ DP-3.
 | 7b | BUG-4 (bind a connector to its creator; six `or "admin"` fallbacks in the OAuth routes) ✅ done & merged (#308) | — |
 | PG-0..PG-8 | **Production-grade hardening** ✅ — see [PRODUCTION_PLAN.md](history/PRODUCTION_PLAN.md). Gated everything below; **gate lifted 2026-08-31**. | done |
 | 8 | GKB-1 (schema + two-tier retrieval) ✅ 2026-10-09 — read-only global tier under RLS (0019) | 1 week |
-| 9 | GKB-2 (contribution workflow) ✓ backend 2026-10-19 (admin-only contribute, migration 0020), UI 2026-10-20 | 1 week |
+| 9 | GKB-2 (contribution workflow) ✅ backend 2026-10-19 (admin-only contribute, migration 0020), UI 2026-10-20 | 1 week |
 | 10 | PC-1 ✅ 2026-11-11 (manifest, services, the core's role gate) + PC-2 ✅ 2026-11-13 (hooks, scheduler) | 1 week |
 | 11 | PC-3 ✅ 2026-11-15 (#548) + PC-4 ✅ 2026-10-23 (built in Sprint 24) -> **v3.7.0**, with PC-1, PC-2 and the malformed-id fixes (#546, #551) | 1 week |
-| 12 | PR-1 (pricing plugin — private repo) | 1–2 weeks |
+| 12 | PR-1 (pricing plugin — private repo) ⏸️ **parked 2026-11-22** — see Initiative 7 for what reopens it | — |
 | 13 | CONN-1 (connector authorisation model — decision, no code) ✅ decided 2026-10-24, as proposed; creation stays `ws:owner` | — |
 | 14 | CONN-2 (connector UI in the document section) ⏸️ **parked 2026-08-26** — see the ticket for what stays true while it is | — |
 | 15 | P2-6 (PyJWT) ✅ 2026-09-20 + P2-4a (asserts) ✅ + P2-4b (`BLE001`) ✅ 2026-09-21 — **sprint complete**. P2-6 retired two open Dependabot alerts. P2-4b was the one item that was not mechanical: 120 handlers read individually, 4 narrowed, 11 that were failing silently given a log | 3–4 days |
 | 16 | P2-2a (security smoke against the shipped compose) ✅ 2026-09-25 + P2-2b (object-authorization matrix over the wire) ✅ (#399) + P2-1b (row-level security) ✅ 2026-10-02 (#400, #404, #406, #407) — **sprint complete** | 1 week |
 | 17 | P2-7 (docs split + path/endpoint tests) ✅ 2026-10-04 (#416, #417, #420, #421) + P2-5 (CPU-only torch) ✅ 2026-10-02 (#408) — **sprint complete** | 1 week |
-| 18 | P2-3 (answer-level retrieval evaluation) ◐ baseline merged 2026-10-02 (#410); judge calibration open — decides DEL-2 | 1–2 weeks |
+| 18 | P2-3 (answer-level retrieval evaluation) ◐ baseline merged 2026-10-02 (#410); judge `v3` 2026-11-21 (#559); what is open is listed under Sprint 30 — decides DEL-2 | 1–2 weeks |
 | 19 | EV-1 (retrieval regression gate on every PR) ✅ 2026-10-04 — required since 2026-10-30; found and fixed the lexical arm (#422) | 2–3 days |
 | 20 | GR-1a + GR-1b + GR-1c (retrieved content as untrusted input) ✅ 2026-10-05 | 1 week |
 | 21 | OBS-1a (token accounting, cloud cost) ✅ 2026-10-09 + OBS-1b if wanted | 3–4 days |
@@ -2199,12 +2205,12 @@ DP-3.
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
-| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ — re-baseline and a held-out judge check open | 1 day |
+| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ — open: re-baseline, a held-out judge check, and calibrating faithfulness. Found 2026-11-22 while re-baselining: the judge read only the first 6,000 characters of a context the answer model was given whole (up to 24,576), so faithfulness was graded against a cut context in every baseline so far; the fix lands with the re-baseline | 1 day |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | — | Initiative 14 (DP-0..DP-3, deployment patterns) — unscheduled (2026-11-14) | — |
-| **Total** | | **~22 weeks** (PG-0..PG-8 complete; it no longer gates Sprints 8-14. Sprints 15–18 are the audit's P2 tier, ordered cheapest-first rather than by the plan's driver ranking; reorder if GKB-1 wants P2-3's numbers first. **Execution order is not sprint-number order:** 15 to 21 run first, then 8 to 14. Sprints 19 to 21 are Initiative 11, placed directly after the P2 tier on 2026-09-26) |
+| **Status** | Sprints 1–11, 13 and 15–29 done; 12 and 14 parked; 30 open. The August estimate this row carried (~22 weeks) described a plan re-ordered twice since | — |
 
-**Execution order from 2026-10-22.** Finish Sprint 9 (#452). Then Sprints 22 to 28, in
+**Execution order from 2026-10-22** (followed through Sprint 11, finished 2026-11-15; kept as the record of why). Finish Sprint 9 (#452). Then Sprints 22 to 28, in
 order; inside them, Phase 3 runs alongside Phase 2. Then Sprint 29, then Sprints 10 and 11 on top of the new
 service layer (PC-4 has already shipped in Sprint 24), then 12 to 14. Three reasons fix this order:
 1. Security fixes ship before any refactor: Phase 1 is alone for its first two weeks.
@@ -2228,11 +2234,11 @@ Three open items are absorbed rather than scheduled separately:
 
 Findings from the 2026-07 external code-quality audit that are real but deliberately not fixed this round. Recorded here, in the style of SECURITY.md's ECDSA-CVE entry, so they're a documented decision rather than a rediscovered surprise.
 
-- **Multi-instance concurrency** (`AppState`/`MetricsCollector` in-process state, the Alembic migration race, `SyncWorker`'s duplicate connector polling, the reranker's duplicate `threading.Timer` scheduler) — all are per-process state with no cross-process coordination; each races or silently diverges at >1 worker or >1 replica. **Why parked**: `UVICORN_WORKERS` now defaults to `1` (Dockerfile/docker-compose) — this app is single-instance by design today, so the defect class is unreachable, not fixed. (This entry used to rest its case partly on the Helm chart's `replicaCount: 1`. PG-0 **deleted the chart** on 2026-08-05, which removes the second replica source entirely rather than pinning it — a stronger reason to park, resting on one setting instead of two.) **Re-review trigger**: before ever running >1 worker or >1 replica, this whole class needs a coordination layer (shared cache backend, a distributed lock for migrations/sync/scheduler, or a real metrics aggregator).
+- **Multi-instance concurrency** (`AppState`/`MetricsCollector` in-process state, the Alembic migration race, `SyncWorker`'s duplicate connector polling, and the core scheduler's tick, one daemon thread per process since PC-2 replaced the reranker's `threading.Timer`) — all are per-process state with no cross-process coordination; each races or silently diverges at >1 worker or >1 replica. **Why parked**: `UVICORN_WORKERS` now defaults to `1` (Dockerfile/docker-compose) — this app is single-instance by design today, so the defect class is unreachable, not fixed. (This entry used to rest its case partly on the Helm chart's `replicaCount: 1`. PG-0 **deleted the chart** on 2026-08-05, which removes the second replica source entirely rather than pinning it — a stronger reason to park, resting on one setting instead of two.) **Re-review trigger**: before ever running >1 worker or >1 replica, this whole class needs a coordination layer (shared cache backend, a distributed lock for migrations/sync/scheduler, or a real metrics aggregator).
 
 - ~~**`Database` god object**~~ — **resolved 2026-10-24 (QP-4).** It composes no mixins: it is the pool holding one repository per aggregate, and only the service providers reach it (ADR-7).
 
-- **`OllamaClient` split** (chat, embedding, model CRUD, vision, GPU info all on one class) — same shape as the DB god object. **Why parked**: same reasoning — works, tested, no functional gap; splitting is cosmetic. **Re-review trigger**: same as above.
+- **`OllamaClient` split** (chat, embedding, model CRUD, vision, GPU info all on one class) — the shape the `Database` god object had before QP-4. **Why parked**: works, tested, no functional gap; splitting is cosmetic. **Re-review trigger**: this pointed at the `Database` entry above, resolved by QP-4 on 2026-10-24. Its own: when a change first has to edit two of these concerns at once, split it the way `Database` was, one client per concern.
 
 - **No FastAPI `lifespan` protocol — shutdown is `atexit` + `signal.signal(SIGINT/SIGTERM)` instead** (`src/app_bootstrap.py`). **Why parked**: correctly closes DB pools and stops background threads today, in the single-worker process this app actually runs as; migrating to `lifespan` is a framework-idiom cleanup, not a fix for an observed failure. **Re-review trigger**: an observed shutdown-ordering bug (a resource freed twice, or not at all), or a move to a process manager that doesn't deliver `SIGTERM` the way `atexit` expects.
 
@@ -2247,7 +2253,7 @@ Findings from the 2026-07 external code-quality audit that are real but delibera
 
 - ~~**`gunicorn==26.1.0` is a runtime dependency nothing invokes**~~ — **resolved 2026-09-03.** Found by the 2026-08-27 documentation audit: declared in `requirements.in`, compiled into `requirements.txt`, installed into the production image, and invoked by no `Dockerfile`, compose service, workflow or module. Everything is uvicorn. The leftover was from HK-4, which ported the MCP servers off gunicorn and left the dependency behind. The trigger this entry named — "the next `pip-compile` run for any reason" — fired when Dependabot #347 forced a recompile, and gunicorn went with it, along with the `GUNICORN_TIMEOUT` constant, its `.env.example` line and its `CONFIGURATION.md` row. Those three had drifted apart anyway (300 against 600 against 600), which is what an unused setting does. See [ADR-4](ADR.md).
 
-- **Two PBKDF2 implementations** (`Werkzeug==3.1.8` is a direct dependency existing solely for `generate_password_hash`/`check_password_hash` in `src/db/users.py`, while `src/security_fastapi.py` hand-rolls the same PBKDF2-SHA256 construction via `hashlib` for the admin fallback account) — one primitive, two implementations, one of them justifying a whole dependency. Found by the 2026-08-19 external audit. Both are sound: random salt, `hmac.compare_digest` on the hand-rolled side. **Why parked**: consolidating means touching password hashing to remove a dependency, and getting it wrong locks every user out for no security gain. Worth noting HK-4 ("eliminate Flask") named Flask, Flask-JWT-Extended, Flask-Limiter and Flask-CORS but not Werkzeug, and HK-6's regression gate greps only for `flask` — so a `werkzeug` import passes it. **Re-review trigger**: the next time either hashing path changes for another reason, or the dev/prod dependency split above is done and the runtime dependency list gets a proper audit.
+- **Two PBKDF2 implementations** (`Werkzeug==3.1.8` is a direct dependency existing solely for `generate_password_hash`/`check_password_hash` in `src/services/passwords.py` (in `src/db/users.py` until QP-4), while `src/security_fastapi.py` hand-rolls the same PBKDF2-SHA256 construction via `hashlib` for the admin fallback account) — one primitive, two implementations, one of them justifying a whole dependency. Found by the 2026-08-19 external audit. Both are sound: random salt, `hmac.compare_digest` on the hand-rolled side. **Why parked**: consolidating means touching password hashing to remove a dependency, and getting it wrong locks every user out for no security gain. Worth noting HK-4 ("eliminate Flask") named Flask, Flask-JWT-Extended, Flask-Limiter and Flask-CORS but not Werkzeug, and HK-6's regression gate greps only for `flask` — so a `werkzeug` import passes it. **Re-review trigger**: the next time either hashing path changes for another reason, or the dev/prod dependency split above is done and the runtime dependency list gets a proper audit.
 
 - **Dual schema ownership** (`_ensure_extensions_and_tables()` in `src/db/connection.py` and Alembic migrations under `migrations/versions/`) — both can create the same tables/columns; staying in sync is manual discipline, not enforced by a single source of truth. **Why parked**: `_ensure_extensions_and_tables()` uses `IF NOT EXISTS` guards throughout, so drift between the two produces a no-op, not corruption; consolidating to Alembic-only is a larger migration-strategy change than this round's scope. **Re-review trigger**: the first time a schema change lands in one and is forgotten in the other and it actually causes an observed bug, not just a caught-in-review discrepancy.
 
@@ -2269,4 +2275,4 @@ Findings from the 2026-07 external code-quality audit that are real but delibera
 | Speculative plugin services/hooks | Not built ahead of need — catalogue grows on demand per `.claude/rules/plugins.md` |
 | AMD GPU backend (MM-1) | Interface defined; implementation left as a community contribution — cannot be tested without ROCm hardware |
 | Pricing plugin in core repo or core tests | Never — pricing is private and the `core-without-plugins` gate forbids the dependency |
-| Pricing plugin implementation (Initiative 7) | Deferred — not in scope for self-hosted single-GPU deployment; design artefacts in private repo; revisit post-PC-4 |
+| Pricing plugin implementation (Initiative 7) | Parked 2026-11-22 — not in scope for self-hosted single-GPU deployment; design artefacts in private repo; reopens on a named need, after P2-3's answer-quality items (see Initiative 7) |
