@@ -246,6 +246,49 @@ class TestAnswerRetry:
             self._answer([RuntimeError("model not found"), "never reached"])
 
 
+class TestOneCaseFailing:
+    CASES = [{"id": 1}, {"id": 2}, {"id": 3}]
+
+    @staticmethod
+    def _measure(seen, broken=()):
+        def measure(case):
+            seen.append(case["id"])
+            if case["id"] in broken:
+                raise RuntimeError("Ollama did not respond within 120 s")
+            return {"id": case["id"], "answer": f"a{case['id']}"}
+        return measure
+
+    def test_a_failed_case_is_recorded_and_the_cases_after_it_still_run(self, tmp_path):
+        results, failed = ev.run_cases(self.CASES, self._measure([], broken={2}), tmp_path / "c.jsonl", False)
+        assert ([r["id"] for r in results], failed) == (
+            [1, 3], [{"id": 2, "error": "RuntimeError: Ollama did not respond within 120 s"}]
+        )
+
+    def test_resume_measures_only_what_the_checkpoint_lacks(self, tmp_path):
+        checkpoint = tmp_path / "c.jsonl"
+        ev.run_cases(self.CASES, self._measure([], broken={2}), checkpoint, False)
+        seen = []
+        results, failed = ev.run_cases(self.CASES, self._measure(seen), checkpoint, True)
+        assert (seen, [r["answer"] for r in results], failed) == ([2], ["a1", "a2", "a3"], [])
+
+    def test_a_fresh_run_discards_an_old_checkpoint(self, tmp_path):
+        checkpoint = tmp_path / "c.jsonl"
+        checkpoint.write_text('{"id": 1, "answer": "stale"}\n', encoding="utf-8")
+        seen = []
+        ev.run_cases(self.CASES, self._measure(seen), checkpoint, False)
+        assert seen == [1, 2, 3]
+
+    def test_a_line_cut_off_mid_write_is_measured_again(self, tmp_path):
+        checkpoint = tmp_path / "c.jsonl"
+        checkpoint.write_text('{"id": 1, "answer": "a1"}\n{"id": 2, "ans', encoding="utf-8")
+        assert list(ev.read_checkpoint(checkpoint)) == [1]
+
+    def test_a_run_with_failed_cases_is_not_comparable_with_the_baseline(self):
+        assert ev.instrument_mismatch({"failed": [{"id": 2, "error": "x"}]}, {}) == [
+            "failed [{'id': 2, 'error': 'x'}] vs baseline None"
+        ]
+
+
 class TestSelectForRejudge:
     RESULTS = [
         {"id": 1, "question": "What is the term?", "reference_answer": "old"},

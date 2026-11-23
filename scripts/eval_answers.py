@@ -177,7 +177,7 @@ def instrument_mismatch(run_info: dict[str, Any], baseline: dict[str, Any]) -> l
     """
     return [
         f"{key} {run_info.get(key)!r} vs baseline {baseline.get(key)!r}"
-        for key in ("answer_model", "judge_model", "judge_prompt", "retrieval")
+        for key in ("answer_model", "judge_model", "judge_prompt", "retrieval", "failed")
         if run_info.get(key) != baseline.get(key)
     ]
 
@@ -341,6 +341,50 @@ def answer_once_more_on_timeout(loop: Any, client: Any, model: str, messages: li
     return str(reply["message"]["content"])
 
 
+def read_checkpoint(path: Path) -> dict[Any, dict[str, Any]]:
+    """The results a killed run already finished, by case id; a line cut off mid-write is skipped."""
+    done: dict[Any, dict[str, Any]] = {}
+    if not path.exists():
+        return done
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            result = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        done[result["id"]] = result
+    return done
+
+
+def run_cases(
+    cases: list[dict[str, Any]], measure: Any, checkpoint: Path, resume: bool
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Each case measured on its own: results so far, and the cases that failed with why.
+
+    One case that raised used to end a 105-case run and keep nothing (2026-11-22, -23).
+    Now a failure is recorded and the run goes on. Every finished case is appended to
+    `checkpoint`, so a run that is killed or loses the machine to sleep resumes where it stopped.
+    """
+    done = read_checkpoint(checkpoint) if resume else {}
+    if not resume:
+        checkpoint.unlink(missing_ok=True)
+    results, failed = [], []
+    for n, case in enumerate(cases, 1):
+        if case["id"] in done:
+            results.append(done[case["id"]])
+            continue
+        try:
+            result = measure(case)
+        except Exception as exc:  # noqa: BLE001 — this case is recorded as failed; the rest still run
+            failed.append({"id": case["id"], "error": f"{type(exc).__name__}: {exc}"})
+            print(f"\n  case {case['id']} failed: {type(exc).__name__}: {exc}")
+            continue
+        results.append(result)
+        with checkpoint.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(result, ensure_ascii=False) + "\n")
+        print(f"  {n}/{len(cases)}", end="\r")
+    return results, failed
+
+
 def judge(result: dict[str, Any], model: str, prompt: str) -> dict[str, Any]:
     """Grade one result's answer against its reference and the context it was given."""
     verdict = ask_json(model, JUDGE_PROMPTS[prompt].format(
@@ -475,8 +519,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     # used it, so an asyncio.run() per case failed on the second with "Event loop is closed".
     loop = asyncio.new_event_loop()
 
-    results = []
-    for n, case in enumerate(cases, 1):
+    def measure(case: dict[str, Any]) -> dict[str, Any]:
         # What chat.get_rag_context does with MCP off, unrolled to keep each chunk's score.
         # The whole eval corpus, as before #406 made the scope a required argument —
         # this call was left without one, and `run` failed on its first case.
@@ -503,8 +546,10 @@ def cmd_run(args: argparse.Namespace) -> None:
             messages.append({"role": "user", "content": final})
             result["answer"] = answer_once_more_on_timeout(loop, client, args.model, messages)
             result.update(judge(result, args.judge_model, args.judge_prompt))
-        results.append(result)
-        print(f"  {n}/{len(cases)}", end="\r")
+        return result
+
+    checkpoint = args.out.with_suffix(".partial.jsonl")
+    results, failed = run_cases(cases, measure, checkpoint, args.resume)
     loop.close()
     summary = summarise(results)
     if args.retrieval_only:
@@ -518,11 +563,16 @@ def cmd_run(args: argparse.Namespace) -> None:
         "judge_prompt": None if args.retrieval_only else args.judge_prompt,
         "retrieval": settings,
     }
+    if failed:
+        # The summary covers the cases that finished only; `check` refuses such a run.
+        run_info["failed"] = failed
     args.out.write_text(
         json.dumps({"run": run_info, "summary": summary, "results": results}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
     print("\n" + json.dumps({"run": run_info, "summary": summary}, indent=2))
+    if failed:
+        raise SystemExit(f"{len(failed)} case(s) failed; rerun with --resume to retry only those")
 
 
 def cmd_rejudge(args: argparse.Namespace) -> None:
@@ -601,6 +651,8 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
 def cmd_check(args: argparse.Namespace) -> None:
     run = json.loads(args.results.read_text(encoding="utf-8"))
     if args.update:
+        if run["run"].get("failed"):
+            raise SystemExit("a run with failed cases is not a baseline; finish it with `run --resume`")
         baseline = {
             "label": args.label, **run["run"], "tolerance": args.tolerance,
             "metrics": run["summary"],
@@ -647,6 +699,8 @@ def main() -> None:
     r.add_argument("--judge-prompt", choices=sorted(JUDGE_PROMPTS), default="v3")
     r.add_argument("--retrieval-only", action="store_true",
                    help="retrieval metrics only: no answers, no judge; seconds, not an hour")
+    r.add_argument("--resume", action="store_true",
+                   help="keep the cases <out>.partial.jsonl already holds; measure only the rest")
 
     j = sub.add_parser("rejudge")
     j.add_argument("--results", type=Path, required=True)
