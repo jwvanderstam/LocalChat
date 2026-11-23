@@ -1,10 +1,10 @@
 {
   "label": "private customer RFP and contract corpus (208 documents, 105 cases)",
-  "date": "2026-10-05",
+  "date": "2026-11-23",
   "cases": 105,
-  "answer_model": "llama3.2",
+  "answer_model": "qwen2.5:14b",
   "judge_model": "mistral",
-  "judge_prompt": "v1",
+  "judge_prompt": "v3",
   "retrieval": {
     "TOP_K_RESULTS": 30,
     "RERANK_TOP_K": 12,
@@ -12,59 +12,44 @@
     "SEMANTIC_WEIGHT": 0.7,
     "RERANKER_ENABLED": true,
     "RERANKER_WEIGHT": 0.3,
+    "RERANK_CANDIDATES": 36,
     "CHUNK_SIZE": 1200,
     "CHUNK_OVERLAP": 150,
     "MAX_CONTEXT_LENGTH": 24576
   },
   "tolerance": 0.05,
   "metrics": {
-    "source_recall@1": 0.41,
-    "source_recall@5": 0.59,
-    "source_mrr": 0.492,
-    "proof_recall": 0.486,
-    "citation_correct": 0.6,
-    "answer_correct": 0.724,
-    "faithfulness": 0.91
+    "source_recall@1": 0.495,
+    "source_recall@5": 0.705,
+    "source_mrr": 0.586,
+    "proof_recall": 0.638,
+    "citation_correct": 0.724,
+    "answer_correct": 0.808,
+    "faithfulness": 0.792
   },
   "calibration": {
-    "first_sheet_old_references": {
+    "judge_v3_correct_vs_blind_grades": {
       "graders": [
         "claude"
       ],
-      "missing_results": [
-        8
-      ],
-      "correct": {
-        "n": 14,
-        "exact": 0.643,
-        "within_one": 0.929
+      "source": "docs/history/RAG_QUALITY_2026-11.md",
+      "all": {
+        "n": 103,
+        "exact": 0.854,
+        "judge_bias": 0.073
       },
-      "faithful": {
-        "n": 19,
-        "exact": 0.526,
-        "within_one": 0.947
-      }
+      "qwen2.5:14b_answers": {
+        "n": 52,
+        "exact": 0.942,
+        "judge_bias": 0.029
+      },
+      "in_sample": "the v3 prompt was written after seeing these grades; the agreement is not an out-of-sample measurement"
     },
-    "quick_sheet_correct_fixed_references": {
-      "graders": [
-        "claude",
-        "human"
-      ],
-      "missing_results": [],
-      "correct": {
-        "n": 20,
-        "exact": 0.6,
-        "within_one": 0.8,
-        "judge_bias": 0.3
-      }
-    }
+    "faithfulness": "uncalibrated: no human faithfulness grades exist for judge v3"
   },
   "notes": [
-    "Retrieval settings are the repository defaults (recorded under retrieval); ranks are by relevance (best chunk score). The first baseline ranked by position, which retrieval returns alphabetically, and ran with a maintainer's local app_state.json overrides; both are corrected here.",
-    "Cases drafted by mistral, reviewed and corrected by an AI assistant (claude), approved by the maintainer; not human-verified case by case.",
-    "Calibration grades are an AI assistant's (38 of 40) plus 2 by the maintainer, taken on the previous run's answers with the same judge; they characterise the judge, not these exact answers. Human calibration (ROADMAP P2-3) was deferred by the maintainer.",
-    "Judge v1 overstates answer_correct (bias +0.21 and +0.30 on two sheets); judge v2 is near-unbiased on correct (-0.03) and scored the 2026-09-30 answers 0.514: the chat answers correctly about half the time. v1 is kept as the baseline judge for consistency; use its judged metrics to detect regressions, not as absolute quality.",
-    "On the 2026-09-30 run, retrieval misses concentrated in office formats: the source document was not retrieved for 76% of Excel, 67% PowerPoint and 52% Word questions, against 20% for PDF.",
-    "Re-baselined 2026-10-05 after #422 made the lexical arm fire (it ANDed every word of the question): against the 2026-09-30 baseline, source_recall@5 +0.028, source_mrr +0.013, proof_recall +0.019, citation_correct +0.029, answer_correct +0.062 (the v1 judge, so read as a direction, not a size), faithfulness -0.023. Same models, judge prompt and retrieval settings."
+    "answer_correct is judged by mistral with prompt v3, which grades against the reference alone. Its agreement with blind grades by an AI assistant (0.85 exact, +0.07 bias; 0.94 on qwen2.5:14b answers) is in-sample: v3 was designed and chosen on those grades. No human has graded v3.",
+    "faithfulness is uncalibrated: no human faithfulness grades exist for judge v3. 16 of 105 cases got no usable faithfulness verdict and 1 no correctness verdict; both means are over the scored cases.",
+    "The judge saw the whole context the answer model saw. The 2026-11-22 run, which cut it at 6000 characters, read faithfulness 0.659 on the same retrieval; this run reads 0.792."
   ]
 }

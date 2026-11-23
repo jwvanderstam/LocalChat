@@ -1327,10 +1327,20 @@ reply did not parse). That figure is in-sample: `v3` was designed from, and chos
 cover" is mostly ignored: about 4 in 36 such answers name a gap. Ordering the context by
 relevance instead of reading order made no measurable difference. Details: [RAG_QUALITY_2026-11](history/RAG_QUALITY_2026-11.md).
 
+**Re-baselined 2026-11-23.** `qwen2.5:14b` answers, `mistral` judges with `v3`, current
+retrieval (`RERANK_CANDIDATES` 36):
+
+| source@1 | source@5 | MRR | proof in context | citation correct | answer correct* | faithful* |
+|---|---|---|---|---|---|---|
+| 0.495 | 0.705 | 0.586 | 0.638 | 0.724 | 0.808 | 0.792 |
+
+\*Judge-scored; see the caveats below and in the file's `notes`. A run on 2026-11-22 read
+faithfulness 0.659 on the same retrieval because the judge was shown only the first 6,000
+characters of the context: an answer drawing on a later passage was graded unfaithful. The
+judge now sees the whole context. The same fixes made a run survive one failing case (it is
+recorded and the rest continue) and resume after a kill or sleep, which had ended two runs.
+
 **Still open:**
-- **Re-baseline `answer_baseline.json`.** `check` refuses current runs: the baseline records
-  judge `v1` and lacks `RERANK_CANDIDATES`. Re-measure
-  once, with the current retrieval, prompt and judge `v3`.
 - **A held-out check of judge `v3`.** Its 85% agreement is in-sample. Grade a fresh set of
   answers blind and score `v3` against them before trusting small differences.
 - **`faithfulness` is uncalibrated.** It still comes from the `v2` call, and the blind grades
