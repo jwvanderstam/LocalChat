@@ -212,6 +212,40 @@ class TestJudgeWindow:
         assert posted["options"] == {"temperature": 0, "num_ctx": 2 * config.OLLAMA_NUM_CTX}
 
 
+class TestAnswerRetry:
+    TIMEOUT = RuntimeError("Ollama did not respond within 120 s (model: m).")
+
+    def _answer(self, outcomes):
+        import asyncio
+
+        calls = []
+
+        class Client:
+            async def generate_chat_completion(self, model, messages):
+                calls.append(model)
+                outcome = outcomes[len(calls) - 1]
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return {"message": {"content": outcome}}
+
+        loop = asyncio.new_event_loop()
+        try:
+            return ev.answer_once_more_on_timeout(loop, Client(), "m", []), calls
+        finally:
+            loop.close()
+
+    def test_a_timeout_is_asked_again_and_the_second_reply_kept(self):
+        assert self._answer([self.TIMEOUT, "the answer"]) == ("the answer", ["m", "m"])
+
+    def test_a_second_timeout_still_ends_the_run(self):
+        with pytest.raises(RuntimeError, match="did not respond"):
+            self._answer([self.TIMEOUT, self.TIMEOUT])
+
+    def test_another_error_is_not_asked_again(self):
+        with pytest.raises(RuntimeError, match="model not found"):
+            self._answer([RuntimeError("model not found"), "never reached"])
+
+
 class TestSelectForRejudge:
     RESULTS = [
         {"id": 1, "question": "What is the term?", "reference_answer": "old"},

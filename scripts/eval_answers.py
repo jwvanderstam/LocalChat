@@ -325,6 +325,22 @@ First list each key fact of the reference and whether the answer states it. Repl
 JUDGE_PROMPTS["v3"] = JUDGE_PROMPTS["v2"]
 
 
+def answer_once_more_on_timeout(loop: Any, client: Any, model: str, messages: list[dict[str, str]]) -> str:
+    """The answer model's reply, asked a second time when the first call times out.
+
+    The judge runs between answers, so Ollama swaps the answer model out on every case, and
+    reloading one that barely fits the GPU counts against the client's 120 s. One timeout
+    used to end a 105-case run (2026-11-22, twice); a second timeout still does.
+    """
+    try:
+        reply = loop.run_until_complete(client.generate_chat_completion(model, messages))
+    except RuntimeError as exc:
+        if "did not respond" not in str(exc):
+            raise
+        reply = loop.run_until_complete(client.generate_chat_completion(model, messages))
+    return str(reply["message"]["content"])
+
+
 def judge(result: dict[str, Any], model: str, prompt: str) -> dict[str, Any]:
     """Grade one result's answer against its reference and the context it was given."""
     verdict = ask_json(model, JUDGE_PROMPTS[prompt].format(
@@ -485,8 +501,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         if not args.retrieval_only:
             messages, final = _build_context_prompt(case["question"], context, "", [], True, False)
             messages.append({"role": "user", "content": final})
-            reply = loop.run_until_complete(client.generate_chat_completion(args.model, messages))
-            result["answer"] = reply["message"]["content"]
+            result["answer"] = answer_once_more_on_timeout(loop, client, args.model, messages)
             result.update(judge(result, args.judge_model, args.judge_prompt))
         results.append(result)
         print(f"  {n}/{len(cases)}", end="\r")
