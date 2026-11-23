@@ -34,7 +34,7 @@ idna==3.19
     # via
     #   -c requirements.txt
     #   requests
-import-linter==2.16
+import-linter==2.17
     # via -r requirements-dev.in
 iniconfig==2.3.0
     # via pytest
