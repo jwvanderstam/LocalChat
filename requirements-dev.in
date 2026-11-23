@@ -14,8 +14,8 @@ pytest-cov==7.1.0
 pytest-mock==3.17.0
 pytest-asyncio==1.5.0
 pytest-playwright==0.10.0   # tests/e2e browser suite — also run: playwright install chromium
-faker==40.54.0
+faker==40.63.0
 responses==0.26.3
 freezegun==1.5.5
-coverage==7.17.3
-import-linter==2.16        # QP-3: the layering contracts in pyproject.toml ([tool.importlinter]); run as lint-imports
+coverage==7.17.4
+import-linter==2.17        # QP-3: the layering contracts in pyproject.toml ([tool.importlinter]); run as lint-imports
