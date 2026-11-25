@@ -1358,6 +1358,10 @@ recorded and the rest continue) and resume after a kill or sleep, which had ende
   sheet a person can grade in `eval_review.html`, with the source beside each reference since
   2026-11-25 (without it, an answer that missed a fact could not be told from a wrong
   reference); doing so and re-running `calibrate --score` closes it. Deferred by the maintainer, 2026-10-01.
+  **Checked 2026-11-25, mostly AI-graded, so still open:** judge `v3` matched 77% of 39 answers
+  (bias +0.09): 80% of 15 graded by the maintainer, 5 of them settled after the AI assistant
+  disputed them, and 75% of 24 graded by the assistant alone. On questions `v3` was not designed
+  on it matched 68% (n=19, bias +0.16). Details are in `answer_baseline.json`.
 - **DEL-2.** GraphRAG was not compared on this corpus yet.
 - **Nightly.** Needs a machine with a model; the command is the same when there is one.
 - **A weekly answer-level eval** (moved from QP-7, 2026-11-20): a small CPU-sized model
