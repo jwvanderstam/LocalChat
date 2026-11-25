@@ -30,9 +30,10 @@ header h1 { font-size: 15px; margin: 0 8px 0 0; }
 .counts span { margin-right: 10px; font-variant-numeric: tabular-nums; }
 .bar { flex: 1 1 160px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; min-width: 120px; }
 .bar > div { height: 100%; background: var(--accept); width: 0; }
-button, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+button, select, #ids { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
   border-radius: 6px; padding: 5px 10px; cursor: pointer; }
-button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+#ids { cursor: text; }
+button:focus-visible, select:focus-visible, #ids:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 button.accept { border-color: var(--accept); color: var(--accept); }
 button.reject { border-color: var(--reject); color: var(--reject); }
 main { max-width: 900px; margin: 0 auto; padding: 16px; }
@@ -73,6 +74,7 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4p
     <option value="accepted">Accepted</option>
     <option value="rejected">Rejected</option>
   </select>
+  <input id="ids" type="text" size="18" placeholder="Cases, e.g. 3 19 76" aria-label="Show only these case numbers">
   <div class="counts" id="counts"></div>
   <div class="bar" aria-hidden="true"><div id="progress"></div></div>
   <span class="saved" id="saved"></span>
@@ -108,7 +110,12 @@ function cases() { return data ? data.cases : []; }
 
 function rebuildOrder(keepId) {
   const f = $("filter").value;
-  order = cases().map((c, i) => i).filter((i) => f === "all" || cases()[i].status === f);
+  const ids = $("ids").value.match(/\d+/g);
+  // Typed numbers win over the status filter, in the order typed: a case being re-graded must
+  // not leave the list when its status changes.
+  order = ids
+    ? [...new Set(ids)].map((id) => cases().findIndex((c) => String(c.id) === id)).filter((i) => i >= 0)
+    : cases().map((c, i) => i).filter((i) => f === "all" || cases()[i].status === f);
   const at = keepId == null ? -1 : order.findIndex((i) => cases()[i].id === keepId);
   pos = at >= 0 ? at : Math.min(pos, Math.max(order.length - 1, 0));
 }
@@ -202,7 +209,7 @@ function render() {
   counts();
   if (!data) return;
   if (!order.length) {
-    $("main").innerHTML = `<p class="empty">No ${$("filter").value === "all" ? "" : $("filter").value + " "}cases.</p>`;
+    $("main").innerHTML = `<p class="empty">No ${$("ids").value.trim() || $("filter").value === "all" ? "" : $("filter").value + " "}cases.</p>`;
     return;
   }
   if (isCal()) { renderCal(); return; }
@@ -251,7 +258,7 @@ function decide(status) {
   const c = cases()[order[pos]];
   c.status = status;
   scheduleSave(0);
-  const filtered = $("filter").value !== "all" && $("filter").value !== status;
+  const filtered = !$("ids").value.trim() && $("filter").value !== "all" && $("filter").value !== status;
   // In a filtered view the decided case leaves the list, so the next one slides into place.
   rebuildOrder(filtered ? null : c.id);
   if (!filtered) move(1); else render();
@@ -318,14 +325,17 @@ async function openFile() {
   if (handle && handle.createWritable) setSaved("Changes save to " + file.name);
   else setSaved("Cannot save in place: use Download when you are done", "bad");
   rebuildOrder(null);
-  if (isCal()) pos = Math.max(0, cases().findIndex((c) => c.status !== "scored"));
+  if (isCal() && !$("ids").value.trim()) pos = Math.max(0, cases().findIndex((c) => c.status !== "scored"));
   render();
 }
 
 $("open").onclick = () => openFile().catch((err) => { if (err.name !== "AbortError") alert(err.message); });
 $("filter").onchange = () => { rebuildOrder(null); pos = 0; render(); };
+$("ids").oninput = () => { rebuildOrder(null); pos = 0; render(); };
+// Enter leaves the box, so Y/P/N and the arrows work at once.
+$("ids").onkeydown = (e) => { if (e.key === "Enter") e.target.blur(); };
 document.addEventListener("keydown", (e) => {
-  if (!data || e.target.tagName === "TEXTAREA" || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!data || e.target.tagName === "TEXTAREA" || e.target.id === "ids" || e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (isCal()) {
     const grades = { y: "yes", p: "partial", n: "no" };
