@@ -615,28 +615,40 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
         scored = [c for c in sheet if c["id"] in by_id]
         # "correct" is graded against the reference answer shown on the sheet; where the case's
         # reference has since been fixed, the grade and the judge answer different questions.
-        same_ref = [c for c in scored if c["reference_answer"] == by_id[c["id"]]["reference_answer"]]
+        # The exception is a reference the grader flagged: it was graded against the source, so it
+        # counts once the reference has been corrected, and not before.
+        comparable = [
+            c for c in scored
+            if bool(c.get("reference_wrong")) != (c["reference_answer"] == by_id[c["id"]]["reference_answer"])
+        ]
         out: dict[str, Any] = {
             # The sheet says who graded it. Agreement with a model is not calibration against a
             # human, which is what P2-3 asks for; the grader travels with the number.
             "graders": sorted({str(c.get("grader", "human")) for c in scored}),
             "missing_results": [c["id"] for c in sheet if c["id"] not in by_id],
+            "reference_wrong": [c["id"] for c in scored if c.get("reference_wrong")],
         }
         for dim in data.get("dims", ["correct", "faithful"]):
-            rows = same_ref if dim == "correct" else scored
+            rows = comparable if dim == "correct" else scored
             pairs = [(c[f"human_{dim}"], inverse.get(by_id[c["id"]][dim], "")) for c in rows]
             out[dim] = {**agreement(pairs), "judge_bias": mean_bias(pairs)}
         print(json.dumps(out, indent=2))
         return
+    if not args.out or not args.cases:
+        raise SystemExit("making a sheet needs --out and --cases")
     refuse_inside_repo(args.out)
     dims = args.dims.split(",")
     sample = random.Random(args.seed).sample(results, min(args.n, len(results)))
+    cases = json.loads(args.cases.read_text(encoding="utf-8"))["cases"]
+    by_case = {c["id"]: c for c in cases}
     # Blind: the judge's verdicts are not on the sheet. JSON, so eval_review.html can score it.
-    # Without "faithful" the context is left off: grading "correct" needs only the reference,
-    # which is what makes a quick human pass (about ten seconds an answer) possible.
+    # Without "faithful" the context is left off. The reference's own evidence is on every sheet:
+    # without it a grader cannot tell a wrong reference from an answer that missed the fact.
     sheet = [{
         "id": r["id"], "status": "pending", "question": r["question"],
         "reference_answer": r["reference_answer"], "answer": r["answer"],
+        **{k: by_case[r["id"]][k] for k in ("source", "proof", "passage")},
+        "reference_wrong": False, "reference_note": "",
         **({"context": r["context"]} if "faithful" in dims else {}),
         **{f"human_{d}": "" for d in dims},
     } for r in sample]
@@ -712,6 +724,7 @@ def main() -> None:
     c = sub.add_parser("calibrate")
     c.add_argument("--results", type=Path, required=True)
     c.add_argument("--out", type=Path)
+    c.add_argument("--cases", type=Path, help="the cases file; needed to make a sheet, not to score one")
     c.add_argument("--score", type=Path)
     c.add_argument("--n", type=int, default=20)
     c.add_argument("--seed", type=int, default=7)

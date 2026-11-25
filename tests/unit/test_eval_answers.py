@@ -394,11 +394,18 @@ class TestQuickCalibrationSheet:
              "context": "C" * 5000, "correct": 1.0, "faithful": 1.0} for i in range(1, 4)
         ]}))
         sheet = tmp_path / "quick.json"
+        cases = tmp_path / "cases.json"
+        cases.write_text(json.dumps({"cases": [
+            {"id": i, "source": f"s{i}", "proof": f"p{i}", "passage": f"t{i}"} for i in range(1, 4)]}))
         ev.cmd_calibrate(types.SimpleNamespace(
-            results=results, score=None, out=sheet, n=3, seed=7, dims="correct"))
+            results=results, score=None, out=sheet, cases=cases, n=3, seed=7, dims="correct"))
         made = json.loads(sheet.read_text())
         assert made["dims"] == ["correct"]
         assert all("context" not in c and "human_faithful" not in c for c in made["cases"])
+        # A grader sees what each reference rests on, and never the judge's verdict.
+        assert {(c["id"], c["source"], c["proof"], c["passage"]) for c in made["cases"]} == {
+            (i, f"s{i}", f"p{i}", f"t{i}") for i in range(1, 4)}
+        assert all("correct" not in c and "faithful" not in c for c in made["cases"])
 
         for c in made["cases"]:
             c["human_correct"] = "partial"
@@ -406,5 +413,37 @@ class TestQuickCalibrationSheet:
         capsys.readouterr()
         ev.cmd_calibrate(types.SimpleNamespace(results=results, score=sheet))
         out = json.loads(capsys.readouterr().out)
-        assert set(out) == {"graders", "missing_results", "correct"}
+        assert set(out) == {"graders", "missing_results", "reference_wrong", "correct"}
         assert out["correct"]["judge_bias"] == 0.5
+
+    def test_a_flagged_reference_counts_only_once_it_has_been_corrected(self, tmp_path, capsys):
+        import json
+        import types
+
+        results = tmp_path / "results.json"
+        results.write_text(json.dumps({"results": [
+            {"id": 1, "reference_answer": "r", "correct": 1.0},
+            {"id": 2, "reference_answer": "r", "correct": 0.0},
+            {"id": 3, "reference_answer": "corrected", "correct": 1.0},
+        ]}))
+        sheet = tmp_path / "sheet.json"
+        sheet.write_text(json.dumps({"dims": ["correct"], "cases": [
+            {"id": 1, "reference_answer": "r", "human_correct": "yes", "reference_wrong": False},
+            {"id": 2, "reference_answer": "r", "human_correct": "yes", "reference_wrong": True},
+            {"id": 3, "reference_answer": "old", "human_correct": "yes", "reference_wrong": True},
+        ]}))
+        ev.cmd_calibrate(types.SimpleNamespace(results=results, score=sheet))
+        out = json.loads(capsys.readouterr().out)
+        assert out["reference_wrong"] == [2, 3]
+        # Case 2 is left out: the judge was still measured against the flagged reference.
+        assert (out["correct"]["n"], out["correct"]["exact"]) == (2, 1.0)
+
+    def test_making_a_sheet_without_the_cases_is_refused(self, tmp_path):
+        import json
+        import types
+
+        results = tmp_path / "results.json"
+        results.write_text(json.dumps({"results": []}))
+        with pytest.raises(SystemExit, match="--cases"):
+            ev.cmd_calibrate(types.SimpleNamespace(
+                results=results, score=None, out=tmp_path / "s.json", cases=None, n=1, seed=7, dims="correct"))
