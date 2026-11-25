@@ -52,7 +52,10 @@ mark { background: var(--mark); color: inherit; padding: 0 1px; border-radius: 2
 .actions .spacer { flex: 1; }
 .keys { color: var(--muted); font-size: 12px; margin-top: 10px; }
 kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 11px; }
-.saved { color: var(--muted); font-size: 12px; }
+.saved { font-size: 13px; font-weight: 600; color: var(--muted); }
+.saved.ok { color: var(--accept); } .saved.bad { color: var(--reject); }
+.flag { margin-top: 12px; } .flag input { margin-right: 6px; }
+.flag label { display: inline; font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--ink); }
 .status.scored { color: var(--accept); }
 .grade { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-top: 12px; }
 .grade.active { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
@@ -79,7 +82,7 @@ Edge or Chrome saves every decision back to that file.</p></main>
 
 <script>
 "use strict";
-let handle = null, data = null, order = [], pos = 0, saveTimer = null;
+let handle = null, fileName = "cases.json", data = null, order = [], pos = 0, saveTimer = null;
 const $ = (id) => document.getElementById(id);
 
 function esc(s) {
@@ -115,10 +118,19 @@ const isCal = () => Boolean(data && data.mode === "calibration");
 // Which grades this sheet asks for; a quick sheet asks only "correct" and carries no context.
 const dims = () => (data && Array.isArray(data.dims) && data.dims.length ? data.dims : ["correct", "faithful"]);
 const DIMS = {
-  correct: "Correct — does the answer give the same information as the reference answer?",
+  correct: "Correct — does the answer state the key information, judged against the source? Extra correct detail is fine. \"Not in the documents\" is a No when the source has it.",
   faithful: "Faithful — is every claim in the answer supported by the context?",
 };
 let dim = "correct";
+
+// What the reference rests on; sheets made before 2026-11-25 carry none of it.
+function evidence(c) {
+  if (c.source == null) return "";
+  const hl = highlight(c.passage, c.proof);
+  return `<label>Source of the reference — ${esc(c.source)}</label>
+    <div class="passage">${hl.html}</div>
+    ${hl.found ? "" : `<p class="nomatch">Supporting quote: ${esc(c.proof)}</p>`}`;
+}
 
 function renderCal() {
   const c = cases()[order[pos]];
@@ -139,17 +151,25 @@ function renderCal() {
       </div>
       <label>Question</label><div class="passage">${esc(c.question)}</div>
       <label>Reference answer</label><div class="passage">${esc(c.reference_answer)}</div>
+      ${evidence(c)}
       <label>Assistant's answer</label><div class="passage">${esc(c.answer)}</div>
       ${c.context == null ? "" : `<label>Context the assistant was given</label><div class="passage">${esc(c.context)}</div>`}
       ${dims().map(row).join("")}
+      <div class="flag">
+        <input type="checkbox" id="wrong" ${c.reference_wrong ? "checked" : ""}><label for="wrong">The reference is wrong or incomplete</label>
+        <textarea id="note" rows="2" aria-label="What is wrong with the reference" placeholder="What is wrong with it?">${esc(c.reference_note)}</textarea>
+      </div>
       <div class="actions">
         <button id="prev">← Previous</button>
         <button id="next">Next →</button>
       </div>
       <p class="keys"><kbd>Y</kbd> yes · <kbd>P</kbd> partial · <kbd>N</kbd> no — grades the highlighted
-        question, then the next · <kbd>C</kbd>/<kbd>F</kbd> choose correct/faithful · <kbd>←</kbd>/<kbd>→</kbd> move.</p>
+        question · <kbd>C</kbd>/<kbd>F</kbd> choose correct/faithful · <kbd>←</kbd>/<kbd>→</kbd> move.
+        Every grade is saved at once; the answer stays here until you move on.</p>
     </div>`;
   document.querySelectorAll(".grade button").forEach((b) => { b.onclick = () => gradeCal(b.dataset.d, b.dataset.v); });
+  $("wrong").onchange = (e) => { c.reference_wrong = e.target.checked; scheduleSave(0); };
+  $("note").addEventListener("input", (e) => { c.reference_note = e.target.value; scheduleSave(); });
   $("prev").onclick = () => move(-1);
   $("next").onclick = () => move(1);
 }
@@ -160,11 +180,8 @@ function gradeCal(d, value) {
   c["human_" + d] = value;
   c.status = dims().every((x) => c["human_" + x]) ? "scored" : "pending";
   scheduleSave(0);
-  if (c.status !== "scored") { dim = dims().find((x) => !c["human_" + x]); render(); return; }
-  dim = dims()[0];
-  const filtered = $("filter").value === "pending";
-  rebuildOrder(filtered ? null : c.id);
-  if (!filtered) move(1); else render();
+  // The list is not rebuilt: a graded answer stays on screen until the grader moves on.
+  render();
 }
 
 function counts() {
@@ -240,9 +257,14 @@ function decide(status) {
   if (!filtered) move(1); else render();
 }
 
+function setSaved(text, state = "") {
+  $("saved").textContent = text;
+  $("saved").className = "saved " + state;
+}
+
 function scheduleSave(delay = 600) {
   clearTimeout(saveTimer);
-  $("saved").textContent = "unsaved…";
+  setSaved("saving…");
   saveTimer = setTimeout(save, delay);
 }
 
@@ -253,18 +275,19 @@ async function save() {
       const w = await handle.createWritable();
       await w.write(text);
       await w.close();
-      $("saved").textContent = "saved " + new Date().toLocaleTimeString();
+      setSaved("✓ Saved " + new Date().toLocaleTimeString(), "ok");
       return;
     } catch (err) {
-      $("saved").textContent = "save failed: " + err.message;
+      setSaved("NOT SAVED: " + err.message, "bad");
       return;
     }
   }
-  $("saved").innerHTML = '<button id="dl">Download cases.json</button>';
+  setSaved("", "bad");
+  $("saved").innerHTML = `NOT SAVED — <button id="dl">Download ${esc(fileName)}</button>`;
   $("dl").onclick = () => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-    a.download = "cases.json";
+    a.download = fileName;
     a.click();
   };
 }
@@ -273,7 +296,10 @@ async function openFile() {
   let file;
   if (window.showOpenFilePicker) {
     [handle] = await window.showOpenFilePicker({ types: [{ description: "Cases", accept: { "application/json": [".json"] } }] });
+    // Asked for now, not at the first grade, so a refusal shows before any work is done.
+    const allowed = await handle.requestPermission({ mode: "readwrite" }) === "granted";
     file = await handle.getFile();
+    if (!allowed) handle = null;
   } else {
     file = await new Promise((resolve) => {
       const input = Object.assign(document.createElement("input"), { type: "file", accept: ".json" });
@@ -281,15 +307,18 @@ async function openFile() {
       input.click();
     });
   }
+  fileName = file.name;
   data = JSON.parse(await file.text());
   if (!Array.isArray(data.cases)) throw new Error("no cases array in this file");
   $("filter").innerHTML = isCal()
-    ? '<option value="pending" selected>Pending</option><option value="scored">Scored</option><option value="all">All answers</option>'
+    ? '<option value="all" selected>All answers</option><option value="pending">Pending</option><option value="scored">Scored</option>'
     : '<option value="all">All cases</option><option value="pending" selected>Pending</option>'
       + '<option value="accepted">Accepted</option><option value="rejected">Rejected</option>';
   document.querySelector("header h1").textContent = isCal() ? "Judge calibration" : "Eval case review";
-  $("saved").textContent = handle && handle.createWritable ? "changes save to " + file.name : "this browser cannot save in place; use Download";
+  if (handle && handle.createWritable) setSaved("Changes save to " + file.name);
+  else setSaved("Cannot save in place: use Download when you are done", "bad");
   rebuildOrder(null);
+  if (isCal()) pos = Math.max(0, cases().findIndex((c) => c.status !== "scored"));
   render();
 }
 
