@@ -50,26 +50,36 @@
         "claude",
         "human"
       ],
-      "mostly_ai_graded": "25 of the 39 scored answers were graded only by an AI assistant",
+      "mostly_ai_graded": "24 of the 39 scored answers were graded only by an AI assistant",
       "human": {
-        "n": 14,
-        "exact": 0.643,
-        "within_one": 0.786,
-        "judge_bias": -0.286
+        "n": 15,
+        "exact": 0.8,
+        "within_one": 1.0,
+        "judge_bias": 0.033
       },
       "claude_answers_no_human_graded": {
-        "n": 25,
-        "exact": 0.72,
+        "n": 24,
+        "exact": 0.75,
         "within_one": 1.0,
-        "judge_bias": 0.14
+        "judge_bias": 0.125
       },
-      "claude_all": {
+      "all": {
         "n": 39,
         "exact": 0.769,
         "within_one": 1.0,
         "judge_bias": 0.09
       },
-      "caveats": "All 14 human grades are yes. The AI disputes 4 of them (3 no-information or no-exception answers the source contradicts, 1 that misses the point asked) and had seen them before grading, so claude_all is not independent on those 14; its grades were blind to the judge. One more answer was flagged by the human, not graded, and is among the 25. 21 of the 40 questions are among those v3 was designed on, so this is not a held-out measurement. Split that way, the 25 AI-only grades agree 0.85 (bias +0.08, n=13) on design questions and 0.58 (bias +0.21, n=12) on the others. The judge gave 1 answer no verdict."
+      "questions_v3_was_designed_on": {
+        "n": 20,
+        "exact": 0.85,
+        "judge_bias": 0.025
+      },
+      "other_questions": {
+        "n": 19,
+        "exact": 0.684,
+        "judge_bias": 0.158
+      },
+      "caveats": "The human grades are not independent of the AI: 5 of 15 (3, 19, 60, 76, 89) were settled after it disputed them, 4 changing from the saved yes to no, and the other 10, all yes, were confirmed when asked. The human first read yes as \"the source has the fact\". The AI grades were blind to the judge. 21 of the 40 questions are among those v3 was designed on, so this is not a held-out measurement. The judge gave 1 answer no verdict."
     },
     "faithfulness": "uncalibrated: no human faithfulness grades exist for judge v3"
   },
