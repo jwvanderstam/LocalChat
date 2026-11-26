@@ -1263,7 +1263,7 @@ without them.
    Worth keeping as the honest record of what reading could not find: prerequisites 5
    and 6 were predicted correctly and neither was what went red first.
 
-### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baseline, held-out judge check and faithfulness calibration open)
+### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baselined 2026-11-23; held-out judge check 2026-11-25, AI-graded; human and faithfulness calibration open)
 
 **Driver 3** (thin RAG quality evidence). `scripts/eval_retrieval.py` scores 20 pairs on
 recall of the source; nothing measures whether the *answer* is faithful to it or cites it.
@@ -1347,8 +1347,16 @@ judge now sees the whole context. The same fixes made a run survive one failing 
 recorded and the rest continue) and resume after a kill or sleep, which had ended two runs.
 
 **Still open:**
-- **A held-out check of judge `v3`.** Its 85% agreement is in-sample. Grade a fresh set of
-  answers blind and score `v3` against them before trusting small differences.
+- ~~**A held-out check of judge `v3`.**~~ **Done 2026-11-25, AI-graded.** On 39 fresh
+  questions sharing no passage with the baseline set, an AI assistant's blind grades put
+  `qwen2.5:14b` at 0.72 correct where the judge says 0.89: 72% exact agreement, bias +0.17,
+  and all 11 disagreements are the judge being lenient. It confirms the +0.16 seen on
+  questions `v3` was not designed on, so **`answer_correct` reads about 0.15 high**; the
+  2026-11-23 baseline's 0.81 means roughly 0.65–0.70. It stays a regression tripwire, not
+  a quality figure. Most wrong answers found the right document and used the wrong part of
+  it (a neighbouring row of a spreadsheet, another product's paragraph); two said "not in the
+  documents" when it was. The assistant also chose the cases and reworded 7 references, so
+  the grader is not independent of the set. Details are in `answer_baseline.json`.
 - **`faithfulness` is uncalibrated.** It still comes from the `v2` call, and the blind grades
   cover correctness only.
 - **The prompt's "say what the documents do not cover" is mostly ignored** (about 4 in 36
