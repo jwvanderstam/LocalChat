@@ -81,10 +81,26 @@
       },
       "caveats": "The human grades are not independent of the AI: 5 of 15 (3, 19, 60, 76, 89) were settled after it disputed them, 4 changing from the saved yes to no, and the other 10, all yes, were confirmed when asked. The human first read yes as \"the source has the fact\". The AI grades were blind to the judge. 21 of the 40 questions are among those v3 was designed on, so this is not a held-out measurement. The judge gave 1 answer no verdict."
     },
+    "judge_v3_correct_heldout_2026-11-25": {
+      "graders": [
+        "claude-opus-5-5"
+      ],
+      "ai_graded": "every grade is an AI assistant's, blind to the judge; no human graded this set",
+      "all": {
+        "n": 39,
+        "exact": 0.718,
+        "within_one": 0.949,
+        "judge_bias": 0.167
+      },
+      "graded_mean": 0.718,
+      "judge_mean": 0.885,
+      "direction": "all 11 disagreements have the judge more lenient than the grader",
+      "caveats": "Held out: 48 fresh cases drafted by mistral from passages sharing no 12-word run with the 105 baseline cases or their proofs; the same AI assistant rejected 9, reworded 7 references and graded the 39 answers, so the grader is not independent of the case set. qwen2.5:14b answered, current retrieval. The judge gave 8 answers no faithfulness verdict."
+    },
     "faithfulness": "uncalibrated: no human faithfulness grades exist for judge v3"
   },
   "notes": [
-    "answer_correct is judged by mistral with prompt v3, which grades against the reference alone. Its agreement with blind grades by an AI assistant (0.85 exact, +0.07 bias; 0.94 on qwen2.5:14b answers) is in-sample: v3 was designed and chosen on those grades. A 2026-11-25 check, mostly AI-graded, reads lower: see calibration. Human calibration stays open.",
+    "answer_correct is judged by mistral with prompt v3, which grades against the reference alone. Its agreement with blind grades by an AI assistant (0.85 exact, +0.07 bias; 0.94 on qwen2.5:14b answers) is in-sample: v3 was designed and chosen on those grades. A 2026-11-25 check, mostly AI-graded, reads lower, and a held-out check the same day, AI-graded, lower still: 0.72 exact, +0.17 bias, so read answer_correct as about 0.15 too high. See calibration. Human calibration stays open.",
     "faithfulness is uncalibrated: no human faithfulness grades exist for judge v3. 16 of 105 cases got no usable faithfulness verdict and 1 no correctness verdict; both means are over the scored cases.",
     "The judge saw the whole context the answer model saw. The 2026-11-22 run, which cut it at 6000 characters, read faithfulness 0.659 on the same retrieval; this run reads 0.792."
   ]
