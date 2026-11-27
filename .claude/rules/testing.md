@@ -112,13 +112,14 @@ resulting state; `tests/unit/test_frontend_workspace_selection.py` is a worked e
   *over*-correction should pass both ways — that is what makes them worth keeping.
 
 The node harness covers branch logic in one file. The *paths* through several of them run
-in a real browser, eight in all (QP-7):
+in a real browser, nine in all (QP-7):
 
 - `tests/e2e/test_golden_path.py` (TQ-4): sign in, upload with progress, ask, and get a
   cited answer.
 - `tests/e2e/test_access_paths.py`: sign out, a session replayed after sign-out, switching
-  workspace, an admin creating a user with membership, a viewer who cannot upload, and a
-  workspace API key that reaches only its workspace.
+  workspace, an admin creating a user with membership, a viewer who cannot upload, a
+  workspace API key that reaches only its workspace, and a user opening Settings without
+  an error (added 2026-11-27, when that page answered 500 to every non-admin).
 
 Where the browser hides a control, those tests also ask the server, because the refusal over
 the wire is the guarantee. Add a path only when a regression escapes both the browser suite

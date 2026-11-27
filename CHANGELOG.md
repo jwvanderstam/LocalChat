@@ -21,6 +21,12 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ### Fixed
 
+- **Settings opens for users who are not admins.** Since v3.4.0 the page answered 500 to every
+  non-admin: the R-6 fix stopped handing them the admin statistics, and the template still read
+  them. An admin whose statistics could not be gathered got the same error. The Observability
+  and RAG Parameters tabs are now rendered for an admin only, so a user sees Appearance, Memory
+  and Account, and the page no longer polls admin endpoints it cannot read.
+
 - **Hybrid search finds what only the lexical arm matched.** A chunk the full-text search found
   but vector search did not return was blended as if its semantic similarity were zero, so it
   ranked below every semantic hit and never reached the answer. It now carries its real

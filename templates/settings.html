@@ -8,18 +8,22 @@
 <div class="settings-layout">
 
 <!-- Sub-navigation. Kept as .nav-tabs with its id and item structure: auth.js
-     resolves the list, moves the selection off an admin-only tab, and drives the
-     panes through these same hooks. Vertical is a layout change, not a rewrite. -->
+     resolves the list and drives the panes through these same hooks. Vertical is a
+     layout change, not a rewrite.
+     Observability and RAG Parameters are rendered for an admin only: the server knows
+     who is asking, so a user is never sent a tab they cannot use. -->
 <ul class="nav nav-tabs settings-nav" id="settingsTabs" role="tablist">
-    <li class="nav-item d-none admin-only" role="presentation">
+    {% if is_admin %}
+    <li class="nav-item" role="presentation">
         <a class="nav-link active" id="observability-tab" data-bs-toggle="tab" href="#observability" role="tab"
            aria-controls="observability" aria-selected="true">
             <i class="bi bi-speedometer2 me-1"></i>Observability
         </a>
     </li>
+    {% endif %}
     <li class="nav-item" role="presentation">
-        <a class="nav-link" id="appearance-tab" data-bs-toggle="tab" href="#appearance" role="tab"
-           aria-controls="appearance" aria-selected="false">
+        <a class="nav-link{% if not is_admin %} active{% endif %}" id="appearance-tab" data-bs-toggle="tab" href="#appearance" role="tab"
+           aria-controls="appearance" aria-selected="{{ 'false' if is_admin else 'true' }}">
             <i class="bi bi-palette me-1"></i>Appearance
         </a>
     </li>
@@ -35,12 +39,14 @@
             <i class="bi bi-person-lock me-1"></i>Account
         </a>
     </li>
-    <li class="nav-item d-none admin-only" role="presentation">
+    {% if is_admin %}
+    <li class="nav-item" role="presentation">
         <a class="nav-link" id="rag-tab" data-bs-toggle="tab" href="#rag-params" role="tab"
            aria-controls="rag-params" aria-selected="false">
             <i class="bi bi-sliders me-1"></i>RAG Parameters
         </a>
     </li>
+    {% endif %}
     <!-- Revealed by users.js only when the server reports the caller is an admin.
          Hiding is presentation; the routes behind it are admin-guarded regardless. -->
     <li class="nav-item d-none" role="presentation" id="users-tab-item">
@@ -64,7 +70,11 @@
     <!-- ══════════════════════════════════════════════════════════════════════
          OBSERVABILITY TAB
          ══════════════════════════════════════════════════════════════════════ -->
+    {% if is_admin %}
     <div class="tab-pane fade show active" id="observability" role="tabpanel" aria-labelledby="observability-tab">
+        {% if not stats %}
+        <p class="text-muted p-3 mb-0">Statistics are unavailable right now. Check the Logs tab, then reload.</p>
+        {% else %}
 
         <!-- Tab sub-header with refresh -->
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -378,13 +388,15 @@
             </div>
         </div>
 
+        {% endif %}
     </div><!-- /observability tab-pane -->
+    {% endif %}
 
 
     <!-- ══════════════════════════════════════════════════════════════════════
          APPEARANCE TAB
          ══════════════════════════════════════════════════════════════════════ -->
-    <div class="tab-pane fade" id="appearance" role="tabpanel" aria-labelledby="appearance-tab">
+    <div class="tab-pane fade{% if not is_admin %} show active{% endif %}" id="appearance" role="tabpanel" aria-labelledby="appearance-tab">
 
         <div class="row g-3">
             <div class="col-md-6">
@@ -509,6 +521,7 @@
     <!-- ══════════════════════════════════════════════════════════════════════
          RAG PARAMETERS TAB
          ══════════════════════════════════════════════════════════════════════ -->
+    {% if is_admin %}
     <div class="tab-pane fade" id="rag-params" role="tabpanel" aria-labelledby="rag-tab">
 
         <div class="row g-3">
@@ -659,6 +672,7 @@
         </div>
 
     </div><!-- /rag-params tab-pane -->
+    {% endif %}
 
     <!-- ══════════════════════════════════════════════════════════════════════
          USERS TAB (admin only)

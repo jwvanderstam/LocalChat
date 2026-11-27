@@ -122,9 +122,12 @@ function renderMetricsTable(data) {
     }
 }
 
-// Load on page open, refresh every 30 s
-loadMetrics();
-setInterval(() => { refreshStats(); loadMetrics(); }, 30000);
+// Load on page open, refresh every 30 s. The server renders the Observability tab for
+// an admin only; without it these calls would only collect 403s.
+if (document.getElementById('observability')) {
+    loadMetrics();
+    setInterval(() => { refreshStats(); loadMetrics(); }, 30000);
+}
 
 // ── Memory tab ────────────────────────────────────────────────────────────────
 
@@ -268,7 +271,7 @@ async function saveRagParams() {
 }
 
 // Load RAG params when the tab is shown
-document.getElementById('rag-tab').addEventListener('shown.bs.tab', loadRagParams);
+document.getElementById('rag-tab')?.addEventListener('shown.bs.tab', loadRagParams);
 
 // If arriving via /settings#rag-params, activate that tab immediately
 if (window.location.hash === '#rag-params') {
