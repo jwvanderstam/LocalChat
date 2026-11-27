@@ -1263,13 +1263,14 @@ without them.
    Worth keeping as the honest record of what reading could not find: prerequisites 5
    and 6 were predicted correctly and neither was what went red first.
 
-### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baselined 2026-11-23; held-out judge check 2026-11-25, AI-graded; human and faithfulness calibration open)
+### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baselined 2026-11-23; held-out judge check 2026-11-25, AI-graded; AI calibration accepted 2026-11-27; faithfulness calibration and missing-evidence answers open)
 
 **Driver 3** (thin RAG quality evidence). `scripts/eval_retrieval.py` scores 20 pairs on
 recall of the source; nothing measures whether the *answer* is faithful to it or cites it.
 Build a set of ≥100 question/answer/source triples on a representative private corpus;
 report recall@k and MRR, plus faithfulness and citation correctness from an LLM judge
-calibrated against a human-scored sample; run nightly with thresholds. **Acceptance:** a
+calibrated against a human-scored sample (a strong model's blind grades since
+2026-11-27; see "Calibration by a strong model" below); run nightly with thresholds. **Acceptance:** a
 baseline recorded in the repo and a regression threshold enforced. **Decides:** DEL-2
 (GraphRAG, deferred on a 20-pair run) and active learning, on these results — this is the
 re-review trigger DEL-2 named.
@@ -1358,23 +1359,38 @@ recorded and the rest continue) and resume after a kill or sleep, which had ende
   documents" when it was. The assistant also chose the cases and reworded 7 references, so
   the grader is not independent of the set. Details are in `answer_baseline.json`.
 - **`faithfulness` is uncalibrated.** It still comes from the `v2` call, and the blind grades
-  cover correctness only.
-- **The prompt's "say what the documents do not cover" is mostly ignored** (about 4 in 36
-  answers without the passage). A prompt change, measured with judge `v3`.
-- **Human calibration.** 38 of the 40 calibration grades are an AI assistant's; agreement with
-  a model is not what this ticket asks for. `calibrate --cases ... --dims correct` makes a
-  sheet a person can grade in `eval_review.html`, with the source beside each reference since
-  2026-11-25 (without it, an answer that missed a fact could not be told from a wrong
-  reference); doing so and re-running `calibrate --score` closes it. Deferred by the maintainer, 2026-10-01.
-  **Checked 2026-11-25, mostly AI-graded, so still open:** judge `v3` matched 77% of 39 answers
-  (bias +0.09): 80% of 15 graded by the maintainer, 5 of them settled after the AI assistant
-  disputed them, and 75% of 24 graded by the assistant alone. On questions `v3` was not designed
-  on it matched 68% (n=19, bias +0.16). Details are in `answer_baseline.json`.
+  cover correctness only. Closed the same way as correctness: blind grades from a strong
+  model under the rules below, then `calibrate --score`.
+- **Answers do not flag missing evidence.** The answer prompt (`api_routes.py`, rule 2) asks
+  the model, when the context answers only part of a question, to give that part and say what
+  the documents do not cover. It mostly does not: of 36 answers whose answering passage was
+  not retrieved, about 4 named a gap; the rest answered confidently from a neighbouring row,
+  another product's paragraph, or general knowledge. The opposite failure exists too: two
+  answers said "not in the documents" when it was. A prompt change, measured with judge `v3`
+  on both counts. The target is a fair trade-off, not zero: frontier models and harnesses show
+  the same behaviour, so a change is kept when it raises flagged gaps without a comparable rise
+  in false "not in the documents".
+- ~~**Human calibration.**~~ **Replaced by calibration by a strong model (decided by the
+  maintainer, 2026-11-27).** Human grading was deferred on 2026-10-01 and stayed open for its
+  tedium, not for doubt about the grades: on 2026-11-25 judge `v3` matched 77% of 39 answers
+  (bias +0.09), 80% of 15 graded by the maintainer, 5 of them settled after the AI assistant
+  disputed them, and 75% of 24 graded by the assistant alone; on questions `v3` was not
+  designed on, 68% (n=19, bias +0.16). The gap that matters is between the local judge and a
+  strong grader, not between a strong model and a person. Details are in `answer_baseline.json`.
+  **Calibration by a strong model** (Claude Opus 5.5 or later) holds to three rules:
+  1. **Blind.** The grader never sees the judge's grade — `calibrate` already hides it.
+  2. **Independent of the set.** The grader does not write or reword the references it grades
+     against: they are fixed before grading, or written in a separate session. This is the
+     objection the 2026-11-25 check carried ("the grader is not independent of the set"), and
+     a more capable grader does not remove it; the rule does.
+  3. **No routine human pass.** The maintainer reads the disagreements only when a figure moves
+     unexpectedly.
+  Grading sends corpus excerpts to the model's provider, as the earlier AI-graded sheets did.
 - **DEL-2.** GraphRAG was not compared on this corpus yet.
 - **Nightly.** Needs a machine with a model; the command is the same when there is one.
 - **A weekly answer-level eval** (moved from QP-7, 2026-11-20): a small CPU-sized model
-  against `answer_baseline.json`, reported but not blocking. It waits on the human
-  calibration above, because an uncalibrated judge gives the trend line no meaning.
+  against `answer_baseline.json`, reported but not blocking. It waits on calibrating
+  faithfulness above, because an uncalibrated judge gives the trend line no meaning.
 
 ### P2-4 — No blind `except`, no production `assert` ✅ (done 2026-09-21)
 
@@ -1972,8 +1988,8 @@ start **before** QP-4's first PR.
   was not proven refused, and nothing proved the users service never returns a hash. The
   work also found the gate filing a mutant that breaks test collection as a survivor;
   fixed. A full run is about 80 minutes, so the job's limit went from 90 to 180.
-- ➡️ (2026-11-20) The weekly answer-level eval moved to [P2-3](#p2-3--a-retrieval-evaluation-that-measures-answers-not-just-ranks--baseline-2026-09-30-human-calibration-open),
-  whose human calibration it waits on. Held here, it kept a ticket whose gates were all built
+- ➡️ (2026-11-20) The weekly answer-level eval moved to P2-3,
+  whose judge calibration it waits on. Held here, it kept a ticket whose gates were all built
   marked open for a decision that is not about gates.
 
 #### QP-8 — Release engineering ✅ (Sprint 25-26 and 29; policy and security.txt 2026-10-29, signed images 2026-10-30)
@@ -2228,7 +2244,7 @@ DP-3.
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
-| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ — open: re-baseline, a held-out judge check, and calibrating faithfulness. Found 2026-11-22 while re-baselining: the judge read only the first 6,000 characters of a context the answer model was given whole (up to 24,576), so faithfulness was graded against a cut context in every baseline so far; the fix lands with the re-baseline | 1 day |
+| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ + re-baseline ✅ 2026-11-23 (#564; the judge now sees the whole context) + held-out judge check ✅ 2026-11-25, AI-graded (#569: `answer_correct` reads about 0.15 high) + human calibration replaced by a strong model's blind grades (decided 2026-11-27) — open: calibrating faithfulness, and answers that do not flag missing evidence | 1 day |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | — | Initiative 14 (DP-0..DP-3, deployment patterns) — unscheduled (2026-11-14) | — |
 | **Status** | Sprints 1–11, 13 and 15–29 done; 12 and 14 parked; 30 open. The August estimate this row carried (~22 weeks) described a plan re-ordered twice since | — |

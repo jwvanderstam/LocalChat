@@ -59,11 +59,13 @@ and are not updated when the code moves on.
 | [Architecture decisions](ADR.md) | What was decided, and what would reopen it |
 | [Lessons learned](history/LESSONS_LEARNED.md) | How the design got here, chronologically |
 | [Roadmap](ROADMAP.md) | What is planned and in what order |
+| [Changelog](../CHANGELOG.md) | What each release changed, and why |
 | [Roadmap log](history/ROADMAP_LOG.md) | How the plan changed: sprints completed, work re-ordered |
 | [Production plan](history/PRODUCTION_PLAN.md) | The August 2026 hardening plan and its eight exit criteria, all met on 2026-08-31 |
 | [Authentication plan](history/AUTH_PLAN.md) | How local login, OIDC and the bypasses fit together |
 | [Remediation plan](history/REMEDIATION_PLAN.md) | What the September 2026 security audit found, what was decided, and where each fix landed |
 | [Test quality audit](history/TEST_QUALITY_AUDIT.md) | Why coverage percentage hid weak tests |
+| [RAG quality, November 2026](history/RAG_QUALITY_2026-11.md) | What limits answer quality — retrieval, model size, the prompt — and why the judge cannot measure it alone |
 | [n8n integration report](bugreport-n8n-localchat.md) | What broke wiring the first external client |
 | [UI design canvases](../design/README.md) | The redesign directions considered, and the one being built out |
 
