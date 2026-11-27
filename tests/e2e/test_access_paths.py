@@ -166,6 +166,30 @@ def test_an_admin_creates_a_user_with_workspace_access_and_that_user_lands_in_it
     assert [w["name"] for w in offered] == [workspace_name]
 
 
+def test_a_user_opens_settings_with_only_their_own_tabs_and_no_errors(
+        page: Page, new_context) -> None:  # noqa: ANN001 — pytest-playwright's factory
+    # It used to answer 500: R-6 stopped handing a user the admin stats, and the
+    # template still read them. Every tab is opened, so a script that stops on a
+    # missing admin element would surface here as well.
+    sign_in(page)
+    workspace_id, _ = _create_workspace(page, "settings")
+    username = _create_user(page, workspace_id, "editor")
+
+    user = new_context().new_page()
+    failures: list[str] = []
+    user.on("response", lambda r: failures.append(f"{r.status} {r.url}") if r.status >= 400 else None)
+    user.on("pageerror", lambda e: failures.append(str(e)))
+    sign_in(user, username, USER_PASSWORD)
+    user.goto("/settings")
+
+    tabs = user.locator("#settingsTabs .nav-item:not(.d-none) .nav-link")
+    expect(tabs).to_have_text(["Appearance", "Memory", "Account"])
+    for tab in tabs.all():
+        tab.click()
+    expect(user.locator("#memory-list")).to_contain_text("No memories stored yet")
+    assert failures == []
+
+
 def test_a_viewer_sees_no_upload_control_and_the_server_refuses_an_upload_anyway(
         page: Page, new_context) -> None:  # noqa: ANN001 — pytest-playwright's factory
     sign_in(page)

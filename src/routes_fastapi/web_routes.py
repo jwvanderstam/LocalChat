@@ -82,8 +82,10 @@ def settings(request: Request) -> HTMLResponse:
     # The page renders for anyone, since every user changes their own password here, but
     # the stats are what /api/settings/stats guards at admin: version, model, health and
     # installation-wide totals. Rendered for every caller, they bypassed that guard (R-6).
+    # The admin tabs are rendered for an admin only, so a user is never sent them.
+    is_admin = _caller_is_admin(request)
     stats: dict[str, Any] = {}
-    if _caller_is_admin(request):
+    if is_admin:
         try:
             from ..services.admin_stats import gather_admin_stats
             stats = gather_admin_stats(request.app.state)
@@ -97,7 +99,7 @@ def settings(request: Request) -> HTMLResponse:
         for slug in _SETTING_DOC_SLUGS
     }
     return _templates(request).TemplateResponse(
-        request, "settings.html", {"stats": stats, "setting_docs": setting_docs}
+        request, "settings.html", {"stats": stats, "is_admin": is_admin, "setting_docs": setting_docs}
     )
 
 
