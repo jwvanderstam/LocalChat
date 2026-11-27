@@ -7,305 +7,193 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jwvanderstam_LocalChat&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jwvanderstam_LocalChat)
 
 Chat with your own documents, using a language model that runs on your own hardware.
-Upload PDF, DOCX, PPTX, XLSX, TXT, Markdown, email (`.eml`), source code (`.py`, `.js`, `.ts`) or
-images; LocalChat chunks and embeds them into PostgreSQL with
-pgvector, and answers questions from what it retrieves. Nothing leaves the machine unless
-you enable web search or a cloud fallback.
 
-Built with FastAPI, Ollama, PostgreSQL + pgvector and Redis. Hybrid semantic and lexical
-retrieval, a cross-encoder reranker, tool calling, streaming answers, per-workspace
-document isolation, and RAG parameters tunable at runtime.
+Upload PDF, Word, PowerPoint, Excel, text, Markdown, email (`.eml`), source code (`.py`,
+`.js`, `.ts`) or images. LocalChat chunks and embeds them into PostgreSQL with pgvector and
+answers from what it retrieves, with citations. Nothing leaves the machine unless you turn
+on web search or a cloud fallback.
 
-> **Hardened beta, for a specific thing.** LocalChat is a single-node, self-hosted
-> appliance for a small team of up to 25 users — see [ADR-1](docs/ADR.md). All eight exit
-> criteria in the [production plan](docs/history/PRODUCTION_PLAN.md) are met and that hardening
-> gate was lifted on 2026-08-31: fail-closed boot, authorisation enforced by default in CI,
-> a concurrency budget, a mutation-tested security core, restore proven in CI, a
-> reproducible tagged release, migrations executed rather than merely written, and
-> documentation verified against the code.
->
-> It said **"production-ready"** until 2026-09-16. An external security audit that
-> September found defects those eight criteria were never going to catch — the worst of
-> them reachable by any authenticated user — and while every Critical and High finding is
-> now fixed, remediation is not finished. The remaining work is tracked in
-> [ROADMAP.md](docs/ROADMAP.md); what is knowingly accepted is listed in
-> [SECURITY.md](SECURITY.md). Read those before putting it in front of people you do not
-> already trust.
->
-> The scope is the important half of that sentence. **Multi-tenant SaaS and horizontal
-> scaling are out of scope** — running more than one replica breaks cache coherence and
-> rate limiting silently, and the debt register in [ROADMAP](docs/ROADMAP.md) says exactly
-> where. Read the criteria before relying on the label; they are a floor, not a warranty.
+**What it is for.** A single-node, self-hosted appliance for a small team, up to 25 users
+([ADR-1](docs/ADR.md)). Multi-tenant SaaS and horizontal scaling are out of scope: a second
+replica silently breaks caching and rate limiting.
+
+**Status: hardened beta.** Two external audits (September and October 2026) and a
+separate security review found real defects, some reachable by any signed-in user. Every
+finding is fixed, each with a regression test; the risks knowingly accepted are listed in
+[SECURITY.md](SECURITY.md). Read it before you put LocalChat in front of people you do not
+already trust.
 
 ---
 
 ## Quick start
 
+You need Docker with Compose. A GPU helps but is not required.
+
 ```bash
 git clone https://github.com/jwvanderstam/LocalChat
 cd LocalChat
-cp .env.example .env          # then set the six values below — compose refuses to start without them
-docker compose up -d          # PostgreSQL, Redis, Ollama and the app
+cp .env.example .env
 ```
 
-`docker-compose.yml` requires `PG_PASSWORD`, `PG_APP_PASSWORD`, `SECRET_KEY`, `JWT_SECRET_KEY`,
-`ADMIN_PASSWORD` and `ENCRYPTION_KEY` to be non-empty (`PG_APP_PASSWORD` is the login every
-request runs as; `PG_PASSWORD` only builds the schema at boot), and `.env.example` ships
-`ENCRYPTION_KEY` empty on purpose — it is a key, not a placeholder. Generate it:
+Fill in these six values in `.env`; compose refuses to start without them:
+
+| Variable | What it is |
+|---|---|
+| `PG_PASSWORD` | The database superuser; only used to build the schema at boot |
+| `PG_APP_PASSWORD` | The database login every request runs as |
+| `SECRET_KEY`, `JWT_SECRET_KEY` | Random strings of 32+ characters |
+| `ADMIN_PASSWORD` | The first admin's password, 16+ characters |
+| `ENCRYPTION_KEY` | A Fernet key, generated as shown below |
 
 ```bash
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Open <http://localhost:5000>. You will be asked to sign in.
-
-The `app` image is built on a hardened, distroless base: no shell, no package manager,
-running as uid 65532. That changes how you debug it — `docker exec ... sh` will not work;
-use `docker compose run --rm --entrypoint python app`. See
-[DEPLOYMENT.md](docs/DEPLOYMENT.md#the-application-image).
-
-**Hardened images, and running without them.** The `app` image is built on Docker
-Hardened Images from `dhi.io`: minimal bases with close to zero known CVEs, signed by
-Docker ([ADR-3](docs/ADR.md)). They are a security choice, not a dependency: LocalChat
-itself runs the same without them. Pick the path that fits:
-
-1. **Use the prebuilt image** (`linux/amd64`). It is public, needs no login, and already
-   carries the hardened base. It is signed, so
-   [verify it](docs/DEPLOYMENT.md#verifying-a-published-image) before you deploy it.
-
-   ```bash
-   docker compose pull app
-   docker compose up -d --no-build
-   ```
-
-2. **Build the image yourself.** The build pulls its base from `dhi.io`, which requires a
-   login; without one it fails with `failed to fetch anonymous token ... 401 Unauthorized`.
-   Any free Docker account works, with no subscription. Sign in with your Docker ID (the
-   username, not the email address) and a personal access token as the password, created
-   under Account settings at app.docker.com:
-
-   ```bash
-   docker login dhi.io -u <docker-id>    # paste the access token when asked for a password
-   docker compose build app
-   docker compose up -d --no-build
-   ```
-
-3. **Run without the hardened images.** Run the app on the host with Python 3.12, as
-   described in *Running the app outside Docker* below. PostgreSQL, Redis and Ollama still
-   run in Docker from their public images, so no Docker account is needed. You lose the
-   hardened container, not any feature.
-
-An error naming `dhi.io` is about that registry, not about the LocalChat image, which is
-public.
-
-**Need the hardened image and none of these work for you?** For example an ARM machine
-(the prebuilt image is `linux/amd64` only) and no Docker account. Leave a message in
-[Discussions](https://github.com/jwvanderstam/LocalChat/discussions) saying which platform
-you are on, and I will look at publishing for it.
-
-**Everything runs in Docker**, on a private network where the services address each other
-by name — the app reaches Ollama at `http://ollama:11434` and Postgres at `db`. Compose
-sets those itself, and compose's `environment:` beats `.env`, so `OLLAMA_BASE_URL`,
-`PG_HOST` and `REDIS_HOST` in your `.env` have **no effect on the containers**. Set them in
-`docker-compose.yml` (or an override file) if you need to point elsewhere. The `.env` values
-that do matter here are the secrets and tuning: `ADMIN_PASSWORD`, `SECRET_KEY`,
-`JWT_SECRET_KEY`, model names, limits.
-
-**Getting the first password.** Sign in as `admin` with the `ADMIN_PASSWORD` you set;
-first boot seeds the account from it. (Only the host-run path, `python app.py`, can leave
-it empty — the app then generates one and logs it once. Under Docker, compose requires
-the value.) Any signed-in user changes their own password under **Settings → Account**;
-changing `ADMIN_PASSWORD` later does not change the seeded account's.
-
-Then pull a chat model and an embedding model, and select the chat model under **Models** —
-without an active model, chat returns `400 No active model set`:
+Start it with the prebuilt image (public, signed, `linux/amd64`):
 
 ```bash
-docker compose exec ollama ollama pull llama3.2:latest
+docker compose pull app
+docker compose up -d --no-build
+```
+
+Pull a chat model and the embedding model:
+
+```bash
+docker compose exec ollama ollama pull qwen2.5:14b        # or llama3.2 on a small GPU or CPU
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
-The embedding model is not optional. With none installed, LocalChat falls back to embedding
-with whatever model it finds, and a chat model's vectors do not fit the 768-dimension
-column — ingest then fails.
+The embedding model is required: without it, ingest fails.
 
-Upload a document under **Documents**, and ask about it under **Chat**.
+Open <http://localhost:5000> and sign in as `admin` with your `ADMIN_PASSWORD`. Select the
+chat model under **Models**, upload a document under **Documents**, and ask about it under
+**Chat**. Change your password under **Settings → Account**; changing `ADMIN_PASSWORD`
+later does not change it.
+
+<details>
+<summary>Building the image yourself</summary>
+
+The `app` image is built on [Docker Hardened Images](docs/ADR.md) from `dhi.io`, which
+needs a login even for the free tier. Sign in with your Docker ID (not your email) and a
+personal access token from app.docker.com:
+
+```bash
+docker login dhi.io -u <docker-id>
+docker compose build app
+docker compose up -d --no-build
+```
+
+Without the login, the build fails with `failed to fetch anonymous token ... 401
+Unauthorized`. That error is about `dhi.io`, not the LocalChat image.
+
+The image has no shell and runs as uid 65532, so `docker exec ... sh` does not work. Use
+`docker compose run --rm --entrypoint python app`. See
+[DEPLOYMENT.md](docs/DEPLOYMENT.md#the-application-image).
+
+On ARM with no Docker account, neither image path works for you: run the app on the host
+(below), or ask in [Discussions](https://github.com/jwvanderstam/LocalChat/discussions)
+for an ARM build.
+</details>
 
 <details>
 <summary>Running the app outside Docker</summary>
 
-The backing services still run in Docker — only the app moves to the host, which is
-useful for a debugger or a fast edit loop.
+PostgreSQL, Redis and Ollama stay in Docker; only the app moves to the host, with Python
+3.12. Useful for a debugger or a fast edit loop, and needs no Docker account.
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env
-docker compose up -d db redis ollama   # backing services only
+docker compose up -d db redis ollama
 python app.py
 ```
 
-This is the one case where `.env`'s `localhost` URLs apply: the host process reaches the
-containers over published loopback ports, `127.0.0.1:5432` for Postgres and
-`127.0.0.1:11434` for Ollama. Both are bound to loopback, not `0.0.0.0`.
+This is the only setup where `.env`'s `localhost` URLs apply. In Docker, compose sets
+`OLLAMA_BASE_URL`, `PG_HOST` and `REDIS_HOST` itself and overrides `.env`; change them in
+`docker-compose.yml` or an override file instead.
 
-If something already owns one of those ports — a natively installed Ollama is the usual
-culprit — move the published port instead of editing `docker-compose.yml`:
-
-```bash
-OLLAMA_BIND_PORT=21434 docker compose up -d ollama
-# then in .env:  OLLAMA_BASE_URL=http://localhost:21434
-```
-
-`BIND_HOST` moves every published port at once, and `BIND_PORT` moves the app's own.
+If a port is taken (a native Ollama is the usual culprit), move it:
+`OLLAMA_BIND_PORT=21434 docker compose up -d ollama`, then set
+`OLLAMA_BASE_URL=http://localhost:21434`. `BIND_HOST` and `BIND_PORT` move the others.
 </details>
 
 ## What it does
 
-**Retrieval.** Hybrid search combines an independent semantic arm (pgvector) and a lexical
-arm (PostgreSQL tsvector), blended by weight, then reranked by a cross-encoder. GraphRAG
-can expand queries one hop through entity co-occurrences; it is off by default, and
-measured, it has not yet changed a ranking (DEL-2). Chunking preserves table structure,
-and PDF tables are extracted rather than flattened.
-
-**Answers.** Streaming responses over SSE, with tool calling, optional live web search, and
-long-term memory extracted from earlier conversations. Model routing picks a model class
-per query; a cloud model can be configured as fallback.
-
-**Isolation and access.** Documents, conversations and memories are scoped to a workspace.
-Access is role-based, both globally (admin or user) and per workspace (viewer, editor,
-owner). Workspace API keys give a bot or workflow scoped, revocable access to exactly one
-workspace.
-
-**Integrity.** Records other data refers to are never hard-deleted. A delete sets
-`deleted_at`; purging is a separate, admin-only operation with preconditions. See the
-Clark-Wilson section in [CLAUDE.md](CLAUDE.md).
-
-**Sources.** Document connectors for local folders, SharePoint, OneDrive, Google Drive
-and webhooks. Plugins — a `.py` file dropped into `plugins/` that registers LLM-callable
-tools, per [plugins/README.md](plugins/README.md). The fuller
-[plugin contract](.claude/rules/plugins.md) (services, hooks, manifest) is designed and
-not yet built; its one binding rule is that dependencies point inward.
+- **Retrieval.** Hybrid search: a semantic arm (pgvector) and a lexical arm (PostgreSQL
+  full-text), blended and then reranked by a cross-encoder. Tables are kept intact when
+  chunking. GraphRAG query expansion exists but is off: measured, it has not changed a
+  ranking yet.
+- **Answers.** Streamed, with citations, tool calling, optional web search and long-term
+  memory from earlier conversations. A cloud model can be configured as fallback.
+- **Workspaces and access.** Documents, conversations and memories belong to a workspace,
+  enforced by PostgreSQL row-level security. Roles are global (admin, user) and per
+  workspace (viewer, editor, owner). Workspace API keys give a bot scoped, revocable access
+  to one workspace.
+- **Integrity.** Records other data points to are retired, never deleted; purging is a
+  separate admin action with preconditions.
+- **Sources and plugins.** Connectors for local folders, SharePoint, OneDrive, Google Drive
+  and webhooks. Plugins add LLM tools and react to events through a manifest, services and
+  hooks; see [plugins/README.md](plugins/README.md).
 
 ## How it works
 
 ```mermaid
-flowchart TD
-    Browser["Browser / API client"]
-
-    subgraph FastAPI["FastAPI application"]
-        Routes["Routes (APIRouters)"]
-        Auth["Security — JWT · rate limit · CORS"]
-        Pydantic["Pydantic validation + sanitization"]
-        RAG["RAG pipeline — retrieval · reranking"]
-        Tools["Tool executor — function calling"]
-        SSE["SSE stream"]
-    end
-
-    subgraph Services["External services"]
-        PG["PostgreSQL + pgvector"]
-        Ollama["Ollama — LLM · embeddings"]
-        Redis["Redis — cache · rate limiting"]
-    end
-
-    Browser -->|HTTP request| Routes
-    Routes --> Auth
-    Auth --> Pydantic
-    Pydantic --> RAG
-    RAG -->|vector search| PG
-    RAG -->|embed query| Ollama
-    Pydantic --> Tools
-    Tools -->|tool-call loop| Ollama
-    Tools --> RAG
-    Ollama -->|stream tokens| SSE
-    SSE -->|text/event-stream| Browser
-    Routes -.->|cache r/w| Redis
+flowchart LR
+    Client["Browser / API client"] --> Routes["Routes<br/>auth · validation"]
+    Routes --> Services["Services<br/>rules per caller"]
+    Services --> RAG["Retrieval<br/>hybrid · rerank"]
+    Services --> Repos["Repositories<br/>all SQL"]
+    RAG --> PG[("PostgreSQL<br/>pgvector · RLS")]
+    Repos --> PG
+    RAG --> Ollama["Ollama<br/>chat · embeddings"]
+    Services -->|SSE stream| Client
+    Services -.-> Redis[("Redis<br/>cache")]
 ```
 
-A request is parsed and validated at the boundary, authorised against the workspace, then
-handed to a service. Routes hold no business logic and no SQL. Blocking work — retrieval,
-embedding, database writes — runs in a threadpool so one slow query cannot stall other
-requests.
-
-| Layer | Technology |
-|---|---|
-| Web framework | FastAPI + Uvicorn |
-| Database | PostgreSQL 16 + pgvector (psycopg3 pool) |
-| LLM | Ollama, local; cloud fallback to an OpenAI-compatible endpoint (ADR-4) |
-| Embeddings | nomic-embed-text |
-| Cache | Redis, with an in-memory fallback |
-| Auth | PyJWT (JWT), slowapi (rate limiting) |
-| Validation | Pydantic 2 |
-| Migrations | Alembic |
-| Tests | pytest + pytest-asyncio |
-
-Entry point is `app.py` → `create_app()` in `src/app_fastapi.py`. Every module is listed in
-the [module index](.claude/rules/file-map.md).
+Routes parse, authorise and hand off to a service; all SQL lives in repositories
+([ADR-7](docs/ADR.md)). FastAPI and Uvicorn serve it, psycopg3 talks to PostgreSQL 16,
+Alembic migrates it. The entry point is `app.py`; every module is listed in the
+[module index](.claude/rules/file-map.md).
 
 ## Documentation
 
-Full index: **[docs/README.md](docs/README.md)** — organised by
-[Diátaxis](https://diataxis.fr/), so what you need depends on what you are doing.
+The full index is **[docs/README.md](docs/README.md)**.
 
 | I want to… | Go to |
 |---|---|
-| Deploy this properly | [Deployment](docs/DEPLOYMENT.md), [Operations](docs/OPERATIONS.md) |
+| Deploy and run it | [Deployment](docs/DEPLOYMENT.md), [Operations](docs/OPERATIONS.md) |
 | Connect a bot or workflow | [Workspace API keys](docs/WORKSPACE_API_KEYS.md), [Discord via n8n](docs/n8n-discord-setup.md) |
 | Look up a setting | [Configuration](docs/CONFIGURATION.md), [RAG settings](docs/SETTINGS.md) |
-| Understand a decision | [ADRs](docs/ADR.md), [Lessons learned](docs/history/LESSONS_LEARNED.md) |
-| Fix something broken | [Troubleshooting](docs/TROUBLESHOOTING.md) |
-| Contribute code | [CLAUDE.md](CLAUDE.md) and [.claude/rules/](.claude/rules/) |
+| Fix something | [Troubleshooting](docs/TROUBLESHOOTING.md) |
+| Understand a decision | [ADRs](docs/ADR.md) |
+| See what is next | [Roadmap](docs/ROADMAP.md), [Changelog](CHANGELOG.md) |
 
-The API is documented live at `/api/docs/` (Swagger UI), and the same documentation is
-browsable inside the application under **Docs**.
+The API is documented live at `/api/docs/`, and these docs are readable in the app under
+**Docs**.
 
 ## Development
 
 ```bash
-ruff check .                                 # lint — the whole tree, as CI does
-mypy src --ignore-missing-imports            # types
-bandit -r src/ -ll -q -c pyproject.toml      # security
-lint-imports                                 # layer contracts (ADR-7)
-pytest -m "not (slow or ollama or db)"       # fast suite, no external services
+pip install -r requirements-dev.txt
+ruff check .
+mypy src --ignore-missing-imports
+bandit -r src/ -ll -q -c pyproject.toml
+lint-imports
+pytest -m "not (slow or ollama or db)"     # the fast suite; no Ollama or database needed
 ```
 
-All five must be clean before a commit; CI enforces the same set. Merging to `main`
-requires **nine** checks to pass: `unit-tests`, `integration-tests`, `repo-hygiene`,
-`docker-smoke`, `perf-canary`, `security-smoke`, `e2e`, `retrieval-gate` and
-`core-without-plugins`. Merging is a human decision; auto-merge is off deliberately. Read
-the set back with `gh api repos/jwvanderstam/LocalChat/rulesets/14700924`, not from the
-settings UI. CLAUDE.md gives the reason for each.
-
-**Current state:** 4,036 tests collected on `a04da4d`. CI's `unit-tests` job runs
-`tests/unit`: 3,507 passed in under 10 minutes; a laptop takes about twice that. Coverage of
-`src/`, unit and integration combined with nothing excluded, is **87.83%**, and CI fails
-under 85.8%. `integration-tests` ran 519 passed and 1 skipped against PostgreSQL in the same
-run, and `tests/e2e/` drives a real browser. None of them needs a live Ollama, since every
-model call in the suite goes to `tests/utils/fake_ollama.py`. Every number here was read
-from the CI run on 2026-11-08 rather than remembered. See exit criterion 7 in
-[PRODUCTION_PLAN](docs/history/PRODUCTION_PLAN.md).
-
-**Mutation testing** runs every night, not per PR. It covers `src/security_fastapi.py`,
-`src/utils/workspace.py` and, since QP-7, the service layer, and fails under an 80% kill rate.
-Scores per module are in the testing rules. How to run it and read it:
-[testing rules](.claude/rules/testing.md#mutation-testing).
-
-Notable changes per release are in [CHANGELOG.md](CHANGELOG.md).
-
-Coding standards live in [.claude/rules/](.claude/rules/): [architecture](.claude/rules/architecture.md),
-[Python](.claude/rules/python.md), [testing](.claude/rules/testing.md),
-[plugins](.claude/rules/plugins.md).
+All five must pass before a commit. `main` is protected: nine CI checks must pass, among
+them integration tests against PostgreSQL, a boot of the hardened image, an attack on the
+shipped compose stack and a browser suite, and merging is always a human decision. A
+mutation-testing gate runs nightly over the security core and the services.
+[CLAUDE.md](CLAUDE.md) and [.claude/rules/](.claude/rules/) hold the standards;
+[CONTRIBUTING.md](CONTRIBUTING.md) covers releases and security review.
 
 ## Security
 
-Report vulnerabilities per [SECURITY.md](SECURITY.md). Route-by-route permissions are
-documented in [PERMISSIONS.md](docs/PERMISSIONS.md).
-
-Two properties worth knowing when reading logs or API errors: every user-controlled value
-that reaches a log record passes through `sanitize_log_value`, which strips control
-characters, the Unicode line separators and ESC so a crafted filename cannot forge a log
-record or drive the terminal of whoever reads it; and API error bodies return fixed
-messages, never exception text.
+Report vulnerabilities as described in [SECURITY.md](SECURITY.md), which also lists the
+risks knowingly accepted. Each route's minimum role is in
+[PERMISSIONS.md](docs/PERMISSIONS.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT; see [LICENSE](LICENSE).

@@ -1972,7 +1972,7 @@ start **before** QP-4's first PR.
   was not proven refused, and nothing proved the users service never returns a hash. The
   work also found the gate filing a mutant that breaks test collection as a survivor;
   fixed. A full run is about 80 minutes, so the job's limit went from 90 to 180.
-- ➡️ (2026-11-20) The weekly answer-level eval moved to [P2-3](#p2-3--a-retrieval-evaluation-that-measures-answers-not-just-ranks--baseline-2026-09-30-human-calibration-open),
+- ➡️ (2026-11-20) The weekly answer-level eval moved to P2-3,
   whose human calibration it waits on. Held here, it kept a ticket whose gates were all built
   marked open for a decision that is not about gates.
 
@@ -2228,7 +2228,7 @@ DP-3.
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
-| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ — open: re-baseline, a held-out judge check, and calibrating faithfulness. Found 2026-11-22 while re-baselining: the judge read only the first 6,000 characters of a context the answer model was given whole (up to 24,576), so faithfulness was graded against a cut context in every baseline so far; the fix lands with the re-baseline | 1 day |
+| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ + re-baseline ✅ 2026-11-23 (#564; the judge now sees the whole context) + held-out judge check ✅ 2026-11-25, AI-graded (#569: `answer_correct` reads about 0.15 high) — open: human calibration, calibrating faithfulness, and the prompt's ignored "say what the documents do not cover" | 1 day |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | — | Initiative 14 (DP-0..DP-3, deployment patterns) — unscheduled (2026-11-14) | — |
 | **Status** | Sprints 1–11, 13 and 15–29 done; 12 and 14 parked; 30 open. The August estimate this row carried (~22 weeks) described a plan re-ordered twice since | — |

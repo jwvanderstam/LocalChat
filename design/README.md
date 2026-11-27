@@ -43,7 +43,6 @@ title, and it was removed rather than kept as decoration.
 
 ## Status
 
-The direction is settled; nothing here is implemented. Adopting it means
-rewriting `static/css/style.css` and the four templates, which is not scheduled
-and belongs behind the [PRODUCTION_PLAN](../docs/history/PRODUCTION_PLAN.md) exit
-criteria like every other non-defect change.
+Implemented. The visual layer shipped in #322, the chat screen's structure in #323,
+and Documents and Models in #332. The canvases stay as the decision record; when the
+UI and a canvas disagree, the UI is current.
