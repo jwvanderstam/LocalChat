@@ -46,7 +46,7 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 | Validation | Pydantic v2 |
 | Auth / security | PyJWT (JWT), slowapi (rate limiting), Starlette CORSMiddleware |
 | Caching | Redis or in-memory fallback |
-| ML / NLP | spaCy (GraphRAG, off by default), cross-encoder reranker (on by default) |
+| ML / NLP | cross-encoder reranker (on by default) |
 | Linter | `ruff` |
 | Tests | pytest + pytest-asyncio (`asyncio_mode = "auto"`) + pytest-cov; pytest-playwright for `tests/e2e` (browser installed separately: `playwright install chromium`) |
 
@@ -72,7 +72,6 @@ via `OLLAMA_BIND_PORT`). That is when `.env`'s `localhost` URLs apply. See
 | `src/db/` | All SQL — one repository class per aggregate, held on `Database` (`db.documents`, `db.users`, …) |
 | `src/agent/` | Model routing, parallel tool dispatch, result tracing |
 | `src/tools/` | Function-calling loop, tool registry, built-ins, plugin loader |
-| `src/graph/` | GraphRAG: entity extraction, 1-hop query expansion |
 | `src/memory/` | Long-term memory extraction + vector retrieval |
 | `src/connectors/` | Document sources: local folder, SharePoint, OneDrive, Google Drive, webhook |
 | `src/cache/` | Multi-backend caching with TTLs |

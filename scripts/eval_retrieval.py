@@ -1,11 +1,11 @@
-"""DEL-2 — measure retrieval quality against a fixed set of question/source pairs.
+"""Measure retrieval quality against a fixed set of question/source pairs.
 
-The ticket asks whether GraphRAG's 1-hop expansion earns its place. That is not
-a question inspection can answer, and it is not a question a single anecdote can
-answer either: it needs the same questions asked of the same corpus with the
-feature on and off, and a number at the end.
+Written for DEL-2, which asked whether GraphRAG's 1-hop expansion earned its place;
+it never measurably did, and was removed on 2026-11-27. `--compare reranker` asks
+the same question of the reranker: the same questions, the same corpus, the
+feature off and on, and a number at the end.
 
-    python scripts/eval_retrieval.py --ingest --compare graph
+    python scripts/eval_retrieval.py --ingest --compare reranker
 
 What it measures, per configuration:
 
@@ -34,17 +34,10 @@ It has two uses, and they answer different questions.
 
   The stub embeds text as a bag of words, so with the model held fixed any
   movement in the score was caused by the diff — the hybrid blend, chunking,
-  the lexical arm, filters, expansion. The comparison against
+  the lexical arm, filters. The comparison against
   tests/eval/baseline.json is exact. Blind to semantics beyond word overlap and
   to embedding-model changes, which stay with P2-3.
 
-`--compare graph` has a trap worth knowing about. GRAPH_RAG_ENABLED governs two
-different things: entity extraction *at ingest*, and 1-hop expansion *at query
-time*. This script can only flip the second, because the first already happened.
-So the corpus must be ingested with GRAPH_RAG_ENABLED=true, or the "on" arm
-expands against an empty entity table, scores identically to "off", and the
-comparison quietly returns the answer "no effect" no matter what the truth is —
-a rigged verdict that looks like a measurement.
 """
 
 from __future__ import annotations
@@ -247,32 +240,6 @@ def score(cases: list[Case], top_k: int, workspace_id: str | None) -> dict[str, 
     }
 
 
-def graph_expansion_reach(cases: list[Case]) -> tuple[int, int]:
-    """How many of the questions the expander actually adds terms to.
-
-    Checking that entities *exist* is not enough, and finding that out cost a
-    wrong verdict: with 76 entities stored, the on/off comparison still came
-    back at exactly +0.000 on all three metrics — because 0 of 20 questions
-    matched an indexed entity, so expansion never contributed a single term.
-    A delta of zero then means "never ran", not "did not help", and the two
-    are indistinguishable in the score.
-
-    The entities extracted from prose about software are codenames — SEC-1,
-    RBAC-1, PG-0, LESSONS_LEARNED — and a natural-language question contains
-    none of them. That is a real limit on the feature's reach, but it is not
-    the question DEL-2 asks.
-    """
-    try:
-        from src.db import db
-        from src.graph.expander import QueryExpander
-
-        expander = QueryExpander()
-        fired = sum(1 for c in cases if expander.expand(c.question, db))
-        return fired, len(cases)
-    except Exception:  # noqa: BLE001 — no graph, no reach
-        return 0, len(cases)
-
-
 def report(label: str, result: dict[str, Any], show_misses: bool) -> None:
     print(f"\n  {label}")
     print(f"    recall@1  {result['recall@1']:6.1%}")
@@ -350,27 +317,6 @@ def compare_to_baseline(current: dict[str, Any], baseline: dict[str, Any]) -> li
     return problems
 
 
-REFUSAL = """
-Query expansion adds no terms to any question, so an on/off comparison would
-score identically and report +0.000 - which reads as "the feature does not
-help" when it means "the feature never ran".
-
-Two causes, in order of likelihood:
-
-  1. The corpus was ingested with GRAPH_RAG_ENABLED off, so no entities exist.
-     The flag governs extraction at ingest as well as expansion at query time.
-     Re-run with it on and --ingest, and check spaCy's en_core_web_sm is
-     installed: without it extraction is skipped silently and the ingest still
-     reports success.
-
-  2. The questions share no vocabulary with the indexed entities, which is what
-     happens to natural-language questions over prose whose entities are
-     codenames.
-
-Refusing: a verdict on DEL-2 needs the feature to have actually run.
-"""
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES)
@@ -379,7 +325,7 @@ def main() -> int:
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--ingest", action="store_true",
                         help="ingest the corpus before scoring")
-    parser.add_argument("--compare", choices=["graph", "reranker"],
+    parser.add_argument("--compare", choices=["reranker"],
                         help="score twice, with the feature off and on, and print the delta")
     parser.add_argument("--misses", action="store_true", help="list the questions that missed")
     parser.add_argument("--fake-ollama", action="store_true",
@@ -439,17 +385,7 @@ def _run(args: argparse.Namespace) -> int:
 
     # Both arms are read from config at call time, so flipping the module
     # attribute is what a deployment flipping the env var would do.
-    flag = {"graph": "GRAPH_RAG_ENABLED", "reranker": "RERANKER_ENABLED"}[args.compare]
-
-    # Refuse a comparison that cannot say anything. With no entities stored, the
-    # "on" arm expands against nothing and ties with "off" — which reads as
-    # "the feature does not help" when it in fact was never exercised.
-    if args.compare == "graph":
-        fired, total = graph_expansion_reach(cases)
-        print(f"  expansion fires on {fired}/{total} questions")
-        if fired == 0:
-            print(REFUSAL)
-            return 1
+    flag = "RERANKER_ENABLED"
 
     original = getattr(config, flag)
     results = {}

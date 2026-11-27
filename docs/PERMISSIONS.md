@@ -81,11 +81,11 @@ Global `admin` short-circuits every workspace check, so an admin passes all `ws:
 |---|---|
 | **admin** | 34 |
 | public | 21 |
-| ws:viewer | 21 |
+| ws:viewer | 20 |
 | ws:owner | 20 |
 | ws:editor | 11 |
 | authenticated | 9 |
-| **Total** | **116** |
+| **Total** | **115** |
 
 Before RBAC-2, **49 of these 102 had no check at all** — including `POST /api/models/pull`,
 `DELETE /api/models/delete` and `POST /api/plugins/reload`, none of which did an internal
@@ -224,7 +224,6 @@ These 21 are unauthenticated **by decision**, each for a stated reason:
 | `workspace` | DELETE | `/workspaces/{workspace_id}/members/{user_id}` | ws:owner |
 | `workspace` | GET | `/workspaces/{workspace_id}/presence` | ws:viewer |
 | `workspace` | GET | `/workspaces/{workspace_id}/suggestions` | ws:viewer |
-| `workspace` | GET | `/workspaces/{workspace_id}/ontology` | ws:viewer |
 | `workspace` | GET | `/workspaces/{workspace_id}/keys` | ws:owner |
 | `workspace` | POST | `/workspaces/{workspace_id}/keys` | ws:owner |
 | `workspace` | DELETE | `/workspaces/{workspace_id}/keys/{key_id}` | ws:owner |

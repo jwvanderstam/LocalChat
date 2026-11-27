@@ -287,7 +287,6 @@ def api_status(request: Request, chat_svc: Chat) -> Any:
             "model_router": config.MODEL_ROUTER_ENABLED,
             "aggregator_agent": config.AGGREGATOR_AGENT_ENABLED,
             "mcp": config.MCP_ENABLED,
-            "graph_rag": config.GRAPH_RAG_ENABLED,
             "long_term_memory": config.LONG_TERM_MEMORY_ENABLED,
         },
     }

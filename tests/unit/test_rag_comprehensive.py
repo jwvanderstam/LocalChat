@@ -81,18 +81,16 @@ def sample_chunks():
 @pytest.fixture
 def mock_db():
     """Mock database for testing."""
-    with patch('src.rag.processor.db') as mock_proc_db, \
-         patch('src.rag.retrieval.db') as mock_ret_db:
-        for mock_database in [mock_proc_db, mock_ret_db]:
-            mock_database.documents.insert.return_value = 1
-            mock_database.documents.insert_chunks.return_value = None
-            mock_database.documents.search_similar.return_value = [
-                ("chunk text 1", "doc1.pdf", 0, 0.95, {}, 1),
-                ("chunk text 2", "doc1.pdf", 1, 0.87, {}, 2),
-                ("chunk text 3", "doc2.pdf", 0, 0.82, {}, 3)
-            ]
-            mock_database.documents.exists.return_value = (False, {})
-            mock_database.is_connected = True
+    with patch('src.rag.processor.db') as mock_proc_db:
+        mock_proc_db.documents.insert.return_value = 1
+        mock_proc_db.documents.insert_chunks.return_value = None
+        mock_proc_db.documents.search_similar.return_value = [
+            ("chunk text 1", "doc1.pdf", 0, 0.95, {}, 1),
+            ("chunk text 2", "doc1.pdf", 1, 0.87, {}, 2),
+            ("chunk text 3", "doc2.pdf", 0, 0.82, {}, 3)
+        ]
+        mock_proc_db.documents.exists.return_value = (False, {})
+        mock_proc_db.is_connected = True
         yield mock_proc_db
 
 

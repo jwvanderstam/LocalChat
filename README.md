@@ -120,8 +120,7 @@ If a port is taken (a native Ollama is the usual culprit), move it:
 
 - **Retrieval.** Hybrid search: a semantic arm (pgvector) and a lexical arm (PostgreSQL
   full-text), blended and then reranked by a cross-encoder. Tables are kept intact when
-  chunking. GraphRAG query expansion exists but is off: measured, it has not changed a
-  ranking yet.
+  chunking.
 - **Answers.** Streamed, with citations, tool calling, optional web search and long-term
   memory from earlier conversations. A cloud model can be configured as fallback.
 - **Workspaces and access.** Documents, conversations and memories belong to a workspace,

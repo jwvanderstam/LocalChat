@@ -86,7 +86,6 @@ python-pptx==1.0.2
 reportlab==5.1.1             # PDF export for conversation download (optional)
 openpyxl==3.1.5         # Excel (.xlsx) ingestion
 h11==0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
-spacy==3.8.18      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
 
 # Encryption — OAuth token at-rest encryption
 cryptography==50.0.2

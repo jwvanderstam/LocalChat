@@ -731,7 +731,7 @@ jobs:
       - name: Native extensions import without a package manager
         run: |
           docker run --rm --entrypoint python localchat:smoke -c '
-          import psycopg, onnxruntime, torch, spacy, sentence_transformers
+          import psycopg, onnxruntime, torch, sentence_transformers
           print("psycopg", psycopg.__version__, "| onnxruntime", onnxruntime.__version__)
           # P2-5: the app container has no GPU; a CUDA torch is gigabytes of dead weight.
           assert torch.version.cuda is None, f"CUDA torch in the image: {torch.__version__}"

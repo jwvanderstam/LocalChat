@@ -362,7 +362,6 @@ class TestStreamChatResponseTemperature:
                 cfg.PLUGINS_ENABLED = False
                 cfg.CLOUD_REFUSAL_PATTERNS = []
                 cfg.TOP_K_RESULTS = 5
-                cfg.GRAPH_RAG_ENABLED = False
                 cfg.DEFAULT_TEMPERATURE = 0.7
                 # chat.py reads from its own config reference
                 chat_cfg.WEB_SEARCH_ENABLED = False

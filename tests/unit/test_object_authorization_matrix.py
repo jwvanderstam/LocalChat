@@ -80,8 +80,6 @@ SCOPED_METHODS = {
     "conversations.retire_all",
     "conversations.low_confidence_queries",
     "connectors.list_all",
-    "entities.workspace_ontology",
-    "entities.related_names",
     "memories.search",
     "memories.is_duplicate",
     "memories.list_page",

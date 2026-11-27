@@ -1399,7 +1399,7 @@ recorded and the rest continue) and resume after a kill or sleep, which had ende
   3. **No routine human pass.** The maintainer reads the disagreements only when a figure moves
      unexpectedly.
   Grading sends corpus excerpts to the model's provider, as the earlier AI-graded sheets did.
-- **DEL-2.** GraphRAG was not compared on this corpus yet.
+- ~~**DEL-2.**~~ **Decided 2026-11-27 by the maintainer: GraphRAG removed.** Two corpora and four runs measured +0.000 on every metric, with expansion reaching at most 2 questions in 20. The three cheap fixes recorded in `PRODUCTION_PLAN` were not tried: the remaining answer-quality limit is retrieval reaching the right passage, which 1-hop expansion does not target, and an unused subsystem costs more than its recovery from git would. `src/graph/`, its repository, the ontology endpoint, `GRAPH_RAG_ENABLED` and spaCy went; the `entities` and `entity_relations` tables stay, unused, since migrations are additive.
 - **Nightly.** Needs a machine with a model; the command is the same when there is one.
 - **A weekly answer-level eval** (moved from QP-7, 2026-11-20): a small CPU-sized model
   against `answer_baseline.json`, reported but not blocking. The calibration it waited on is
@@ -2139,8 +2139,8 @@ change of default behaviour. Each is measured with `scripts/eval_answers.py` aga
      question matches a summary and a narrow one a chunk. Builds on RF-2's heading path.
   4. **Map-reduce over a selection,** for the *Overview* mode: a partial answer per document,
      then one combined. Complete and checkable, slow and costly; a report, not a chat turn.
-  5. **GraphRAG community summaries** (global search). Today's GraphRAG is spaCy entities and
-     1-hop query expansion, off by default, with no communities. Only worth it when the
+  5. **GraphRAG community summaries** (global search). The spaCy-entity GraphRAG with 1-hop
+     query expansion was removed on 2026-11-27 (DEL-2), so this starts from nothing. Only worth it when the
      questions are about connections across many documents: indexing cost and keeping the
      summaries current on every change are the main objections.
   Open before anything is built: whether overview questions are frequent enough to earn

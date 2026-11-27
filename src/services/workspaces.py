@@ -89,9 +89,6 @@ class WorkspacesService:
         with purge_refusals("Workspace"):
             return self._db.workspaces.purge(workspace_id)
 
-    def ontology(self, top_n: int, scope: Scope) -> dict[str, Any]:
-        return self._db.entities.workspace_ontology(top_n=top_n, scope=scope)
-
     def suggestions(self, scope: Scope, top_k: int) -> list[str]:
         """Topics the workspace's low-confidence questions point at, but no document covers."""
         from ..rag.active_learning import suggest_documents

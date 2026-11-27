@@ -394,11 +394,10 @@ class TestReranking:
 class TestRAGIntegration:
     """Integration tests for RAG pipeline."""
 
-    @patch('src.rag.retrieval.db')
     @patch('src.rag.retrieval.ollama_client')
     @patch('src.rag.processor.db')
     @patch('src.rag.processor.ollama_client')
-    def test_complete_rag_workflow(self, mock_proc_ollama, mock_proc_db, mock_retr_ollama, mock_retr_db, sample_txt_path):
+    def test_complete_rag_workflow(self, mock_proc_ollama, mock_proc_db, mock_retr_ollama, sample_txt_path):
         """Should handle complete RAG workflow."""
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
@@ -407,7 +406,6 @@ class TestRAGIntegration:
         mock_proc_db.documents.exists.return_value = (False, None)
         mock_proc_db.documents.insert.return_value = 1
         mock_proc_db.documents.insert_chunks.return_value = None
-        mock_retr_db.documents.search_similar.return_value = generate_mock_search_results(5)
         mock_proc_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_proc_ollama.generate_embeddings_batch.side_effect = lambda model, texts: [generate_mock_embedding() for _ in texts]
         mock_retr_ollama.get_embedding_model.return_value = "nomic-embed-text"
@@ -463,16 +461,14 @@ class TestRAGEdgeCases:
 
         assert embeddings == []
 
-    @patch('src.rag.retrieval.db')
     @patch('src.rag.retrieval.ollama_client')
-    def test_retrieve_context_empty_query(self, mock_ollama, mock_db):
+    def test_retrieve_context_empty_query(self, mock_ollama):
         """Should handle empty query."""
         from src.rag import DocumentProcessor
         processor = DocumentProcessor()
 
         mock_ollama.get_embedding_model.return_value = "nomic-embed-text"
         mock_ollama.generate_embedding.return_value = (True, generate_mock_embedding())
-        mock_db.documents.search_similar.return_value = []
 
         results = processor.retrieve_context("", scope=ALL_WORKSPACES)
 
