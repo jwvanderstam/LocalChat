@@ -1263,7 +1263,7 @@ without them.
    Worth keeping as the honest record of what reading could not find: prerequisites 5
    and 6 were predicted correctly and neither was what went red first.
 
-### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baselined 2026-11-23; held-out judge check 2026-11-25, AI-graded; AI calibration accepted 2026-11-27; faithfulness calibration and missing-evidence answers open)
+### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baselined 2026-11-23; held-out judge check 2026-11-25, AI-graded; AI calibration accepted and faithfulness calibrated 2026-11-27; missing-evidence answers open)
 
 **Driver 3** (thin RAG quality evidence). `scripts/eval_retrieval.py` scores 20 pairs on
 recall of the source; nothing measures whether the *answer* is faithful to it or cites it.
@@ -1358,16 +1358,22 @@ recorded and the rest continue) and resume after a kill or sleep, which had ende
   it (a neighbouring row of a spreadsheet, another product's paragraph); two said "not in the
   documents" when it was. The assistant also chose the cases and reworded 7 references, so
   the grader is not independent of the set. Details are in `answer_baseline.json`.
-- **`faithfulness` is uncalibrated.** It still comes from the `v2` call, and the blind grades
-  cover correctness only. Closed the same way as correctness: blind grades from a strong
-  model under the rules below, then `calibrate --score`.
+- ~~**`faithfulness` is uncalibrated.**~~ **Calibrated 2026-11-27, AI-graded under the rules
+  below.** On 20 answers from the 2026-11-23 run, graded blind with every specific claim checked
+  against the context, the `v2` call matched 74% (n=19, within one step 89%, bias -0.08): the
+  grader reads 0.95 where the judge reads 0.87. The errors go both ways. It gave full marks to
+  both answers that added a detail the context does not hold, and graded three faithful answers
+  down, one of them a true "I don't have that information", which its own prompt calls
+  faithful. So `faithfulness` is roughly right on average and unreliable case by case, and it
+  cannot measure the item below. Details are in `answer_baseline.json`.
 - **Answers do not flag missing evidence.** The answer prompt (`api_routes.py`, rule 2) asks
   the model, when the context answers only part of a question, to give that part and say what
   the documents do not cover. It mostly does not: of 36 answers whose answering passage was
   not retrieved, about 4 named a gap; the rest answered confidently from a neighbouring row,
   another product's paragraph, or general knowledge. The opposite failure exists too: two
-  answers said "not in the documents" when it was. A prompt change, measured with judge `v3`
-  on both counts. The target is a fair trade-off, not zero: frontier models and harnesses show
+  answers said "not in the documents" when it was. A prompt change, measured on both counts
+  by blind grades from a strong model rather than the judge, whose `faithfulness` marks a true
+  "not in the documents" down. The target is a fair trade-off, not zero: frontier models and harnesses show
   the same behaviour, so a change is kept when it raises flagged gaps without a comparable rise
   in false "not in the documents".
 - ~~**Human calibration.**~~ **Replaced by calibration by a strong model (decided by the
@@ -1389,8 +1395,8 @@ recorded and the rest continue) and resume after a kill or sleep, which had ende
 - **DEL-2.** GraphRAG was not compared on this corpus yet.
 - **Nightly.** Needs a machine with a model; the command is the same when there is one.
 - **A weekly answer-level eval** (moved from QP-7, 2026-11-20): a small CPU-sized model
-  against `answer_baseline.json`, reported but not blocking. It waits on calibrating
-  faithfulness above, because an uncalibrated judge gives the trend line no meaning.
+  against `answer_baseline.json`, reported but not blocking. The calibration it waited on is
+  done (2026-11-27); like the nightly run, it now waits on a machine with a model.
 
 ### P2-4 — No blind `except`, no production `assert` ✅ (done 2026-09-21)
 
@@ -2244,7 +2250,7 @@ DP-3.
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
-| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ + re-baseline ✅ 2026-11-23 (#564; the judge now sees the whole context) + held-out judge check ✅ 2026-11-25, AI-graded (#569: `answer_correct` reads about 0.15 high) + human calibration replaced by a strong model's blind grades (decided 2026-11-27) — open: calibrating faithfulness, and answers that do not flag missing evidence | 1 day |
+| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ + re-baseline ✅ 2026-11-23 (#564; the judge now sees the whole context) + held-out judge check ✅ 2026-11-25, AI-graded (#569: `answer_correct` reads about 0.15 high) + human calibration replaced by a strong model's blind grades (decided 2026-11-27) + faithfulness calibrated ✅ 2026-11-27 (-0.08 bias, errors both ways) — open: answers that do not flag missing evidence | 1 day |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | — | Initiative 14 (DP-0..DP-3, deployment patterns) — unscheduled (2026-11-14) | — |
 | **Status** | Sprints 1–11, 13 and 15–29 done; 12 and 14 parked; 30 open. The August estimate this row carried (~22 weeks) described a plan re-ordered twice since | — |
