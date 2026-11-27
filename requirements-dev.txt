@@ -18,11 +18,11 @@ click==8.5.0
     # via
     #   -c requirements.txt
     #   import-linter
-coverage[toml]==7.17.3
+coverage[toml]==7.17.5
     # via
     #   -r requirements-dev.in
     #   pytest-cov
-faker==40.54.0
+faker==40.63.0
     # via -r requirements-dev.in
 freezegun==1.5.5
     # via -r requirements-dev.in
@@ -34,7 +34,7 @@ idna==3.19
     # via
     #   -c requirements.txt
     #   requests
-import-linter==2.16
+import-linter==2.17
     # via -r requirements-dev.in
 iniconfig==2.3.0
     # via pytest
