@@ -19,6 +19,13 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   prompt and the prompt-injection rule are unchanged. **Upgrading:** answers are longer, so they
   take longer to stream.
 
+- **An answer says when the documents do not state the fact asked for.** Most wrong answers
+  found the right document and used the wrong part of it: a neighbouring row of a spreadsheet,
+  another product's paragraph. The RAG prompt now tells the model to check that a value is
+  stated for exactly what was asked, and otherwise to say which part the documents do not
+  state. On the evaluation corpus, three confidently wrong answers became honest ones; one
+  correct answer also gained an unneeded "I don't have that information".
+
 ### Fixed
 
 - **Settings opens for users who are not admins.** Since v3.4.0 the page answered 500 to every

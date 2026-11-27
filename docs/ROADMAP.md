@@ -1263,7 +1263,7 @@ without them.
    Worth keeping as the honest record of what reading could not find: prerequisites 5
    and 6 were predicted correctly and neither was what went red first.
 
-### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baselined 2026-11-23; held-out judge check 2026-11-25, AI-graded; AI calibration accepted and faithfulness calibrated 2026-11-27; missing-evidence answers open)
+### P2-3 — A retrieval evaluation that measures answers, not just ranks ◐ (baseline 2026-09-30; judge v3 2026-11-21; re-baselined 2026-11-23; held-out judge check 2026-11-25, AI-graded; AI calibration accepted, faithfulness calibrated and the missing-evidence prompt changed 2026-11-27)
 
 **Driver 3** (thin RAG quality evidence). `scripts/eval_retrieval.py` scores 20 pairs on
 recall of the source; nothing measures whether the *answer* is faithful to it or cites it.
@@ -1366,16 +1366,23 @@ recorded and the rest continue) and resume after a kill or sleep, which had ende
   down, one of them a true "I don't have that information", which its own prompt calls
   faithful. So `faithfulness` is roughly right on average and unreliable case by case, and it
   cannot measure the item below. Details are in `answer_baseline.json`.
-- **Answers do not flag missing evidence.** The answer prompt (`api_routes.py`, rule 2) asks
-  the model, when the context answers only part of a question, to give that part and say what
-  the documents do not cover. It mostly does not: of 36 answers whose answering passage was
-  not retrieved, about 4 named a gap; the rest answered confidently from a neighbouring row,
-  another product's paragraph, or general knowledge. The opposite failure exists too: two
-  answers said "not in the documents" when it was. A prompt change, measured on both counts
-  by blind grades from a strong model rather than the judge, whose `faithfulness` marks a true
-  "not in the documents" down. The target is a fair trade-off, not zero: frontier models and harnesses show
-  the same behaviour, so a change is kept when it raises flagged gaps without a comparable rise
-  in false "not in the documents".
+- ~~**Answers do not flag missing evidence.**~~ **Prompt changed 2026-11-27, kept as a fair
+  trade-off.** Rule 2 of the answer prompt (`api_routes.py`) now tells the model to check that
+  the context states the fact for exactly what was asked (the same item, product, region,
+  period or row), to treat a value stated for something else as no answer, and to say in one
+  sentence which part the documents do not state. The failure it targets: of the answers whose
+  passage was not retrieved, most answered confidently from a neighbouring row, another
+  product's paragraph, or general knowledge. Measured on all 105 cases with `qwen2.5:14b` and
+  retrieval unchanged, every changed answer read blind by a strong model. Among the 38 without
+  the passage, answers naming a gap rose from 11 to 14 by the same pattern, and three that were
+  confidently wrong became honest (one had named the wrong person for a ticket; it now says no
+  exact match and names the neighbouring entries). Among the 67 with the passage, one answer
+  that gave the right fact now also ends with "I don't have that information", and one
+  misreads the passage in a new way; a second new refusal was already a non-answer. The judge
+  reads `answer_correct` 0.781 (was 0.808) and `faithfulness` 0.835 (was 0.792), within the
+  baseline's tolerance; its correctness drop is mostly the honest answers, which it grades
+  below the confident wrong ones it replaced. The target was never zero: frontier models and
+  harnesses show the same behaviour.
 - ~~**Human calibration.**~~ **Replaced by calibration by a strong model (decided by the
   maintainer, 2026-11-27).** Human grading was deferred on 2026-10-01 and stayed open for its
   tedium, not for doubt about the grades: on 2026-11-25 judge `v3` matched 77% of 39 answers
@@ -2250,10 +2257,10 @@ DP-3.
 | 25-27 | QP-4 (one aggregate per PR; CONN-1 decided before connectors) ✅ alongside QP-7 + QP-8 | ~12 days (weeks 4-9) |
 | 28 | QP-5 (scope every path, compose `DocumentProcessor`; `Database` stays) ✅ + QP-9 (agent review) ✅ -> **v3.4.0** (the review's fixes); the re-audit moves to **v3.5.0**, once QP-7's required checks and QP-8's signed images hold | ~1 week (weeks 10-12) |
 | 29 | QP-8's signed images ✅ + strict typing on every service ✅ -> **v3.5.0** ✅ 2026-10-31, re-audit; then QP-10 ✅ (#521, #524-#529) and QP-11 ✅ #523 -> **v3.6.0** | ~1 week |
-| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ + re-baseline ✅ 2026-11-23 (#564; the judge now sees the whole context) + held-out judge check ✅ 2026-11-25, AI-graded (#569: `answer_correct` reads about 0.15 high) + human calibration replaced by a strong model's blind grades (decided 2026-11-27) + faithfulness calibrated ✅ 2026-11-27 (-0.08 bias, errors both ways) — open: answers that do not flag missing evidence | 1 day |
+| 30 | Answer quality from P2-3's findings: #556 (complete answers, not concise) ✅ + #558 (office formats: rank lexical-only hits, rerank a wider pool) ✅ + #559 (judge prompt `v3`) ✅ + #561 (SonarCloud backlog, 214 issues) ✅ + re-baseline ✅ 2026-11-23 (#564; the judge now sees the whole context) + held-out judge check ✅ 2026-11-25, AI-graded (#569: `answer_correct` reads about 0.15 high) + human calibration replaced by a strong model's blind grades (decided 2026-11-27) + faithfulness calibrated ✅ 2026-11-27 (-0.08 bias, errors both ways) + answers flag missing evidence ✅ 2026-11-27 (prompt rule 2; 3 confidently wrong answers became honest, 1 correct one gained a needless refusal) — **sprint complete** | 1 day |
 | — | Initiative 13 (RF-1..RF-5, retrieval flexibility) — future work, unscheduled by decision (2026-10-23; RF-5 added 2026-10-30) | — |
 | — | Initiative 14 (DP-0..DP-3, deployment patterns) — unscheduled (2026-11-14) | — |
-| **Status** | Sprints 1–11, 13 and 15–29 done; 12 and 14 parked; 30 open. The August estimate this row carried (~22 weeks) described a plan re-ordered twice since | — |
+| **Status** | Sprints 1–11, 13 and 15–30 done; 12 and 14 parked. The August estimate this row carried (~22 weeks) described a plan re-ordered twice since | — |
 
 **Execution order from 2026-10-22** (followed through Sprint 11, finished 2026-11-15; kept as the record of why). Finish Sprint 9 (#452). Then Sprints 22 to 28, in
 order; inside them, Phase 3 runs alongside Phase 2. Then Sprint 29, then Sprints 10 and 11 on top of the new
