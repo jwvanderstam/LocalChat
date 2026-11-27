@@ -97,11 +97,26 @@
       "direction": "all 11 disagreements have the judge more lenient than the grader",
       "caveats": "Held out: 48 fresh cases drafted by mistral from passages sharing no 12-word run with the 105 baseline cases or their proofs; the same AI assistant rejected 9, reworded 7 references and graded the 39 answers, so the grader is not independent of the case set. qwen2.5:14b answered, current retrieval. The judge gave 8 answers no faithfulness verdict."
     },
-    "faithfulness": "uncalibrated: no human faithfulness grades exist for judge v3"
+    "judge_v2_faithful_2026-11-27": {
+      "graders": [
+        "claude-opus-5-5"
+      ],
+      "ai_graded": "every grade is an AI assistant's, blind to the judge, every specific claim checked against the context the answer model saw; faithfulness needs no reference, so the grader wrote nothing it graded against",
+      "all": {
+        "n": 19,
+        "exact": 0.737,
+        "within_one": 0.895,
+        "judge_bias": -0.079
+      },
+      "graded_mean": 0.947,
+      "judge_mean": 0.868,
+      "direction": "both ways: the judge gave full marks to the 2 answers that added unsupported details (14, 61), and graded 3 faithful answers down, 2 of them to 0 — one of those (101) a true \"I don't have that information\", which its own prompt calls faithful",
+      "caveats": "20 answers sampled from the 2026-11-23 baseline run (qwen2.5:14b, current retrieval); the judge gave 1 no verdict. n is small: read the bias as a direction. The judge's faithfulness penalises a true 'not in the documents' answer, so it cannot measure a prompt change that asks for more of them."
+    }
   },
   "notes": [
-    "answer_correct is judged by mistral with prompt v3, which grades against the reference alone. Its agreement with blind grades by an AI assistant (0.85 exact, +0.07 bias; 0.94 on qwen2.5:14b answers) is in-sample: v3 was designed and chosen on those grades. A 2026-11-25 check, mostly AI-graded, reads lower, and a held-out check the same day, AI-graded, lower still: 0.72 exact, +0.17 bias, so read answer_correct as about 0.15 too high. See calibration. Human calibration stays open.",
-    "faithfulness is uncalibrated: no human faithfulness grades exist for judge v3. 16 of 105 cases got no usable faithfulness verdict and 1 no correctness verdict; both means are over the scored cases.",
+    "answer_correct is judged by mistral with prompt v3, which grades against the reference alone. Its agreement with blind grades by an AI assistant (0.85 exact, +0.07 bias; 0.94 on qwen2.5:14b answers) is in-sample: v3 was designed and chosen on those grades. A 2026-11-25 check, mostly AI-graded, reads lower, and a held-out check the same day, AI-graded, lower still: 0.72 exact, +0.17 bias, so read answer_correct as about 0.15 too high. See calibration. Calibration by a strong model's blind grades replaced human calibration on 2026-11-27 (ROADMAP P2-3).",
+    "faithfulness (the v2 call) was calibrated 2026-11-27 against blind grades by an AI assistant: 0.74 exact, -0.08 bias on 19 answers, with errors both ways; read it as roughly right on average and wrong case by case. See calibration. 16 of 105 cases got no usable faithfulness verdict and 1 no correctness verdict; both means are over the scored cases.",
     "The judge saw the whole context the answer model saw. The 2026-11-22 run, which cut it at 6000 characters, read faithfulness 0.659 on the same retrieval; this run reads 0.792."
   ]
 }
