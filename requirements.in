@@ -41,14 +41,14 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Web Framework — FastAPI (ASGI)
-fastapi==0.162.5
+fastapi==0.165.0
 uvicorn[standard]==0.54.0
 httpx==0.28.1          # async inference + sync admin/embedding client
 
 Werkzeug==3.1.9  # used by src/db/users.py for password hashing (werkzeug.security)
 
 # Caching
-redis==8.1.0  # Redis cache backend (optional but recommended)
+redis==8.2.0  # Redis cache backend (optional but recommended)
 
 # Security
 PyJWT==2.15.1                       # JWT — HS256 over hashlib; pure Python, no ecdsa (P2-6)
@@ -60,15 +60,15 @@ psycopg-pool==3.3.3
 
 # Database migrations
 alembic==1.20.1
-sqlalchemy==2.1.8  # required by alembic; postgresql+psycopg dialect for psycopg3
+sqlalchemy==2.1.9  # required by alembic; postgresql+psycopg dialect for psycopg3
 
 # Validation
-pydantic==2.14.3
-email-validator==2.3.0
+pydantic==2.14.4
+email-validator==2.4.0
 
 # Document Processing
-pypdf==7.0.1
-pdfplumber==0.11.10  # Enhanced PDF extraction with table support
+pypdf==7.1.1
+pdfplumber==0.11.11  # Enhanced PDF extraction with table support
 pdfminer.six==20260107  # Pinned: pdfplumber 0.11.10 requires exactly this version
 # Layout-aware PDF extraction for column-heavy documents (optional). Since 2.0 the
 # pymupdf4llm module ships inside pymupdf; the pymupdf4llm 2.0 package is an empty
@@ -79,11 +79,11 @@ pymupdf==2.1
 # 1.30.0 boots (docker-smoke green on #371, 2026-09-14), and so does 1.31.0 (#442,
 # 2026-10-17). Keep 1.29.x out. The
 # docker-smoke job is what catches a regression here — pip install will not.
-onnxruntime==1.31.1
+onnxruntime==1.32.0
 langdetect==1.0.9      # Language detection for multilingual document support
 python-docx==1.2.0
 python-pptx==1.0.2
-reportlab==5.1.0             # PDF export for conversation download (optional)
+reportlab==5.1.1             # PDF export for conversation download (optional)
 openpyxl==3.1.5         # Excel (.xlsx) ingestion
 h11==0.16.0        # Pinned directly: 0.16.0 fixes CVE-2025-43859 (HTTP request smuggling)
 spacy==3.8.18      # GraphRAG entity extraction — optional; also run: python -m spacy download en_core_web_sm
@@ -101,10 +101,10 @@ ddgs==9.16.1
 psutil==7.2.2
 
 # Numerical processing for vector operations
-numpy==2.5.4
+numpy==2.5.5
 
 # Multipart form handling
-python-multipart==0.0.33
+python-multipart==0.0.34
 
 # Markdown rendering
 markdown==3.11.3
