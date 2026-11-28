@@ -8,6 +8,28 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
 
 ## [Unreleased]
 
+## [3.8.0] — 2026-11-28
+
+The answer-quality release, from P2-3's evaluation on a private corpus: answers that carry the
+passage's specifics, say when the documents do not state the fact asked for, and draw on chunks
+only the full-text search found. GraphRAG, off by default and measured to change nothing, is
+removed.
+
+A minor, by the policy's test that an upgrade asks nothing of the operator. It does remove a
+setting and an endpoint, which the policy's examples list as major; neither needs any action:
+a leftover `GRAPH_RAG_ENABLED` is ignored, and the ontology endpoint returned nothing with
+GraphRAG off and had no caller in the UI, MCP servers or plugins.
+
+**Upgrading from 3.7.0.**
+
+- No migrations. The `entities` and `entity_relations` tables stay, unused.
+- Answers are longer, so they take longer to stream.
+- Reranking a wider pool costs CPU time per question; `RERANK_CANDIDATES=12` restores the
+  previous behaviour.
+- `GRAPH_RAG_ENABLED` is ignored and can be removed from `.env`.
+- An API client calling `GET /api/workspaces/{id}/ontology` now gets 404, and
+  `/api/status`'s `features` no longer carries `graph_rag`.
+
 ### Changed
 
 - **Chat answers from documents are complete, not concise.** The RAG system prompt asked for
@@ -25,6 +47,10 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   stated for exactly what was asked, and otherwise to say which part the documents do not
   state. On the evaluation corpus, three confidently wrong answers became honest ones; one
   correct answer also gained an unneeded "I don't have that information".
+
+- **Dependencies: 14 minor and patch updates (#573),** among them FastAPI 0.165, pydantic
+  2.14.4, pypdf 7.1.1 and onnxruntime 1.32. onnxruntime is the package whose 1.29.0 shipped an
+  image that died on start (LESSONS_LEARNED Ch. 17); `docker-smoke` booted this one.
 
 ### Removed
 
@@ -1526,7 +1552,10 @@ eighth closed on 2026-08-27 and the gate was lifted on 2026-08-31.
   of three carrying a runtime dependency.
 - **`requirements.lock.txt`**, which neither Docker nor CI installed and nothing validated.
 
-[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.5.0...HEAD
+[Unreleased]: https://github.com/jwvanderstam/LocalChat/compare/v3.8.0...HEAD
+[3.8.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.7.0...v3.8.0
+[3.7.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.6.0...v3.7.0
+[3.6.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.4.0...v3.5.0
 [3.4.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/jwvanderstam/LocalChat/compare/v3.2.0...v3.3.0
