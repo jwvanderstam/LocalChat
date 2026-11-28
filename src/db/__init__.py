@@ -22,7 +22,6 @@ from .connectors import ConnectorsRepository
 from .contributions import ContributionsRepository
 from .conversations import ConversationsRepository
 from .documents import DocumentsRepository
-from .entities import EntitiesRepository
 from .feedback import FeedbackRepository
 from .memories import MemoriesRepository
 from .oauth_tokens import OAuthTokensRepository
@@ -65,7 +64,6 @@ class Database(DatabaseConnection):
         self.oauth_tokens = OAuthTokensRepository(self)
         self.feedback = FeedbackRepository(self)
         self.annotations = AnnotationsRepository(self)
-        self.entities = EntitiesRepository(self)
         self.contributions = ContributionsRepository(self)
 
 

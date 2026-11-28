@@ -13,7 +13,6 @@ from collections import defaultdict
 from typing import Any, Literal, NamedTuple
 
 from .. import config
-from ..db import db
 from ..monitoring import counted, timed
 from ..ollama_client import (
     ollama_client,  # noqa: F401 — unused directly, but tests patch this module attribute via mock.patch("src.rag.retrieval.ollama_client")
@@ -394,22 +393,6 @@ class Retriever:
             for r in deduped
         ]
 
-    @staticmethod
-    def _expand_with_graph(query_clean: str, scope: Scope) -> str:
-        """The query plus GraphRAG's 1-hop terms from *scope*, or unchanged when it is off or fails."""
-        if not config.GRAPH_RAG_ENABLED:
-            return query_clean
-        try:
-            from ..graph.expander import QueryExpander
-            extra_terms = QueryExpander().expand(query_clean, db, scope=scope)
-        except Exception as graph_exc:  # noqa: BLE001 — GraphRAG expansion is optional; the query proceeds unexpanded
-            logger.debug(f"[GraphRAG] Expansion skipped: {graph_exc}")
-            return query_clean
-        if not extra_terms:
-            return query_clean
-        logger.debug(f"[GraphRAG] Expanded query with: {extra_terms}")
-        return query_clean + " " + " ".join(extra_terms)
-
     @timed('rag.retrieve_context')
     @counted('rag.retrieval_requests')
     def retrieve_context(
@@ -453,7 +436,7 @@ class Retriever:
         logger.info(f"[RAG] Retrieve context - query: {query[:80]}...")
         logger.debug(f"[RAG] Parameters: top_k={top_k}, min_sim={min_similarity}, hybrid={use_hybrid_search}")
 
-        query_clean = self._expand_with_graph(self._preprocess_query(query), scope)
+        query_clean = self._preprocess_query(query)
 
         _app_emb_cache = self._get_app_cache()
 

@@ -1,4 +1,4 @@
-"""Workspace routes — CRUD, members, presence SSE, ontology, suggestions."""
+"""Workspace routes — CRUD, members, presence SSE, suggestions."""
 
 from __future__ import annotations
 
@@ -318,22 +318,6 @@ def workspace_suggestions(
         return {"success": True, "workspace_id": workspace_id, "suggestions": suggestions}
     except Exception:
         logger.exception("[Workspaces] suggestions error")
-        return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
-
-
-@router.get("/workspaces/{workspace_id}/ontology")
-def workspace_ontology(
-    workspace_id: UuidId, request: Request, workspaces_svc: Workspaces, top_n: int = 20
-) -> Any:
-    denied = _deny(request, workspace_id, "viewer")
-    if denied:
-        return denied
-    top_n = min(top_n, 100)
-    try:
-        ontology = workspaces_svc.ontology(top_n, get_scope(request))
-        return {"success": True, "workspace_id": workspace_id, **ontology}
-    except Exception:
-        logger.exception("[Workspaces] ontology error")
         return JSONResponse({"success": False, "message": _ERR_INTERNAL}, status_code=500)
 
 

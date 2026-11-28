@@ -230,11 +230,6 @@ class TestContributions:
 
 
 class TestWorkspaceInsights:
-    def test_ontology_is_read_in_the_scope(self):
-        db = MagicMock()
-        WorkspacesService(db).ontology(20, SCOPE)
-        db.entities.workspace_ontology.assert_called_once_with(top_n=20, scope=SCOPE)
-
     def test_suggestions_are_drawn_from_the_scope(self):
         db = MagicMock()
         with patch("src.rag.active_learning.suggest_documents", return_value=["pricing"]) as suggest:

@@ -277,7 +277,7 @@ KEEP_TABLES_INTACT = True     # Don't split tables across chunks
 
 **Added 2026-08-27.** The sections above were written by hand and covered 45 of the 107
 values `src/config.py` reads. The 65 below were reachable, documented nowhere, and include
-the master switches for web search, tool calling, GraphRAG, MCP, plugins, model routing and
+the master switches for web search, tool calling, MCP, plugins, model routing and
 the cloud fallback — every one of them a feature you could not discover from this page.
 
 Defaults are read from `src/config.py`; where a default is empty the feature is off or the
@@ -297,7 +297,6 @@ absent unless you set it — which is the answer to "why is this doing nothing?"
 | `WEB_SEARCH_ENABLED` | `True` | DuckDuckGo live search as an LLM tool |
 | `TOOL_CALLING_ENABLED` | `True` | The function-calling loop (`src/tools/`) |
 | `QUERY_PLANNER_ENABLED` | `True` | Decomposes a query into a `QueryPlan` before retrieval |
-| `GRAPH_RAG_ENABLED` | `False` | Entity extraction at ingest + 1-hop query expansion. **Requires spaCy's `en_core_web_sm`**; without it the flag is on and the feature is inert — the app warns at startup |
 | `LONG_TERM_MEMORY_ENABLED` | `False` | Extracts durable facts from conversations and injects them into the prompt |
 | `MODEL_ROUTER_ENABLED` | `false` | Rule-based routing to a model class per query |
 | `AGGREGATOR_AGENT_ENABLED` | `false` | Parallel tool dispatch with retry and dedup |

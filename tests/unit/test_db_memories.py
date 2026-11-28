@@ -1,16 +1,7 @@
 """
-Tests for src/db/entities.py (EntitiesRepository) and src/db/memories.py (MemoriesRepository)
+Tests for src/db/memories.py (MemoriesRepository)
 
 Covers:
-  EntitiesRepository:
-    - upsert_entity: DB unavailable raises, returns UUID string
-    - insert_entity_relation: DB unavailable is silent, normal call
-    - delete_document_entities: DB unavailable is silent
-    - get_related_entity_names: empty list, DB unavailable, returns rows
-    - get_entity_by_name: not found, found
-    - get_all_entities: DB unavailable returns []
-    - get_entity_stats: DB unavailable returns zeros
-
   MemoriesRepository:
     - insert_memory: DB unavailable raises, returns UUID
     - update_memory_usage: empty list no-op, DB unavailable no-op, normal
@@ -56,16 +47,6 @@ def _make_conn_ctx(fetchone_return=None, fetchall_return=None, rowcount=0):
     return conn, cur
 
 
-def _entities_mixin(connected=True, **conn_kwargs):
-    from src.db.entities import EntitiesRepository
-
-    conn, cur = _make_conn_ctx(**conn_kwargs)
-    m = _host(EntitiesRepository, "entities")
-    m.is_connected = connected
-    m.get_connection = MagicMock(return_value=conn)
-    return m, conn, cur
-
-
 class _Host:
     """The connection a repository runs over, holding it as ``Database`` does."""
 
@@ -87,82 +68,6 @@ def _memories_mixin(connected=True, **conn_kwargs):
     m._embedding_to_pg_array = MagicMock(return_value="[0.1,0.2]")
     m.memories = MemoriesRepository(m)
     return m, conn, cur
-
-
-# ===========================================================================
-# EntitiesRepository
-# ===========================================================================
-
-class TestUpsertEntity:
-    def test_raises_when_db_unavailable(self):
-        from src.db.connection import DatabaseUnavailableError
-        m, _, _ = _entities_mixin(connected=False)
-        with pytest.raises(DatabaseUnavailableError):
-            m.entities.upsert("Apple", "ORG")
-
-    def test_returns_string_id(self):
-        eid = str(uuid.uuid4())
-        m, _, cur = _entities_mixin(fetchone_return=(eid,))
-        result = m.entities.upsert("Apple", "ORG")
-        assert result == eid
-
-    def test_calls_executemany_or_execute(self):
-        m, _, cur = _entities_mixin(fetchone_return=(str(uuid.uuid4()),))
-        m.entities.upsert("Google", "ORG")
-        assert cur.execute.call_count >= 1
-
-
-class TestInsertEntityRelation:
-    def test_no_op_when_db_unavailable(self):
-        m, _, _ = _entities_mixin(connected=False)
-        # Should not raise
-        m.entities.insert_relation("id-a", "id-b", 1, 10)
-        m.get_connection.assert_not_called()
-
-    def test_calls_connection_when_connected(self):
-        m, conn, _ = _entities_mixin()
-        m.entities.insert_relation("id-a", "id-b", 1, 10)
-        m.get_connection.assert_called_once()
-
-    def test_custom_relation_and_weight(self):
-        m, _, cur = _entities_mixin()
-        m.entities.insert_relation("a", "b", 1, 2, relation="co_authors", weight=3.0)
-        assert cur.execute.call_count >= 1
-
-
-class TestGetRelatedEntityNames:
-    def test_returns_empty_for_empty_input(self):
-        m, _, _ = _entities_mixin()
-        result = m.entities.related_names([], scope=WS)
-        assert result == []
-        m.get_connection.assert_not_called()
-
-    def test_returns_empty_when_db_unavailable(self):
-        m, _, _ = _entities_mixin(connected=False)
-        result = m.entities.related_names(["Apple"], scope=WS)
-        assert result == []
-
-    def test_returns_names_from_db(self):
-        m, _, cur = _entities_mixin(fetchall_return=[("Google",), ("Microsoft",)])
-        result = m.entities.related_names(["Apple"], scope=WS)
-        assert result == ["Google", "Microsoft"]
-
-    def test_only_the_scopes_live_documents_are_read(self):
-        """R-12: a co-occurrence counts only through a live document of the scope."""
-        m, _, cur = _entities_mixin(fetchall_return=[])
-        m.entities.related_names(["Apple"], max_results=7, scope=WS)
-        statement, params = cur.execute.call_args.args
-        assert (
-            m.get_connection.call_args.kwargs["scope"],
-            "d.deleted_at IS NULL" in statement and "c.deleted_at IS NULL" in statement
-            and "AND d.workspace_id = %s" in statement,
-            params,
-        ) == (WS, True, (["Apple"], ["Apple"], WS, 7))
-
-    def test_a_missing_scope_is_refused(self):
-        m, _, _ = _entities_mixin()
-        with pytest.raises(ValueError):
-            m.entities.related_names(["Apple"], scope=None)
 
 
 # ===========================================================================

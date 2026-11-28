@@ -49,7 +49,6 @@ def _retriever() -> Retriever:
 def retriever():
     with (
         patch.object(config, "RERANKER_ENABLED", False),
-        patch.object(config, "GRAPH_RAG_ENABLED", False),
     ):
         yield _retriever()
 

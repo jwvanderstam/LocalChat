@@ -333,7 +333,6 @@ class TestApiStatusRoute:
             mc.MODEL_ROUTER_ENABLED = False
             mc.AGGREGATOR_AGENT_ENABLED = False
             mc.MCP_ENABLED = False
-            mc.GRAPH_RAG_ENABLED = False
             mc.LONG_TERM_MEMORY_ENABLED = False
             client = _make_client(router, "/api", state)
             resp = client.get("/api/status")
@@ -358,7 +357,6 @@ class TestApiStatusRoute:
             mc.MODEL_ROUTER_ENABLED = False
             mc.AGGREGATOR_AGENT_ENABLED = False
             mc.MCP_ENABLED = True
-            mc.GRAPH_RAG_ENABLED = False
             mc.LONG_TERM_MEMORY_ENABLED = False
             client = _make_client(router, "/api", state)
             resp = client.get("/api/status")

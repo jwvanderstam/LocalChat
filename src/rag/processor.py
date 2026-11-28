@@ -14,11 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from .. import config
-from ..db import db
-from ..monitoring import counted, timed
 
-# Read via globals() in __init__ so tests can patch src.rag.processor.ollama_client;
-# ruff cannot see that access, hence the noqa.
+# Both read via globals() in __init__ so tests can patch src.rag.processor.db and
+# .ollama_client; ruff cannot see that access, hence the noqa.
+from ..db import db  # noqa: F401
+from ..monitoring import counted, timed
 from ..ollama_client import ollama_client  # noqa: F401
 from ..plugins.hooks import hook_bus
 from ..utils.logging_config import get_logger
@@ -403,32 +403,6 @@ class DocumentProcessor:
             progress_callback(f"Replacing existing document '{filename}'...")
         return None, doc_info['id']
 
-    def _extract_entities(
-        self,
-        doc_id: int,
-        chunk_ids: list[int],
-        chunks_data: list[dict[str, Any]],
-    ) -> None:
-        """Best-effort GraphRAG entity extraction; never fails the ingest.
-
-        Kept out of ingest_document because it is an optional side-effect with its
-        own failure handling, and inlining it pushed that function past the
-        cognitive-complexity limit.
-        """
-        if not config.GRAPH_RAG_ENABLED:
-            return
-        try:
-            from ..graph.extractor import EntityExtractor
-            # Build chunks_with_ids from in-memory data + returned IDs —
-            # avoids a DB round-trip to re-fetch what we just inserted.
-            chunks_with_ids = [
-                {'chunk_id': cid, 'chunk_text': cd['chunk_text']}
-                for cid, cd in zip(chunk_ids, chunks_data, strict=False)
-            ]
-            EntityExtractor().extract_for_document(doc_id, chunks_with_ids, db)
-        except Exception as graph_exc:  # noqa: BLE001 — GraphRAG enrichment is best-effort and never fails an ingest
-            logger.warning(f"[GraphRAG] Entity extraction failed (non-fatal): {graph_exc}")
-
     @timed('rag.ingest_document')
     @counted('rag.document_ingestions')
     def ingest_document(
@@ -541,11 +515,10 @@ class DocumentProcessor:
                     )
                 for chunk in chunks_data:
                     chunk['doc_id'] = doc_id
-                chunk_ids = self._db.documents.insert_chunks(chunks_data, conn=conn, scope=scope)
+                self._db.documents.insert_chunks(chunks_data, conn=conn, scope=scope)
             logger.debug(f"Document ID: {doc_id}")
             logger.info("Chunks inserted successfully")
 
-            self._extract_entities(doc_id, chunk_ids, chunks_data)
             # Here and not in SyncWorker: a connector ingests through this method too, so
             # emitting in both would announce one document twice.
             hook_bus.emit("on_document_ingested", {

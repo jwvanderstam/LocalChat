@@ -94,7 +94,6 @@ def _config_patch(active_model="llama3.2"):
             cfg.PLUGINS_ENABLED = False
             cfg.CLOUD_REFUSAL_PATTERNS = []
             cfg.TOP_K_RESULTS = 5
-            cfg.GRAPH_RAG_ENABLED = False
             cfg.DEFAULT_TEMPERATURE = 0.7
             # chat.py reads from its own config reference
             chat_cfg.WEB_SEARCH_ENABLED = False
@@ -345,7 +344,6 @@ class TestApiStatus:
                     cfg.MCP_ENABLED = False
                     cfg.MODEL_ROUTER_ENABLED = False
                     cfg.AGGREGATOR_AGENT_ENABLED = False
-                    cfg.GRAPH_RAG_ENABLED = False
                     cfg.LONG_TERM_MEMORY_ENABLED = False
                     resp = client.get("/api/status")
         return resp

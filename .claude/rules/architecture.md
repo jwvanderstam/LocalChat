@@ -12,7 +12,7 @@ No SQL, no LLM calls, no business logic inside route functions, and no database:
 
 ## Database access
 
-- All SQL lives in `src/db/`, in one repository class per aggregate (`UsersRepository`, `DocumentsRepository`, …) held as an attribute of `Database`: `db.users`, `db.tokens`, `db.workspaces`, `db.members`, `db.api_keys`, `db.documents`, `db.conversations`, `db.memories`, `db.connectors`, `db.oauth_tokens`, `db.feedback`, `db.annotations`, `db.entities`, `db.contributions`. QP-4 replaced every mixin; repositories carry no business rules.
+- All SQL lives in `src/db/`, in one repository class per aggregate (`UsersRepository`, `DocumentsRepository`, …) held as an attribute of `Database`: `db.users`, `db.tokens`, `db.workspaces`, `db.members`, `db.api_keys`, `db.documents`, `db.conversations`, `db.memories`, `db.connectors`, `db.oauth_tokens`, `db.feedback`, `db.annotations`, `db.contributions`. QP-4 replaced every mixin; repositories carry no business rules.
 - Never write raw SQL in routes, services, or tools.
 - The `Database` class in `src/db/__init__.py` is the connection pool holding the repositories; it stays (ADR-7, amended 2026-10-25). A new aggregate is a new repository attribute (ADR-7).
 - A route reaches the database only through a service, requested with `Depends(...)` from `src/routes_fastapi/_services.py`; it never reads `app.state.db`.

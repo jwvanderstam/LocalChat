@@ -148,7 +148,6 @@ def _status_payload(active_model):
         cfg.MCP_ENABLED = False
         cfg.MODEL_ROUTER_ENABLED = False
         cfg.AGGREGATOR_AGENT_ENABLED = False
-        cfg.GRAPH_RAG_ENABLED = False
         cfg.LONG_TERM_MEMORY_ENABLED = False
         return client.get("/api/status", headers=auth_headers()).json()
 

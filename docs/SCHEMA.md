@@ -301,7 +301,7 @@ Running retrieval and feedback counters per chunk. One row per chunk (1-to-1 wit
 
 ### `entities`
 
-Named entities extracted by GraphRAG from ingested documents.
+Named entities extracted by GraphRAG from ingested documents. **Unused since GraphRAG was removed (2026-11-27):** nothing writes or reads it, and it stays because migrations are additive.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -314,7 +314,7 @@ Named entities extracted by GraphRAG from ingested documents.
 
 ### `entity_relations`
 
-Co-occurrence relationships between entities, anchored to specific chunks.
+Co-occurrence relationships between entities, anchored to specific chunks. Unused since 2026-11-27, like `entities`.
 
 | Column | Type | Notes |
 |--------|------|-------|

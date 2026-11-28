@@ -26,6 +26,15 @@ reasoning attached, in [docs/history/LESSONS_LEARNED.md](docs/history/LESSONS_LE
   state. On the evaluation corpus, three confidently wrong answers became honest ones; one
   correct answer also gained an unneeded "I don't have that information".
 
+### Removed
+
+- **GraphRAG.** Entity extraction at ingest and 1-hop query expansion (`src/graph/`), the
+  `GRAPH_RAG_ENABLED` setting, the `GET /api/workspaces/{id}/ontology` endpoint that read its
+  entities, and the spaCy dependency. It was off by default, and on two corpora it reached at
+  most 2 questions in 20 and changed no ranking (DEL-2). The `entities` and `entity_relations`
+  tables stay, unused, because migrations are additive. **Upgrading:** remove
+  `GRAPH_RAG_ENABLED` from `.env` if it is set; it is now ignored. The image is smaller.
+
 ### Fixed
 
 - **Settings opens for users who are not admins.** Since v3.4.0 the page answered 500 to every

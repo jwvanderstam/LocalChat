@@ -439,7 +439,6 @@ class TestApiRoutesExtended:
             mc.MCP_ENABLED = False
             mc.MODEL_ROUTER_ENABLED = False
             mc.AGGREGATOR_AGENT_ENABLED = False
-            mc.GRAPH_RAG_ENABLED = False
             mc.LONG_TERM_MEMORY_ENABLED = False
             mc.WEB_SEARCH_ENABLED = False
             with patch("src.routes_fastapi.api_routes.tool_registry", create=True) as mreg:

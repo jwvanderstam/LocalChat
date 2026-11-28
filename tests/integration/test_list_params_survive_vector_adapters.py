@@ -10,10 +10,8 @@ on any `list[str]`. Every `= ANY(%s)` in the codebase was therefore dead:
 
 * `search_similar_chunks(filename_filter=...)` and `source_ids=...` — the "chat with
   only these documents" feature, which raised up through `retrieve_context()`.
-* `get_related_entity_names()` — GraphRAG's 1-hop expansion, whose caller catches
-  `Exception`, logs at **debug** and returns `[]`. The feature never once ran, and
-  DEL-2's recorded "expansion fires on 0/20 questions" was measuring that crash
-  rather than a semantic mismatch.
+* GraphRAG's entity lookup (removed 2026-11-27), whose caller caught `Exception` and
+  returned `[]`, so DEL-2's "expansion fires on 0/20 questions" measured that crash.
 
 The dumper was vestigial: every embedding is serialised by `_embedding_to_pg_array()`
 and passed to an explicit `%s::vector` cast, so no raw list ever needed adapting. Only
@@ -105,34 +103,16 @@ def _run(dbname: str, body: str) -> subprocess.CompletedProcess[str]:
 
 @pytest.mark.db
 class TestListOfStringsIsAcceptedAsAParameter:
-    def test_entity_lookup_returns_the_co_occurring_name(self, database):
+    def test_a_bare_any_over_a_list_of_strings_returns_the_match(self, database):
         """`= ANY(%s)` with a list[str]. Asserts the value, not merely no exception."""
         result = _run(database, """
 from src.db import Database
 from src.utils.scope import ALL_WORKSPACES
 db = Database(); db.initialize()
-# entity_relations.doc_id/chunk_id are foreign keys, so a relation needs real rows.
-doc = db.documents.insert('entities.md', 'Ollama and Postgres', {}, 'hash-ent', scope=ALL_WORKSPACES)
-chunk_ids = db.documents.insert_chunks([(doc, 'Ollama and Postgres', 0, [0.02] * 768)], scope=ALL_WORKSPACES)
-a = db.entities.upsert('Ollama', 'PRODUCT')
-b = db.entities.upsert('Postgres', 'ORG')
-db.entities.insert_relation(a, b, doc, chunk_ids[0])
-names = db.entities.related_names(['Ollama'], max_results=5, scope=ALL_WORKSPACES)
-assert names == ['Postgres'], names
-db.close()
-print('OK')
-""")
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert "OK" in result.stdout
-
-    def test_a_name_with_no_relations_returns_empty_not_an_error(self, database):
-        """The negative case: empty is a real answer here, and must not be an exception."""
-        result = _run(database, """
-from src.db import Database
-from src.utils.scope import ALL_WORKSPACES
-db = Database(); db.initialize()
-db.entities.upsert('Solitary', 'ORG')
-assert db.entities.related_names(['Solitary'], max_results=5, scope=ALL_WORKSPACES) == []
+with db.get_connection(scope=ALL_WORKSPACES) as conn:
+    hit = conn.execute("SELECT 'PERMISSIONS.md' = ANY(%s)", (['README.md', 'PERMISSIONS.md'],)).fetchone()[0]
+    miss = conn.execute("SELECT 'Solitary' = ANY(%s)", (['README.md'],)).fetchone()[0]
+assert (hit, miss) == (True, False), (hit, miss)
 db.close()
 print('OK')
 """)
